@@ -27,6 +27,7 @@ import { removalCopyRefusal } from "./removal-persist-asides.js";
 import { checkUnrecordedProjectionCopies } from "./removal-asides.js";
 import { findRetainedReleaseEntry, retainedReleaseEntry, unfinishedReleaseRemedy } from "./release-entries.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
+import { firstUnreadArchiveScope } from "./archive-selection.js";
 
 /** Persist the target and remove only a linked checkout's projection. */
 export async function releaseProjectionRemoval(checkout: string, _isPrimary: boolean,
@@ -49,7 +50,12 @@ async function removeLinkedProjection(root: ProjectionRootState, initial: Projec
   // Nothing of an absent withheld entry remains on disk, so release discards it wherever the ignore check passes, as its
   // removal check predicts, including under another identity's root that persist leaves alone.
   const releasable = (path: string): boolean => ignoreMark === undefined || root.writable(path);
-  const index = await releaseAbsentWithheldPaths({ checkout: root.checkout, writable: releasable }, initial, Object.keys(initial.entries));
+  const index = await releaseAbsentWithheldPaths(root, initial, Object.keys(initial.entries), releasable);
+  const access = firstUnreadArchiveScope(root);
+  if (access !== undefined) {
+    if (index !== initial) await commitProjectionIndex({ checkout: root.checkout, location: root.location, index, checkpoint: root.context.checkpoint });
+    return { kind: "refused", remedy: retirementRefusal(root.checkout, access[0], access[1], "release") };
+  }
   const retained = await retainedReleaseRefusal(root, index, ignoreMark, releasable);
   if (retained !== undefined) return { kind: "refused", remedy: retained };
   const observed = observeRemovalSends(root);

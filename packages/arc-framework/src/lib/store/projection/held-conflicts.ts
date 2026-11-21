@@ -1,7 +1,18 @@
 /** Retain and report open conflicts that cannot be drawn into a refused projected file. */
-import { sameReference, type RecordReference } from "../identity.js";
+import { randomUUID } from "node:crypto";
+import { RecordReferenceSchema, sameReference, type RecordReference } from "../identity.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
+
+/** Bind a checkout-only base disagreement to the existing explicit save resolution. */
+export function baseDisagreementMark(reference: RecordReference, explanation = "The save's possible bases give different merges."): RefusedMark {
+  const token = formatConflictToken(RecordReferenceSchema.parse({ owner: reference.owner,
+    kind: `${reference.kind.split("/")[0]}/conflict-record`, key: randomUUID() }));
+  return { reason: "bases-disagree", remedy: {
+    text: `${explanation} Keep the stored side, or resolve with arc save --resolve ${token}.`,
+    argv: ["arc", "save", "--resolve", token],
+  } };
+}
 
 /** Find current open conflicts absent from both the file's marker and notice metadata. */
 export function unshownConflicts(entry: RecordEntry, open: readonly RecordReference[]): RecordReference[] {

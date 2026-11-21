@@ -38,7 +38,7 @@ import { prepareMarkerContent } from "./marker-preparation.js";
 import { checkStoredResolution } from "./stored-resolution.js";
 import type { MarkerParseResult } from "./marker-parse.js";
 import { sameReference, type RecordReference, type RecordVersion } from "../identity.js";
-import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
+import { baseDisagreementMark, heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 import { mergeCheckoutBase, prepareAmbiguousDrawing, type CheckoutDrawing, type CheckoutMerge } from "./checkout-merge.js";
 import { decideWriteBackRefusal } from "./write-refusal.js";
 import { explicitResolutionMarkerRefusal } from "./save-markers.js";
@@ -257,6 +257,13 @@ async function ambiguousPreparation(context: WriteBackContext, request: TakeInRe
 
 async function heldBasePreparation(context: WriteBackContext, request: TakeInRequest, file: Extract<ReadEdit, { kind: "read" }>, held: Extract<WriteBackBaseDecision, { kind: "held" }>): Promise<PreparedWriteBack> {
   const { mark, readRefusal } = held;
+  if (held.keepLive) {
+    const entry = request.entry;
+    const refused = entry.refused?.reason === "bases-disagree" ? entry.refused
+      : baseDisagreementMark(entry.reference, mark.remedy.text);
+    return { kind: "held", diagnostic: refused, result: { answer: "refused", mark: refused,
+      entry: { ...entry, pending: true, refused } } };
+  }
   if (mark.reason === "ambiguous-base") return ambiguousPreparation(context, request, file);
   return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } }, diagnostic: mark,
     ...(readRefusal === undefined ? {} : { readRefusal }) };

@@ -15,7 +15,8 @@ import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 import { acceptedArchiveRecording } from "./archive-save-recording.js";
 import { projectionFileReader } from "./change-detection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { archiveLayPhase, isPredecessorArchiveAdoption, provesArchiveInstallation } from "./recording-state.js";
+import { refuseUnreadArchiveScope } from "./archive-selection.js";
+import { archiveLayPhase, awaitsArchiveInstallation, isPredecessorArchiveAdoption, provesArchiveInstallation } from "./recording-state.js";
 import { join } from "node:path";
 
 /** Record the returned creation basis with prepared content before attempting read-back. */
@@ -60,14 +61,16 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
   if (recorded.adoption === undefined) return index;
   entry = recorded;
   if (!root.writable(path)) return index;
-  const request = { checkout: root.checkout, path, copy: null, entry: { ...entry, refused: null, pending: false },
+  const refused = entry.refused?.reason === "bases-disagree" ? entry.refused : null;
+  const request = { checkout: root.checkout, path, copy: null, entry: { ...entry, refused, pending: false },
     base: { kind: "blob" as const, blob: entry.base.blob } };
   let baseline: TakeInRead;
   try { baseline = await adoptionBaseline(root, path, entry, adoption.read); }
   catch (error) {
     // A folder that refuses the archived file's stat holds this read-back with that refusal, as the other archive reads do.
     if (!(error instanceof ArchiveDestinationBlocked)) throw error;
-    return holdReadBack(root, index, path, entry, error.mark);
+    if (error.access) refuseUnreadArchiveScope(root, path, error.mark);
+    return holdReadBack(root, index, path, entry, error.mark, !error.access);
   }
   const installed = await installWriteBack(root.context, index, request, { kind: "landed", record: read.result,
     result: { answer: "taken-in", entry: request.entry, read: baseline } });
@@ -87,6 +90,7 @@ async function adoptionBaseline(root: ProjectionRootState, path: string, entry: 
   if (phase === "installed") return rendered;
   const current = await projectionFileReader(root.checkout, path).stat(join(root.checkout, path));
   if (provesArchiveInstallation(entry, current)) return rendered;
+  if (awaitsArchiveInstallation(entry) && current?.ino === original.stat.ino) return original;
   if (predecessor) {
     // The guard still hashes the live file against this basis if the writer only touched the original.
     return current?.ino === original.stat.ino || rendered.stat.ino === original.stat.ino ? original : rendered;
@@ -119,8 +123,8 @@ function completeReadBack(index: ProjectionIndex, path: string): ProjectionIndex
 }
 
 async function holdReadBack(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
-  mark: RefusedMark): Promise<ProjectionIndex> {
-  root.context.report?.({ path, copy: null, mark });
+  mark: RefusedMark, report = true): Promise<ProjectionIndex> {
+  if (report) root.context.report?.({ path, copy: null, mark });
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, { ...entry, pending: true, refused: mark }),
     checkpoint: root.context.checkpoint });

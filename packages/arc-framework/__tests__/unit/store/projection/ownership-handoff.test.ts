@@ -1,5 +1,5 @@
 /** Exclusive installation is proved by destination identity and full bytes, independent of a staging pathname. */
-import { link, mkdir, readFile, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, readFile, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { createHandoffFixture } from "../../../helpers/store/projection/handoff-fixture.js";
@@ -9,6 +9,7 @@ import { releaseAbsentWithheldPaths } from "../../../../src/lib/store/projection
 import { reconcileProjectionLinks } from "../../../../src/lib/store/projection/discovery-links.js";
 import { installProjectionHandoff } from "../../../../src/lib/store/projection/ownership-install.js";
 import { projectionEntryForRecord } from "../../../../src/lib/store/projection/materialization-file.js";
+import type { ProjectionIndex, RefusedMark } from "../../../../src/lib/store/projection/index-schema.js";
 
 /** One read of a path made to fail, or followed by a touch that moves its stat. */
 const reading = vi.hoisted(() => ({ next: null as { path: string; action: "fail" | "touch" } | null }));
@@ -190,4 +191,52 @@ it("keeps an archive handoff pending while its folder belongs to another checkou
   // The next command asks again.
   const confirmed = await reconcileProjectionHandoffs({ ...h.root, archiveSelection: new Map() }, held);
   expect(confirmed.entries[path]).toMatchObject({ reference: h.arrival.reference, pending: false, withheld: false });
+});
+
+it.each([false, true])("settles an accessible handoff with a refused archive sibling (known=%s)", async known => {
+  const h = await installedArrival();
+  const folder = ".arc/completed/2026-q4", path = `${folder}/arrival.txt`;
+  const arcFile = join(h.checkout, path);
+  const entry = h.journal.entries[h.path]!;
+  if (entry.kind !== "record") throw new Error("Missing the handoff record");
+  const journal = { ...h.journal, entries: { ...h.journal.entries, [path]: entry } };
+  const mark = { reason: "Access refused", remedy: { text: "Restore access and retry." } };
+  await mkdir(join(h.checkout, folder), { recursive: true });
+  await link(join(h.checkout, h.staged.location), arcFile);
+  const probed: string[] = [];
+  let deny = true;
+  const root = { ...h.root, archiveDiscoveryHolds: new Map<string, RefusedMark>(known ? [[folder, mark]] : []),
+    ports: { linkFs: { lstat: async (absolute: string) => {
+      probed.push(absolute);
+      if (deny && absolute === arcFile) throw Object.assign(new Error("Archive handoff access refused"), { code: "EACCES" });
+      return lstat(absolute);
+    } } } };
+  const recovered = await reconcileProjectionHandoffs(root, journal);
+  expect(probed.includes(arcFile)).toBe(!known);
+  expect(recovered.entries[path]).toMatchObject({ reference: entry.reference, pending: true, handoff: entry.handoff });
+  expect(recovered.entries[h.path]).toMatchObject({ reference: h.arrival.reference, pending: false });
+  if (!known) expect(root.archiveDiscoveryHolds.get(path)?.reason).toContain("EACCES");
+  deny = false;
+  const next = await reconcileProjectionHandoffs({ ...root, archiveDiscoveryHolds: new Map() }, recovered);
+  expect(next.entries[path]).toMatchObject({ reference: h.arrival.reference, pending: false });
+});
+
+it("retains a withheld destination denied during the absence walk and releases an accessible sibling", async () => {
+  const h = await installedArrival();
+  const path = ".arc/completed/2026-q4/withheld.txt", sibling = ".arc/active/withheld.txt";
+  const entry = { kind: "ownerless", stat: null, withheld: true,
+    refused: { reason: "withheld", remedy: { text: "Recover the local edit." } } } as const;
+  const index: ProjectionIndex = { ...h.journal, entries: { [path]: entry, [sibling]: entry } };
+  const root = { ...h.root, archiveDiscoveryHolds: new Map<string, RefusedMark>(), ports: { linkFs: {
+    lstat: async (absolute: string) => {
+      if (absolute === join(h.checkout, ".arc/completed")) {
+        throw Object.assign(new Error("Archive access refused"), { code: "EACCES" });
+      }
+      return lstat(absolute);
+    },
+  } } };
+  const released = await releaseAbsentWithheldPaths(root, index);
+  expect(released.entries[path]).toEqual(entry);
+  expect(released.entries[sibling]).toBeUndefined();
+  expect(root.archiveDiscoveryHolds.get(path)?.reason).toContain("EACCES");
 });

@@ -97,7 +97,8 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const selected = selection.files;
   if (input.onlyDeleted) await reportRemainingArchivedFiles(root, index, walked.files, desired.files);
   if (input.index === null) {
-    index = await recordRebuildDiscovery(root, index, new Set([...walked.files, ...swept.restoredUnindexed]), desired.files, whole);
+    const inventory = { files: new Set([...walked.files, ...swept.restoredUnindexed]), incomplete: walked.incomplete };
+    index = await recordRebuildDiscovery(root, index, inventory, desired.files, whole);
   }
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);

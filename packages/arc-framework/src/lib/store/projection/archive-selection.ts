@@ -15,7 +15,8 @@ export function hasPendingArchiveRecovery(index: ProjectionIndex, path: string):
 /** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */
 export type ArchiveChangeRefusal = (refused: WriteBackDiagnostic) => void;
 
-type SelectingRoot = Pick<ProjectionRootState, "checkout" | "archiveSelection" | "archiveDiscoveryHolds"> & {
+/** Command-local archive selection and its reporting boundary. */
+export type ArchiveSelectionRoot = Pick<ProjectionRootState, "checkout" | "archiveSelection" | "archiveDiscoveryHolds"> & {
   readonly context: Pick<ProjectionRootState["context"], "report">;
 };
 
@@ -26,7 +27,7 @@ type SelectingRoot = Pick<ProjectionRootState, "checkout" | "archiveSelection" |
  * reported once, at the first selection that does not leave its report to its caller. Discovery callers retain native
  * access failures as held scopes, including when they handle structural refusals themselves.
  */
-export function selectArchivePath(root: SelectingRoot, path: string, options: { report?: boolean; holdAccess?: boolean } = {}): RefusedMark | null {
+export function selectArchivePath(root: ArchiveSelectionRoot, path: string, options: { report?: boolean; holdAccess?: boolean } = {}): RefusedMark | null {
   if (!path.startsWith(".arc/completed/")) return null;
   const folderHold = unreadArchiveScope(root, path);
   if (folderHold !== null) return folderHold;
@@ -49,23 +50,28 @@ export function selectArchivePath(root: SelectingRoot, path: string, options: { 
 }
 
 /** Report an unreadable archive subtree once and leave its descendants to a later command. */
-export function refuseUnreadArchiveScope(root: SelectingRoot, path: string, mark: RefusedMark): void {
+export function refuseUnreadArchiveScope(root: ArchiveSelectionRoot, path: string, mark: RefusedMark, copy: string | null = null): void {
+  if (unreadArchiveScope(root, path) !== null) return;
   const holds = root.archiveDiscoveryHolds ??= new Map();
-  if (holds.has(path)) return;
   holds.set(path, mark);
   if (root.archiveSelection?.get(path)?.reported) return;
-  root.context.report?.({ path, copy: null, mark });
+  root.context.report?.({ path, copy, mark });
 }
 
 /** Find the command's discovery refusal at this path or one of its ancestors. */
-export function unreadArchiveScope(root: Pick<SelectingRoot, "archiveDiscoveryHolds">, path: string): RefusedMark | null {
+export function unreadArchiveScope(root: Pick<ArchiveSelectionRoot, "archiveDiscoveryHolds">, path: string): RefusedMark | null {
   if (root.archiveDiscoveryHolds === undefined) return null;
   for (const [folder, mark] of root.archiveDiscoveryHolds) if (path === folder || path.startsWith(`${folder}/`)) return mark;
   return null;
 }
 
+/** The first native refusal retained for an operation that requires a complete archive. */
+export function firstUnreadArchiveScope(root: Pick<ArchiveSelectionRoot, "archiveDiscoveryHolds">): [string, RefusedMark] | undefined {
+  return root.archiveDiscoveryHolds?.entries().next().value;
+}
+
 /** The archive refusal already known at a destination or an unread ancestor. */
-export function heldArchivePath(root: Pick<SelectingRoot, "archiveSelection" | "archiveDiscoveryHolds">, path: string): RefusedMark | null {
+export function heldArchivePath(root: Pick<ArchiveSelectionRoot, "archiveSelection" | "archiveDiscoveryHolds">, path: string): RefusedMark | null {
   return root.archiveSelection?.get(path)?.mark ?? unreadArchiveScope(root, path);
 }
 
@@ -73,7 +79,7 @@ export function heldArchivePath(root: Pick<SelectingRoot, "archiveSelection" | "
  * Keep a refusal met just before a change as the command's answer for that path: later selections leave the path
  * untouched, and the refusal is reported once, here or wherever the command first reported it.
  */
-export function refuseArchiveChange(root: SelectingRoot, path: string, mark: RefusedMark, copy: string | null = null): void {
+export function refuseArchiveChange(root: ArchiveSelectionRoot, path: string, mark: RefusedMark, copy: string | null = null): void {
   if (!path.startsWith(".arc/completed/")) {
     root.context.report?.({ path, copy, mark });
     return;
@@ -87,12 +93,12 @@ export function refuseArchiveChange(root: SelectingRoot, path: string, mark: Ref
 }
 
 /** A batch's report of a refusal met just before a change, kept as the command's answer for its path. */
-export function archiveChangeRefusals(root: SelectingRoot): ArchiveChangeRefusal {
+export function archiveChangeRefusals(root: ArchiveSelectionRoot): ArchiveChangeRefusal {
   return ({ path, copy, mark }) => { refuseArchiveChange(root, path, mark, copy); };
 }
 
 /** Whether this command refused any of the paths, at its selection or just before a change. */
-export function refusesArchivePath(root: Pick<SelectingRoot, "archiveSelection" | "archiveDiscoveryHolds">, paths: Iterable<string>): boolean {
+export function refusesArchivePath(root: Pick<ArchiveSelectionRoot, "archiveSelection" | "archiveDiscoveryHolds">, paths: Iterable<string>): boolean {
   for (const path of paths) if (heldArchivePath(root, path) !== null) return true;
   return false;
 }

@@ -461,4 +461,7 @@ _Amended in:_ review-fix (A2).
   discovery, withholding and reporting an unindexed edit before advancing state. Sync and retirement settle accessible
   copies and preserve held copies until a later command after repair (A14)
 
+- `[ ]` An interrupted Markdown adoption holds an ambiguous rename-over edit, its opening, and both bases until
+  explicitly reconciled. Exercise the existing save resolution for both readable journal formats (A15)
+
 - `[ ]` Ready for integration

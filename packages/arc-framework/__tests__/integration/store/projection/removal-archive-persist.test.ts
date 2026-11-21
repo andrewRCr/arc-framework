@@ -1,5 +1,5 @@
 /** Native retirement refuses unopened archive input before landing it, then continues after the named repair. */
-import { chmod, mkdir, readFile, rename, rm, utimes, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, rename, rm, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { readdirSync } from "node:fs";
 import { afterEach, expect, it, vi } from "vitest";
@@ -69,7 +69,8 @@ it("keeps a one-shot archive swap refusal through linked release's second check"
   expect(await h.retire("release")).toEqual({ kind: "released" });
 }, 30_000);
 
-it.each([["persist", "listing"], ["release", "listing"], ["persist", "authority"], ["release", "authority"]] as const)(
+it.each([["persist", "listing"], ["release", "listing"], ["persist", "authority"], ["release", "authority"],
+  ["persist", "opened leaf"], ["release", "opened leaf"]] as const)(
   "%s settles an accessible copy when an archive folder denies %s", async (operation, denied) => {
   const h = await archiveRetirementFixture();
   const { location, index } = await h.disk(), writer = await createProjectionEnginePorts(h.checkout).writer();
@@ -77,21 +78,33 @@ it.each([["persist", "listing"], ["release", "listing"], ["persist", "authority"
   if (active === undefined) throw new Error("Missing accessible record");
   const blocked = await stageRetirementCopy(h.checkout, h.path, index, writer);
   const sibling = await stageRetirementCopy(h.checkout, active, blocked.index, writer);
-  await writeProjectionIndex(location, sibling.index);
+  const withheld = `${h.folder}/local-withheld.txt`;
+  const initial = denied === "listing" ? withProjectionEntry(sibling.index, withheld, {
+    kind: "ownerless", stat: null, withheld: true, refused: { reason: "withheld", remedy: { text: "Recover the local edit." } },
+  }) : sibling.index;
+  await writeProjectionIndex(location, initial);
   if (denied === "authority") lateAccess.authority = join(h.checkout, h.folder, ".git");
   const guard = (path: string) => {
     if (denied === "listing" && path === join(h.checkout, h.folder)) throw Object.assign(new Error("Directory listing refused"), { code: "EACCES" });
   };
-  const context = { ...h.context, ports: (checkout: string) => ({ ...createProjectionEnginePorts(checkout), walkFs: {
-    readdir: (path: string) => { guard(path); return readdirSync(path, { withFileTypes: true }); },
-    readdirNames: (path: string) => { guard(path); return readdirSync(path); },
-  } }) };
+  const context = { ...h.context, hooks: { afterFileSelection: async () => {
+    if (denied === "opened leaf") lateAccess.finalStatOnce = join(h.checkout, h.path);
+  } }, ports: (checkout: string) => ({ ...createProjectionEnginePorts(checkout),
+    linkFs: { lstat: async (path: string) => {
+      if (denied === "listing" && path === join(checkout, withheld)) throw new Error("Probed a withheld file in the held folder");
+      return lstat(path);
+    } }, walkFs: {
+      readdir: (path: string) => { guard(path); return readdirSync(path, { withFileTypes: true }); },
+      readdirNames: (path: string) => { guard(path); return readdirSync(path); },
+    },
+  }) };
   const first = operation === "persist" ? await persistProjectionRemoval(h.checkout, context)
     : await releaseProjectionRemoval(h.checkout, false, context);
   expect(first).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("EACCES") } });
   const pending = (await h.disk()).index;
   expect(pending.entries[h.path]).toMatchObject({ copies: [{ name: blocked.name }] });
   expect(pending.entries[active]).toMatchObject({ copies: [] });
+  if (denied === "listing") expect(pending.entries[withheld]).toMatchObject({ kind: "ownerless", withheld: true });
   await expect(readFile(join(h.checkout, blocked.name))).resolves.toBeInstanceOf(Buffer);
   await expect(readFile(join(h.checkout, sibling.name))).rejects.toMatchObject({ code: "ENOENT" });
   lateAccess.authority = "";

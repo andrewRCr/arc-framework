@@ -9,7 +9,7 @@ import { selectStamplessBase } from "./stampless-base.js";
 import { readRetainedBase, RetainedBaseUnavailable, selectPersistedBase } from "./taken-in.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
 
-import { archiveLayPhase, provesArchiveInstallation, unfinishedRecordingRefusal } from "./recording-state.js";
+import { archiveLayPhase, awaitsArchiveInstallation, provesArchiveInstallation, unfinishedRecordingRefusal } from "./recording-state.js";
 
 /** A resolved base and the stamp recorded for this take-in. */
 export interface SelectedWriteBackBase {
@@ -20,7 +20,7 @@ export interface SelectedWriteBackBase {
 
 /** Either a selected base or an ambiguity that keeps the file pending. */
 export type WriteBackBaseDecision = SelectedWriteBackBase | {
-  readonly kind: "held"; readonly mark: RefusedMark; readonly readRefusal?: StoreRefusal;
+  readonly kind: "held"; readonly mark: RefusedMark; readonly readRefusal?: StoreRefusal; readonly keepLive?: true;
 };
 
 /** Select a file's base from its actual stamp, including the content its last persisted write-back took in. */
@@ -29,8 +29,8 @@ export async function selectWriteBackBase(
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const unfinished = unfinishedRecordingRefusal(request.entry);
   if (unfinished !== null) return { status: "refused", refusal: unfinished };
-  if (stamp === null && revertedInstalledAdoption(request, read)) return { status: "ok", result: { kind: "selected",
-    base: { kind: "stored", version: request.entry.base.version }, stamp: request.entry.base.blob } };
+  const adoption = stamp === null ? unstampedAdoptionBase(context, request, content, read) : null;
+  if (adoption !== null) return { status: "ok", result: adoption };
   try {
     return await selectBase(context, request, content, stamp);
   } catch (error) {
@@ -65,14 +65,22 @@ async function selectBase(
   return recoverSelectedBase({ ...context, memo }, request, content, stamp);
 }
 
-/** The exact unstamped input is a later edit when the adoption's guarded replacement already landed. */
-function revertedInstalledAdoption(request: TakeInRequest, read: TakeInRead | undefined): boolean {
+/** Choose only a proved installation when old unstamped bytes might instead be a later editor save. */
+function unstampedAdoptionBase(context: BaseSelectionContext, request: TakeInRequest, content: string,
+  read: TakeInRead | undefined): WriteBackBaseDecision | null {
   const { entry } = request;
   if (!request.path.startsWith(".arc/completed/") || !request.path.endsWith(".md") || request.copy !== null
     || request.resolution !== undefined || request.observedEdit !== true
     || read === undefined || entry.adoption?.kind !== "read-back"
-    || read.blob !== entry.adoption.read.blob) return false;
-  return archiveLayPhase(entry) === "installed" || provesArchiveInstallation(entry, read.stat);
+    || read.blob !== entry.adoption.read.blob) return null;
+  if (archiveLayPhase(entry) === "installed" || provesArchiveInstallation(entry, read.stat)) return { kind: "selected",
+    base: { kind: "stored", version: entry.base.version }, stamp: entry.base.blob };
+  const originalInode = entry.adoption.read.stat.ino;
+  if (!awaitsArchiveInstallation(entry) || entry.stat === null || entry.stat.ino === originalInode || read.stat.ino === originalInode
+    || gitBlobId(content, context.format) === entry.base.blob) return null;
+  return { kind: "held", keepLive: true, mark: { reason: "ambiguous-base", remedy: {
+    text: "The archive installation could not be established. Keep this edit and reconcile it against the current stored content.",
+  } } };
 }
 
 async function selectHeldBase(context: BaseSelectionContext, entry: RecordEntry, stamp: string | null): Promise<StoreResult<SelectedWriteBackBase>> {

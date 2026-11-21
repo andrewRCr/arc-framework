@@ -2,10 +2,10 @@
 import type { Store } from "../contract.js";
 import { storeRemedyText } from "../native-refusal.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
-import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
+import { projectionProcessState } from "./process-state.js";
 import type { CopySettlement } from "./aside-copies.js";
 import { projectionLinkRemedy } from "./discovery-links.js";
-import { refuseArchiveChange } from "./archive-selection.js";
+import { refuseArchiveChange, refuseUnreadArchiveScope, type ArchiveSelectionRoot } from "./archive-selection.js";
 import type { LeftCopy } from "./sweep.js";
 
 /** Flush only new notices, diagnostics, and resolutions at command entry and completion. */
@@ -46,9 +46,10 @@ export function reportProjectionCopy(path: string, copy: string, settlement: Cop
 }
 
 /** Report each copy a sweep left untouched; a refused archive path is kept as the command's answer and reported once. */
-export function reportLeftCopies(root: Pick<ProjectionRootState, "checkout" | "archiveSelection" | "context">, left: readonly LeftCopy[]): void {
+export function reportLeftCopies(root: ArchiveSelectionRoot, left: readonly LeftCopy[]): void {
   for (const copy of left) {
-    if (copy.refusal !== undefined) refuseArchiveChange(root, copy.path, copy.refusal, copy.copy);
+    if (copy.refusal !== undefined && copy.access) refuseUnreadArchiveScope(root, copy.path, copy.refusal, copy.copy);
+    else if (copy.refusal !== undefined) refuseArchiveChange(root, copy.path, copy.refusal, copy.copy);
     else root.context.report?.({ path: copy.path, copy: copy.copy, mark: { reason: copy.reason,
       remedy: copy.remedy ?? { text: "Keep the aside copy until its edit is recovered or explicitly removed." } } });
   }

@@ -24,6 +24,7 @@
 - [Amendments A10 and A11](#amendments-a10-and-a11)
 - [Amendments A12 and A13](#amendments-a12-and-a13)
 - [Amendment A14](#amendment-a14)
+- [Amendment A15](#amendment-a15)
 - [Save after a retirement refusal](#save-after-a-retirement-refusal)
 - [Independent verification repairs](#independent-verification-repairs)
 - [Interrupted adoption and retirement recovery](#interrupted-adoption-and-retirement-recovery)
@@ -760,6 +761,13 @@ that settle copies. A stored record plan cannot rediscover a local file that ent
 Criterion 27 checks the retry with an unindexed edit and a recorded copy, and distinguishes an unreadable directory
 from a single child whose stat fails. The same selection holds cover both refresh preparation paths. A12 continues
 to govern predecessor adoption in both formats, including an intentional revert after installation.
+
+## Amendment A15
+
+An editor's rename can remove the staged inode after installation but before the journal marks it installed.
+An exact match with the accepted input then supports two histories that can yield different edits. A15 keeps
+the live bytes and opens the existing explicit resolution route. Criterion 28 covers the held bytes,
+the unchanged store version before resolution, and the completed read-back for both journal formats.
 
 ## Save after a retirement refusal
 

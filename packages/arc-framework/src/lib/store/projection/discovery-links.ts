@@ -7,7 +7,7 @@ import type { Stats } from "node:fs";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
-import { selectArchivePath } from "./archive-selection.js";
+import { heldArchivePath, refuseUnreadArchiveScope, selectArchivePath, type ArchiveSelectionRoot } from "./archive-selection.js";
 import { archivePermissionMark, isArchiveScope } from "./archive-file.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
@@ -35,6 +35,12 @@ export async function readProjectionLinkBoundary(checkout: string, paths: readon
     if (link !== null) links.push(link);
   }
   return createProjectionLinkBoundary(links);
+}
+
+/** Probe only accessible destinations and retain native archive refusals for the caller's later work. */
+export function readWritableArchiveLinkBoundary(root: ArchiveSelectionRoot, paths: readonly string[], fs?: ProjectionLinkFs): Promise<ProjectionLinkBoundary> {
+  return readProjectionLinkBoundary(root.checkout, paths.filter(path => heldArchivePath(root, path) === null), fs,
+    (path, mark) => { refuseUnreadArchiveScope(root, path, mark); });
 }
 
 /** Record an inaccessible archive destination without losing the link verdicts for other work. */

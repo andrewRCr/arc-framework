@@ -678,6 +678,12 @@ ordered so a stop between them leaves a state the next command repairs:
   bytes still finish their first lay. Once the replacement is proved installed, the recorded rendering supplies
   the basis for later edits, including an intentional revert. Partial acceptance still holds the unrepaired bytes
   (`swapBatch`, `restoreReturnedCopy`, `resumeAdoptionReadBack`, `readPendingProjectionInput`).
+- **Uncertain archive adoption installation (A15).** A Markdown edit saved by rename can replace the installed inode
+  before the journal records installation. If the exact accepted input reappears and recovery establishes neither
+  the original nor the installation, the old content match alone cannot choose a base. Where that choice changes
+  the result, keep the live file, its opening, and the possible bases. Report the ambiguity and let the user
+  reconcile against the stored content through the existing save resolution. Proved originals and installations
+  continue under A12.
 - **`arc edit`: the opened mark, then the write bit.** A stop between leaves an opened file still read-only, which
   `arc save` finds unchanged, lays read-only, and unmarks. The reverse order would leave a writable, unmarked file, a
   forced edit once changed. A refusal at the write bit because the path's folder or file changed after its inspection,
@@ -1229,6 +1235,11 @@ sending it twice. The in-repo implementation renders no provenance, as D3 has it
     withholds and reports the edit after repair before advancing the state. Deny a single child stat in a listable
     directory and verify the siblings remain eligible. Sync and retirement preserve copies below a refused folder,
     settle accessible copies, and finish the held work on a later command after repair.
+28. **An ambiguous adoption leaves the edit and opening intact (A15).** For each readable Markdown journal format,
+    stop after installing a newer rendering and before recording installation. Replace the live file by rename
+    with its originally accepted bytes. Retry save and verify that it preserves the edit and its opening, retains
+    the possible bases, and reports a resolution without submitting against the old version. Resolve against the
+    stored version and confirm the resulting write and read-back.
 
 ## Open Questions
 
@@ -1265,5 +1276,8 @@ design open.
   _Trigger:_ missing-recorded-copy-finalization-aborts-siblings review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A14** — 2026-11-21 — spec-depth: carry archive access holds and retry incomplete discovery. _Supersedes:_ none.
   _Trigger:_ rebuild-folder-retry-omits-unindexed-archive-files review. _Work:_ review-fix. _Revalidated:_ review-fix.
+<!-- markdownlint-disable-next-line MD013 -->
+- **A15** — 2026-11-21 — spec-depth: preserve archive adoption edits when installation evidence is ambiguous. _Supersedes:_ none.
+  _Trigger:_ atomic-markdown-revert-loses-installed-adoption-base review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

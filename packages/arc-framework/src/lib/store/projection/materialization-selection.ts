@@ -2,14 +2,14 @@
 import { join } from "node:path";
 import type { StoreRecord } from "../read.js";
 import { projectionFileReader, readReference } from "./change-detection.js";
-import { readProjectionLinkBoundary, type ProjectionLinkBoundary } from "./discovery-links.js";
+import { readWritableArchiveLinkBoundary, type ProjectionLinkBoundary } from "./discovery-links.js";
 import { gateRead, projectionReadGate } from "./read-gate.js";
 import type { FileStat, ProjectionIndex } from "./index-schema.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { reportArchivedProjectionFile } from "./archive-report.js";
-import { hasPendingArchiveRecovery, refuseUnreadArchiveScope, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
+import { hasPendingArchiveRecovery, heldArchivePath, refuseUnreadArchiveScope, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 
 interface SelectionInput {
@@ -78,8 +78,7 @@ async function deletedIndexedFile(input: SelectionInput, path: string, stat: Fil
   const entry = input.index.entries[path];
   if (entry?.kind !== "record" || entry.withheld || entry.handoff !== undefined) return false;
   const { root } = input;
-  const boundary = await readProjectionLinkBoundary(root.checkout, [path], root.ports.linkFs,
-    (held, mark) => { refuseUnreadArchiveScope(root, held, mark); });
+  const boundary = await readWritableArchiveLinkBoundary(root, [path], root.ports.linkFs);
   if (unreadArchiveScope(root, path) !== null) return false;
   if (boundary(path) !== (stat.type === "symlink" ? path : null)) return false;
   const read = await gateRead({ path: join(root.checkout, path), markdown: path.endsWith(".md") }, projectionReadGate(root.checkout, path));
@@ -89,9 +88,9 @@ async function deletedIndexedFile(input: SelectionInput, path: string, stat: Fil
 /** Replace stale leaf observations only after re-observing their actual paths and ancestors. */
 export async function refreshMaterializationLinks(root: ProjectionRootState, links: ReadonlySet<string>): Promise<void> {
   if (links.size === 0) return;
-  const previous = root.blockedByLink, fresh = await readProjectionLinkBoundary(root.checkout, [...links]);
+  const previous = root.blockedByLink, fresh = await readWritableArchiveLinkBoundary(root, [...links], root.ports.linkFs);
   root.blockedByLink = (path: string) => {
     const held = previous(path);
-    return fresh(path) ?? (held !== null && links.has(held) ? null : held);
+    return fresh(path) ?? (held !== null && links.has(held) && heldArchivePath(root, held) === null ? null : held);
   };
 }

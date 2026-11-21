@@ -42,9 +42,8 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
         if (!checked.blockedDestinations.has(copy.path)) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
       }
       await reconcileProjectionHandoffs(root, checked.index);
-      const settled = await readProjectionIndex(root.location, true);
+      const settled = await readProjectionIndex(root.location, true, { groups: "walked" });
       if (settled.kind !== "index") return;
-      loadProjectionGroups(settled.index, "walked");
       const named = new Set(Object.values(settled.index.entries).flatMap(entry => [
         ...(entry.kind === "record" && entry.persisted?.takenIn.kind === "copy" ? [entry.persisted.takenIn.name] : []),
         ...(entry.archiveSubmission ? [entry.archiveSubmission.name] : []),

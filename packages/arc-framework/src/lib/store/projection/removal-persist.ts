@@ -41,7 +41,7 @@ import { gateRead, projectionReadGate } from "./read-gate.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
 import { hasArchiveRecording } from "./recording-state.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { refuseUnreadArchiveScope, retirementSelection, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
+import { firstUnreadArchiveScope, refuseUnreadArchiveScope, retirementSelection, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
 import { observeArchiveScopes } from "./materialization-observation.js";
 
 /** Scheduling seams for a save concurrent with the retirement operation. */
@@ -180,6 +180,7 @@ async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionR
   if (selected.refusal !== undefined) return { index, files: selected.files, refusal: selected.refusal };
   const ignoreMark = ignores.kind === "refused" ? ignoreRefusalMark(ignores.reason, ignores.remedy) : undefined;
   for (const { path, result, installation } of observed) {
+    if (unreadArchiveScope(root, path) !== null) continue;
     if (result.answer === "no-edit" || result.answer === "taken-in" && installation === "attempted") continue;
     const reported = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each => each.path === path)?.mark;
     const mark = ignoreMark !== undefined && !root.writable(path) ? ignoreMark : reported ?? result.entry.refused;
@@ -253,10 +254,6 @@ async function changedProjectionFiles(root: ProjectionRootState, index: Projecti
     }
   }
   return { kind: "settled" };
-}
-
-function firstUnreadArchiveScope(root: ProjectionRootState): [string, RefusedMark] | undefined {
-  return root.archiveDiscoveryHolds?.entries().next().value;
 }
 
 async function observeFinalProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null,
