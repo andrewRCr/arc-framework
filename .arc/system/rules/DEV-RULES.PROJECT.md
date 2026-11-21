@@ -129,12 +129,18 @@ package-local filters stay native and package-relative. Focused execution does n
 quality gate. Test preparation may reuse a qualifying build, but the full `npm run build` declaration gate and both
 type checks remain required.
 
+The Linux job `Portability (concurrency guards) (linux)` runs on pull requests in the reviewed lane with `heavy`
+CI weight. Hosted Windows and macOS runs come from the weekly schedule and explicit dispatches. For a
+platform-sensitive change outside a work unit's phase-close process, push the branch and run
+`gh workflow run ci.yml --ref <branch> -f run_portability_pair=true`. Check both platforms' results on the pushed
+head before the integration interlock.
+
 The store suites, every `store-ref-*` integration file, run in the `test:store` merge-gate check, selected by each
 suite's reach into the change, instead of in the integration tier. This departs from the quality-gates strategy's
 complete suite at the merge gate: for the store suites the gate rests on that reach and on the full run CI makes on
 every push to `main`, so a miss shows on `main` after merge rather than before it. The integration tier, the lane, and
-a pull request's portability run leave the store suites out, as does a dispatched portability run whose change reaches
-none of them. `ARC_STORE_CHECK=full` asks for a full run, and `ARC_STORE_CHECK=every` for every suite in its
+the Linux pull-request portability job leave the store suites out, as does a dispatched portability run whose change
+reaches none of them. `ARC_STORE_CHECK=full` asks for a full run, and `ARC_STORE_CHECK=every` for every suite in its
 per-change form.
 
 ## Testing Requirements
