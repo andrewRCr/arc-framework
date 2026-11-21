@@ -4,11 +4,12 @@ import { delimiter, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { setupMultiClone } from "../helpers/multi-clone.js";
-import { runCli } from "../helpers/run-cli.js";
-import { git } from "./helpers.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { git, runCli } from "./store-default.js";
 
-const commands = [["sync", "--json"], ["release", "push"], ["user", "sync"]]
+const commands = [["sync", "--json"], ["release", "push"]]
   .map(args => ({ label: args.join(" "), args }));
+const userSync = [{ label: "user sync", args: ["user", "sync"] }];
 
 const fetchFailures = [
   { kind: "authentication", exit: 128, stderr: "fatal: Authentication failed for 'https://example.test/repo.git/'" },
@@ -93,62 +94,72 @@ async function fixture() {
   return { ...harness, root, env, clock };
 }
 
-describe("materializing command fetch", () => {
-  it.each(commands)("$label allows a slow fetch to finish", async ({ args }) => {
-    const f = await fixture();
-    try {
-      const result = await runCli(args, { cwd: f.root, env: f.env, timeout: 20_000 });
-      expect(result.exitCode, result.stderr).toBe(0);
-    } finally {
-      await f.cleanup();
+async function allowsSlowFetch({ args }: { readonly args: string[] }): Promise<void> {
+  const f = await fixture();
+  try {
+    const result = await runCli(args, { cwd: f.root, env: f.env, timeout: 20_000 });
+    expect(result.exitCode, result.stderr).toBe(0);
+  } finally {
+    await f.cleanup();
+  }
+}
+
+async function reportsTimeoutThenRetries({ args }: { readonly args: string[] }): Promise<void> {
+  const f = await fixture();
+  try {
+    const before = await git(f.origin, ["for-each-ref", "--format=%(refname) %(objectname)"]);
+    const auditBefore = await auditEntries(f.root);
+    const result = await runCli(args, {
+      cwd: f.root,
+      env: { ...f.env, NODE_OPTIONS: `--import=${pathToFileURL(f.clock).href}` },
+      timeout: 20_000,
+    });
+    expect(result.exitCode).toBe(args[0] === "release" ? 14 : 1);
+    const diagnostic = args.includes("--json") ? result.stderr : result.stdout + result.stderr;
+    expect(diagnostic).toContain("timed out");
+    expect(diagnostic).toContain("Retry");
+    expect(await git(f.origin, ["for-each-ref", "--format=%(refname) %(objectname)"])).toBe(before);
+    const audited = args[0] === "release" || (args[0] === "sync" && !args.includes("--dry-run"));
+    const audit = await auditEntries(f.root);
+    expect(audit).toHaveLength(auditBefore.length + (audited ? 1 : 0));
+    if (audited) {
+      expect(audit.at(-1)).toMatchObject(args[0] === "release" ? {
+        schemaVersion: 2, command: "release-push", decision: "refused", refusalCode: 14,
+        outcome: { kind: "refused" },
+      } : {
+        schemaVersion: 2, command: "sync", decision: "proceeded", refusalCode: null,
+        interlockState: { command: "sync", pushInterlock: { value: "on-workflow", source: "git-config" } },
+        outcome: { kind: "sync", cell: "worktree-fetch-timeout",
+          worktree: "fetch:failed:timeout", notes: "skip:skipped:worktree-fetch-timeout", exitCode: 1 },
+      });
     }
-  });
+    if (args.includes("--json")) {
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        cell: "none", reason: "worktree-fetch-timeout", exitCode: 1,
+        recommendedSummaryLine: expect.stringContaining("Retry"),
+        remedy: { argv: ["arc", ...args] },
+      });
+    }
+    const retry = await runCli(args, { cwd: f.root, env: { ARC_DISABLE_UPDATE_CHECKS: "1" } });
+    expect(retry.exitCode, retry.stderr).toBe(0);
+  } finally {
+    await f.cleanup();
+  }
+}
+
+describe("materializing command fetch", () => {
+  it.each(commands)("$label allows a slow fetch to finish", allowsSlowFetch);
 
   it.each([...commands, { label: "sync", args: ["sync"] },
     { label: "sync dry run", args: ["sync", "--json", "--dry-run", "--yes"] }])(
-    "$label reports a recoverable timeout and succeeds on retry", async ({ args }) => {
-      const f = await fixture();
-      try {
-        const before = await git(f.origin, ["for-each-ref", "--format=%(refname) %(objectname)"]);
-        const auditBefore = await auditEntries(f.root);
-        const result = await runCli(args, {
-          cwd: f.root,
-          env: { ...f.env, NODE_OPTIONS: `--import=${pathToFileURL(f.clock).href}` },
-          timeout: 20_000,
-        });
-        expect(result.exitCode).toBe(args[0] === "release" ? 14 : 1);
-        const diagnostic = args.includes("--json") ? result.stderr : result.stdout + result.stderr;
-        expect(diagnostic).toContain("timed out");
-        expect(diagnostic).toContain("Retry");
-        expect(await git(f.origin, ["for-each-ref", "--format=%(refname) %(objectname)"])).toBe(before);
-        const audited = args[0] === "release" || (args[0] === "sync" && !args.includes("--dry-run"));
-        const audit = await auditEntries(f.root);
-        expect(audit).toHaveLength(auditBefore.length + (audited ? 1 : 0));
-        if (audited) {
-          expect(audit.at(-1)).toMatchObject(args[0] === "release" ? {
-            schemaVersion: 2, command: "release-push", decision: "refused", refusalCode: 14,
-            outcome: { kind: "refused" },
-          } : {
-            schemaVersion: 2, command: "sync", decision: "proceeded", refusalCode: null,
-            interlockState: { command: "sync", pushInterlock: { value: "on-workflow", source: "git-config" } },
-            outcome: { kind: "sync", cell: "worktree-fetch-timeout",
-              worktree: "fetch:failed:timeout", notes: "skip:skipped:worktree-fetch-timeout", exitCode: 1 },
-          });
-        }
-        if (args.includes("--json")) {
-          expect(JSON.parse(result.stdout)).toMatchObject({
-            cell: "none", reason: "worktree-fetch-timeout", exitCode: 1,
-            recommendedSummaryLine: expect.stringContaining("Retry"),
-            remedy: { argv: ["arc", ...args] },
-          });
-        }
-        const retry = await runCli(args, { cwd: f.root, env: { ARC_DISABLE_UPDATE_CHECKS: "1" } });
-        expect(retry.exitCode, retry.stderr).toBe(0);
-      } finally {
-        await f.cleanup();
-      }
-    },
-  );
+    "$label reports a recoverable timeout and succeeds on retry", reportsTimeoutThenRetries);
+
+  describe("user notes over the in-repo store", () => {
+    // The store retires user notes, refusing their sync, so this command's fetch is the in-repo implementation's.
+    useInRepoStoreForEach();
+    it.each(userSync)("$label allows a slow fetch to finish", allowsSlowFetch);
+    it.each(userSync)("$label reports a recoverable timeout and succeeds on retry", reportsTimeoutThenRetries);
+  });
 
   it.each(failureCases)(
     "$label reports Git's failure, audits it once, and succeeds once repaired", async ({ args, exit, stderr }) => {

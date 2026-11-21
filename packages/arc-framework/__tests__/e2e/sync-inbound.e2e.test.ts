@@ -15,8 +15,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
-import { runCli } from "../helpers/run-cli.js";
-import { runArc } from "./helpers.js";
+import { runArc, runCli } from "./store-default.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -72,16 +71,16 @@ function setupClones(): Promise<MultiClone> {
 /**
  * Build a `remote-ahead` topology on clone A: install + publish ARC, then have
  * clone B advance origin by one commit. Returns the harness and the remote tip.
- * Clone A is configured with `pushInterlock: on-sync` (the inbound leg is gated
- * behind a non-manual push interlock) and `user.notes_push: manual` (so the
- * matrix isolates on the worktree leg).
+ * Clone A is configured with `pushInterlock: on-sync`, since the inbound leg is
+ * gated behind a non-manual push interlock; each cell names the store's state
+ * leg beside the worktree leg's decision (`state+…`).
  */
 async function setupRemoteAhead(configOverrides: Record<string, string>): Promise<{
   harness: MultiClone;
   remoteTip: string;
 }> {
   const harness = await setupClones();
-  await installArcInClone(harness.cloneA, { "user.notes_push": "manual", ...configOverrides });
+  await installArcInClone(harness.cloneA, configOverrides);
   await execFileAsync("git", ["config", "--local", "arc.pushInterlock", "on-sync"], {
     cwd: harness.cloneA,
   });
@@ -107,7 +106,7 @@ describe("arc sync inbound fast-forward (e2e)", () => {
       const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
       const envelope = JSON.parse(result.stdout.trim()) as SyncEnvelope;
 
-      expect(envelope.cell).toBe("inbound-pull");
+      expect(envelope.cell).toBe("state+inbound-pull");
       expect(envelope.exitCode).toBe(0);
       expect(result.exitCode).toBe(0);
       // The working branch advanced to the remote tip — a true inbound pull.
@@ -124,7 +123,7 @@ describe("arc sync inbound fast-forward (e2e)", () => {
       const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
       const envelope = JSON.parse(result.stdout.trim()) as SyncEnvelope;
 
-      expect(envelope.cell).toBe("blocked-remote-ahead");
+      expect(envelope.cell).toBe("state+blocked-remote-ahead");
       expect(envelope.exitCode).toBe(1);
       expect(result.exitCode).toBe(1);
       // The non-TTY default never mutates the working tree.
@@ -142,7 +141,7 @@ describe("arc sync inbound fast-forward (e2e)", () => {
       const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
       const envelope = JSON.parse(result.stdout.trim()) as SyncEnvelope;
 
-      expect(envelope.cell).toBe("inbound-pull");
+      expect(envelope.cell).toBe("state+inbound-pull");
       expect(envelope.exitCode).toBe(1);
       expect(result.exitCode).toBe(1);
       expect(await headSha(harness.cloneA)).toBe(before);
@@ -154,10 +153,7 @@ describe("arc sync inbound fast-forward (e2e)", () => {
   it("diverged + sync.auto_pull true → blocks; ff-only never resolves divergence", async () => {
     const harness = await setupClones();
     try {
-      await installArcInClone(harness.cloneA, {
-        "user.notes_push": "manual",
-        "sync.auto_pull": "true",
-      });
+      await installArcInClone(harness.cloneA, { "sync.auto_pull": "true" });
       await execFileAsync("git", ["config", "--local", "arc.pushInterlock", "on-sync"], {
         cwd: harness.cloneA,
       });
@@ -174,7 +170,7 @@ describe("arc sync inbound fast-forward (e2e)", () => {
       const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
       const envelope = JSON.parse(result.stdout.trim()) as SyncEnvelope;
 
-      expect(envelope.cell).toBe("blocked-diverged");
+      expect(envelope.cell).toBe("state+blocked-diverged");
       expect(envelope.exitCode).toBe(1);
       expect(result.exitCode).toBe(1);
       expect(await headSha(harness.cloneA)).toBe(before);

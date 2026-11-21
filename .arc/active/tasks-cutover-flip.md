@@ -1028,9 +1028,11 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           the store, its rows taking the store's results. Both `start` rows, `user pull`, the progress test, and the
           title-stdin case keep the override by subject (`notes-cutover-flip.md` § Test callers).
 
-    - `[ ]` **3.6.c Sync and user notes**
+    - `[x]` **3.6.c Sync and user notes**
         - `e2e/sync-inbound.e2e.test.ts`, `sync-purity`, `sync-state-producer`, and `materializing-fetch` spawn through
-          `e2e/store-default.ts`.
+          `e2e/store-default.ts`; 23 of their 31 cases run on the store, taking its `state+` cells, with a store push
+          cell added to the purity suite. The notes cases keep the override by subject for `cutover-notes-removal`
+          (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.6.d The remaining spawned files**
         - `e2e/editor-settings.e2e.test.ts`, `plan`, `release-commit`, `set-class`, `run-cli`, and

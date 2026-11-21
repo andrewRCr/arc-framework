@@ -1223,6 +1223,17 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           store's start reaches neither the create-new confirmation nor a remote lifecycle read; `user pull`, since the
           store retires user notes; the progress test, whose ROADMAP refresh and ceremony push are the in-repo start's;
           and the title-stdin case, an operand the store refuses.
+    - _Sync and user notes, as moved (Task 3.6.c):_ `e2e/sync-inbound.e2e.test.ts`, `sync-purity`,
+      `sync-state-producer`, and `materializing-fetch` spawn through `e2e/store-default.ts`, `runCli` included; 23 of
+      their 31 cases run on the store.
+        - The store's sync names its state leg beside the branch leg's decision (`state+inbound-pull`,
+          `state+blocked-<reason>`, `state+worktree`, `state-only`; `handlers/sync.ts`), so `sync-inbound` and
+          `sync-purity`'s diverged case take those cells, and `sync-inbound` drops the `user.notes_push` setting that
+          only quieted a notes leg. `sync-purity` gains a `state+worktree` case, so the store's push cell keeps the
+          stdout check its notes counterpart gave the in-repo push.
+        - Keep the override by subject: `sync-state-producer` whole, `materializing-fetch`'s `user sync`, and
+          `sync-purity`'s paired-push, save-only, and notes-prompt cells, since the store retires user notes and the
+          sync-state ref. They stay for `cutover-notes-removal`, which takes the suites that target notes.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

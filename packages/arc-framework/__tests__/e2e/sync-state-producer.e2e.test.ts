@@ -13,14 +13,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
-import { runCli } from "../helpers/run-cli.js";
-import { runArc } from "./helpers.js";
+import { runArc, runCli } from "./store-default.js";
 import { LocalSyncStateSchema } from "../../src/lib/user-sync/sync-state.js";
 
 const execFileAsync = promisify(execFile);
@@ -118,6 +118,9 @@ async function installArcWithNotes(clone: string): Promise<void> {
 }
 
 describe("partial-push sync-state marker — multi-machine producer lifecycle", () => {
+  // The store retires user notes and the sync-state ref that marks their partial push, so this lifecycle is the
+  // in-repo implementation's.
+  useInRepoStoreForEach();
   let harness: MultiClone;
 
   beforeEach(async () => {
