@@ -810,7 +810,8 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               stay in-repo whole beside a store block seeded through `seedWorkUnit`: a stub, an in-place rename, and a
               self-rename whose replay settles its deferred move (A22), the same-name and Candidate refusals, and a
               stale-lease resume; the one changed expectation traces to a store contract (`notes-cutover-flip.md`
-              § Test callers).
+              § Test callers). The in-place case reads its checkout's ownership note with whitespace removed, since a
+              long temporary path moves the report's wrap into the note.
 
         - `[x]` **3.4.b.4 Reconcile and the cohort hook**
             - `e2e/wu-reconcile.e2e.test.ts` spawns through `e2e/store-default.ts`; its tracked-state cases stay in-repo

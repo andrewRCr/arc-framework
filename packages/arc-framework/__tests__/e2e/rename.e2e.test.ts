@@ -626,7 +626,8 @@ describe("arc rename on the store", () => {
 
     expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
     expect(renamed.stdout).toContain("in-place");
-    expect(unwrapPresentationOutput(renamed.stdout)).toContain("ownership renamed; path");
+    // The checkout's path precedes the note, so where the report wraps it depends on the temporary directory's length.
+    expect(unwrapPresentationOutput(renamed.stdout).replace(/\s/gu, "")).toContain("(ownershiprenamed;pathunchanged)");
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/new-name");
     expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).toBe("");
     expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).not.toBe("");
