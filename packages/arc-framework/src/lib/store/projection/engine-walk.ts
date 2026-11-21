@@ -104,20 +104,23 @@ function collectEntries(path: string, entries: ReturnType<ProjectionWalkFs["read
  * out before any of that, so nothing about it is inspected.
  */
 export function readProjectionFolder(folder: string, fs: ProjectionWalkFs = nativeWalkFs,
-  skip: (name: string) => boolean = () => false, hold?: ChildAccessHold): readonly WalkEntry[] | null {
+  skip: (name: string) => boolean = () => false, hold?: ChildAccessHold,
+  deferTyping?: (name: string) => boolean): readonly WalkEntry[] | null {
   let entries: readonly WalkEntry[];
   try {
     entries = fs.readdir(folder).filter(entry => !skip(entry.name));
   } catch (error) {
-    if (!missingPath(error) && !(hold !== undefined && isArchivePermissionRefusal(error))) throw error;
-    return readSurvivingEntries(fs, folder, skip, hold);
+    if (!missingPath(error) && !((hold !== undefined || deferTyping !== undefined) && isArchivePermissionRefusal(error))) throw error;
+    return readSurvivingEntries(fs, folder, skip, hold, deferTyping);
   }
   if (!entries.some(entry => entry.isSymbolicLink())) return entries;
   const lstat = walkLstat(fs);
-  return entries.flatMap(entry => entry.isSymbolicLink() ? statEntry(lstat, folder, entry.name, hold) : [entry]);
+  return entries.flatMap(entry => entry.isSymbolicLink() && deferTyping?.(entry.name) !== true
+    ? statEntry(lstat, folder, entry.name, hold) : [entry]);
 }
 
-function readSurvivingEntries(fs: ProjectionWalkFs, folder: string, skip: (name: string) => boolean, hold?: ChildAccessHold): WalkEntry[] | null {
+function readSurvivingEntries(fs: ProjectionWalkFs, folder: string, skip: (name: string) => boolean, hold?: ChildAccessHold,
+  deferTyping?: (name: string) => boolean): WalkEntry[] | null {
   const lstat = walkLstat(fs), names = fs.readdirNames ?? (path => readdirSync(path));
   let listed: readonly string[];
   try {
@@ -127,7 +130,9 @@ function readSurvivingEntries(fs: ProjectionWalkFs, folder: string, skip: (name:
     if (missingPath(error)) return null;
     throw error;
   }
-  return listed.filter(name => !skip(name)).flatMap(name => statEntry(lstat, folder, name, hold));
+  return listed.filter(name => !skip(name)).flatMap(name => deferTyping?.(name) === true
+    ? [{ name, isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false }]
+    : statEntry(lstat, folder, name, hold));
 }
 
 function walkLstat(fs: ProjectionWalkFs): NonNullable<ProjectionWalkFs["lstat"]> {

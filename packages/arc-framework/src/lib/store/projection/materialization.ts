@@ -92,18 +92,19 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     store: root.store, checkout: root.checkout, identity: root.identity, exec: root.ports.exec, evidence }) });
   reportProjectionLinks(walked.links.filter(path => !(input.reportedLinks ?? []).includes(path)));
   const observed = createProjectionLinkBoundary(walked.links);
+  if (input.index === null) {
+    const discovery = {
+      files: new Set([...walked.files, ...retry?.files ?? []]),
+      incomplete: new Set([...walked.incomplete.keys(), ...retry?.incomplete.keys() ?? []]),
+      owed: retry?.owed ?? [],
+      returned: swept.restoredUnindexed,
+    };
+    index = await recordRebuildDiscovery(root, index, discovery, desired.files, whole);
+  }
   const selection = await prepareMaterializationSelection({ root, index, files: desired.files, boundary: observed, onlyDeleted: input.onlyDeleted });
   index = selection.index;
   const selected = selection.files;
   if (input.onlyDeleted) await reportRemainingArchivedFiles(root, index, walked.files, desired.files);
-  if (input.index === null) {
-    const inventory = {
-      files: new Set([...walked.files, ...retry?.files ?? [], ...swept.restoredUnindexed]),
-      incomplete: new Set([...walked.incomplete.keys(), ...retry?.incomplete.keys() ?? []]),
-      owed: [...retry?.owed ?? [], ...swept.restoredUnindexed],
-    };
-    index = await recordRebuildDiscovery(root, index, inventory, desired.files, whole);
-  }
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);
   const paths = new Map([...selected].map(([path, record]) => [path, record.reference]));

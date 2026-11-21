@@ -1,5 +1,6 @@
 /** Observe archive inventory under checkout authority, retaining the portion a later operation still owes. */
-import { archiveDestination, archiveDirectoryDestination } from "./archive-file.js";
+import { archiveDestination, archiveDirectoryDestination, isArchiveScope } from "./archive-file.js";
+import { parseAsideFile } from "./aside.js";
 import { heldArchivePath, refuseArchiveChange, refuseUnreadArchiveScope, selectArchivePath, type ArchiveSelectionRoot } from "./archive-selection.js";
 import { projectionLinkRemedy } from "./discovery-links.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
@@ -71,15 +72,34 @@ function observeDirectory(root: ArchiveDiscoveryRoot, path: string, access: Map<
 function retainOpaqueLinks(links: readonly string[], scopes: readonly string[], entries: ArchiveDiscoveryBasis["entries"],
   incomplete: Map<string, RefusedMark>): void {
   for (const link of links) {
-    // A desired record can exist without physical evidence. Only a recorded regular file proves the leaf exception.
-    const file = entries?.[link]?.stat?.type === "file";
-    const hidden = scopes.filter(path => path.startsWith(`${link}/`) || path === link && !file);
-    if (file && hidden.length === 0) continue;
-    // Keep precise work below an ancestor link, or the opaque child itself inside a directory we owe.
-    for (const path of hidden.length === 0 ? [link] : hidden) {
+    for (const path of archiveScopesBehindLink(link, scopes, entries)) {
       incomplete.set(path, { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) });
     }
   }
+}
+
+function archiveScopesBehindLink(link: string, scopes: readonly string[], entries: ArchiveDiscoveryBasis["entries"]): readonly string[] {
+  // A recorded file may prove the leaf's type. It cannot establish coverage of any owed descendant.
+  const file = entries?.[link]?.stat?.type === "file";
+  const hidden = scopes.filter(path => path.startsWith(`${link}/`) || path === link && !file);
+  if (hidden.length > 0 || file) return hidden;
+  return scopes.some(scope => link.startsWith(`${scope}/`)) ? [link] : [];
+}
+
+/** The destinations still owed by named archive recovery copies. */
+export function archiveRecoveryDestinations(copies?: readonly string[]): readonly string[] {
+  return copies?.flatMap(copy => {
+    const named = parseAsideFile(copy);
+    return named?.role === "aside" && isArchiveScope(named.path) ? [named.path] : [];
+  }) ?? [];
+}
+
+/** A leaf link can be replaced only if it conceals no outstanding archive inventory. */
+export function archiveInventoryLinkHold(index: ProjectionIndex, link: string): RefusedMark | null {
+  if (!isArchiveScope(link) || index.archiveDiscoveryPending === undefined && index.archiveRecoveryCopies === undefined) return null;
+  const scopes = [...index.archiveDiscoveryPending ?? [], ...archiveRecoveryDestinations(index.archiveRecoveryCopies)];
+  return archiveScopesBehindLink(link, scopes, index.entries).length === 0 ? null
+    : { reason: `${link} can conceal outstanding archive inventory.`, remedy: projectionLinkRemedy(link) };
 }
 
 /** Observe owed archive scopes, including paths that may now be absent or a different physical kind. */

@@ -7,7 +7,7 @@ import { projectionCommand } from "../../../helpers/store/projection/command.js"
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordReferences, sameReference, type RecordReference } from "../../../../src/lib/store/identity.js";
 import { seed, success } from "../../../helpers/store/suite-tools.js";
 import { releaseProjectionRemoval } from "../../../../src/lib/store/projection/removal-release.js";
 import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
@@ -15,7 +15,7 @@ import { createProjectionEnginePorts } from "../../../../src/lib/store/projectio
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
 import { ASIDE_FILES_ROOT, nameAsideFile, type AsideWriterInput } from "../../../../src/lib/store/projection/aside.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
-import { writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { PROJECTION_INDEX_FILE, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
@@ -343,6 +343,49 @@ it.each(["persist", "release"] as const)("%s settles the next archive copy after
   expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
 }, 30_000);
 
+it("keeps new accepted text proof when the landed read fails after an earlier installation", async () => {
+  const h = await archiveRetirementFixture(), name = "ordinary-readback.txt";
+  const path = `${h.folder}/${name}`, file = join(h.checkout, path);
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, name), previous = "An earlier accepted text edit.\n";
+  await seed(h.f, reference, "Original text.\n");
+  await projectionCommand(h.input, ["status"]);
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  await writeFile(file, previous);
+  expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
+  expect((await h.disk()).index.entries[path]).toMatchObject({ acceptedInputStat: { lay: { kind: "installed" } } });
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  const edit = "A new ordinary text edit accepted before the read-back refusal.\n";
+  await writeFile(file, edit);
+  let submissions = 0, denied: RecordReference | undefined, triggered = false;
+  const store = overrideEngineStore(h.store, { batch: async input => {
+    const target = input.projectionAdmission?.local.path === path;
+    if (target) submissions += 1;
+    const sent = await h.store.batch(input);
+    if (target && submissions === 1 && sent.status === "ok") denied = sent.result.writes[0]?.reference;
+    return sent;
+  }, read: async input => {
+    if (denied === undefined || !sameReference(input.reference, denied)) return h.store.read(input);
+    denied = undefined;
+    triggered = true;
+    return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: "archive",
+      condition: "The accepted record could not be read once.", remedy: { text: "Retry the ordinary text read-back." } } };
+  } });
+  expect(await persistProjectionRemoval(h.checkout, { ...h.context, store })).toMatchObject({ kind: "refused",
+    remedy: { text: expect.stringContaining("Retry the ordinary text read-back") } });
+  expect(triggered).toBe(true);
+  expect(submissions).toBe(1);
+  expect(success(await h.store.read({ reference })).content).toBe(edit);
+  expect((await h.disk()).index.entries[path]).toMatchObject({ pending: true, acceptedInputStat: { lay: { kind: "pending" } },
+    persisted: { recording: true, read: gitBlobId(edit, "sha1") } });
+  await utimes(file, new Date(0), new Date(0));
+  expect((await projectionCommand({ ...h.input, store }, ["save"])).result).toMatchObject({ status: "ok" });
+  expect(submissions).toBe(1);
+  const installed = (await h.disk()).index.entries[path];
+  expect(installed).toMatchObject({ pending: false, acceptedInputStat: { lay: { kind: "installed" } } });
+  expect(installed?.opened).toBeUndefined();
+  expect(await readFile(file, "utf8")).toBe(edit);
+}, 30_000);
+
 it.each([["persist", "inventory"], ["release", "inventory"], ["release", "returned copy"]] as const)(
   "%s retains opaque %s work while settling an accessible copy", async (operation, owed) => {
   const h = await archiveRetirementFixture(), { location, index } = await h.disk();
@@ -356,7 +399,10 @@ it.each([["persist", "inventory"], ["release", "inventory"], ["release", "return
   const obligation = owed === "inventory" ? { archiveDiscoveryPending: [scope] } : { archiveRecoveryCopies: [copy] };
   await writeProjectionIndex(location, { ...healthy.index, ...obligation, state: null });
   const disposition = operation === "persist" ? "remove" : "release";
-  expect(await checkProjectionRemoval(h.checkout, h.context, disposition)).toMatchObject({ kind: "would-refuse" });
+  const header = join(location.stateDir, PROJECTION_INDEX_FILE), before = await readFile(header);
+  expect(await checkProjectionRemoval(h.checkout, h.context, disposition)).toMatchObject({ kind: "unobservable",
+    detail: expect.stringContaining(`Replace the symbolic link ${scope}`) });
+  expect(await readFile(header)).toEqual(before);
   expect(await h.retire(operation)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(scope) } });
   expect((await h.disk()).index).toMatchObject(obligation);
   await expect(lstat(join(h.checkout, healthy.name))).rejects.toMatchObject({ code: "ENOENT" });

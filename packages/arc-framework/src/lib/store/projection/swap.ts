@@ -22,6 +22,7 @@ import type { StagedFile } from "./staging.js";
 import type { TakeInPort } from "./take-in-port.js";
 import { ArchiveDestinationBlocked, archiveDestination } from "./archive-file.js";
 import { installedArchiveInput, linkAcceptedArchiveInput, pendingObservedRefusal } from "./recording-state.js";
+import { archiveInventoryLinkHold } from "./archive-discovery.js";
 
 /** One file a batch replaces or, where the guard staged nothing, removes: the guard's decision to. */
 export interface SwapFile {
@@ -216,8 +217,12 @@ async function settled(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEn
   return { entry: swap.copy === null ? { ...placed, inProgress: null } : placed, installed: true };
 }
 
-async function readSwapDestination(checkout: string, path: string): Promise<FileStat | ArchiveDestinationBlocked | null> {
-  try { return await projectionFileReader(checkout, path).stat(join(checkout, path)); }
+async function readSwapDestination(checkout: string, path: string, index?: ProjectionIndex): Promise<FileStat | ArchiveDestinationBlocked | null> {
+  try {
+    const stat = await projectionFileReader(checkout, path).stat(join(checkout, path));
+    const opaque = stat?.type === "symlink" && index !== undefined ? archiveInventoryLinkHold(index, path) : null;
+    return opaque === null ? stat : new ArchiveDestinationBlocked(opaque);
+  }
   catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return error;
     throw error;
@@ -233,7 +238,7 @@ function entryAt(index: ProjectionIndex, path: string): RecordEntry {
 async function plan(input: SwapBatchInput, file: SwapFile): Promise<PlannedSwap> {
   const { entry: original, staged, moving } = file.replace;
   // An absent file is rebuilt by the link alone, which makes no copy; a removal moves the file aside and links nothing.
-  const observed = await readSwapDestination(input.checkout, file.path);
+  const observed = await readSwapDestination(input.checkout, file.path, input.index);
   if (observed instanceof ArchiveDestinationBlocked) {
     if (staged !== null) await removeProjectionAsideFile(input.checkout, staged.location, input.checkpoint);
     return { path: file.path, original, entry: pendingObservedRefusal(original, observed.mark),
@@ -318,7 +323,8 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap,
 async function moveAside(input: SwapBatchInput, swap: PlannedSwap, path: string, aside: string): Promise<SwapDone | null> {
   await input.checkpoint?.();
   await mkdir(dirname(aside), { recursive: true });
-  try { await retriedMoves(input, { checkout: input.checkout, path: swap.path }).rename(path, aside); }
+  const keepLeafLink = archiveInventoryLinkHold(input.index, swap.path);
+  try { await retriedMoves(input, { checkout: input.checkout, path: swap.path, keepLeafLink }).rename(path, aside); }
   catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return holdSwap(input, swap, swap.original, error);
     await input.checkpoint?.();

@@ -6,6 +6,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Remedy } from "../refusal.js";
 import { asideCopyHasEdit, nameAsideFile, parseAsideFile, type AsideWriterInput } from "./aside.js";
+import { readAsideStat } from "./aside-discovery.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { projectionFileReader, readStat } from "./change-detection.js";
@@ -302,11 +303,11 @@ function copyBase(copy: AsideCopyRecord, bytes: Uint8Array, markdown: boolean): 
 
 async function deleted(input: AsideCopySettling, entry: RecordEntry): Promise<CopySettlement> {
   const { checkout, path } = input;
-  if (input.keepEmpty) {
-    const stat = await readStat(join(checkout, input.copy.name));
-    if (stat?.type === "file" && stat.size === 0n) return { kind: "kept", entry, answer: "empty" };
-  }
   try {
+    if (input.keepEmpty) {
+      const stat = await readAsideStat(join(checkout, input.copy.name), path);
+      if (stat?.type === "file" && stat.size === 0n) return { kind: "kept", entry, answer: "empty" };
+    }
     return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name, checkpoint: input.checkpoint }) };
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };

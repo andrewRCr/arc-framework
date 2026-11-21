@@ -5,11 +5,10 @@
 import { removeProjectionAsideFile, removeRecoveredAsideFile, removeReturnedAsideFile, pruneAsideScaffold } from "./aside-cleanup.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
-import { walkProjectionAsideFolder } from "./aside-discovery.js";
+import { readAsideStat, readAsideText, walkProjectionAsideFolder } from "./aside-discovery.js";
 import { asideCopyAccessHold, hasPathMovedOn, readPathHolding, restoreReturnedCopy, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
@@ -17,7 +16,7 @@ import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
 import { recordProjectionIgnoreCheck } from "./ignore-record.js";
 import { guardedProjectionRoots, type ProjectionIgnoreGuardInput } from "./ignore-guard.js";
 import type { ConfiguredIgnoreRules } from "./configuration.js";
-import { projectionFileReader, readReference, readStat } from "./change-detection.js";
+import { projectionFileReader, readReference } from "./change-detection.js";
 import { commitReturnedCopies, copyAliasAccessRefusal, sameProjectionFile } from "./returned-copies.js";
 import type { AsideCopyRecord, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ArchiveChangeRefusal } from "./archive-selection.js";
@@ -321,7 +320,8 @@ function recordLeftCopy(copy: LeftCopy, left: LeftCopy[], judges: SweepJudges): 
 
 async function recoverUnindexedCopy(input: SweepInput, location: string, named: AsideFile, judges: SweepJudges): Promise<LeftCopy | "restored" | null> {
   if ((input.index?.withheldCopies ?? input.withheldCopies)?.includes(location)) {
-    return retainedCopy(input.checkout, named.path, location, "withheld");
+    try { return await retainedCopy(input.checkout, named.path, location, "withheld"); }
+    catch (error) { return { ...blockedCopyObservation(named.path, location, error), reason: "withheld" }; }
   }
   const refusal = destinationRefusal(named.path, location, judges);
   if (refusal !== null) return refusal;
@@ -339,7 +339,7 @@ function withheldUnindexedCopies(left: readonly LeftCopy[]): string[] {
 export function recordUnindexedRecovery(index: ProjectionIndex, left: readonly LeftCopy[], prior: ReadonlySet<string>): ProjectionIndex {
   if (left.length === 0 && prior.size === 0) return index;
   const withheld = new Set([...index.withheldCopies, ...withheldUnindexedCopies(left)]);
-  const retries = left.filter(copy => copy.access || prior.has(copy.copy) && !withheld.has(copy.copy)).map(copy => copy.copy);
+  const retries = left.filter(copy => !withheld.has(copy.copy) && (copy.access || prior.has(copy.copy))).map(copy => copy.copy);
   return { ...index, withheldCopies: [...withheld], archiveRecoveryCopies: retries.length ? retries : undefined };
 }
 
@@ -348,16 +348,13 @@ async function returnWithoutIndex(input: SweepInput, location: string, named: As
   const refusal = archiveDestinationHold(input.checkout, named.path, location);
   if (refusal !== null) return refusal;
   const at = { copy: join(input.checkout, location), path: join(input.checkout, named.path) };
-  const isFile = (await readStat(at.copy))?.type === "file";
   try {
+    const isFile = (await readAsideStat(at.copy, named.path))?.type === "file";
     if (isFile && await returnUnindexedFile(input, named, at)) {
       const outcome = await removeReturnedAsideFile(input.checkout, location, named.path, input.checkpoint);
       return outcome === "retained" ? await retainedCopy(input.checkout, named.path, location, "withheld") : "restored";
     }
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return destinationBlockedCopy(named.path, location, error.mark, error.access);
-    throw error;
-  }
+  } catch (error) { return blockedCopyObservation(named.path, location, error); }
   return deleteUneditedCopy(input, location, named, "withheld");
 }
 
@@ -378,19 +375,21 @@ async function deleteIfUnedited(input: SweepInput, location: string, named: Asid
 async function deleteUneditedCopy(input: SweepInput, location: string, named: AsideFile,
   reason: "unrecorded" | "withheld"): Promise<LeftCopy | null> {
   const copy = join(input.checkout, location);
-  const stat = await readStat(copy);
-  if (stat === null) return null;
-  if (stat.type === "other") return retainedCopy(input.checkout, named.path, location, reason);
-  const unedited = stat.type !== "file"
-    || storedBlobId(await readFile(copy, "utf8"), { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
-  if (!unedited) return retainedCopy(input.checkout, named.path, location, reason);
   try {
+    const stat = await readAsideStat(copy, named.path);
+    if (stat === null) return null;
+    if (stat.type === "other") return await retainedCopy(input.checkout, named.path, location, reason);
+    const unedited = stat.type !== "file"
+      || storedBlobId(await readAsideText(copy, named.path), { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
+    if (!unedited) return await retainedCopy(input.checkout, named.path, location, reason);
     await removeRecoveredAsideFile(input.checkout, location, named.path, input.checkpoint);
     return null;
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return destinationBlockedCopy(named.path, location, error.mark, error.access);
-    throw error;
-  }
+  } catch (error) { return blockedCopyObservation(named.path, location, error); }
+}
+
+function blockedCopyObservation(path: string, copy: string, error: unknown): LeftCopy {
+  if (!(error instanceof ArchiveDestinationBlocked)) throw error;
+  return destinationBlockedCopy(path, copy, error.mark, error.access);
 }
 
 function archiveDestinationHold(checkout: string, path: string, copy: string): LeftCopy | null {
@@ -421,9 +420,9 @@ async function deleteStagedFiles(
 async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, record: AsideCopyRecord): Promise<SweptCopy> {
   const { checkout } = input;
   const at = { copy: join(checkout, record.name), path: join(checkout, path) };
-  const stat = await readStat(at.copy);
   // Moved back to its path, or never made after a stop.
   try {
+    const stat = await readAsideStat(at.copy, path);
     if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
     const holding = await readPathHolding(checkout, path, input.format);
     if (stat.type === "symlink") {
@@ -481,7 +480,7 @@ async function listAsideFolder(checkout: string, checkpoint?: () => Promise<void
 /** Report retained directories with their repair route, without deleting their contents. */
 async function retainedCopy(checkout: string, path: string, copy: string, reason: "unrecorded" | "withheld"): Promise<LeftCopy> {
   const absolute = join(checkout, copy);
-  return (await readStat(absolute))?.type === "other"
+  return (await readAsideStat(absolute, path))?.type === "other"
     ? { path, copy, reason: "not-a-file", remedy: notAFileRemedy(absolute) }
     : { path, copy, reason };
 }

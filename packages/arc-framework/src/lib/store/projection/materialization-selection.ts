@@ -9,8 +9,9 @@ import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { reportArchivedProjectionFile } from "./archive-report.js";
-import { hasPendingArchiveRecovery, heldArchivePath, refuseUnreadArchiveScope, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
+import { hasPendingArchiveRecovery, heldArchivePath, refuseArchiveChange, refuseUnreadArchiveScope, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { archiveInventoryLinkHold } from "./archive-discovery.js";
 
 interface SelectionInput {
   root: ProjectionRootState;
@@ -78,6 +79,11 @@ async function deletedIndexedFile(input: SelectionInput, path: string, stat: Fil
   const entry = input.index.entries[path];
   if (entry?.kind !== "record" || entry.withheld || entry.handoff !== undefined) return false;
   const { root } = input;
+  const opaque = stat.type === "symlink" ? archiveInventoryLinkHold(input.index, path) : null;
+  if (opaque !== null) {
+    refuseArchiveChange(root, path, opaque);
+    return false;
+  }
   const boundary = await readWritableArchiveLinkBoundary(root, [path], root.ports.linkFs);
   if (unreadArchiveScope(root, path) !== null) return false;
   if (boundary(path) !== (stat.type === "symlink" ? path : null)) return false;

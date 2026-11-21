@@ -15,17 +15,34 @@ import { PROJECTION_INDEX_FILE, writeProjectionIndex } from "../../../../src/lib
 import { refreshMaterializationLinks } from "../../../../src/lib/store/projection/materialization-selection.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 
-const binding = vi.hoisted(() => ({ deniedLinkProbe: null as string | null, deniedReturnedUnlink: null as string | null }));
+const binding = vi.hoisted(() => ({
+  deniedLinkProbe: null as string | null,
+  deniedReturnedUnlink: null as string | null,
+  copyFault: null as { phase: "stat" | "payload"; paths: readonly string[]; denied: string | null } | null,
+}));
+
+function denyCopy(path: unknown, phase: "stat" | "payload"): void {
+  const fault = binding.copyFault;
+  if (typeof path !== "string" || fault?.phase !== phase || fault.denied !== null || !fault.paths.includes(path)) return;
+  fault.denied = path;
+  throw Object.assign(new Error("Archive copy observation refused"), { code: "EACCES" });
+}
+
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
+    denyCopy(args[0], "stat");
     if (binding.deniedLinkProbe !== null && args[0] === binding.deniedLinkProbe) {
       binding.deniedLinkProbe = null;
       throw Object.assign(new Error("Archive destination access refused"), { code: "EACCES" });
     }
     return actual.lstat(...args);
   }) as typeof actual.lstat;
-  return { ...actual, lstat, default: { ...actual, lstat } };
+  const readFile = (async (...args: Parameters<typeof actual.readFile>) => {
+    denyCopy(args[0], "payload");
+    return actual.readFile(...args);
+  }) as typeof actual.readFile;
+  return { ...actual, lstat, readFile, default: { ...actual, lstat, readFile } };
 });
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
@@ -36,9 +53,21 @@ vi.mock("node:fs", async original => {
     }
     actual.rmSync(...args);
   };
-  return { ...actual, rmSync };
+  const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
+    denyCopy(args[0], "stat");
+    return actual.lstatSync(...args);
+  }) as typeof actual.lstatSync;
+  const readdirSync = ((...args: Parameters<typeof actual.readdirSync>) => {
+    const { copyFault } = binding;
+    if (copyFault?.phase === "stat" && typeof args[1] === "object" && args[1]?.withFileTypes
+      && copyFault.paths.some(path => dirname(path) === args[0])) {
+      throw Object.assign(new Error("Typed copy listing refused"), { code: "EACCES" });
+    }
+    return actual.readdirSync(...args);
+  }) as typeof actual.readdirSync;
+  return { ...actual, rmSync, lstatSync, readdirSync };
 });
-afterEach(() => { binding.deniedLinkProbe = null; binding.deniedReturnedUnlink = null; });
+afterEach(() => { binding.deniedLinkProbe = null; binding.deniedReturnedUnlink = null; binding.copyFault = null; });
 
 it.each([["nested", false], ["link", true], ["absent", false]] as const)(
   "finishes owed archive enumeration after a %s boundary (damaged partition=%s)", async (boundary, damaged) => {
@@ -88,15 +117,15 @@ it.each([["nested", false], ["link", true], ["absent", false]] as const)(
   expect(after.state).toBe(success(await h.store.version()));
 }, 30_000);
 
-it("discharges an owed path proved to be a file when its leaf is now a link", async () => {
+it.each(["status", "sync"] as const)("%s honors a proved archive file when its leaf is now a link", async command => {
   const h = await archiveRetirementFixture(), { location, index } = await h.disk();
   const file = join(h.checkout, h.path), saved = join(h.checkout, "prior-archive-file.md");
   await rename(file, saved);
   await symlink(saved, file, "file");
   await writeProjectionIndex(location, { ...index, archiveDiscoveryPending: [h.path], state: null });
-  await projectionCommand(h.input, ["status"]);
+  await projectionCommand(h.input, [command]);
   expect((await h.disk()).index.archiveDiscoveryPending).toBeUndefined();
-  expect((await lstat(file)).isSymbolicLink()).toBe(true);
+  expect((await lstat(file)).isSymbolicLink()).toBe(command === "status");
 }, 30_000);
 
 it("excludes a new nested checkout before it can contribute rebuild debt", async () => {
@@ -141,12 +170,34 @@ it("keeps an owed directory that a planned record has never observed as a file",
   await rename(directory, saved);
   await symlink(saved, directory, "junction");
   deny = false;
+  await projectionCommand(input, ["sync"]);
+  expect((await lstat(directory)).isSymbolicLink()).toBe(true);
   await projectionCommand(input, ["status"]);
   expect((await h.disk()).index).toMatchObject({ archiveDiscoveryPending: [h.path], state: null });
   await rm(directory);
   await rename(saved, directory);
   expect((await projectionCommand(input, ["status"])).diagnostics).toContain(`${path}: withheld`);
   expect((await h.disk()).index.entries[path]).toMatchObject({ kind: "ownerless", withheld: true });
+}, 30_000);
+
+it("sync leaves the junction above an owed child in place even at a proved file path", async () => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const file = join(h.checkout, h.path), saved = join(h.checkout, "saved-owed-child");
+  const child = `${h.path}/unindexed.md`, content = "An edit behind the junction.\n";
+  expect(index.entries[h.path]?.stat?.type).toBe("file");
+  await rm(file);
+  await mkdir(saved);
+  await writeFile(join(saved, "unindexed.md"), content);
+  await symlink(saved, file, "junction");
+  await writeProjectionIndex(location, { ...index, archiveDiscoveryPending: [child], state: null });
+  await projectionCommand(h.input, ["sync"]);
+  expect((await lstat(file)).isSymbolicLink()).toBe(true);
+  expect((await h.disk()).index).toMatchObject({ archiveDiscoveryPending: [child], state: null });
+  await rm(file);
+  await rename(saved, file);
+  expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain(`${child}: withheld`);
+  expect((await h.disk()).index.entries[child]).toMatchObject({ kind: "ownerless", withheld: true });
+  expect(await readFile(join(h.checkout, child), "utf8")).toBe(content);
 }, 30_000);
 
 async function removeArchivePartition(headerPath: string, stateDir: string): Promise<void> {
@@ -177,6 +228,82 @@ it.each([false, true])("transfers a missing returned alias to an owed path (dama
   expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain(`${path}: withheld`);
   expect((await h.disk()).index.entries[path]).toMatchObject({ kind: "ownerless", withheld: true });
   expect(await readFile(destination, "utf8")).toBe(content);
+}, 30_000);
+
+it.each([false, true])("transfers a vanished alias at an unproved leaf junction (damaged partition=%s)", async damaged => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const path = `${h.folder}/returned-at-opaque-leaf.md`, file = join(h.checkout, path), target = join(h.checkout, "returned-opaque-scope");
+  const edit = "An unindexed edit beneath the returned scope.\n", child = `${path}/hidden.md`;
+  await mkdir(target);
+  await writeFile(join(target, "hidden.md"), edit);
+  await symlink(target, file, "junction");
+  const writer = await createProjectionEnginePorts(h.checkout).writer();
+  const copy = nameAsideFile({ path, base: gitBlobId("Original.\n", "sha1"), writer, role: "aside" });
+  await writeProjectionIndex(location, { ...index, archiveRecoveryCopies: [copy], state: null });
+  if (damaged) await removeArchivePartition(join(location.stateDir, PROJECTION_INDEX_FILE), location.stateDir);
+  await projectionCommand(h.input, ["status"]);
+  const held = (await h.disk()).index;
+  expect(held.archiveRecoveryCopies).toBeUndefined();
+  expect(held).toMatchObject({ archiveDiscoveryPending: [path], state: null });
+  expect((await lstat(file)).isSymbolicLink()).toBe(true);
+  await rm(file);
+  await rename(target, file);
+  expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain(`${child}: withheld`);
+  expect((await h.disk()).index.entries[child]).toMatchObject({ kind: "ownerless", withheld: true });
+  expect(await readFile(join(h.checkout, child), "utf8")).toBe(edit);
+}, 30_000);
+
+it.each(["stat", "payload"] as const)("rebuild retains the first archive copy after %s denial and settles its sibling", async phase => {
+  const h = await archiveRetirementFixture(), sibling = `${h.folder}/z-unindexed-copy.txt`;
+  await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "z-unindexed-copy.txt"), "Accessible text.\n");
+  await projectionCommand(h.input, ["status"]);
+  const { location, index } = await h.disk();
+  const writer = { ...await createProjectionEnginePorts(h.checkout).writer(), processInstance: "exited-copy-observer" };
+  const copies = await Promise.all([h.path, sibling].map(async path => {
+    const entry = index.entries[path];
+    if (entry?.kind !== "record") throw new Error("Missing projected base");
+    const name = nameAsideFile({ path, writer, base: entry.base.blob, role: "aside" });
+    const absolute = join(h.checkout, name);
+    await mkdir(dirname(absolute), { recursive: true });
+    await writeFile(absolute, await readFile(join(h.checkout, path)));
+    return { absolute, name };
+  }));
+  await rm(join(location.stateDir, PROJECTION_INDEX_FILE));
+  const fault = { phase, paths: copies.map(copy => copy.absolute), denied: null as string | null };
+  binding.copyFault = fault;
+  expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain("EACCES");
+  const held = copies.find(copy => copy.absolute === fault.denied);
+  if (held === undefined) throw new Error("The sweep did not encounter the denial");
+  await expect(lstat(held.absolute)).resolves.toBeDefined();
+  for (const copy of copies.filter(each => each !== held)) await expect(lstat(copy.absolute)).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await h.disk()).index).toMatchObject({ archiveRecoveryCopies: [held.name], state: null });
+  binding.copyFault = null;
+  await projectionCommand(h.input, ["status"]);
+  await expect(lstat(held.absolute)).rejects.toMatchObject({ code: "ENOENT" });
+  const recovered = (await h.disk()).index;
+  expect(recovered.archiveRecoveryCopies).toBeUndefined();
+  expect(recovered.state).toBe(success(await h.store.version()));
+}, 30_000);
+
+it("keeps a previously withheld copy withheld when typing it fails during rebuild", async () => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const path = `${h.folder}/unindexed-withheld.md`, content = "An edit that stays withheld.\n";
+  const writer = { ...await createProjectionEnginePorts(h.checkout).writer(), processInstance: "exited-withheld-writer" };
+  const copy = nameAsideFile({ path, writer, role: "aside", base: gitBlobId("Original.\n", "sha1") });
+  const absolute = join(h.checkout, copy), header = join(location.stateDir, PROJECTION_INDEX_FILE);
+  await mkdir(dirname(absolute), { recursive: true });
+  await writeFile(absolute, content);
+  await writeProjectionIndex(location, { ...index, withheldCopies: [copy] });
+  await removeArchivePartition(header, location.stateDir);
+  binding.copyFault = { phase: "stat", paths: [absolute], denied: null };
+  expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain("EACCES");
+  expect(binding.copyFault.denied).toBe(absolute);
+  binding.copyFault = null;
+  await projectionCommand(h.input, ["status"]);
+  expect((await h.disk()).index.withheldCopies).toEqual([copy]);
+  expect((await h.disk()).index.archiveRecoveryCopies).toBeUndefined();
+  await expect(lstat(join(h.checkout, path))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(absolute, "utf8")).toBe(content);
 }, 30_000);
 
 it("keeps a returned unindexed alias and its retry when unlink loses access", async () => {

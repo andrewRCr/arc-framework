@@ -18,7 +18,7 @@ import { readProjectionInventory } from "./inventory.js";
 import { desiredProjectionPaths } from "./desired-paths.js";
 import { evidenceHeldProjectionMark, withheldProjectionMark } from "./materialization-file.js";
 import { withProjectionEntry } from "./index-memory.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { ArchiveDestinationBlocked, isArchiveScope } from "./archive-file.js";
 import { join } from "node:path";
 import { createProjectionLinkBoundary } from "./discovery-links.js";
 import { reportProjectionLinks } from "./report.js";
@@ -48,23 +48,28 @@ export async function observePendingArchiveDiscovery(root: ProjectionRootState, 
 export async function finishPendingArchiveDiscovery(root: ProjectionRootState, index: ProjectionIndex, walked: ArchiveDiscovery | null,
   restored: readonly string[], source: ProjectionSource, version: StateVersion): Promise<ProjectionIndex> {
   if (walked === null && restored.length === 0) return index;
-  const files = new Set([...(walked?.files ?? []), ...restored]);
   const inventory = await readProjectionInventory(source, root.identity, version);
   for (const mark of inventory.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
   const desired = await desiredProjectionPaths(root, inventory);
-  return recordRebuildDiscovery(root, index, { files, incomplete: walked?.incomplete.keys(), owed: [...walked?.owed ?? [], ...restored] }, desired.files,
+  return recordRebuildDiscovery(root, index, { files: walked?.files ?? [], incomplete: walked?.incomplete.keys(),
+    owed: walked?.owed ?? [], returned: restored }, desired.files,
     !desired.unresolved && inventory.diagnostics.length === 0);
 }
 
 /** Keep unindexed bytes withheld and retain any archive scope whose inspection still needs a retry. */
 export async function recordRebuildDiscovery(root: ProjectionRootState, initial: ProjectionIndex,
-  inventory: { files: Iterable<string>; incomplete: Iterable<string> | undefined; owed: readonly string[] },
+  inventory: { files: Iterable<string>; incomplete: Iterable<string> | undefined; owed: readonly string[]; returned: readonly string[] },
   desired: ReadonlyMap<string, unknown>, whole: boolean): Promise<ProjectionIndex> {
+  // Losing an alias leaves its destination owed. Its physical kind still needs observation.
+  const archive = inventory.returned.filter(isArchiveScope);
+  const other = inventory.returned.filter(path => !isArchiveScope(path));
+  const transferred = await observePendingArchiveDiscovery(root, { archiveDiscoveryPending: archive, entries: initial.entries });
   let index = initial;
-  const incomplete = new Set(inventory.incomplete);
-  for (const path of inventory.files) {
+  const incomplete = new Set([...inventory.incomplete ?? [], ...transferred?.incomplete.keys() ?? []]);
+  const scopes = [...inventory.owed, ...archive];
+  for (const path of new Set([...inventory.files, ...other, ...transferred?.files ?? []])) {
     if (index.entries[path] !== undefined) continue;
-    const owed = inventory.owed.some(scope => scope === path || path.startsWith(`${scope}/`));
+    const owed = scopes.some(scope => scope === path || path.startsWith(`${scope}/`));
     if (!owed && desired.has(path)) continue;
     const stat = await inspectDiscoveryFile(root, path, incomplete, owed);
     if (stat?.type !== "file" || desired.has(path)) continue;

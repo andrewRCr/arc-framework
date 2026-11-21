@@ -2,6 +2,9 @@
 import { join } from "node:path";
 import { ASIDE_FILES_ROOT, parseAsideFile } from "./aside.js";
 import { readProjectionFolder, type ProjectionWalkFs, type WalkEntry } from "./engine-walk.js";
+import { archiveOperationError } from "./archive-file.js";
+import { readFile } from "node:fs/promises";
+import { readStat } from "./change-detection.js";
 
 /** Recovery names are opaque; directory events allow a writable consumer to prune on exit. */
 export type ProjectionAsideVisit = { readonly kind: "copy" | "directory"; readonly location: string };
@@ -26,5 +29,19 @@ export async function* walkProjectionAsideFolder(checkout: string, walkFs?: Proj
 
 /** One vanished entry never hides its siblings: the main walk's read keeps the surviving entries. */
 function asideDirectoryEntries(checkout: string, directory: string, walkFs?: ProjectionWalkFs): readonly WalkEntry[] {
-  return readProjectionFolder(join(checkout, directory), walkFs) ?? [];
+  // A named aside is listed even if typing it fails. Its consumer can bind the refusal to its destination.
+  return readProjectionFolder(join(checkout, directory), walkFs, undefined, undefined,
+    name => parseAsideFile(`${directory}/${name}`)?.role === "aside") ?? [];
+}
+
+/** Type a named recovery copy at the point its logical destination is known. */
+export async function readAsideStat(absolute: string, path: string): ReturnType<typeof readStat> {
+  try { return await readStat(absolute); }
+  catch (error) { throw archiveOperationError(path, error, "inspect a copy of"); }
+}
+
+/** Read a named recovery copy's contents for comparison under the same destination hold. */
+export async function readAsideText(absolute: string, path: string): Promise<string> {
+  try { return await readFile(absolute, "utf8"); }
+  catch (error) { throw archiveOperationError(path, error, "read a copy of"); }
 }

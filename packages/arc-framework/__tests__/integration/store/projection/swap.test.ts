@@ -82,6 +82,23 @@ describe("the swap", () => {
     expect(result.index.entries[PATH]).toMatchObject({ base: laid.base, written: laid.written, pending: true });
   });
 
+  it("keeps a late junction at a planned archive file when it conceals an owed child", async () => {
+    const h = await prepared(".arc/completed/2026-q4/01_alpha/meta-alpha.md");
+    const owed = `${h.path}/unindexed.md`, target = join(h.seeded.checkout, "late-archive-directory");
+    await mkdir(target);
+    await writeFile(join(target, "unindexed.md"), "An edit under the owed child path.\n");
+    const result = await h.swap({ index: { ...h.seeded.index, archiveDiscoveryPending: [owed], state: null },
+      hooks: { afterRecheck: async () => {
+        await rename(h.file, `${h.file}.previous`);
+        await symlink(target, h.file, "junction");
+      } } });
+    expect(await readStat(h.file)).toMatchObject({ type: "symlink" });
+    expect(result.index.archiveDiscoveryPending).toEqual([owed]);
+    expect(result.unreplaced).toContain(h.path);
+    expect(result.copies).toEqual([]);
+    expect(await readFile(join(target, "unindexed.md"), "utf8")).toBe("An edit under the owed child path.\n");
+  });
+
   it("rebuilds an absent file by the link alone, its in-progress record cleared by the second write, kept where it yields", async () => {
     const text = [".arc/user/andrew/scratch/two.txt", ["plain: text\n", "plain: refreshed\n"]] as const;
     const rebuilt = await prepared(...text);

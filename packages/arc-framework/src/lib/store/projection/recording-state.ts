@@ -82,14 +82,20 @@ export function pendingObservedRefusal(entry: RecordEntry, mark: RefusedMark): R
   return { ...entry, pending: true, refused: adoptionResolutionHold(entry) ?? mark };
 }
 
-/** A returned ordinary text acceptance can prove its first lay even without a submission journal. */
-export function recordAcceptedTextInput(request: TakeInRequest, entry: RecordEntry, read: TakeInRead,
-  takenIn: string, format: ObjectFormat): RecordEntry {
-  if (request.copy !== null || request.entry.opened !== true || !request.path.startsWith(".arc/completed/")
-    || request.path.endsWith(".md") || entry.persisted === null || entry.acceptedInputStat !== undefined) return entry;
+/** Raw and parsed observations of the exact text whose acceptance has just been returned. */
+export interface AcceptedTextInput {
+  readonly stat: NonNullable<RecordEntry["acceptedInputStat"]>;
+  readonly read: string;
+  readonly inputBlob: string;
+}
+
+/** Derive first-lay evidence for a whole ordinary text acceptance outside the submission journal. */
+export function acceptedTextInput(request: TakeInRequest, read: TakeInRead, takenIn: string, format: ObjectFormat,
+  retained: RefusedMark | undefined): AcceptedTextInput | undefined {
+  if (retained !== undefined || request.copy !== null || request.entry.opened !== true || !request.path.startsWith(".arc/completed/")
+    || request.path.endsWith(".md")) return undefined;
   const { ino, mtimeNs } = read.stat;
-  return { ...entry, acceptedInputStat: { ino, mtimeNs, lay: { kind: "pending" } },
-    persisted: { ...entry.persisted, read: read.blob, inputBlob: gitBlobId(takenIn, format) } };
+  return { stat: { ino, mtimeNs, lay: { kind: "pending" } }, read: read.blob, inputBlob: gitBlobId(takenIn, format) };
 }
 
 /** Recovery returned the bound original, so exact accepted bytes at the path still qualify for their first lay. */

@@ -47,10 +47,8 @@ export async function checkProjectionRemovalFiles(input: ProjectionRemovalFilesI
   const selected = await readRemovalProjectionRoots(root.checkout, roots, ports);
   const coverage: ArchiveDiscoveryRoot = { ...root, ports };
   const walked = await observeRetirementInventory(coverage, index, selected);
-  const unread = firstUnreadArchiveScope(coverage);
-  if (unread !== undefined) return { index, verdict: { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, unread[0], unread[1]) } };
-  const opaque = walked.opaque?.entries().next().value;
-  if (opaque !== undefined) return { index, verdict: markedRemovalRefusal(root.checkout, opaque[0], opaque[1], input.disposition) };
+  const hold = firstUnreadArchiveScope(coverage) ?? walked.opaque?.entries().next().value;
+  if (hold !== undefined) return { index, verdict: { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, hold[0], hold[1]) } };
   const reference = await readReference(root.checkout);
   const retries = Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];

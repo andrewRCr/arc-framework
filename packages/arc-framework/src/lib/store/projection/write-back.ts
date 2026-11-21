@@ -48,7 +48,7 @@ import { completeWriteBackRecording, type RecordingSite } from "./write-back-rec
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
 import { acceptArchiveSave, stageArchiveSave } from "./archive-save-recording.js";
-import { recordAcceptedTextInput, retainedArchiveInput } from "./recording-state.js";
+import { acceptedTextInput, retainedArchiveInput, type AcceptedTextInput } from "./recording-state.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -505,6 +505,8 @@ async function finishAcceptedWrite(context: WriteBackContext, request: TakeInReq
   prepared: Extract<PreparedWriteBack, { kind: "ready" }>, entry: RecordEntry, accepted: WriteResult,
   journal: ProjectionIndex | undefined): Promise<WriteBackSend> {
   if (accepted.version === undefined) throw new Error("A landed content put returned no version");
+  const acceptedInput = journal === undefined
+    ? acceptedTextInput(request, prepared.read, prepared.takenIn, context.format, prepared.retained) : undefined;
   if (isAdopting(request)) entry = { ...entry, adoption: { kind: "read-back", read: prepared.read } };
   if (journal !== undefined) {
     entry = entry.archiveSubmission === undefined ? await pendingAcceptedRecording(context, request, prepared, entry, accepted.version)
@@ -520,10 +522,10 @@ async function finishAcceptedWrite(context: WriteBackContext, request: TakeInReq
   if (read.status === "refused") {
     const mark = { reason: `The edit landed, but read-back failed: ${read.refusal.condition}`, remedy: read.refusal.remedy };
     context.report?.({ path: request.path, copy: request.copy, mark });
-    if (entry.persisted?.recording !== true) entry = await pendingAcceptedRecording(context, request, prepared, entry, accepted.version);
+    if (entry.persisted?.recording !== true) entry = await pendingAcceptedRecording(context, request, prepared, entry, accepted.version, acceptedInput);
     return { kind: "read-back-refused", result: { answer: "pending", entry: { ...entry, pending: true, refused: mark } } };
   }
-  const recorded = await recordWriteBack({ location: context.location, checkpoint: context.checkpoint, entry, stamp: prepared.stamp,
+  const recorded = await recordWriteBack({ location: context.location, checkpoint: context.checkpoint, entry, stamp: prepared.stamp, acceptedInput,
     takenIn: prepared.takenIn, read: prepared.read.blob, outcome: { kind: "landed", version: accepted.version }, readBack: read.result,
     grammar: kinds[entry.reference.kind].entry, format: context.format,
     memo: context.memo ?? createHistoryMemo(context.store) });
@@ -537,9 +539,8 @@ async function finishAcceptedWrite(context: WriteBackContext, request: TakeInReq
     return { kind: "landed-held", result: { answer: "refused", mark: prepared.retained,
       entry: { ...recorded.entry, pending: true, refused: prepared.retained, unshown } } };
   }
-  const landed = recordAcceptedTextInput(request, recorded.entry, prepared.read, prepared.takenIn, context.format);
   return { kind: "landed", record: read.result, result: { answer: "taken-in", read: prepared.read,
-    entry: { ...landed, refused: null, copies: entry.copies.map(copy => (
+    entry: { ...recorded.entry, refused: null, copies: entry.copies.map(copy => (
       copy.name === request.copy ? { ...copy, landed: prepared.read.blob } : copy
     )) } } };
 }
@@ -555,9 +556,10 @@ function isAdopting(request: TakeInRequest): boolean {
 }
 
 async function pendingAcceptedRecording(context: WriteBackContext, request: TakeInRequest,
-  prepared: Extract<PreparedWriteBack, { kind: "ready" }>, entry: RecordEntry, version: RecordVersion): Promise<RecordEntry> {
+  prepared: Extract<PreparedWriteBack, { kind: "ready" }>, entry: RecordEntry, version: RecordVersion,
+  acceptedInput?: AcceptedTextInput): Promise<RecordEntry> {
   const recorded = await recordPendingWriteBack({ location: context.location, checkpoint: context.checkpoint, entry,
-    stamp: prepared.stamp, takenIn: prepared.takenIn, read: prepared.read.blob, version, format: context.format });
+    stamp: prepared.stamp, takenIn: prepared.takenIn, read: prepared.read.blob, acceptedInput, version, format: context.format });
   return adoptionReadBackEntry(request, prepared, recorded);
 }
 
