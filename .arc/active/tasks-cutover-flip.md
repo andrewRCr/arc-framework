@@ -735,16 +735,15 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   `unit/lib/store/active-review-access.test.ts` reads by owner and by layout; each failed first. The lineage suite's
   mechanically carried and change-set fix cases, which move in Task 3.4.c.2, pass on the store with the fix.
 
-### `[ ]` **3.R10 A projection start that cannot update Git's exclude refuses — § 4.17**
+### `[x]` **3.R10 A projection start that cannot update Git's exclude refuses — § 4.17**
 
 - _Goal:_ On the store, a command whose projection start cannot update Git's `info/exclude` runs with its projection
   refused, reporting the exclude file, the failure, and its repair, and once the file is repaired the next command
   projects (A25).
-
-    - `materializeProjectionRoot` (`lib/store/projection/materialization.ts`) returns its refused result for a failed
-      `ensureGitExcludePatterns`, as it does for an ignore guard refusal.
-    - A case over the projection start with `info/exclude` a directory fails first; `e2e/schema-install.e2e.test.ts`'s
-      exclude-failure case, which moves in Task 3.6.a, passes through the built CLI.
+- _Outcome:_ `materializeProjectionRoot` (`lib/store/projection/materialization.ts`) returns its refused result for a
+  failed `ensureGitExcludePatterns`, its mark naming the exclude file, the failure, and the repair. The case in
+  `integration/store/projection/materialization.test.ts` with `info/exclude` a directory failed first with `EISDIR`;
+  `e2e/schema-install.e2e.test.ts`'s exclude-failure case, which moves in Task 3.6.a, passes through the built CLI.
 
 ### `[x]` **3.4 Spawned tests move onto the store by family — § 7.3**
 

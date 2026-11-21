@@ -189,6 +189,24 @@ it("leaves an unmaterialized worktree retryable when its npm policy is missing a
   expect(parseStampedFile(await readFile(join(target.checkout, ".arc/active/current/meta-work-item-one.md"), "utf8")).content).toBe(target.primary.content);
 });
 
+it("leaves an unmaterialized worktree retryable when Git's exclude file cannot be updated and names its repair", async () => {
+  const target = await fixture();
+  const resolved = await target.h.exec("git", ["rev-parse", "--path-format=absolute", "--git-path", "info/exclude"],
+    { cwd: target.checkout });
+  const exclude = resolved.stdout.trim();
+  const content = await readFile(exclude, "utf8");
+  await rm(exclude);
+  await mkdir(exclude);
+  const refused = await materialize(target);
+  expect(refused).toMatchObject({ status: "done", value: { kind: "refused", mark: {
+    reason: expect.stringContaining(exclude), remedy: { text: expect.stringContaining(exclude) } } } });
+  expect(await readProjectionIndex(target.location, true)).toMatchObject({ kind: "unusable", cause: "missing" });
+  await rm(exclude, { recursive: true });
+  await writeFile(exclude, content);
+  expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized" } });
+  expect(parseStampedFile(await readFile(join(target.checkout, ".arc/active/current/meta-work-item-one.md"), "utf8")).content).toBe(target.primary.content);
+});
+
 
 it("leaves paths under a folder a regular file occupies unlaid and pending, then lays them once it moves", async () => {
   const target = await fixture();

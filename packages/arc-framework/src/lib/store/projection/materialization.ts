@@ -59,15 +59,23 @@ export type ProjectionMaterializationInput = ProjectionMaterializationBasis
 export type ProjectionMaterializationResult = { readonly kind: "materialized"; readonly index: ProjectionIndex }
   | { readonly kind: "refused"; readonly index: ProjectionIndex; readonly mark: RefusedMark };
 
+/** Name Git's exclude file and its repair when the projection cannot add its patterns there; nothing has been laid. */
+function excludeRefusedMark(failure: { readonly path?: string; readonly error: unknown }): RefusedMark {
+  const file = failure.path ?? "Git's info/exclude";
+  const cause = failure.error instanceof Error ? failure.error.message : String(failure.error);
+  return { reason: `Projection could not update ${file}: ${cause}`,
+    remedy: { text: `Make ${file} a regular file ARC can read and write, then run the command again.` } };
+}
+
 /** Lay the complete visible inventory while preserving every file without a trustworthy basis. */
 export async function materializeProjectionRoot(input: ProjectionMaterializationInput): Promise<ProjectionMaterializationResult> {
   const { root } = input;
   const startedAt = projectionTimingNow(root.ports);
   await root.context.checkpoint?.();
   const excluded = await ensureGitExcludePatterns(root.checkout, projectionExcludePatterns(), root.ports.exec, nodeWorktreeMarkerIgnoreFs);
-  if (!excluded.ok) throw excluded.error;
   let index: ProjectionIndex = input.index ?? { format: 2, state: null, entries: {}, withheldCopies: [], tripwires: {},
     ignoreFiles: null, ignoreGuard: null, projectedUnder: projectionSettings(root) };
+  if (!excluded.ok) return { kind: "refused", index, mark: excludeRefusedMark(excluded) };
   const swept = await observeMaterialization(input);
   const ignores = swept.ignores;
   index = recordProjectionIgnoreCheck(swept.index ?? { ...index,
