@@ -1802,6 +1802,19 @@ An identity would change nothing there, so the fixture sets none, and the test's
 selection the reader returns. `resolveArcRoot` (`lib/paths.ts`) searches every directory above the fixture, so a
 temporary directory inside an ARC checkout would project there instead; the assertion then fails rather than passing.
 
+## A25 — a projection start that cannot update Git's exclude
+
+Task 3.6.a moved `e2e/schema-install.e2e.test.ts` onto the store. Its case that turns `.git/info/exclude` into a
+directory expects `arc schema install` to refuse naming the exclude file and to succeed once it is repaired; on the store
+the command ended with `EISDIR` and no JSON, and so did `arc status --json` in the same folder. A traced read placed the
+failure in the projection start: `materializeProjectionRoot` (`lib/store/projection/materialization.ts`) rethrows the
+error `ensureGitExcludePatterns` (`lib/git/exclude.ts`) returns, while the ignore guard's refusal a few lines on
+becomes a refused materialization the command runs past. Section 4.13 (A17) covers only an unwritable projection lock.
+
+The refused result keeps commands that never need the projection, read-only ones among them, working until the file is
+repaired, as an ignore guard refusal already does. Ending each command with a structured refusal instead would block all
+of them on a file only the projection writes.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.

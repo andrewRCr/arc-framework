@@ -735,6 +735,17 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   `unit/lib/store/active-review-access.test.ts` reads by owner and by layout; each failed first. The lineage suite's
   mechanically carried and change-set fix cases, which move in Task 3.4.c.2, pass on the store with the fix.
 
+### `[ ]` **3.R10 A projection start that cannot update Git's exclude refuses — § 4.17**
+
+- _Goal:_ On the store, a command whose projection start cannot update Git's `info/exclude` runs with its projection
+  refused, reporting the exclude file, the failure, and its repair, and once the file is repaired the next command
+  projects (A25).
+
+    - `materializeProjectionRoot` (`lib/store/projection/materialization.ts`) returns its refused result for a failed
+      `ensureGitExcludePatterns`, as it does for an ignore guard refusal.
+    - A case over the projection start with `info/exclude` a directory fails first; `e2e/schema-install.e2e.test.ts`'s
+      exclude-failure case, which moves in Task 3.6.a, passes through the built CLI.
+
 ### `[x]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
 - _Goal:_ Each spawned test whose subject survives seeds its state through the store and drops the temporary override,
@@ -996,19 +1007,40 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
 - _Goal:_ A search of the test tree finds each caller of the default store either building the in-repo backend
   explicitly or expecting the ref backend, and the spawn helpers set no override by default.
 
-    - The search covers `createStore(`, `openDefaultStore`, spawned commands over a tracked-state fixture, spawned
-      commands given no `cwd`, which run over this checkout, processes spawned outside the spawn helpers that compose
-      the default store, whatever their `cwd`, spawned commands asserting an in-repo `unsupported` refusal or its
-      remedy, and the entry points into production default sites: in-process dispatch, which runs the root hook;
-      `runStoreMigrate`'s import source; `createSessionStatusContext`; `resolveReviewInvocation`;
-      `readProjectedSelection`; and partial mocks such as `integration/view-store-cli.test.ts`'s, which replaces only
-      `openDefaultStore`.
-    - Record the search's result by file in `notes-cutover-flip.md` § Test callers.
-    - `e2e/run-cli.e2e.test.ts`'s bare `integrate` case, which spawns with no `cwd` (`helpers/run-cli.ts`), runs from a
-      temporary directory (§ 7.2).
-    - Remove the spawn helpers' default override (Task 3.2.b).
-    - Remove the switch's ledger, empty by now, and the per-file setup that reads it (Task 3.3.d).
-    - A test fails if a test setup or spawn helper sets the override by default.
+- _Note:_ The search covers `createStore(`, `openDefaultStore`, spawned commands over a tracked-state fixture, spawned
+  commands given no `cwd`, which run over this checkout, processes spawned outside the spawn helpers that compose the
+  default store, whatever their `cwd`, spawned commands asserting an in-repo `unsupported` refusal or its remedy, and
+  the entry points into production default sites: in-process dispatch, which runs the root hook; `runStoreMigrate`'s
+  import source; `createSessionStatusContext`; `resolveReviewInvocation`; `readProjectedSelection`; and partial mocks
+  such as `integration/view-store-cli.test.ts`'s, which replaces only `openDefaultStore`.
+
+- _Amended (Owner, 2026-11-20):_ with the spawn helpers' default override removed, 16 of the 76 files still spawning
+  through it failed 65 of their 793 cases, so the task moves in five review increments, one commit each: four switch
+  the failing files through `e2e/store-default.ts`, and the last removes the override.
+
+    - `[ ]` **3.6.a The check and schema commands**
+        - `e2e/check-dry-run.e2e.test.ts`, `check-outcomes`, `check-project-selection`, `check-selection`, and
+          `schema-install` spawn through `e2e/store-default.ts`.
+
+    - `[ ]` **3.6.b The command-input matrix**
+        - `e2e/command-input-no-input.e2e.test.ts` spawns through `e2e/store-default.ts`.
+
+    - `[ ]` **3.6.c Sync and user notes**
+        - `e2e/sync-inbound.e2e.test.ts`, `sync-purity`, `sync-state-producer`, and `materializing-fetch` spawn through
+          `e2e/store-default.ts`.
+
+    - `[ ]` **3.6.d The remaining spawned files**
+        - `e2e/editor-settings.e2e.test.ts`, `plan`, `release-commit`, `set-class`, `run-cli`, and
+          `commit-message-consumers`, and `integration/review-terminal-attempt-input.test.ts`, spawn on the process's
+          store; `commit-message-consumers` leaves the switch's ledger.
+        - `e2e/run-cli.e2e.test.ts`'s bare `integrate` case, which spawns with no `cwd` (`helpers/run-cli.ts`), runs
+          from a temporary directory (§ 7.2).
+
+    - `[ ]` **3.6.e The override gone**
+        - Remove the spawn helpers' default override (Task 3.2.b), and the switch's ledger, empty by now, and the
+          per-file setup that reads it (Task 3.3.d).
+        - A test fails if a test setup or spawn helper sets the override by default.
+        - Record the search's result by file in `notes-cutover-flip.md` § Test callers.
 
 ### `[ ]` **3.7 The flipped CLI end to end** — validate exit criterion at segment scope
 
@@ -1764,6 +1796,9 @@ landing after verification).
 
 - `[ ]` On the store, `arc active status` in the checkout bound to its work unit under the nested layout reports the
   Candidate ID and integration boundary the store holds, and session-init resolves that work unit's session type (A23).
+
+- `[ ]` On the store, a command whose projection start cannot update Git's `info/exclude` runs with its projection
+  refused, naming the file and its repair, and projects once the file is repaired (A25).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

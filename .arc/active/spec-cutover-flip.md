@@ -679,6 +679,19 @@ then leaves the session type unresolved (`classifyResolution`, `commands/active/
 each meta's exact owner. From the flip the read takes the work unit from that owner, and identifies the path, through
 the checkout's layout context, only when no owner is given (A23).
 
+#### 4.17 A command runs with its projection refused when Git's exclude file cannot be updated
+
+Each command's projection start lays the checkout's projected files (`materializeProjectionRoot`,
+`lib/store/projection/materialization.ts`) after adding the projection's patterns to Git's `info/exclude`
+(`ensureGitExcludePatterns`, `lib/git/exclude.ts`), which returns a failed update rather than throwing it. The start
+throws that failure on, so an exclude file it cannot read or write, such as one that is a directory, ends every command
+with the bare filesystem error, naming no condition and no remedy. On the in-repo store the projection is disabled and
+the start never updates the file, so a command that does not need it, such as `arc schema install`, which reports an
+unwritable exclude file in its own refusal, kept working. An ignore guard refusal in the same step already returns a
+refused materialization, and the command runs with its projection refused and reports the refusal with its remedy. From
+the flip a failed exclude update returns that refused result: the command runs with its projection refused, the report
+names Git's exclude file, the failure, and the repair, and once the file is repaired the next command projects (A25).
+
 ### 5. Tracked and installed files leaving the projected roots
 
 From the flip, `.arc/active/`, `.arc/backlog/`, and `.arc/completed/` are projected roots, gitignored and laid by the
@@ -2388,5 +2401,7 @@ None.
   _Supersedes:_ none. _Trigger:_ 3.4.c.2 must-stop. _Work:_ 3.R9. _Revalidated:_ pending → 3.7.
 - **A24** — 2026-11-20 — design: the Markdown fix's fixture runs unprojected, so its empty selection needs no identity.
   _Supersedes:_ § 7.5 ¶1. _Trigger:_ 3.5 door. _Work:_ none. _Revalidated:_ pending → 3.7.
+- **A25** — 2026-11-20 — spec-depth: a projection start that cannot update Git's exclude refuses rather than crashing.
+  _Supersedes:_ none. _Trigger:_ 3.6.a must-stop. _Work:_ 3.R10. _Revalidated:_ pending → 3.7.
 
 ---
