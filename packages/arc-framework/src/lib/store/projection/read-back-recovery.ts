@@ -3,7 +3,7 @@ import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { TakeInRead } from "./take-in-port.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
-import { readUnchangedProjectionFile } from "./unchanged-file.js";
+import { readPendingProjectionInput } from "./unchanged-file.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
 import { pendingFileRequest } from "./pending-request.js";
 import { installWriteBack } from "./read-back.js";
@@ -11,7 +11,6 @@ import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { completeWriteBackRecording } from "./write-back-recording.js";
 import { recoverArchiveSave } from "./archive-save-recording.js";
-import { retainedArchiveInput } from "./recording-state.js";
 
 /** Settle a lost submission response before treating any live bytes as a new edit. */
 export async function recoverSubmittedArchiveEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
@@ -53,17 +52,16 @@ export async function checkUnchangedProjectionEdit(root: ProjectionRootState, in
     ({ index, entry } = completed);
     if (completed.held) return { index, edited: false, reobserve: true };
   }
-  const read = await readUnchangedProjectionFile(root.context, pendingFileRequest(root.checkout, path, entry));
-  if (read === null) return completing
+  const input = await readPendingProjectionInput(root.context, pendingFileRequest(root.checkout, path, entry));
+  if (input === null) return completing
     ? { index: withProjectionEntry(index, path, { ...entry, changed: true }), edited: true, reobserve: true } : null;
-  const retained = retainedArchiveInput(entry, read.blob);
-  if (retained !== undefined) {
+  if (input.kind === "retained") {
     root.unsent.add(path);
-    root.context.report?.({ path, copy: null, mark: retained });
-    return { index: withProjectionEntry(index, path, { ...entry, pending: true, refused: retained }), edited: false, reobserve: true };
+    root.context.report?.({ path, copy: null, mark: input.mark });
+    return { index: withProjectionEntry(index, path, { ...entry, pending: true, refused: input.mark }), edited: false, reobserve: true };
   }
   root.unsent.delete(path);
-  const recovered = await recoverAcceptedReadBack(root, index, path, entry, read);
+  const recovered = await recoverAcceptedReadBack(root, index, path, entry, input.read);
   if (recovered === null) return { index, edited: false, ...(completing ? { reobserve: true } : {}) };
   onFile?.(recovered.observation);
   return { index: recovered.index, edited: false, reobserve: true };

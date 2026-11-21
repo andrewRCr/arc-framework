@@ -7,11 +7,14 @@ import { gitBlobId } from "./blob-id.js";
 import { captureWriteBackFile, type WriteBackContext } from "./write-back.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
 import { retainedArchiveInput } from "./recording-state.js";
+import type { RefusedMark } from "./index-schema.js";
 
 type CapturedFile = Extract<Awaited<ReturnType<typeof captureWriteBackFile>>, { kind: "read" }>;
+type PendingInput = { readonly kind: "unchanged"; readonly read: TakeInRead }
+  | { readonly kind: "retained"; readonly mark: RefusedMark };
 
-/** Establish no new edit using the file's selected base, including a persisted take-in's newer basis. */
-export async function readUnchangedProjectionFile(context: WriteBackContext, request: TakeInRequest): Promise<TakeInRead | null> {
+/** Distinguish settled bytes from a partial landing whose original file still needs repair. */
+export async function readPendingProjectionInput(context: WriteBackContext, request: TakeInRequest): Promise<PendingInput | null> {
   const entry = request.entry;
   if (!entry.pending || request.copy !== null || request.resolution !== undefined || request.adopting
     || entry.adoption !== undefined || entry.handoff !== undefined || entry.archiveSubmission !== undefined
@@ -21,11 +24,19 @@ export async function readUnchangedProjectionFile(context: WriteBackContext, req
   if (oldConflicts && recordedInput === undefined && entry.persisted?.retained === undefined) return null;
   const file = await captureWriteBackFile(context, request);
   if (file.kind !== "read") return null;
-  if (retainedArchiveInput(entry, file.read.blob) !== undefined) return file.read;
-  // An interrupted marker resolution leaves its stamped input in place until the read-back installs a new inode.
-  if (recordedInput === file.read.blob && entry.acceptedInputStat?.ino === file.read.stat.ino
-    && (entry.acceptedInputStat.mtimeNs === file.read.stat.mtimeNs || oldConflicts && request.path.endsWith(".md"))) return file.read;
-  return oldConflicts ? null : readUnchangedBase(context, request, file);
+  const retained = retainedArchiveInput(entry, file.read.blob);
+  if (retained !== undefined) return { kind: "retained", mark: retained };
+  if (recordedInput === file.read.blob && matchesAcceptedObservation(entry.acceptedInputStat, file.read)) {
+    return { kind: "unchanged", read: file.read };
+  }
+  const read = oldConflicts ? null : await readUnchangedBase(context, request, file);
+  return read === null ? null : { kind: "unchanged", read };
+}
+
+function matchesAcceptedObservation(original: TakeInRequest["entry"]["acceptedInputStat"], read: TakeInRead): boolean {
+  if (original === undefined) return false;
+  // The live path has not reached the guarded lay. A metadata-only change cannot alter the accepted input.
+  return original.beforeLay === true || original.ino === read.stat.ino && original.mtimeNs === read.stat.mtimeNs;
 }
 
 async function readUnchangedBase(context: WriteBackContext, request: TakeInRequest, file: CapturedFile): Promise<TakeInRead | null> {

@@ -42,7 +42,7 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   const selected = target?.refusal === null ? target.target?.path : undefined;
   const walked = [...new Set([...files, ...adoptionRetries(root, initial)])].sort();
   const paths = selected === undefined || target?.accepted ? walked : [...new Set([...walked, selected])].sort();
-  for (const path of paths.filter(path => root.blockedByLink(path) === null || hasArchiveRecording(index.entries[path]))) {
+  for (const path of paths.filter(path => root.blockedByLink(path) === null || hasArchiveRecording(path, index.entries[path]))) {
     const checked = await checkFileAtPath(root, index, path, reference, observations?.get(path), observe);
     index = checked.index;
     if (checked.reobserve) observations = undefined;
@@ -108,7 +108,7 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
 /** Recover store-only acceptance while a path cannot be inspected or installed: refused at selection, or unreadable. */
 async function checkBlockedArchivePath(root: ProjectionRootState, index: ProjectionIndex, path: string,
   entry: ProjectionIndex["entries"][string] | undefined, read?: RefusedMark): Promise<{ index: ProjectionIndex; edited: false; reobserve?: true }> {
-  const recording = hasArchiveRecording(entry);
+  const recording = hasArchiveRecording(path, entry);
   if (entry?.archiveSubmission !== undefined) {
     await root.checkpoint?.();
     const recovered = entry.kind === "record"

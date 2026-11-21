@@ -5,11 +5,13 @@ import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
 import { createErrandAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
-import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
+import { configureEngineCheckout, overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
-import { seed, success, update } from "../../../helpers/store/suite-tools.js";
+import { seed, success, testProvenance, update } from "../../../helpers/store/suite-tools.js";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
 import { HistoryRefSchema } from "../../../../src/lib/store/index.js";
 import { expandStoredPath } from "../../../../src/lib/store/stored-path.js";
@@ -22,6 +24,14 @@ import { withProjectionEntry } from "../../../../src/lib/store/projection/index-
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
 import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
+import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
+import { endProjection, startProjection } from "../../../../src/lib/store/projection/engine.js";
+import type { StoreRecord } from "../../../../src/lib/store/read.js";
+import { createRefStore } from "../../../../src/lib/store/create.js";
+import { createDefaultRefStorePorts } from "../../../../src/lib/store/default-ports.js";
+import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
@@ -116,8 +126,10 @@ it("holds a withheld archive edit after index loss until deletion, reopening and
 }, 30_000);
 
 it.each([
-  ["save", true], ["save absent", true], ["persist", true], ["release", true], ["persist", false], ["release", false],
-] as const)("finishes an accepted archive recording with %s (opened=%s)", async (operation, opened) => {
+  ["save", true, false], ["save absent", true, false], ["persist", true, false], ["release", true, false],
+  ["persist", false, false], ["release", false, false],
+  ["persist", false, true], ["release", false, true],
+] as const)("finishes an accepted archive recording with %s (opened=%s, link=%s)", async (operation, opened, linked) => {
   const h = await archiveRetirementFixture();
   expect((await projectionCommand(h.input, ["edit", join(h.checkout, h.path)])).result).toMatchObject({ status: "ok" });
   const content = h.primary.content + "\nAccepted archived input.\n";
@@ -146,7 +158,13 @@ it.each([
   expect(await h.check()).toMatchObject({ kind: "refused", reason: "persist-would-refuse", remedy: {
     text: expect.stringContaining("arc save"),
   } });
-  if (operation !== "save") await rm(join(h.checkout, h.path));
+  const file = join(h.checkout, h.path);
+  const linkTarget = join(h.f.root, "retirement-link-target.txt");
+  if (operation !== "save") await rm(file);
+  if (linked) {
+    await writeFile(linkTarget, "Unrelated file outside the archive.\n");
+    await symlink(linkTarget, file);
+  }
   if (operation === "persist" || operation === "release") {
     expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
   } else {
@@ -154,6 +172,7 @@ it.each([
     expect((await h.disk()).index.entries[h.path]).not.toMatchObject({ persisted: { recording: true } });
   }
   expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content, version: accepted.version });
+  if (linked) expect(await readFile(linkTarget, "utf8")).toBe("Unrelated file outside the archive.\n");
   if (operation === "save" || operation === "save absent") expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
@@ -236,7 +255,7 @@ it.each(["forced", "malformed", "new"])("holds an unopened %s archive file from 
   expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
-async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers", interrupted: boolean | "touched" = false) {
+async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers", interrupted: boolean | "touched" | "replaced" = false) {
   const h = await archiveRetirementFixture("andrew", shown === "notice" ? "separate" : "default");
   const base = shown === "notice" ? h.primary : await seed(h.f,
     recordReferences["work-item/companion"](h.primary.reference.owner, "conflicted.md"), "opening\nbase\nclosing\n");
@@ -287,7 +306,13 @@ async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers", i
     expect((await h.disk()).index.entries[path]).toHaveProperty("archiveSubmission");
     const accepted = success(await h.store.read({ reference: base.reference }));
     expect(accepted.conflicts).toEqual([]);
-    if (interrupted === "touched") await utimes(join(h.checkout, path), new Date(0), new Date(0));
+    const file = join(h.checkout, path);
+    if (interrupted === "touched") await utimes(file, new Date(0), new Date(0));
+    if (interrupted === "replaced") {
+      const replacement = `${file}.next`;
+      await writeFile(replacement, await readFile(file));
+      await rename(replacement, file);
+    }
     expect((await projectionCommand(command, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
     expect(success(await h.store.read({ reference: base.reference })).version).toBe(accepted.version);
     expect(submissions).toBe(1);
@@ -302,10 +327,10 @@ it("holds an unedited archive conflict shown by notice until its named repair",
 it("holds an unedited archive conflict shown by markers until its named repair",
   () => checkUneditedArchiveConflictRepair("markers"), 30_000);
 
-it.each([true, "touched"] as const)("does not resubmit a conflict resolution accepted before interruption (%s)",
+it.each([true, "touched", "replaced"] as const)("does not resubmit a conflict resolution accepted before interruption (%s)",
   interrupted => checkUneditedArchiveConflictRepair("markers", interrupted), 30_000);
 
-it.each([false, true])("preserves a partially accepted archive Markdown edit on retry (interrupted=%s)", async interrupted => {
+it.each(["repeat", "interrupted", "fan-out"] as const)("preserves a partially accepted archive Markdown edit during %s", async operation => {
   const { f, folder, description, projected } = await createErrandAdoptionFixture({ completed: true });
   const path = `${folder}/errand-alpha.md`, file = join(f.root, path);
   const base = "## Description\n\n### First\n\n- _Id:_ `11111111`\n\nbase first\n\n"
@@ -317,7 +342,7 @@ it.each([false, true])("preserves a partially accepted archive Markdown edit on 
   let submissions = 0;
   const store = overrideEngineStore(f.store, { batch: async (input: Parameters<typeof f.store.batch>[0]) => {
     const result = await f.store.batch(input);
-    if (++submissions === 1 && interrupted) {
+    if (++submissions === 1 && operation === "interrupted") {
       const root = projectionProcessState().roots.get(f.root);
       if (root === undefined) throw new Error("Missing archive projection root");
       root.checkpoint = async () => { throw new Error("Stopped after the partial landing"); };
@@ -331,11 +356,15 @@ it.each([false, true])("preserves a partially accepted archive Markdown edit on 
   expect(rendered).toContain("=======");
   const edited = rendered.replace(/^=======\n/mu, "").replace("stored first", "held first edit").replace("base second", "accepted second edit");
   await writeFile(file, edited);
-  if (interrupted) await expect(projectionCommand(command, ["save"])).rejects.toThrow("Stopped after the partial landing");
+  if (operation === "interrupted") await expect(projectionCommand(command, ["save"])).rejects.toThrow("Stopped after the partial landing");
   else expect((await projectionCommand(command, ["save"])).diagnostics).toContain("marker-malformed");
   const accepted = success(await store.read({ reference: description.reference }));
   expect(accepted.content).toContain("accepted second edit");
   expect(accepted.content).not.toContain("held first edit");
+  if (operation === "fan-out") {
+    await checkHeldFanOutRemoval(f, accepted, path, edited);
+    return;
+  }
 
   expect((await projectionCommand(command, ["save"])).diagnostics).toContain("marker-malformed");
   expect(await readFile(file, "utf8")).toBe(edited);
@@ -351,6 +380,32 @@ it.each([false, true])("preserves a partially accepted archive Markdown edit on 
   expect(success(await store.read({ reference: description.reference })).content).toBe(repaired);
   expect(submissions).toBe(2);
 }, 30_000);
+
+async function checkHeldFanOutRemoval(f: Awaited<ReturnType<typeof createErrandAdoptionFixture>>["f"],
+  accepted: StoreRecord, path: string, original: string): Promise<void> {
+  const context = { store: f.store, identity: SlugSchema.parse("andrew") };
+  expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "would-refuse",
+    remedy: { text: expect.stringContaining("Finish resolving the affected set") } });
+  const holder = await seed(f, recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "partial-peer" })),
+    makeMetaFixture("partial-peer", { owner: "andrew", state: "Active", currentWorkflow: "process-task-loop", workClass: "Light", priority: "P1" }),
+    { kind: "active" });
+  const peer = join(f.root, ".arc-fixture", "partial-peer");
+  await f.ports.exec("git", ["worktree", "add", "-b", "feat/partial-peer", peer], { cwd: f.root });
+  await configureEngineCheckout(peer);
+  await writeWorktreeMarker(peer, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: new Date(0).toISOString(),
+    createdFor: boundWorkUnitSubject(holder) });
+  const native = createRefStore(createDefaultRefStorePorts({ checkoutRoot: peer, backingRepository: async () => null }));
+  const store = withFanOut(native, createProjectionFanOutDependencies(peer));
+  const command = { checkout: peer, store };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  try {
+    success(await store.write({ action: "remove", reference: accepted.reference, expected: accepted.version, provenance: testProvenance }));
+    expect(projectionProcessState().diagnostics.filter(issue => issue.path === path).map(issue => issue.mark.reason))
+      .toEqual(expect.arrayContaining([expect.stringContaining("marker-malformed")]));
+    expect(await readFile(join(f.root, path), "utf8")).toBe(original);
+  } finally { await endProjection(command); }
+  expect(await readFile(join(f.root, path), "utf8")).toBe(original);
+}
 
 it.each([["persist", "present"], ["release", "present"], ["persist", "absent"]] as const)(
   "lets %s finish after recovering an interrupted archive adoption with the path %s", async (operation, presence) => {

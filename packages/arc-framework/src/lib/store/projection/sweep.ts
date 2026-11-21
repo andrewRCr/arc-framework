@@ -17,7 +17,7 @@ import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
 import { recordProjectionIgnoreCheck } from "./ignore-record.js";
 import { guardedProjectionRoots, type ProjectionIgnoreGuardInput } from "./ignore-guard.js";
 import type { ConfiguredIgnoreRules } from "./configuration.js";
-import { readReference, readStat } from "./change-detection.js";
+import { projectionFileReader, readReference, readStat } from "./change-detection.js";
 import { commitReturnedCopies } from "./returned-copies.js";
 import type { AsideCopyRecord, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ArchiveChangeRefusal } from "./archive-selection.js";
@@ -294,16 +294,15 @@ async function returnWithoutIndex(input: SweepInput, location: string, named: As
   if (refusal !== null) return refusal;
   const at = { copy: join(input.checkout, location), path: join(input.checkout, named.path) };
   const isFile = (await readStat(at.copy))?.type === "file";
-  if (isFile && await readStat(at.path) === null) {
-    try {
-      if (await retriedMoves(input, { checkout: input.checkout, path: named.path }).linkOnto(at.copy, at.path)) {
-        const outcome = await removeReturnedAsideFile(input.checkout, location, named.path, input.checkpoint);
-        return outcome === "retained" ? await retainedCopy(input.checkout, named.path, location, "withheld") : null;
-      }
-    } catch (error) {
-      if (error instanceof ArchiveDestinationBlocked) return destinationBlockedCopy(named.path, location, error.mark);
-      throw error;
+  try {
+    if (isFile && await projectionFileReader(input.checkout, named.path).stat(at.path) === null
+      && await retriedMoves(input, { checkout: input.checkout, path: named.path }).linkOnto(at.copy, at.path)) {
+      const outcome = await removeReturnedAsideFile(input.checkout, location, named.path, input.checkpoint);
+      return outcome === "retained" ? await retainedCopy(input.checkout, named.path, location, "withheld") : null;
     }
+  } catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return destinationBlockedCopy(named.path, location, error.mark);
+    throw error;
   }
   return deleteUneditedCopy(input, location, named, "withheld");
 }

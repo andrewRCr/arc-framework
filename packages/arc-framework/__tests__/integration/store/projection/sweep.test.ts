@@ -2,7 +2,7 @@
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { chmod, copyFile, link, lstat, mkdir, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { landingCopies, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions } from "../../../helpers/store/projection/swap-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories.js";
@@ -23,8 +23,39 @@ import { createProjectionLinkBoundary } from "../../../../src/lib/store/projecti
 import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
 import { commitReturnedCopies } from "../../../../src/lib/store/projection/returned-copies.js";
 
+const lateAccess = vi.hoisted(() => ({ destinations: new Map<string, string>(), denied: "", refused: false }));
+vi.mock("node:fs/promises", async original => {
+  const actual = await original<typeof import("node:fs/promises")>();
+  const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
+    // Begin denial at the first copy's stat, after the sweep has preflighted both destinations.
+    lateAccess.denied ||= lateAccess.destinations.get(String(args[0])) ?? "";
+    if (args[0] === lateAccess.denied) {
+      lateAccess.refused = true;
+      throw Object.assign(new Error("Archive search access revoked after selection"), { code: "EACCES" });
+    }
+    return actual.lstat(...args);
+  }) as typeof actual.lstat;
+  return { ...actual, lstat, default: { ...actual, lstat } };
+});
+vi.mock("node:fs", async original => {
+  const actual = await original<typeof import("node:fs")>();
+  const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
+    if (args[0] === lateAccess.denied) {
+      lateAccess.refused = true;
+      throw Object.assign(new Error("Archive search access revoked after selection"), { code: "EACCES" });
+    }
+    return actual.lstatSync(...args);
+  }) as typeof actual.lstatSync;
+  return { ...actual, lstatSync, default: { ...actual, lstatSync } };
+});
+
 const directories: string[] = [];
-afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => {
+  lateAccess.destinations.clear();
+  lateAccess.denied = "";
+  lateAccess.refused = false;
+  await removeGitBackedDirs(directories.splice(0));
+});
 
 const execInput = createExecaGitExecInput();
 const gitFs: GitDirectoryFileAccess = { lstat, readFile: (path) => readFile(path, "utf8"), realpath };
@@ -187,6 +218,39 @@ it("prunes empty scaffolding while preserving recovery names, foreign bytes, and
 });
 
 describe("the sweep", () => {
+  it("keeps the inaccessible no-index copy while restoring a later accessible destination", async () => {
+    const h = await leftBy("afterMove", { path: ".arc/completed/one/first.md" });
+    const entry = await entryOnDisk(h.location, h.path);
+    const [first] = entry.copies;
+    if (first === undefined) throw new Error("Missing stopped archive copy");
+    const sibling = ".arc/completed/two/second.md";
+    const second = nameAsideFile({ path: sibling, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
+    await mkdir(dirname(join(h.checkout, second)), { recursive: true });
+    await mkdir(dirname(join(h.checkout, sibling)), { recursive: true });
+    const bytes = await readFile(join(h.checkout, first.name));
+    await writeFile(join(h.checkout, second), bytes);
+    const copies = [{ path: h.path, name: first.name }, { path: sibling, name: second }];
+    lateAccess.destinations = new Map(copies.map(({ name, path }) => [join(h.checkout, name), join(h.checkout, path)]));
+
+    const blocked = await h.sweep(unreached, { index: null });
+    expect(lateAccess.refused).toBe(true);
+    const denied = lateAccess.denied;
+    const held = copies.find(({ path }) => join(h.checkout, path) === denied);
+    const restored = copies.find(({ path }) => join(h.checkout, path) !== denied);
+    if (held === undefined || restored === undefined) throw new Error("Expected one denied and one accessible destination");
+    expect(blocked.left).toMatchObject([{ path: held.path, copy: held.name, reason: "destination-blocked",
+      refusal: { reason: expect.stringContaining("EACCES") } }]);
+    expect(await readFile(join(h.checkout, held.name))).toEqual(bytes);
+    expect(await readFile(join(h.checkout, restored.path))).toEqual(bytes);
+    expect(await readStat(join(h.checkout, restored.name))).toBeNull();
+
+    lateAccess.destinations.clear();
+    lateAccess.denied = "";
+    expect((await h.sweep(unreached, { index: null })).left).toEqual([]);
+    expect(await readFile(join(h.checkout, held.path))).toEqual(bytes);
+    expect(await readStat(join(h.checkout, held.name))).toBeNull();
+  });
+
   it.each(["recorded", "unrecorded", "no-index"])("keeps a %s copy outside a linked destination and permits recovery after repair", async mode => {
     const h = await leftBy("afterMove"), index = await indexOnDisk(h.location);
     const entry = index.entries[h.path];

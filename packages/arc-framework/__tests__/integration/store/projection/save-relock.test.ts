@@ -784,7 +784,7 @@ async function openedTextCompanion(h: Awaited<ReturnType<typeof fixture>>) {
   return { path, file, reference, content };
 }
 
-it.each([false, true])("recovers recorded archive text without a second submit (direct=%s)", async direct => {
+it.each(["ordinary command", "direct save", "timestamp change"] as const)("recovers recorded archive text without a second submit after a %s", async retry => {
   const h = await fixture(), { path, file, reference, content } = await openedTextCompanion(h);
   let submissions = 0, interrupt = true;
   const store = overrideEngineStore(h.store, {
@@ -801,7 +801,8 @@ it.each([false, true])("recovers recorded archive text without a second submit (
   const accepted = success(await h.store.read({ reference }));
   expect(accepted.content).toBe(content);
   const before = submissions;
-  if (!direct) { await startProjection(command); await endProjection(command); }
+  if (retry === "ordinary command") { await startProjection(command); await endProjection(command); }
+  if (retry === "timestamp change") await utimes(file, new Date(0), new Date(0));
   expect(await save(command)).toMatchObject({ result: { status: "ok" } });
   expect(submissions).toBe(before);
   expect(success(await h.store.read({ reference })).version).toBe(accepted.version);
@@ -1004,7 +1005,7 @@ it.each([[false, false], [true, false], [true, true]])(
   if (installed) {
     await chmod(file, 0o644);
     await writeFile(file, content);
-  }
+  } else await utimes(file, new Date(0), new Date(0));
   binding.hooks = undefined;
   const result = await save(command);
   if (installed) {

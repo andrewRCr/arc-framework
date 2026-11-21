@@ -11,9 +11,9 @@ export function unfinishedRecordingRefusal(entry: RecordEntry): StoreRefusal | n
     remedy: { text: "Retry arc save to finish recording the accepted input before preparing another edit; keep the file and retained copy." } };
 }
 /** A staged or accepted archive input still needs its exact installation continuation. */
-export function hasArchiveRecording(entry: ProjectionIndex["entries"][string] | undefined): boolean {
+export function hasArchiveRecording(path: string, entry: ProjectionIndex["entries"][string] | undefined): boolean {
   return entry?.archiveSubmission !== undefined
-    || entry?.kind === "record" && entry.opened === true && entry.persisted?.recording === true;
+    || path.startsWith(".arc/completed/") && entry?.kind === "record" && entry.persisted?.recording === true;
 }
 
 /** The unchanged raw input of a partial landing still needs its local repair. */

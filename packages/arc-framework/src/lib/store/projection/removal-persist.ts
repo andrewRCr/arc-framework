@@ -34,7 +34,7 @@ import { join } from "node:path";
 import { projectionProcessState } from "./process-state.js";
 import type { ProjectionStubMintPort } from "./stub-mint-port.js";
 import type { Remedy } from "../refusal.js";
-import { readUnchangedProjectionFile } from "./unchanged-file.js";
+import { readPendingProjectionInput } from "./unchanged-file.js";
 import { persistProjectionAsides, changedProjectionAsides } from "./removal-persist-asides.js";
 import { observeUnprojectedPersonalFiles } from "./removal-residual.js";
 import { gateRead, projectionReadGate } from "./read-gate.js";
@@ -200,7 +200,7 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
     }
     const entry = index.entries[path];
     // Finish accepted archive input from its retained copy even if retirement cannot walk the live file.
-    if (hasArchiveRecording(entry) || path.startsWith(".arc/completed/") && entry?.kind === "record" && entry.persisted?.recording === true) {
+    if (hasArchiveRecording(path, entry)) {
       files.push(path);
       continue;
     }
@@ -250,11 +250,11 @@ async function observeFinalProjectionFile(root: ProjectionRootState, index: Proj
   if (change.status !== "changed") return false;
   const gated = await gateRead({ path: absolute, markdown: path.endsWith(".md") }, projectionReadGate(root.checkout, path));
   if (gated.kind === "no-edit" || gated.kind === "absent") return false;
-  const unchanged = await readUnchangedProjectionFile(root.context, {
+  const input = await readPendingProjectionInput(root.context, {
     checkout: root.checkout, path, copy: null, entry,
     base: path.endsWith(".md") ? { kind: "stamp", stamp: null } : { kind: "blob", blob: entry.base.blob },
   });
-  return unchanged === null;
+  return input?.kind !== "unchanged";
 }
 
 function refuse(text: string): ProjectionPersistResult { return { kind: "refused", remedy: { text } }; }

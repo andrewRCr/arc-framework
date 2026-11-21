@@ -3,7 +3,7 @@ import { lstatSync, rmSync, rmdirSync, type BigIntStats } from "node:fs";
 import { rm } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { ASIDE_FILES_ROOT, parseAsideFile } from "./aside.js";
-import { requireArchiveDestination, sameArchiveFile } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archivePermissionMark, requireArchiveDestination, sameArchiveFile } from "./archive-file.js";
 
 /** The filesystem calls pruning makes, replaceable so a refusal can be exercised. */
 export interface AsideScaffoldFs {
@@ -48,7 +48,12 @@ Promise<"removed" | "retained" | "missing"> {
   const absolute = join(checkout, location);
   const aside = aliasStat(absolute);
   if (aside === undefined) return "missing";
-  const target = aliasStat(join(checkout, path));
+  let target: BigIntStats | undefined;
+  try { target = aliasStat(join(checkout, path)); }
+  catch (error) {
+    if (!path.startsWith(".arc/completed/")) throw error;
+    throw new ArchiveDestinationBlocked(archivePermissionMark(path, error, "inspect the returned copy for"), true);
+  }
   if (!aside.isFile() || !target?.isFile() || !sameArchiveFile(aside, target)) return "retained";
   rmSync(absolute, { force: true });
   await pruneRemovedAsideFile(checkout, absolute, checkpoint);

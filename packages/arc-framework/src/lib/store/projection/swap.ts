@@ -123,7 +123,13 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   const returned: ReturnedCopy[] = [];
   const reported: string[] = [];
   for (const each of plans) {
-    const swapped = await swapOne(input, each);
+    const swapped = await swapOne(input, each, async (swap) => {
+      const installing = beginAcceptedLay(swap);
+      if (installing === swap) return swap;
+      index = await commitProjectionIndex({ location: input.location, checkout: input.checkout, checkpoint: input.checkpoint,
+        index: withEntry(index, swap.path, installing.entry) });
+      return installing;
+    });
     if (swapped.blocked !== undefined && input.refuseChange !== undefined) {
       input.refuseChange({ path: each.path, copy: null, mark: swapped.blocked });
       reported.push(each.path);
@@ -146,6 +152,14 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   }
   return { index, copies: remainingCopies(index, copies), removals, unreplaced, reported,
     rebuilt: plans.filter(plan => plan.copy === null && plan.staged !== null && !unreplaced.includes(plan.path)).map(plan => plan.path) };
+}
+
+/** Publish that the path may now receive a new rendering before linking it into place. */
+function beginAcceptedLay(swap: PlannedSwap): PlannedSwap {
+  const stat = swap.entry.acceptedInputStat;
+  if (swap.staged === null || stat?.beforeLay !== true || swap.entry.adoption !== undefined) return swap;
+  const { ino, mtimeNs } = stat;
+  return { ...swap, entry: { ...swap.entry, acceptedInputStat: { ino, mtimeNs } } };
 }
 
 /**
@@ -236,20 +250,23 @@ function madeCopies(original: RecordEntry, entry: RecordEntry): string[] {
 }
 
 /** Move the file aside, link its staged file in — none for a removal — and check the aside copy. */
-async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDone> {
+async function swapOne(input: SwapBatchInput, swap: PlannedSwap,
+  beginLay: (swap: PlannedSwap) => Promise<PlannedSwap>): Promise<SwapDone> {
   const { checkout, hooks } = input;
   const path = join(checkout, swap.path);
   const staged = swap.staged === null ? null : join(checkout, swap.staged.file.location);
   await hooks?.afterRecheck?.(swap.path);
-  if (swap.copy === null) return staged === null ? { entry: swap.entry } : rebuild(input, swap, { staged, path });
-  const aside = join(checkout, swap.copy.name);
+  const copy = swap.copy;
+  if (copy === null) return staged === null ? { entry: swap.entry } : rebuild(input, swap, { staged, path }, beginLay);
+  const aside = join(checkout, copy.name);
   const moveRefusal = await moveAside(input, swap, path, aside);
   if (moveRefusal !== null) return moveRefusal;
   await hooks?.afterMove?.(swap.path);
-  const linked = staged === null ? { entry: swap.entry } : await linkStagedIn(input, swap, { staged, aside, path });
+  const installing = await beginLay(swap);
+  const linked = staged === null ? { entry: installing.entry } : await linkStagedIn(input, installing, { staged, aside, path });
   if (linked.done) return linked;
   const settling = {
-    checkout, path: swap.path, entry: linked.entry, copy: swap.copy, format: input.format, takeIn: input.takeIn,
+    checkout, path: swap.path, entry: linked.entry, copy, format: input.format, takeIn: input.takeIn,
     writer: input.writer, fs: input.fs, retrySleep: input.retrySleep, gate: input.gate, checkpoint: input.checkpoint,
   };
   const checked = await checkAsideCopy(settling);
@@ -261,7 +278,7 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
     : checked;
   await hooks?.afterFirstCheck?.(swap.path);
   if (held.kind === "blocked-destination") return { entry: { ...held.entry, pending: true, refused: held.mark }, blocked: held.mark };
-  return { entry: held.entry, returned: held.kind === "returned" ? [swap.copy.name] : [] };
+  return { entry: held.entry, returned: held.kind === "returned" ? [copy.name] : [] };
 }
 
 /** Move the original path under the lease, preserving its basis when the move is refused. */
@@ -279,8 +296,10 @@ async function moveAside(input: SwapBatchInput, swap: PlannedSwap, path: string,
 }
 
 /** Rebuild an absent file by the link alone, yielding to a save that recreated it first. */
-async function rebuild(input: SwapBatchInput, swap: PlannedSwap, at: { readonly staged: string; readonly path: string }): Promise<SwapDone> {
+async function rebuild(input: SwapBatchInput, swap: PlannedSwap, at: { readonly staged: string; readonly path: string },
+  beginLay: (swap: PlannedSwap) => Promise<PlannedSwap>): Promise<SwapDone> {
   await input.hooks?.beforeRebuildLink?.(swap.path);
+  swap = await beginLay(swap);
   let linked: boolean;
   try { linked = await retriedMoves(input, { checkout: input.checkout, path: swap.path }).linkOnto(at.staged, at.path); }
   catch (error) {
@@ -344,8 +363,8 @@ async function linkBack(
 
 /** The entry of a file whose replacement yielded to a save: the replaced version still recorded, pending. */
 function yielded(swap: PlannedSwap): RecordEntry {
-  const { base, written, stat, markers, notices, unshown, refused, protected: protectedFile } = swap.original;
-  return { ...swap.entry, base, written, stat, markers, notices, unshown, refused, protected: protectedFile, pending: true };
+  const { base, written, stat, markers, notices, unshown, refused, protected: protectedFile, acceptedInputStat } = swap.original;
+  return { ...swap.entry, base, written, stat, markers, notices, unshown, refused, protected: protectedFile, acceptedInputStat, pending: true };
 }
 
 function withEntry(index: ProjectionIndex, path: string, entry: RecordEntry): ProjectionIndex {

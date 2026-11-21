@@ -101,7 +101,7 @@ export function projectionFileReader(checkout: string, path: string): Projection
   return {
     stat: absolute => {
       try { return readStatSync(absolute); }
-      catch (error) { throw new ArchiveDestinationBlocked(archivePermissionMark(path, error)); }
+      catch (error) { throw new ArchiveDestinationBlocked(archivePermissionMark(path, error), true); }
     },
     read: () => readArchiveBytes(checkout, path),
   };

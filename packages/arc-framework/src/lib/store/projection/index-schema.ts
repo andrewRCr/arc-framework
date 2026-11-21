@@ -100,7 +100,9 @@ const RecordBasisSchema = z.strictObject({
   withheld: z.boolean(),
   refused: RefusedMarkSchema.nullable(),
   persisted: PersistedSchema.nullable(),
-  acceptedInputStat: FileStatSchema.pick({ ino: true, mtimeNs: true }).optional(),
+  acceptedInputStat: FileStatSchema.pick({ ino: true, mtimeNs: true }).extend({
+    beforeLay: z.literal(true).optional(),
+  }).optional(),
   archiveSubmission: ArchiveSaveSubmissionSchema.optional(),
   inProgress: InProgressSchema.nullable(),
   copies: z.array(AsideCopyRecordSchema),

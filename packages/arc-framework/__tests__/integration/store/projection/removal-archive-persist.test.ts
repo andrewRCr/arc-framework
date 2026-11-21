@@ -1,18 +1,86 @@
 /** Native retirement refuses unopened archive input before landing it, then continues after the named repair. */
-import { readFile, rm, utimes, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { chmod, mkdir, readFile, rename, rm, utimes, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { afterEach, expect, it, vi } from "vitest";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
 import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
-import { success } from "../../../helpers/store/suite-tools.js";
+import { seed, success } from "../../../helpers/store/suite-tools.js";
 import { releaseProjectionRemoval } from "../../../../src/lib/store/projection/removal-release.js";
 import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
+import { nameAsideFile, type AsideWriterInput } from "../../../../src/lib/store/projection/aside.js";
+import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
+import { writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
+import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
-afterEach(() => { beginProjectionCommand(); });
+const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false }));
+vi.mock("node:fs/promises", async original => {
+  const actual = await original<typeof import("node:fs/promises")>();
+  const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
+    // The projection link preflight uses ordinary stats. The alias check asks for inode identities.
+    if (args[0] === lateAccess.path && args[1]?.bigint === true) lateAccess.aliasObserved = true;
+    return actual.lstat(...args);
+  }) as typeof actual.lstat;
+  return { ...actual, lstat, default: { ...actual, lstat } };
+});
+vi.mock("node:fs", async original => {
+  const actual = await original<typeof import("node:fs")>();
+  const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
+    if (args[0] === lateAccess.path && lateAccess.aliasObserved) {
+      throw Object.assign(new Error("Archive search access revoked after alias inspection"), { code: "EACCES" });
+    }
+    return actual.lstatSync(...args);
+  }) as typeof actual.lstatSync;
+  return { ...actual, lstatSync, default: { ...actual, lstatSync } };
+});
+
+afterEach(() => { lateAccess.path = ""; lateAccess.aliasObserved = false; beginProjectionCommand(); });
+
+it("finishes a healthy retirement copy after another destination stat loses access", async () => {
+  const h = await archiveRetirementFixture();
+  const sibling = `${h.folder}/z-sibling.txt`;
+  const siblingReference = recordReferences["work-item/companion"](h.primary.reference.owner, "z-sibling.txt");
+  await seed(h.f, siblingReference, "A sibling file.\n");
+  await projectionCommand(h.input, ["status"]);
+  const { location, index } = await h.disk();
+  const writer = await createProjectionEnginePorts(h.checkout).writer();
+  const blocked = await stageRetirementCopy(h.checkout, h.path, index, writer, "An edit held in the first copy.\n");
+  const healthy = await stageRetirementCopy(h.checkout, sibling, blocked.index, writer);
+  await writeProjectionIndex(location, healthy.index);
+  const held = await persistProjectionRemoval(h.checkout, { ...h.context, hooks: { beforeAsideCopy: async (_checkout, path) => {
+    if (path === h.path) lateAccess.path = join(h.checkout, path);
+  } } });
+  expect(lateAccess.aliasObserved).toBe(true);
+  expect(held).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("EACCES") } });
+  expect(await readFile(join(h.checkout, blocked.name), "utf8")).toContain("An edit held in the first copy.");
+  expect((await h.disk()).index.entries[h.path]).toMatchObject({ opened: true, copies: [expect.objectContaining({ name: blocked.name })] });
+  expect((await h.disk()).index.entries[sibling]).toMatchObject({ copies: [] });
+  await expect(readFile(join(h.checkout, healthy.name))).rejects.toMatchObject({ code: "ENOENT" });
+
+  lateAccess.path = "";
+  expect(await h.retire("persist")).toEqual({ kind: "persisted" });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toContain("An edit held in the first copy.");
+}, 30_000);
+
+async function stageRetirementCopy(checkout: string, path: string, index: ProjectionIndex, writer: AsideWriterInput, edit?: string) {
+  const entry = index.entries[path];
+  if (entry?.kind !== "record") throw new Error("Missing archive entry for retirement copy");
+  const file = join(checkout, path), bytes = await readFile(file);
+  const name = nameAsideFile({ path, base: entry.base.blob, writer, role: "aside" });
+  const copy = join(checkout, name);
+  await mkdir(dirname(copy), { recursive: true });
+  await rename(file, copy);
+  if (edit !== undefined) { await chmod(copy, 0o644); await writeFile(copy, Buffer.concat([bytes, Buffer.from(edit)])); }
+  const copied = { ...entry, pending: true, opened: true as const, copies: [
+    { name, moving: gitBlobId(bytes, "sha1"), linked: null, landed: null, writeBackSent: false,
+      rendering: { markers: entry.markers, notices: entry.notices } },
+  ] };
+  return { name, index: withProjectionEntry(index, path, copied) };
+}
 
 it.each(["persist", "release"] as const)("refuses a late closed archive correction during %s", async operation => {
   const h = await archiveRetirementFixture(), absolute = join(h.checkout, h.path);

@@ -17,7 +17,7 @@ import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import { recordWriteBackSent } from "./aside-copies.js";
 import { withProjectionEntry } from "./index-memory.js";
-import { readUnchangedProjectionFile } from "./unchanged-file.js";
+import { readPendingProjectionInput } from "./unchanged-file.js";
 import type { TakeInRequest } from "./take-in-port.js";
 import { pendingFileRequest } from "./pending-request.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
@@ -127,7 +127,12 @@ async function checkIndexedRemovalEdit(root: ReadOnlyProjectionRoot, path: strin
   const conflict = entry.markers !== null || entry.notices.length > 0 || entry.unshown.length > 0;
   if (changed.status !== "changed" && !conflict) return { kind: "passes" };
   const request = pendingFileRequest(root.checkout, path, entry);
-  if (await readUnchangedProjectionFile(root.context, request) !== null) return { kind: "passes" };
+  const input = await readPendingProjectionInput(root.context, request);
+  if (input?.kind === "unchanged") return { kind: "passes" };
+  if (input?.kind === "retained") {
+    const guarded = await guard(path);
+    return guarded.kind === "passes" ? markedRemovalRefusal(root.checkout, path, input.mark, disposition) : guarded;
+  }
   return checkRemovalSend(root, request, guard, disposition);
 }
 

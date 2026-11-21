@@ -1,5 +1,5 @@
 /** Bind one checkout's projection operations independently of the command's entering checkout. */
-import { readUnchangedProjectionFile } from "./unchanged-file.js";
+import { readPendingProjectionInput } from "./unchanged-file.js";
 import { readProjectionCheckoutContext } from "../checkout-layout.js";
 import { refreshProjectionRoot } from "./refresh.js";
 import { reprojectProjectionRoot } from "./reprojection.js";
@@ -86,10 +86,15 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
         context.report?.({ path: request.path, copy: request.copy, mark: held.mark });
         return held;
       }
-      const unchanged = await readUnchangedProjectionFile(context, request);
-      if (unchanged !== null) {
+      const input = await readPendingProjectionInput(context, request);
+      if (input?.kind === "retained") {
+        root.unsent.add(request.path);
+        context.report?.({ path: request.path, copy: request.copy, mark: input.mark });
+        return refuseProjectionEdit(request.entry, input.mark);
+      }
+      if (input?.kind === "unchanged") {
         root.unsent.delete(request.path);
-        return { answer: "no-edit", entry: request.entry, read: unchanged };
+        return { answer: "no-edit", entry: request.entry, read: input.read };
       }
       const waiting = await holdWaitingArchiveEdit(root, request);
       if (waiting !== null) return waiting;
