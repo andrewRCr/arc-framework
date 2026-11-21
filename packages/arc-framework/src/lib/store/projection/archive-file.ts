@@ -89,13 +89,13 @@ function archiveAccessMark(path: string, error: unknown): RefusedMark {
 
 /** A mutation stopped by the checkout or link check at the point of use. */
 export class ArchiveDestinationBlocked extends Error {
-  constructor(readonly mark: RefusedMark) { super(mark.reason); }
+  constructor(readonly mark: RefusedMark, readonly access = false) { super(mark.reason); }
 }
 
 /** Check an archive destination after the caller's last lease checkpoint and just before the change it guards. */
 export function requireArchiveDestination(checkout: string, path: string): void {
-  const mark = archiveDestinationRefusal(checkout, path);
-  if (mark !== null) throw new ArchiveDestinationBlocked(mark);
+  const destination = archiveDestination(checkout, path);
+  if (destination !== null) throw new ArchiveDestinationBlocked(destination.mark, destination.cause === "access");
 }
 
 /** Read bytes through a regular file handle that never follows a link at the file itself. */
@@ -115,7 +115,7 @@ export function readArchiveBytes(checkout: string, path: string, expected?: File
     if (error instanceof ArchiveDestinationBlocked) throw error;
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP") throw new ArchiveDestinationBlocked(archiveFileChangeMark(path));
-    throw new ArchiveDestinationBlocked(archivePermissionMark(path, error, "read"));
+    throw new ArchiveDestinationBlocked(archivePermissionMark(path, error, "read"), true);
   } finally {
     if (descriptor !== undefined) closeSync(descriptor);
   }

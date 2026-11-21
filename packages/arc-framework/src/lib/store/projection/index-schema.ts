@@ -51,6 +51,8 @@ const PersistedSchema = z.strictObject({
   recording: z.literal(true).optional(),
   /** The blob of the file bytes the retained or accepted input was read from. */
   read: BlobIdSchema.optional(),
+  /** The repair still required in a live input whose write only partially landed. */
+  retained: RefusedMarkSchema.optional(),
   takenIn: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("landed"), version: RecordVersionSchema }),
     z.strictObject({ kind: z.literal("copy"), name: z.string().min(1), blob: BlobIdSchema, version: RecordVersionSchema }),

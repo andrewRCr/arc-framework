@@ -5,13 +5,13 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Remedy } from "../refusal.js";
-import { nameAsideFile, parseAsideFile, type AsideWriterInput } from "./aside.js";
+import { asideCopyHasEdit, nameAsideFile, parseAsideFile, type AsideWriterInput } from "./aside.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { projectionFileReader, readStat } from "./change-detection.js";
 import type { AsideCopyRecord, RecordEntry, RefusedMark } from "./index-schema.js";
 import { gateRead, SYSTEM_READ_GATE, type ReadGateDependencies, type ReadGateVerdict } from "./read-gate.js";
-import { sameProjectionFile } from "./returned-copies.js";
+import { copyAliasAccessRefusal, sameProjectionFile } from "./returned-copies.js";
 import { unshownConflicts } from "./held-conflicts.js";
 import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
@@ -82,7 +82,7 @@ export interface AsideCopySettling extends SwapMoves {
 
 /** What checking a copy found, with the entry as the check left it; checking deletes nothing. */
 export type CopyCheck =
-  | { readonly kind: "blocked-destination"; readonly entry: RecordEntry; readonly mark: RefusedMark }
+  | { readonly kind: "blocked-destination"; readonly entry: RecordEntry; readonly mark: RefusedMark; readonly access?: boolean }
   /** It holds no edit: not a file, what its swap moved, what it held when its own take-in landed, or as the port found. */
   | { readonly kind: "no-edit"; readonly entry: RecordEntry }
   /** It holds an edit, but its path has moved on: never sent. */
@@ -124,7 +124,7 @@ export async function checkAsideCopy(input: AsideCopyChecking): Promise<CopyChec
     // An older save from the same buffer and another editor's newer one cannot be told apart.
     if (hasPathMovedOn(copy, input.holding ?? await readPathHolding(checkout, path, input.format))) return { kind: "moved-on", entry };
   } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark };
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };
     throw error;
   }
   const base = copyBase(copy, bytes, path.endsWith(".md"));
@@ -150,8 +150,7 @@ export async function observeAsideCopy(input: Pick<AsideCopySettling, "checkout"
   const bytes = await readFile(join(checkout, copy.name));
   if (input.keepEmpty && bytes.byteLength === 0) return { kind: "empty", entry };
   const blob = gitBlobId(bytes, input.format);
-  // What the swap moved, or what the copy held when its own take-in landed, is no edit wherever it is read.
-  if (blob === copy.moving || blob === copy.landed) return { kind: "no-edit", entry };
+  if (!asideCopyHasEdit(path, copy, blob)) return { kind: "no-edit", entry };
   return { kind: "edited", entry: { ...entry, changed: true }, bytes, blob };
 }
 
@@ -164,7 +163,7 @@ function observedEmpty(verdict: ReadGateVerdict): boolean {
 /** What settling a copy did, with the entry as it now stands. */
 export type CopySettlement =
   /** A foreign archive destination is left opaque with the copy held in the outer checkout. */
-  | { readonly kind: "blocked-destination"; readonly entry: RecordEntry; readonly mark: RefusedMark }
+  | { readonly kind: "blocked-destination"; readonly entry: RecordEntry; readonly mark: RefusedMark; readonly access?: boolean }
   /** The path and copy are aliases after an interrupted return; publish its restored mapping before unlinking. */
   | { readonly kind: "linked-back"; readonly entry: RecordEntry }
   /** A directory or other nonregular object is retained, reported with its path and a repair route. */
@@ -191,13 +190,21 @@ export type CopySettlement =
 /** An answer whose edit is never deleted while it stands. */
 export type HeldEdit = "refused" | "unparseable" | "clashed";
 
+/** The targeted access hold that leaves other destinations eligible for settlement. */
+export function asideCopyAccessHold(settlement: CopySettlement): RefusedMark | undefined {
+  return settlement.kind === "blocked-destination" && settlement.access ? settlement.mark : undefined;
+}
+
 /**
  * Check one aside copy and settle it: delete it once it holds no edit or its edit landed whole, else keep it.
  * @param input - The copy, the file it was made of, and how to take an edit in.
  * @returns What became of it.
  */
 export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySettlement> {
-  const linked = await sameProjectionFile(join(input.checkout, input.copy.name), join(input.checkout, input.path));
+  const { checkout, path, copy, entry } = input;
+  const linked = await sameProjectionFile(join(checkout, copy.name), join(checkout, path))
+    .catch((error: unknown) => copyAliasAccessRefusal(path, error));
+  if (typeof linked === "object") return { kind: "blocked-destination", entry, mark: linked, access: true };
   if (linked) {
     return { kind: "linked-back", entry: { ...restoreCopyRendering(input.entry, input.copy), pending: true } };
   }
@@ -257,7 +264,7 @@ export async function putBack(
     // A save that recreated the path in between wins it; the copy stays aside, and the replacement beside it.
     if (!await moves.linkOnto(at.copy, at.path)) return { ...aside, entry: retained };
   } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry: retained, mark: error.mark };
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry: retained, mark: error.mark, access: error.access };
     throw error;
   }
   return {
@@ -283,7 +290,7 @@ async function deleted(input: AsideCopySettling, entry: RecordEntry): Promise<Co
   try {
     return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name, checkpoint: input.checkpoint }) };
   } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark };
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };
     throw error;
   }
 }

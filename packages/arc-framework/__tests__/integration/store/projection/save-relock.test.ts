@@ -914,18 +914,20 @@ it.each(["markdown", "text", "already-stored", "unaccepted", "unaccepted-text", 
   expect((await lstat(join(h.checkout, path))).mode & 0o222).toBe(0);
 });
 
-it.each([false, true])("recovers an accepted own-save aside receipt when the copy changes=%s", async changed => {
+it.each(["unchanged", "edited", "reverted"] as const)("recovers an accepted own-save receipt with a %s aside copy", async state => {
   const h = await fixture();
   await openArchivedProjectionFile(h, h.path);
   await edit(h, "First correction.");
   let copy: string | undefined;
+  let moving: string | undefined;
   binding.hooks = { afterMove: async path => {
     if (path !== h.path || copy !== undefined) return;
     const entry = await diskEntry(h);
     if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("Missing displaced archive file");
     copy = entry.copies[0].name;
     const filename = join(h.checkout, copy);
-    await writeFile(filename, `${await readFile(filename, "utf8")}\nThe displaced correction.\n`);
+    moving = await readFile(filename, "utf8");
+    await writeFile(filename, `${moving}\nThe displaced correction.\n`);
   } };
   const asideSends: string[] = [];
   let receipt: string | undefined;
@@ -950,18 +952,23 @@ it.each([false, true])("recovers an accepted own-save aside receipt when the cop
   expect(await diskEntry(h)).toMatchObject({ archiveSubmission: { id: receipt, aside: copy } });
   const accepted = success(await h.store.read({ reference: h.primary.reference }));
   expect(accepted.content).toContain("The displaced correction.");
-  if (copy === undefined) throw new Error("The interrupted save did not create a displaced copy");
+  if (copy === undefined || moving === undefined) throw new Error("The interrupted save did not create a displaced copy");
   const copyPath = join(h.checkout, copy), later = "Another edit after acceptance.";
-  if (changed) await writeFile(copyPath, `${await readFile(copyPath, "utf8")}\n${later}\n`);
+  if (state === "edited") await writeFile(copyPath, `${await readFile(copyPath, "utf8")}\n${later}\n`);
+  if (state === "reverted") await writeFile(copyPath, moving);
   binding.hooks = undefined;
   binding.writerInstance = undefined;
   const retry = await save(command);
   expect(retry.result).toMatchObject({ status: "ok" });
   expect(await diskEntry(h)).not.toHaveProperty("archiveSubmission");
   const stored = success(await h.store.read({ reference: h.primary.reference }));
-  if (changed) expect(stored.content).toContain(later);
-  else expect(stored.version).toBe(accepted.version);
-  expect(asideSends).toHaveLength(changed ? 2 : 1);
+  if (state === "edited") expect(stored.content).toContain(later);
+  if (state === "reverted") {
+    expect(stored.content).toContain("First correction.");
+    expect(stored.content).not.toContain("The displaced correction.");
+  }
+  if (state === "unchanged") expect(stored.version).toBe(accepted.version);
+  expect(asideSends).toHaveLength(state === "unchanged" ? 1 : 2);
 });
 
 async function openedNewText(h: Awaited<ReturnType<typeof fixture>>) {

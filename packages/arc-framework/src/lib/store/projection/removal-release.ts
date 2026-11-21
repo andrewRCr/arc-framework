@@ -11,7 +11,7 @@ import { markStoreRefusal } from "./refusal-mark.js";
 import { retirementRefusal } from "./removal-verdict.js";
 import { swapBatch, type SwapFile } from "./swap.js";
 import { runSecondCheck } from "./second-check.js";
-import { readProjectionLinkBoundary, type ProjectionLinkBoundary } from "./discovery-links.js";
+import { readCopyDestinations, readProjectionLinkBoundary, type ProjectionLinkBoundary } from "./discovery-links.js";
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
@@ -75,21 +75,24 @@ async function finishLinkedRemoval(root: ProjectionRootState, batch: Awaited<Ret
   observed: ReturnType<typeof observeRemovalSends>, latest: { index: ProjectionIndex }, removal: ReleaseRemoval): Promise<ProjectionPersistResult> {
   const firstRefusal = observed.refusal();
   if (firstRefusal !== undefined) return refusedAfterRemoval(root, removal, batch.index, firstRefusal);
-  const currentLinks = await readProjectionLinkBoundary(root.checkout,
+  const destinations = await readCopyDestinations(root.checkout,
     [...batch.removals, ...batch.copies.flatMap(copy => [copy.path, copy.copy])], root.ports.linkFs);
   const diagnosticFrom = projectionProcessState().diagnostics.length;
   // Each publication advances the index a later refusal keeps, so a failure after the first never republishes an older one.
   const checked = await runSecondCheck({ checkout: root.checkout, location: root.location, index: batch.index,
     onPublished: published => { latest.index = published; },
-    copies: batch.copies.filter(copy => currentLinks(copy.copy) === null),
-    removals: batch.removals, blockedByLink: currentLinks, format: root.context.format, writer: root.context.writer,
+    copies: batch.copies.filter(copy => destinations.blockedByLink(copy.copy) === null),
+    removals: batch.removals, ...destinations, format: root.context.format, writer: root.context.writer,
     takeIn: observed.takeIn, checkpoint: root.context.checkpoint });
   latest.index = checked.index;
   const secondRefusal = observed.refusal();
   if (secondRefusal !== undefined) return refusedAfterRemoval(root, removal, checked.index, secondRefusal);
+  const blocked = checked.blockedDestinations.entries().next().value;
+  if (blocked !== undefined) return refusedAfterRemoval(root, removal, checked.index,
+    retirementRefusal(root.checkout, blocked[0], blocked[1], "release"));
   for (const copy of checked.settled) {
     // An opaque destination still permits discarding a copy proven unchanged below.
-    if (currentLinks(copy.path) !== null && copy.settlement.kind === "not-a-file") continue;
+    if (destinations.blockedByLink(copy.path) !== null && copy.settlement.kind === "not-a-file") continue;
     const remedy = removalCopyRefusal(copy.settlement, root.checkout, copy.copy, diagnosticFrom, "release");
     if (remedy !== undefined) return refusedAfterRemoval(root, removal, checked.index, remedy);
   }

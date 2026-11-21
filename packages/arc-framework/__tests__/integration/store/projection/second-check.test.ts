@@ -1,7 +1,7 @@
 /** The second check over swapped files: each aside copy checked again at the command's end, and settled. */
-import { link, open, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { link, mkdir, open, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createEditorHandles } from "../../../helpers/store/projection/editor-handles.js";
 import {
   deferring, landingCopies, prepareSwap, SWAP_WRITER, type PrepareSwapOptions,
@@ -16,12 +16,61 @@ import { runSecondCheck, type SecondCheckInput } from "../../../../src/lib/store
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import type { SwapHooks } from "../../../../src/lib/store/projection/swap.js";
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
+import { readCopyDestinations } from "../../../../src/lib/store/projection/discovery-links.js";
+import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
+import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
+
+const access = vi.hoisted(() => ({ deniedPath: "" }));
+vi.mock("node:fs/promises", async importOriginal => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
+    if (args[0] === access.deniedPath) throw Object.assign(new Error("Archive search access revoked"), { code: "EACCES" });
+    return actual.lstat(...args);
+  }) as typeof actual.lstat;
+  return { ...actual, lstat, default: { ...actual, lstat } };
+});
 
 const directories: string[] = [];
 const editors = createEditorHandles();
 afterEach(async () => {
+  access.deniedPath = "";
   await editors.closeAll();
   await removeGitBackedDirs(directories.splice(0));
+});
+
+it("holds an archive copy denied after preflight while its accessible sibling settles", async () => {
+  const prepared = await prepareSwap({ path: ".arc/completed/2026-q4/01_alpha/first.md" });
+  const { checkout, location } = prepared.seeded;
+  directories.push(checkout);
+  const batch = await prepared.swap();
+  const [first] = batch.copies;
+  const entry = batch.index.entries[prepared.path];
+  const [copy] = entry?.kind === "record" ? entry.copies : [];
+  if (first === undefined || entry?.kind !== "record" || copy === undefined) throw new Error("Expected a recorded archive copy");
+  const sibling = ".arc/completed/2026-q4/02_beta/second.md";
+  const name = nameAsideFile({ path: sibling, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
+  await mkdir(dirname(join(checkout, name)), { recursive: true });
+  await writeFile(join(checkout, name), await readFile(join(checkout, copy.name)));
+  const open = withProjectionEntry(batch.index, prepared.path, { ...entry, opened: true });
+  const index = withProjectionEntry(open, sibling, { ...entry, copies: [{ ...copy, name }] });
+  const takeIn: TakeInPort = async () => { throw new Error("These copies have no edits to send"); };
+  const destinations = await readCopyDestinations(checkout, [prepared.path, sibling]);
+  expect(destinations.archiveAccess.size).toBe(0);
+  access.deniedPath = prepared.file;
+  const checked = await runSecondCheck({ checkout, location, index, ...destinations,
+    copies: [first, { path: sibling, copy: name }], takeIn, format: "sha1", writer: SWAP_WRITER, gate: aged });
+  expect(checked.blockedDestinations.get(prepared.path)?.reason).toContain("EACCES");
+  expect(checked.index.entries[prepared.path]).toMatchObject({ opened: true, copies: [copy] });
+  expect(checked.index.entries[sibling]).toMatchObject({ copies: [] });
+  expect(await readStat(join(checkout, copy.name))).not.toBeNull();
+  expect(await readStat(join(checkout, name))).toBeNull();
+
+  access.deniedPath = "";
+  const retried = await runSecondCheck({ checkout, location, index: checked.index,
+    copies: [first], takeIn, format: "sha1", writer: SWAP_WRITER, gate: aged });
+  expect(retried.blockedDestinations.size).toBe(0);
+  expect(retried.index.entries[prepared.path]).toMatchObject({ copies: [] });
+  expect(await readStat(join(checkout, copy.name))).toBeNull();
 });
 
 /**

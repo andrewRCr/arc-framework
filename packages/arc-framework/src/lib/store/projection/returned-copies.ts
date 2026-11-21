@@ -2,14 +2,16 @@
 import { withProjectionEntry } from "./index-memory.js";
 import { lstat } from "node:fs/promises";
 import { commitProjectionIndex } from "./index-file.js";
-import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
+import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ArchiveChangeRefusal } from "./archive-selection.js";
 import { finalizeAsideCopy, type AsideCopyDeletion } from "./stampless.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archivePermissionMark } from "./archive-file.js";
 import { removeReturnedAsideFile } from "./aside-cleanup.js";
 
 /** One returned alias whose record stays until its restored path mapping is published. */
 export interface ReturnedCopy { readonly path: string; readonly copy: string }
+
+type AliasRefusal = (refused: Parameters<ArchiveChangeRefusal>[0], access: boolean) => void;
 
 /** Prove two names currently refer to the same regular file without following a final symbolic link. */
 export async function sameProjectionFile(left: string, right: string): Promise<boolean> {
@@ -28,7 +30,7 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
   readonly returned: readonly ReturnedCopy[];
   readonly onPublished?: (index: ProjectionIndex) => void;
   /** Takes a path whose alias the check just before the unlink found is not this checkout's; the alias is kept. */
-  readonly refuseChange?: ArchiveChangeRefusal;
+  readonly refuseChange?: AliasRefusal;
 }): Promise<ProjectionIndex> {
   const published = await commitProjectionIndex(input);
   input.onPublished?.(published);
@@ -43,14 +45,23 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
 }
 
 async function cleanReturnedAlias(input: AsideCopyDeletion,
-  refuseChange?: ArchiveChangeRefusal): Promise<RecordEntry> {
+  refuseChange?: AliasRefusal): Promise<RecordEntry> {
   const { checkout, path, copy, entry, checkpoint } = input;
   try {
     const outcome = await removeReturnedAsideFile(checkout, copy, path, checkpoint);
     return outcome === "retained" ? entry : await finalizeAsideCopy(input);
   } catch (error) {
-    if (!(error instanceof ArchiveDestinationBlocked)) throw error;
-    refuseChange?.({ path, copy, mark: error.mark });
+    if (error instanceof ArchiveDestinationBlocked) refuseChange?.({ path, copy, mark: error.mark }, error.access);
+    else {
+      const mark = copyAliasAccessRefusal(path, error);
+      refuseChange?.({ path, copy, mark }, true);
+    }
     return entry;
   }
+}
+
+/** Confine permission failures from an archive alias probe to its destination. */
+export function copyAliasAccessRefusal(path: string, error: unknown): RefusedMark {
+  if (!path.startsWith(".arc/completed/")) throw error;
+  return archivePermissionMark(path, error, "inspect the returned copy for");
 }

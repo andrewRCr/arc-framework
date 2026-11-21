@@ -1,5 +1,5 @@
 /** Refuse merge-base consumption while accepted input still needs its landed identities recorded. */
-import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
+import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { StoreRefusal } from "../refusal.js";
 
 /** Identify an unfinished mapping without reading its raw copy or choosing another base. */
@@ -14,4 +14,9 @@ export function unfinishedRecordingRefusal(entry: RecordEntry): StoreRefusal | n
 export function hasArchiveRecording(entry: ProjectionIndex["entries"][string] | undefined): boolean {
   return entry?.archiveSubmission !== undefined
     || entry?.kind === "record" && entry.opened === true && entry.persisted?.recording === true;
+}
+
+/** The unchanged raw input of a partial landing still needs its local repair. */
+export function retainedArchiveInput(entry: RecordEntry, blob: string): RefusedMark | undefined {
+  return entry.persisted?.read === blob ? entry.persisted.retained : undefined;
 }

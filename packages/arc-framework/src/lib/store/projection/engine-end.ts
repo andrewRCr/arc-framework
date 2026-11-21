@@ -8,7 +8,7 @@ import { readProjectionIndex } from "./index-file.js";
 import { runSecondCheck } from "./second-check.js";
 import { removeTakenInCopies, TAKEN_IN_FOLDER } from "./taken-in.js";
 import { reportProjectionCopy } from "./report.js";
-import { readProjectionLinkBoundary } from "./discovery-links.js";
+import { readCopyDestinations } from "./discovery-links.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { hasProjectionEndWork } from "./end-work.js";
@@ -28,19 +28,17 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       loadProjectionGroups(fresh.index, "walked");
       const timings = [...root.fanOutTimes ?? []];
       const index = timings.reduce((recorded, elapsed) => recordProjectionTiming(recorded, "fan-out", elapsed), fresh.index);
-      const inaccessible = new Set<string>();
-      const blockedByLink = await readProjectionLinkBoundary(root.checkout,
-        [...root.copies.map(copy => copy.path), ...root.removals], root.ports.linkFs, (path, mark) => {
-          inaccessible.add(path);
-          refuseArchiveChange(root, path, mark);
-        });
+      const destinations = await readCopyDestinations(root.checkout,
+        [...root.copies.map(copy => copy.path), ...root.removals], root.ports.linkFs);
       const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index,
         onPublished: published => { root.fanOutTimes?.splice(0, timings.length); reportProjectionTripwires(root, published); },
-        blockedByLink,
-        copies: root.copies.filter(copy => !inaccessible.has(copy.path)),
-        removals: root.removals.filter(path => !inaccessible.has(path)), format: root.context.format, takeIn: root.takeIn,
+        ...destinations, copies: root.copies,
+        removals: root.removals, format: root.context.format, takeIn: root.takeIn,
         writer: root.context.writer, checkpoint: root.context.checkpoint });
-      for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
+      for (const [path, mark] of checked.blockedDestinations) refuseArchiveChange(root, path, mark);
+      for (const copy of checked.settled) {
+        if (!checked.blockedDestinations.has(copy.path)) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
+      }
       await reconcileProjectionHandoffs(root, checked.index);
       const settled = await readProjectionIndex(root.location, true);
       if (settled.kind !== "index") return;

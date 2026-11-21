@@ -4,6 +4,8 @@ import { chmod, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "
 import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
+import { createErrandAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
+import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { seed, success, update } from "../../../helpers/store/suite-tools.js";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
@@ -15,10 +17,11 @@ import { createRefusingStore } from "../../../helpers/store/projection/refusing-
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
-import { writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
 import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
+import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
@@ -112,7 +115,9 @@ it("holds a withheld archive edit after index loss until deletion, reopening and
   expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
-it.each(["save", "save absent", "persist", "release"] as const)("finishes an accepted archive recording with %s", async operation => {
+it.each([
+  ["save", true], ["save absent", true], ["persist", true], ["release", true], ["persist", false], ["release", false],
+] as const)("finishes an accepted archive recording with %s (opened=%s)", async (operation, opened) => {
   const h = await archiveRetirementFixture();
   expect((await projectionCommand(h.input, ["edit", join(h.checkout, h.path)])).result).toMatchObject({ status: "ok" });
   const content = h.primary.content + "\nAccepted archived input.\n";
@@ -126,6 +131,15 @@ it.each(["save", "save absent", "persist", "release"] as const)("finishes an acc
   } };
   await projectionCommand({ ...h.input, store }, ["save"]);
   expect((await h.disk()).index.entries[h.path]).toMatchObject({ persisted: { recording: true } });
+  if (!opened) {
+    const { location, index } = await h.disk();
+    const entry = index.entries[h.path];
+    if (entry?.kind !== "record") throw new Error("Missing accepted archive recording");
+    // Refresh can accept a forced edit without opening its file.
+    const unopened = { ...entry };
+    delete unopened.opened;
+    await writeProjectionIndex(location, withProjectionEntry(index, h.path, unopened));
+  }
   fault.refuse("read", null);
   const accepted = success(await h.store.read({ reference: h.primary.reference }));
   expect(accepted.content).toBe(content);
@@ -222,7 +236,7 @@ it.each(["forced", "malformed", "new"])("holds an unopened %s archive file from 
   expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
-async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers", interrupted = false) {
+async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers", interrupted: boolean | "touched" = false) {
   const h = await archiveRetirementFixture("andrew", shown === "notice" ? "separate" : "default");
   const base = shown === "notice" ? h.primary : await seed(h.f,
     recordReferences["work-item/companion"](h.primary.reference.owner, "conflicted.md"), "opening\nbase\nclosing\n");
@@ -273,6 +287,7 @@ async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers", i
     expect((await h.disk()).index.entries[path]).toHaveProperty("archiveSubmission");
     const accepted = success(await h.store.read({ reference: base.reference }));
     expect(accepted.conflicts).toEqual([]);
+    if (interrupted === "touched") await utimes(join(h.checkout, path), new Date(0), new Date(0));
     expect((await projectionCommand(command, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
     expect(success(await h.store.read({ reference: base.reference })).version).toBe(accepted.version);
     expect(submissions).toBe(1);
@@ -287,7 +302,55 @@ it("holds an unedited archive conflict shown by notice until its named repair",
 it("holds an unedited archive conflict shown by markers until its named repair",
   () => checkUneditedArchiveConflictRepair("markers"), 30_000);
 
-it("does not resubmit a conflict resolution accepted before interruption", () => checkUneditedArchiveConflictRepair("markers", true), 30_000);
+it.each([true, "touched"] as const)("does not resubmit a conflict resolution accepted before interruption (%s)",
+  interrupted => checkUneditedArchiveConflictRepair("markers", interrupted), 30_000);
+
+it.each([false, true])("preserves a partially accepted archive Markdown edit on retry (interrupted=%s)", async interrupted => {
+  const { f, folder, description, projected } = await createErrandAdoptionFixture({ completed: true });
+  const path = `${folder}/errand-alpha.md`, file = join(f.root, path);
+  const base = "## Description\n\n### First\n\n- _Id:_ `11111111`\n\nbase first\n\n"
+    + "### Second\n\n- _Id:_ `22222222`\n\nbase second\n";
+  success(await f.store.write(update(f, description, base)));
+  const starting = success(await f.store.read({ reference: description.reference }));
+  success(await f.store.write(update(f, starting, base.replace("base first", "stored first"))));
+  success(await f.store.write(update(f, starting, base.replace("base first", "incoming first"))));
+  let submissions = 0;
+  const store = overrideEngineStore(f.store, { batch: async (input: Parameters<typeof f.store.batch>[0]) => {
+    const result = await f.store.batch(input);
+    if (++submissions === 1 && interrupted) {
+      const root = projectionProcessState().roots.get(f.root);
+      if (root === undefined) throw new Error("Missing archive projection root");
+      root.checkpoint = async () => { throw new Error("Stopped after the partial landing"); };
+    }
+    return result;
+  } });
+  const command = { checkout: f.root, store };
+  await projectionCommand(command, ["status"]);
+  expect((await projectionCommand(command, ["edit", file])).result).toMatchObject({ status: "ok" });
+  const rendered = await readFile(file, "utf8");
+  expect(rendered).toContain("=======");
+  const edited = rendered.replace(/^=======\n/mu, "").replace("stored first", "held first edit").replace("base second", "accepted second edit");
+  await writeFile(file, edited);
+  if (interrupted) await expect(projectionCommand(command, ["save"])).rejects.toThrow("Stopped after the partial landing");
+  else expect((await projectionCommand(command, ["save"])).diagnostics).toContain("marker-malformed");
+  const accepted = success(await store.read({ reference: description.reference }));
+  expect(accepted.content).toContain("accepted second edit");
+  expect(accepted.content).not.toContain("held first edit");
+
+  expect((await projectionCommand(command, ["save"])).diagnostics).toContain("marker-malformed");
+  expect(await readFile(file, "utf8")).toBe(edited);
+  expect(submissions).toBe(1);
+  expect(success(await store.read({ reference: description.reference })).version).toBe(accepted.version);
+  const index = await readProjectionIndex(projected.location, true, { groups: "all" });
+  const entry = index.kind === "index" ? index.index.entries[path] : undefined;
+  expect(entry).toMatchObject({ opened: true, pending: true });
+  if (entry?.kind !== "record") throw new Error("Missing partially accepted file entry");
+  const repaired = accepted.content.replace("stored first", "held first edit");
+  await writeFile(file, renderStampedFile({ content: repaired, stamp: entry.base.blob }));
+  expect((await projectionCommand(command, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
+  expect(success(await store.read({ reference: description.reference })).content).toBe(repaired);
+  expect(submissions).toBe(2);
+}, 30_000);
 
 it.each([["persist", "present"], ["release", "present"], ["persist", "absent"]] as const)(
   "lets %s finish after recovering an interrupted archive adoption with the path %s", async (operation, presence) => {

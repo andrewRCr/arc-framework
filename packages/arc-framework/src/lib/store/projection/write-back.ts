@@ -48,6 +48,7 @@ import { completeWriteBackRecording, type RecordingSite } from "./write-back-rec
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
 import { acceptArchiveSave, stageArchiveSave } from "./archive-save-recording.js";
+import { retainedArchiveInput } from "./recording-state.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -118,7 +119,7 @@ export interface CapturedWriteBackFile { readonly kind: "read"; readonly content
 /** Repeat store-dependent preparation from captured bytes without reading a checkout file. */
 export async function prepareCapturedWriteBack(context: WriteBackContext, request: TakeInRequest,
   supplied: CapturedWriteBackFile): Promise<PreparedWriteBack> {
-  const held = refuseOwnershipHandoff(request.entry);
+  const held = refuseOwnershipHandoff(request.entry) ?? holdPartiallyAcceptedInput(request, supplied.read.blob);
   if (held !== null) return { kind: "held", result: held, diagnostic: held.mark };
   request = observeProjectionEdit(request);
   if (request.resolution?.kind === "stored") {
@@ -148,6 +149,12 @@ export async function prepareCapturedWriteBack(context: WriteBackContext, reques
   if (markerRefusal !== null) return { kind: "held", result: { answer: "refused", mark: markerRefusal,
     entry: { ...request.entry, pending: true, refused: markerRefusal } } };
   return prepareReadyContent(context, request, file, base, stamp, markers.result, supplied);
+}
+
+function holdPartiallyAcceptedInput(request: TakeInRequest, blob: string) {
+  if (request.copy !== null || request.resolution !== undefined) return null;
+  const mark = retainedArchiveInput(request.entry, blob);
+  return mark === undefined ? null : { answer: "refused" as const, mark, entry: { ...request.entry, pending: true, refused: mark } };
 }
 
 async function prepareReadyContent(context: WriteBackContext, request: TakeInRequest, file: CapturedWriteBackFile,

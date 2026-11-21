@@ -10,9 +10,10 @@ import { projectionProcessState, type ProjectionRootState } from "./process-stat
 import { canonicalCheckout } from "./checkout-identity.js";
 import type { ProjectionLockResult } from "./lock.js";
 import { loadProjectionGroups, projectionIndexGroup, ProjectionPartitionMismatch } from "./index-memory.js";
-import { readProjectionLinkBoundary } from "./discovery-links.js";
+import { readCopyDestinations } from "./discovery-links.js";
 import { runSecondCheck } from "./second-check.js";
 import { reportProjectionCopy } from "./report.js";
+import { refuseArchiveChange } from "./archive-selection.js";
 
 /** Materialize through the command's existing root, retaining its copy checks and containing failures. */
 export async function restoreSyncProjection(store: Store, requested: string, options: { dryRun?: boolean }): Promise<void> {
@@ -69,12 +70,17 @@ async function settleCommandCopies(root: ProjectionRootState): Promise<void> {
     }
   });
   if (readable.length === 0) return;
-  const blockedByLink = await readProjectionLinkBoundary(root.checkout, readable.map(copy => copy.path), root.ports.linkFs);
-  const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index: start.index, blockedByLink,
+  const destinations = await readCopyDestinations(root.checkout, readable.map(copy => copy.path), root.ports.linkFs);
+  const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index: start.index, ...destinations,
     copies: readable, format: root.context.format, takeIn: root.takeIn, writer: root.context.writer,
     checkpoint: root.context.checkpoint });
-  for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
-  const settled = new Set(checked.settled.map(each => each.copy));
+  for (const [path, mark] of checked.blockedDestinations) refuseArchiveChange(root, path, mark);
+  const settled = new Set<string>();
+  for (const copy of checked.settled) {
+    if (checked.blockedDestinations.has(copy.path)) continue;
+    reportProjectionCopy(copy.path, copy.copy, copy.settlement);
+    settled.add(copy.copy);
+  }
   root.copies.splice(0, root.copies.length, ...root.copies.filter(copy => !settled.has(copy.copy)));
 }
 

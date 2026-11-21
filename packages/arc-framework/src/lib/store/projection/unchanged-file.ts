@@ -6,6 +6,7 @@ import { readStamplessFile } from "./stampless.js";
 import { gitBlobId } from "./blob-id.js";
 import { captureWriteBackFile, type WriteBackContext } from "./write-back.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
+import { retainedArchiveInput } from "./recording-state.js";
 
 type CapturedFile = Extract<Awaited<ReturnType<typeof captureWriteBackFile>>, { kind: "read" }>;
 
@@ -17,11 +18,13 @@ export async function readUnchangedProjectionFile(context: WriteBackContext, req
     || entry.persisted?.recording === true || entry.refused?.reason === "bases-disagree") return null;
   const recordedInput = entry.opened === true && entry.acceptedInputStat !== undefined ? entry.persisted?.read : undefined;
   const oldConflicts = entry.markers !== null || entry.unshown.length > 0;
-  if (oldConflicts && recordedInput === undefined) return null;
+  if (oldConflicts && recordedInput === undefined && entry.persisted?.retained === undefined) return null;
   const file = await captureWriteBackFile(context, request);
   if (file.kind !== "read") return null;
+  if (retainedArchiveInput(entry, file.read.blob) !== undefined) return file.read;
+  // An interrupted marker resolution leaves its stamped input in place until the read-back installs a new inode.
   if (recordedInput === file.read.blob && entry.acceptedInputStat?.ino === file.read.stat.ino
-    && entry.acceptedInputStat.mtimeNs === file.read.stat.mtimeNs) return file.read;
+    && (entry.acceptedInputStat.mtimeNs === file.read.stat.mtimeNs || oldConflicts && request.path.endsWith(".md"))) return file.read;
   return oldConflicts ? null : readUnchangedBase(context, request, file);
 }
 

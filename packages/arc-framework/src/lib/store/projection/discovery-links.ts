@@ -37,6 +37,15 @@ export async function readProjectionLinkBoundary(checkout: string, paths: readon
   return createProjectionLinkBoundary(links);
 }
 
+/** Record an inaccessible archive destination without losing the link verdicts for other work. */
+export async function readCopyDestinations(checkout: string, paths: readonly string[], fs?: ProjectionLinkFs): Promise<{
+  blockedByLink: ProjectionLinkBoundary; archiveAccess: Map<string, RefusedMark>;
+}> {
+  const archiveAccess = new Map<string, RefusedMark>();
+  const blockedByLink = await readProjectionLinkBoundary(checkout, paths, fs, (path, mark) => { archiveAccess.set(path, mark); });
+  return { blockedByLink, archiveAccess };
+}
+
 async function linkInPath(checkout: string, path: string, fs: ProjectionLinkFs): Promise<string | null> {
   const parts = path.split("/");
   for (let length = 1; length <= parts.length; length += 1) {

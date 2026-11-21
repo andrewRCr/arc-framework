@@ -199,8 +199,8 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
       continue;
     }
     const entry = index.entries[path];
-    // The write-back walk can recover a staged receipt under the checkout's lease.
-    if (hasArchiveRecording(entry)) {
+    // Finish accepted archive input from its retained copy even if retirement cannot walk the live file.
+    if (hasArchiveRecording(entry) || path.startsWith(".arc/completed/") && entry?.kind === "record" && entry.persisted?.recording === true) {
       files.push(path);
       continue;
     }

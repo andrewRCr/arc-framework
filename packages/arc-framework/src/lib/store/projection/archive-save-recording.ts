@@ -44,9 +44,10 @@ export function acceptArchiveSave(entry: RecordEntry, version: RecordVersion): R
 
 /** Form the existing accepted-input recording from the copy retained before submission. */
 export function acceptedArchiveRecording(submission: ArchiveSaveSubmission, version: RecordVersion): Pick<RecordEntry, "persisted" | "acceptedInputStat"> {
-  const { stamp, name, blob, read } = submission;
-  return { persisted: { stamp, recording: true, ...(read === undefined ? {} : { read: read.blob }), takenIn: { kind: "copy", name, blob, version } },
-    acceptedInputStat: read === undefined || submission.aside !== undefined ? undefined : { ino: read.stat.ino, mtimeNs: read.stat.mtimeNs } };
+  const { stamp, name, blob, read, aside, retained } = submission;
+  return { persisted: { stamp, recording: true, ...(read === undefined ? {} : { read: read.blob }),
+    ...(aside === undefined && retained !== undefined ? { retained } : {}), takenIn: { kind: "copy", name, blob, version } },
+    acceptedInputStat: read === undefined || aside !== undefined ? undefined : { ino: read.stat.ino, mtimeNs: read.stat.mtimeNs } };
 }
 
 /** Resolve the interrupted submission before the checkout can attempt another write for this file. */

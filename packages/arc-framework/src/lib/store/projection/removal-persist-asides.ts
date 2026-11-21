@@ -4,8 +4,8 @@ import { projectionProcessState } from "./process-state.js";
 import type { AsideCopyRecord, RecordEntry, ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { Remedy } from "../refusal.js";
 import type { ProjectionPersistHooks } from "./removal-persist.js";
-import { observeAsideCopy, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
-import { readProjectionLinkBoundary } from "./discovery-links.js";
+import { asideCopyAccessHold, observeAsideCopy, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
+import { readCopyDestinations, readProjectionLinkBoundary } from "./discovery-links.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { commitReturnedCopies } from "./returned-copies.js";
 import { readProjectionProtection } from "./protection.js";
@@ -21,21 +21,26 @@ interface CopyPersistenceInput {
   readonly ignoreMark?: RefusedMark;
   readonly disposition: ProjectionRetirement;
 }
+type CopyPersistenceResult = PersistedProjectionAsides & { readonly access?: boolean };
 
 /** Settle even a live writer's copies, publishing returned aliases before cleanup. */
 export async function persistProjectionAsides(root: ProjectionRootState, initial: ProjectionIndex, disposition: ProjectionRetirement,
   hooks?: ProjectionPersistHooks, ignoreMark?: RefusedMark): Promise<PersistedProjectionAsides> {
   let index = initial;
+  let accessRefusal: Remedy | undefined;
   for (const path of Object.keys(index.entries)) {
     const first = index.entries[path];
     if (first?.kind !== "record") continue;
     for (const name of first.copies.map(copy => copy.name)) {
       const settled = await persistCopy({ root, index, hooks, ignoreMark, disposition }, path, name);
       index = settled.index;
-      if (settled.refusal !== undefined) return settled;
+      if (settled.refusal === undefined) continue;
+      if (!settled.access) return { index, refusal: accessRefusal ?? settled.refusal };
+      accessRefusal ??= settled.refusal;
+      break;
     }
   }
-  return { index };
+  return { index, ...(accessRefusal === undefined ? {} : { refusal: accessRefusal }) };
 }
 
 /** Re-observe recorded copies after the last scheduling seam without preparing or sending an edit. */
@@ -52,23 +57,29 @@ export async function changedProjectionAsides(root: ProjectionRootState, index: 
   return false;
 }
 
-async function persistCopy(input: CopyPersistenceInput, path: string, name: string): Promise<PersistedProjectionAsides> {
+async function persistCopy(input: CopyPersistenceInput, path: string, name: string): Promise<CopyPersistenceResult> {
   const { root, index } = input;
   await input.hooks?.beforeAsideCopy?.(root.checkout, path, name);
   await root.checkpoint?.();
   const entry = index.entries[path];
   const copy = entry?.kind === "record" ? entry.copies.find(each => each.name === name) : undefined;
   if (entry?.kind !== "record" || copy === undefined) return { index };
-  const boundary = await readProjectionLinkBoundary(root.checkout, [path, name], root.ports.linkFs);
+  const { blockedByLink: boundary, archiveAccess } = await readCopyDestinations(root.checkout, [path, name], root.ports.linkFs);
+  const denied = archiveAccess.get(path);
+  if (denied !== undefined) return { index, refusal: retirementRefusal(root.checkout, path, denied, input.disposition), access: true };
   if (boundary(name) !== null) return { index };
   if (boundary(path) !== null || !root.writable(path) || !root.writable(name)) return observeUnauthorizedCopy(input, path, entry, copy);
   const diagnosticFrom = projectionProcessState().diagnostics.length;
   const settled = await settleAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format,
     takeIn: root.takeIn, writer: root.context.writer, checkpoint: root.context.checkpoint });
+  let cleanupHold: RefusedMark | undefined;
   const published = await commitReturnedCopies({ checkout: root.checkout, location: root.location, checkpoint: root.context.checkpoint,
     index: withProjectionEntry(index, path, settled.entry),
-    returned: settled.kind === "returned" || settled.kind === "linked-back" ? [{ path, copy: name }] : [] });
-  return { index: published, refusal: removalCopyRefusal(settled, root.checkout, name, diagnosticFrom, input.disposition) };
+    returned: settled.kind === "returned" || settled.kind === "linked-back" ? [{ path, copy: name }] : [],
+    refuseChange: ({ mark }, access) => { if (access) cleanupHold = mark; } });
+  if (cleanupHold !== undefined) return { index: published, refusal: retirementRefusal(root.checkout, path, cleanupHold, input.disposition), access: true };
+  return { index: published, refusal: removalCopyRefusal(settled, root.checkout, name, diagnosticFrom, input.disposition),
+    access: asideCopyAccessHold(settled) !== undefined };
 }
 
 async function observeUnauthorizedCopy(input: CopyPersistenceInput, path: string,

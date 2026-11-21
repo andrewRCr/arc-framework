@@ -5,11 +5,11 @@
  */
 import { withProjectionEntry } from "./index-memory.js";
 import type { AsideWriterInput } from "./aside.js";
-import { settleAsideCopy, type CopySettlement } from "./aside-copies.js";
+import { asideCopyAccessHold, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import type { SwapMoves } from "./aside-moves.js";
 import type { ObjectFormat } from "./blob-id.js";
 import { commitReturnedCopies } from "./returned-copies.js";
-import type { ProjectionIndex } from "./index-schema.js";
+import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ReadGateDependencies } from "./read-gate.js";
 import { dropRemovedEntries } from "./swap.js";
@@ -27,6 +27,7 @@ export interface SecondCheckInput extends SwapMoves {
   readonly removals?: readonly string[];
   /** A linked original destination is left opaque while its saved copy remains recoverable. */
   readonly blockedByLink?: ProjectionLinkBoundary;
+  readonly archiveAccess?: ReadonlyMap<string, RefusedMark>;
   readonly format: ObjectFormat;
   readonly takeIn: TakeInPort;
   readonly writer: AsideWriterInput;
@@ -40,6 +41,7 @@ export interface SecondCheckInput extends SwapMoves {
 export interface SecondCheckResult {
   readonly index: ProjectionIndex;
   readonly settled: readonly { readonly path: string; readonly copy: string; readonly settlement: CopySettlement }[];
+  readonly blockedDestinations: ReadonlyMap<string, RefusedMark>;
 }
 
 /**
@@ -51,11 +53,13 @@ export async function runSecondCheck(input: SecondCheckInput): Promise<SecondChe
   const { checkout, format, takeIn, writer } = input;
   let { index } = input;
   const settled: { path: string; copy: string; settlement: CopySettlement }[] = [];
+  const blockedDestinations = new Map(input.archiveAccess);
   for (const { path, copy } of input.copies) {
     const entry = index.entries[path];
     const record = entry?.kind === "record" ? entry.copies.find((each) => each.name === copy) : undefined;
     // Only a copy the index still records is checked: one whose record a later step of the command cleared is settled.
     if (entry?.kind !== "record" || record === undefined) continue;
+    if (blockedDestinations.has(path)) continue;
     const link = input.blockedByLink?.(path) ?? null;
     const settlement: CopySettlement = link === null ? await settleAsideCopy({
       checkout, path, entry, copy: record, format, takeIn, writer, keepEmpty: true,
@@ -63,13 +67,17 @@ export async function runSecondCheck(input: SecondCheckInput): Promise<SecondChe
     }) : { kind: "not-a-file", path, copy, entry, remedy: projectionLinkRemedy(link) };
     index = withProjectionEntry(index, path, settlement.entry);
     settled.push({ path, copy, settlement });
+    const accessHold = asideCopyAccessHold(settlement);
+    if (accessHold !== undefined) blockedDestinations.set(path, accessHold);
   }
   // A removal completes once its file and the last aside copy of its path are gone.
   index = await dropRemovedEntries(index, checkout,
-    input.removals?.filter(path => (input.blockedByLink?.(path) ?? null) === null) ?? []);
+    input.removals?.filter(path => !blockedDestinations.has(path) && (input.blockedByLink?.(path) ?? null) === null) ?? []);
   return { index: await commitReturnedCopies({ location: input.location, checkout, index, checkpoint: input.checkpoint,
     onPublished: input.onPublished,
-    returned: settled.filter(each => each.settlement.kind === "returned" || each.settlement.kind === "linked-back")
+    refuseChange: ({ path, mark }, access) => { if (access) blockedDestinations.set(path, mark); },
+    returned: settled.filter(each => !blockedDestinations.has(each.path)
+      && (each.settlement.kind === "returned" || each.settlement.kind === "linked-back"))
       .map(({ path, copy }) => ({ path, copy })),
-  }), settled };
+  }), settled, blockedDestinations };
 }

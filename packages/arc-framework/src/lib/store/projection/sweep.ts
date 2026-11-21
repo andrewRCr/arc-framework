@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
 import { walkProjectionAsideFolder } from "./aside-discovery.js";
-import { hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
+import { asideCopyAccessHold, hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
@@ -27,7 +27,7 @@ import { notAFileRemedy, type ReadGateDependencies } from "./read-gate.js";
 import type { Remedy } from "../refusal.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInPort } from "./take-in-port.js";
-import { readProjectionLinkBoundary, projectionLinkRemedy, type ProjectionLinkBoundary } from "./discovery-links.js";
+import { readCopyDestinations, projectionLinkRemedy, type ProjectionLinkBoundary } from "./discovery-links.js";
 import { ArchiveDestinationBlocked, archiveDestinationRefusal } from "./archive-file.js";
 
 /** What the sweep reads, run under the worktree's projection lock; its moves are the system's unless a test injects its own. */
@@ -115,9 +115,7 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
     ...Object.entries(input.index?.entries ?? {}).flatMap(([path, entry]) => entry.kind === "record" && entry.copies.length > 0 ? [path] : []),
     ...found.flatMap(copy => { const named = parseAsideFile(copy); return named?.role === "aside" ? [named.path] : []; }),
   ];
-  const archiveAccess = new Map<string, RefusedMark>();
-  const observed = await readProjectionLinkBoundary(input.checkout, destinations.filter(writable), undefined,
-    (path, mark) => { archiveAccess.set(path, mark); });
+  const { blockedByLink: observed, archiveAccess } = await readCopyDestinations(input.checkout, destinations.filter(writable));
   const judges: SweepJudges = { writerOf: judgeWriters(input), writable,
     blockedByLink: path => input.blockedByLink?.(path) ?? observed(path), archiveAccess };
   if (input.index === null) return { ignores, ...await sweepWithoutIndex(input, found, judges) };
@@ -181,6 +179,7 @@ async function takeOverRecorded(
   const { taking, left } = recordsToTake(initial, judges);
   let index = initial;
   const swept: { path: string; copy: string; outcome: SweptCopy }[] = [];
+  const inaccessible = new Set<string>();
   // The sweep asks whether each archive path is this checkout's once, before it takes over any of the path's copies.
   const selection = new Map<string, RefusedMark | null>();
   const select = input.selectArchivePath ?? ((path: string) => {
@@ -189,7 +188,7 @@ async function takeOverRecorded(
   });
   for (const { path, copy } of taking) {
     const current = index.entries[path];
-    if (current?.kind !== "record") continue;
+    if (inaccessible.has(path) || current?.kind !== "record") continue;
     const refused = select(path);
     const active = refused === null && current.archiveSubmission?.aside !== undefined
       ? await input.recoverArchiveSubmission?.(index, path, current) : { index, entry: current, held: false };
@@ -201,6 +200,7 @@ async function takeOverRecorded(
       : { kind: "blocked-destination", entry: active.entry, mark: refused };
     index = withProjectionEntry(index, path, outcome.entry);
     swept.push({ path, copy: record.name, outcome });
+    if (asideCopyAccessHold(outcome) !== undefined) inaccessible.add(path);
   }
   return { index, swept, left };
 }
@@ -376,7 +376,7 @@ async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, re
       return { kind: "linked-back", entry: { ...restoreCopyRendering(entry, record), pending: true } };
     }
   } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark };
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };
     throw error;
   }
   // Every other copy, and one whose path reappeared before its link, is settled as any aside copy is.
