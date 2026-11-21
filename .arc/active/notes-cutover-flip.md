@@ -2035,6 +2035,113 @@ git add|git commit|git rm|git mv|git show|\[x\]|\[~\]|plan/|SESSION-NOTES|arc us
 - `user/{identity}/active/` in `user/README.md` and the contributor brief, with `meta-{name}.md` and `tasks-{name}.md`
   in `user/README.md`: a contributor's personal pipeline under the layout's contributor scope.
 
+## Stage 2
+
+Stage 2's runbook (Task 6.4.a) and each run's conclusions. A run's raw evidence stays in the work unit's evidence folder
+on the importing machine, outside the repository and uncited; each conclusion names the flip head it ran at.
+
+### The runbook
+
+- **Places.** `<copy>` is an absent directory in that evidence folder, outside every checkout. `copy` names the copied
+  primary `<P>`, the copied flip checkout `<F>`, and the mirror `<copy>/mirror.git`. `<scratch>` is a clone of the
+  mirror with no hooks.
+- **The override.** Every command drops the session's override (`env -u ARC_IN_REPO_STORE`). The exception is `<F>`
+  before the copy's merge, which sets `ARC_IN_REPO_STORE=1` as the live flip checkout does; even there, the two refusal
+  probes (step 1.5 and the end of step 3) drop it.
+- **The tooling.** The window tooling runs from `<P>`'s source on `main`, with `<P>` as its working directory, as the
+  window's driver runs it from the primary on the day: `npm run -s cutover-window -- <operation> --repo <P> --json`.
+    - `check`, `last-read`, and `restore` take `--flip-branch feat/cutover-flip --flip-pr <n> --pull-requests
+      <copy>/requests.json`. The listing holds only the flip's request, unarmed, under a stand-in number while the flip
+      has no pull request.
+    - `check` also takes `--path` with a `PATH` holding no `arc` outside the copy.
+- **Memory.** The import's trial, the import, and each tooling operation launch through `memcap_gated -m 4G`, one capped
+  run at a time. The import takes `NODE_OPTIONS=--max-old-space-size=3072`, a heap ceiling below the cap. Stage 1's
+  imports peaked near 2.4 GiB and its operations near 2.9 GiB.
+- **The builds.** The pre-flip build is `<P>`'s, and a checkout with no built CLI runs it with that checkout as its
+  working directory. The flip build is built in `<F>` (`npm run build:fast`) and rebuilt there after any change to it.
+- **Commits.** The window's own commits, each deletion commit and each merge a branch step makes, are made in the copied
+  checkout, through its hooks. The stand-ins for live sessions' work ahead of the window, and each plant, are made in
+  `<scratch>`, pushed to the mirror, and fetched.
+- **Stops.** Each step's expected outcome is written down before the step runs. A different outcome stops the run: the
+  fix lands in this change, and the stage re-runs from a fresh copy.
+
+1. **Ahead of the window, on the copy (Task 6.4.b):**
+    1. `copy --repo <live primary> --destination <copy>`, from this checkout's source. It refuses a copied Errand
+       awaiting merge. Record the flip head, `main`'s tip, and the checkouts copied.
+    2. Clone `<scratch>`, then bring the copy to § 10.1's state through it:
+        - drop each copied checkout's local changes and publish its branch;
+        - drop or land each live branch's shared-record changes, and merge `main` where `main` changed its unit's
+          records;
+        - publish each copied Errand's branch, and abandon the Errand from its own checkout;
+        - drop tracked-state stash entries;
+        - merge `main` into the flip branch where `main` has moved since its last merge.
+    3. Each copied unit holding an unpublished Candidate that those merges moved settles it (A6): `arc review
+       pre-publication <wu>`, then the choice the live day would take through `arc candidate applicability resolve`,
+       committed and pushed in its checkout.
+    4. Where the copy holds none, make each before the lock: a live branch no checkout holds; a branch carrying a
+       Candidate record `main` lacks; a pre-flip `arc start --here` checkout on a work branch; and a spawned pre-flip
+       checkout.
+    5. Build the flip build in `<F>`. First refusal probe: the flip build, with the override dropped, over `<P>`
+       refuses as § 3.2 states with the registry absent, naming both routes.
+    6. Assert that no record under `<P>`'s `<commonDir>/arc/review-gate/` names a path outside the copy, or clear those
+       records.
+2. **The quiesce (§ 10.2), in order:**
+    1. No review attempt in flight.
+    2. Ended holders' checkouts and husks torn down, the files each keeps copied out first.
+    3. `lock`.
+    4. `git fetch origin` in `<P>`.
+    5. Every checkout's `arc user save`, then the trial, `arc store migrate --import --trial`: work its blocking
+       notices, then re-run it.
+    6. `check`, passing.
+    7. Every checkout's `arc user save` again.
+3. **The designation and the import (§ 10.3, § 10.4):**
+    1. `arc store remote origin push` in `<P>`.
+    2. `arc store migrate --import --json` in `<P>`. Keep its report for `chain`, and record its wall time and peak.
+    3. Each sealed writer refuses, in each checkout with its own build.
+    4. The Errand identity refs are gone locally and from the mirror.
+    5. `account`, then `chain --report <report>`, then `recompute`.
+    6. Second refusal probe: in `<F>` with the override dropped, the flip build refuses, naming the imported route.
+4. **The flip's own landing (§ 10.5, Task 6.4.c):**
+    1. In `<F>` under the override: the deletion commit, `git rm -r` of § 3.2's five paths, its hooks passing; pushed
+       to the mirror.
+    2. `last-read`, passing.
+    3. In `<scratch>`: merge the flip branch into `main` with `--no-ff` and push, standing in for the host merge.
+    4. `<F>` then drops the override and, from the flip build:
+        - `arc archive`;
+        - the register closures, saved through write-back;
+        - its pre-flip workspace folder removed, kept files copied out;
+        - `arc locus release`.
+5. **Each branch and checkout (§ 10.6, Task 6.4.d):**
+    1. Each live branch other than `main` and the flip: `compare --branch`, then its branch step:
+        - merge the mirror's tip where needed;
+        - delete the five paths from disk and the index;
+        - commit in its checkout or, for a branch no checkout holds, from a temporary checkout removed afterwards;
+        - push.
+    2. Each checkout, the primary first: `compare --checkout`, then its seven steps. The three removals run only where
+       its digest is unchanged.
+        - The checkout that merged `main` and rebuilt while still tracking state shows the refusal, then the remedy's
+          deletion commit passing its hooks with the projection off, then its first materialization.
+        - The `--here` checkout is carried to an anchored marker, and the spawned one bound.
+        - The primary's identity root ends holding only ARC's surfaces and `scratch/`, its inbox and working memory laid
+          from the store.
+    3. Each moved range is re-applied through the store and confirmed with `confirm`.
+6. **Notes retire, and the window closes (§ 10.7, § 12):**
+    1. Move the notes ref with `git update-ref` to `refs/retired-notes/arc/user/<id>`, which is neither a tag nor
+       matched by any push refspec, and delete the old ref.
+    2. Each `arc user` notes writer refuses: `save`, `load`, `push`, `fetch`, `pull`, and `compact`.
+    3. `close`, passing, with no checkout reporting a withheld file.
+7. **The flipped copy's paths (Task 6.4.e):**
+    - the status and view arms, the roster read, and the slug clash;
+    - `arc handoff write` and an `arc sync` push, for the tripwire report's first live figures;
+    - the Markdown fix's end-to-end test over the flipped store;
+    - a worktree spawned after the flip, holding the tracked `.arc/user/.npmignore`, through its first
+      materialization;
+    - store-backed cases 2 to 7, case 6's reopen through the `gh` stub, labeled stubbed host evidence;
+    - the representative decomposition cut, recording the time its execute half takes.
+
+Steps 2 to 6 are the window's day (12-01). Stage 1's trial and import each took 15 to 19 minutes; each Stage 2 run
+records every step's time here, which sizes that day.
+
 ## The parallel run from 11-24
 
 A draft for the Owner's approval on Tuesday 11-24. The Owner decided at 9:04 pm on 11-20 that the flip runs in parallel

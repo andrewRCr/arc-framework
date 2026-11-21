@@ -1596,25 +1596,12 @@ rewritten workflows (§ 9.2).
 - _Goal:_ On a fresh full copy at the flip branch's head, every § 9.2 step runs in § 10's order and passes, each with
   its conclusion recorded.
 
-    - `[ ]` **6.4.a The runbook**
-        - Stage 2 runs the window tooling's operations (`copy`, `lock`, `check`, `account`, `chain`, `recompute`,
-          `last-read`, `compare`, `confirm`, `close`, and `restore`) one at a time, each where § 10 places it and
-          `restore` only within § 11's abort, with the import's trial (`arc store migrate --import --trial`) after the
-          saves and before `check` (§ 10.2). Each operation launches through the family's npm script, and the
-          operations, the trial, and the import run under the importing machine's memory limit where it sets one, as
-          § 10 launches them. It does not run `rehearse`, whose fresh stand-in flip branch would replace the flip's own.
-        - The flip build is built in the copied flip checkout and rebuilt there after any change to it; that checkout
-          runs it under `ARC_IN_REPO_STORE=1` until the copy's merge, as § 10 runs the live one, save Task 6.4.b's two
-          refusal probes, which drop it; every other command on the copy drops the session's override
-          (`notes-cutover-flip.md` § The flip's checkout).
-        - The window's own commits on the copy, each deletion commit and each merge a branch step makes, are made in
-          the copied checkout and run its hooks; a perturbation's plant is made the window tooling's way, in a scratch
-          clone of the mirror with no hooks installed, reaching the copy by fetch.
-        - Before any review runs on the copy, assert that no record under the copy's `<commonDir>/arc/review-gate/`
-          names a path outside the copy (`materializationRef`,
-          `scripts/review-gate/hosts/local/review-materialization.ts`), or clear those records first.
-        - Raw evidence stays outside the repository; each step's conclusion goes in a `notes-cutover-flip.md` § Stage 2
-          section this task opens, citing a commit.
+    - `[x]` **6.4.a The runbook**
+        - `notes-cutover-flip.md` § Stage 2 holds the runbook: the copy, the override's two exceptions, the tooling run
+          from the copied primary's source on `main`, each heavy launch through `memcap_gated`, and the window's commits
+          made in the copied checkouts while live sessions' stand-ins and plants go through a hookless scratch clone.
+          Its seven steps follow § 10's order from the copy to the flipped copy's paths. It names the retired notes
+          ref's namespace, `refs/retired-notes/`, which the spec leaves open.
 
     - `[ ]` **6.4.b The import side**
         - Stage 1's steps on the copy's pre-flip build, the copy taken through `copy`, with the import's trial before
