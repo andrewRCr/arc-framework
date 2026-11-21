@@ -13,7 +13,9 @@ import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/s
 const binding = vi.hoisted(() => ({ store: null as Store | null, afterOpen: null as ((path: string) => Promise<void>) | null,
   removeOnRead: null as string | null, timeOffset: 0, chmodError: null as string | null,
   /** Paths whose next stat alone is refused, as below a folder that denies access. */
-  denied: new Set<string>() }));
+  denied: new Set<string>(),
+  /** A change made to a file once a handle opened on it has been inspected, before the mode is changed. */
+  afterHandleStat: null as { path: string; run: () => Promise<void> } | null }));
 function deniedStat(path: unknown): void {
   if (typeof path !== "string" || !binding.denied.delete(path)) return;
   throw Object.assign(new Error(`Access denied: ${path}`), { code: "EACCES" });
@@ -37,8 +39,15 @@ vi.mock("node:fs/promises", async original => {
     deniedStat(args[0]);
     return actual.lstat(...args);
   }) as typeof actual.lstat, open: async (...args: Parameters<typeof actual.open>) => {
-    const handle = await actual.open(...args);
+    const handle = await actual.open(...args), opened = String(args[0]);
     return new Proxy(handle, { get(target, key) {
+      const swap = binding.afterHandleStat;
+      if (key === "stat" && swap !== null && swap.path === opened) return async (...statArgs: unknown[]) => {
+        const observed: unknown = await Reflect.apply(target.stat, target, statArgs);
+        binding.afterHandleStat = null;
+        await swap.run();
+        return observed;
+      };
       const code = binding.chmodError;
       if (key === "chmod" && code !== null) return async () => {
         binding.chmodError = null;
@@ -83,6 +92,7 @@ afterEach(async () => {
   binding.timeOffset = 0;
   binding.chmodError = null;
   binding.denied.clear();
+  binding.afterHandleStat = null;
   await removeGitBackedDirs(directories.splice(0));
 });
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
@@ -256,6 +266,25 @@ it.each(["deleted", "replaced by a symbolic link"] as const)(
     expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
     expect((await stat(file)).mode & 0o200).toBe(0o200);
   });
+
+it("keeps the opening when a symbolic link replaces the file after the write bit's handle opens", async () => {
+  const h = await archived(), file = join(await realpath(h.f.root), h.path), held = `${file}-held`;
+  binding.afterOpen = async () => {
+    binding.afterHandleStat = { path: file, run: async () => { await rename(file, held); await symlink(held, file); } };
+  };
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    condition: `${h.path} is no longer a regular file.`,
+    remedy: { text: "Restore the regular file and retry arc edit; its opened intent is retained." } } });
+  expect(binding.afterHandleStat).toBeNull();
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
+    .toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
+  expect((await stat(held)).mode & 0o200).toBe(0);
+  binding.afterOpen = null;
+  await rm(file);
+  await rename(held, file);
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+  expect((await stat(file)).mode & 0o200).toBe(0o200);
+});
 
 it.each(["outside", "missing-new", "side-file", "symlink", "missing-stored"] as const)(
   "refuses a %s path with a remedy and opens once the path is repaired", async kind => {

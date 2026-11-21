@@ -363,6 +363,9 @@ describe("store retirement real Git", () => {
     // The store already holds the accepted input, so the deleted file is laid again from the stored record.
     await rm(join(h.checkout, h.path));
     await startProjection(h.command); await endProjection(h.command);
+    expect(await readFile(join(h.checkout, h.path), "utf8")).toContain("Accepted input awaiting its recording.\n");
+    expect(await readProjectionIndex(h.location, true, { groups: "all" })).toMatchObject({ kind: "index",
+      index: { entries: { [h.path]: { withheld: false, persisted: null } } } });
     expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("Accepted input awaiting its recording.\n");
   });

@@ -174,7 +174,8 @@ async function changeCheckedMode(handle: NonNullable<Awaited<ReturnType<typeof o
   if (foreign !== null) return { kind: "foreign", mark: foreign };
   try {
     const current = lstatSync(join(checkout, path), { bigint: true, throwIfNoEntry: false });
-    if (current === undefined) return { kind: "missing" };
+    // As in `readArchiveFile`, a link at the file itself reads as a deleted file.
+    if (current === undefined || current.isSymbolicLink()) return { kind: "missing" };
     if (!identity.handle.isFile() || !current.isFile() || !sameArchiveFile(identity.handle, identity.authorized)
       || !sameArchiveFile(identity.handle, current)) return { kind: "blocked", mark: archiveFileChangeMark(path) };
     const mode = Number(current.mode);

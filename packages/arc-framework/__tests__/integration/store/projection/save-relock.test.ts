@@ -73,6 +73,7 @@ import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { recordReferences, sameReference } from "../../../../src/lib/store/identity.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { TAKEN_IN_FOLDER } from "../../../../src/lib/store/projection/taken-in.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { relockOpenedProjectionFiles } from "../../../../src/lib/store/projection/save-relock.js";
@@ -748,6 +749,40 @@ it.each([false, true])("recovers recorded archive text without a second submit (
   expect(await diskEntry(h, path)).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
 });
+
+it.each(["arc save", "an ordinary command"] as const)(
+  "withholds an opened archive file whose retained input no longer matches when %s finishes it, and lays the stored record once it is deleted",
+  async route => {
+    const h = await fixture(), { path, file, reference, content } = await openedTextCompanion(h);
+    let submissions = 0, interrupt = true;
+    const store = overrideEngineStore(h.store, {
+      batch: async input => { submissions += 1; return h.store.batch(input); },
+      read: async input => {
+        if (interrupt && submissions > 0) throw new Error("Stop after acceptance, before read-back");
+        return h.store.read(input);
+      },
+    });
+    const command = { ...h, store };
+    await expect(save(command)).rejects.toThrow("Stop after acceptance, before read-back");
+    interrupt = false;
+    const entry = await diskEntry(h, path);
+    if (entry?.kind !== "record" || entry.persisted?.takenIn.kind !== "copy") throw new Error("Expected a retained input copy");
+    await writeFile(join(h.projected.location.stateDir, TAKEN_IN_FOLDER, entry.persisted.takenIn.name), "Not the accepted input.\n");
+    if (route === "arc save") expect((await save(command)).errors).toContain(`${path}: withheld: The projection has no trustworthy basis`);
+    else { await startProjection(command); await endProjection(command); }
+    expect(await diskEntry(h, path)).toMatchObject({ withheld: true, persisted: null,
+      refused: { remedy: { text: expect.stringContaining("delete the withheld file") } } });
+    expect(await readFile(file, "utf8")).toBe(content);
+    await rm(file);
+    await startProjection(command); await endProjection(command);
+    expect(await readFile(file, "utf8")).toBe(content);
+    expect(await diskEntry(h, path)).toMatchObject({ withheld: false, opened: true });
+    expect(await save(command)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path }] } } });
+    expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+    expect((await lstat(file)).mode & 0o222).toBe(0);
+    expect(submissions).toBe(1);
+    expect(success(await h.store.read({ reference })).content).toBe(content);
+  });
 
 it.each(["markdown", "text", "already-stored", "unaccepted", "blocked-history"] as const)("recovers a staged archive submission at the first post-batch checkpoint (%s)", async kind => {
   const h = await fixture();
