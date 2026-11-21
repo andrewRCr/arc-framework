@@ -1,8 +1,7 @@
 /** Refuse merge-base consumption while accepted input still needs its landed identities recorded. */
 import type { AsideCopyRecord, FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { StoreRefusal } from "../refusal.js";
-import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
-import { gitBlobId, type ObjectFormat } from "./blob-id.js";
+import type { TakeInRead } from "./take-in-port.js";
 
 /** Identify an unfinished mapping without reading its raw copy or choosing another base. */
 export function unfinishedRecordingRefusal(entry: RecordEntry): StoreRefusal | null {
@@ -82,20 +81,25 @@ export function pendingObservedRefusal(entry: RecordEntry, mark: RefusedMark): R
   return { ...entry, pending: true, refused: adoptionResolutionHold(entry) ?? mark };
 }
 
-/** Raw and parsed observations of the exact text whose acceptance has just been returned. */
-export interface AcceptedTextInput {
-  readonly stat: NonNullable<RecordEntry["acceptedInputStat"]>;
+/** Evidence of the exact live archive input whose acceptance has been established. */
+export interface AcceptedArchiveInput {
+  readonly stat?: NonNullable<RecordEntry["acceptedInputStat"]>;
   readonly read: string;
   readonly inputBlob: string;
+  readonly retained?: RefusedMark;
 }
 
-/** Derive first-lay evidence for a whole ordinary text acceptance outside the submission journal. */
-export function acceptedTextInput(request: TakeInRequest, read: TakeInRead, takenIn: string, format: ObjectFormat,
-  retained: RefusedMark | undefined): AcceptedTextInput | undefined {
-  if (retained !== undefined || request.copy !== null || request.entry.opened !== true || !request.path.startsWith(".arc/completed/")
-    || request.path.endsWith(".md")) return undefined;
+/** Whole acceptance establishes first-lay proof. Partial acceptance instead retains the original for repair. */
+export function acceptedArchiveInput(read: TakeInRead, inputBlob: string, retained?: RefusedMark): AcceptedArchiveInput {
+  if (retained !== undefined) return { read: read.blob, inputBlob, retained };
   const { ino, mtimeNs } = read.stat;
-  return { stat: { ino, mtimeNs, lay: { kind: "pending" } }, read: read.blob, inputBlob: gitBlobId(takenIn, format) };
+  return { stat: { ino, mtimeNs, lay: { kind: "pending" } }, read: read.blob, inputBlob };
+}
+
+/** A displaced input's receipt applies to its own copy and supplies no proof about the live file. */
+export function recordAcceptedArchiveCopy(entry: RecordEntry, name: string, read: string, retained?: RefusedMark): RecordEntry {
+  return { ...entry, copies: entry.copies.map(copy => copy.name !== name ? copy
+    : retained === undefined ? { ...copy, landed: read } : { ...copy, writeBackSent: true }) };
 }
 
 /** Recovery returned the bound original, so exact accepted bytes at the path still qualify for their first lay. */

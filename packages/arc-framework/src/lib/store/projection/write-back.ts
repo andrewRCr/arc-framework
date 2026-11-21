@@ -48,7 +48,7 @@ import { completeWriteBackRecording, type RecordingSite } from "./write-back-rec
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
 import { acceptArchiveSave, stageArchiveSave } from "./archive-save-recording.js";
-import { acceptedTextInput, retainedArchiveInput, type AcceptedTextInput } from "./recording-state.js";
+import { acceptedArchiveInput, recordAcceptedArchiveCopy, retainedArchiveInput, type AcceptedArchiveInput } from "./recording-state.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -505,8 +505,8 @@ async function finishAcceptedWrite(context: WriteBackContext, request: TakeInReq
   prepared: Extract<PreparedWriteBack, { kind: "ready" }>, entry: RecordEntry, accepted: WriteResult,
   journal: ProjectionIndex | undefined): Promise<WriteBackSend> {
   if (accepted.version === undefined) throw new Error("A landed content put returned no version");
-  const acceptedInput = journal === undefined
-    ? acceptedTextInput(request, prepared.read, prepared.takenIn, context.format, prepared.retained) : undefined;
+  const acceptedInput = journal === undefined ? ordinaryArchiveAcceptance(context, request, prepared) : undefined;
+  entry = recordOrdinaryArchiveCopy(request, prepared, entry, journal);
   if (isAdopting(request)) entry = { ...entry, adoption: { kind: "read-back", read: prepared.read } };
   if (journal !== undefined) {
     entry = entry.archiveSubmission === undefined ? await pendingAcceptedRecording(context, request, prepared, entry, accepted.version)
@@ -555,9 +555,21 @@ function isAdopting(request: TakeInRequest): boolean {
   return request.adopting === true || request.entry.adoption !== undefined;
 }
 
+function ordinaryArchiveAcceptance(context: WriteBackContext, request: TakeInRequest,
+  prepared: Extract<PreparedWriteBack, { kind: "ready" }>): AcceptedArchiveInput | undefined {
+  if (request.copy !== null || request.entry.opened !== true || !request.path.startsWith(".arc/completed/")) return undefined;
+  return acceptedArchiveInput(prepared.read, gitBlobId(prepared.takenIn, context.format), prepared.retained);
+}
+
+function recordOrdinaryArchiveCopy(request: TakeInRequest, prepared: Extract<PreparedWriteBack, { kind: "ready" }>,
+  entry: RecordEntry, journal?: ProjectionIndex): RecordEntry {
+  if (journal !== undefined || request.copy === null || !request.path.startsWith(".arc/completed/")) return entry;
+  return recordAcceptedArchiveCopy(entry, request.copy, prepared.read.blob, prepared.retained);
+}
+
 async function pendingAcceptedRecording(context: WriteBackContext, request: TakeInRequest,
   prepared: Extract<PreparedWriteBack, { kind: "ready" }>, entry: RecordEntry, version: RecordVersion,
-  acceptedInput?: AcceptedTextInput): Promise<RecordEntry> {
+  acceptedInput?: AcceptedArchiveInput): Promise<RecordEntry> {
   const recorded = await recordPendingWriteBack({ location: context.location, checkpoint: context.checkpoint, entry,
     stamp: prepared.stamp, takenIn: prepared.takenIn, read: prepared.read.blob, acceptedInput, version, format: context.format });
   return adoptionReadBackEntry(request, prepared, recorded);

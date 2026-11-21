@@ -6,6 +6,7 @@ import { projectionLinkRemedy } from "./discovery-links.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { walkProjectionRoots, type ProjectionWalkResult } from "./engine-walk.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
+import { coversArchivePath } from "./archive-work.js";
 
 /** The same physical authority for materialization, retry, and retirement observations. */
 export type ArchiveDiscoveryRoot = ArchiveSelectionRoot & { readonly ports: Pick<ProjectionEnginePorts, "walkFs" | "linkFs"> };
@@ -14,10 +15,12 @@ export type ArchiveDiscoveryRoot = ArchiveSelectionRoot & { readonly ports: Pick
 export interface ArchiveDiscovery extends ProjectionWalkResult {
   readonly incomplete: ReadonlyMap<string, RefusedMark>;
   readonly owed: readonly string[];
+  readonly directories: ReadonlySet<string>;
 }
 
 /** A validated header may carry obligations even when its entry partitions are unavailable. */
-export type ArchiveDiscoveryBasis = Pick<ProjectionIndex, "archiveDiscoveryPending"> & Partial<Pick<ProjectionIndex, "entries">>;
+export type ArchiveDiscoveryBasis = Pick<ProjectionIndex, "archiveDiscoveryPending" | "archiveDiscoveryDirectories">
+  & Partial<Pick<ProjectionIndex, "entries">>;
 
 interface ArchiveWalkOptions {
   readonly owed?: ArchiveDiscoveryBasis;
@@ -35,16 +38,19 @@ export async function observeArchiveScopes(root: ArchiveDiscoveryRoot, scopes: r
     return false;
   });
   const archiveAccess = new Map<string, RefusedMark>(root.archiveDiscoveryHolds);
-  const mayEnumerate = (path: string) => opaque?.has(path) !== true && observeDirectory(root, path, archiveAccess,
-    owed === undefined ? undefined : incomplete);
+  const directories = new Set(owed?.archiveDiscoveryDirectories);
+  const mayEnumerate = (path: string) => {
+    if (isArchiveScope(path)) directories.add(path);
+    return opaque?.has(path) !== true && observeDirectory(root, path, archiveAccess, owed === undefined ? undefined : incomplete);
+  };
   const walked = await walkProjectionRoots(root.checkout, readable, root.ports.walkFs, root.ports.linkFs, archiveAccess,
     owed !== undefined, mayEnumerate);
-  if (owed !== undefined) retainOpaqueLinks(walked.links, scopes, owed.entries, incomplete);
+  if (owed !== undefined) retainOpaqueLinks(walked.links, scopes, owed, incomplete);
   for (const [path, mark] of archiveAccess) {
     refuseUnreadArchiveScope(root, path, mark);
     incomplete.set(path, mark);
   }
-  return { ...walked, incomplete, owed: owed === undefined ? [] : scopes };
+  return { ...walked, incomplete, directories, owed: owed === undefined ? [] : scopes };
 }
 
 /** Recheck authority before discharging inventory, including when an earlier observation found the path readable. */
@@ -69,21 +75,23 @@ function observeDirectory(root: ArchiveDiscoveryRoot, path: string, access: Map<
   return false;
 }
 
-function retainOpaqueLinks(links: readonly string[], scopes: readonly string[], entries: ArchiveDiscoveryBasis["entries"],
+function retainOpaqueLinks(links: readonly string[], scopes: readonly string[], basis: ArchiveDiscoveryBasis,
   incomplete: Map<string, RefusedMark>): void {
   for (const link of links) {
-    for (const path of archiveScopesBehindLink(link, scopes, entries)) {
+    for (const path of archiveScopesBehindLink(link, scopes, basis)) {
       incomplete.set(path, { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) });
     }
   }
 }
 
-function archiveScopesBehindLink(link: string, scopes: readonly string[], entries: ArchiveDiscoveryBasis["entries"]): readonly string[] {
+/** Compute the unread portion of existing obligations at a link without following it. */
+export function archiveScopesBehindLink(link: string, scopes: readonly string[], basis: ArchiveDiscoveryBasis): readonly string[] {
   // A recorded file may prove the leaf's type. It cannot establish coverage of any owed descendant.
-  const file = entries?.[link]?.stat?.type === "file";
-  const hidden = scopes.filter(path => path.startsWith(`${link}/`) || path === link && !file);
-  if (hidden.length > 0 || file) return hidden;
-  return scopes.some(scope => link.startsWith(`${scope}/`)) ? [link] : [];
+  const file = basis.entries?.[link]?.stat?.type === "file" && !basis.archiveDiscoveryDirectories?.includes(link);
+  const descendants = scopes.filter(path => path !== link && coversArchivePath(link, path));
+  const owesLink = scopes.some(scope => coversArchivePath(scope, link));
+  // A narrower retry does not account for the unnamed children in the broader branch.
+  return owesLink && (!file || descendants.length > 0) ? [link, ...descendants] : descendants;
 }
 
 /** The destinations still owed by named archive recovery copies. */
@@ -96,9 +104,10 @@ export function archiveRecoveryDestinations(copies?: readonly string[]): readonl
 
 /** A leaf link can be replaced only if it conceals no outstanding archive inventory. */
 export function archiveInventoryLinkHold(index: ProjectionIndex, link: string): RefusedMark | null {
-  if (!isArchiveScope(link) || index.archiveDiscoveryPending === undefined && index.archiveRecoveryCopies === undefined) return null;
+  if (!isArchiveScope(link)) return null;
   const scopes = [...index.archiveDiscoveryPending ?? [], ...archiveRecoveryDestinations(index.archiveRecoveryCopies)];
-  return archiveScopesBehindLink(link, scopes, index.entries).length === 0 ? null
+  const held = index.archiveCopyPending?.some(scope => coversArchivePath(scope.path, link) || coversArchivePath(link, scope.path));
+  return !held && archiveScopesBehindLink(link, scopes, index).length === 0 ? null
     : { reason: `${link} can conceal outstanding archive inventory.`, remedy: projectionLinkRemedy(link) };
 }
 

@@ -25,7 +25,7 @@ export async function observeRetirementInventory(root: ArchiveDiscoveryRoot, ind
 export function observeOwedRetirementInventory(root: ArchiveDiscoveryRoot, index: ProjectionIndex): Promise<ArchiveDiscovery | null> {
   if (index.archiveRecoveryCopies === undefined) return observeOwedArchiveScopes(root, index);
   const scopes = new Set([...index.archiveDiscoveryPending ?? [], ...archiveRecoveryDestinations(index.archiveRecoveryCopies)]);
-  return observeOwedArchiveScopes(root, { archiveDiscoveryPending: [...scopes], entries: index.entries });
+  return observeOwedArchiveScopes(root, { ...index, archiveDiscoveryPending: [...scopes] });
 }
 
 /** A read binding plus the exact index and configuration being checked. */

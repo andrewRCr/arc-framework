@@ -9,6 +9,7 @@ import { keepTakenInCopy } from "./taken-in.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { markStoreRefusal } from "./refusal-mark.js";
+import { acceptedArchiveInput, recordAcceptedArchiveCopy } from "./recording-state.js";
 
 /** Publish the captured input before submitting its single-write batch. */
 export async function stageArchiveSave(context: WriteBackContext, index: ProjectionIndex, request: TakeInRequest,
@@ -35,21 +36,16 @@ export function acceptArchiveSave(entry: RecordEntry, version: RecordVersion): R
   const accepted = { ...prior, ...acceptedArchiveRecording(archiveSubmission, version) };
   const { aside, read, retained } = archiveSubmission;
   if (aside === undefined || read === undefined) return accepted;
-  return { ...accepted, copies: accepted.copies.map(copy => {
-    if (copy.name !== aside) return copy;
-    // A partially accepted edit still needs the copy's bytes for repair.
-    return retained === undefined ? { ...copy, landed: read.blob } : { ...copy, writeBackSent: true };
-  }) };
+  return recordAcceptedArchiveCopy(accepted, aside, read.blob, retained);
 }
 
 /** Form the existing accepted-input recording from the copy retained before submission. */
 export function acceptedArchiveRecording(submission: ArchiveSaveSubmission, version: RecordVersion): Pick<RecordEntry, "persisted" | "acceptedInputStat"> {
   const { stamp, name, blob, read, aside, retained } = submission;
+  const evidence = read !== undefined && aside === undefined ? acceptedArchiveInput(read, blob, retained) : undefined;
   return { persisted: { stamp, recording: true, ...(read === undefined ? {} : { read: read.blob }),
     ...(aside === undefined && retained !== undefined ? { retained } : {}), takenIn: { kind: "copy", name, blob, version } },
-    acceptedInputStat: read === undefined || aside !== undefined ? undefined : {
-      ino: read.stat.ino, mtimeNs: read.stat.mtimeNs, lay: { kind: "pending" },
-    } };
+    acceptedInputStat: evidence?.stat };
 }
 
 /** Resolve the interrupted submission before the checkout can attempt another write for this file. */

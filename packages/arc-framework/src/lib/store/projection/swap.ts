@@ -23,6 +23,7 @@ import type { TakeInPort } from "./take-in-port.js";
 import { ArchiveDestinationBlocked, archiveDestination } from "./archive-file.js";
 import { installedArchiveInput, linkAcceptedArchiveInput, pendingObservedRefusal } from "./recording-state.js";
 import { archiveInventoryLinkHold } from "./archive-discovery.js";
+import { readAsideStat } from "./aside-discovery.js";
 
 /** One file a batch replaces or, where the guard staged nothing, removes: the guard's decision to. */
 export interface SwapFile {
@@ -323,8 +324,8 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap,
 async function moveAside(input: SwapBatchInput, swap: PlannedSwap, path: string, aside: string): Promise<SwapDone | null> {
   await input.checkpoint?.();
   await mkdir(dirname(aside), { recursive: true });
-  const keepLeafLink = archiveInventoryLinkHold(input.index, swap.path);
-  try { await retriedMoves(input, { checkout: input.checkout, path: swap.path, keepLeafLink }).rename(path, aside); }
+  const leafHold = archiveInventoryLinkHold(input.index, swap.path);
+  try { await retriedMoves(input, { checkout: input.checkout, path: swap.path }).rename(path, aside, { kind: "capture", leafHold }); }
   catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return holdSwap(input, swap, swap.original, error);
     await input.checkpoint?.();
@@ -396,7 +397,7 @@ async function linkBack(
   moves: RetriedMoves, swap: PlannedSwap, at: { readonly aside: string; readonly path: string },
 ): Promise<SwapDone> {
   const restored: RecordEntry = { ...swap.original, pending: true, copies: swap.entry.copies };
-  if ((await readStat(at.aside))?.type !== "file" || !await moves.linkOnto(at.aside, at.path)) return { entry: restored };
+  if ((await readAsideStat(at.aside, swap.path))?.type !== "file" || !await moves.linkOnto(at.aside, at.path)) return { entry: restored };
   return { entry: restored, returned: swap.copy === null ? [] : [swap.copy.name] };
 }
 

@@ -168,6 +168,13 @@ export function isArchiveDiscoveryScope(path: unknown): path is string {
   return typeof path === "string" && isManagedPath(path) && (path === ".arc/completed" || path.startsWith(".arc/completed/"));
 }
 
+/** An uninspected branch of the copy namespace, spelled by its mirrored archive path. */
+export const ArchiveCopyScopeSchema = z.strictObject({
+  path: z.string().refine(isArchiveDiscoveryScope),
+  unindexed: z.literal(true).optional(),
+});
+export type ArchiveCopyScope = z.output<typeof ArchiveCopyScopeSchema>;
+
 /** The settings and claim a worktree was projected under. */
 const ProjectedUnderSchema = z.strictObject({
   view: z.strictObject({ mode: z.enum(["mine", "cohort", "all"]), pins: z.array(SlugSchema) }),
@@ -201,6 +208,8 @@ export const ProjectionIndexSchema = z.strictObject({
   withheldCopies: z.array(z.string().min(1)),
   archiveRecoveryCopies: z.array(z.string().min(1)).optional(),
   archiveDiscoveryPending: z.array(z.string().refine(isArchiveDiscoveryScope)).optional(),
+  archiveDiscoveryDirectories: z.array(z.string().refine(isArchiveDiscoveryScope)).optional(),
+  archiveCopyPending: z.array(ArchiveCopyScopeSchema).optional(),
   tripwires: z.record(z.string().min(1), z.array(z.number().nonnegative()).max(9)),
   ignoreFiles: z.array(IgnoreFileRecordSchema).nullable(),
   ignoreGuard: IgnoreGuardBasisSchema.nullable(),

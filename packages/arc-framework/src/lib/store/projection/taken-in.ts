@@ -16,7 +16,7 @@ import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { type HistoryMemo } from "./base-recovery.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
-import { unfinishedRecordingRefusal, type AcceptedTextInput } from "./recording-state.js";
+import { unfinishedRecordingRefusal, type AcceptedArchiveInput } from "./recording-state.js";
 
 /** The folder under `arc-projection/` that keeps copies of content a persisted write-back took in. */
 export const TAKEN_IN_FOLDER = "taken-in";
@@ -184,7 +184,7 @@ export interface WriteBackRecording {
   /** The blob of the file bytes that input was read from. */
   readonly read?: string;
   /** Raw first-lay proof tied to this acceptance, if the caller has no submission journal. */
-  readonly acceptedInput?: AcceptedTextInput;
+  readonly acceptedInput?: AcceptedArchiveInput;
   readonly outcome: WriteBackOutcome;
   /** The record read back after a landing. */
   readonly readBack: { readonly version: RecordVersion; readonly content: string } | null;
@@ -197,9 +197,9 @@ export interface WriteBackRecording {
 /** Keep the accepted input until read-back can restore its stored entry IDs and complete the take-in mapping. */
 export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "read" | "format" | "checkpoint" | "acceptedInput">
   & { readonly version: RecordVersion }): Promise<RecordEntry> {
-  const read = input.acceptedInput?.read ?? input.read;
-  return { ...input.entry, acceptedInputStat: input.acceptedInput?.stat, persisted: { stamp: input.stamp, recording: true,
-    ...(read === undefined ? {} : { read }), ...(input.acceptedInput === undefined ? {} : { inputBlob: input.acceptedInput.inputBlob }),
+  const { stat, ...evidence } = input.acceptedInput ?? { read: input.read, stat: undefined };
+  return { ...input.entry, acceptedInputStat: stat, persisted: { stamp: input.stamp, recording: true,
+    ...evidence,
     takenIn: { kind: "copy", version: input.version,
     ...await keepTakenInCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
 }
@@ -228,12 +228,11 @@ export async function recordWriteBack(input: WriteBackRecording): Promise<{ entr
     ? { kind: "landed" as const, version: outcome.version }
     : { kind: "copy" as const, version: outcome.version, ...await keepTakenInCopy(input.location, takenIn, input.format, input.checkpoint) };
   const recoveredBlob = kept?.kind === "copy" && input.entry.persisted?.recording === true && input.entry.opened === true ? kept.blob : undefined;
-  const inputBlob = input.acceptedInput?.inputBlob ?? recoveredBlob;
-  const acceptedInput = { inputBlob, read: input.acceptedInput?.read ?? input.entry.persisted?.read,
-    retained: input.acceptedInput === undefined ? input.entry.persisted?.retained : undefined };
-  const acceptedInputStat = inputBlob === undefined ? undefined : input.acceptedInput?.stat ?? input.entry.acceptedInputStat;
-  return { entry: { ...input.entry, acceptedInputStat,
-    persisted: { stamp: input.stamp, takenIn: record, ...(inputBlob === undefined ? {} : acceptedInput) } }, released };
+  const { stat, ...acceptedInput } = input.acceptedInput ?? { inputBlob: recoveredBlob, read: input.entry.persisted?.read,
+    retained: input.entry.persisted?.retained, stat: input.entry.acceptedInputStat };
+  const evidence = acceptedInput.inputBlob === undefined ? undefined : acceptedInput;
+  return { entry: { ...input.entry, acceptedInputStat: evidence === undefined ? undefined : stat,
+    persisted: { stamp: input.stamp, takenIn: record, ...evidence } }, released };
 }
 
 async function acceptedIdReference(input: WriteBackRecording, readBack: NonNullable<WriteBackRecording["readBack"]>,

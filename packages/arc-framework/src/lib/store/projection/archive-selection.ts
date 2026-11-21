@@ -6,10 +6,12 @@ import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { ArchiveSelection, ProjectionRootState } from "./process-state.js";
 import type { WriteBackDiagnostic } from "./write-back.js";
 import { parseAsideFile } from "./aside.js";
+import { coversArchivePath } from "./archive-work.js";
 
 /** A rebuild left this destination to the next local sweep before another projection pass can lay it. */
 export function hasPendingArchiveRecovery(index: ProjectionIndex, path: string): boolean {
-  return path.startsWith(".arc/completed/") && (index.archiveRecoveryCopies?.some(copy => parseAsideFile(copy)?.path === path) ?? false);
+  return path.startsWith(".arc/completed/") && (index.archiveCopyPending?.some(scope => coversArchivePath(scope.path, path)) === true
+    || index.archiveRecoveryCopies?.some(copy => parseAsideFile(copy)?.path === path) === true);
 }
 
 /** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */

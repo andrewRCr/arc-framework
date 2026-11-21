@@ -30,6 +30,7 @@ import { laidProjectionPaths } from "./discovery-exclusions.js";
 import { markArrivingRecord } from "./changed-mark.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { pendingObservedRefusal } from "./recording-state.js";
+import { hasOutstandingArchiveWork } from "./archive-work.js";
 
 /** The saved source state and index held by the caller's lease. */
 export interface ProjectionRefreshRequest {
@@ -100,7 +101,7 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   // incomplete, so the command after the repair plans that path's work again.
   const refused = refusesArchivePath(root, [...planned.removals, ...planned.paths.keys()]);
   const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && !refused
-    && index.archiveDiscoveryPending === undefined && index.archiveRecoveryCopies === undefined
+    && !hasOutstandingArchiveWork(index)
     && projectionArrivalsInstalled(index, arrivals);
   index = { ...index, state: complete && options.advanceState !== false ? version : input.index.state };
   if (input.publication !== "caller") index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,

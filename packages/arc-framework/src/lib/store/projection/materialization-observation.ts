@@ -6,9 +6,9 @@ import { sweepAsideFolder, type SweepInput, type SweepResult } from "./sweep.js"
 import type { ProjectionMaterializationInput } from "./materialization.js";
 import { recoverSubmittedArchiveEdit } from "./read-back-recovery.js";
 import { PROJECTED_LIFECYCLE_ROOTS, projectedRootPaths } from "../../layout/index.js";
-import { observeArchiveScopes, observeOwedArchivePath, observeOwedArchiveScopes, type ArchiveDiscovery,
+import { archiveScopesBehindLink, observeArchiveScopes, observeOwedArchivePath, observeOwedArchiveScopes, type ArchiveDiscovery,
   type ArchiveDiscoveryBasis } from "./archive-discovery.js";
-import { archiveChangeRefusals, heldArchivePath, refuseArchiveChange, selectArchivePath,
+import { archiveChangeRefusals, heldArchivePath, refuseArchiveChange, refuseUnreadArchiveScope, selectArchivePath,
   unreadArchiveScope } from "./archive-selection.js";
 import type { FileStat, ProjectionIndex } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
@@ -18,10 +18,12 @@ import { readProjectionInventory } from "./inventory.js";
 import { desiredProjectionPaths } from "./desired-paths.js";
 import { evidenceHeldProjectionMark, withheldProjectionMark } from "./materialization-file.js";
 import { withProjectionEntry } from "./index-memory.js";
-import { ArchiveDestinationBlocked, isArchiveScope } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archiveOperationError, isArchiveScope } from "./archive-file.js";
 import { join } from "node:path";
-import { createProjectionLinkBoundary } from "./discovery-links.js";
+import { lstatSync } from "node:fs";
+import { createProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { reportProjectionLinks } from "./report.js";
+import { coversArchivePath } from "./archive-work.js";
 
 /** Observe the filesystem part of a rebuild and keep unread archive folders opaque until retry. */
 export async function observeMaterializationFiles({ root, index, recovered }: ProjectionMaterializationInput):
@@ -52,42 +54,67 @@ export async function finishPendingArchiveDiscovery(root: ProjectionRootState, i
   for (const mark of inventory.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
   const desired = await desiredProjectionPaths(root, inventory);
   return recordRebuildDiscovery(root, index, { files: walked?.files ?? [], incomplete: walked?.incomplete.keys(),
-    owed: walked?.owed ?? [], returned: restored }, desired.files,
+    directories: walked?.directories ?? [], owed: walked?.owed ?? [], returned: restored }, desired.files,
     !desired.unresolved && inventory.diagnostics.length === 0);
 }
 
+interface RebuildObservations {
+  readonly files: Iterable<string>;
+  readonly incomplete?: Iterable<string>;
+  readonly directories: Iterable<string>;
+  readonly owed: readonly string[];
+  readonly returned: readonly string[];
+}
+
 /** Keep unindexed bytes withheld and retain any archive scope whose inspection still needs a retry. */
-export async function recordRebuildDiscovery(root: ProjectionRootState, initial: ProjectionIndex,
-  inventory: { files: Iterable<string>; incomplete: Iterable<string> | undefined; owed: readonly string[]; returned: readonly string[] },
+export async function recordRebuildDiscovery(root: ProjectionRootState, initial: ProjectionIndex, inventory: RebuildObservations,
   desired: ReadonlyMap<string, unknown>, whole: boolean): Promise<ProjectionIndex> {
   // Losing an alias leaves its destination owed. Its physical kind still needs observation.
   const archive = inventory.returned.filter(isArchiveScope);
   const other = inventory.returned.filter(path => !isArchiveScope(path));
-  const transferred = await observePendingArchiveDiscovery(root, { archiveDiscoveryPending: archive, entries: initial.entries });
+  const transferred = await observePendingArchiveDiscovery(root, { ...initial, archiveDiscoveryPending: archive });
   let index = initial;
-  const incomplete = new Set([...inventory.incomplete ?? [], ...transferred?.incomplete.keys() ?? []]);
+  const observedScopes = new Set(inventory.owed);
+  const incomplete = new Set([...initial.archiveDiscoveryPending?.filter(path => !observedScopes.has(path)) ?? [],
+    ...inventory.incomplete ?? [], ...transferred?.incomplete.keys() ?? []]);
+  const directories = new Set([...inventory.directories, ...transferred?.directories ?? [], ...initial.archiveDiscoveryDirectories ?? []]);
   const scopes = [...inventory.owed, ...archive];
   for (const path of new Set([...inventory.files, ...other, ...transferred?.files ?? []])) {
-    if (index.entries[path] !== undefined) continue;
-    const owed = scopes.some(scope => scope === path || path.startsWith(`${scope}/`));
-    if (!owed && desired.has(path)) continue;
-    const stat = await inspectDiscoveryFile(root, path, incomplete, owed);
-    if (stat?.type !== "file" || desired.has(path)) continue;
+    const owed = scopes.some(scope => coversArchivePath(scope, path));
+    if (!owed && (desired.has(path) || index.entries[path] !== undefined)) continue;
+    const stat = await inspectDiscoveryFile(root, path, { index, scopes, owed, incomplete, directories });
+    if (stat?.type !== "file" || desired.has(path) || index.entries[path] !== undefined) continue;
     const refused = whole ? withheldProjectionMark(path, { checkout: root.checkout, known: false }) : evidenceHeldProjectionMark(path, root.checkout);
     index = withProjectionEntry(index, path, { kind: "ownerless", withheld: true, stat, refused });
     root.context.report?.({ path, copy: null, mark: refused });
   }
   const pending = [...incomplete].sort();
-  return { ...index, archiveDiscoveryPending: pending.length > 0 ? pending : undefined };
+  const pendingDirectories = pending.filter(path => directories.has(path));
+  return { ...index, archiveDiscoveryPending: pending.length > 0 ? pending : undefined,
+    archiveDiscoveryDirectories: pendingDirectories.length > 0 ? pendingDirectories : undefined };
 }
 
-async function inspectDiscoveryFile(root: ProjectionRootState, path: string, incomplete: Set<string>, owed: boolean): Promise<FileStat | null> {
+interface FinalDiscovery {
+  readonly index: ProjectionIndex;
+  readonly scopes: readonly string[];
+  readonly owed: boolean;
+  readonly incomplete: Set<string>;
+  readonly directories: Set<string>;
+}
+
+async function inspectDiscoveryFile(root: ProjectionRootState, path: string, observation: FinalDiscovery): Promise<FileStat | null> {
+  const { incomplete, owed } = observation;
   const refused = owed ? observeOwedArchivePath(root, path) : selectArchivePath(root, path, { report: false, holdAccess: true });
   if (refused !== null) {
     if (owed || unreadArchiveScope(root, path) !== null) incomplete.add(path);
     return null;
   }
-  try { return await projectionFileReader(root.checkout, path).stat(join(root.checkout, path)); }
+  try {
+    const absolute = join(root.checkout, path);
+    const stat = await projectionFileReader(root.checkout, path).stat(absolute);
+    if (isArchiveScope(path)) retainChangedScope(root, path, absolute, stat, observation);
+    return stat;
+  }
   catch (error) {
     if (!(error instanceof ArchiveDestinationBlocked)) throw error;
     if (error.access || owed) {
@@ -98,11 +125,32 @@ async function inspectDiscoveryFile(root: ProjectionRootState, path: string, inc
   }
 }
 
+function retainChangedScope(root: ProjectionRootState, path: string, absolute: string, stat: FileStat | null, observed: FinalDiscovery): void {
+  if (stat?.type === "symlink") {
+    const basis = { ...observed.index, archiveDiscoveryDirectories: [...observed.directories] };
+    for (const scope of archiveScopesBehindLink(path, observed.scopes, basis)) {
+      observed.incomplete.add(scope);
+      refuseUnreadArchiveScope(root, scope, { reason: `${scope} crosses a symbolic link.`, remedy: projectionLinkRemedy(path) });
+    }
+  } else if (stat?.type === "other" && isNowDirectory(path, absolute)) {
+    observed.directories.add(path);
+    observed.incomplete.add(path);
+    refuseUnreadArchiveScope(root, path, { reason: `${path} became a directory during discovery.`,
+      remedy: { text: "Retry the command to finish inspecting the archive directory." } });
+  }
+}
+
+function isNowDirectory(path: string, absolute: string): boolean {
+  try { return lstatSync(absolute, { throwIfNoEntry: false })?.isDirectory() === true; }
+  catch (error) { throw archiveOperationError(path, error, "inspect"); }
+}
+
 /** Full materialization sweeps; restoring deleted files only refreshes the ignore proof. */
 export async function observeMaterialization(input: ProjectionMaterializationInput): Promise<SweepResult> {
   const { root } = input;
   const sweep: SweepInput = { location: root.location, checkout: root.checkout, index: input.index,
     withheldCopies: input.recovered?.withheldCopies, recoveryCopies: input.recovered?.archiveRecoveryCopies,
+    recoveryScopes: input.recovered?.archiveCopyPending,
     format: root.context.format, takeIn: root.takeIn, writer: root.context.writer, refuseChange: archiveChangeRefusals(root),
     recoverArchiveSubmission: (index, path, entry) => recoverSubmittedArchiveEdit(root, index, path, entry),
     checkpoint: root.context.checkpoint, blockedByLink: root.blockedByLink, knownArchiveHold: path => heldArchivePath(root, path),

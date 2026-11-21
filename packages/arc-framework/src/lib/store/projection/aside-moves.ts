@@ -6,14 +6,20 @@ import { link, rename } from "node:fs/promises";
 import { lstatSync } from "node:fs";
 import { join } from "node:path";
 import { retryTransientFileSystemRefusal } from "../../kernel/fs-retry.js";
-import { ArchiveDestinationBlocked, archiveOperationError, requireArchiveDestination } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archiveFileChangeMark, archiveOperationError, readArchiveBytes, requireArchiveDestination } from "./archive-file.js";
+import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import type { RefusedMark } from "./index-schema.js";
 
 interface ArchiveMovePath {
   readonly checkout: string;
   readonly path: string;
-  readonly keepLeafLink?: RefusedMark | null;
 }
+
+/** Forward capture keeps late file edits. Put-back may only displace the rendering it expects. */
+type ArchiveDisplacement = { readonly kind: "capture"; readonly leafHold: RefusedMark | null }
+  | { readonly kind: "put-back"; readonly blob: string; readonly format: ObjectFormat };
+
+type Displacement = "moved" | "absent" | "changed";
 
 /** The two file-system operations a swap makes, native unless a test injects its own. */
 export interface SwapFileSystem {
@@ -33,7 +39,7 @@ export interface SwapMoves {
 /** The moves, each inside the bounded retry. */
 export interface RetriedMoves {
   /** Rename a file, throwing the last refusal once the bound is past. */
-  readonly rename: (from: string, to: string) => Promise<void>;
+  readonly rename: (from: string, to: string, expected: ArchiveDisplacement) => Promise<Displacement>;
   /** Link a file onto a path, false where something is there already, as when a save recreated the path first. */
   readonly linkOnto: (existing: string, path: string) => Promise<boolean>;
 }
@@ -49,17 +55,22 @@ export function retriedMoves(moves: SwapMoves, archive?: ArchiveMovePath): Retri
   const retry = <T>(operation: () => Promise<T>): Promise<T> =>
     retryTransientFileSystemRefusal(async () => {
       await moves.checkpoint?.();
-      if (archive !== undefined) requireArchiveMove(archive);
+      if (archive !== undefined) requireArchiveDestination(archive.checkout, archive.path);
       try { return await operation(); }
       catch (error) {
-        if (archive === undefined) throw error;
+        if (archive === undefined || error instanceof ArchiveDestinationBlocked) throw error;
         throw archiveOperationError(archive.path, error, "change");
       }
     }, sleep === undefined ? {} : { sleep });
   const renameFile = moves.fs?.rename ?? rename;
   const linkFile = moves.fs?.link ?? link;
   return {
-    rename: (from, to) => retry(() => renameFile(from, to)),
+    rename: (from, to, expected) => retry(async () => {
+      const held = archive === undefined ? null : checkArchiveDisplacement(archive, expected);
+      if (held !== null) return held;
+      await renameFile(from, to);
+      return "moved";
+    }),
     linkOnto: async (existing, path) => {
       try {
         await retry(() => linkFile(existing, path));
@@ -72,11 +83,16 @@ export function retriedMoves(moves: SwapMoves, archive?: ArchiveMovePath): Retri
   };
 }
 
-function requireArchiveMove({ checkout, path, keepLeafLink }: ArchiveMovePath): void {
-  requireArchiveDestination(checkout, path);
-  if (keepLeafLink == null) return;
-  let linked: boolean | undefined;
-  try { linked = lstatSync(join(checkout, path), { throwIfNoEntry: false })?.isSymbolicLink(); }
-  catch (error) { throw archiveOperationError(path, error, "inspect a link at"); }
-  if (linked) throw new ArchiveDestinationBlocked(keepLeafLink);
+function checkArchiveDisplacement({ checkout, path }: ArchiveMovePath, expected: ArchiveDisplacement): "absent" | "changed" | null {
+  if (!path.startsWith(".arc/completed/")) return null;
+  const stat = lstatSync(join(checkout, path), { bigint: true, throwIfNoEntry: false });
+  if (stat === undefined) return expected.kind === "put-back" ? "absent" : null;
+  if (expected.kind === "capture") {
+    if (stat.isSymbolicLink() && expected.leafHold !== null) throw new ArchiveDestinationBlocked(expected.leafHold);
+    if (stat.isFile() || stat.isSymbolicLink()) return null;
+    throw new ArchiveDestinationBlocked(archiveFileChangeMark(path));
+  }
+  if (!stat.isFile()) throw new ArchiveDestinationBlocked(archiveFileChangeMark(path));
+  const bytes = readArchiveBytes(checkout, path, { type: "file", ino: stat.ino, size: stat.size, mtimeNs: stat.mtimeNs });
+  return gitBlobId(bytes, expected.format) === expected.blob ? null : "changed";
 }

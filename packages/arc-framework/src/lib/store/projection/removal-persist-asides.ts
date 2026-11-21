@@ -12,6 +12,7 @@ import { readProjectionProtection } from "./protection.js";
 import { retirementName, retirementRefusal, type ProjectionRetirement } from "./removal-verdict.js";
 import { heldArchivePath, refuseUnreadArchiveScope } from "./archive-selection.js";
 import { opaqueArchiveScope, type ArchiveDiscovery } from "./archive-discovery.js";
+import { archiveCopyLinkHold } from "./aside-discovery.js";
 
 /** Successful and refused settlement both retain the exact index that was published. */
 export interface PersistedProjectionAsides { readonly index: ProjectionIndex; readonly refusal?: Remedy }
@@ -67,8 +68,8 @@ type FinalAsides = { kind: "settled" | "changed" } | { kind: "refused"; remedy: 
 async function confirmAside(root: ProjectionRootState, path: string, entry: RecordEntry, copy: AsideCopyRecord,
   disposition: ProjectionRetirement): Promise<FinalAsides> {
   const { blockedByLink, archiveAccess } = await readCopyDestinations(root.checkout, [copy.name], root.ports.linkFs);
-  const denied = archiveAccess.get(path);
-  if (denied !== undefined) return { kind: "refused", remedy: retirementRefusal(root.checkout, path, denied, disposition) };
+  const denied = archiveAccess.get(path) ?? archiveCopyLinkHold(path, copy.name, blockedByLink(copy.name));
+  if (denied !== null) return { kind: "refused", remedy: retirementRefusal(root.checkout, path, denied, disposition) };
   if (blockedByLink(copy.name) !== null) return { kind: "settled" };
   const observed = await observeAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format });
   if (observed.kind === "blocked-destination") return { kind: "refused", remedy: retirementRefusal(root.checkout, path, observed.mark, disposition) };
@@ -83,8 +84,8 @@ async function persistCopy(input: CopyPersistenceInput, path: string, name: stri
   const copy = entry?.kind === "record" ? entry.copies.find(each => each.name === name) : undefined;
   if (entry?.kind !== "record" || copy === undefined) return { index };
   const { blockedByLink: boundary, archiveAccess } = await readCopyDestinations(root.checkout, [path, name], root.ports.linkFs);
-  const denied = archiveAccess.get(path);
-  if (denied !== undefined) return holdCopyAccess(input, index, path, name, denied);
+  const denied = archiveAccess.get(path) ?? archiveCopyLinkHold(path, name, boundary(name));
+  if (denied !== null) return holdCopyAccess(input, index, path, name, denied);
   if (boundary(name) !== null) return { index };
   if (boundary(path) !== null || !root.writable(path) || !root.writable(name)) return observeUnauthorizedCopy(input, path, entry, copy);
   const diagnosticFrom = projectionProcessState().diagnostics.length;

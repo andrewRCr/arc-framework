@@ -141,7 +141,7 @@ export async function observeAsideCopy(input: Pick<AsideCopySettling, "checkout"
   try { return await inspectAsideCopy(input); }
   catch (error) {
     if (!input.path.startsWith(".arc/completed/") || !isArchivePermissionRefusal(error)) throw error;
-    return { kind: "blocked-destination", entry: input.entry, mark: archivePermissionMark(input.copy.name, error, "read"), access: true };
+    return { kind: "blocked-destination", entry: input.entry, mark: archivePermissionMark(input.path, error, "read a copy of"), access: true };
   }
 }
 
@@ -276,10 +276,14 @@ export async function putBack(
       replacement = nameAsideFile({ path, base: sent.entry.base.blob, writer: input.writer, role: "aside" });
       await input.checkpoint?.();
       await mkdir(dirname(join(checkout, replacement)), { recursive: true });
-      await moves.rename(at.path, join(checkout, replacement));
-      const record: AsideCopyRecord = { name: replacement, moving: holding.blob, linked: sent.blob, writeBackSent: false, landed: null,
-        rendering: { markers: sent.entry.markers, notices: sent.entry.notices } };
-      retained = { ...retained, copies: [...retained.copies, record] };
+      const moved = await moves.rename(at.path, join(checkout, replacement), { kind: "put-back", blob: holding.blob, format: input.format });
+      if (moved === "changed") return aside;
+      if (moved === "absent") replacement = null;
+      else {
+        const record: AsideCopyRecord = { name: replacement, moving: holding.blob, linked: sent.blob, writeBackSent: false, landed: null,
+          rendering: { markers: sent.entry.markers, notices: sent.entry.notices } };
+        retained = { ...retained, copies: [...retained.copies, record] };
+      }
     }
     // A save that recreated the path in between wins it; the copy stays aside, and the replacement beside it.
     if (!await moves.linkOnto(at.copy, at.path)) return { ...aside, entry: retained };

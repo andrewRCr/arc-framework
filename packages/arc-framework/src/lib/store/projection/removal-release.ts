@@ -112,6 +112,7 @@ async function finishLinkedRemoval(root: ProjectionRootState, batch: Awaited<Ret
   const unrecorded = await checkUnrecordedProjectionCopies({ checkout: root.checkout, index: checked.index,
     format: root.context.format, linkFs: root.ports.linkFs, walkFs: root.ports.walkFs, disposition: "release" });
   if (unrecorded.kind === "would-refuse") return refusedAfterRemoval(root, removal, checked.index, unrecorded.remedy);
+  if (unrecorded.kind === "unobservable") return refusedAfterRemoval(root, removal, checked.index, { text: unrecorded.detail });
   await discardReleasedState(root);
   retireProjectionRoot(root);
   return { kind: "persisted" };
