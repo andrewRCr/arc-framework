@@ -92,7 +92,7 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
     }
     const recovered = swept.swept.map(each => each.path).filter(path => input.mode === "save" || !path.startsWith(".arc/completed/"));
     if (swept.index !== null) {
-      index = await finishPendingArchiveDiscovery(root, swept.index, discovery, beforeSweep, input.source, saved.result);
+      index = await finishPendingArchiveDiscovery(root, swept.index, discovery, swept.restoredUnindexed, input.source, saved.result);
       index = await reconcileProjectionHandoffs(root, index);
       await recheckProjectionResolution(root, index, state.resolution);
       const observations = reusableStartStats({ original: disk.index, beforeSweep, index, swept, walks: [sharedWalk, personalWalk] });

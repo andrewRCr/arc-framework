@@ -36,10 +36,9 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
         if (version.status === "refused") { report(version.refusal.condition, version.refusal.remedy.text); return; }
         const disk = await readProjectionIndex(root.location, true, { groups: "all" });
         const basis = { root, source: store, configuration, version: version.result, reportedLinks: root.reportedLinks };
-        if (disk.kind !== "index") await settleCommandCopies(root);
         const materialized = await materializeProjectionRoot(disk.kind === "index"
           ? { ...basis, index: disk.index, onlyDeleted: true }
-          : { ...basis, index: null, recovered: disk.header });
+          : { ...basis, index: null, recovered: disk.header, settleBeforeSweep: () => settleCommandCopies(root) });
         if (disk.kind !== "index") {
           const copies = new Map(root.copies.map(copy => [copy.copy, copy]));
           root.copies.splice(0, root.copies.length, ...copies.values());

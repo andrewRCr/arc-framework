@@ -1,5 +1,5 @@
 /** Ask whether a selected archive path is this checkout's once per command, keeping the answer, or a refusal met at a change. */
-import { archiveDestinationRefusal } from "./archive-file.js";
+import { archiveDestination } from "./archive-file.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { isProjectionEntryUnsettled } from "./index-file.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
@@ -23,17 +23,23 @@ type SelectingRoot = Pick<ProjectionRootState, "checkout" | "archiveSelection" |
  * The refusal of an archive path this command selects, or null where the path is this checkout's. The first selection
  * asks, and later selections reuse its answer; a refused path is left untouched for the rest of the command, and a
  * link made after the selection is caught where a change asks again just before it changes the path. A refusal is
- * reported once, at the first selection that does not leave its report to its caller.
+ * reported once, at the first selection that does not leave its report to its caller. Discovery callers retain native
+ * access failures as held scopes, including when they handle structural refusals themselves.
  */
-export function selectArchivePath(root: SelectingRoot, path: string, options: { report?: boolean } = {}): RefusedMark | null {
+export function selectArchivePath(root: SelectingRoot, path: string, options: { report?: boolean; holdAccess?: boolean } = {}): RefusedMark | null {
   if (!path.startsWith(".arc/completed/")) return null;
   const folderHold = unreadArchiveScope(root, path);
   if (folderHold !== null) return folderHold;
   const answers = root.archiveSelection ??= new Map<string, ArchiveSelection>();
   let answer = answers.get(path);
   if (answer === undefined) {
-    answer = { mark: archiveDestinationRefusal(root.checkout, path), reported: false };
+    const destination = archiveDestination(root.checkout, path);
+    answer = { mark: destination?.mark ?? null, reported: false, ...(destination?.cause === "access" ? { access: true } : {}) };
     answers.set(path, answer);
+  }
+  if (answer.access && answer.mark !== null && options.holdAccess) {
+    refuseUnreadArchiveScope(root, path, answer.mark);
+    return answer.mark;
   }
   if (answer.mark !== null && !answer.reported && options.report !== false) {
     answer.reported = true;
@@ -47,6 +53,7 @@ export function refuseUnreadArchiveScope(root: SelectingRoot, path: string, mark
   const holds = root.archiveDiscoveryHolds ??= new Map();
   if (holds.has(path)) return;
   holds.set(path, mark);
+  if (root.archiveSelection?.get(path)?.reported) return;
   root.context.report?.({ path, copy: null, mark });
 }
 
@@ -71,6 +78,7 @@ export function refuseArchiveChange(root: SelectingRoot, path: string, mark: Ref
     root.context.report?.({ path, copy, mark });
     return;
   }
+  if (unreadArchiveScope(root, path) !== null) return;
   const answers = root.archiveSelection ??= new Map<string, ArchiveSelection>();
   const answer = answers.get(path);
   if (answer !== undefined && answer.mark !== null && answer.reported) return;

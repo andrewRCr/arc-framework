@@ -18,7 +18,7 @@ import { writeProjectionIndex } from "../../../../src/lib/store/projection/index
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
-const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false, finalStatOnce: "" }));
+const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false, finalStatOnce: "", authority: "" }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
@@ -31,6 +31,7 @@ vi.mock("node:fs/promises", async original => {
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
   const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
+    if (args[0] === lateAccess.authority) throw Object.assign(new Error("Archive authority check refused"), { code: "EACCES" });
     if (args[0] === lateAccess.finalStatOnce) {
       lateAccess.finalStatOnce = "";
       throw Object.assign(new Error("Archive removal stat refused"), { code: "EACCES" });
@@ -43,7 +44,7 @@ vi.mock("node:fs", async original => {
   return { ...actual, lstatSync, default: { ...actual, lstatSync } };
 });
 
-afterEach(() => { lateAccess.path = ""; lateAccess.aliasObserved = false; lateAccess.finalStatOnce = ""; beginProjectionCommand(); });
+afterEach(() => { lateAccess.path = ""; lateAccess.aliasObserved = false; lateAccess.finalStatOnce = ""; lateAccess.authority = ""; beginProjectionCommand(); });
 
 it("keeps a one-shot archive swap refusal through linked release's second check", async () => {
   const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);
@@ -68,7 +69,8 @@ it("keeps a one-shot archive swap refusal through linked release's second check"
   expect(await h.retire("release")).toEqual({ kind: "released" });
 }, 30_000);
 
-it.each(["persist", "release"] as const)("%s settles an accessible copy when a different archive folder denies listing", async operation => {
+it.each([["persist", "listing"], ["release", "listing"], ["persist", "authority"], ["release", "authority"]] as const)(
+  "%s settles an accessible copy when an archive folder denies %s", async (operation, denied) => {
   const h = await archiveRetirementFixture();
   const { location, index } = await h.disk(), writer = await createProjectionEnginePorts(h.checkout).writer();
   const active = Object.keys(index.entries).find(path => path.startsWith(".arc/active/") && path.endsWith("/meta-retiring.md"));
@@ -76,8 +78,9 @@ it.each(["persist", "release"] as const)("%s settles an accessible copy when a d
   const blocked = await stageRetirementCopy(h.checkout, h.path, index, writer);
   const sibling = await stageRetirementCopy(h.checkout, active, blocked.index, writer);
   await writeProjectionIndex(location, sibling.index);
+  if (denied === "authority") lateAccess.authority = join(h.checkout, h.folder, ".git");
   const guard = (path: string) => {
-    if (path === join(h.checkout, h.folder)) throw Object.assign(new Error("Directory listing refused"), { code: "EACCES" });
+    if (denied === "listing" && path === join(h.checkout, h.folder)) throw Object.assign(new Error("Directory listing refused"), { code: "EACCES" });
   };
   const context = { ...h.context, ports: (checkout: string) => ({ ...createProjectionEnginePorts(checkout), walkFs: {
     readdir: (path: string) => { guard(path); return readdirSync(path, { withFileTypes: true }); },
@@ -91,6 +94,7 @@ it.each(["persist", "release"] as const)("%s settles an accessible copy when a d
   expect(pending.entries[active]).toMatchObject({ copies: [] });
   await expect(readFile(join(h.checkout, blocked.name))).resolves.toBeInstanceOf(Buffer);
   await expect(readFile(join(h.checkout, sibling.name))).rejects.toMatchObject({ code: "ENOENT" });
+  lateAccess.authority = "";
   expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
 }, 30_000);
 

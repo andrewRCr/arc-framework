@@ -18,35 +18,26 @@ import { evidenceHeldProjectionMark, withheldProjectionMark } from "./materializ
 import { withProjectionEntry } from "./index-memory.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { join } from "node:path";
-import { parseAsideFile } from "./aside.js";
 import { createProjectionLinkBoundary } from "./discovery-links.js";
 import { reportProjectionLinks } from "./report.js";
 
-interface RebuildDiscovery extends ProjectionWalkResult {
-  readonly archiveAccess: Map<string, RefusedMark>;
-}
-
 /** Observe the filesystem part of a rebuild and keep unread archive folders opaque until retry. */
-export async function observeMaterializationFiles(root: ProjectionRootState): Promise<RebuildDiscovery> {
+export async function observeMaterializationFiles(root: ProjectionRootState): Promise<ProjectionWalkResult> {
   return observeArchiveScopes(root, [...PROJECTED_LIFECYCLE_ROOTS,
     ...projectedRootPaths(root.identity).filter(path => path.startsWith(".arc/user/"))]);
 }
 
 /** Discover readable scopes while keeping permission refusals available to the caller's later phases. */
-export async function observeArchiveScopes(root: ProjectionRootState, scopes: readonly string[], retry = false): Promise<RebuildDiscovery> {
-  const archiveAccess = new Map(root.archiveDiscoveryHolds);
-  const readable = scopes.filter(path => selectArchivePath(root, path) === null);
+export async function observeArchiveScopes(root: ProjectionRootState, scopes: readonly string[], retry = false): Promise<ProjectionWalkResult> {
+  const readable = scopes.filter(path => selectArchivePath(root, path, { holdAccess: true }) === null);
+  const archiveAccess = new Map<string, RefusedMark>(root.archiveDiscoveryHolds);
   const walked = await walkProjectionRoots(root.checkout, readable, root.ports.walkFs, root.ports.linkFs, archiveAccess, retry);
   for (const [path, mark] of archiveAccess) refuseUnreadArchiveScope(root, path, mark);
-  if (retry) for (const path of scopes) {
-    const held = heldArchivePath(root, path);
-    if (held !== null) archiveAccess.set(path, held);
-  }
-  return { ...walked, archiveAccess };
+  return walked;
 }
 
 /** Establish the outstanding physical scopes' holds before the starting command sweeps their copies. */
-export async function observePendingArchiveDiscovery(root: ProjectionRootState, index: ProjectionIndex): Promise<RebuildDiscovery | null> {
+export async function observePendingArchiveDiscovery(root: ProjectionRootState, index: ProjectionIndex): Promise<ProjectionWalkResult | null> {
   const scopes = index.archiveDiscoveryPending;
   if (scopes === undefined || scopes.length === 0) return null;
   const walked = await observeArchiveScopes(root, scopes, true);
@@ -59,27 +50,23 @@ export async function observePendingArchiveDiscovery(root: ProjectionRootState, 
 }
 
 /** Complete an incomplete rebuild's inventory after the starting sweep has restored any returning files. */
-export async function finishPendingArchiveDiscovery(root: ProjectionRootState, index: ProjectionIndex, walked: RebuildDiscovery | null,
-  beforeSweep: ProjectionIndex, source: ProjectionSource, version: StateVersion): Promise<ProjectionIndex> {
-  if (walked === null) return index;
-  const files = new Set(walked.files);
-  for (const copy of beforeSweep.archiveRecoveryCopies ?? []) {
-    const path = parseAsideFile(copy)?.path;
-    if (path !== undefined && beforeSweep.archiveDiscoveryPending?.some(scope => path === scope || path.startsWith(`${scope}/`))) files.add(path);
-  }
+export async function finishPendingArchiveDiscovery(root: ProjectionRootState, index: ProjectionIndex, walked: ProjectionWalkResult | null,
+  restored: readonly string[], source: ProjectionSource, version: StateVersion): Promise<ProjectionIndex> {
+  if (walked === null && restored.length === 0) return index;
+  const files = new Set([...(walked?.files ?? []), ...restored]);
   const inventory = await readProjectionInventory(source, root.identity, version);
   for (const mark of inventory.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
   const desired = await desiredProjectionPaths(root, inventory);
-  return recordRebuildDiscovery(root, index, { ...walked, files: [...files] }, desired.files,
+  return recordRebuildDiscovery(root, index, files, desired.files,
     !desired.unresolved && inventory.diagnostics.length === 0);
 }
 
 /** Keep unindexed bytes withheld and retain any archive scope whose inspection still needs a retry. */
-export async function recordRebuildDiscovery(root: ProjectionRootState, initial: ProjectionIndex, walked: RebuildDiscovery,
+export async function recordRebuildDiscovery(root: ProjectionRootState, initial: ProjectionIndex, files: Iterable<string>,
   desired: ReadonlyMap<string, unknown>, whole: boolean): Promise<ProjectionIndex> {
   let index = initial;
-  for (const path of walked.files) {
-    if (index.entries[path] !== undefined || desired.has(path) || selectArchivePath(root, path, { report: false }) !== null) continue;
+  for (const path of files) {
+    if (index.entries[path] !== undefined || desired.has(path) || selectArchivePath(root, path, { report: false, holdAccess: true }) !== null) continue;
     const refused = whole ? withheldProjectionMark(path, { checkout: root.checkout, known: false }) : evidenceHeldProjectionMark(path, root.checkout);
     try {
       const stat = await projectionFileReader(root.checkout, path).stat(join(root.checkout, path));
@@ -89,10 +76,9 @@ export async function recordRebuildDiscovery(root: ProjectionRootState, initial:
     } catch (error) {
       if (!(error instanceof ArchiveDestinationBlocked)) throw error;
       refuseUnreadArchiveScope(root, path, error.mark);
-      walked.archiveAccess.set(path, error.mark);
     }
   }
-  const pending = [...walked.archiveAccess.keys()].sort();
+  const pending = [...root.archiveDiscoveryHolds?.keys() ?? []].sort();
   return { ...index, archiveDiscoveryPending: pending.length > 0 ? pending : undefined };
 }
 
@@ -110,5 +96,5 @@ export async function observeMaterialization(input: ProjectionMaterializationInp
   const ignores = await checkIgnores({ guard: sweep.guard, records: input.index.ignoreFiles,
     recordedGuard: input.index.ignoreGuard, reference: await readReference(root.checkout), format: sweep.format,
     ignoreRules: sweep.ignoreRules, readIgnoreRules: sweep.readIgnoreRules });
-  return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [] };
+  return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [], restoredUnindexed: [] };
 }

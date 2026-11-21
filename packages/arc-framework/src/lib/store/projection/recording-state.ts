@@ -36,8 +36,7 @@ export function linkAcceptedArchiveInput(entry: RecordEntry, copy: AsideCopyReco
 
 /** The replacement reached its destination, so even its old raw bytes can now be a later edit. */
 export function installedArchiveInput(entry: RecordEntry): RecordEntry {
-  return archiveLayPhase(entry) === "linking" || isPredecessorArchiveAdoption(entry)
-    ? recordArchiveLay(entry, { kind: "installed" }) : entry;
+  return awaitsArchiveInstallation(entry) ? recordArchiveLay(entry, { kind: "installed" }) : entry;
 }
 
 /** A readable earlier adoption journal kept beforeLay set on both sides of installation. */
@@ -45,9 +44,15 @@ export function isPredecessorArchiveAdoption(entry: RecordEntry): boolean {
   return entry.adoption?.kind === "read-back" && entry.acceptedInputStat?.beforeLay === true && entry.acceptedInputStat.lay === undefined;
 }
 
-/** A predecessor replacement needs a live staged inode distinct from the accepted input's inode. */
-export function provesPredecessorInstallation(entry: RecordEntry, stat: FileStat | null): boolean {
-  return stat?.type === "file" && stat.ino === entry.stat?.ino && stat.ino !== entry.acceptedInputStat?.ino;
+/** The durable journal may still precede an installation whose link has already succeeded. */
+export function awaitsArchiveInstallation(entry: RecordEntry): boolean {
+  return archiveLayPhase(entry) === "linking" || isPredecessorArchiveAdoption(entry);
+}
+
+/** A journal awaiting installation proof needs the live staged inode, distinct from the accepted input's inode. */
+export function provesArchiveInstallation(entry: RecordEntry, stat: FileStat | null): boolean {
+  return awaitsArchiveInstallation(entry)
+    && stat?.type === "file" && stat.ino === entry.stat?.ino && stat.ino !== entry.acceptedInputStat?.ino;
 }
 
 /** Recovery returned the bound original, so exact accepted bytes at the path still qualify for their first lay. */

@@ -23,6 +23,7 @@ import type { ProjectionFanOutBinding } from "./fan-out-binding.js";
 /** One archive path's answer from the path check, and whether this command has reported its refusal. */
 export interface ArchiveSelection {
   readonly mark: RefusedMark | null;
+  readonly access?: true;
   reported: boolean;
 }
 

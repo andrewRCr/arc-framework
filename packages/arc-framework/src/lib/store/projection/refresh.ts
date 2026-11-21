@@ -98,7 +98,8 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   // A planned path this command refused, at its selection or its change, waits for the repair: the refresh stays
   // incomplete, so the command after the repair plans that path's work again.
   const refused = refusesArchivePath(root, [...planned.removals, ...planned.paths.keys()]);
-  const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && !refused && index.archiveDiscoveryPending === undefined
+  const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && !refused
+    && index.archiveDiscoveryPending === undefined && index.archiveRecoveryCopies === undefined
     && projectionArrivalsInstalled(index, arrivals);
   index = { ...index, state: complete && options.advanceState !== false ? version : input.index.state };
   if (input.publication !== "caller") index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,

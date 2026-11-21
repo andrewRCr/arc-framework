@@ -9,7 +9,7 @@ import { selectStamplessBase } from "./stampless-base.js";
 import { readRetainedBase, RetainedBaseUnavailable, selectPersistedBase } from "./taken-in.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
 
-import { archiveLayPhase, isPredecessorArchiveAdoption, provesPredecessorInstallation, unfinishedRecordingRefusal } from "./recording-state.js";
+import { archiveLayPhase, provesArchiveInstallation, unfinishedRecordingRefusal } from "./recording-state.js";
 
 /** A resolved base and the stamp recorded for this take-in. */
 export interface SelectedWriteBackBase {
@@ -72,7 +72,7 @@ function revertedInstalledAdoption(request: TakeInRequest, read: TakeInRead | un
     || request.resolution !== undefined || request.observedEdit !== true
     || read === undefined || entry.adoption?.kind !== "read-back"
     || read.blob !== entry.adoption.read.blob) return false;
-  return archiveLayPhase(entry) === "installed" || isPredecessorArchiveAdoption(entry) && provesPredecessorInstallation(entry, read.stat);
+  return archiveLayPhase(entry) === "installed" || provesArchiveInstallation(entry, read.stat);
 }
 
 async function selectHeldBase(context: BaseSelectionContext, entry: RecordEntry, stamp: string | null): Promise<StoreResult<SelectedWriteBackBase>> {

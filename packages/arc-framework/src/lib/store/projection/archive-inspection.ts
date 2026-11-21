@@ -13,7 +13,7 @@ import { hasAcceptedLanding, waitingEditMark } from "./archive-admission.js";
 import { isUnreadRebuildEntry, unreadRebuildHold } from "./materialization-file.js";
 
 /** Unavailable evidence precedes any semantic refusal over the file. */
-export type ArchiveInspection = { readonly kind: "refused" | "unobservable"; readonly mark: RefusedMark } | null;
+export type ArchiveInspection = { readonly kind: "refused" | "unobservable"; readonly mark: RefusedMark; readonly access?: boolean } | null;
 
 /** Racy-rule observations a restoration already made, retained without a second discovery pass. */
 export interface ArchiveObservation { readonly reference: bigint | null; readonly stat?: FileStat | null }
@@ -43,7 +43,7 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
       : await newArchiveRemedy(root, index, path, gate);
     return denied ?? { kind: "refused", mark: waitingEditMark(root.checkout, path, entry !== undefined) };
   } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "unobservable", mark: error.mark };
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "unobservable", mark: error.mark, access: error.access };
     return { kind: "unobservable", mark: { reason: `Cannot observe archived file ${path}: ${error instanceof Error ? error.message : String(error)}`,
       remedy: { text: "Repair the reported archive or ownership evidence, then retry from this checkout." } } };
   }

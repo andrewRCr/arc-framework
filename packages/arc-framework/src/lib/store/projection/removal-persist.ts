@@ -41,7 +41,7 @@ import { gateRead, projectionReadGate } from "./read-gate.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
 import { hasArchiveRecording } from "./recording-state.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { retirementSelection, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
+import { refuseUnreadArchiveScope, retirementSelection, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
 import { observeArchiveScopes } from "./materialization-observation.js";
 
 /** Scheduling seams for a save concurrent with the retirement operation. */
@@ -197,12 +197,10 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
   let refusal: Remedy | undefined;
   const walked = new Set(paths);
   for (const path of retirementSelection(index, paths)) {
-    // The walk's access refusal survives through copy settlement and is reported before retirement completes.
-    if (unreadArchiveScope(root, path) !== null) continue;
-    // An archive path this checkout does not own is left untouched, and retirement refuses over it.
-    const destination = selectArchivePath(root, path, { report: false });
+    // Access holds survive through copy settlement. A structural refusal still stops retirement here.
+    const destination = selectArchivePath(root, path, { report: false, holdAccess: true });
     if (destination !== null) {
-      refusal ??= retirementRefusal(root.checkout, path, destination, disposition);
+      refusal ??= immediateRetirementRefusal(root, path, destination, disposition);
       continue;
     }
     const entry = index.entries[path];
@@ -213,12 +211,21 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
     }
     // A file gone from the walk is finished only where the command's walk retries its entry; release refuses over any
     // other, as its removal check predicts, leaving it to arc save.
-    if (!walked.has(path) && (entry === undefined || !retriesIndexedEntry(root.context.verb, path, entry))) continue;
-    const blocked = (await inspectArchivedProjectionFile(root, index, path, { reference }))?.mark ?? null;
-    if (blocked !== null) refusal ??= retirementRefusal(root.checkout, path, blocked, disposition);
+    if (!walked.has(path) && !retriesRetirementEntry(root, path, entry)) continue;
+    const blocked = await inspectArchivedProjectionFile(root, index, path, { reference });
+    if (blocked?.access) refuseUnreadArchiveScope(root, path, blocked.mark);
+    else if (blocked !== null) refusal ??= immediateRetirementRefusal(root, path, blocked.mark, disposition);
     else if (!path.startsWith(".arc/completed/") || entry !== undefined) files.push(path);
   }
   return { files, ...(refusal === undefined ? {} : { refusal }) };
+}
+
+function immediateRetirementRefusal(root: ProjectionRootState, path: string, mark: RefusedMark, disposition: ProjectionRetirement): Remedy | undefined {
+  return unreadArchiveScope(root, path) === null ? retirementRefusal(root.checkout, path, mark, disposition) : undefined;
+}
+
+function retriesRetirementEntry(root: ProjectionRootState, path: string, entry: ProjectionIndex["entries"][string] | undefined): boolean {
+  return entry !== undefined && retriesIndexedEntry(root.context.verb, path, entry);
 }
 
 async function walkPersistedRoots(root: ProjectionRootState): Promise<ProjectionWalkResult> {

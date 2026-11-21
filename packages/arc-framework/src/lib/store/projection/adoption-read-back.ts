@@ -15,7 +15,7 @@ import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 import { acceptedArchiveRecording } from "./archive-save-recording.js";
 import { projectionFileReader } from "./change-detection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { archiveLayPhase, isPredecessorArchiveAdoption, provesPredecessorInstallation } from "./recording-state.js";
+import { archiveLayPhase, isPredecessorArchiveAdoption, provesArchiveInstallation } from "./recording-state.js";
 import { join } from "node:path";
 
 /** Record the returned creation basis with prepared content before attempting read-back. */
@@ -86,8 +86,8 @@ async function adoptionBaseline(root: ProjectionRootState, path: string, entry: 
   const rendered = { stat: entry.stat, blob: entry.written };
   if (phase === "installed") return rendered;
   const current = await projectionFileReader(root.checkout, path).stat(join(root.checkout, path));
+  if (provesArchiveInstallation(entry, current)) return rendered;
   if (predecessor) {
-    if (provesPredecessorInstallation(entry, current)) return rendered;
     // The guard still hashes the live file against this basis if the writer only touched the original.
     return current?.ino === original.stat.ino || rendered.stat.ino === original.stat.ino ? original : rendered;
   }

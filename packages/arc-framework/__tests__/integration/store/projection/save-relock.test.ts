@@ -1084,7 +1084,8 @@ it.each([[false, false, false], [false, true, false], [true, false, false], [tru
   }
 });
 
-it.each([false, true])("uses the proved predecessor Markdown installation after its writer exits (installed=%s)", async installed => {
+it.each([[false, "predecessor"], [true, "predecessor"], [false, "current"], [true, "current"]] as const)(
+  "uses the proved Markdown installation after its writer exits (installed=%s, journal=%s)", async (installed, journal) => {
   const h = await fixture(), { path, file, reference, content } = await openedNewText(h, "md");
   const newer = "A newer Markdown correction from another command.\n";
   let submissions = 0;
@@ -1100,11 +1101,11 @@ it.each([false, true])("uses the proved predecessor Markdown installation after 
   const command = { ...h, store };
   const stop = async (observed: string) => { if (observed === path) throw new Error("Stopped during Markdown installation"); };
   binding.hooks = installed ? { afterFirstCheck: stop } : { afterRecheck: stop };
-  binding.writerInstance = "predecessor-markdown-writer";
+  binding.writerInstance = "interrupted-markdown-writer";
   await expect(save(command)).rejects.toThrow("Stopped during Markdown installation");
   expect(await diskEntry(h, path)).toHaveProperty("inProgress", null);
   expect(parseStampedFile(await readFile(file, "utf8")).content).toBe(installed ? newer : content);
-  await usePredecessorAdoptionJournal(h, path);
+  if (journal === "predecessor") await usePredecessorAdoptionJournal(h, path);
   if (installed) {
     await chmod(file, 0o644);
     await writeFile(file, content);
@@ -1136,7 +1137,7 @@ async function usePredecessorAdoptionJournal(h: Awaited<ReturnType<typeof fixtur
   await writeProjectionIndex(location, withProjectionEntry(read.index, path, { ...entry, acceptedInputStat: { ino, mtimeNs, beforeLay: true } }));
 }
 
-it.each(["link", "link and enumeration"] as const)("restores an access-held copy after rebuilding a lost index with denied %s", async denied => {
+it.each(["link", "enumeration"] as const)("restores an access-held copy after rebuilding a lost index with denied %s", async denied => {
   const h = await archiveRetirementFixture(), { checkout } = h;
   const sibling = `${h.folder}/sibling.txt`;
   const siblingRef = recordReferences["work-item/companion"](h.primary.reference.owner, "sibling.txt");
@@ -1145,10 +1146,12 @@ it.each(["link", "link and enumeration"] as const)("restores an access-held copy
   const { location, index } = await h.disk(), writer = { ...await createProjectionEnginePorts(checkout).writer(), processInstance: "exited-rebuild" };
   const active = Object.keys(index.entries).find(path => path.startsWith(".arc/active/") && path.endsWith("/meta-retiring.md"));
   if (active === undefined) throw new Error("Missing the accessible active record");
+  const readable = denied === "link" ? sibling : active;
+  const readableBytes = await readFile(join(checkout, readable));
   const unseen = `${h.folder}/unindexed-archive-edit.md`;
   const unseenBytes = "An unindexed archive edit in the unreadable scope.\n";
-  if (denied === "link and enumeration") await writeFile(join(checkout, unseen), unseenBytes);
-  const copies = await Promise.all([h.path, sibling].map(async path => {
+  if (denied === "enumeration") await writeFile(join(checkout, unseen), unseenBytes);
+  const copies = await Promise.all([h.path, readable].map(async path => {
     const entry = index.entries[path];
     if (entry?.kind !== "record") throw new Error("Missing file for rebuild recovery");
     const name = nameAsideFile({ path, base: entry.base.blob, writer, role: "aside" });
@@ -1164,11 +1167,11 @@ it.each(["link", "link and enumeration"] as const)("restores an access-held copy
   await writeFile(held.absolute, renderStampedFile({ content: edit, stamp: held.base }));
   await rm(join(location.stateDir, PROJECTION_INDEX_FILE));
 
-  binding.deniedRecoverySource = held.absolute;
-  if (denied === "link and enumeration") binding.deniedWalkFolder = join(checkout, h.folder);
+  if (denied === "link") binding.deniedRecoverySource = held.absolute;
+  else binding.deniedWalkFolder = join(checkout, h.folder);
   const first = await projectionCommand(h.input, ["status"]);
   expect(first.diagnostics).toContain("EACCES");
-  if (denied === "link and enumeration") {
+  if (denied === "enumeration") {
     expect(first.diagnostics).toContain(`Cannot enumerate ${h.folder}`);
     const rebuilt = (await h.disk()).index;
     expect(rebuilt.state).toBeNull();
@@ -1179,13 +1182,24 @@ it.each(["link", "link and enumeration"] as const)("restores an access-held copy
   expect((await h.disk()).index.archiveRecoveryCopies).toEqual([held.name]);
   await expect(lstat(join(checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
   await expect(lstat(accessible.absolute)).rejects.toMatchObject({ code: "ENOENT" });
-  expect(await readFile(join(checkout, sibling), "utf8")).toBe("An accessible sibling.\n");
+  expect(await readFile(join(checkout, readable))).toEqual(readableBytes);
 
   expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain("EACCES");
   expect((await h.disk()).index.archiveRecoveryCopies).toEqual([held.name]);
-  if (denied === "link and enumeration") expect((await h.disk()).index.archiveDiscoveryPending).toEqual([h.folder]);
+  if (denied === "enumeration") expect((await h.disk()).index.archiveDiscoveryPending).toEqual([h.folder]);
   binding.deniedRecoverySource = null;
   binding.deniedWalkFolder = null;
+  if (denied === "enumeration") {
+    // Listing can succeed even though search access still prevents the authority check inside the directory.
+    binding.deniedValidation = join(checkout, h.folder, ".git");
+    const searchDenied = await projectionCommand(h.input, ["status"]);
+    const retained = (await h.disk()).index;
+    expect(searchDenied.diagnostics).toContain(`Cannot validate ${unseen}: EACCES`);
+    expect(retained.archiveDiscoveryPending).toContain(unseen);
+    expect(retained.entries[unseen]).toBeUndefined();
+    expect(retained.state).toBeNull();
+    binding.deniedValidation = null;
+  }
   if (denied === "link") {
     // A deleted-file restoration working from the rebuilt index leaves the held destination to recovery.
     await rm(join(checkout, sibling));
@@ -1199,7 +1213,7 @@ it.each(["link", "link and enumeration"] as const)("restores an access-held copy
   await expect(lstat(held.absolute)).rejects.toMatchObject({ code: "ENOENT" });
   const recovered = (await h.disk()).index;
   expect(recovered.archiveRecoveryCopies).toBeUndefined();
-  if (denied === "link and enumeration") {
+  if (denied === "enumeration") {
     expect(recovered.archiveDiscoveryPending).toBeUndefined();
     expect(recovered.entries[unseen]).toMatchObject({ kind: "ownerless", withheld: true });
     expect(repaired.diagnostics).toContain(unseen);
@@ -1208,9 +1222,9 @@ it.each(["link", "link and enumeration"] as const)("restores an access-held copy
   expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(h.primary.version);
 }, 30_000);
 
-it("keeps an earlier sync copy under a folder that later denies listing and settles an accessible copy", async () => {
+it.each([false, true])("keeps a sync copy under an unreadable folder and settles an accessible copy (rebuild=%s)", async rebuild => {
   const h = await archiveRetirementFixture();
-  const { index } = await h.disk();
+  const { index, location } = await h.disk();
   const active = Object.entries(index.entries).find(([path, entry]) => path.startsWith(".arc/active/") && entry.kind === "record");
   if (active === undefined || active[1].kind !== "record") throw new Error("Missing accessible record");
   const activeRecord = success(await h.store.read({ reference: active[1].reference }));
@@ -1222,11 +1236,21 @@ it("keeps an earlier sync copy under a folder that later denies listing and sett
   const held = root?.copies.find(copy => copy.path === h.path);
   const accessible = root?.copies.find(copy => copy.path === active[0]);
   if (held === undefined || accessible === undefined) throw new Error("Sync start did not queue both copies");
+  if (rebuild) {
+    const headerPath = join(location.stateDir, PROJECTION_INDEX_FILE);
+    const header = JSON.parse(await readFile(headerPath, "utf8")) as { groups: Record<string, { name: string; unsettled: boolean }> };
+    const name = `index-${"1".repeat(40)}`;
+    header.groups[".arc/completed/1999-q1"] = { name, unsettled: false };
+    await writeFile(join(location.stateDir, name), "A damaged unrelated archive partition");
+    await writeFile(headerPath, JSON.stringify(header));
+    expect(await readProjectionIndex(location, true, { groups: "all" })).toMatchObject({ kind: "unusable" });
+  }
   binding.deniedWalkFolder = join(h.checkout, h.folder);
   await restoreSyncProjection(h.store, h.checkout, {});
   await endProjection(h.input);
   const settled = (await h.disk()).index;
-  expect(settled.entries[h.path]).toMatchObject({ copies: [{ name: held.copy }] });
+  if (rebuild) expect(settled.archiveRecoveryCopies).toContain(held.copy);
+  else expect(settled.entries[h.path]).toMatchObject({ copies: [{ name: held.copy }] });
   expect(settled.entries[active[0]]).toMatchObject({ copies: [] });
   await expect(readFile(join(h.checkout, held.copy))).resolves.toBeInstanceOf(Buffer);
   await expect(lstat(join(h.checkout, accessible.copy))).rejects.toMatchObject({ code: "ENOENT" });
@@ -1235,6 +1259,74 @@ it("keeps an earlier sync copy under a folder that later denies listing and sett
   binding.writerInstance = undefined;
   await projectionCommand(h.input, ["status"]);
   expect((await h.disk()).index.entries[h.path]).toMatchObject({ copies: [] });
+}, 30_000);
+
+it.each([false, true])("inventories a restored unindexed edit after a link-only denial (interrupted=%s)", async interrupted => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const path = `${h.folder}/unindexed-copy.md`, file = join(h.checkout, path);
+  const entry = index.entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing projected archive record");
+  const writer = { ...await createProjectionEnginePorts(h.checkout).writer(), processInstance: "exited-unindexed-writer" };
+  const copy = nameAsideFile({ path, base: entry.base.blob, writer, role: "aside" });
+  const aside = join(h.checkout, copy), content = "An unindexed edited aside.\n";
+  await mkdir(dirname(aside), { recursive: true });
+  await writeFile(aside, content);
+  await rm(join(location.stateDir, PROJECTION_INDEX_FILE));
+  binding.deniedRecoverySource = aside;
+  expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain("EACCES");
+  const pending = (await h.disk()).index;
+  expect(pending.archiveRecoveryCopies).toEqual([copy]);
+  expect(pending.archiveDiscoveryPending).toBeUndefined();
+  expect(pending.state).toBeNull();
+  binding.deniedRecoverySource = null;
+  if (interrupted) {
+    const store = overrideEngineStore(h.store, { list: async () => {
+      expect(await readFile(file, "utf8")).toBe(content);
+      throw new Error("Stopped after recovery link, before publishing inventory");
+    } });
+    await expect(startProjection({ ...h.input, store })).rejects.toThrow("Stopped after recovery link");
+    await expect(lstat(aside)).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await h.disk()).index.archiveRecoveryCopies).toEqual([copy]);
+  }
+  const repaired = await projectionCommand(h.input, ["status"]);
+  const recovered = (await h.disk()).index;
+  expect(repaired.diagnostics).toContain(`${path}: withheld`);
+  expect(await readFile(file, "utf8")).toBe(content);
+  expect(recovered.entries[path]).toMatchObject({ kind: "ownerless", withheld: true });
+  expect(recovered.archiveRecoveryCopies).toBeUndefined();
+  expect(recovered.state).toBe(success(await h.store.version()));
+}, 30_000);
+
+it.each(["stat", "recheck"] as const)("sync restores an accessible sibling after a denied archive %s", async stage => {
+  const h = await archiveRetirementFixture(), { index } = await h.disk();
+  const active = Object.keys(index.entries).find(path => path.startsWith(".arc/active/") && path.endsWith("/meta-retiring.md"));
+  if (active === undefined) throw new Error("Missing an accessible projected record");
+  expect(await startProjection(h.input)).toMatchObject({ kind: "ready" });
+  const file = join(h.checkout, h.path), sibling = join(h.checkout, active);
+  await rm(sibling);
+  if (stage === "stat") {
+    await rm(file);
+    binding.deniedValidation = file;
+  } else {
+    await chmod(file, 0o644);
+    await writeFile(file, "");
+    await utimes(file, new Date(0), new Date(0));
+    binding.deniedLinkProbe = file;
+  }
+  await restoreSyncProjection(h.store, h.checkout, {});
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: h.path,
+    mark: expect.objectContaining({ reason: expect.stringContaining("EACCES") }) }));
+  if (stage === "stat") {
+    binding.deniedValidation = null;
+    await expect(lstat(file)).rejects.toMatchObject({ code: "ENOENT" });
+  } else {
+    expect(binding.deniedLinkProbe).toBeNull();
+    expect(await readFile(file, "utf8")).toBe("");
+  }
+  expect(await readFile(sibling, "utf8")).toContain("retiring");
+  await endProjection(h.input);
+  await projectionCommand(h.input, ["sync"]);
+  expect(await readFile(file, "utf8")).toContain(h.primary.content.trim());
 }, 30_000);
 
 it.each([[false, false], [true, false], [true, true]])(

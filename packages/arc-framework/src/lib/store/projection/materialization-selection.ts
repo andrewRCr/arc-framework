@@ -1,15 +1,16 @@
 /** Bound a deleted-file restoration before loading index groups or planning ownership changes. */
 import { join } from "node:path";
 import type { StoreRecord } from "../read.js";
-import { readStat, readReference } from "./change-detection.js";
+import { projectionFileReader, readReference } from "./change-detection.js";
 import { readProjectionLinkBoundary, type ProjectionLinkBoundary } from "./discovery-links.js";
-import { gateRead } from "./read-gate.js";
+import { gateRead, projectionReadGate } from "./read-gate.js";
 import type { FileStat, ProjectionIndex } from "./index-schema.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { reportArchivedProjectionFile } from "./archive-report.js";
-import { hasPendingArchiveRecovery, selectArchivePath } from "./archive-selection.js";
+import { hasPendingArchiveRecovery, refuseUnreadArchiveScope, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
 
 interface SelectionInput {
   root: ProjectionRootState;
@@ -43,14 +44,27 @@ async function selectDeletedFiles(input: SelectionInput): Promise<{ files: Reado
     const blocked = input.boundary(path);
     if (blocked !== null && blocked !== path) continue;
     // An archive path this checkout does not own is reported once and left untouched.
-    if (selectArchivePath(input.root, path) !== null || hasPendingArchiveRecovery(input.index, path)) continue;
-    const stat = await readStat(join(input.root.checkout, path));
-    await reportArchivedProjectionFile(input.root, input.index, path, { reference, stat });
-    if (!await shouldRestoreFile(input, path, stat)) continue;
+    if (selectArchivePath(input.root, path, { holdAccess: true }) !== null || hasPendingArchiveRecovery(input.index, path)) continue;
+    const stat = await observeDeletedFile(input, path, reference);
+    if (stat === undefined) continue;
     selected.set(path, record);
     if (stat?.type === "symlink") links.add(path);
   }
   return { files: selected, links };
+}
+
+async function observeDeletedFile(input: SelectionInput, path: string, reference: bigint | null): Promise<FileStat | null | undefined> {
+  const { root } = input;
+  try {
+    const stat = await projectionFileReader(root.checkout, path).stat(join(root.checkout, path));
+    await reportArchivedProjectionFile(root, input.index, path, { reference, stat });
+    if (unreadArchiveScope(root, path) !== null) return undefined;
+    return await shouldRestoreFile(input, path, stat) ? stat : undefined;
+  } catch (error) {
+    if (!(error instanceof ArchiveDestinationBlocked) || !error.access) throw error;
+    refuseUnreadArchiveScope(root, path, error.mark);
+    return undefined;
+  }
 }
 
 async function shouldRestoreFile(input: SelectionInput, path: string, stat: FileStat | null): Promise<boolean> {
@@ -58,15 +72,17 @@ async function shouldRestoreFile(input: SelectionInput, path: string, stat: File
   return stat === null || await deletedIndexedFile(input, path, stat);
 }
 
-async function deletedIndexedFile(input: SelectionInput, path: string,
-  stat: NonNullable<Awaited<ReturnType<typeof readStat>>>): Promise<boolean> {
+async function deletedIndexedFile(input: SelectionInput, path: string, stat: FileStat): Promise<boolean> {
   const emptyMarkdown = stat.type === "file" && stat.size === 0n && path.endsWith(".md");
   if (!emptyMarkdown && stat.type !== "symlink") return false;
   const entry = input.index.entries[path];
   if (entry?.kind !== "record" || entry.withheld || entry.handoff !== undefined) return false;
-  const boundary = await readProjectionLinkBoundary(input.root.checkout, [path]);
+  const { root } = input;
+  const boundary = await readProjectionLinkBoundary(root.checkout, [path], root.ports.linkFs,
+    (held, mark) => { refuseUnreadArchiveScope(root, held, mark); });
+  if (unreadArchiveScope(root, path) !== null) return false;
   if (boundary(path) !== (stat.type === "symlink" ? path : null)) return false;
-  const read = await gateRead({ path: join(input.root.checkout, path), markdown: path.endsWith(".md") });
+  const read = await gateRead({ path: join(root.checkout, path), markdown: path.endsWith(".md") }, projectionReadGate(root.checkout, path));
   return read.kind === "no-edit";
 }
 

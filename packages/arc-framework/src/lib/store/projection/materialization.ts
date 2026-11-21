@@ -52,7 +52,8 @@ interface ProjectionMaterializationBasis {
  * full lay: only complete removal evidence could advance its state, and the start's refresh owns that.
  */
 export type ProjectionMaterializationInput = ProjectionMaterializationBasis
-  & ({ readonly index: null; readonly onlyDeleted?: false } | { readonly index: ProjectionIndex; readonly onlyDeleted: true });
+  & ({ readonly index: null; readonly onlyDeleted?: false; readonly settleBeforeSweep?: () => Promise<void> }
+    | { readonly index: ProjectionIndex; readonly onlyDeleted: true; readonly settleBeforeSweep?: never });
 /** The resulting index, retaining any per-root refusal for callers that report a failed materialization. */
 export type ProjectionMaterializationResult = { readonly kind: "materialized"; readonly index: ProjectionIndex }
   | { readonly kind: "refused"; readonly index: ProjectionIndex; readonly mark: RefusedMark };
@@ -68,6 +69,8 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   if (!excluded.ok) throw excluded.error;
   let index: ProjectionIndex = input.index ?? { format: PROJECTION_INDEX_FORMAT, state: null, entries: {}, withheldCopies: [], tripwires: {},
     ignoreFiles: null, ignoreGuard: null, projectedUnder: projectionSettings(root) };
+  const walked = await observeMaterializationFiles(root);
+  await input.settleBeforeSweep?.();
   const swept = await observeMaterialization(input);
   const ignores = swept.ignores;
   index = recordProjectionIgnoreCheck(swept.index ?? { ...index,
@@ -87,15 +90,15 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const evidence = createProjectionProtectionEvidence({ source: inventory.source, checkout: root.checkout, exec: root.ports.exec });
   const renderer = createRecordRenderer({ store: inventory.source, memo: root.context.memo ?? createHistoryMemo(root.store), protection: createProjectionProtection({
     store: root.store, checkout: root.checkout, identity: root.identity, exec: root.ports.exec, evidence }) });
-  const walked = await observeMaterializationFiles(root);
   reportProjectionLinks(walked.links.filter(path => !(input.reportedLinks ?? []).includes(path)));
   const observed = createProjectionLinkBoundary(walked.links);
   const selection = await prepareMaterializationSelection({ root, index, files: desired.files, boundary: observed, onlyDeleted: input.onlyDeleted });
   index = selection.index;
   const selected = selection.files;
   if (input.onlyDeleted) await reportRemainingArchivedFiles(root, index, walked.files, desired.files);
-  // A link is reported, never recorded: only walked files can be unknown files.
-  if (input.index === null) index = await recordRebuildDiscovery(root, index, walked, desired.files, whole);
+  if (input.index === null) {
+    index = await recordRebuildDiscovery(root, index, new Set([...walked.files, ...swept.restoredUnindexed]), desired.files, whole);
+  }
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);
   const paths = new Map([...selected].map(([path, record]) => [path, record.reference]));
@@ -118,7 +121,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   }
   index = await installMaterializedFiles(input, index, files);
   await ensureProjectionScratch(root);
-  const complete = whole && !unlaid && index.archiveDiscoveryPending === undefined;
+  const complete = whole && !unlaid && index.archiveDiscoveryPending === undefined && index.archiveRecoveryCopies === undefined;
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: materializationTimings(input, { ...index, state: !input.onlyDeleted && complete
       && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, startedAt),
