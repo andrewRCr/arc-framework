@@ -2147,27 +2147,29 @@ records every step's time here, which sizes that day.
 A draft for the Owner's approval on Tuesday 11-24. The Owner decided at 9:04 pm on 11-20 that the flip runs in parallel
 from that day inside this session, which keeps the session and the review lane.
 
-- **Delegated to `arc-worker`, each run by the Owner's go-ahead by name:**
+- **Delegated builds, each run by the Owner's go-ahead by name:**
     - 4.2.a–c, the help text and the tests that pin it;
     - 4.R.a, the notes writers' refusal and its test;
     - 6.3.b, the partial-protection start;
     - 6.3.a, as four runs by group: start and the lifecycle verbs; locus, inbox, route, and the Errand queue; the
       Errand open-to-promote matrix; and personal reconcile, handoff, identity, session-init, and recovery.
 
-  Each is specified by its task text and `notes-seam-locus.md`. General subagents do read-only work: each worker run's
-  call-site or group inventory beforehand, and the evidence reads after each rehearsal run.
+  Each is specified by its task text and `notes-seam-locus.md`, and runs on the model the host's registry answers for
+  `build` at launch (`agent-run --which build`; on 11-21, headless Codex Sol at high, through the host's `codex-run`
+  wrapper). Read-only lookups take the registry's `lookup` answer: each build run's call-site or group inventory
+  beforehand, and the evidence reads after each rehearsal run.
 - **Kept, correcting the first list:**
     - 6.6 runs on the flipped copy 6.4 produces, and whether it took a pre-flip arm is a verdict, so it follows 6.4
       here.
     - 6.7 pushes a deletion branch and must pass again at the head that lands, so it runs once early as a dry run and
       again beside 6.8.
-- **How delegated work lands.** A worker edits a disposable `git clone --shared` of this head under
-  `runs/cutover-flip/`: a clone, never a worktree. It runs lint and its focused tests there and returns one commit. The
-  first run confirms whether arc-offload places runs from a clone; otherwise those runs move to after the apply. I
-  apply the commit here uncommitted and review its diff against the task and spec. I run `arc check increment` and the
-  related tests, write the completion note, and commit at the task's own gate; the clone goes then. This session
-  remains the only writer here, applying one change at a time. The tasks touch disjoint files: `cli.ts` and the help
-  modules, `commands/user/`, and new end-to-end files.
+- **How delegated work lands.** A builder edits a disposable `git clone --shared` of this head under
+  `runs/cutover-flip/`: a clone, never a worktree, so its Git data sits inside the builder's sandbox. It runs lint and
+  its focused tests there and returns one commit. The first run confirms whether arc-offload places runs from a clone;
+  otherwise those runs move to after the apply. I apply the commit here uncommitted and review its diff against the task
+  and spec. I run `arc check increment` and the related tests, write the completion note, and commit at the task's own
+  gate; the clone goes then. This session remains the only writer here, applying one change at a time. The tasks touch
+  disjoint files: `cli.ts` and the help modules, `commands/user/`, and new end-to-end files.
 - **Kept:**
     - the rehearsal chain: 6.4 on a fresh full copy, then 6.5's perturbation runs on one copy, each run through
       `memcap_gated` one capped run at a time, with the delegated tasks reviewed between runs;
@@ -2176,33 +2178,40 @@ from that day inside this session, which keeps the session and the review lane.
   standard lane's complete local pass, attesting as the `delegated-agent` source:
     - Chunks follow the change's seams by `review-chunking`, with a local seam reviewer over sibling chunks and a
       top-level seam, never the number of processes that fit.
-    - Each runs `codex exec -m <model> -c model_reasoning_effort=xhigh -s read-only -C <review clone> --ephemeral
-      --json --output-schema <result schema> -o <result file>`, its reasoning effort passed explicitly rather than
-      left to the configuration's default. The schema is the `result` part of `arc review local attest --schema`.
-      The brief carries `standard-review/v1`, the chunk's exact scope, and the target head. It carries none of the
-      author's conclusions, suspected weak spots, or fixes.
+    - Each runs the invocation the registry gives at launch, through `codex-run`, which closes stdin, stops a stalled
+      or overrunning run, and fails unless the report is written: `agent-run --which review` for chunk and seam
+      reviewers and fix checks, `--which verify` for verification's companion. Its `-C` names the review clone and its
+      `-o` the result file. It adds `--ephemeral --output-schema <result schema>`, and `--max` sized from the pilot's
+      wall time, since the wrapper stops a run after an hour by default. The schema is the `result` part of `arc
+      review local attest --schema`.
+    - The brief goes in as the prompt argument, since the wrapper closes stdin. It carries `standard-review/v1`, the
+      chunk's exact scope, and the target head, and none of the author's conclusions, suspected weak spots, or
+      fixes.
     - The review clone is a `git clone --shared` at the target head under `runs/cutover-flip/`, removed when the pass
       ends, so no worktree is made. Reviewers get the head's CI run and the full local tiers as files. A reviewer
       needing another run names it in its finding; it runs through arc-offload in a second disposable clone, and its
       result goes back to the reviewer. Every finding is still verified against source before its disposition.
     - Duplicates across chunks merge mechanically by file, line range, and rubric dimension. A separate fresh
       evaluator then links near-duplicates. Neither rewrites a finding.
-    - `evaluatorIdentity` names Codex CLI 0.171.0 and the exact model.
+    - `evaluatorIdentity` names Codex CLI 0.171.0 and the exact model, as the run's events report it, checked against
+      the registry's answer.
     - One chunk runs end to end as a pilot, prepared, reviewed, and attested, before the rest launch.
-- **The reviewer model** (Owner, 9:11 pm on 11-20): xhigh reasoning for every reviewer.
-    - The pilot chunk runs on Astra. Its burn, projected across the chunks and seam reviewers, decides between Astra
-      for the whole complete pass and verification, or Astra for the seam reviewers and verification with Sol for the
-      chunk reviewers.
-    - Fix checks run on Sol.
+- **The reviewer model** comes from the registry at launch; on 11-21 it answers Astra at xhigh for `review` and Sol at
+  xhigh for `verify`.
+    - The pilot chunk runs on Astra. Its burn, projected across the chunks and seam reviewers, goes to the Owner, whose
+      choice of split reaches this session as the registry's answer.
+    - The Owner's 9:11 pm split on 11-20 differs from the registry in two places: it put fix checks on Sol and
+      verification's companion on Astra. Tuesday's approval settles which holds.
 - **The burn record:**
-    - Tokens per reviewer process come from `codex exec --json`'s events, if they carry token counts, which the pilot
-      confirms. They are kept with the flip's evidence.
+    - Tokens per reviewer process come from the events file `codex-run` writes beside each report, if they carry token
+      counts, which the pilot confirms. They are kept with the flip's evidence.
     - The Owner reads the weekly percentage from Codex's status line, which headless runs do not show, at four points:
       before the pilot, after it, after the complete pass, and after its fix checks.
     - The totals go to the PM for a summary line.
 - **Approvals batched Tuesday morning:**
-    1. the `arc-worker` go-ahead for each named run;
-    2. the pilot, then, from its projected burn, the model split for the chunked passes;
+    1. the go-ahead for each named build run;
+    2. the pilot, then, from its projected burn, the model split for the chunked passes, and the two places the 9:11 pm
+       split differs from the registry;
     3. pushes of `feat/cutover-flip` with CI dispatched at task checkpoints, and 6.7's two deletion-branch pushes.
 
   ARC's own gates stay per instance: each task gate, each review disposition, and the merge. The Owner is available
