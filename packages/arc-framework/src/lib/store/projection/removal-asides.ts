@@ -13,7 +13,7 @@ import type { ProjectionWalkFs } from "./engine-walk.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { selectArchivePath } from "./archive-selection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { recordedCopyNames } from "./archive-copy-recovery.js";
+import { recordedCopyNames, uninspectedCopyScopes } from "./archive-copy-recovery.js";
 
 interface UnrecordedProjectionCopyInput {
   readonly checkout: string;
@@ -58,8 +58,15 @@ export async function checkProjectionRemovalAsides(input: ProjectionRemovalAside
 export async function checkUnrecordedProjectionCopies(input: UnrecordedProjectionCopyInput): Promise<ProjectionRemovalCheck> {
   const { checkout, index } = input;
   const recorded = recordedCopyNames(index);
+  const known = [...recorded, ...index.withheldCopies, ...index.archiveRecoveryCopies ?? []];
   for await (const visit of walkProjectionAsideFolder(checkout, input.walkFs, input.linkFs)) {
-    if (visit.kind === "uninspected") return { kind: "unobservable", detail: unobservedMarkDetail(checkout, visit.path, visit.mark) };
+    if (visit.kind === "uninspected") {
+      const [path] = uninspectedCopyScopes(visit, index.archiveCopyPending ?? [], known, false);
+      if (path !== undefined || visit.cause !== "link") {
+        return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path ?? visit.location, visit.mark) };
+      }
+      continue;
+    }
     if (visit.kind !== "copy" || recorded.has(visit.location)) continue;
     const named = parseAsideFile(visit.location);
     if (named?.role !== "aside") continue;

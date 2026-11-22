@@ -557,7 +557,8 @@ function isAdopting(request: TakeInRequest): boolean {
 
 function ordinaryArchiveAcceptance(context: WriteBackContext, request: TakeInRequest,
   prepared: Extract<PreparedWriteBack, { kind: "ready" }>): AcceptedArchiveInput | undefined {
-  if (request.copy !== null || request.entry.opened !== true || !request.path.startsWith(".arc/completed/")) return undefined;
+  if (request.copy !== null || !request.path.startsWith(".arc/completed/")
+    || request.entry.opened !== true && request.resolution === undefined) return undefined;
   return acceptedArchiveInput(prepared.read, gitBlobId(prepared.takenIn, context.format), prepared.retained);
 }
 

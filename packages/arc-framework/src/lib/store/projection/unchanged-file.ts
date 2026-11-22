@@ -6,7 +6,7 @@ import { readStamplessFile } from "./stampless.js";
 import { gitBlobId } from "./blob-id.js";
 import { captureWriteBackFile, type WriteBackContext } from "./write-back.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
-import { archiveLayPhase, retainedArchiveInput } from "./recording-state.js";
+import { archiveLayPhase, hasAcceptedArchiveInput, retainedArchiveInput } from "./recording-state.js";
 import type { RefusedMark } from "./index-schema.js";
 
 type CapturedFile = Extract<Awaited<ReturnType<typeof captureWriteBackFile>>, { kind: "read" }>;
@@ -18,7 +18,8 @@ type PendingInput = { readonly kind: "unchanged"; readonly read: TakeInRead }
 export async function readPendingProjectionInput(context: WriteBackContext, request: TakeInRequest): Promise<PendingInput | null> {
   if (!observesPendingInput(request)) return null;
   const { entry } = request;
-  const recordedInput = entry.opened === true && entry.acceptedInputStat !== undefined ? entry.persisted?.read : undefined;
+  const accepted = hasAcceptedArchiveInput(entry);
+  const recordedInput = accepted || entry.opened === true && entry.acceptedInputStat !== undefined ? entry.persisted?.read : undefined;
   const oldConflicts = entry.markers !== null || entry.unshown.length > 0;
   if (oldConflicts && recordedInput === undefined && entry.persisted?.retained === undefined) return null;
   const file = await captureWriteBackFile(context, request);
@@ -38,7 +39,8 @@ async function classifyPendingInput(context: WriteBackContext, request: TakeInRe
       return { kind: "unchanged", read: file.read };
     }
   }
-  const read = oldConflicts ? null : await readUnchangedBase(context, request, file);
+  const read = oldConflicts || entry.opened !== true && hasAcceptedArchiveInput(entry)
+    ? null : await readUnchangedBase(context, request, file);
   return read === null ? null : { kind: "unchanged", read };
 }
 

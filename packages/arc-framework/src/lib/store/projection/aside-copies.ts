@@ -2,8 +2,8 @@
  * The rules every reader of an aside copy applies: what it holds, whether its path has moved on since its swap, and the
  * one step that checks a copy and deletes, keeps, or drops it.
  */
-import { mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { Remedy } from "../refusal.js";
 import { asideCopyHasEdit, nameAsideFile, parseAsideFile, type AsideWriterInput } from "./aside.js";
 import { readAsideStat } from "./aside-discovery.js";
@@ -274,9 +274,9 @@ export async function putBack(
     if (hasPathMovedOn(copy, holding)) return aside;
     if (holding.kind === "file") {
       replacement = nameAsideFile({ path, base: sent.entry.base.blob, writer: input.writer, role: "aside" });
-      await input.checkpoint?.();
-      await mkdir(dirname(join(checkout, replacement)), { recursive: true });
-      const moved = await moves.rename(at.path, join(checkout, replacement), { kind: "put-back", blob: holding.blob, format: input.format });
+      const destination = join(checkout, replacement);
+      await moves.prepareAside(destination);
+      const moved = await moves.rename(at.path, destination, { kind: "put-back", blob: holding.blob, format: input.format });
       if (moved === "changed") return aside;
       if (moved === "absent") replacement = null;
       else {

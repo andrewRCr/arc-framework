@@ -227,9 +227,11 @@ export async function recordWriteBack(input: WriteBackRecording): Promise<{ entr
   const record = readBack.version === outcome.version && sameApartFromStampedIds(readBack.content, takenIn, grammar)
     ? { kind: "landed" as const, version: outcome.version }
     : { kind: "copy" as const, version: outcome.version, ...await keepTakenInCopy(input.location, takenIn, input.format, input.checkpoint) };
-  const recoveredBlob = kept?.kind === "copy" && input.entry.persisted?.recording === true && input.entry.opened === true ? kept.blob : undefined;
-  const { stat, ...acceptedInput } = input.acceptedInput ?? { inputBlob: recoveredBlob, read: input.entry.persisted?.read,
-    retained: input.entry.persisted?.retained, stat: input.entry.acceptedInputStat };
+  const previous = input.entry.persisted;
+  const recordedInput = previous?.recording === true ? previous.inputBlob : undefined;
+  const legacyInput = kept?.kind === "copy" && previous?.recording === true && input.entry.opened === true ? kept.blob : undefined;
+  const { stat, ...acceptedInput } = input.acceptedInput ?? { inputBlob: recordedInput ?? legacyInput, read: previous?.read,
+    retained: previous?.retained, stat: input.entry.acceptedInputStat };
   const evidence = acceptedInput.inputBlob === undefined ? undefined : acceptedInput;
   return { entry: { ...input.entry, acceptedInputStat: evidence === undefined ? undefined : stat,
     persisted: { stamp: input.stamp, takenIn: record, ...evidence } }, released };

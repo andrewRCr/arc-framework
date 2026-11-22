@@ -100,7 +100,8 @@ function archiveAccessMark(path: string, error: unknown): RefusedMark {
 
 /** An archive destination observation or mutation that must stay held. */
 export class ArchiveDestinationBlocked extends Error {
-  constructor(readonly mark: RefusedMark, readonly access = false, readonly code?: string) { super(mark.reason); }
+  constructor(readonly mark: RefusedMark, readonly access = false, readonly code?: string,
+    readonly destinationCause?: ArchiveDestination["cause"]) { super(mark.reason); }
 }
 
 /** Preserve the native permission code so guarded operations can still use their bounded retry. */
@@ -112,7 +113,7 @@ export function archiveOperationError(path: string, error: unknown, action?: str
 /** Check an archive destination after the caller's last lease checkpoint and just before the change it guards. */
 export function requireArchiveDestination(checkout: string, path: string): void {
   const destination = archiveDestination(checkout, path);
-  if (destination !== null) throw new ArchiveDestinationBlocked(destination.mark, destination.cause === "access");
+  if (destination !== null) throw new ArchiveDestinationBlocked(destination.mark, destination.cause === "access", undefined, destination.cause);
 }
 
 /** Read bytes through a regular file handle that never follows a link at the file itself. */

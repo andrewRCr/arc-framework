@@ -4,8 +4,7 @@
  */
 import { removeProjectionAsideFile } from "./aside-cleanup.js";
 import { withProjectionEntry } from "./index-memory.js";
-import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { nameAsideFile, type AsideWriterInput } from "./aside.js";
 import { checkAsideCopy, putBack } from "./aside-copies.js";
 import { retriedMoves, type RetriedMoves, type SwapMoves } from "./aside-moves.js";
@@ -322,10 +321,18 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap,
 
 /** Move the original path under the lease, preserving its basis when the move is refused. */
 async function moveAside(input: SwapBatchInput, swap: PlannedSwap, path: string, aside: string): Promise<SwapDone | null> {
-  await input.checkpoint?.();
-  await mkdir(dirname(aside), { recursive: true });
+  const moves = retriedMoves(input, { checkout: input.checkout, path: swap.path });
+  try { await moves.prepareAside(aside); }
+  catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) {
+      // A subsequent sweep discards the staged file once its directory is accessible again.
+      if (error.access) return { entry: pendingObservedRefusal(swap.original, error.mark), blocked: error };
+      return holdSwap(input, swap, swap.original, error);
+    }
+    throw error;
+  }
   const leafHold = archiveInventoryLinkHold(input.index, swap.path);
-  try { await retriedMoves(input, { checkout: input.checkout, path: swap.path }).rename(path, aside, { kind: "capture", leafHold }); }
+  try { await moves.rename(path, aside, { kind: "capture", leafHold }); }
   catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return holdSwap(input, swap, swap.original, error);
     await input.checkpoint?.();

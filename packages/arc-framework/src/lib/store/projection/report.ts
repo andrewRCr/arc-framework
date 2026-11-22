@@ -49,7 +49,7 @@ export function reportProjectionCopy(path: string, copy: string, settlement: Cop
 export function reportLeftCopies(root: ArchiveSelectionRoot, left: readonly LeftCopy[]): void {
   for (const copy of left) {
     if (copy.refusal !== undefined && copy.access) refuseUnreadArchiveScope(root, copy.path, copy.refusal, copy.copy);
-    else if (copy.refusal !== undefined) refuseArchiveChange(root, copy.path, copy.refusal, copy.copy);
+    else if (copy.refusal !== undefined) refuseArchiveChange(root, copy.path, copy.refusal, copy.destinationRefusal ? null : copy.copy);
     else root.context.report?.({ path: copy.path, copy: copy.copy, mark: { reason: copy.reason,
       remedy: copy.remedy ?? { text: "Keep the aside copy until its edit is recovered or explicitly removed." } } });
   }

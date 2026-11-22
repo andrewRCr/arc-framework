@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { lstatSync } from "node:fs";
 import { ASIDE_FILES_ROOT, parseAsideFile } from "./aside.js";
-import { readProjectionFolder, type ProjectionWalkFs, type WalkEntry } from "./engine-walk.js";
+import { observeProjectionFolder, type ProjectionWalkFs, type WalkEntry } from "./engine-walk.js";
 import { archiveOperationError, archivePermissionMark, isArchivePermissionRefusal } from "./archive-file.js";
 import { readFile } from "node:fs/promises";
 import { readStat } from "./change-detection.js";
@@ -16,18 +16,24 @@ export type ProjectionAsideVisit = { readonly kind: "copy" | "directory"; readon
 export interface UninspectedCopies {
   readonly kind: "uninspected";
   readonly location: string;
-  readonly path: string;
+  readonly cause: "link" | "access" | "changed";
+  /** Logical scope only when the location is already within the archive copy branch. */
+  readonly archivePath?: string;
   readonly mark: RefusedMark;
 }
 
 const archiveAsideRoot = `${ASIDE_FILES_ROOT}/completed`;
 
-/** Map an unread physical namespace to the archive branch it mirrors. An unnamed child is still owed. */
+/** Map a physical branch within the archive copy tree to its logical scope. */
 function archiveCopyScope(location: string): string | undefined {
-  if (coversArchivePath(location, archiveAsideRoot)) return ".arc/completed";
   if (!coversArchivePath(archiveAsideRoot, location)) return undefined;
   const scope = `.arc/${location.slice(ASIDE_FILES_ROOT.length + 1)}`;
   return isArchiveDiscoveryScope(scope) ? scope : undefined;
+}
+
+/** Whether a physical obstruction can conceal the archive copy branch. */
+export function concealsArchiveCopies({ location }: UninspectedCopies): boolean {
+  return coversArchivePath(location, archiveAsideRoot);
 }
 
 /** Find the reason an archive recovery name could not be observed. */
@@ -62,7 +68,7 @@ Promise<boolean | UninspectedCopies> {
   if (linkFs !== undefined) {
     const boundary = await readProjectionLinkBoundary(checkout, [ASIDE_FILES_ROOT], linkFs);
     const link = boundary(ASIDE_FILES_ROOT);
-    if (link !== null) return linkedCopyDirectory(link) ?? false;
+    if (link !== null) return linkedCopyDirectory(link);
   }
   for (let end = ASIDE_FILES_ROOT.indexOf("/"); end >= 0; end = ASIDE_FILES_ROOT.indexOf("/", end + 1)) {
     const check = inspectCopyDirectory(checkout, ASIDE_FILES_ROOT.slice(0, end), walkFs);
@@ -83,10 +89,7 @@ function scanCopyDirectory(checkout: string, directory: string, walkFs?: Project
     const named = parseAsideFile(location);
     if (named?.role === "aside" || named !== undefined && !entry.isDirectory()) visits.push({ kind: "copy", location });
     else if (named === undefined && entry.isDirectory()) folders.push(location);
-    else if (named === undefined && entry.isSymbolicLink()) {
-      const hold = linkedCopyDirectory(location);
-      if (hold !== undefined) visits.push(hold);
-    }
+    else if (named === undefined && entry.isSymbolicLink()) visits.push(linkedCopyDirectory(location));
   }
   return { visits, folders, listed: entries !== null };
 }
@@ -98,10 +101,15 @@ function asideDirectoryEntries(checkout: string, directory: string, walkFs?: Pro
   const unread: UninspectedCopies[] = [];
   // A named aside is listed even if typing it fails. Its consumer can bind the refusal to its destination.
   try {
-    const entries = readProjectionFolder(join(checkout, directory), walkFs, undefined,
+    const result = observeProjectionFolder(join(checkout, directory), walkFs, undefined,
       (name, error) => { unread.push(deniedCopyDirectory(`${directory}/${name}`, error)); },
       name => parseAsideFile(`${directory}/${name}`)?.role === "aside");
-    return { entries, unread };
+    if (result.kind === "changed") unread.push(result.stat.isSymbolicLink() ? linkedCopyDirectory(directory) : {
+      kind: "uninspected", cause: "changed", location: directory, archivePath: archiveCopyScope(directory),
+      mark: { reason: `The recovery folder ${directory} changed while it was being listed.`,
+        remedy: { text: "Restore the recovery folder, then retry the command." } },
+    });
+    return { entries: result.kind === "listed" ? result.entries : null, unread };
   } catch (error) {
     return { entries: null, unread: [deniedCopyDirectory(directory, error)] };
   }
@@ -110,7 +118,7 @@ function asideDirectoryEntries(checkout: string, directory: string, walkFs?: Pro
 function inspectCopyDirectory(checkout: string, location: string, walkFs?: ProjectionWalkFs): boolean | UninspectedCopies {
   try {
     const stat = (walkFs?.lstat ?? lstatSync)(join(checkout, location));
-    return stat.isSymbolicLink() ? linkedCopyDirectory(location) ?? false : stat.isDirectory();
+    return stat.isSymbolicLink() ? linkedCopyDirectory(location) : stat.isDirectory();
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT" || code === "ENOTDIR") return false;
@@ -119,22 +127,21 @@ function inspectCopyDirectory(checkout: string, location: string, walkFs?: Proje
 }
 
 function deniedCopyDirectory(location: string, error: unknown): UninspectedCopies {
-  const path = archiveCopyScope(location);
-  if (path === undefined || !isArchivePermissionRefusal(error)) throw error;
-  const mark = archivePermissionMark(path, error, "inspect recovery copies for");
-  return { kind: "uninspected", location, path, mark: { ...mark,
+  const archivePath = archiveCopyScope(location);
+  if (archivePath === undefined && !coversArchivePath(location, archiveAsideRoot) || !isArchivePermissionRefusal(error)) throw error;
+  const mark = archivePermissionMark(location, error, "inspect recovery folder");
+  return { kind: "uninspected", cause: "access", location, archivePath, mark: { ...mark,
     remedy: { text: `Repair access to ${location} and retry the command.` } } };
 }
 
-function linkedCopyDirectory(location: string): UninspectedCopies | undefined {
-  const path = archiveCopyScope(location);
-  return path === undefined ? undefined : { kind: "uninspected", location, path,
-    mark: { reason: `Recovery copies for ${path} cross a symbolic link.`, remedy: projectionLinkRemedy(location) } };
+function linkedCopyDirectory(location: string): UninspectedCopies {
+  return { kind: "uninspected", cause: "link", location, archivePath: archiveCopyScope(location),
+    mark: { reason: `Recovery copies under ${location} cross a symbolic link.`, remedy: projectionLinkRemedy(location) } };
 }
 
 /** A leaf copy link is observable as itself. A link above the copy conceals its contents. */
 export function archiveCopyLinkHold(path: string, name: string, link: string | null): RefusedMark | null {
-  return link !== null && link !== name && isArchiveDiscoveryScope(path) ? linkedCopyDirectory(link)?.mark ?? null : null;
+  return link !== null && link !== name && isArchiveDiscoveryScope(path) ? linkedCopyDirectory(link).mark : null;
 }
 
 /** Type a named recovery copy at the point its logical destination is known. */

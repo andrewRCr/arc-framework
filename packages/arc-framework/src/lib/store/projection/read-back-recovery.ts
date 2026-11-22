@@ -12,6 +12,7 @@ import { withProjectionEntry } from "./index-memory.js";
 import { completeWriteBackRecording } from "./write-back-recording.js";
 import { recoverArchiveSave } from "./archive-save-recording.js";
 import { refuseUnreadArchiveScope } from "./archive-selection.js";
+import { archiveLayPhase, hasAcceptedArchiveInput } from "./recording-state.js";
 
 /** Settle a lost submission response before treating any live bytes as a new edit. */
 export async function recoverSubmittedArchiveEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
@@ -47,7 +48,7 @@ export async function checkUnchangedProjectionEdit(root: ProjectionRootState, in
   entry: RecordEntry, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{
     index: ProjectionIndex; edited: boolean; reobserve?: true;
   } | null> {
-  const completing = entry.opened === true && entry.persisted?.recording === true;
+  const completing = entry.persisted?.recording === true && (entry.opened === true || hasAcceptedArchiveInput(entry));
   if (completing) {
     const completed = await recordAcceptedProjectionInput(root, index, path, entry);
     ({ index, entry } = completed);
@@ -72,8 +73,9 @@ export async function checkUnchangedProjectionEdit(root: ProjectionRootState, in
 /** Install only with durable acceptance evidence, an unchanged input proof, and current local authorization. */
 async function recoverAcceptedReadBack(root: ProjectionRootState, index: ProjectionIndex, path: string,
   entry: RecordEntry, read: TakeInRead): Promise<{ index: ProjectionIndex; observation: ProjectionFileWriteObservation } | null> {
-  if (!isOwnSaveLanding(root.context.verb, root.checkout) || entry.opened !== true || entry.persisted === null
+  if (!isOwnSaveLanding(root.context.verb, root.checkout) || entry.persisted === null
     || entry.persisted.recording === true || !root.writable(path) || root.blockedByLink(path) !== null) return null;
+  if (entry.opened !== true && (archiveLayPhase(entry) !== "pending" || entry.persisted.read !== read.blob)) return null;
   const request = pendingFileRequest(root.checkout, path, { ...entry, pending: false, refused: null });
   if (await root.rights?.(request) != null) return null;
   await root.checkpoint?.();

@@ -1,7 +1,7 @@
 /** Read changed projected files through ordinary admission without submitting their writes. */
 import { join } from "node:path";
 import { PROJECTED_PERSONAL_ROOT } from "../../layout/index.js";
-import { readProjectionFolder } from "./engine-walk.js";
+import { observeProjectionFolder } from "./engine-walk.js";
 import { checkChange, projectionFileReader, readReference, readStat } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
@@ -157,7 +157,7 @@ export async function readRemovalProjectionRoots(checkout: string, roots: readon
   ports: Pick<ProjectionEnginePorts, "walkFs" | "linkFs"> = {}): Promise<readonly string[]> {
   const boundary = await readProjectionLinkBoundary(checkout, [PROJECTED_PERSONAL_ROOT], ports.linkFs);
   if (boundary(PROJECTED_PERSONAL_ROOT) !== null) return roots;
-  const entries = readProjectionFolder(join(checkout, PROJECTED_PERSONAL_ROOT), ports.walkFs);
-  if (entries === null) return roots;
-  return [...new Set([...roots, ...entries.filter(entry => entry.isDirectory()).map(entry => `${PROJECTED_PERSONAL_ROOT}/${entry.name}`)])];
+  const folder = observeProjectionFolder(join(checkout, PROJECTED_PERSONAL_ROOT), ports.walkFs);
+  if (folder.kind !== "listed") return roots;
+  return [...new Set([...roots, ...folder.entries.filter(entry => entry.isDirectory()).map(entry => `${PROJECTED_PERSONAL_ROOT}/${entry.name}`)])];
 }

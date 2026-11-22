@@ -1,8 +1,8 @@
 /** Separate copy namespace coverage from the disposition and recovery authority of each name. */
 import { parseAsideFile } from "./aside.js";
 import { coversArchivePath } from "./archive-work.js";
-import { uninspectedArchiveCopy, type UninspectedCopies } from "./aside-discovery.js";
-import type { ArchiveCopyScope, ProjectionIndex } from "./index-schema.js";
+import { concealsArchiveCopies, type UninspectedCopies } from "./aside-discovery.js";
+import { isArchiveDiscoveryScope, type ArchiveCopyScope, type ProjectionIndex } from "./index-schema.js";
 
 export interface CopyInventory {
   readonly names: ReadonlySet<string>;
@@ -11,7 +11,7 @@ export interface CopyInventory {
 
 /** A name omitted from the walk is absent only where the physical namespace was observed. */
 export function copyAbsenceProved(inventory: CopyInventory, name: string): boolean {
-  return !inventory.names.has(name) && uninspectedArchiveCopy(inventory.unread, name) === undefined;
+  return !inventory.names.has(name) && !inventory.unread.some(hold => coversArchivePath(hold.location, name));
 }
 
 /** A lost recovery name still leaves its logical destination owed. */
@@ -27,10 +27,25 @@ export function recordedCopyNames(index: ProjectionIndex): Set<string> {
   return new Set(Object.values(index.entries).flatMap(entry => entry.kind === "record" ? entry.copies.map(copy => copy.name) : []));
 }
 
+/** Attribute an incomplete copy scan using archive-specific locations or independently known archive work. */
+export function uninspectedCopyScopes(hold: UninspectedCopies, prior: readonly ArchiveCopyScope[], known: Iterable<string>,
+  unindexed: boolean): readonly string[] {
+  if (hold.archivePath !== undefined) return [hold.archivePath];
+  if (!concealsArchiveCopies(hold)) return [];
+  if (unindexed || hold.cause !== "link") return [".arc/completed"];
+  const paths = new Set(prior.map(scope => scope.path));
+  for (const name of known) {
+    if (!coversArchivePath(hold.location, name)) continue;
+    const copy = parseAsideFile(name);
+    if (copy?.role === "aside" && isArchiveDiscoveryScope(copy.path)) paths.add(copy.path);
+  }
+  return [...paths];
+}
+
 /** A new obstruction can conceal a prior unindexed scan without granting it authority over neighboring paths. */
-export function pendingCopyScopes(inventory: CopyInventory, prior: readonly ArchiveCopyScope[], unindexed: boolean): ArchiveCopyScope[] {
+export function pendingCopyScopes(scopes: readonly string[], prior: readonly ArchiveCopyScope[], unindexed: boolean): ArchiveCopyScope[] {
   const pending = new Map<string, ArchiveCopyScope>();
-  for (const { path } of inventory.unread) {
+  for (const path of scopes) {
     const recovery = unindexed || prior.some(scope => scope.unindexed && coversArchivePath(scope.path, path));
     pending.set(path, recovery ? { path, unindexed: true } : { path });
     if (recovery) continue;

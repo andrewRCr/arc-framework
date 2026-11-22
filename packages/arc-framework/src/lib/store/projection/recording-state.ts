@@ -96,6 +96,12 @@ export function acceptedArchiveInput(read: TakeInRead, inputBlob: string, retain
   return { stat: { ino, mtimeNs, lay: { kind: "pending" } }, read: read.blob, inputBlob };
 }
 
+/** A newer recording binds the raw live input to its acceptance independently of an opening. */
+export function hasAcceptedArchiveInput(entry: RecordEntry): boolean {
+  return entry.persisted?.read !== undefined && entry.persisted.inputBlob !== undefined
+    && (entry.acceptedInputStat?.lay !== undefined || entry.persisted.retained !== undefined);
+}
+
 /** A displaced input's receipt applies to its own copy and supplies no proof about the live file. */
 export function recordAcceptedArchiveCopy(entry: RecordEntry, name: string, read: string, retained?: RefusedMark): RecordEntry {
   return { ...entry, copies: entry.copies.map(copy => copy.name !== name ? copy
