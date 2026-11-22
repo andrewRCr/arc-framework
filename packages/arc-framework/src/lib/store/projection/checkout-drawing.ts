@@ -28,6 +28,12 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
     renderer, rendering: { keepPending: true, refused } });
   if (staged.status === "refused") {
     const entry = { ...sent.result.entry, pending: true, unshown: unshownConflicts(sent.result.entry, drawing.record.conflicts) };
+    if (staged.archiveBlock !== undefined) {
+      const { mark, access } = staged.archiveBlock;
+      (context.refuseArchiveChange ?? context.report)?.({ path: request.path, copy: null, mark }, access);
+      return { result: { answer: "pending", entry, ...(access ? { archiveAccess: mark } : {}) },
+        index: withProjectionEntry(index, request.path, entry) };
+    }
     context.report?.({ path: request.path, copy: null, mark: {
       reason: `The checkout clash could not be drawn: ${staged.refusal.condition}`, remedy: staged.refusal.remedy } });
     return { result: { answer: "pending", entry }, index: withProjectionEntry(index, request.path, entry) };

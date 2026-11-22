@@ -155,9 +155,7 @@ it.each([
   fault.refuse("read", null);
   const accepted = success(await h.store.read({ reference: h.primary.reference }));
   expect(accepted.content).toBe(content);
-  expect(await h.check()).toMatchObject({ kind: "refused", reason: "persist-would-refuse", remedy: {
-    text: expect.stringContaining("arc save"),
-  } });
+  expect(await h.check()).toEqual({ kind: "removable" });
   const file = join(h.checkout, h.path);
   const linkTarget = join(h.f.root, "retirement-link-target.txt");
   if (operation !== "save") await rm(file);

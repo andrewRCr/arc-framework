@@ -10,6 +10,8 @@ import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { renderStampedFile } from "./stamp.js";
 import type { ProjectionLayMode } from "./lay-mode.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { changeAside } from "./aside-access.js";
 
 /** Rendering metadata applies only when this staged file wins replacement. */
 export interface RenderedFileState {
@@ -30,6 +32,10 @@ export interface StagedFile {
   readonly rendering?: RenderedFileState;
 }
 
+/** A filesystem refusal retains the path-level hold across staging callers. */
+export type StagingResult = Extract<StoreResult<StagedFile>, { status: "ok" }>
+  | (Extract<StoreResult<StagedFile>, { status: "refused" }> & { readonly archiveBlock?: ArchiveDestinationBlocked });
+
 /**
  * Stage a record's file for its path: a Markdown file stamped with its stored content's blob id, any other as stored.
  * @param input - The checkout, the file's repository-relative path, the record, the base blob id of the version the
@@ -42,15 +48,21 @@ export async function stageRecordFile(input: {
   checkout: string; path: string; record: StoreRecord; replacing: string; writer: AsideWriterInput; format: ObjectFormat;
   layMode: ProjectionLayMode; readOnly?: boolean; renderer: RecordRenderer; content?: string; markerLength?: number;
   rendering?: Pick<RenderedFileState, "refused" | "keepPending">;
-}): Promise<StoreResult<StagedFile>> {
+}): Promise<StagingResult> {
   const rendered = await input.renderer({ path: input.path, record: input.record, content: input.content ?? input.record.content,
     stamped: input.path.endsWith(".md"), markerLength: input.markerLength });
   if (rendered.status === "refused") return rendered;
-  const staged = await stageRenderedRecordFile({ ...input, content: rendered.result.content, notices: rendered.result.notices,
-    readOnly: rendered.result.protected ?? input.readOnly,
-    rendering: { ...rendered.result.state, ...input.rendering,
-      ...(rendered.result.protected === undefined ? {} : { protected: rendered.result.protected }) } });
-  return { status: "ok", result: staged };
+  try {
+    const staged = await stageRenderedRecordFile({ ...input, content: rendered.result.content, notices: rendered.result.notices,
+      readOnly: rendered.result.protected ?? input.readOnly,
+      rendering: { ...rendered.result.state, ...input.rendering,
+        ...(rendered.result.protected === undefined ? {} : { protected: rendered.result.protected }) } });
+    return { status: "ok", result: staged };
+  } catch (error) {
+    if (!(error instanceof ArchiveDestinationBlocked)) throw error;
+    return { status: "refused", archiveBlock: error, refusal: { code: "state-unresolvable", class: "recoverable",
+      reference: input.record.reference, condition: error.mark.reason, remedy: error.mark.remedy, historyRefs: [] } };
+  }
 }
 
 /**
@@ -77,8 +89,7 @@ export async function stageRenderedRecordFile(input: {
   await createStagedFile(input.checkout, location, text, input.checkpoint);
   // A link shares its file's mode: protection and archive policy both apply before linking.
   if (input.readOnly === true || input.layMode === "read-only") {
-    await input.checkpoint?.();
-    await chmod(join(input.checkout, location), 0o444);
+    await changeAside({ ...input, location }, "set the mode of the staged file for", () => chmod(join(input.checkout, location), 0o444));
   }
   return { location, written: gitBlobId(text, format), base: { blob, version: record.version },
     ...(input.rendering === undefined ? {} : { rendering: input.rendering }) };

@@ -3,7 +3,9 @@ import { lstatSync, rmSync, rmdirSync, type BigIntStats } from "node:fs";
 import { rm } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { ASIDE_FILES_ROOT, parseAsideFile } from "./aside.js";
-import { archiveOperationError, requireArchiveDestination, sameArchiveFile } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archiveOperationError, isArchiveScope, sameArchiveFile } from "./archive-file.js";
+import { changeAside } from "./aside-access.js";
+import { linkedArchiveReturn } from "./aside-moves.js";
 
 /** The filesystem calls pruning makes, replaceable so a refusal can be exercised. */
 export interface AsideScaffoldFs {
@@ -16,14 +18,15 @@ const nativeScaffoldFs: AsideScaffoldFs = { rmdir: path => { rmdirSync(path); },
 /** Delete one spent file; only a recognized staged or aside name permits pruning its parent scaffolding. */
 export async function removeProjectionAsideFile(checkout: string, location: string, checkpoint?: () => Promise<void>, pruneParents = true,
   fs: AsideScaffoldFs = nativeScaffoldFs): Promise<void> {
-  await checkpoint?.();
-  await removeAsideFile(checkout, location, checkpoint, pruneParents, fs);
-}
-
-async function removeAsideFile(checkout: string, location: string, checkpoint?: () => Promise<void>, pruneParents = true,
-  fs: AsideScaffoldFs = nativeScaffoldFs): Promise<void> {
   const absolute = isAbsolute(location) ? location : join(checkout, location);
-  await rm(absolute, { force: true });
+  const path = parseAsideFile(relative(checkout, absolute).split(sep).join("/"))?.path ?? location;
+  try {
+    await changeAside({ checkout, path, location, checkpoint }, "remove the staged file for", () => rm(absolute, { force: true }));
+  } catch (error) {
+    // A later sweep can retry this staged name. The original mutation's outcome still governs its destination.
+    if (error instanceof ArchiveDestinationBlocked) return;
+    throw error;
+  }
   if (pruneParents) await pruneRemovedAsideFile(checkout, absolute, checkpoint, fs);
 }
 
@@ -35,28 +38,26 @@ async function pruneRemovedAsideFile(checkout: string, absolute: string, checkpo
 
 /** Discard a recovered copy only while its archive destination still belongs to the checkout. */
 export async function removeRecoveredAsideFile(checkout: string, location: string, path: string, checkpoint?: () => Promise<void>): Promise<void> {
-  await checkpoint?.();
-  requireArchiveDestination(checkout, path);
   const absolute = isAbsolute(location) ? location : join(checkout, location);
-  try { await rm(absolute, { force: true }); }
-  catch (error) { throw archiveOperationError(path, error, "remove the retained copy for"); }
+  await changeAside({ checkout, path, location, checkpoint }, "remove the retained copy for", () => rm(absolute, { force: true }));
   await pruneRemovedAsideFile(checkout, absolute, checkpoint, nativeScaffoldFs);
 }
 
 /** Discard a returned alias only while both names still identify the same regular file at unlink. */
 export async function removeReturnedAsideFile(checkout: string, location: string, path: string, checkpoint?: () => Promise<void>):
 Promise<"removed" | "retained" | "missing"> {
-  await checkpoint?.();
-  requireArchiveDestination(checkout, path);
   const absolute = join(checkout, location);
-  const aside = observeArchiveAlias(absolute, path);
-  if (aside === undefined) return "missing";
-  const target = observeArchiveAlias(join(checkout, path), path);
-  if (!aside.isFile() || !target?.isFile() || !sameArchiveFile(aside, target)) return "retained";
-  try { rmSync(absolute, { force: true }); }
-  catch (error) { throw archiveOperationError(path, error, "remove the returned copy for"); }
-  await pruneRemovedAsideFile(checkout, absolute, checkpoint);
-  return "removed";
+  const outcome = await changeAside({ checkout, path, location, checkpoint }, "remove the returned copy for", () => {
+    const aside = observeArchiveAlias(absolute, path);
+    if (aside === undefined) return "missing";
+    const target = observeArchiveAlias(join(checkout, path), path);
+    if (target?.isSymbolicLink() === true && isArchiveScope(path)) throw linkedArchiveReturn(path);
+    if (!aside.isFile() || !target?.isFile() || !sameArchiveFile(aside, target)) return "retained";
+    rmSync(absolute, { force: true });
+    return "removed";
+  });
+  if (outcome === "removed") await pruneRemovedAsideFile(checkout, absolute, checkpoint);
+  return outcome;
 }
 
 function observeArchiveAlias(absolute: string, path: string): BigIntStats | undefined {
@@ -79,10 +80,9 @@ function aliasStat(path: string): BigIntStats | undefined {
 export async function pruneAsideScaffold(checkout: string, directory: string, checkpoint?: () => Promise<void>,
   fs: AsideScaffoldFs = nativeScaffoldFs): Promise<void> {
   if (directory !== ASIDE_FILES_ROOT && !directory.startsWith(`${ASIDE_FILES_ROOT}/`)) return;
-  if (!ordinaryAncestors(checkout, directory, fs)) return;
   for (let at = directory; at.length >= ASIDE_FILES_ROOT.length; at = at.slice(0, at.lastIndexOf("/"))) {
-    if (parseAsideFile(at) !== undefined) return;
     await checkpoint?.();
+    if (!ordinaryAncestors(checkout, at, fs)) return;
     try { fs.rmdir(join(checkout, at)); }
     catch { return; }
   }

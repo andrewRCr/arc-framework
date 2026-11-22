@@ -404,7 +404,7 @@ async function linkBack(
   moves: RetriedMoves, swap: PlannedSwap, at: { readonly aside: string; readonly path: string },
 ): Promise<SwapDone> {
   const restored: RecordEntry = { ...swap.original, pending: true, copies: swap.entry.copies };
-  if ((await readAsideStat(at.aside, swap.path))?.type !== "file" || !await moves.linkOnto(at.aside, at.path)) return { entry: restored };
+  if ((await readAsideStat(at.aside, swap.path))?.type !== "file" || await moves.returnOnto(at.aside, at.path) !== "linked") return { entry: restored };
   return { entry: restored, returned: swap.copy === null ? [] : [swap.copy.name] };
 }
 

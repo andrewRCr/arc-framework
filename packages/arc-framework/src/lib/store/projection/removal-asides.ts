@@ -13,7 +13,7 @@ import type { ProjectionWalkFs } from "./engine-walk.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { selectArchivePath } from "./archive-selection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { recordedCopyNames, uninspectedCopyScopes } from "./archive-copy-recovery.js";
+import { recordedCopyNames, uninspectedCopy, uninspectedCopyScopes } from "./archive-copy-recovery.js";
 
 interface UnrecordedProjectionCopyInput {
   readonly checkout: string;
@@ -62,8 +62,9 @@ export async function checkUnrecordedProjectionCopies(input: UnrecordedProjectio
   for await (const visit of walkProjectionAsideFolder(checkout, input.walkFs, input.linkFs)) {
     if (visit.kind === "uninspected") {
       const [path] = uninspectedCopyScopes(visit, index.archiveCopyPending ?? [], known, false);
-      if (path !== undefined || visit.cause !== "link") {
-        return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path ?? visit.location, visit.mark) };
+      const withheld = index.withheldCopies.find(name => uninspectedCopy([visit], name) !== undefined);
+      if (path !== undefined || withheld !== undefined || visit.cause !== "link") {
+        return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path ?? withheld ?? visit.location, visit.mark) };
       }
       continue;
     }

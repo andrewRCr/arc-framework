@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { isManagedPath } from "../../kernel/index.js";
 import { BlobIdSchema, type AsideCopyRecord } from "./index-schema.js";
 import { PROJECTION_ASIDE_ROOT, PROJECTION_LOCAL_ROOT } from "./paths.js";
+import { changeAside } from "./aside-access.js";
 
 /** The folder under the aside folder that mirrors each moved file's path. */
 export const ASIDE_FILES_ROOT = `${PROJECTION_ASIDE_ROOT}/aside`;
@@ -101,8 +102,8 @@ function isProjectedPath(path: string): boolean {
  */
 export async function createStagedFile(checkout: string, location: string, content: string | Uint8Array, checkpoint?: () => Promise<void>): Promise<void> {
   const target = join(checkout, location);
-  await checkpoint?.();
-  await mkdir(dirname(target), { recursive: true });
-  await checkpoint?.();
-  await writeFile(target, content, { flag: "wx" });
+  const path = parseAsideFile(location)?.path ?? location;
+  const change = { checkout, path, location, checkpoint };
+  await changeAside(change, "prepare the staging directory for", () => mkdir(dirname(target), { recursive: true }));
+  await changeAside(change, "stage a rendering for", () => writeFile(target, content, { flag: "wx" }));
 }

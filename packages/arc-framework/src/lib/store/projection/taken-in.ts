@@ -255,7 +255,7 @@ async function acceptedIdReference(input: WriteBackRecording, readBack: NonNulla
  * Whether the record read back holds the content taken in, apart from the ID lines the store stamped: those whose IDs
  * the content taken in lacks, with the final newline normalized.
  */
-function sameApartFromStampedIds(readBack: string, takenIn: string, grammar: EntryListConfig | undefined): boolean {
+export function sameApartFromStampedIds(readBack: string, takenIn: string, grammar: EntryListConfig | undefined): boolean {
   if (grammar === undefined) return withFinalNewline(readBack) === withFinalNewline(takenIn);
   const carried = carriedIds(splitEntryList(takenIn, grammar));
   const split = splitEntryList(readBack, grammar);

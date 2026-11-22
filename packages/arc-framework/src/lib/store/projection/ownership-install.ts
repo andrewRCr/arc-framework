@@ -53,8 +53,7 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
     layMode: projectionLayMode(path, candidate), replacing: previous.base.blob, writer: root.context.writer,
     format: root.context.format, checkpoint: root.context.checkpoint });
   if (staged.status === "refused") {
-    const mark = markStoreRefusal(staged.refusal);
-    root.context.report?.({ path, copy: null, mark });
+    const mark = reportStageRefusal(root, path, staged);
     return withProjectionEntry(input.index, path, { ...previous, pending: true, refused: mark });
   }
   const stat = await readStat(join(root.checkout, staged.result.location));
@@ -70,6 +69,14 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
   await root.context.checkpoint?.();
   await removeProjectionAsideFile(root.checkout, staged.result.location, root.context.checkpoint);
   return index;
+}
+
+function reportStageRefusal(root: OwnershipRoot, path: string,
+  staged: Extract<Awaited<ReturnType<typeof stageRecordFile>>, { status: "refused" }>) {
+  const mark = staged.archiveBlock?.mark ?? markStoreRefusal(staged.refusal);
+  if (staged.archiveBlock !== undefined) refuseArchiveChange(root, path, mark, null, staged.archiveBlock.access);
+  else root.context.report?.({ path, copy: null, mark });
+  return mark;
 }
 
 async function linkOwnershipArrival(root: OwnershipRoot, index: ProjectionIndex, path: string, previous: RecordEntry,

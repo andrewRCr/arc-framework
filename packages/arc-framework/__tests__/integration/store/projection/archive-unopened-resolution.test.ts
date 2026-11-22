@@ -8,8 +8,11 @@ import { projectionCommand } from "../../../helpers/store/projection/command.js"
 import { seed, success, update } from "../../../helpers/store/suite-tools.js";
 import { recordReferences, sameReference } from "../../../../src/lib/store/identity.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
+import { writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
+import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
 
-it("installs an accepted unopened resolution once and requires an opening for a later edit", async () => {
+it.each(["current", "predecessor"] as const)("installs a %s unopened resolution once and requires an opening for a later edit", async receipt => {
   const h = await archiveRetirementFixture(), name = "conflicted.md", path = `${h.folder}/${name}`;
   const base = await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, name), "opening\nbase\nclosing\n");
   for (const content of ["opening\ncurrent\nclosing\n", "opening\nincoming\nclosing\n"]) {
@@ -45,7 +48,16 @@ it("installs an accepted unopened resolution once and requires an opening for a 
   const accepted = success(await h.store.read({ reference: base.reference }));
   expect(accepted.conflicts).toHaveLength(0);
   expect(submissions).toBe(1);
-  expect((await h.disk()).index.entries[path]).toMatchObject({ pending: true, persisted: { recording: true } });
+  const { index, location } = await h.disk();
+  const entry = index.entries[path];
+  expect(entry).toMatchObject({ pending: true, persisted: { recording: true } });
+  if (receipt === "predecessor") {
+    if (entry?.kind !== "record" || !entry.persisted?.recording) throw new Error("Expected an accepted recording");
+    const persisted = { ...entry.persisted };
+    delete persisted.inputBlob;
+    await writeProjectionIndex(location, withProjectionEntry(index, path, { ...entry, acceptedInputStat: undefined, persisted }));
+  }
+  expect(await checkProjectionRemoval(h.checkout, h.context)).toMatchObject({ kind: "passes" });
 
   await projectionCommand(command, ["save"]);
   expect(submissions).toBe(1);

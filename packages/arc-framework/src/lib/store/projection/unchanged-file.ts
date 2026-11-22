@@ -4,13 +4,13 @@ import { selectWriteBackBase } from "./base-selection.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { readStamplessFile } from "./stampless.js";
 import { gitBlobId } from "./blob-id.js";
-import { captureWriteBackFile, type WriteBackContext } from "./write-back.js";
+import { captureWriteBackFile, classifyLiveArchiveInput, type WriteBackContext } from "./write-back.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
-import { archiveLayPhase, hasAcceptedArchiveInput, retainedArchiveInput } from "./recording-state.js";
+import { archiveLayPhase, liveArchiveReceipt, retainedArchiveInput } from "./recording-state.js";
 import type { RefusedMark } from "./index-schema.js";
 
 type CapturedFile = Extract<Awaited<ReturnType<typeof captureWriteBackFile>>, { kind: "read" }>;
-type PendingInput = { readonly kind: "unchanged"; readonly read: TakeInRead }
+type PendingInput = { readonly kind: "unchanged"; readonly read: TakeInRead; readonly accepted?: true }
   | { readonly kind: "inaccessible"; readonly mark: RefusedMark }
   | { readonly kind: "retained"; readonly mark: RefusedMark };
 
@@ -18,37 +18,46 @@ type PendingInput = { readonly kind: "unchanged"; readonly read: TakeInRead }
 export async function readPendingProjectionInput(context: WriteBackContext, request: TakeInRequest): Promise<PendingInput | null> {
   if (!observesPendingInput(request)) return null;
   const { entry } = request;
-  const accepted = hasAcceptedArchiveInput(entry);
-  const recordedInput = accepted || entry.opened === true && entry.acceptedInputStat !== undefined ? entry.persisted?.read : undefined;
+  const receipt = liveArchiveReceipt(request);
+  const recordedInput = entry.opened === true && entry.acceptedInputStat !== undefined ? entry.persisted?.read : undefined;
   const oldConflicts = entry.markers !== null || entry.unshown.length > 0;
-  if (oldConflicts && recordedInput === undefined && entry.persisted?.retained === undefined) return null;
+  if (oldConflicts && recordedInput === undefined && receipt === null) return null;
   const file = await captureWriteBackFile(context, request);
   if (file.kind === "held") return file.archiveAccess === undefined ? null : { kind: "inaccessible", mark: file.archiveAccess };
-  return classifyPendingInput(context, request, file, recordedInput, oldConflicts);
+  const acceptance = await classifyLiveArchiveInput(context, request, file);
+  if (acceptance?.kind === "whole") return { kind: "unchanged", read: file.read, accepted: true };
+  if (acceptance !== null) return acceptance;
+  if (receipt !== null || entry.persisted?.recording === true) return null;
+  return classifyPendingRendering(context, request, file, recordedInput, oldConflicts);
 }
 
-async function classifyPendingInput(context: WriteBackContext, request: TakeInRequest, file: CapturedFile,
+async function classifyPendingRendering(context: WriteBackContext, request: TakeInRequest, file: CapturedFile,
   recordedInput: string | undefined, oldConflicts: boolean): Promise<PendingInput | null> {
   const { entry } = request;
   const retained = retainedArchiveInput(entry, file.read.blob);
   if (retained !== undefined) return { kind: "retained", mark: retained };
-  if (recordedInput === file.read.blob) {
-    const phase = archiveLayPhase(entry);
-    if (phase === "installed") return null;
-    if (phase === "pending" || matchesAcceptedObservation(entry.acceptedInputStat, file.read)) {
-      return { kind: "unchanged", read: file.read };
-    }
+  const installed = archiveLayPhase(entry) === "installed";
+  if (installed && entry.persisted?.read === file.read.blob && !followsInstalledArchiveInput(request)) return null;
+  if (!installed && recordedInput === file.read.blob && matchesAcceptedObservation(entry.acceptedInputStat, file.read)) {
+    return { kind: "unchanged", read: file.read };
   }
-  const read = oldConflicts || entry.opened !== true && hasAcceptedArchiveInput(entry)
-    ? null : await readUnchangedBase(context, request, file);
+  const read = oldConflicts ? null : await readUnchangedBase(context, request, file);
   return read === null ? null : { kind: "unchanged", read };
 }
 
+/** An older installed receipt cannot own the unchanged input to a later refresh. */
+export function followsInstalledArchiveInput({ path, entry }: Pick<TakeInRequest, "path" | "entry">): boolean {
+  return path.startsWith(".arc/completed/") && archiveLayPhase(entry) === "installed"
+    && entry.persisted?.takenIn.version !== entry.base.version;
+}
+
 /** Pending input can be recognized only when no other recorded continuation owns the file. */
-function observesPendingInput({ entry, copy, resolution, adopting }: TakeInRequest): boolean {
+function observesPendingInput(request: TakeInRequest): boolean {
+  const { entry, copy, resolution, adopting } = request;
   return entry.pending && copy === null && resolution === undefined && !adopting
     && entry.adoption === undefined && entry.handoff === undefined && entry.archiveSubmission === undefined
-    && entry.persisted?.recording !== true && entry.refused?.reason !== "bases-disagree";
+    && (entry.persisted?.recording !== true || liveArchiveReceipt(request) !== null)
+    && entry.refused?.reason !== "bases-disagree";
 }
 
 function matchesAcceptedObservation(original: TakeInRequest["entry"]["acceptedInputStat"], read: TakeInRead): boolean {

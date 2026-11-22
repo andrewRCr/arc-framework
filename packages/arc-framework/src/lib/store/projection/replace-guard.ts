@@ -18,7 +18,7 @@ import { unshownConflicts } from "./held-conflicts.js";
 import type { RecordRenderer } from "./record-render.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { adoptionResolutionHold, pendingObservedRefusal } from "./recording-state.js";
+import { adoptionResolutionHold, liveArchiveReceipt, pendingObservedRefusal } from "./recording-state.js";
 import type { WriteBackDiagnostic } from "./write-back.js";
 
 /** How many times the guard re-checks a file, taking in an edit each finds, before leaving it to the next command. */
@@ -101,7 +101,7 @@ export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardR
 }
 
 async function refuseBlockedReplacement(input: Pick<ReplaceGuardInput, "checkout" | "entry" | "staged" | "checkpoint">,
-  { mark, access }: Pick<ArchiveDestinationBlocked, "mark" | "access">): Promise<GuardResult> {
+  { mark, access }: Pick<ArchiveDestinationBlocked, "mark" | "access">): Promise<Extract<GuardResult, { cause: "unreadable" }>> {
   await discardStaged(input);
   return { kind: "unreplaced", entry: pendingObservedRefusal(input.entry, mark), cause: "unreadable", mark, access };
 }
@@ -119,29 +119,41 @@ function guardTakeInRequest(input: ReplaceGuardInput, entry: RecordEntry, base: 
 /** Re-check the file, taking in an edit found there and restaging, for at most three passes. */
 async function recheck(input: ReplaceGuardInput, reader: ProjectionFileReader, absolute: string, observed?: FileStat | null): Promise<GuardResult> {
   let { entry, staged } = input;
-  let baseline: { readonly stat: FileStat | null; readonly blob: string } = input.baseline
-    ?? { stat: entry.stat, blob: entry.written };
+  const basis = replacementBasis(input);
+  let baseline = basis.baseline;
   const replace = (replaced: RecordEntry): GuardResult => ({ kind: "replace", entry: replaced, staged, moving: baseline.blob });
   for (let pass = 1; ; pass += 1) {
     const observation = await readReplacement(input, reader, absolute, baseline, observed);
     observed = undefined;
     if (observation instanceof ArchiveDestinationBlocked) return refuseBlockedReplacement({ ...input, entry, staged }, observation);
     const { bytes, verdict } = observation;
-    if (verdict.status !== "changed") return replace(recordReplacementStat(entry, verdict));
+    const edit = replacementEdit(verdict, pass === 1 && basis.finishReceipt);
+    if (edit === null) return replace(recordReplacementStat(entry, verdict));
     const result = await input.takeIn(guardTakeInRequest(input, entry, baseOf(input.path, bytes, entry)));
-    if (result.answer !== "taken-in") return guardHeldEdit(input, result, staged, verdict.stat, baseline.blob);
+    if (result.answer !== "taken-in") return guardHeldEdit(input, result, staged, edit, baseline.blob);
     if (pass === GUARD_PASSES) return { kind: "unreplaced", entry: { ...result.entry, pending: true }, cause: "unsettled" };
     ({ entry } = result);
     baseline = result.read;
     // A removal stages nothing, so its next pass re-checks what the take-in read.
     if (staged === null) continue;
     const restaged = await restage(input, entry, staged);
-    if (restaged.status === "refused") {
-      // A refused refresh is retryable: the file stays as it is, pending for the next command.
-      return { kind: "unreplaced", entry: { ...restaged.entry, pending: true }, cause: "refresh-refused", refusal: restaged.refusal };
-    }
-    staged = restaged.result;
+    if (restaged.kind === "unreplaced") return restaged;
+    staged = restaged.file;
   }
+}
+
+function replacementEdit(verdict: ChangeVerdict, finishReceipt: boolean): FileStat | null {
+  return verdict.status !== "absent" && (verdict.status === "changed" || finishReceipt) ? verdict.stat : null;
+}
+
+function replacementBasis({ path, entry, baseline }: ReplaceGuardInput): {
+  readonly baseline: NonNullable<ReplaceGuardInput["baseline"]>; readonly finishReceipt: boolean;
+} {
+  const receipt = liveArchiveReceipt({ path, entry, copy: null });
+  return {
+    baseline: baseline ?? (receipt === null ? { stat: entry.stat, blob: entry.written } : { stat: null, blob: receipt.raw }),
+    finishReceipt: baseline === undefined && receipt !== null && (entry.persisted?.recording === true || receipt.kind !== "pending"),
+  };
 }
 
 async function guardHeldEdit(input: ReplaceGuardInput, result: Exclude<TakeInResult, { answer: "taken-in" }>,
@@ -153,7 +165,7 @@ async function guardHeldEdit(input: ReplaceGuardInput, result: Exclude<TakeInRes
 }
 
 /** A hash equal to what was written lets the next check match by stat alone. */
-function recordReplacementStat(entry: RecordEntry, verdict: Exclude<ChangeVerdict, { status: "changed" }>): RecordEntry {
+function recordReplacementStat(entry: RecordEntry, verdict: ChangeVerdict): RecordEntry {
   return verdict.status === "hashed-clean" ? { ...entry, stat: verdict.stat } : entry;
 }
 
@@ -216,20 +228,23 @@ function baseOf(path: string, bytes: Uint8Array, entry: RecordEntry): TakeInBase
   return { kind: "stamp", stamp: parseStampedFile(new TextDecoder().decode(bytes)).stamp };
 }
 
-type RestageResult = { readonly status: "ok"; readonly result: StagedFile }
-  | { readonly status: "refused"; readonly refusal: StoreRefusal; readonly entry: RecordEntry };
+type RestageResult = { readonly kind: "staged"; readonly file: StagedFile } | Extract<GuardResult, { kind: "unreplaced" }>;
 
 /** Re-read the record's current version and stage it in place of what was staged. */
 async function restage(input: ReplaceGuardInput, entry: RecordEntry, staged: StagedFile): Promise<RestageResult> {
   const read = await input.store.read({ reference: entry.reference });
-  if (read.status !== "ok") return { ...read, entry };
+  if (read.status !== "ok") return { kind: "unreplaced", entry: { ...entry, pending: true }, cause: "refresh-refused", refusal: read.refusal };
   const restaged = await stageRecordFile({
     checkout: input.checkout, path: input.path, record: read.result, replacing: entry.base.blob, writer: input.writer,
     format: input.format, layMode: projectionLayMode(input.path, entry, input.saveLanding),
     readOnly: entry.protected, renderer: input.renderer, checkpoint: input.checkpoint,
   });
-  if (restaged.status === "refused") return { ...restaged, entry: { ...entry, unshown: unshownConflicts(entry, read.result.conflicts) } };
+  if (restaged.status === "refused") {
+    const held = { ...entry, pending: true, unshown: unshownConflicts(entry, read.result.conflicts) };
+    if (restaged.archiveBlock !== undefined) return refuseBlockedReplacement({ ...input, entry: held, staged }, restaged.archiveBlock);
+    return { kind: "unreplaced", entry: held, cause: "refresh-refused", refusal: restaged.refusal };
+  }
   await input.checkpoint?.();
   await removeProjectionAsideFile(input.checkout, staged.location, input.checkpoint, false);
-  return restaged;
+  return { kind: "staged", file: restaged.result };
 }

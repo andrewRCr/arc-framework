@@ -1,7 +1,7 @@
 /** Preparing an aside directory belongs to the archive move's scoped refusal boundary. */
 import { expect, it, vi } from "vitest";
 import { dirname, join } from "node:path";
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, rename, symlink, writeFile } from "node:fs/promises";
 import { prepareSwap, SWAP_WRITER } from "../../../helpers/store/projection/swap-fixture.js";
 import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
 import { ASIDE_FILES_ROOT } from "../../../../src/lib/store/projection/aside.js";
@@ -34,6 +34,27 @@ it("keeps the original archive file if preparation for its forward capture is re
     fault.directory = "";
     await removeGitBackedDirs([h.seeded.checkout]);
   }
+});
+
+it("keeps the original archive file if the recovery directory becomes a link after recheck", async () => {
+  const h = await prepareSwap({ path: ".arc/completed/2026-q4/01_alpha/meta-alpha.md" });
+  const { checkout } = h.seeded;
+  const before = await readFile(h.file);
+  const folder = join(checkout, ASIDE_FILES_ROOT, h.path.slice(".arc/".length));
+  const outside = join(checkout, "unrelated-directory");
+  const sentinel = "Unrelated content.\n";
+  try {
+    await mkdir(outside);
+    await writeFile(join(outside, "sentinel"), sentinel);
+    const result = await h.swap({ hooks: { afterRecheck: async () => {
+      await rename(folder, folder + "-original");
+      await symlink(outside, folder, "junction");
+    } } });
+    expect(result.unreplaced).toContain(h.path);
+    expect(await readFile(h.file)).toEqual(before);
+    expect(await readdir(outside)).toEqual(["sentinel"]);
+    expect(await readFile(join(outside, "sentinel"), "utf8")).toBe(sentinel);
+  } finally { await removeGitBackedDirs([checkout]); }
 });
 
 it("keeps the displaced edit and installed archive file if put-back preparation is refused", async () => {

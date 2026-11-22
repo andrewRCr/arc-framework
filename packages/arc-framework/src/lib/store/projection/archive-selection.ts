@@ -1,5 +1,5 @@
 /** Ask whether a selected archive path is this checkout's once per command, keeping the answer, or a refusal met at a change. */
-import { archiveDestination } from "./archive-file.js";
+import { archiveDestination, isArchiveScope } from "./archive-file.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { isProjectionEntryUnsettled } from "./index-file.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
@@ -83,7 +83,7 @@ export function heldArchivePath(root: Pick<ArchiveSelectionRoot, "archiveSelecti
  */
 export function refuseArchiveChange(root: ArchiveSelectionRoot, path: string, mark: RefusedMark, copy: string | null = null,
   access = false): void {
-  if (!path.startsWith(".arc/completed/")) {
+  if (!isArchiveScope(path)) {
     root.context.report?.({ path, copy, mark });
     return;
   }

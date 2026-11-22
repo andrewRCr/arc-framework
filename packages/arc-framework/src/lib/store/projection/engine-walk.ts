@@ -14,7 +14,7 @@ export interface ProjectionWalkFs {
   readonly readdir: (path: string) => readonly WalkEntry[];
   /** Names alone, read only where a typed read failed while its folder still exists. */
   readonly readdirNames?: (path: string) => readonly string[];
-  readonly lstat?: (path: string) => Pick<Stats, "isDirectory" | "isFile" | "isSymbolicLink">;
+  readonly lstat?: (path: string) => Pick<Stats, "isDirectory" | "isFile" | "isSymbolicLink"> & Partial<Pick<Stats, "dev" | "ino">>;
 }
 
 /** Regular files eligible for inspection and links retained only for repair reporting. */
@@ -24,6 +24,7 @@ export interface ProjectionWalkResult {
 }
 
 const nativeWalkFs: ProjectionWalkFs = { readdir: path => readdirSync(path, { withFileTypes: true }) };
+type WalkOutput = { pending: string[]; files: string[]; links: string[] };
 
 /** Enumerate typed folder entries, statting only those typed as links, yielding between folders for concurrent Git work. */
 export async function walkProjectionRoots(checkout: string, roots: readonly string[],
@@ -37,14 +38,23 @@ export async function walkProjectionRoots(checkout: string, roots: readonly stri
     if (retype?.delete(path) && !visitRetryScope(checkout, path, fs, archiveAccess, output)) continue;
     if (canEnumerate?.(path) === false) continue;
     const folder = readWalkFolder(checkout, path, fs, archiveAccess);
-    if (folder?.kind === "listed") collectEntries(path, folder.entries, output);
-    if (folder?.kind === "changed") recordChangedFolder(path, folder.stat, archiveAccess, output);
+    recordFolderObservation(path, folder, archiveAccess, output);
     await new Promise<void>(resolve => setImmediate(resolve));
   }
   return { files: files.sort(), links: links.sort() };
 }
 
-async function selectWalkRoots(checkout: string, roots: readonly string[], linkFs?: ProjectionLinkFs, archiveAccess?: Map<string, RefusedMark>) {
+function recordFolderObservation(path: string, folder: ReturnType<typeof readWalkFolder>, archiveAccess: Map<string, RefusedMark> | undefined,
+  output: WalkOutput): void {
+  if (folder?.kind === "listed") collectEntries(path, folder.entries, output);
+  if (folder?.kind === "replaced") recordChangedFolder(path, folder.stat, archiveAccess, output);
+  if (folder?.kind !== "unobserved") return;
+  const mark = unobservedFolderMark(path);
+  if (archiveAccess === undefined || !isArchiveScope(path)) throw new Error(mark.reason);
+  archiveAccess.set(path, mark);
+}
+
+async function selectWalkRoots(checkout: string, roots: readonly string[], linkFs?: ProjectionLinkFs, archiveAccess?: Map<string, RefusedMark>): Promise<WalkOutput> {
   const selected = roots.filter(path => !isExcludedProjectionPath(path) && !archiveAccess?.has(path));
   const boundary = await readProjectionLinkBoundary(checkout, selected, linkFs,
     archiveAccess === undefined ? undefined : (path, mark) => { archiveAccess.set(path, mark); });
@@ -53,7 +63,7 @@ async function selectWalkRoots(checkout: string, roots: readonly string[], linkF
     const link = boundary(path);
     return link === null ? [] : [link];
   }))];
-  return { pending, files: [] as string[], links };
+  return { pending, files: [], links };
 }
 
 function visitRetryScope(checkout: string, path: string, fs: ProjectionWalkFs, archiveAccess: Map<string, RefusedMark> | undefined,
@@ -73,10 +83,9 @@ function visitRetryScope(checkout: string, path: string, fs: ProjectionWalkFs, a
 
 function recordChangedFolder(path: string, stat: FolderStat, archiveAccess: Map<string, RefusedMark> | undefined,
   output: { files: string[]; links: string[] }): void {
-  if (archiveAccess === undefined || !isArchiveScope(path)) return;
   if (stat.isFile()) output.files.push(path);
   else if (stat.isSymbolicLink()) output.links.push(path);
-  else archiveAccess.set(path, archiveFileChangeMark(path));
+  else if (isArchiveScope(path)) archiveAccess?.set(path, archiveFileChangeMark(path));
 }
 
 function readWalkFolder(checkout: string, path: string, fs: ProjectionWalkFs, archiveAccess?: Map<string, RefusedMark>) {
@@ -97,10 +106,16 @@ type ChildAccessHold = (name: string, error: unknown) => void;
 type FolderStat = ReturnType<NonNullable<ProjectionWalkFs["lstat"]>>;
 type FolderObservation = { readonly kind: "listed"; readonly entries: readonly WalkEntry[] }
   | { readonly kind: "absent" }
-  | { readonly kind: "changed"; readonly stat: FolderStat };
+  | { readonly kind: "replaced"; readonly stat: FolderStat }
+  | { readonly kind: "unobserved" };
 
-function collectEntries(path: string, entries: ReturnType<ProjectionWalkFs["readdir"]>,
-  output: { pending: string[]; files: string[]; links: string[] }): void {
+/** A folder's contents still need observation before its inventory can be closed. */
+export function unobservedFolderMark(folder: string): RefusedMark {
+  return { reason: `Could not finish enumerating ${folder}.`,
+    remedy: { text: "Restore access to the folder or let the editor finish, then retry the command." } };
+}
+
+function collectEntries(path: string, entries: ReturnType<ProjectionWalkFs["readdir"]>, output: WalkOutput): void {
   for (const entry of entries) {
     const child = `${path}/${entry.name}`;
     if (entry.isDirectory()) output.pending.push(child);
@@ -137,16 +152,30 @@ function readSurvivingEntries(fs: ProjectionWalkFs, folder: string, skip: (name:
   const lstat = walkLstat(fs), names = fs.readdirNames ?? (path => readdirSync(path));
   const stat = readFolderStat(lstat, folder);
   if (stat === null) return { kind: "absent" };
-  if (!stat.isDirectory()) return { kind: "changed", stat };
+  if (!stat.isDirectory()) return { kind: "replaced", stat };
+  let listed: readonly string[];
   try {
-    return { kind: "listed", entries: names(folder).filter(name => !skip(name)).flatMap(name => deferTyping?.(name) === true
-      ? [{ name, isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false }]
-      : statEntry(lstat, folder, name, hold)) };
+    listed = names(folder);
   } catch (error) {
     if (!missingPath(error)) throw error;
-    const current = readFolderStat(lstat, folder);
-    return current === null ? { kind: "absent" } : { kind: "changed", stat: current };
+    return recheckListedFolder(lstat, folder, stat) ?? { kind: "unobserved" };
   }
+  const beforeTyping = recheckListedFolder(lstat, folder, stat);
+  if (beforeTyping !== null) return beforeTyping;
+  const entries = listed.filter(name => !skip(name)).flatMap(name => deferTyping?.(name) === true
+    ? [{ name, isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false }]
+    : statEntry(lstat, folder, name, hold));
+  return recheckListedFolder(lstat, folder, stat) ?? { kind: "listed", entries };
+}
+
+function recheckListedFolder(lstat: NonNullable<ProjectionWalkFs["lstat"]>, folder: string, listed: FolderStat): FolderObservation | null {
+  const current = readFolderStat(lstat, folder);
+  if (current === null) return { kind: "absent" };
+  if (!current.isDirectory()) return { kind: "replaced", stat: current };
+  if (current.ino !== undefined && listed.ino !== undefined && (current.ino !== listed.ino || current.dev !== listed.dev)) {
+    return { kind: "unobserved" };
+  }
+  return null;
 }
 
 function readFolderStat(lstat: NonNullable<ProjectionWalkFs["lstat"]>, folder: string): FolderStat | null {

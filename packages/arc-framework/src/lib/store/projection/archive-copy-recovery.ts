@@ -9,9 +9,14 @@ export interface CopyInventory {
   readonly unread: readonly UninspectedCopies[];
 }
 
+/** Look up a physical coverage gap regardless of the recovery name's logical destination. */
+export function uninspectedCopy(holds: readonly UninspectedCopies[], name: string): UninspectedCopies | undefined {
+  return holds.find(hold => coversArchivePath(hold.location, name));
+}
+
 /** A name omitted from the walk is absent only where the physical namespace was observed. */
 export function copyAbsenceProved(inventory: CopyInventory, name: string): boolean {
-  return !inventory.names.has(name) && !inventory.unread.some(hold => coversArchivePath(hold.location, name));
+  return !inventory.names.has(name) && uninspectedCopy(inventory.unread, name) === undefined;
 }
 
 /** A lost recovery name still leaves its logical destination owed. */

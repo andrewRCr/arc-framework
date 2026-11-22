@@ -11,6 +11,10 @@ import { gateRead, projectionReadGate, type ReadGateVerdict } from "./read-gate.
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { hasAcceptedLanding, waitingEditMark } from "./archive-admission.js";
 import { isUnreadRebuildEntry, unreadRebuildHold } from "./materialization-file.js";
+import { pendingFileRequest } from "./pending-request.js";
+import { readPendingProjectionInput } from "./unchanged-file.js";
+import { liveArchiveReceipt } from "./recording-state.js";
+import type { WriteBackContext } from "./write-back.js";
 
 /** Unavailable evidence precedes any semantic refusal over the file. */
 export type ArchiveInspection = { readonly kind: "refused" | "unobservable"; readonly mark: RefusedMark; readonly access?: boolean } | null;
@@ -23,8 +27,10 @@ export function canRecoverArchiveEntry(entry: ProjectionIndex["entries"][string]
   return entry !== undefined && (entry.opened === true || hasAcceptedLanding(entry));
 }
 
+type ArchiveInspectionRoot = AdoptionObservationRoot & { readonly context: WriteBackContext };
+
 /** Share detection and remedy precedence between sync's report and retirement's read and write boundaries. */
-export async function inspectArchivedProjectionFile(root: AdoptionObservationRoot, index: ProjectionIndex, path: string,
+export async function inspectArchivedProjectionFile(root: ArchiveInspectionRoot, index: ProjectionIndex, path: string,
   observation?: ArchiveObservation): Promise<ArchiveInspection> {
   if (!path.startsWith(".arc/completed/") || isExcludedProjectionPath(path)) return null;
   const entry = index.entries[path];
@@ -37,11 +43,7 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
   // A withheld file keeps its own remedy: arc save never sends one, so the waiting edit's remedy cannot clear it.
   if (entry !== undefined && (entry.kind !== "record" || entry.withheld || canRecoverArchiveEntry(entry))) return null;
   try {
-    const gate = await readArchiveEdit(root, path, entry, observation);
-    if (gate === null || gate.kind === "absent" || gate.kind === "no-edit") return null;
-    const denied = entry?.kind === "record" ? await archiveProtection(root, entry.reference)
-      : await newArchiveRemedy(root, index, path, gate);
-    return denied ?? { kind: "refused", mark: waitingEditMark(root.checkout, path, entry !== undefined) };
+    return await inspectArchiveEdit(root, index, path, entry, observation);
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return { kind: "unobservable", mark: error.mark, access: error.access };
     return { kind: "unobservable", mark: { reason: `Cannot observe archived file ${path}: ${error instanceof Error ? error.message : String(error)}`,
@@ -49,6 +51,22 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
   }
 }
 
+async function inspectArchiveEdit(root: ArchiveInspectionRoot, index: ProjectionIndex, path: string,
+  entry: RecordEntry | undefined, observation?: ArchiveObservation): Promise<ArchiveInspection> {
+  if (entry !== undefined) {
+    const request = pendingFileRequest(root.checkout, path, entry);
+    if (liveArchiveReceipt(request) !== null) {
+      const input = await readPendingProjectionInput(root.context, request);
+      if (input?.kind === "unchanged" && input.accepted) return null;
+      if (input?.kind === "retained") return { kind: "refused", mark: input.mark };
+      if (input?.kind === "inaccessible") return { kind: "unobservable", mark: input.mark, access: true };
+    }
+  }
+  const gate = await readArchiveEdit(root, path, entry, observation);
+  if (gate === null || gate.kind === "absent" || gate.kind === "no-edit") return null;
+  const denied = entry === undefined ? await newArchiveRemedy(root, index, path, gate) : await archiveProtection(root, entry.reference);
+  return denied ?? { kind: "refused", mark: waitingEditMark(root.checkout, path, entry !== undefined) };
+}
 
 async function readArchiveEdit(root: AdoptionObservationRoot, path: string, entry: RecordEntry | undefined,
   observation?: ArchiveObservation): Promise<ReadGateVerdict | null> {

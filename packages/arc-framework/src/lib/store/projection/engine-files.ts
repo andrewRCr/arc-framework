@@ -25,7 +25,7 @@ import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { refuseUnreadArchiveScope, selectArchivePath } from "./archive-selection.js";
 import { holdWaitingArchiveEdit } from "./archive-waiting.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
-import { archiveLayPhase, hasArchiveRecording } from "./recording-state.js";
+import { hasArchiveRecording, liveArchiveReceipt } from "./recording-state.js";
 
 /** Check walked files, using short-lived start observations only until any recovery mutates files or publishes. */
 export async function writeBackProjectionFiles(root: ProjectionRootState, initial: ProjectionIndex, files: readonly string[],
@@ -153,7 +153,7 @@ async function checkIndexedFile(root: ProjectionRootState, index: ProjectionInde
     const completed = await recordAcceptedProjectionInput(root, index, path, entry);
     return { index: completed.index, edited: false, reobserve: true };
   }
-  const unchanged = resolution === null && needsReadBackCheck(entry, changed)
+  const unchanged = resolution === null && needsReadBackCheck(path, entry, changed)
     ? await checkUnchangedProjectionEdit(root, index, path, entry, onFile) : null;
   if (unchanged !== null) return unchanged;
   if (changed.status !== "changed" && resolution === null && entry.persisted?.recording !== true) {
@@ -174,9 +174,8 @@ function continuesAdoptionReadBack(entry: RecordEntry, resolution: ProjectionRes
   return entry.adoption?.kind === "read-back" && !resolvesHold;
 }
 
-function needsReadBackCheck(entry: RecordEntry, changed: ChangeVerdict): boolean {
-  // Recovered text can match the staged rendering even when its first lay has yet to complete.
-  return changed.status === "changed" || archiveLayPhase(entry) === "pending" && entry.persisted?.read === entry.written;
+function needsReadBackCheck(path: string, entry: RecordEntry, changed: ChangeVerdict): boolean {
+  return changed.status === "changed" || liveArchiveReceipt({ path, entry, copy: null }) !== null;
 }
 
 async function checkRefusedAlias(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,

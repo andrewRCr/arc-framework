@@ -101,7 +101,7 @@ function archiveAccessMark(path: string, error: unknown): RefusedMark {
 /** An archive destination observation or mutation that must stay held. */
 export class ArchiveDestinationBlocked extends Error {
   constructor(readonly mark: RefusedMark, readonly access = false, readonly code?: string,
-    readonly destinationCause?: ArchiveDestination["cause"]) { super(mark.reason); }
+    readonly destinationCause?: ArchiveDestination["cause"] | "parent") { super(mark.reason); }
 }
 
 /** Preserve the native permission code so guarded operations can still use their bounded retry. */

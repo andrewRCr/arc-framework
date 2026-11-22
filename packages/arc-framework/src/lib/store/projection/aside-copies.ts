@@ -286,7 +286,7 @@ export async function putBack(
       }
     }
     // A save that recreated the path in between wins it; the copy stays aside, and the replacement beside it.
-    if (!await moves.linkOnto(at.copy, at.path)) return { ...aside, entry: retained };
+    if (await moves.returnOnto(at.copy, at.path) !== "linked") return { ...aside, entry: retained };
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry: retained, mark: error.mark, access: error.access };
     throw error;

@@ -1,4 +1,5 @@
 import { mkdir, readFile, rename, rm, symlink, writeFile, lstat } from "node:fs/promises";
+import { readdirSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
@@ -29,6 +30,38 @@ it("classifies every child of an opaque directory even when a descendant retry o
   const settled = (await h.disk()).index;
   expect(settled.entries[known]).toMatchObject({ withheld: true });
   expect(settled.entries[extra], JSON.stringify({ waiting, state: settled.state })).toMatchObject({ withheld: true });
+});
+
+it("observes the file that replaces an owed folder while its children are being typed", async () => {
+  const h = await archiveRetirementFixture(), { index, location } = await h.disk();
+  const path = h.folder + "/replaced", folder = join(h.checkout, path);
+  const replacement = join(h.checkout, "regular-replacement");
+  await mkdir(folder);
+  await writeFile(join(folder, "old-child"), "Old child.\n");
+  await writeFile(replacement, "Replacement edit.\n");
+  await writeProjectionIndex(location, { ...index, state: null, archiveDiscoveryPending: [path], archiveDiscoveryDirectories: [path] });
+  let replaced = false;
+  const ports = () => ({ ...createProjectionEnginePorts(h.checkout), walkFs: {
+    readdir(absolute: string) {
+      if (absolute === folder && !replaced) throw Object.assign(new Error("A child vanished during enumeration"), { code: "ENOENT" });
+      return readdirSync(absolute, { withFileTypes: true });
+    },
+    readdirNames(absolute: string) {
+      const names = readdirSync(absolute);
+      if (absolute === folder && !replaced) {
+        renameSync(folder, join(h.checkout, "old-directory"));
+        renameSync(replacement, folder);
+        replaced = true;
+      }
+      return names;
+    },
+  } });
+  await projectionCommand({ ...h.input, ports }, ["status"]);
+  const settled = (await h.disk()).index;
+  expect(replaced).toBe(true);
+  expect(await readFile(folder, "utf8")).toBe("Replacement edit.\n");
+  expect(settled.entries[path]).toMatchObject({ withheld: true });
+  expect(settled.archiveDiscoveryPending ?? []).toEqual([]);
 });
 
 it("resumes a still-present recovery alias after a directory link is repaired", async () => {

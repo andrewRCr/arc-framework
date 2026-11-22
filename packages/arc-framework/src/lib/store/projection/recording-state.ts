@@ -1,7 +1,7 @@
 /** Refuse merge-base consumption while accepted input still needs its landed identities recorded. */
 import type { AsideCopyRecord, FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { StoreRefusal } from "../refusal.js";
-import type { TakeInRead } from "./take-in-port.js";
+import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
 
 /** Identify an unfinished mapping without reading its raw copy or choosing another base. */
 export function unfinishedRecordingRefusal(entry: RecordEntry): StoreRefusal | null {
@@ -100,6 +100,23 @@ export function acceptedArchiveInput(read: TakeInRead, inputBlob: string, retain
 export function hasAcceptedArchiveInput(entry: RecordEntry): boolean {
   return entry.persisted?.read !== undefined && entry.persisted.inputBlob !== undefined
     && (entry.acceptedInputStat?.lay !== undefined || entry.persisted.retained !== undefined);
+}
+
+/** Locate the live receipt that can still own the first installation of this file. */
+export function liveArchiveReceipt({ path, entry, copy, adopting }: Pick<TakeInRequest, "path" | "entry" | "copy" | "adopting">):
+  { readonly raw: string; readonly kind: "pending" | "linking" | "partial" | "predecessor" } | null {
+  const persisted = entry.persisted;
+  if (!path.startsWith(".arc/completed/") || copy !== null || adopting || entry.adoption !== undefined
+    || entry.handoff !== undefined || entry.archiveSubmission !== undefined || entry.refused?.reason === "bases-disagree"
+    || persisted?.read === undefined) return null;
+  if (persisted.retained !== undefined) return { raw: persisted.read, kind: "partial" };
+  const phase = archiveLayPhase(entry);
+  if (phase === "pending" || phase === "linking") return { raw: persisted.read, kind: phase };
+  if (phase === undefined && persisted.recording === true && persisted.takenIn.kind === "copy"
+    && !entry.copies.some(copy => copy.landed === persisted.read || copy.writeBackSent)) {
+    return { raw: persisted.read, kind: "predecessor" };
+  }
+  return null;
 }
 
 /** A displaced input's receipt applies to its own copy and supplies no proof about the live file. */

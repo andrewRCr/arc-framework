@@ -1,7 +1,7 @@
 /** Read changed projected files through ordinary admission without submitting their writes. */
 import { join } from "node:path";
 import { PROJECTED_PERSONAL_ROOT } from "../../layout/index.js";
-import { observeProjectionFolder } from "./engine-walk.js";
+import { observeProjectionFolder, unobservedFolderMark } from "./engine-walk.js";
 import { checkChange, projectionFileReader, readReference, readStat } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
@@ -25,6 +25,7 @@ import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { firstUnreadArchiveScope, retirementSelection, selectArchivePath } from "./archive-selection.js";
 import { releasesAbsentWithheld } from "./withheld.js";
 import type { ArchiveDiscoveryRoot } from "./archive-discovery.js";
+import { observeRecordingPayload } from "./write-back-recording.js";
 
 /** Discovery roots and the check's one guard join the shared target-local observation inputs. */
 export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput {
@@ -107,11 +108,30 @@ async function checkRecordRemoval(input: ProjectionRemovalFilesInput, path: stri
       exec: root.ports.exec, verb: root.context.verb }, entry.reference);
     if (denied !== null) return markedRemovalRefusal(root.checkout, path, denied, input.disposition);
   }
-  if (recording !== null) return checkUnfinishedRecording(root, path, guard, input.disposition);
+  if (recording !== null) {
+    const accepted = await readPendingProjectionInput(root.context, pendingFileRequest(root.checkout, path, entry));
+    if (accepted?.kind === "unchanged" && accepted.accepted) return checkAcceptedRecording(input, path, entry, guard);
+    if (accepted?.kind === "inaccessible") return { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, accepted.mark) };
+    if (accepted?.kind === "retained") return markedRemovalRefusal(root.checkout, path, accepted.mark, input.disposition);
+    return checkUnfinishedRecording(root, path, guard, input.disposition);
+  }
   if (entry.adoption?.kind === "read-back") return checkPendingProjectionReadBack(input, path, guard);
   // Persistence resends an attached adoption's observed file whatever its stat records, so the check predicts that send.
   if (entry.adoption?.kind === "write-back") return checkRemovalSend(root, pendingFileRequest(root.checkout, path, entry), guard, input.disposition);
   return checkIndexedRemovalEdit(root, path, entry, reference, guard, input.disposition);
+}
+
+/** Predict the store and retained reads that retirement needs before it can lay an accepted file. */
+async function checkAcceptedRecording({ root, disposition }: ProjectionRemovalFilesInput, path: string, entry: RecordEntry,
+  guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
+  const guarded = await guard(path);
+  if (guarded.kind !== "passes") return guarded;
+  const observed = await observeRecordingPayload(root.context, entry, { checkout: root.checkout, path });
+  if (observed.kind === "held") return markedRemovalRefusal(root.checkout, path, observed.mark, disposition);
+  const current = await root.store.read({ reference: entry.reference });
+  return current.status === "ok" ? guarded : markedRemovalRefusal(root.checkout, path, {
+    reason: current.refusal.condition, remedy: current.refusal.remedy,
+  }, disposition);
 }
 
 /** Persist finishes the recording where the ignore check lets it install, so the hold names the guard's remedy or that save. */
@@ -158,6 +178,7 @@ export async function readRemovalProjectionRoots(checkout: string, roots: readon
   const boundary = await readProjectionLinkBoundary(checkout, [PROJECTED_PERSONAL_ROOT], ports.linkFs);
   if (boundary(PROJECTED_PERSONAL_ROOT) !== null) return roots;
   const folder = observeProjectionFolder(join(checkout, PROJECTED_PERSONAL_ROOT), ports.walkFs);
+  if (folder.kind === "unobserved") throw new Error(unobservedFolderMark(PROJECTED_PERSONAL_ROOT).reason);
   if (folder.kind !== "listed") return roots;
   return [...new Set([...roots, ...folder.entries.filter(entry => entry.isDirectory()).map(entry => `${PROJECTED_PERSONAL_ROOT}/${entry.name}`)])];
 }

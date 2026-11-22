@@ -81,15 +81,11 @@ describe("the replace guard", () => {
     await chmod(h.file, 0o644);
     await h.save("# Cohort: one\n\nA correction taken in before the next check.\n");
     const takeIn = landing(h.fixture.store, () => h.entry.base.version);
-    const result = await h.guard(async request => {
-      const landed = await takeIn(request);
-      await mkdir(join(dirname(h.file), ".git"));
-      return landed;
-    });
-    // The guard reads; the move into place asks whether the path is this checkout's just before it changes the path.
+    const result = await h.guard(takeIn);
     if (result.kind !== "replace") throw new Error(`Expected a replacement, got ${result.kind}`);
     const swapped = await swapBatch({ location: h.seeded.location, checkout: h.seeded.checkout, index: h.seeded.index,
-      files: [{ path, replace: result }], readBack: false, writer: WRITER, format: "sha1", takeIn });
+      files: [{ path, replace: result }], readBack: false, writer: WRITER, format: "sha1", takeIn,
+      hooks: { afterRecheck: () => mkdir(join(dirname(h.file), ".git")).then(() => undefined) } });
     expect(swapped.index.entries[path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("another checkout") } });
     expect(await readFile(h.file, "utf8")).toContain("A correction taken in before the next check.");
   });

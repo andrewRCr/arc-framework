@@ -98,7 +98,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
         context.report?.(diagnostic);
         return refuseProjectionEdit(request.entry, input.mark);
       }
-      if (input?.kind === "unchanged") {
+      if (input?.kind === "unchanged" && request.entry.persisted?.recording !== true) {
         root.unsent.delete(request.path);
         return { answer: "no-edit", entry: request.entry, read: input.read };
       }

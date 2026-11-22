@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { lstatSync } from "node:fs";
 import { ASIDE_FILES_ROOT, parseAsideFile } from "./aside.js";
-import { observeProjectionFolder, type ProjectionWalkFs, type WalkEntry } from "./engine-walk.js";
+import { observeProjectionFolder, unobservedFolderMark, type ProjectionWalkFs, type WalkEntry } from "./engine-walk.js";
 import { archiveOperationError, archivePermissionMark, isArchivePermissionRefusal } from "./archive-file.js";
 import { readFile } from "node:fs/promises";
 import { readStat } from "./change-detection.js";
@@ -34,13 +34,6 @@ function archiveCopyScope(location: string): string | undefined {
 /** Whether a physical obstruction can conceal the archive copy branch. */
 export function concealsArchiveCopies({ location }: UninspectedCopies): boolean {
   return coversArchivePath(location, archiveAsideRoot);
-}
-
-/** Find the reason an archive recovery name could not be observed. */
-export function uninspectedArchiveCopy(holds: readonly UninspectedCopies[], location: string): UninspectedCopies | undefined {
-  const copy = parseAsideFile(location);
-  if (copy === undefined || !isArchiveDiscoveryScope(copy.path)) return undefined;
-  return holds.find(hold => coversArchivePath(hold.location, location));
 }
 
 /** Walk typed entries without following directory links or entering an opaque recovery directory. */
@@ -87,9 +80,9 @@ function scanCopyDirectory(checkout: string, directory: string, walkFs?: Project
   for (const entry of entries ?? []) {
     const location = `${directory}/${entry.name}`;
     const named = parseAsideFile(location);
-    if (named?.role === "aside" || named !== undefined && !entry.isDirectory()) visits.push({ kind: "copy", location });
-    else if (named === undefined && entry.isDirectory()) folders.push(location);
-    else if (named === undefined && entry.isSymbolicLink()) visits.push(linkedCopyDirectory(location));
+    if (entry.isDirectory() && named?.role !== "aside") folders.push(location);
+    else if (named !== undefined) visits.push({ kind: "copy", location });
+    else if (entry.isSymbolicLink()) visits.push(linkedCopyDirectory(location));
   }
   return { visits, folders, listed: entries !== null };
 }
@@ -104,10 +97,10 @@ function asideDirectoryEntries(checkout: string, directory: string, walkFs?: Pro
     const result = observeProjectionFolder(join(checkout, directory), walkFs, undefined,
       (name, error) => { unread.push(deniedCopyDirectory(`${directory}/${name}`, error)); },
       name => parseAsideFile(`${directory}/${name}`)?.role === "aside");
-    if (result.kind === "changed") unread.push(result.stat.isSymbolicLink() ? linkedCopyDirectory(directory) : {
+    if (result.kind === "unobserved" || result.kind === "replaced") unread.push(
+      result.kind === "replaced" && result.stat.isSymbolicLink() ? linkedCopyDirectory(directory) : {
       kind: "uninspected", cause: "changed", location: directory, archivePath: archiveCopyScope(directory),
-      mark: { reason: `The recovery folder ${directory} changed while it was being listed.`,
-        remedy: { text: "Restore the recovery folder, then retry the command." } },
+      mark: unobservedFolderMark(directory),
     });
     return { entries: result.kind === "listed" ? result.entries : null, unread };
   } catch (error) {
@@ -128,7 +121,7 @@ function inspectCopyDirectory(checkout: string, location: string, walkFs?: Proje
 
 function deniedCopyDirectory(location: string, error: unknown): UninspectedCopies {
   const archivePath = archiveCopyScope(location);
-  if (archivePath === undefined && !coversArchivePath(location, archiveAsideRoot) || !isArchivePermissionRefusal(error)) throw error;
+  if (!isArchivePermissionRefusal(error)) throw error;
   const mark = archivePermissionMark(location, error, "inspect recovery folder");
   return { kind: "uninspected", cause: "access", location, archivePath, mark: { ...mark,
     remedy: { text: `Repair access to ${location} and retry the command.` } } };
