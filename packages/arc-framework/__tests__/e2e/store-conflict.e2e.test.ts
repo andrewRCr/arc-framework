@@ -56,13 +56,13 @@ it.each(["default", "separate"] as const)("executes the exact inspection and exp
   expect(await git(cwd, [...gitArgs, "ls-tree", "-r", "--name-only", captured.history])).not.toContain(`conflicts/${captured.reference.key}.json`);
 }, 60_000);
 
-it("rejects non-work-item conflict kinds and keeps the namespace hidden from ordinary help", async () => {
+it("rejects non-work-item conflict kinds and lists the namespace in ordinary help", async () => {
   const { cwd, captured } = await fixture("default");
   const invalid = await runArcNoTty(["store", "conflict", captured.reference.owner.uid, "personal/conflict-record", "id", "--json"], cwd);
   expect(invalid.exitCode).toBe(1);
   expect(invalid.stdout, JSON.stringify(invalid)).toContain('"unsupported"');
   expect(JSON.parse(invalid.stdout)).toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
-  expect((await runArcNoTty(["--help"], cwd)).stdout).not.toMatch(/^\s+store(?:\s|$)/mu);
+  expect((await runArcNoTty(["--help"], cwd)).stdout).toMatch(/^\s+store(?:\s|$)/mu);
   expect((await runArcNoTty(["store", "--help"], cwd)).stdout).toContain("conflict");
   expect((await runArcNoTty(["store", "conflict", "--help"], cwd)).stdout).toContain("--discard");
 }, 60_000);

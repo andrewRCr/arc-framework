@@ -1109,6 +1109,9 @@ notice, and ADR-035 describe the store's arms.
         - `migrate`'s `--import` is hidden with Commander's `hideHelp`; `--leave-source` and the other options show.
           `e2e/cli-help.e2e.test.ts` and `unit/lib/cli-help-coverage.test.ts` pin the group, the four subcommands, and
           the hidden option.
+        - `e2e/store-commands.e2e.test.ts` and `e2e/store-conflict.e2e.test.ts` had pinned `store` as absent from
+          root help and now pin it listed, with `--import` absent from `store migrate --help`. Hosted CI caught them
+          after the task closed: the local end-to-end selection does not reach them.
 
     - `[x]` **4.2.b The status help**
         - The status description, its flags' help, and the `status` notes describe the store's arms: every view reads
