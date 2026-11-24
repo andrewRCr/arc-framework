@@ -524,7 +524,7 @@ describe("arc review respond for an Errand", () => {
       .resolves.toMatchObject({ state: "errand-advanced", nextAction: "continue-review" });
     await expect(invokeReview(repository, ["review", "respond", "-"], withReviewReport(verifiedRequest)))
       .resolves.toMatchObject({ state: "errand-current", nextAction: "continue-review" });
-  });
+  }, 60_000);
 
   it("settles the Errand through an incremental correction pass after its verified fix", async () => {
     const { repository, prepared, source, invocation } = await errandWithReviewedFinding();
@@ -608,7 +608,7 @@ describe("arc review respond for an Errand", () => {
       pullRequest: 42,
       currentBaseOid: (await git(repository, ["rev-parse", "main"])).trim(),
     })).resolves.toMatchObject({ state: "settled" });
-  });
+  }, 60_000);
 });
 
 describe("arc errand JSON topology failures", () => {

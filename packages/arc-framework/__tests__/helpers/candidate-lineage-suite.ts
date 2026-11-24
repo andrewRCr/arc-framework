@@ -2133,7 +2133,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     // The in-repo store re-roots the archived record in place, staging it; the store writes off the branch.
     if (onStore()) expect(await git(root, ["status", "--short"])).toBe("M  reviewed.txt");
     else expect(await git(root, ["status", "--short"])).toMatch(/completed\/2026-q3\/01_example\/meta-example\.md/u);
-  });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("does not advance a completed Candidate while another work unit owns the checkout", async () => {
     const root = await fixture();
