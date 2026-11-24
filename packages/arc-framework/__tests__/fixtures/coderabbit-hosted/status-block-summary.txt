@@ -1,0 +1,78 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- This is an auto-generated comment: summarize by coderabbit.ai -->
+<!-- recent_review_status_start -->
+
+No actionable comments were generated in the recent review.
+
+<!-- recent_review_status_end -->
+<!-- walkthrough_start -->
+
+## Walkthrough
+
+The aside-folder walker now traverses named directories unless their role is `"aside"`.
+
+<!-- walkthrough_end -->
+<!-- recent_review_start -->
+
+<h6>
+<details>
+<summary><strong>Recent review info</strong></summary>
+<dl>
+<dd>
+<br>
+
+<!-- review_info_content -->
+<details>
+<summary><strong>Run configuration</strong></summary>
+<dl>
+<dd>
+<br>
+
+- **Source mode**: Auto
+- **Repository**: [owner/repo](<https://github.com/owner/repo>)
+- **Branch**: [fix/staging-named-recovery-folder](<https://github.com/owner/repo>)
+- **File**: [.coderabbit.yaml](<https://github.com/owner/repo>)
+- **Commit**: [aaaaaaa](<https://github.com/owner/repo>)
+- **Layers**: Repository YAML (base), Organization UI (inherited)
+- **Review profile**: CHILL
+- **Plan**: Essentials
+- **Run ID**: `00000000-0000-0000-0000-000000000000`
+
+</dd>
+</dl>
+</details>
+
+<details>
+<summary><strong>Commits</strong></summary>
+<dl>
+<dd>
+<br>
+
+Reviewing files that changed from the base of the PR and between bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb and aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+
+</dd>
+</dl>
+</details>
+
+<details>
+<summary><strong>Files selected for processing: 3</strong></summary>
+<dl>
+<dd>
+<br>
+
+* `packages/arc-framework/__tests__/integration/store/projection/removal-staged-name-folders.test.ts`
+* `packages/arc-framework/__tests__/unit/store/projection/aside-discovery.test.ts`
+* `packages/arc-framework/src/lib/store/projection/aside-discovery.ts`
+
+</dd>
+</dl>
+</details>
+
+
+</dd>
+</dl>
+</details>
+</h6>
+
+<!-- recent_review_end -->
