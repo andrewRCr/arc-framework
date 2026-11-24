@@ -1097,38 +1097,37 @@ notice, and ADR-035 describe the store's arms.
         - `format:tables` drops `.arc/active/**/*.md` and `.arc/backlog/**/*.md` with the three exclusions under them;
           the Markdown lint, under-wrap, and selection checks stay as they are.
 
-### `[ ]` **4.2 Help text describes the store's arms, and `arc store` shows — § 4.9, § 6.1**
+### `[x]` **4.2 Help text describes the store's arms, and `arc store` shows — § 4.9, § 6.1**
 
 - _Goal:_ Help describes what each command does on the store, and `arc store` appears in help; the verb index is Task
   5.10's.
 
-    - `[ ]` **4.2.a `arc store` un-hidden**
-        - `program.command("store", { hidden: true })` (`cli.ts`) shows, documented as the ref backend's rollout
-          contract expects (`spec-storage-ref-backend.md` § Cross-cutting Considerations): a summary in
-          `COMMAND_SUMMARIES` (`lib/cli-help-summaries.ts`), a place in the root `HELP_GROUPS`' "Set up and maintain
-          ARC:" (`lib/cli-help-content.ts`), and a description on each subcommand.
-        - `migrate`'s `--import` is hidden explicitly (Commander's `hideHelp`), since it shows once `store` does, and
-          only the window's pre-flip build runs it while the flip build refuses it (§ 2.1). `--leave-source` and every
-          other subcommand, `repair-review-roots` and `conflict` among them, show with their descriptions.
+    - `[x]` **4.2.a `arc store` un-hidden**
+        - `arc store` shows in root help under "Set up and maintain ARC:" (`HELP_GROUPS`, `lib/cli-help-content.ts`)
+          with a summary in `COMMAND_SUMMARIES`, and `repair-review-roots`, `conflict`, `migrate`, and `remote` each
+          carry a description in `cli.ts`.
+        - `migrate`'s `--import` is hidden with Commander's `hideHelp`; `--leave-source` and the other options show.
+          `e2e/cli-help.e2e.test.ts` and `unit/lib/cli-help-coverage.test.ts` pin the group, the four subcommands, and
+          the hidden option.
 
-    - `[ ]` **4.2.b The status help**
-        - The status command's description ("identity + user-sync + …"), its flags' help in `cli.ts`, and the `status`
-          notes in `lib/cli-help-content.ts` (`spec-seam-status-roadmap.md` § 2.4, § 12).
+    - `[x]` **4.2.b The status help**
+        - The status description, its flags' help, and the `status` notes describe the store's arms: every view reads
+          local store state by default and `--fetch` pulls first, and `--staged` and `--write` say the ref store does
+          not support them, as `handleStoreProjectStatus` (`handlers/status/views.ts`) refuses them.
 
-    - `[ ]` **4.2.c Commands that keep working but describe the retired substrate**
-        - In `cli.ts`: `arc start`'s description, `-y`, and `--new`; `arc resume`; `arc materialize`; `arc rename`; `arc
-          view --for`, its after-help, and its `session-notes` kind; `arc wu reconcile --apply`; `arc errand next`; `arc
-          errand open`'s `--from-inbox`, `--inbox-title-file`, and `--inbox-entry-file`, and `arc errand link`'s, whose
-          titles refuse off the branch (`resolveInboxEntryOperand`, `lib/inbox-entry-operand.ts`); `arc errand link`;
-          `arc errand close`; `arc user open` ("seeds SESSION-NOTES.md"), which refuses `unsupported` there; `arc user
-          inbox-remove` ("the title-matched USER-INBOX entry"); and `arc decompose`'s `--execute`, `--extract`,
-          `--finish`, `--revise`, `--discard`, and `--advance-base`, the last always refused on the store
-          (`handlers/decompose-store.ts`).
-        - `arc sync`'s description, `-y`, and `--dry-run` in `cli.ts`, which name the notes leg, `notes_push`, and the
-          matrix decision; off the branch no notes leg runs and nothing reads `-y` (A11).
-        - The help tests that pin this text change with it: `e2e/cli-help-examples.e2e.test.ts`,
-          `e2e/run-cli.e2e.test.ts`, `e2e/decompose-dormant.e2e.test.ts`, `e2e/cli-help.e2e.test.ts`'s width and group
-          order, and `unit/lib/cli-help-coverage.test.ts`.
+    - `[x]` **4.2.c Commands that keep working but describe the retired substrate**
+        - In `cli.ts`, `arc start`, `resume`, `materialize`, `rename`, `view`, `wu reconcile --apply`, `errand next`,
+          `open`, `link` and `close`, `user open` and `inbox-remove`, and `decompose`'s modes say what each does on the
+          store. A form the store refuses says so and names the step that replaces it: `resume --here`, the Errand title
+          files, `user open`, `inbox-remove`'s title operands, and `decompose --advance-base`.
+        - `arc sync`'s help names no notes leg. Its `-y` reads "Run without prompts": off the branch the flag still sets
+          the interaction policy the store's remote-role offer reads (`offerStoreDesignation`,
+          `handlers/store-designation.ts`, from `handlers/sync-state-leg.ts`), so the plan's premise that nothing reads
+          it there did not hold.
+        - The help tests changed with the text: `e2e/cli-help-examples`, `run-cli`, `decompose-dormant`, and `cli-help`,
+          and `unit/lib/cli-help-coverage` and `cli-help`, whose beneath-the-example case runs at 72 columns now that no
+          example is long enough at 80. `cli.ts`'s recorded `arc/surface-names` count falls from nine to three
+          (`eslint-suppressions.json`).
 
 ### `[x]` **4.3 The Markdown notice — § 6.2**
 

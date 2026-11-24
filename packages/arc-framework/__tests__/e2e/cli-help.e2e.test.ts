@@ -56,6 +56,22 @@ describe("built CLI navigation", () => {
     }
   });
 
+  it("lists store commands and keeps import out of migration help", async () => {
+    const help = await runCli(["store", "--help"]);
+    expect(help.exitCode).toBe(0);
+    expect(help.stderr).toBe("");
+    expect(help.stdout.split("\n").every((line) => line.length <= 80)).toBe(true);
+    expect(help.stdout).toMatch(/^ {2}repair-review-roots\b[^\n]*\s+Preview or select\b/mu);
+    expect(help.stdout).toMatch(/^ {2}conflict\b[^\n]*\s+Inspect or explicitly\b/mu);
+    expect(help.stdout).toMatch(/^ {2}migrate\b[^\n]*\s+Move stored state\b/mu);
+    expect(help.stdout).toMatch(/^ {2}remote\b[^\n]*\s+Inspect or set\b/mu);
+    const migrate = await runCli(["store", "migrate", "--help"]);
+    expect(migrate.exitCode).toBe(0);
+    expect(migrate.stderr).toBe("");
+    expect(migrate.stdout).toContain("--leave-source");
+    expect(migrate.stdout).not.toContain("--import");
+  });
+
   it("keeps deep command purposes, inherited flags, and structured-request discovery", async () => {
     const help = await runCli(["review", "local", "prepare", "--help"]);
     expect(help.exitCode).toBe(0);

@@ -19,7 +19,7 @@ export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, re
     ["Run and resume work:", ["activate", "deactivate", "park", "pause", "handover", "resume", "materialize", "reopen", "abandon", "task", "wu", "attest", "candidate"]],
     ["Review and land work:", ["review", "publish", "integrate", "merge", "base", "delivery", "release", "archive", "teardown"]],
     ["Run errands and synchronize:", ["errand", "route", "housekeep", "handoff", "save", "sync", "user"]],
-    ["Set up and maintain ARC:", ["init", "join", "editor", "update", "health", "diff", "selection", "check", "config", "schema"]],
+    ["Set up and maintain ARC:", ["init", "join", "editor", "update", "health", "diff", "selection", "check", "config", "schema", "store"]],
   ],
   review: [
     ["Choose review work:", ["pre-publication", "resolve", "changeset", "lane", "adversarial"]],
@@ -108,7 +108,6 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   }])),
   "store repair-review-roots": {
     summary: COMMAND_SUMMARIES["store repair-review-roots"],
-    purpose: "Preview competing approvals and explicitly select one eligible branch while retaining every approved response.",
     notes: requestNotes,
     examples: [
       ["arc store repair-review-roots --schema", "Read the preview/apply request schema"],
@@ -135,7 +134,6 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   },
   "status": {
     summary: "Inspect work, project, and session state",
-    purpose: "Inspect work-unit state, project work, and session context.",
     examples: [
       ["arc status my-work --json", "Inspect an existing work unit as JSON"],
       ["arc status --project", "See the project work list"],
@@ -150,9 +148,10 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
       ["Options:", ["--json", "--help"]],
     ],
     notes: [
-      ["Defaults:", "Without a slug or view flag, inspect user sync, configuration, and active work.\n"
-        + "Slug queries use local state by default. Ordinary --user and --project views read live refs by default; "
-        + "use --local or --no-fetch for local views. Session-init does not itself select JSON; add --json."],
+      ["Defaults:", "Without a slug or mode flag, inspect identity, configuration, active work, and checkout projection.\n"
+        + "Bare status, slug queries, and the user, project, and conflict views read local store state by default. "
+        + "Use --fetch to pull remote state first.\n"
+        + "Session initialization follows session.remote_sync for store pulls. Add --json for JSON output."],
       ["Choose one:", "A slug, --project, --user, --conflicts, --session-init, --session-handoff, or --recover. "
         + "These modes are mutually exclusive."],
     ],
@@ -231,15 +230,15 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
     summary: COMMAND_SUMMARIES["errand open"],
     examples: [
       ["arc errand open my-fix", "Open an isolated atomic concern"],
-      ['arc errand open my-fix --from-inbox "Fix the formatting issue"', "Adopt an existing inbox capture"],
+      ["arc errand open my-fix --from-inbox personal:1a2b3c4d", "Adopt an existing personal inbox entry"],
       ["arc errand open my-fix --isolate", "Open in a new worktree, leaving the primary free"],
     ],
-    notes: [["Example context:", "The quoted title must match an existing capture's inner bold title. "
+    notes: [["Example context:", "Get an entry ID from arc inbox personal or arc inbox project. "
       + "Review and merge require their own approvals."]],
   },
   "errand next": {
     summary: COMMAND_SUMMARIES["errand next"],
-    examples: [["arc errand next --json", "Inspect the next execute-bound inbox capture"]],
+    examples: [["arc errand next --json", "Inspect the next eligible queued entry"]],
   },
   "sync": {
     summary: COMMAND_SUMMARIES["sync"],

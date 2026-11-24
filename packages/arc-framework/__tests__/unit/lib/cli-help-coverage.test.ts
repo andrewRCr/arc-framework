@@ -79,6 +79,12 @@ describe("help inventory", () => {
     expect(missingSummaries(changed)).toEqual(["new-visible"]);
   });
 
+  it("lists the ref store with the setup and maintenance commands", () => {
+    const help = tree(scan).get("")?.helpInformation() ?? "";
+    const section = help.split("Set up and maintain ARC:\n")[1]?.split(/\n\S/u)[0] ?? "";
+    expect(section).toMatch(/^ {2}store\s+Manage ARC state stored in Git refs/mu);
+  });
+
   it("explains file/stdin and JSON output on registered request pages without copying schemas", () => {
     const requests = scan.commands.filter((command) => command.options.some((option) => option.flags === "--schema")
       || command.operands.some((operand) => operand.name === "input" && operand.required));

@@ -70,7 +70,7 @@ describe("runCli", () => {
       expect(child.exitCode).toBe(0);
       expect(child.stderr).toBe("");
       expect(child.stdout).toContain("Usage: arc start");
-      expect(child.stdout).toContain("commits and pushes");
+      expect(child.stdout).toContain("detached HEAD");
       const error = await runCli(["--unknown"], { cwd });
       expect(error.exitCode).toBe(1);
       expect(error.stdout).toBe("");
@@ -81,13 +81,15 @@ describe("runCli", () => {
     }
   });
 
-  it("documents the slug-query --fetch upgrade separately from live-default views", async () => {
+  it("documents local status defaults and the optional store pull", async () => {
     const result = await runCli(["status", "--help"]);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("--fetch");
-    expect(result.stdout.replace(/\s+/gu, " ")).toContain("upgrade the local-default query");
-    expect(result.stdout.replace(/\s+/gu, " ")).toContain("skip the live-default network read");
+    const help = result.stdout.replace(/\s+/gu, " ");
+    expect(help).toContain("read local store state by default");
+    expect(help).toContain("--fetch Pull remote store state before rendering bare status, a slug, --user, --project, or --conflicts");
+    expect(help).toContain("--local Read local store state even when --fetch is set");
+    expect(help).toContain("--no-fetch Read local store state (overrides an earlier --fetch)");
   });
 
   it("explains status modes, defaults, and write effects in ordered sections", async () => {
@@ -104,11 +106,12 @@ describe("runCli", () => {
     expect(help).toMatch(/Work views:[\s\S]*--conflicts \[conflict\][\s\S]*Session context:/u);
     expect(help).toContain("arc status my-work --json");
     expect(help).toContain("arc status --session-init --json");
-    expect(help).toMatch(/--session-handoff\s+Select handoff context; requires --json/u);
-    expect(help).toMatch(/--recover\s+Select recovery context; requires --json/u);
-    expect(help).toMatch(/requires omitting\s+--json/u);
+    expect(help).toMatch(/--session-handoff\s+Read session handoff context\. Requires --json/u);
+    expect(help).toMatch(/--recover\s+Read session recovery context\. Requires --json/u);
+    expect(help).toMatch(/--staged\s+Unsupported by the ref store/u);
+    expect(help).toMatch(/--write\s+Unsupported by the ref store/u);
     expect(help).toMatch(/write the machine-local\s+compaction\s+recovery seed/u);
-    expect(help).toMatch(/Session-init does not itself select\s+JSON/u);
+    expect(help.replace(/\s+/gu, " ")).toContain("Session initialization follows session.remote_sync for store pulls");
     expect(help).toMatch(/modes are mutually exclusive/u);
     expect(help).toContain("--no-input");
     expect(help).toContain("--version");

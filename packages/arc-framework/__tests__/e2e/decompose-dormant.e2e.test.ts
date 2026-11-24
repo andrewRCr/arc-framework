@@ -1,4 +1,4 @@
-/** The installed CLI advertises both storage arms and refuses dormant cut operations. */
+/** The installed CLI describes stored cuts and preserves in-repo refusals. */
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, runArc, runArcNoTty } from "./helpers.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
@@ -30,9 +30,15 @@ it.each([
   expect(result.stdout).toBe(`${canonicalize(report)}\n`);
   expect(result.stderr).toContain(`${reason}\n${report.remedy.text}\n`);
 });
-it("lists every mode and the optional finish and revision operands in help", async () => {
+it("explains the stored cut modes and the base-advance refusal in help", async () => {
   const result = await runArcNoTty(["decompose", "--help"], root);
   expect(result.exitCode).toBe(0);
-  for (const flag of ["--preflight", "--execute <cut-map>", "--extract <cut-map>", "--finish [cut-map]", "--revise [cut-map]", "--discard", "--advance-base <cut-map>"])
-    expect(result.stdout).toContain(flag);
+  const help = result.stdout.replace(/\s+/gu, " ");
+  expect(help).toContain("--preflight");
+  expect(help).toContain("--execute <cut-map> Create members and store a cut");
+  expect(help).toContain("--extract <cut-map> Create members and store an extraction");
+  expect(help).toContain("--finish [cut-map] Preview finishing the stored cut. Omit the map");
+  expect(help).toContain("--revise [cut-map] Emit a fresh map without an operand");
+  expect(help).toContain("--discard Preview discarding a stored cut");
+  expect(help).toContain("--advance-base <cut-map> Unsupported for stored cuts");
 });
