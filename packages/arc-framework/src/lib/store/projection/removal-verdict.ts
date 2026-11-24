@@ -7,6 +7,7 @@ import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
+import { isArchivedPath } from "./paths.js";
 
 /** A check grants only provisional feasibility; persistence repeats it under the target's lease. */
 export type ProjectionRemovalCheck = Awaited<ReturnType<ProjectionRemovalSlots["check"]>>;
@@ -107,7 +108,7 @@ export function unresolvedRemovalConflicts(checkout: string, path: string, open:
 }
 
 function archivedConflictRepair(checkout: string, path: string, entry: RecordEntry | undefined, remaining: readonly RecordReference[]): string | null {
-  if (!path.startsWith(".arc/completed/") || entry === undefined) return null;
+  if (!isArchivedPath(path) || entry === undefined) return null;
   const notice = entry.notices.find(conflict => remaining.some(reference => sameReference(conflict, reference)));
   if (notice !== undefined) return `Run arc save --resolve ${formatConflictToken(notice)}`;
   return entry.markers !== null && entry.opened !== true

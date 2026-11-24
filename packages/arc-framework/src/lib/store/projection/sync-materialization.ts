@@ -19,6 +19,7 @@ import { loadProjectionGroups, projectionIndexGroup, ProjectionPartitionMismatch
 import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { runSecondCheck } from "./second-check.js";
 import { reportProjectionCopy } from "./report.js";
+import { isArchivedPath } from "./paths.js";
 
 /** Materialize through the command's existing root, retaining its copy checks and containing failures. */
 export async function restoreSyncProjection(store: Store, requested: string, options: { dryRun?: boolean }): Promise<void> {
@@ -71,7 +72,7 @@ async function materializeForSync(root: ProjectionRootState, source: Store, conf
 }
 
 async function restoreWithoutArchiveTakeIn(root: ProjectionRootState, request: TakeInRequest): Promise<TakeInResult> {
-  if (!request.path.startsWith(".arc/completed/")) return root.takeIn(request);
+  if (!isArchivedPath(request.path)) return root.takeIn(request);
   const file = await captureWriteBackFile(root.context, request);
   const report = (mark: NonNullable<typeof request.entry.refused>) => root.context.report?.({ path: request.path, copy: request.copy, mark });
   if (file.kind === "held") {
@@ -90,7 +91,10 @@ async function restoreWithoutArchiveTakeIn(root: ProjectionRootState, request: T
   return refuseProjectionEdit(request.entry, mark);
 }
 
-/** Use the start's copy records while their partitions can still be read. */
+/**
+ * Settle the copies recorded during start before a rebuild replaces their entries.
+ * A copy in an unreadable partition stays for a later sweep.
+ */
 async function settleStartCopies(root: ProjectionRootState, takeIn: TakeInPort): Promise<void> {
   if (root.copies.length === 0) return;
   const start = await readProjectionIndex(root.location, true);

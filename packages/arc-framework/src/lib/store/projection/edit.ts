@@ -47,6 +47,7 @@ export async function projectionEditResult(store: Store, requested: string, oper
   return refuse(editLockRefusal(opened), "projection-skipped");
 }
 
+/** Refusal of the opening's lock stops that opening while the command's projection continues. */
 function editLockRefusal(result: Exclude<ProjectionLockResult<never>, { status: "done" }>): RefusedMark {
   switch (result.status) {
     case "held": return { reason: `Projection lock held by ${JSON.stringify(result.holder)}.`,

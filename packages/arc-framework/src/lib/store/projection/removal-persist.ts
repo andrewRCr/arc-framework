@@ -39,6 +39,7 @@ import { persistProjectionAsides, changedProjectionAsides } from "./removal-pers
 import { observeUnprojectedPersonalFiles } from "./removal-residual.js";
 import { gateRead } from "./read-gate.js";
 import { inspectArchivedProjectionFile, unopenedArchiveEditMark } from "./archive-inspection.js";
+import { isArchivedPath } from "./paths.js";
 
 /** Scheduling seams for a save concurrent with the retirement operation. */
 export interface ProjectionPersistHooks {
@@ -116,7 +117,7 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
   if (disk.kind !== "index") return refuse(unusableProjectionIndexDetail(input.checkout, disk.cause, disk.header));
   let captureBasis = disk.index;
   const root = await bindProjectionRoot({ ...input, refuseCapturedEdit: (request, read) => {
-    if (!request.path.startsWith(".arc/completed/")) return null;
+    if (!isArchivedPath(request.path)) return null;
     if (request.copy === null && !request.observedEdit && read.blob === request.entry.written) return null;
     return unopenedArchiveEditMark(input.checkout, request.path, captureBasis.entries[request.path]);
   } });
@@ -183,7 +184,7 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
   for (const path of paths) {
     const archive = await inspectArchivedProjectionFile(root, index, path, { reference });
     if (archive !== null) refusal ??= retirementRefusal(root.checkout, path, archive.mark, disposition);
-    else if (!path.startsWith(".arc/completed/") || index.entries[path] !== undefined) files.push(path);
+    else if (!isArchivedPath(path) || index.entries[path] !== undefined) files.push(path);
   }
   return { files, ...(refusal === undefined ? {} : { refusal }) };
 }

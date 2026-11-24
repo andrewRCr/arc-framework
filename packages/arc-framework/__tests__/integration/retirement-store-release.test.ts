@@ -1,5 +1,5 @@
-import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 /** Anchored releases retain the Git checkout after persisting its projection. */
+import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { chmod, lstat, mkdir, readFile, readdir, readlink, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { readdirSync } from "node:fs";

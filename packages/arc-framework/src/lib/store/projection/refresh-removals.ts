@@ -11,8 +11,8 @@ import { readProjectionLinkBoundary } from "./discovery-links.js";
 import type { TakeInPort } from "./take-in-port.js";
 
 /**
- * An obsolete path's changed mark follows the same logical record to the new path a pass lays, keyed by that path with
- * the obsolete paths whose mark it takes.
+ * An obsolete path's changed or opened mark follows the same logical record to the new path a pass lays, keyed by that
+ * path with the obsolete paths whose mark it takes.
  */
 export function movedProjectionChanges(index: ProjectionIndex, plan: ProjectionRefreshPlan,
   laid: ReadonlyMap<string, unknown>): ReadonlyMap<string, readonly string[]> {

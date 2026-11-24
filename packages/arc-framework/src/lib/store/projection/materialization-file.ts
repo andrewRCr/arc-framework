@@ -22,6 +22,7 @@ import { installProjectionHandoff } from "./ownership-install.js";
 import { keepSettledFileInPlace } from "./settled-in-place.js";
 import { ensureLayFolder, occupiedFolderMark } from "./lay-folder.js";
 import type { TakeInPort } from "./take-in-port.js";
+import { isArchivedPath } from "./paths.js";
 
 /** A caller's complete rendering and replacement context for one target path. */
 export interface MaterializationFileInput {
@@ -118,7 +119,7 @@ async function rebuildBasis(input: MaterializationFileInput, entry: RecordEntry)
   const after = await readStat(absolute);
   const text = bytes.toString("utf8"), markdown = input.path.endsWith(".md");
   const stamp = markdown ? parseStampedFile(text).stamp : null;
-  const archiveCompanion = !markdown && input.path.startsWith(".arc/completed/");
+  const archiveCompanion = !markdown && isArchivedPath(input.path);
   const safe = (bytes.length > 0 || archiveCompanion) && isDeepStrictEqual(gate.stat, after)
     && storedBlobId(text, { format: input.root.context.format, markdown }) === (stamp ?? entry.base.blob);
   return { ...entry, stat: gate.stat, written: gitBlobId(bytes, input.root.context.format), changed: true, withheld: !safe };
@@ -162,13 +163,13 @@ export function settleHeldMarks(index: ProjectionIndex, laid: ReadonlyMap<string
 export function withheldProjectionMark(path: string, newFileCheckout?: string): RefusedMark {
   const start = "Copy out anything wanted, then delete the withheld file";
   const edit = `arc edit ${renderRemedyArgument(path)}`;
-  const remedy = !path.startsWith(".arc/completed/") ? `${start} and reapply the edit after it is projected again.`
+  const remedy = !isArchivedPath(path) ? `${start} and reapply the edit after it is projected again.`
     : newFileCheckout === undefined ? `${start}. Once it is projected again, run ${edit} from the checkout's root before reapplying the edit.`
       : `${start}. Run any arc command from ${newFileCheckout} to clear the withheld mark. From that checkout's root, recreate the file, then run ${edit} and arc save.`;
   return { reason: "withheld: The projection has no trustworthy basis for this file.", remedy: { text: remedy } };
 }
 
 function archivedReapplyInstruction(path: string): string {
-  return path.startsWith(".arc/completed/")
+  return isArchivedPath(path)
     ? ` Once projected again, run arc edit ${renderRemedyArgument(path)} from the checkout's root before reapplying any saved correction.` : "";
 }

@@ -125,6 +125,19 @@ it.each(["companion", "misplaced"])("names an unindexed archived %s without adop
   expect(await readFile(join(h.f.root, path), "utf8")).toBe(text);
 }, 30_000);
 
+it("names the owner for a new file in another person's archived work unit without adopting it", async () => {
+  const h = await fixture("bob"), path = `${h.folder}/correction.md`, text = "A note in another person's archived unit.\n";
+  await writeFile(join(h.f.root, path), text);
+  const report = await projectionCommand(h.input, ["sync"]);
+  expect(report.exitCode).toBe(0);
+  expect(report.diagnostics).toContain(path);
+  expect(report.diagnostics).toContain("Have bob apply the edit");
+  expect(report.diagnostics).not.toContain(`arc edit ${path}`);
+  expect(await h.f.store.read({ reference: recordReferences["work-item/companion"](h.primary.reference.owner, "correction.md") }))
+    .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(await readFile(join(h.f.root, path), "utf8")).toBe(text);
+}, 30_000);
+
 it.each(["owner", "record", "inventory"])("retains the first unavailable %s observation for a new archive file", async failed => {
   const h = await fixture(), path = `${h.folder}/unadopted.md`;
   await writeFile(join(h.f.root, path), "Unadopted archive content.\n");

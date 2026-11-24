@@ -1,8 +1,7 @@
-import { projectionEditResult } from "../../../../src/lib/store/projection/edit.js";
 /** Save runs through the registered CLI, its start hook, and a real reference backend. */
+import { projectionEditResult } from "../../../../src/lib/store/projection/edit.js";
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
-
 import { afterEach, expect, it, vi } from "vitest";
 import { Command } from "commander";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -438,11 +437,18 @@ it.each(["no-history-named", "namespace-corrupt"] as const)("does not pull an ar
   const refused = await save({ store, checkout: h.checkout });
   expect(refused.errors).toContain(refusal.condition);
   expect(refused.errors).toContain(refusal.remedy.text);
+  const held = await readProjectionIndex(h.location, true, { groups: "all" });
+  expect(held).toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o200).toBe(0o200);
   expect((await h.stored()).content).toBe(h.record.content);
   expect(await h.file()).toBe(bytes);
   expect(pulls).toBe(0);
   blocked = false;
   expect((await save({ store, checkout: h.checkout })).errors).toBe("");
+  const repaired = await readProjectionIndex(h.location, true, { groups: "all" });
+  if (repaired.kind !== "index") throw new Error("The archive index did not survive repair");
+  expect(repaired.index.entries[h.path]).not.toHaveProperty("opened");
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
   expect((await h.stored()).content).toBe(content);
   expect((await h.stored()).placement).toEqual(h.placement);
   expect(pulls).toBe(0);

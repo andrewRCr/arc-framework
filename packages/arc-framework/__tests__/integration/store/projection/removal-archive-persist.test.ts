@@ -10,6 +10,7 @@ import { success } from "../../../helpers/store/suite-tools.js";
 import { releaseProjectionRemoval } from "../../../../src/lib/store/projection/removal-release.js";
 import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
+import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
@@ -32,7 +33,7 @@ it.each(["persist", "release"] as const)("refuses a late correction to a closed 
   expect(retired).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(`arc edit ${h.path} then arc save`) } });
   expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content: before.content, version: before.version });
   expect(await readFile(file, "utf8")).toBe(written);
-  expect(await h.retire(operation)).toMatchObject({ kind: "refused" });
+  expect(await h.retire(operation)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(`arc edit ${h.path} then arc save`) } });
   expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
   expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
@@ -60,12 +61,30 @@ it.each(["persist", "release"] as const)("%s retains a lost-index edit until del
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
 }, 30_000);
 
+it.each(["remove", "release"] as const)("passes the %s check once a withheld archived file is deleted", async disposition => {
+  const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  await h.write(h.path, h.primary.content + "\nAn edit withheld through index loss.\n");
+  await rm(join((await h.disk()).location.stateDir, "index"));
+  expect((await projectionCommand(h.input, ["status"])).result).toMatchObject({ kind: "ready" });
+  expect((await h.disk()).index.entries[h.path]).toMatchObject({ withheld: true });
+  expect(await checkProjectionRemoval(h.checkout, h.context, disposition)).toMatchObject({ kind: "would-refuse",
+    remedy: { text: expect.stringContaining("delete the withheld file") } });
+  await rm(file);
+  expect(await checkProjectionRemoval(h.checkout, h.context, disposition)).toEqual({ kind: "passes" });
+  expect(await h.retire(disposition === "remove" ? "persist" : "release")).toEqual({ kind: disposition === "remove" ? "persisted" : "released" });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(h.primary.content);
+}, 30_000);
+
 it("excludes every unopened archive input while reporting the first refusal", async () => {
   const h = await archiveRetirementFixture(), path = `${h.folder}/z-second-correction.md`;
   const before = success(await h.store.read({ reference: h.primary.reference }));
   await h.write(h.path, h.primary.content + "\nA forced first correction.\n");
   await h.write(path, "A new second correction.\n");
-  expect(await h.retire("persist")).toMatchObject({ kind: "refused" });
+  const refused = await h.retire("persist");
+  expect(refused).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(`arc edit ${h.path} then arc save`) } });
+  if (refused.kind !== "refused") throw new Error("No archive retirement remedy");
+  expect(refused.remedy.text).not.toContain(path);
   expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content: before.content, version: before.version });
   expect(await h.store.read({ reference: recordReferences["work-item/companion"](h.primary.reference.owner, "z-second-correction.md") }))
     .toMatchObject({ status: "refused", refusal: { code: "not-found" } });

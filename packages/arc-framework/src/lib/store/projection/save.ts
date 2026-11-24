@@ -12,6 +12,7 @@ export interface ProjectionSaveRefusal {
   readonly condition: string;
   readonly remedy: Remedy;
 }
+/** A file the save's start laid read-only and closed, with the `arc edit` command to reopen it. */
 type RelockedFile = { readonly path: string; readonly remedy: Remedy };
 
 /** One whole result, including backend refusals without flattening their evidence. */

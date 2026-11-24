@@ -1,8 +1,8 @@
 /** Close archive openings only after a read-only file's final check proves its bytes are stored. */
-import { chmod, lstat, readFile } from "node:fs/promises";
+import { chmod, lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
-import { checkChange, readReference } from "./change-detection.js";
+import { checkChange, readReference, readStoredText } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -23,7 +23,7 @@ export async function relockOpenedProjectionFiles(root: ProjectionRootState, ini
   for (const [path, original] of Object.entries(initial.entries)) {
     if (original.opened !== true) continue;
     if (original.kind !== "record") {
-      root.context.report?.({ path, copy: null, mark: original.refused ?? pendingMark() });
+      reportRetained(root, path, original.refused ?? pendingMark());
       continue;
     }
     index = await settleFile(root, index, path, original, outcomes.get(path), send);
@@ -64,8 +64,7 @@ async function finishLateEdit(root: ProjectionRootState, index: ProjectionIndex,
 async function readRelockedChange(root: ProjectionRootState, path: string, entry: RecordEntry,
   outcome: ProjectionFileWriteObservation | undefined) {
   // A no-edit check of ordinary text compares normalized line endings against the projected bytes.
-  const reader = outcome?.result.answer === "no-edit" && !path.endsWith(".md")
-    ? async (file: string) => Buffer.from((await readFile(file, "utf8")).replaceAll("\r\n", "\n")) : undefined;
+  const reader = outcome?.result.answer === "no-edit" && !path.endsWith(".md") ? readStoredText : undefined;
   const changed = await allowMissingFile(checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
     reference: await readReference(root.checkout), format: root.context.format }, reader));
   if (changed === null || changed.status === "absent") return { mark: missingMark() };
@@ -103,8 +102,14 @@ async function retain(root: ProjectionRootState, index: ProjectionIndex, path: s
     const stat = await allowMissingFile(lstat(join(root.checkout, path)));
     if (stat?.isFile()) mark = await changeOpeningMode(root, path, stat.mode | 0o200) ?? mark;
   }
-  root.context.report?.({ path, copy: null, mark });
+  reportRetained(root, path, mark);
   return index;
+}
+
+/** Name a file the re-lock leaves opened, unless this command already reported a refusal at that path, which names it. */
+function reportRetained(root: ProjectionRootState, path: string, mark: RefusedMark): void {
+  const named = projectionProcessState().diagnostics.some(each => each.path === path && each.copy === null);
+  if (!named) root.context.report?.({ path, copy: null, mark });
 }
 
 function missingMark(): RefusedMark {
@@ -125,6 +130,7 @@ function awaitingInstallation(entry: RecordEntry, outcome: ProjectionFileWriteOb
     || outcome === undefined && (entry.pending || entry.inProgress !== null);
 }
 
+/** An attempt with no edit has no new content to install and can still re-lock. */
 function failedInstallation(outcome: ProjectionFileWriteObservation | undefined): boolean {
   if (outcome === undefined || outcome.result.answer === "no-edit") return false;
   return outcome.result.answer !== "taken-in" || outcome.installation !== "attempted";
@@ -138,6 +144,7 @@ function emptyMark(path: string, mtimeNs: bigint, outcome: ProjectionFileWriteOb
 async function relockAdmission(root: ProjectionRootState, path: string, entry: RecordEntry,
   outcome: ProjectionFileWriteObservation | undefined): Promise<{ mode: number; size: bigint } | { mark: RefusedMark; writable?: boolean }> {
   if (outcome?.rebuilt) return { mark: pendingMark(), writable: false };
+  // The checkout's link and ignore guards apply even when the file holds no edit. Edit rights are checked on submission.
   if (root.blockedByLink(path) !== null || !root.writable(path)) {
     return { mark: entry.refused ?? pendingMark(), writable: false };
   }

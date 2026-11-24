@@ -1,6 +1,5 @@
 /** Read-back installs the merged stored record while retaining the edit's read baseline. */
 import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";

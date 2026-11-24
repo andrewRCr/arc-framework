@@ -734,10 +734,13 @@ to its origin, since no verb reopens archived work.
 9. **A stopped landing sent again (A17).** An opened file's `arc save` stopped after the store accepts its write and
    before the index records it sends the edit again at its next run, as on every root (`spec-projection-write-back.md`
    § 7.8, § 17 item 6). The archive keeps no recording of its own for that window (§ 9.1).
-10. **An unsettled forced edit landed by a plain save (A17).** A forced edit that a refresh could not take in, or that
-    the persist step refused over, stays in its file (§ 7.1, § 8). Where that leaves its entry unsettled, the next plain
-    `arc save` reads it among § 6.1's unsettled entries and lands it where its rights allow, without `arc edit`.
-    `arc sync`'s restoration still takes nothing in (§ 7.2), and the persist step still lands no forced edit (§ 8).
+10. **An unopened correction left unsettled lands without `arc edit` (A17, A18).** A forced edit that a refresh could
+    not take in, that `arc sync`'s restoration refused, or that the persist step refused over, stays in its file (§ 7.1,
+    § 7.2, § 8). Where the refusal leaves its entry unsettled, the correction is no longer a forced edit as the Terms
+    define one, and each step that finishes unsettled entries lands it where its rights allow, without `arc edit`: a
+    refresh that touches its file (§ 7.1), the next plain `arc save` among § 6.1's unsettled entries, and the persist
+    step under § 8's rule for an unsettled entry. `arc sync`'s restoration still takes nothing in (§ 7.2), and the
+    persist step still lands no forced edit and keeps refusing over an entry its own refusal marked (§ 8).
 11. **A fault under `completed/` is handled as on any root (A17).** A symbolic link at a folder, a permission denial,
     or a file that vanishes or changes type while a command handles an archived file or its aside copy gets the handling
     every projected root gets. Where that handling stops the command with the fault, the archive's does too, holding no
@@ -1102,5 +1105,7 @@ design open.
   _Trigger:_ structural-refusal-clears-pending-rebuild-inventory review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A17** — 2026-11-24 — design: withdraw the mechanisms review added. _Supersedes:_ A1–A16, SC 14–29, § 9.1 ¶2.
   _Trigger:_ later-refresh-overwrites-revert-to-accepted-markdown review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A18** — 2026-11-24 — design: residual 10 names what lands an unsettled correction. _Supersedes:_ § 11 item 10.
+  _Trigger:_ spec-residual-10-calls-an-unsettled-entry-a-forced-edit review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

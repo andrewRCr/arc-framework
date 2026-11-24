@@ -8,6 +8,7 @@ import { scanMarkers, type MarkerSetSpan } from "./marker-scan.js";
 import { renderStoredSide, RESOLVE_BY_HAND_LINE } from "./marker-render.js";
 import type { EntryListConfig } from "../concurrency/entries.js";
 import { malformedEntries, restoreMalformedEntries } from "./marker-entries.js";
+import { isArchivedPath } from "./paths.js";
 
 /** One stored text conflict supplied by the caller's store reads. */
 export interface MarkerConflict { readonly reference: RecordReference; readonly data: TextConflictRecord }
@@ -20,6 +21,7 @@ export type MarkerParseResult = (
 interface MarkerInput {
   content: string; markers: NonNullable<RecordEntry["markers"]>; conflicts: readonly MarkerConflict[];
   open: readonly RecordReference[]; entries?: MarkerEntryPolicy; opened?: boolean;
+  /** The live file's path and checkout for the `arc edit` remedy. An aside copy has no opening site. */
   site?: { readonly checkout: string; readonly path: string };
 }
 
@@ -28,7 +30,7 @@ export function parseMarkerContent(input: MarkerInput): MarkerParseResult {
   const result = parseMarkers(input);
   const mark = result.kind === "held" ? result.mark : result.retained;
   const { site } = input;
-  if (mark === undefined || site === undefined || !site.path.startsWith(".arc/completed/") || input.opened === true) return result;
+  if (mark === undefined || site === undefined || !isArchivedPath(site.path) || input.opened === true) return result;
   const opened = { ...mark, remedy: { ...mark.remedy,
     text: editRemedy(site.checkout, site.path) + mark.remedy.text } };
   return result.kind === "held" ? { ...result, mark: opened } : { ...result, retained: opened };

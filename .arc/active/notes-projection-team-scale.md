@@ -25,12 +25,15 @@
 - [Amendments A12 and A13](#amendments-a12-and-a13)
 - [Amendment A14](#amendment-a14)
 - [Amendment A15](#amendment-a15)
-- [Amendment A16](#amendment-a16)
 - [Save after a retirement refusal](#save-after-a-retirement-refusal)
 - [Independent verification repairs](#independent-verification-repairs)
 - [Interrupted adoption and retirement recovery](#interrupted-adoption-and-retirement-recovery)
 - [Workflows that write under `completed/`](#workflows-that-write-under-completed)
 - [The flip's errata convention](#the-flips-errata-convention)
+- [Amendment A16](#amendment-a16)
+- [Amendment A17](#amendment-a17)
+- [Amendment A18](#amendment-a18)
+- [Delegated work from 11-24](#delegated-work-from-11-24)
 - [Model evidence](#model-evidence)
 
 ## Grounding basis
@@ -1001,9 +1004,46 @@ A12's promise to treat that revert as an edit goes with the first-lay proof.
 
 The code returns to the build as designed and keeps the earlier fixes that serve the activated text: `arc edit`'s
 refusals and remedies, the archive notice, the re-lock at `arc save`, sync's report and restoration, and the removal
-check's classification. The sections above from § Archive boundary corrections through § Amendment A16, with § Save
-after a retirement refusal and the receipt parts of § Independent verification repairs, record the withdrawn mechanisms
-as they were built.
+check's classification.
+
+Each notes section written between activation and A17 records the build at the commits it names. Read against the build
+after A17:
+
+- **Historical throughout,** recording the receipt, the path check with its holds, or the waiting rule as built: every
+  amendment section from § Amendment A2 to § Amendment A16, § Save after a retirement refusal, and § Interrupted
+  adoption and retirement recovery.
+- **§ Archive boundary corrections, in part.** A1's opening requirement, the link validation before archive pickup, and
+  the mode change through a handle that identifies the observed file are withdrawn. The check of which checkout owns the
+  requested path, the same-byte replacement kept opened while writable, the retirement's refusal of a late forced edit,
+  and sync's naming of a walked, indexed edit stay.
+- **§ Independent verification repairs, in part.** The re-check of the Git checkout at the permission change with its
+  device and inode match, the cleared intent on a changed boundary, the accepted version recorded with its submitted
+  bytes before read-back, and both recovery subsections (store-backed save recovery; late edits and archive adoption)
+  are withdrawn. Its verification evidence and paired timings were measured on commits that carried those mechanisms and
+  are not readings of the build after A17. Its paragraph on a changed entry in a partition open for settlement stays
+  (A18).
+- **Current:** every other section.
+
+## Amendment A18
+
+Pass 33 read § 11 item 10, which A17 added, against the Terms. Its heading called the correction "an unsettled forced
+edit" and its last sentence said the persist step lands no forced edit, while the Terms define a forced edit as one
+whose entry is neither opened nor unsettled and § 8 has the persist step finish an unsettled entry. One reviewer took
+the build's behavior for a defect on that wording. A18 corrects the wording and changes no behavior, approved
+2026-11-24. Item 10 as A17 wrote it:
+
+> **An unsettled forced edit landed by a plain save (A17).** A forced edit that a refresh could not take in, or that
+> the persist step refused over, stays in its file (§ 7.1, § 8). Where that leaves its entry unsettled, the next plain
+> `arc save` reads it among § 6.1's unsettled entries and lands it where its rights allow, without `arc edit`.
+> `arc sync`'s restoration still takes nothing in (§ 7.2), and the persist step still lands no forced edit (§ 8).
+
+The build's rule is one test: `unopenedArchiveEditMark` (`archive-inspection.ts`) answers no remedy for an entry that
+`isProjectionEntryUnsettled` (`index-file.ts`) unless its refusal is the inspection's own, so sync's report, the removal
+check and the persist step all leave such an entry to the step that finishes it. `restoreWithoutArchiveTakeIn`
+(`sync-materialization.ts`) refuses a correction it meets through `refuseProjectionEdit` (`rights-binding.ts`), which
+marks the entry pending; the next refresh over the file, the next plain `arc save`, or the persist step then lands it
+under the rights check every take-in makes. Nothing is lost on any of the three routes. Holding such a correction for
+`arc edit` at removal would restore part of the waiting rule A17 withdrew.
 
 ## Delegated work from 11-24
 

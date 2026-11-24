@@ -77,7 +77,7 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   const laid = laidProjectionPaths(planned.paths);
   const arrivals = findProjectionArrivals(index, laid);
   const moved = movedProjectionChanges(index, planned, laid);
-  // A moved record's old path, the only holder of its changed mark, waits until its new path takes the mark.
+  // A moved record's old path, the only holder of its changed or opened mark, waits until its new path takes the mark.
   const deferred = new Set([...moved.values()].flat());
   index = await removeObsoleteProjectionPaths({ root, index, plan: withRemovals(planned, [...planned.removals].filter(path => !deferred.has(path))),
     renderer, reference });
@@ -102,7 +102,10 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   return { index, complete };
 }
 
-/** Prepare each laid path, carrying a moved record's changed mark to its new path wherever the pass leaves a carrier. */
+/**
+ * Prepare each laid path, carrying a moved record's changed or opened mark to its new path wherever the pass leaves a
+ * carrier.
+ */
 async function prepareLaidPaths(base: Omit<IndexedFileInput, "index" | "path" | "target">, initial: ProjectionIndex,
   laid: ReadonlyMap<string, RecordReference>, moved: ReadonlyMap<string, readonly string[]>): Promise<{
   index: ProjectionIndex; files: SwapFile[]; unresolved: boolean; marked: ReadonlySet<string>;

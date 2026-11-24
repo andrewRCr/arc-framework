@@ -9,6 +9,7 @@ import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { reportArchivedProjectionFile } from "./archive-report.js";
+import { isArchivedPath } from "./paths.js";
 
 interface SelectionInput {
   root: ProjectionRootState;
@@ -38,7 +39,7 @@ async function selectDeletedFiles(input: SelectionInput): Promise<{ files: Reado
   const selected = new Map<string, StoreRecord>();
   const reference = await readReference(input.root.checkout);
   for (const [path, record] of input.files) {
-    if (!input.root.writable(path) && !path.startsWith(".arc/completed/")) continue;
+    if (!input.root.writable(path) && !isArchivedPath(path)) continue;
     const blocked = input.boundary(path);
     if (blocked !== null && blocked !== path) continue;
     const stat = await readStat(join(input.root.checkout, path));

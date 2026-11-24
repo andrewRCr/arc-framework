@@ -4,12 +4,13 @@ import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal
 import type { AdoptionObservationRoot } from "./adoption-verdict.js";
 import { inspectProjectionAdoption } from "./adoption-verdict.js";
 import { resolveLocatedAdoption } from "./adoption-target.js";
-import { checkChange, readReference } from "./change-detection.js";
+import { checkChange, readReference, readStoredText } from "./change-detection.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { isProjectionEntryUnsettled } from "./index-file.js";
 import type { FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import { observeProjectionProtection } from "./protection.js";
 import { gateRead, type ReadGateVerdict } from "./read-gate.js";
+import { isArchivedPath } from "./paths.js";
 
 /** Unavailable evidence precedes any semantic refusal over the file. */
 type ArchiveInspection = { readonly kind: "refused" | "unobservable"; readonly mark: RefusedMark } | null;
@@ -27,7 +28,7 @@ export function unopenedArchiveEditMark(checkout: string, path: string, entry: P
 /** Share detection and remedy precedence between sync's report and retirement's read and write boundaries. */
 export async function inspectArchivedProjectionFile(root: AdoptionObservationRoot, index: ProjectionIndex, path: string,
   observation?: ArchiveObservation): Promise<ArchiveInspection> {
-  if (!path.startsWith(".arc/completed/") || isExcludedProjectionPath(path)) return null;
+  if (!isArchivedPath(path) || isExcludedProjectionPath(path)) return null;
   const entry = index.entries[path];
   if (entry !== undefined && entry.kind !== "record") return null;
   const unopened = unopenedArchiveEditMark(root.checkout, path, entry);
@@ -48,9 +49,11 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
 async function readArchiveEdit(root: AdoptionObservationRoot, path: string, entry: RecordEntry | undefined,
   observation?: ArchiveObservation): Promise<ReadGateVerdict | null> {
   if (entry !== undefined) {
+    // A text companion holding what the projection wrote, up to line endings, holds no edit, as write-back reads it.
     const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
       reference: observation === undefined ? await readReference(root.checkout) : observation.reference,
-      format: root.context.format, ...(observation?.stat === undefined ? {} : { observed: observation.stat }) });
+      format: root.context.format, ...(observation?.stat === undefined ? {} : { observed: observation.stat }) },
+    path.endsWith(".md") ? undefined : readStoredText);
     if (changed.status !== "changed") return null;
   }
   return gateRead({ path: join(root.checkout, path), markdown: entry !== undefined && path.endsWith(".md") });

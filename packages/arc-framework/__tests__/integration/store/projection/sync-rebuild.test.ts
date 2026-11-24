@@ -102,13 +102,21 @@ async function startWithAsideCopies(h: Awaited<ReturnType<typeof fixture>>) {
 it("settles copies made at command start when sync rebuilds the index", async () => {
   const h = await fixture();
   const retained = await startWithAsideCopies(h);
+  const root = projectionProcessState().roots.get(h.f.root);
+  if (root === undefined) throw new Error("No projection root");
   await damage(h);
   await restoreSyncProjection(h.f.store, h.f.root, {});
+  const copies = root.copies.map(copy => copy.copy);
+  expect(copies.length).toBe(new Set(copies).size);
+  expect(copies.filter(copy => retained.includes(copy))).toEqual([]);
+  for (const copy of retained) await expect(stat(join(h.f.root, copy))).rejects.toMatchObject({ code: "ENOENT" });
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   expect(disk.kind).toBe("index");
   await endProjection(h.input);
   expect(await checkProjectionRemoval(h.f.root, { store: h.f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
-  for (const copy of retained) await expect(stat(join(h.f.root, copy))).rejects.toMatchObject({ code: "ENOENT" });
+  await startProjection(h.input);
+  expect(projectionProcessState().diagnostics.filter(each => each.copy !== null && retained.includes(each.copy))).toEqual([]);
+  await endProjection(h.input);
   expect(success(await h.f.store.read({ reference: h.primary.reference })).content).toContain("A landed correction.");
 });
 

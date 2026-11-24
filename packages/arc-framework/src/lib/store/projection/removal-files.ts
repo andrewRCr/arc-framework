@@ -21,6 +21,7 @@ import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import type { TakeInRequest } from "./take-in-port.js";
 import { pendingFileRequest } from "./pending-request.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
+import { hasUnfinishedArchiveRecording } from "./paths.js";
 
 /** Discovery roots and the check's one guard join the shared target-local observation inputs. */
 export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput {
@@ -46,7 +47,7 @@ export async function checkProjectionRemovalFiles(input: ProjectionRemovalFilesI
   const retries = Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];
     return entry?.kind === "record" && (entry.adoption !== undefined
-      || path.startsWith(".arc/completed/") && entry.persisted?.recording === true)
+      || hasUnfinishedArchiveRecording(path, entry))
       || entry?.kind === "ownerless" && entry.minted !== undefined;
   });
   const boundary = await readProjectionLinkBoundary(root.checkout, retries, ports.linkFs);

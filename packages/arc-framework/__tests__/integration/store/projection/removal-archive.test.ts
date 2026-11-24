@@ -101,6 +101,35 @@ it("names the owner of a forced foreign archive edit and clears after restoring 
   expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
+it("names the owner for a new file in another person's archived work unit and clears once it is removed", async () => {
+  const h = await archiveRetirementFixture("bob"), path = `${h.folder}/new-note.md`, file = join(h.checkout, path);
+  await writeFile(file, "A note in another person's archived unit.\n");
+  const checked = await h.check();
+  expect(checked).toMatchObject({ kind: "refused", reason: "persist-would-refuse", remedy: { text: expect.stringContaining("bob") } });
+  if (checked.kind !== "refused" || checked.reason !== "persist-would-refuse") throw new Error("No owner remedy");
+  expect(checked.remedy.text).not.toContain("Run arc edit");
+  expect(await h.retire("persist")).toMatchObject({ kind: "refused" });
+  expect(await h.store.read({ reference: recordReferences["work-item/companion"](h.primary.reference.owner, "new-note.md") }))
+    .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  await rm(file);
+  expect(await h.check()).toEqual({ kind: "removable" });
+}, 30_000);
+
+it("keeps a text companion saved with only its line endings changed out of sync's report and the removal check", async () => {
+  const h = await archiveRetirementFixture(), content = "First line.\nSecond line.\n";
+  const path = `${h.folder}/endings.txt`, file = join(h.checkout, path);
+  await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "endings.txt"), content);
+  expect((await projectionCommand(h.input, ["status"])).result).toMatchObject({ kind: "ready" });
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  // The file keeps the time its editor wrote it, so the index's next write cannot trust its recorded stat.
+  await writeFile(file, content.replaceAll("\n", "\r\n"));
+  expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
+  expect((await h.disk()).index.entries[path]).not.toHaveProperty("opened");
+  expect((await projectionCommand(h.input, ["sync"])).diagnostics).not.toContain(path);
+  expect(await h.check(h.checkout)).toEqual({ kind: "removable" });
+  expect(await readFile(file, "utf8")).toBe(content.replaceAll("\n", "\r\n"));
+}, 30_000);
+
 it.each(["forced", "malformed", "new"])("holds an unopened %s archive file from either checkout until edit and save", async kind => {
   const h = await archiveRetirementFixture();
   const path = kind === "new" ? `${h.folder}/new-note.md` : h.path;
@@ -149,6 +178,10 @@ async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers") {
     text: expect.stringContaining(shown === "notice" ? `arc save --resolve ${formatConflictToken(conflict)}` : `arc edit ${path} from ${h.checkout}`),
   } });
   if (shown === "notice") {
+    expect((await projectionCommand(h.input, ["edit", join(h.checkout, path)])).result).toMatchObject({ status: "ok" });
+    expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
+    expect((await h.disk()).index.entries[path]).not.toHaveProperty("opened");
+    expect(success(await h.store.read({ reference: base.reference }))).toMatchObject({ version: current.version, conflicts: [conflict] });
     expect((await projectionCommand(h.input, ["save", "--resolve", formatConflictToken(conflict)])).result).toMatchObject({ status: "ok" });
   } else await h.openAndSave(path, current.content);
   expect(success(await h.store.read({ reference: base.reference })).conflicts).toEqual([]);

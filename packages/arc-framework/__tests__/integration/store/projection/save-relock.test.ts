@@ -1,3 +1,4 @@
+/** Save closes an archive opening only after its final on-disk check sees accepted bytes. */
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { resolveGitCommonDir } from "../../../../src/lib/git/exec.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
@@ -6,7 +7,6 @@ import { seed, update } from "../../../helpers/store/suite-tools.js";
 import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
-/** Save closes an archive opening only after its final on-disk check sees accepted bytes. */
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { readFile, chmod, writeFile, lstat, realpath, rename, rm, utimes } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -47,6 +47,9 @@ import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { relockOpenedProjectionFiles } from "../../../../src/lib/store/projection/save-relock.js";
+import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
+import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 const directories: string[] = [];
 afterEach(async () => {
   binding.store = null;
@@ -89,6 +92,11 @@ it("lands an opened archive edit, re-locks it, clears its opening and reports th
   if (disk.kind !== "index") throw new Error("Missing archive index");
   expect(disk.index.entries[h.path]).not.toHaveProperty("opened");
 });
+
+/** The reports at a path, each one line followed by its indented remedy, which a refused path makes once per command. */
+function pathLines(errors: string, path: string): string[] {
+  return errors.split("\n").filter(line => line.startsWith(`projection: ${path}: `));
+}
 
 async function diskEntry(h: Awaited<ReturnType<typeof fixture>>, path = h.path) {
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
@@ -186,9 +194,11 @@ it("keeps an identical writable replacement open until a save makes it read-only
   expect((await lstat(file)).mode & 0o222).toBe(0);
 });
 
-it.each(["re-lock", "writable restoration"] as const)("reports a permission failure during %s and keeps the opening", async transition => {
+it.each(["re-lock", "writable restoration"] as const)("retains the permission-blocked opening during %s and re-locks the other file", async transition => {
   const h = await fixture(), file = join(await realpath(h.checkout), h.path);
+  const second = await projectedCompanion(h, "second.txt", "A second correction.\n");
   await openArchivedProjectionFile(h, h.path);
+  await openArchivedProjectionFile(h, second.path);
   const bytes = await readFile(file);
   let deny = transition === "re-lock";
   if (transition === "writable restoration") binding.hooks = { afterSaveReadOnly: async path => {
@@ -204,10 +214,13 @@ it.each(["re-lock", "writable restoration"] as const)("reports a permission fail
     }
   };
   const saved = await save(h);
-  expect(saved.result).not.toHaveProperty("result.relocked");
+  expect(saved.result).toMatchObject({ status: "ok", result: { relocked: [{ path: second.path }] } });
   expect(saved.errors).toContain(`Cannot change permissions for ${h.path}`);
   expect(saved.errors).toContain("retry arc save");
   expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect((await lstat(file)).mode & 0o200).toBe(transition === "re-lock" ? 0o200 : 0);
+  expect(await diskEntry(h, second.path)).not.toHaveProperty("opened");
+  expect((await lstat(second.file)).mode & 0o222).toBe(0);
   binding.beforeChmod = null;
   binding.hooks = undefined;
   if (transition === "writable restoration") {
@@ -216,6 +229,7 @@ it.each(["re-lock", "writable restoration"] as const)("reports a permission fail
   }
   expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path: h.path }] } }, errors: "" });
   expect(await diskEntry(h)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
 });
 
 async function projectedConflict(h: Awaited<ReturnType<typeof fixture>>) {
@@ -269,12 +283,15 @@ it.each([false, true])("applies changed edit rights only when the opening contai
     expect((await lstat(file)).mode & 0o222).toBe(0);
     return;
   }
-  expect(saved.errors).toContain("andrew");
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: h.path, copy: null,
+    mark: expect.objectContaining({ reason: expect.stringContaining("andrew") }) }));
+  expect(pathLines(saved.errors, h.path)).toHaveLength(1);
   expect(await diskEntry(h)).toHaveProperty("opened", true);
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
   await identity("andrew");
   expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path: h.path }] } }, errors: "" });
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
 });
 
 it.each([true, false])("names the files a refused save re-locked (json=%s)", async json => {
@@ -289,7 +306,7 @@ it.each([true, false])("names the files a refused save re-locked (json=%s)", asy
   expect(await diskEntry(h)).not.toHaveProperty("opened");
   expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
   if (json) expect(saved.result).toMatchObject({ status: "refused", relocked: [{ path: h.path,
-    remedy: { text: expect.stringContaining("arc edit") } }] });
+    remedy: { text: expect.stringContaining(`arc edit ${h.path} from ${await realpath(h.checkout)}`) } }] });
   else {
     expect(saved.output).toContain("Release the writer");
     expect(saved.output).toContain(`Re-locked ${h.path}.`);
@@ -356,6 +373,8 @@ it("keeps a refused edit writable and opened with its remedy, then re-locks afte
     remedy: { text: "Release the writer and retry arc save." } });
   const saved = await save({ ...h, store: fault.store });
   expect(saved.errors).toContain("Release the writer");
+  // Write-back reports the refusal; the re-lock that keeps the opening does not name the path again.
+  expect(pathLines(saved.errors, h.path)).toHaveLength(1);
   expect(await diskEntry(h)).toHaveProperty("opened", true);
   expect((await lstat(join(h.checkout, h.path))).mode & 0o200).toBe(0o200);
   fault.refuse("batch", null);
@@ -442,7 +461,7 @@ it.each([false, true])("retains a link-only rebuilt opening after deletion betwe
   expect(saved.result).toMatchObject({ status: "ok" });
   expect(saved.errors).toContain("remains opened");
   expect(await diskEntry(h, path)).toHaveProperty("opened", true);
-  expect((await lstat(join(h.checkout, path))).mode & 0o222).toBe(0);
+  expect((await lstat(join(h.checkout, path))).mode & 0o222, saved.errors).toBe(0);
   binding.hooks = undefined;
   expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
   expect(await diskEntry(h, path)).not.toHaveProperty("opened");
@@ -454,7 +473,9 @@ it("keeps an unparseable archive edit opened and writable until a repaired save 
   const entry = await diskEntry(h);
   if (entry?.kind !== "record") throw new Error("Missing metadata entry");
   await writeFile(file, renderStampedFile({ content: "This is not metadata.\n", stamp: entry.base.blob }));
-  expect((await save(h)).errors).toContain("Repair");
+  const unparsed = await save(h);
+  expect(unparsed.errors).toContain("Repair");
+  expect(pathLines(unparsed.errors, h.path)).toHaveLength(1);
   expect(await diskEntry(h)).toHaveProperty("opened", true);
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
   const content = await edit(h, "Repaired metadata.");
@@ -474,6 +495,37 @@ it("retains a file an editor leaves absent at the post-lay check and takes in it
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
   expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
   expect(await diskEntry(h)).not.toHaveProperty("opened");
+});
+
+it("retains an opening and retry remedy for a deferred take-in", async () => {
+  const h = await fixture(), file = join(h.checkout, h.path);
+  await openArchivedProjectionFile(h, h.path);
+  await startProjection(h);
+  const state = projectionProcessState();
+  const root = state.command === null ? undefined : state.roots.get(state.command.checkout);
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (root === undefined || disk.kind !== "index") throw new Error("No opened archive projection");
+  const entry = disk.index.entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing opened archive record");
+  const bytes = await readFile(file);
+  await writeFile(file, "");
+  const observation = { path: h.path, result: { answer: "deferred", entry }, installation: "attempted" } as const;
+  const held = await withProjectionLock(root.location, async session => {
+    const saveRoot = { ...root, checkpoint: session.step, context: { ...root.context, checkpoint: session.step, verb: "save" as const } };
+    return await relockOpenedProjectionFiles(saveRoot, disk.index, new Map([[h.path, observation]]),
+      async () => { throw new Error("A deferred edit was sent again"); });
+  });
+  expect(held).toMatchObject({ status: "done" });
+  expect(state.diagnostics).toContainEqual(expect.objectContaining({ path: h.path,
+    mark: expect.objectContaining({ remedy: { text: expect.stringContaining("let saving finish, and retry arc save") } }) }));
+  expect(await diskEntry(h)).toMatchObject({ opened: true });
+  expect((await lstat(file)).mode & 0o200).toBe(0o200);
+  await endProjection(h);
+
+  await writeFile(file, bytes);
+  expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path: h.path }] } } });
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
 });
 
 it("keeps a young empty save deferred and writable until the editor finishes", async () => {

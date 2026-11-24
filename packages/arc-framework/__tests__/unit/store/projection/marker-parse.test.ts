@@ -1,7 +1,8 @@
 /** Marker parse-back preserves open conflicts and sends only the person's resolved content. */
 import { afterEach, describe, expect, it } from "vitest";
 import { createMarkerFixture } from "../../../helpers/store/projection/marker-fixture.js";
-import { createWriteBackPort } from "../../../../src/lib/store/projection/write-back.js";
+import { captureWriteBackFile, createWriteBackPort, prepareCapturedWriteBack } from "../../../../src/lib/store/projection/write-back.js";
+import type { TakeInRequest } from "../../../../src/lib/store/projection/take-in-port.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
 import type { RecordReference } from "../../../../src/lib/store/identity.js";
@@ -254,6 +255,28 @@ describe("marker parse-back", () => {
     expect(await fixture.store.read({ reference: fixture.entry.reference })).toMatchObject({ status: "ok", result: {
       content: newer.replace("base second", "edited second"), conflicts: [],
     } });
+  });
+
+  it("names the archive opening in a partial repair's remedy only from a checkout that has not opened the file", async () => {
+    const input = entryCases[0], archived = ".arc/completed/2026-q4/errand-entries.md";
+    if (input === undefined) throw new Error("Entry fixture missing");
+    const fixture = await createMarkerFixture({ ...input, current: input.base.replace("base first", "stored first"),
+      incoming: input.base.replace("base first", "incoming first") });
+    fixtures.push(fixture);
+    await fixture.edit(fixture.content.replace(/^>>>>>>>[^\n]*\n?/mu, "").replace("base second", "edited second"));
+    const captured = await captureWriteBackFile(fixture.context, fixture.request);
+    if (captured.kind !== "read") throw new Error("The edited file was not read");
+    const retained = async (request: TakeInRequest) => {
+      const prepared = await prepareCapturedWriteBack(fixture.context, request, captured);
+      if (prepared.kind !== "ready" || prepared.retained === undefined) throw new Error(`No retained mark: ${prepared.kind}`);
+      return prepared.retained.remedy.text;
+    };
+    // The same entry-list file, addressed where an archived Errand's description lies.
+    const unopened: TakeInRequest = { ...fixture.request, path: archived };
+    expect(await retained(unopened)).toContain(`Run arc edit ${archived} from ${fixture.checkout} first.`);
+    expect(await retained({ ...unopened, entry: { ...fixture.entry, opened: true } })).not.toContain("arc edit");
+    // The store's planner replays the preparation without a worktree, so its mark can name no checkout.
+    expect(await retained({ ...unopened, checkout: "." })).not.toContain("arc edit");
   });
 
   it.each(entryCases)("lands independent entries beside a missing end marker in $kind and holds the original file", async input => {

@@ -43,6 +43,7 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
     root.context.report?.({ path, copy: null, mark: occupiedFolderMark(root.checkout, path, occupying) });
     return withProjectionEntry(input.index, path, { ...previous, pending: true });
   }
+  // A refresh that moved this record here can park its changed and opened marks on the leaving entry.
   const opened = input.arriving.opened === true || (previous.arrivingOpened !== undefined && sameReference(previous.arrivingOpened, record.reference));
   const changed = input.arriving.changed || (previous.arrivingChanged !== undefined && sameReference(previous.arrivingChanged, record.reference));
   const candidate: RecordEntry = { ...input.arriving, changed, ...(opened ? { opened: true as const } : {}) };
@@ -56,7 +57,6 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
   }
   const stat = await readStat(join(root.checkout, staged.result.location));
   if (stat === null) throw new Error(`Staged ownership arrival disappeared: ${path}`);
-  // A refresh that moved this record here while the leaving bytes remained parked its changed mark on the leaving entry.
   const arriving: RecordEntry = { ...candidate, stat, written: staged.result.written, base: staged.result.base,
     markers: staged.result.rendering?.markers ?? null, notices: staged.result.rendering?.notices ?? [],
     unshown: staged.result.rendering?.unshown ?? record.conflicts, protected: staged.result.rendering?.protected ?? false };

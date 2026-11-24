@@ -29,7 +29,7 @@ export interface SwapFile {
   readonly relaid?: boolean;
 }
 
-/** Points in each file's swap where a test or the harness can place a save. */
+/** Test and harness hooks for file swaps, edit opening, and save recovery and re-locking. */
 export interface SwapHooks {
   /** After opening intent is committed, before the file becomes writable. */
   readonly afterOpenIndexCommit?: (path: string) => Promise<void>;

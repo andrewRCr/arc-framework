@@ -1,6 +1,6 @@
+/** Isolated native projection medians with cold archive partitions and twenty real linked destinations. */
 import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 import { projectionSaveResult } from "../../src/lib/store/projection/save.js";
-/** Isolated native projection medians with cold archive partitions and twenty real linked destinations. */
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -59,6 +59,8 @@ async function startCases(checkout: string, observer: ProjectionTimingObserver, 
   const namespace = new TextDecoder().decode((await client.ports.rawExec(["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"])).stdout);
   return {
     files: expected,
+    archiveOpenings: async () => Object.entries((await indexAt(checkout, client)).entries)
+      .filter(([path, entry]) => path.startsWith(".arc/completed/") && entry.opened === true).length,
     openArchive: async () => {
       const index = await indexAt(checkout, client, true);
       const path = Object.keys(index.entries).find(path => path.startsWith(".arc/completed/"));
@@ -145,7 +147,11 @@ async function openedStartMedians(fixture: Templates, observer: ProjectionTiming
   const openedRoot = await copyProjectionTimingRepository(fixture.baseline); directories.push(openedRoot);
   const closed = await startCases(closedRoot, observer, 800), opened = await startCases(openedRoot, observer, 800);
   await opened.openArchive();
-  return { baselineOpened: 0, variantOpened: 1, ...await pairedOperationMedians(closed.noChange, opened.noChange) };
+  const baselineOpened = await closed.archiveOpenings(), variantOpened = await opened.archiveOpenings();
+  expect([baselineOpened, variantOpened]).toEqual([0, 1]);
+  const measurements = await pairedOperationMedians(closed.noChange, opened.noChange);
+  expect([await closed.archiveOpenings(), await opened.archiveOpenings()]).toEqual([baselineOpened, variantOpened]);
+  return { baselineOpened, variantOpened, ...measurements };
 }
 
 async function addLinked(checkout: string, client: Client, owner: Templates["owners"][number], parent: string, name: string) {

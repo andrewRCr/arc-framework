@@ -7,7 +7,7 @@ import { prepareIndexedProjectionSubmission, submitProjectionBatch } from "./sub
 import type { ProjectionLocalCaptureResult } from "./local-capture.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { Store } from "../contract.js";
 import { HAND_EDIT_VERBS } from "../links.js";
 import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
@@ -197,7 +197,9 @@ async function checkContent(context: WriteBackContext, request: TakeInRequest, b
 async function prepareMarkers(context: WriteBackContext, request: TakeInRequest, content: string, base: RecoveredBase): Promise<StoreResult<MarkerParseResult>> {
   const entry = request.rendering === undefined ? request.entry : { ...request.entry, ...request.rendering };
   const grammar = (context.registry ?? kinds)[entry.reference.kind].entry;
-  const site = request.copy === null ? { checkout: request.checkout, path: request.path } : undefined;
+  // An arc edit remedy names the live file's path and checkout. An aside copy has no opening site, and neither has
+  // a request the store's planner replays without a worktree.
+  const site = request.copy === null && isAbsolute(request.checkout) ? { checkout: request.checkout, path: request.path } : undefined;
   if (grammar === undefined || entry.markers === null) return prepareMarkerContent(context.store, entry, content, context.memo, undefined, site);
   const selected = await readBaseContent(context, request.entry, base);
   if (selected.status === "refused") return selected;
@@ -421,10 +423,11 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
   if (submission.status === "refused") return { kind: "store-refused", refusal: submission.refusal, entry };
   const receipt = submission.result.plan.prepared;
   if (receipt.stamp === null) throw new Error("An indexed content write requires its captured stamp");
-  const original = { ...prepared };
-  delete original.retained;
+  // The planner replays this preparation without the worktree. Its mark says whether one is retained; the command's
+  // own mark, which knows the checkout and the opening, is the one printed and recorded.
+  const { retained: own, ...original } = prepared;
   prepared = { ...original, write: { ...submission.result.plan.mutation, provenance: submission.result.batch.provenance },
-    stamp: receipt.stamp, takenIn: receipt.takenIn, ...(receipt.retained === null ? {} : { retained: receipt.retained }) };
+    stamp: receipt.stamp, takenIn: receipt.takenIn, ...(receipt.retained === null ? {} : { retained: own ?? receipt.retained }) };
   const sent = await submitProjectionBatch(context, submission.result.batch);
   if (sent.status === "refused") {
     return { kind: "store-refused", refusal: sent.refusal, entry };

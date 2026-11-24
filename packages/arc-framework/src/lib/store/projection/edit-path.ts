@@ -1,6 +1,7 @@
 /** Read an archive opening's path, ownership, and adoption evidence without changing content or admitting a record. */
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import type { RecordReference } from "../identity.js";
 import type { ProjectionIndex, RefusedMark, FileStat, RecordEntry } from "./index-schema.js";
 import { loadProjectionPathGroup } from "./index-memory.js";
@@ -13,6 +14,7 @@ import { resolveProjectionAdoptionIntent } from "./adoption-intent.js";
 import { inspectProjectionAdoption } from "./adoption-verdict.js";
 import { evidenceHeldProjectionMark, isEvidenceHeldEntry, withheldProjectionMark } from "./materialization-file.js";
 import { markStoreRefusal } from "./refusal-mark.js";
+import { PROJECTION_ARCHIVE_PREFIX, isArchivedPath } from "./paths.js";
 
 /** The entry an opening may mark, or the same repair evidence its owner reports. */
 type ProjectionEditInspection = { readonly kind: "ready"; readonly entry: ProjectionIndex["entries"][string] }
@@ -25,17 +27,20 @@ type EditTarget = ArchiveEditTarget
   | { readonly kind: "outside" }
   | Extract<ProjectionEditInspection, { kind: "refused" }>;
 
-const ARCHIVE_PREFIX = ".arc/completed/";
-const ARCHIVE_ONLY = `arc edit opens only files under ${ARCHIVE_PREFIX}.`;
+const ARCHIVE_ONLY = `arc edit opens only files under ${PROJECTION_ARCHIVE_PREFIX}.`;
 const IN_PLACE = `Edit an in-flight file in place; ${ARCHIVE_ONLY}`;
 
-/** Compose the existing path, protection, and adoption readers, stopping before store admission. */
+/**
+ * Inspect the operand before store admission. The target check considers withheld entries and stored record rights first,
+ * then archive scope and ignore rules, then a new path's owner and rights. A spelling or folder check can refine the
+ * target's refusal before file-specific repair advice is considered.
+ */
 export async function inspectProjectionEditPath(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<ProjectionEditInspection> {
   const entry = index.entries[path];
   const target = await editTarget(root, index, path, entry);
   const spelling = entry === undefined ? await indexedCaseAlias(root.checkout, index, path) : null;
   if (spelling !== null) return refuse({ reason: `${path} addresses the archived file stored as ${spelling}.`,
-    remedy: { text: `Use the stored spelling ${spelling} and retry arc edit.` } });
+    remedy: { text: `Run arc edit ${renderRemedyArgument(spelling)} from ${root.checkout}, with the stored spelling.` } });
   if (target.kind === "outside" || target.kind === "refused") {
     return refuse(await describeUnavailableOperand(root.checkout, path, target, entry?.kind === "record"));
   }
@@ -62,7 +67,7 @@ async function editTarget(root: ProjectionRootState, index: ProjectionIndex, pat
     const denied = await readProjectionProtection(protection, entry.reference);
     if (denied !== null) return refuse(denied);
   }
-  if (!path.startsWith(ARCHIVE_PREFIX)) return { kind: "outside" };
+  if (!isArchivedPath(path)) return { kind: "outside" };
   if (isExcludedProjectionPath(path)) return refuse({
     reason: `${path} is an editor or system side file, not an adoptable projected file.`,
     remedy: { text: "Keep side files outside projected roots, or remove the side file and open the intended document." },
@@ -81,7 +86,7 @@ async function editTarget(root: ProjectionRootState, index: ProjectionIndex, pat
 /** Use directory names to distinguish a case alias from a separately spelled file. */
 async function indexedCaseAlias(checkout: string, index: ProjectionIndex, path: string): Promise<string | null> {
   const folded = path.toLowerCase();
-  if (!folded.startsWith(ARCHIVE_PREFIX)) return null;
+  if (!isArchivedPath(folded)) return null;
   loadProjectionPathGroup(index.entries, folded);
   const stored = Object.keys(index.entries).find(candidate => candidate.toLowerCase() === folded);
   if (stored === undefined) return null;
@@ -114,13 +119,15 @@ async function describeUnavailableOperand(checkout: string, path: string,
     remedy: { text: IN_PLACE } };
 }
 
+/** A folder operand names no file to open. For folders outside the archive, the remedy points inside it. */
 function folderOperandMark(path: string): RefusedMark {
   return { reason: `${path === "" ? "The checkout's root" : path} is a folder. The arc edit command opens one file.`,
-    remedy: { text: `Run arc edit on one file inside ${path.startsWith(ARCHIVE_PREFIX) ? path : ARCHIVE_PREFIX}.` } };
+    remedy: { text: `Run arc edit on one file inside ${isArchivedPath(path) ? path : PROJECTION_ARCHIVE_PREFIX}.` } };
 }
 
+/** The remedy for a missing in-flight file directs the user to edit in place after restoring it if it is stored. */
 function missingOperandMark(path: string, stored: boolean): RefusedMark {
-  const archived = path.startsWith(ARCHIVE_PREFIX);
+  const archived = isArchivedPath(path);
   const reason = `No file exists at ${path}.`;
   if (stored) return { reason, remedy: { argv: ["arc", "sync"], text: "Run arc sync to restore the deleted projected file, "
     + (archived ? "then retry arc edit." : "then edit it in place.") } };

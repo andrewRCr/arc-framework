@@ -22,6 +22,7 @@ import type { ProjectionResolution } from "./save-resolution.js";
 
 import { relockOpenedProjectionFiles } from "./save-relock.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
+import { hasUnfinishedArchiveRecording } from "./paths.js";
 
 /** Check walked files, using short-lived start observations only until any recovery mutates files or publishes. */
 export async function writeBackProjectionFiles(root: ProjectionRootState, initial: ProjectionIndex, files: readonly string[],
@@ -117,7 +118,7 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
   await root.checkpoint?.();
   const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat,
     written: entry.written, reference, format: root.context.format, observed });
-  if (changed.status === "absent") return { index, edited: path.startsWith(".arc/completed/") && entry.persisted?.recording === true };
+  if (changed.status === "absent") return { index, edited: hasUnfinishedArchiveRecording(path, entry) };
   const intent = checkoutResolution(root.checkout);
   const resolving = intent?.target?.path === path && !intent.accepted && intent.refusal === null;
   if (changed.status !== "changed" && !resolving && entry.persisted?.recording !== true) {
