@@ -1643,10 +1643,14 @@ rewritten workflows (§ 9.2).
           holds the conclusions and each step's time, with the six broken chains the import carries in completed units
           and the earlier run that stopped on a wrongly written expectation.
 
-    - `[ ]` **6.4.c The flip's own landing**
-        - The deletion commit under the override, a merge into the copy's mirror, the archive and register closures
-          through the store from the flip build without the override, and the flip checkout's workspace-folder removal
-          and release.
+    - `[x]` **6.4.c The flip's own landing**
+        - Run on a fresh copy at `677549c2f8`: the deletion commit under the override removed 1,068 files and passed its
+          hooks, and its push the gate; `last-read` passed; the merge into the copy's mirror left `main` tracking
+          nothing under the five paths. From the flip build without the override, the bare `arc archive` refused and
+          `arc archive cutover-flip --pr-url` published the archive with State `Shipped`; 26 register rows closed and
+          saved through write-back; and `arc locus release`, refusing first over the withheld workspace files, removed
+          the checkout once that folder was copied out and removed. `notes-cutover-flip.md` § Stage 2 holds the
+          conclusions and times.
 
     - `[ ]` **6.4.d Each branch and checkout**
         - A live branch no checkout holds, and a branch carrying a Candidate record `main` lacks, through § 10.6's
