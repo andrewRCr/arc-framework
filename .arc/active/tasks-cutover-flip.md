@@ -1698,20 +1698,17 @@ rewritten workflows (§ 9.2).
     - The run is dispatched (`gh workflow run ci.yml --ref <branch>`) with no diagnostic inputs set and recorded by run
       ID; it passes when every job succeeds or is skipped, since `ci-ok` runs only on a pull request.
 
-### `[ ]` **6.R The in-place checkout's carry in a synthetic repository — § 9.6**
+### `[x]` **6.R The in-place checkout's carry in a synthetic repository — § 9.6**
 
 - _Goal:_ A checkout claimed in place before the flip is carried to an anchored marker in a synthetic repository beside
   Stage 2, since the copy can hold none (A27).
 
-    - `[ ]` **6.R.a The synthetic carry**
-        - In a scratch repository with a remote, the pre-flip build, the copied primary's, starts a work unit in place
-          on a work branch with `arc start --here`, then designates the remote and imports (`arc store remote origin
-          push`, `arc store migrate --import`). The branch takes the flip's deletion as § 10.6's branch step makes it.
-        - The flip build's session start (`arc status --session-init --json`) offers `arc materialize <slug> --here` for
-          the checkout, which holds no marker (`lib/session-init/materializable-work-units.ts`); run there, the command
-          writes an anchored marker carrying the work unit's UID and leaves `HEAD` and the branch where they were.
-        - The run's conclusion is recorded in `notes-cutover-flip.md` § Stage 2 beside the copy's, naming the flip head
-          it ran at.
+    - `[x]` **6.R.a The synthetic carry**
+        - In a synthetic repository with a remote, the pre-flip build started `in-place-work` in place on a work branch
+          with no marker and imported it after `arc user save`; the branch took its deletion commit; the flip build's
+          session start offered `arc materialize in-place-work --here`, which wrote an anchored marker carrying the
+          imported UID with `HEAD` and the branch unmoved. `notes-cutover-flip.md` § Stage 2 holds the conclusion, at
+          flip head `4738eea1e3`, and three observations made beside it.
 
 ### `[ ]` **6.8 Stage 2 clean at the head that lands** — validate exit criterion at segment scope
 

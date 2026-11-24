@@ -2202,6 +2202,27 @@ in 44 seconds. Every step's outcome matched the one written before it.
   `adoption-read-back-baseline` closes or is abandoned. The copied primary's review-gate folder held 379 records naming
   paths under the live repository, cleared at step 6.4.
 
+#### The in-place checkout's carry (Task 6.R), at `4738eea1e3`
+
+Run on 11-24 in a synthetic repository with a bare remote, the pre-flip build being the Stage 2 copy's primary (`main`
+at `aeacd22686`) and the flip build the flip checkout's own. The carry holds (A27).
+
+- **The pre-flip side.** On a work branch, `arc start in-place-work --new --here` cold-started the unit in place: its
+  meta under `.arc/active/`, no marker written. After `arc user save`, `arc store remote origin push` and `arc store
+  migrate --import` landed the unit's work ref, the personal ref, and the registry, locally and on the remote. The
+  branch then took its deletion commit; this repository's `main` tracks nothing under the five paths.
+- **The flip side.** The flip build's `arc status --session-init --json` listed the unit under `materializableWorkUnits`
+  with the action `arc materialize in-place-work --here` for that checkout. Run there, the command wrote an anchored
+  marker carrying the imported work ref's UID and left `HEAD` and the branch where they were; the roster then reads the
+  checkout as that work unit.
+- **Observed beside it.** The command that writes the marker leaves the unit's meta projected under `active/in-flight/`;
+  the next command lays it at `active/current/`. The checkout's pre-flip working memory and session notes stay withheld
+  until removed, as § 10.6's checkout steps remove them. The import refused once, on personal files that differed from
+  their notes copies, until `arc user save` had run, as the window's order has it.
+- **Setup commits ran with hooks off**, as the test suite's scratch repositories commit: a repository with no ARC CLI
+  installed cannot run the installed pre-commit hook, and on a `--pm-mode none` install that hook's link check reports
+  21 broken links among the installed strategies and workflows.
+
 ## The parallel run from 11-24
 
 A draft for the Owner's approval on Tuesday 11-24. The Owner decided at 9:04 pm on 11-20 that the flip runs in parallel
