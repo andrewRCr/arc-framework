@@ -1007,6 +1007,33 @@ check's classification. The sections above from § Archive boundary corrections 
 after a retirement refusal and the receipt parts of § Independent verification repairs, record the withdrawn mechanisms
 as they were built.
 
+## Delegated work from 11-24
+
+Approved on 2026-11-24 at 7:21 am CT, with the right-sizing decision that became A17, and in force for this work unit's
+rescue only. It relaxes the rule that work landing in an increment is done by the session that holds it; it approves no
+commit, disposition, review pass, or merge.
+
+- **Read-only triage: Astra.** One run classed every finding of the 32 review looks against the design as activated. It
+  was advisory: the list of fixes to re-apply was drawn from it and approved with fix check 32's disposition set, and
+  the rows it traced to code inherited from `main` were checked against source before they were routed out.
+- **The restore and the re-applied fixes: Sol.** Four headless runs at high effort re-applied the fixes that serve the
+  design as activated, onto `packages/` restored to `396b4e929b`, each from a written brief naming its fixes, and each
+  reported its regression tests failing on the restored build first. The runs edited this checkout uncommitted, one at a
+  time, and committed nothing.
+- **Fix checks: Astra at the highest effort**, on a disposable clone. None has run under this approval: at look 33's
+  coverage offer (10:54 am CT) a complete pass was chosen in place of the planned fix check, since the fix range, 12,095
+  changed lines, exceeded the whole change set, 7,953. A later fix check, over a small range, still goes to Astra.
+- **The complete pass: a fresh-context Fable reviewer**, in the specification's three chunks with a seam and an
+  aggregate, its brief carrying no author conclusions.
+
+Kept by the session that holds the work unit: the design and A17's text, the brief for every run, reading each returned
+source change against its brief and the specification, verifying every review finding against source, the proposed
+dispositions, every gate and its evidence, and every commit and push. A builder's or reviewer's report is advisory until
+checked that way.
+
+It ends when this work unit publishes, or earlier when withdrawn. Work after that, and any kind of work not named above,
+takes a fresh approval.
+
 ## Model evidence
 
 The per-unit constants and model v2's growth table are in `notes-projection-worktrees.md` § Spike 3 and § Spike 4; the
