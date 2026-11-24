@@ -18,6 +18,8 @@ import type {
 } from "../../src/scripts/review-gate/hosted/await.js";
 import type { LaneSubjectLineage } from
   "../../src/scripts/review-gate/core/lane-admission.js";
+import type { StandardReviewObligationProjection } from
+  "../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 import type { IncrementalReviewScope } from
   "../../src/scripts/review-gate/core/incremental-review-scope.js";
 import {
@@ -35,6 +37,7 @@ import {
 const objectId = (character: string): string => character.repeat(40);
 
 export interface HostedHandleFixtureInput {
+  readonly standardReview?: StandardReviewObligationProjection;
   readonly repositoryId?: string;
   readonly reviewTarget?: ReturnType<typeof createReviewTarget>;
   readonly lineage?: LaneSubjectLineage;
@@ -85,7 +88,7 @@ export function createHostedHandleFixture(
   });
   const requirement = createReviewRequirement({
     target: reviewTarget,
-    projection: {
+    projection: input.standardReview ?? {
       obligation: "required",
       reasons: ["sensitive-change-set"],
       rubricVersion: "standard-review/v1",

@@ -1,4 +1,4 @@
-import { resolve, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -47,6 +47,18 @@ describe("local path identity", () => {
 
     const expected = await canonicalLocalPath("./target", unavailable);
     await expect(canonicalLocalPath("./future/../target", unavailable)).resolves.toBe(expected);
+  });
+
+  it.each(["..copy", "...copy", join("..copy", "nested")])("keeps child %s inside its parent", async child => {
+    await expect(localPathContains("/private/var/project", join("/var/project", child), aliasRealpath))
+      .resolves.toBe(true);
+  });
+
+  it("includes the root itself but excludes its parent and siblings", async () => {
+    const root = resolve("absent-checkout");
+    await expect(localPathContains(root, root)).resolves.toBe(true);
+    await expect(localPathContains(root, resolve(root, ".."))).resolves.toBe(false);
+    await expect(localPathContains(root, resolve(root, "..", "outside"))).resolves.toBe(false);
   });
 
   it("propagates operational realpath failures", async () => {

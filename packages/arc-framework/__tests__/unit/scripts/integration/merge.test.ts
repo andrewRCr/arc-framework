@@ -205,6 +205,7 @@ async function storedLifecycleMerge() {
     store: h.store, workItem: meta.reference.owner,
     changeRequestPort: { resolveRepository: async () => target.repository,
       readHeadRef: async () => ({ local: null, remote: target.headSha }), searchByHeadSha: async () => [],
+      isAncestor: async () => false,
       listByHead: async () => [{ number: target.pullRequest, url: "https://example.test/owner/repo/pull/42", state: "OPEN",
         baseRefName: target.baseRef, headRefName: target.headRef, headRefOid: target.headSha }] } }).readStatus;
   return { h, meta, storage, value, state, checkpoint, request: await checkpoint(meta.version),

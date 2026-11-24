@@ -58,6 +58,7 @@ describe("review-gate canonical serializer inventory", () => {
       "lane-progress-outcomes.ts",
       "lane-progress-seal-recovery.ts",
       "lane-progress.ts",
+      "policy/approval-policy-binding.ts",
       "policy/candidate-review-fix-continuation.ts",
       "policy/delivery-correction-proof.ts",
       "policy/delivery-review-terminus.ts",

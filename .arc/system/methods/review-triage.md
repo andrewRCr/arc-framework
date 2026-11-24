@@ -49,7 +49,9 @@ instance it saw, and the rest otherwise surface one at a time across later passe
 search ran. An instance outside the reviewed change is not this round's fix: name it for the approver and route it as
 discovered work.
 
-Then look across the verified set by [review-model § Shared causes][shared-causes].
+Then look across the verified set by [review-model § Shared causes][shared-causes], at a fix check's disposition as
+at a complete pass's: a sibling or propagation gap the reviewer reports there names the earlier repair's rule as a
+cause.
 
 ### 2. Classify two independent axes
 

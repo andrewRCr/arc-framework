@@ -2657,7 +2657,7 @@
   },
   "src/scripts/review-gate/hosted/gh-process.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 2
+      "count": 1
     }
   },
   "src/scripts/review-gate/hosted/settle.ts": {

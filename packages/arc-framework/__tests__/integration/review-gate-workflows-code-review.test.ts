@@ -37,7 +37,8 @@ async function expectProducerBackedResponseOrder(content: string, start: string,
   const report = response.indexOf("payload.dispositionReportText", proposalCall);
   const approval = response.indexOf("complete-set approval", report);
   const approvedCall = response.indexOf("the second call", approval);
-  const performance = response.indexOf("[review-response]", approvedCall);
+  const policyBinding = response.indexOf("`payload.approvalPolicyBinding`", approvedCall);
+  const performance = response.indexOf("[review-response]", policyBinding);
   const replay = response.indexOf("Once the fix is committed");
   const push = response.indexOf("`push-interlock`", replay);
   expect(triage).toBeGreaterThanOrEqual(0);
@@ -46,7 +47,8 @@ async function expectProducerBackedResponseOrder(content: string, start: string,
   expect(report).toBeGreaterThan(proposalCall);
   expect(approval).toBeGreaterThan(report);
   expect(approvedCall).toBeGreaterThan(approval);
-  expect(performance).toBeGreaterThan(approvedCall);
+  expect(policyBinding).toBeGreaterThan(approvedCall);
+  expect(performance).toBeGreaterThan(policyBinding);
   expect(replay).toBeGreaterThan(performance);
   expect(push).toBeGreaterThan(replay);
 }

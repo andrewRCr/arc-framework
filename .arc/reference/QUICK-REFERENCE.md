@@ -207,10 +207,10 @@ when controller evidence is absent; that convenience owns generation alone and d
 > not local source, so changes you make here wouldn't run. Use `npx arc <command>` for every ARC
 > CLI command in the sections below; npm workspaces symlinks the local package binary into
 > `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires a current build (the
-> binary points at `packages/arc-framework/dist/cli.js`); the guard refuses against a stale one,
-> and `npm run build:fast` regenerates qualified runtime output. This guidance applies only
-> to the self-hosting repo; adopter projects install the published CLI globally and use `arc`
-> directly.
+> binary points at `packages/arc-framework/dist/cli.js`); the guard rebuilds a stale one and runs
+> the command again, refusing only when that rebuild fails, and `npm run build:fast` regenerates
+> qualified runtime output. This guidance applies only to the self-hosting repo; adopter projects
+> install the published CLI globally and use `arc` directly.
 
 ### Command Prerequisites and Remote Access
 

@@ -48,6 +48,39 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
       } });
   });
 
+  it.each(["record blob", "root tree", "tip commit"] as const)("answers a damaged %s as it answers a missing one", async (object) => {
+    const damagedUid = "87654321-4321-4321-8321-cba987654321";
+    const beta = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "beta" }, kind: "review/evidence", key: "good" });
+    const answers: unknown[] = [];
+    for (const fault of ["missing", "damaged"] as const) {
+      const f = await createRefReadFixture(format);
+      await plantRef(f.root, ref, [
+        { path: `metadata-${uid}.json`, content: canonicalize(metadata) }, { path: "meta-alpha.md", content: "# Alpha\n" },
+        { path: `review/evidence-good-${uid}.json`, content: evidence },
+      ]);
+      const recordPath = `review/evidence-good-${damagedUid}.json`;
+      const planted = await plantRef(f.root, `refs/arc/work/${damagedUid}`, [
+        { path: `metadata-${damagedUid}.json`, content: canonicalize({ ...metadata, slug: "beta" }) },
+        { path: "meta-beta.md", content: "# Beta\n" }, { path: recordPath, content: JSON.stringify(reviewEvidenceFixture(undefined, "reject")) },
+      ]);
+      const oid = object === "record blob" ? planted.blobs.get(recordPath)! : object === "root tree" ? planted.tree : planted.tip;
+      await (fault === "missing" ? removeLooseObject : damageLooseObject)(f.root, oid);
+      const answer = async (call: () => Promise<unknown>) => {
+        try { return await call(); }
+        catch (error) { return { threw: error instanceof Error ? error.message : String(error) }; }
+      };
+      answers.push({
+        list: await answer(() => createRefStore(f.ports).list({ family: "review" })),
+        read: await answer(() => createRefStore(f.ports).read({ reference: beta })),
+        lookup: await answer(() => createRefStore(f.ports).lookup({ kind: "slug", slug: SlugSchema.parse("alpha") })),
+      });
+    }
+    expect(answers[1]).toMatchObject({ list: { status: "ok" },
+      read: { status: expect.any(String) }, lookup: { status: expect.any(String) } });
+    expect(JSON.stringify(answers[1]).replaceAll(/\b[0-9a-f]{40,64}\b/gu, "<oid>"))
+      .toBe(JSON.stringify(answers[0]).replaceAll(/\b[0-9a-f]{40,64}\b/gu, "<oid>"));
+  });
+
   it("keeps readable records beside each malformed, missing, newer, and mismatched entry", async () => {
     const f = await createRefReadFixture(format);
     const lostPath = `review/decision-lost-${uid}.json`;

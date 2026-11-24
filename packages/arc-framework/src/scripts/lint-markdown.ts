@@ -1,8 +1,8 @@
 /** Ordered composition for repository worktree Markdown checks. */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { spawn } from "node:child_process";
 import { realpath } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 import { formatUnexpectedError } from "../lib/errors.js";
 import { gitExec } from "../lib/io-context.js";
@@ -66,4 +66,4 @@ export async function main(): Promise<number> {
   return enforceStagedMarkdownWorktreeAlignment();
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main();
+if (await isMainModule(import.meta, process.argv[1])) process.exitCode = await main();

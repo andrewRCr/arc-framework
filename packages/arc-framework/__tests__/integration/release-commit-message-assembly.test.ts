@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { access, chmod, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { tmpdir } from "node:os";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -206,7 +206,7 @@ describe("captured file snapshot", () => {
         cwd: repository,
         bytes: Buffer.from("bound message"),
       });
-      expect(snapshot.path.startsWith(`${alternate}/`)).toBe(true);
+      expect(snapshot.path.startsWith(`${alternate}${sep}`)).toBe(true);
       expect((await readFile(snapshot.path)).toString()).toBe("bound message");
       await snapshot.cleanup();
     } finally {
@@ -219,9 +219,12 @@ describe("captured file snapshot", () => {
 
     const snapshot = await snapshotMessage({ cwd: repository, bytes });
 
-    expect(snapshot.path.startsWith(`${join(repository, ".git")}/`)).toBe(true);
+    expect(snapshot.path.startsWith(`${join(repository, ".git")}${sep}`)).toBe(true);
     expect(Uint8Array.from(await readFile(snapshot.path))).toEqual(bytes);
-    expect((await stat(snapshot.path)).mode & 0o777).toBe(0o600);
+    // POSIX owner-only mode bits have no equivalent in Node's Windows file modes.
+    if (process.platform !== "win32") {
+      expect((await stat(snapshot.path)).mode & 0o777).toBe(0o600);
+    }
     await snapshot.cleanup();
     expect(await exists(snapshot.path)).toBe(false);
   });
@@ -236,7 +239,7 @@ describe("latest retry message", () => {
         cwd: repository,
         bytes: Buffer.from("retry through bound Git"),
       });
-      expect(retry.path.startsWith(`${alternate}/`)).toBe(true);
+      expect(retry.path.startsWith(`${alternate}${sep}`)).toBe(true);
       expect((await readFile(retry.path)).toString()).toBe("retry through bound Git");
     } finally {
       await cleanupTempDir(alternate);
@@ -258,8 +261,8 @@ describe("latest retry message", () => {
         bytes: Buffer.from("linked"),
       });
 
-      expect(primaryRetry.path.startsWith(`${join(repository, ".git")}/`)).toBe(true);
-      expect(linkedRetry.path.startsWith(`${join(repository, ".git", "worktrees")}/`)).toBe(true);
+      expect(primaryRetry.path.startsWith(`${join(repository, ".git")}${sep}`)).toBe(true);
+      expect(linkedRetry.path.startsWith(`${join(repository, ".git", "worktrees")}${sep}`)).toBe(true);
       expect(linkedRetry.path).not.toBe(primaryRetry.path);
     } finally {
       await cleanupTempDir(linkedParent);
@@ -280,7 +283,9 @@ describe("latest retry message", () => {
     expect(Uint8Array.from(await readFile(second.path))).toEqual(
       Uint8Array.from(Buffer.from("replacement message")),
     );
-    expect((await stat(second.path)).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") {
+      expect((await stat(second.path)).mode & 0o777).toBe(0o600);
+    }
   });
 
   it("removes only the consumed retry generation at its exact path", async () => {

@@ -31,6 +31,7 @@ import type { RawGitExec } from "../../git/exec.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import { runStoreActivate, runStoreDeactivate } from "./activate-deactivate-store.js";
+import { activationBlockerReport } from "./activation-blocker-report.js";
 import { join } from "node:path";
 
 import { parseMetaRecord } from "../../active/meta-reader.js";
@@ -165,7 +166,10 @@ export async function runActivate(
   });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-  return { status: "activated", outcome, metaPath, reconcile: applied };
+  const reconciledMeta = applied.prepared.edits.find((edit) => edit.path === metaPath)?.content;
+  const blockers = reconciledMeta === undefined ? record.blockers : parseMetaRecord(reconciledMeta).blockers;
+  return { status: "activated", outcome, metaPath, reconcile: applied,
+    report: activationBlockerReport(blockers, applied.prepared.plan.dependency.discharged) };
 }
 
 /**

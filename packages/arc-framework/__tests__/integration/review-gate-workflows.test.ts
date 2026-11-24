@@ -52,7 +52,8 @@ describe("trusted review-gate workflows", () => {
     // Shared setup is a required dependency so a failed install cannot roll up green
     // via skipped consumer legs.
     expect(workflow).toContain(
-      "needs: [classify, setup, build, lint-typecheck, unit, integration, store, e2e, portability, portability-cross-platform]",
+      "needs: [classify, setup, build, lint-typecheck, unit, integration, store, e2e, portability, portability-cross-platform, " +
+        "portability-timing]",
     );
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh portability --stdin0");
@@ -226,7 +227,7 @@ describe("trusted review-gate workflows", () => {
     // The pair fires only on the weekly schedule or an explicit dispatch
     // opt-in, so PR synchronizes never bill hosted-runner multipliers.
     expect(jobValue(workflow, "portability-cross-platform").if).toBe(
-      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only || inputs.portability_files)) || " +
+      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_files)) || " +
         "github.event_name == 'schedule') }}",
     );
     expect(jobValue(workflow, "portability-cross-platform").needs).toBe("setup");
@@ -237,6 +238,27 @@ describe("trusted review-gate workflows", () => {
     const targetedJob = JSON.stringify(jobValue(workflow, "portability-cross-platform"));
     expect(targetedJob).not.toContain("needs.classify.outputs.weight");
     expect(targetedJob).not.toContain("github.event_name == 'pull_request'");
+  });
+
+  it("measures the timing suites first on a VM of their own on each platform, after logging its load", async () => {
+    const workflow = await read("ci.yml");
+    const timing = jobValue(workflow, "portability-timing");
+    expect(timing.if).toBe("${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && " +
+      "(inputs.run_portability_pair || inputs.portability_timing_only)) || github.event_name == 'schedule') }}");
+    expect(timing.needs).toBe("setup");
+    expect(timing.strategy).toMatchObject({ matrix: { os: ["windows-latest", "macos-latest"] } });
+    expect(timing.strategy).not.toHaveProperty("matrix.shard");
+    const steps = timing.steps as { id?: string; name?: string; if?: string; run?: string; env?: Record<string, string> }[];
+    const measure = steps.findIndex((step) => step.id === "measure");
+    expect(steps[measure]?.run).toContain("__tests__/integration/store-ref-timing.test.ts");
+    expect(steps[measure]?.run).toContain("__tests__/integration/store-ref-projection-timing.test.ts --maxWorkers=1");
+    expect(steps[measure]?.env).toMatchObject({ ARC_STORE_BURSTS: "1" });
+    const load = steps.filter((step) => step.name === "Log VM load").map((step) => step.if);
+    expect(load).toEqual(["${{ runner.os == 'Windows' }}", "${{ runner.os == 'macOS' }}"]);
+    expect(steps.map((step) => step.name).lastIndexOf("Log VM load")).toBe(measure - 1);
+    const sharded = JSON.stringify(jobValue(workflow, "portability-cross-platform"));
+    expect(sharded).not.toContain("store-ref-timing.test.ts");
+    expect(sharded).not.toContain("portability_timing_only");
   });
 
   it("keeps the public review CLI inside the published graph", async () => {

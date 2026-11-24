@@ -12,6 +12,8 @@ import { lifecycleArtifactPath, requireCompleteInventory } from "../../store/lif
 import { mergeLifecycleLinks, readOwnDraft, readWorkUnit, workUnitArtifactName } from "../../store/lifecycle-write.js";
 import type { Mutation } from "../../store/write.js";
 import { executeTransition } from "../lifecycle-executor.js";
+import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
+import { activationBlockerReport } from "./activation-blocker-report.js";
 import { activationCaptureReport, planActivationBranch } from "./activation-branch-plan.js";
 import type { CurrentWuReconcileResult } from "../side-effects/discharge-dep-edges.js";
 import type { ActivateContext, ActivateParams, ActivateResult, DeactivateContext, DeactivateParams, DeactivateResult } from "./activate-deactivate.js";
@@ -47,7 +49,8 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,
     ...(outcome.status === "rejected" ? { refusal: outcome.refusal, remedy: outcome.remedy } : {}) };
-  return { status: "activated", outcome, metaPath, reconcile, branch: plan.link.ref, report: plan.report,
+  return { status: "activated", outcome, metaPath, reconcile, branch: plan.link.ref,
+    report: [...plan.report, ...activationBlockerReport(ParsedMetaRecordSchema.parse(updated.fields).blockers, reconcile.prepared.plan.dependency.discharged)],
     ...(plan.remoteDelete === undefined ? {} : { remoteDelete: plan.remoteDelete }), ...retired.result };
 }
 

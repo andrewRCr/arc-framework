@@ -61,6 +61,32 @@ it.runIf(process.platform === "linux")("keeps caller install-gap interpretation 
   expect(check).not.toHaveProperty("record");
 }, 30_000);
 
+it.runIf(process.platform === "linux")("keeps local version-drift advice off routed failures", async () => {
+  const machine = await createRunnerMachineHome(directories, [process.execPath, example]);
+  const configuration = join(machine.home, ".arc/config.yml");
+  const configured = await readFile(configuration, "utf8");
+  await rm(configuration);
+  const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"],
+    command: [process.execPath, "-e", "console.error('lint failed');process.exit(2)"] } });
+  directories.push(root);
+  await mkdir(join(root, "node_modules"));
+  await writeFile(join(root, "package-lock.json"), JSON.stringify({ lockfileVersion: 3,
+    packages: { "": {}, "node_modules/zod": { version: "4.6.6" } } }));
+  await writeFile(join(root, "node_modules/.package-lock.json"), JSON.stringify({ lockfileVersion: 3,
+    packages: { "node_modules/zod": { version: "4.4.3" } } }));
+  const native = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(native.exitCode, native.stdout + native.stderr).toBe(1);
+  expect(JSON.parse(native.stdout).result.checks[0]).toMatchObject({ outcome: "failed", output: "lint failed",
+    reason: expect.stringContaining("node_modules/zod (installed 4.4.3, locked 4.6.6); run npm ci") });
+  await writeFile(configuration, configured);
+  const routed = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(routed.exitCode, routed.stdout + routed.stderr).toBe(1);
+  const check = JSON.parse(routed.stdout).result.checks[0] as { reason?: string };
+  expect(check).toMatchObject({ outcome: "failed", output: "lint failed\n" });
+  expect(check.reason ?? "").not.toContain("npm ci");
+  expect(check).not.toHaveProperty("record");
+}, 30_000);
+
 it.runIf(process.platform === "linux")("keeps valid routed success when disposable reports and pass storage are unavailable", async () => {
   const machine = await createRunnerMachineHome(directories, [process.execPath, example, "--known-node-runtime"]);
   const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"],

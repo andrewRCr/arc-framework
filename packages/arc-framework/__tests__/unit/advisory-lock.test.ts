@@ -809,7 +809,7 @@ describe("renewAdvisoryLock", () => {
     await expect(renewAdvisoryLock(handle, 1_000)).resolves.toBe("ownership-lost");
   });
 
-  it("reports a retry when another process temporarily holds maintenance", async () => {
+  it("reports maintenance contention when another process temporarily holds the break lock", async () => {
     const handle = await acquireAdvisoryLock(lockPath, {
       pid: 5,
       token: "ours",
@@ -821,7 +821,7 @@ describe("renewAdvisoryLock", () => {
     await expect(renewAdvisoryLock(handle, 1_000, {
       isProcessAlive: () => true,
       now: () => 300,
-    })).resolves.toBe("retry");
+    })).resolves.toBe("maintenance-busy");
   });
 });
 

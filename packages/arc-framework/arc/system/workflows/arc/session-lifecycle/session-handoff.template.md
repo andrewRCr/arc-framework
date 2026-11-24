@@ -517,10 +517,11 @@ Dispatch only on its typed state and action:
     - **recordless `chore/<slug>` cheap-branch candidate** → `arc teardown --branch <branch>`: reaps the merged
       branch containment-safe, removes any distinct worktree, and prunes stale remote-tracking refs.
 - `none / create-change-request`, `merged-stale-head / reconcile-head`, `closed-unmerged / reopen-change-request`,
-  `ambiguous / stop`, or `blocked / stop` → **failed / blocked** — surface loudly, for both the manual- and
-  auto-merge lanes.
-- `open / reuse-change-request` → **still-pending** — hand to the session-init completion sweep; no action this
-  session.
+  `blocked / stop`, or `ambiguous / stop` without `headAhead` → **failed / blocked** — surface loudly, for both the
+  manual- and auto-merge lanes.
+- `open / reuse-change-request`, or `ambiguous / stop` with `headAhead: true` (the open request lags only a newer
+  head that is unpushed or not yet seen by the host) → **still-pending** — hand to the session-init completion
+  sweep; no action this session.
 
 [arc-methods-session]: ../../../methods/session-state.md
 [commit-format]: ../../../methods/commit-format.md

@@ -13,8 +13,8 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 import {
   parseIdentifierList,
@@ -283,6 +283,6 @@ function readStagedFile(path: string): string {
   });
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   runPathListScript(validateFiles, { readFile: readStagedFile });
 }

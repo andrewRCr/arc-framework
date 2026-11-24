@@ -28,12 +28,15 @@ source to reach adopters.
 The harness-local skill directories (`.claude/skills/`, `.codex/skills/`, `.gemini/skills/`, and their siblings —
 all gitignored) are a third, derived surface. `arc update` regenerates them deterministically from the canonical
 `SKILL.md` sources under `system/.internal/skills/`, so adopters get a fresh copy on every update. This repo does
-not run `arc update` against itself, so its harness copies drift from the canonical sources in
-`.arc/system/.internal/skills/` and `packages/arc-framework/arc/system/.internal/skills/` as canonical content
-changes.
+not run `arc update` against itself. Instead, each skill in its `.claude/skills/` and `.codex/skills/` is a link to the
+same checkout's canonical skill in `.arc/system/.internal/skills/`, so a harness reads the current text.
 
-The consequence is self-hosting-only: on a fresh session, if a skill's behavior surprises you, suspect drift
-before suspecting the skill, and hand-sync by copying the canonical `SKILL.md` into the harness subdirectory.
+`npm run setup` makes those links in each harness folder that exists: it links a missing skill and replaces a copied
+skill folder or a link that resolves elsewhere. A linked checkout copies the primary's harness folders when it is
+created. After a canonical skill is added, or when a skill's behavior surprises you, run `node scripts/link-skills.mjs`
+in the primary. To repair other checkouts in the same run, name `.` for the primary alongside their paths, as in
+`node scripts/link-skills.mjs . <checkout>...`: once any path is given, the script links only the checkouts named.
+Never hand-copy a `SKILL.md` into a harness folder: the copy stops following the canonical text.
 
 ## Edit Flow Rules
 

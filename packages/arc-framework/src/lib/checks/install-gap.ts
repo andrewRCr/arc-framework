@@ -1,4 +1,4 @@
-/** Recognizes a check that failed because a package its npm lockfile declares is not installed. */
+/** Diagnoses missing locked packages and records of installed versions that differ from the npm lockfile. */
 import { access, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
@@ -47,9 +47,9 @@ function legacyPackages(dependencies: Record<string, unknown>, parent = ""): Rec
   return packages;
 }
 
-async function readLockedPackages(directory: string): Promise<Record<string, unknown> | undefined> {
+async function readLockedPackages(directory: string, file = "package-lock.json"): Promise<Record<string, unknown> | undefined> {
   try {
-    const lockfile: unknown = JSON.parse(await readFile(join(directory, "package-lock.json"), "utf8"));
+    const lockfile: unknown = JSON.parse(await readFile(join(directory, file), "utf8"));
     if (!isRecord(lockfile)) return undefined;
     if (isRecord(lockfile.packages)) return lockfile.packages;
     return isRecord(lockfile.dependencies) ? legacyPackages(lockfile.dependencies) : undefined;
@@ -122,4 +122,27 @@ export async function findUninstalledLockedPackages(output: string, directories:
 /** State an install gap as a check's couldn't-run reason, naming the repair. */
 export function installGapReason(names: readonly string[]): string {
   return `${names.join(", ")} ${names.length === 1 ? "is" : "are"} in package-lock.json but not installed; run npm ci, then retry`;
+}
+
+/**
+ * Compare npm's installed record with the first readable project lockfile. Only differing versions at the same
+ * package install path establish drift; missing entries, workspace links and absent or malformed records do not.
+ * The result describes this checkout's install, so callers must not attach it to a routed check's failure.
+ */
+export async function findInstalledVersionMismatches(directories: readonly string[]): Promise<string[]> {
+  for (const directory of directories) {
+    const locked = await readLockedPackages(directory);
+    if (locked === undefined) continue;
+    const installed = await readLockedPackages(directory, join("node_modules", ".package-lock.json"));
+    if (installed === undefined) return [];
+    return Object.keys(locked).sort().flatMap(location => {
+      const expected = locked[location];
+      const actual = installed[location];
+      if (!/(?:^|\/)node_modules\/(?:@[^/]+\/)?[^/]+$/u.test(location) || !isRecord(expected) || !isRecord(actual)
+        || expected.link === true || actual.link === true || typeof expected.version !== "string"
+        || typeof actual.version !== "string" || actual.version === expected.version) return [];
+      return [`${location} (installed ${actual.version}, locked ${expected.version})`];
+    });
+  }
+  return [];
 }

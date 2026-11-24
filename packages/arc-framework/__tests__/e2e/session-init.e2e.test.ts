@@ -14,10 +14,11 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, realpath, unlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { execa } from "execa";
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
@@ -34,6 +35,7 @@ import { gitExec } from "../../src/lib/io-context.js";
 import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { useInRepoStoreForEach, withInRepoStore } from "../helpers/in-repo-store-override.js";
+import { createGitTraceHarness, readGitTrace, writeGhStub } from "../helpers/session-init-wrappers.js";
 import { integrateAttestedWorkUnit } from "../helpers/store/integrating-work-unit.js";
 import { readStoreRecord, seedStore } from "../helpers/store/seed-store.js";
 import { seedWorkUnit, seededWorkUnitSubject } from "../helpers/store/seed-work-unit.js";
@@ -241,82 +243,9 @@ interface RecoverAuditReport {
   };
 }
 
-interface GitTraceHarness {
-  binDir: string;
-  logPath: string;
-  batchInputPath: string;
-  env: Record<string, string>;
-}
-
-async function createGitTraceHarness(): Promise<GitTraceHarness> {
-  const binDir = await mkdtemp(join(tmpdir(), "arc-session-init-git-trace-"));
-  const logPath = join(binDir, "git.log");
-  const batchInputPath = join(binDir, "batch-input.txt");
-  const wrapperPath = join(binDir, "git");
-  await writeFile(wrapperPath, [
-    "#!/bin/sh",
-    // Compose the record, then append it in one write: the probes run concurrently, so
-    // separate appends can interleave mid-record and corrupt the trace being asserted on.
-    // The tab-per-field shape is preserved because the reader splits records on tabs.
-    "__arc_record=$(printf '%s\\t' \"$PWD\" \"$@\")",
-    "printf '%s\\n' \"$__arc_record\" >> \"$ARC_GIT_TRACE_LOG\"",
-    "case \"$ARC_GIT_TRACE_HISTORY:$*\" in",
-    "  shallow:*\"rev-parse --is-shallow-repository\"*)",
-    "    printf '%s\\n' 'true'",
-    "    exit 0",
-    "    ;;",
-    "esac",
-    "case \"$ARC_GIT_TRACE_FAIL:$*\" in",
-    "  remote:*\"ls-remote --heads origin\"*)",
-    "    printf '%s\\n' 'network is unreachable' >&2",
-    "    exit 1",
-    "    ;;",
-    "  batch:*\"cat-file --batch-check\"*)",
-    "    /bin/cat > /dev/null",
-    "    printf '%s\\n' 'local object inspection denied' >&2",
-    "    exit 1",
-    "    ;;",
-    "esac",
-    "case \"$ARC_GIT_TRACE_REJECT_CODE_WRITES:$*\" in",
-    "  1:*refs/notes/arc/user/*|1:*refs/arc/user/*|1:*refs/arc/tmp/transient-discovery/*)",
-    "    ;;",
-    "  1:fetch*|1:update-ref*|1:symbolic-ref*|1:branch*|1:pack-objects*|1:index-pack*|1:maintenance*|1:gc*)",
-    "    printf '%s\\n' 'code-repository metadata write denied' >&2",
-    "    exit 97",
-    "    ;;",
-    "esac",
-    "case \" $* \" in",
-    "  *\" cat-file --batch-check\"*)",
-    "    /bin/cat > \"$ARC_GIT_TRACE_BATCH_INPUT\"",
-    "    PATH=\"$ARC_GIT_REAL_PATH\" exec git \"$@\" < \"$ARC_GIT_TRACE_BATCH_INPUT\"",
-    "    ;;",
-    "esac",
-    "PATH=\"$ARC_GIT_REAL_PATH\" exec git \"$@\"",
-    "",
-  ].join("\n"));
-  await chmod(wrapperPath, 0o755);
-  const realPath = process.env.PATH ?? "";
-  return {
-    binDir,
-    logPath,
-    batchInputPath,
-    env: {
-      PATH: `${binDir}:${realPath}`,
-      ARC_GIT_REAL_PATH: realPath,
-      ARC_GIT_TRACE_LOG: logPath,
-      ARC_GIT_TRACE_BATCH_INPUT: batchInputPath,
-    },
-  };
-}
-
 /** Whether a traced Git command ran in the code repository rather than in the store's own Git directory beside it. */
 function inCodeRepository(fields: string[]): boolean {
   return !fields.slice(1).some((arg) => /^--git-dir=.*[\\/]arc[\\/]store$/u.test(arg));
-}
-
-async function readGitTrace(harness: GitTraceHarness): Promise<string[][]> {
-  const content = await readFile(harness.logPath, "utf8");
-  return content.trim().split("\n").filter(Boolean).map((line) => line.split("\t").filter(Boolean));
 }
 
 const identity = SlugSchema.parse("test-user");
@@ -634,25 +563,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     const ghBin = join(tmpDir, ".git", "arc-test-bin");
     const ghLog = join(ghBin, "gh.log");
     await mkdir(ghBin, { recursive: true });
-    await writeFile(
-      join(ghBin, "gh"),
-      [
-        "#!/bin/sh",
-        "printf '%s\\n' \"$*\" >> \"$ARC_TEST_GH_LOG\"",
-        "if [ \"$1\" = pr ] && [ \"$2\" = view ]; then",
-        "  printf '%s\\n' '{\"state\":\"OPEN\",\"isDraft\":false}'",
-        "  exit 0",
-        "fi",
-        "if [ \"$1\" = pr ] && [ \"$2\" = ready ]; then exit 0; fi",
-        "exit 2",
-        "",
-      ].join("\n"),
-    );
-    await chmod(join(ghBin, "gh"), 0o755);
-    const env = {
-      ARC_TEST_GH_LOG: ghLog,
-      PATH: `${ghBin}:${process.env.PATH ?? ""}`,
-    };
+    const env = await writeGhStub(ghBin, ghLog, true);
 
     const task = "Task 1.1 — Repair lifecycle recovery";
     const mismatched = await runArc(
@@ -801,23 +712,12 @@ describe("session-init E2E — sessionType across type variants", () => {
     const ghLog = join(ghBin, "gh.log");
     await mkdir(ghBin, { recursive: true });
     await writeFile(ghLog, "");
-    await writeFile(join(ghBin, "gh"), [
-      "#!/bin/sh",
-      "printf '%s\\n' \"$*\" >> \"$ARC_TEST_GH_LOG\"",
-      "exit 2",
-      "",
-    ].join("\n"));
-    await chmod(join(ghBin, "gh"), 0o755);
+    const env = await writeGhStub(ghBin, ghLog, false);
 
     const result = await runArc(
       ["reopen", "foo", "--keep-pr", "--task", "Task 1.1 — Repair the published delivery"],
       tmpDir,
-      {
-        env: {
-          ARC_TEST_GH_LOG: ghLog,
-          PATH: `${ghBin}:${process.env.PATH ?? ""}`,
-        },
-      },
+      { env },
     );
 
     // Off the branch, delivery's rename source refuses a base ref without its transition records, so plan resolution is
@@ -1153,7 +1053,8 @@ describe("session-init E2E — sessionType across type variants", () => {
   });
 
   it("writes a compaction seed for a large Candidate within the hook deadline using batched reads", async () => {
-    const trace = await createGitTraceHarness();
+    // A .cmd wrapper imposes cmd.exe's smaller argv limit on the 400-file reads. Native Git tracing does not.
+    const trace = await createGitTraceHarness({ nativeTrace: process.platform === "win32" });
     try {
       await seedBoundWorkUnit(tmpDir, "technical/large-candidate", "large-candidate",
         singletonTaskListFixture("Complete verification").replace("`[ ]`", "`[x]`"),
@@ -1205,9 +1106,12 @@ describe("session-init E2E — sessionType across type variants", () => {
           && args.includes("cat-file")
           && args.includes("--batch");
       });
-      expect(candidateLookups).toHaveLength(2);
-      expect(candidateBatchChecks).toHaveLength(2);
-      expect(candidateContentBatches).toHaveLength(2);
+      const traceDiagnostic = JSON.stringify({ locus: envelope.derivedLocusState, commands: commands.filter(fields =>
+        fields.some(field => ["ls-files", "ls-tree", "cat-file"].includes(field))
+      ) });
+      expect(candidateLookups, traceDiagnostic).toHaveLength(2);
+      expect(candidateBatchChecks, traceDiagnostic).toHaveLength(2);
+      expect(candidateContentBatches, traceDiagnostic).toHaveLength(2);
     } finally {
       await cleanupTempDir(trace.binDir);
     }
@@ -1239,10 +1143,11 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
         nextAction: "Continue execution",
       });
 
-      await expect(execFileAsync("git", ["fetch", "origin", "main"], {
+      // Execa resolves the same Windows .cmd wrapper used by the CLI; execFile bypasses it for git.exe.
+      await expect(execa("git", ["fetch", "origin", "main"], {
         cwd: repo,
         env: { ...process.env, ...trace.env, ARC_GIT_TRACE_REJECT_CODE_WRITES: "1" },
-      })).rejects.toMatchObject({ code: 97 });
+      })).rejects.toMatchObject({ exitCode: 97 });
       await writeFile(trace.logPath, "", "utf8");
 
       const result = await runArc(["status", "--session-init", "--json"], repo, {

@@ -2,8 +2,9 @@
 
 import {
   diagnostic,
-  finding,
+  leadsWithSeverity,
   parseCodeRabbitReviewBody,
+  parseCodeRabbitThreadFindings,
   type UnorderedFinding,
 } from "./coderabbit-body.js";
 export { parseCodeRabbitReviewBody } from "./coderabbit-body.js";
@@ -38,6 +39,7 @@ const COMMANDS = {
 const BOT_USER_ID = "136622811";
 const APP_OWNER_ID = "132028505";
 const APP_ID = "347564";
+const ACTIONABLE_THREAD_VISIBILITY_GRACE_MS = 30_000;
 /**
  * Completion wording in CodeRabbit's tagged reply to a review command. The match is loose, since its layout, icons and
  * punctuation change; a full review's wording names the full review, and an incremental one's does not.
@@ -47,12 +49,6 @@ const INCREMENTAL_REPLY = /(?<!\bfull )\breview (?:finished|completed?)\b/iu;
 /** Wording of a tagged reply CodeRabbit has not yet edited to report the review's result. */
 const IN_PROGRESS_REPLY = /\breview (?:triggered|started|queued|in progress)\b/iu;
 const COMMAND_INVOCATION_MARKER = /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/giu;
-const RESOLVED_THREAD_REPLY_FOOTER = new RegExp(
-  String.raw`(?:^|\r?\n)✅ Review thread resolved\.\s*`
-    + String.raw`_You are interacting with an AI system\._\s*`
-    + String.raw`<!-- This is an auto-generated reply by CodeRabbit -->\s*$`,
-  "u",
-);
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
@@ -341,17 +337,23 @@ function deduplicateTerminalFindings(findings: UnorderedFinding[]):
   return { kind: "deduplicated", findings: [...retained.values()].map(({ finding }) => finding) };
 }
 
-function isPriorThreadResolutionReply(comment: HostedGitHubThreadComment, reviewId: string): boolean {
+/**
+ * A CodeRabbit reply that does not open with a severity badge, in a thread an earlier review opened: conversation about
+ * that thread, such as a confirmation or a withdrawn finding, never a finding of this review. Its wording and footer
+ * change from week to week, so only its place in the thread and its leading line decide; a reply that opens with a
+ * badge there still reads as a finding.
+ */
+function isPriorThreadReply(comment: HostedGitHubThreadComment, reviewId: string): boolean {
   return comment.actorIdentity === BOT_USER_ID
     && comment.replyToReviewId !== null
     && comment.replyToReviewId !== reviewId
-    && RESOLVED_THREAD_REPLY_FOOTER.test(comment.body);
+    && !leadsWithSeverity(comment.body);
 }
 
 function isConfirmationOnlyReview(review: HostedGitHubReview, threads: readonly HostedGitHubThread[]): boolean {
   if (review.state !== "commented" || review.body.trim() !== "") return false;
   const comments = threads.flatMap((thread) => thread.comments.filter((comment) => comment.reviewId === review.id));
-  return comments.length > 0 && comments.every((comment) => isPriorThreadResolutionReply(comment, review.id));
+  return comments.length > 0 && comments.every((comment) => isPriorThreadReply(comment, review.id));
 }
 
 /** CodeRabbit request and exact-head observation through the lean GitHub port. */
@@ -513,32 +515,35 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
               comment.actorIdentity === BOT_USER_ID
               && comment.headSha === target.headSha
               && comment.reviewId === terminalReview.id
-              && !isPriorThreadResolutionReply(comment, terminalReview.id))
+              && !isPriorThreadReply(comment, terminalReview.id))
             .map((comment) => ({ threadId: thread.id, comment })));
-        const parsedComments = candidateComments.map(({ threadId, comment }) => ({
-          threadId,
-          comment,
-          parsed: finding(threadId, comment),
-        }));
-        const rejectedComment = parsedComments.find((candidate) => candidate.parsed === null);
-        if (rejectedComment !== undefined) {
-          const { threadId, comment } = rejectedComment;
-          const context = {
-            threadId,
-            commentId: comment.id,
-            path: comment.path,
-            ...(comment.line === null ? {} : { line: comment.line }),
-          };
-          return {
-            kind: "terminal-failure",
-            reason: comment.line === null
-              ? diagnostic("provider-thread-finding-locus-unavailable", context)
-              : diagnostic("provider-thread-finding-severity-unrecognized", context),
-          };
+        const findings: UnorderedFinding[] = [];
+        for (const { threadId, comment } of candidateComments) {
+          const parsed = parseCodeRabbitThreadFindings(threadId, comment);
+          if (parsed === null) {
+            const context = {
+              threadId,
+              commentId: comment.id,
+              path: comment.path,
+              ...(comment.line === null ? {} : { line: comment.line }),
+            };
+            return {
+              kind: "terminal-failure",
+              reason: comment.line === null
+                ? diagnostic("provider-thread-finding-locus-unavailable", context)
+                : diagnostic("provider-thread-finding-severity-unrecognized", context),
+            };
+          }
+          if (parsed.kind === "malformed") return { kind: "terminal-failure", reason: parsed.reason };
+          findings.push(...parsed.findings);
         }
-        const findings = parsedComments.map((candidate) => candidate.parsed)
-          .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
         if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
+          // Reviews and inline threads are fetched separately. Let the bounded poll read both again while the
+          // submitted review is fresh. An excess or a persistent shortfall is still contradictory evidence.
+          const ageMs = Date.now() - Date.parse(terminalReview.submittedAt);
+          if (findings.length < parsedBody.actionableCount && ageMs >= 0 && ageMs < ACTIONABLE_THREAD_VISIBILITY_GRACE_MS) {
+            return { kind: "pending" };
+          }
           return {
             kind: "terminal-failure",
             reason: diagnostic("provider-actionable-finding-count-mismatch", {

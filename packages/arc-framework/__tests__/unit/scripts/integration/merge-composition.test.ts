@@ -32,6 +32,7 @@ function port(headSha: string): ChangeRequestResolutionPort {
       headRefOid: headSha,
     }],
     searchByHeadSha: async () => [],
+    isAncestor: async () => false,
   };
 }
 
