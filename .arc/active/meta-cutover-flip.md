@@ -17,8 +17,8 @@
 - **Next Task:** Task 6.4.b — The import side
 - **Blockers:** [none]
 
-- **Next Action:** Tuesday 11-24 morning: the parallel run's worker tasks (4.2, 4.R, 6.3); Task 6.4.b once arc-offload's
-  verification fix deploys (SESSION-NOTES)
+- **Next Action:** Revise `notes-cutover-flip.md` § The parallel run from 11-24 (SESSION-NOTES step 1), then merge `main`
+  in (step 2); both before the Owner's approvals for the builds, the pilot, and pushes
 
 - **PR URL:** [none]
 - **Completed:** [none]
