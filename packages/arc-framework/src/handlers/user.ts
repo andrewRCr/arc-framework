@@ -13,6 +13,7 @@ import type { StoreRefusal } from "../lib/store/refusal.js";
 
 
 import { createStore, createDefaultStorePorts } from "../lib/store/index.js";
+import { refuseWriteIfStoreImported } from "../lib/store/store-imported.js";
 import { inboxOutput, type InboxHandlerPorts } from "./inbox-runtime.js";
 import { access, readFile } from "node:fs/promises";
 
@@ -858,7 +859,14 @@ export async function handleUserFetch(
   const spinner = output.spinner();
   spinner.start("Fetching user notes...");
 
-  const result = await runUserFetch({ cwd: resolveArcRoot(process.cwd()) ?? process.cwd(), io, identity });
+  let result;
+  try {
+    result = await runUserFetch({ cwd: resolveArcRoot(process.cwd()) ?? process.cwd(), io, identity });
+  } catch (err) {
+    // A running spinner holds the process open, so a refusal thrown beneath it stops it before it is reported.
+    spinner.stop("Fetch failed.");
+    throw err;
+  }
   if (!isUserFetchSuccess(result)) {
     spinner.stop(result.kind === "remote-unavailable" ? "Fetch failed." : "Fetch skipped.");
     reportUserFetchOutcome(result, identity, "fetch");
@@ -1028,9 +1036,11 @@ export async function handleUserPull(
   }
 
   const io = createUserIOContext(context.subprocess);
-  const hasLocal = await hasLocalNotes(io, identity);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  // Retired notes refuse before the overwrite question, which would otherwise ask about a pull that cannot run.
+  await refuseWriteIfStoreImported(cwd, io.exec, "sync");
+  const hasLocal = await hasLocalNotes(io, identity);
 
   if (hasLocal) {
     const answer = await prompt(userPullOverwritePromptSite, context, {
