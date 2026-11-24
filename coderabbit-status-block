@@ -3,14 +3,20 @@
   "slug": "coderabbit-status-block",
   "claimId": "71dee52e397261142dbb3b35a19a86b2",
   "createdAt": "2026-11-24T18:11:04.314Z",
-  "updatedAt": "2026-11-24T18:11:04.314Z",
+  "updatedAt": "2026-11-24T20:30:45.296Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Read CodeRabbit's no-findings line from its recent_review_status block as well as recent_review, so a clean hosted review with no review object settles",
   "branch": "fix/coderabbit-status-block",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/coderabbit-status-block",
+    "headSha": "ef84c8f441d8f4f5697304f04581fb527f2d81f6"
+  }
 }
