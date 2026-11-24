@@ -1147,18 +1147,20 @@ notice, and ADR-035 describe the store's arms.
   namespace that is neither a tag nor pushed, rather than as an archive tag, and is deleted with the notes residue refs
   after the window.
 
-### `[ ]` **4.R A refused notes writer on the flip build — § 12**
+### `[x]` **4.R A refused notes writer on the flip build — § 12**
 
 - _Goal:_ On the flip build each notes writer the sealing guard refuses states that Git notes are retired and names the
   store step that replaces it, never a rebuild, while the in-repo arm's refusal keeps its condition and remedy (A14).
 
-    - `[ ]` **4.R.a The notes writers' refusal and its test**
-        - The guard's calls in `runUserSave`, `runUserLoad`, and `runUserRenameWorkspace` (`commands/user/save-load.ts`),
-          in `commands/user/push-fetch.ts`, and in `runUserCompact` (`commands/user/compact.ts`) refuse with a notes
-          refusal of their own; `storeImportedRefusal`, which the in-repo backend and `rehearse-window.ts` read, is
-          unchanged.
-        - A test drives each writer over an imported repository on the ref default and asserts its condition and
-          replacement step.
+    - `[x]` **4.R.a The notes writers' refusal and its test**
+        - `refuseWriteIfStoreImported` (`lib/store/store-imported.ts`) takes the refused notes operation from its
+          callers in `commands/user/save-load.ts`, `push-fetch.ts`, and `compact.ts`. On the ref default it throws a
+          notes refusal: "Git notes are retired. Personal state lives in the store.", then `arc save` for a save, `arc
+          sync` for a push, fetch, or pull, that the projection keeps the files for a load or workspace rename, and that
+          no notes history remains for a compact. Under the in-repo override it throws `StoreImportedError` as before;
+          `storeImportedRefusal` is unchanged.
+        - `integration/notes-writer-refusal.test.ts` drives the seven writers, push with and without a checkout path
+          among them, over an imported repository on the ref default and pins each message whole.
 
 ## **Phase 5:** The workflow rewrite
 

@@ -3,7 +3,7 @@
  *
  * An import publishes the project registry ref, and every checkout of a repository shares its refs, so the moment one
  * checkout imports, a build that still writes tracked files, identity refs or Git notes would write state nothing reads
- * any more. Reads stay open; only writes refuse, each naming the same condition and remedy.
+ * any more. Reads stay open. The write's backend and operation determine its guidance.
  */
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
@@ -13,6 +13,7 @@ import type { GitExec } from "../git/exec.js";
 import { createExecaGitExec } from "../git/process-executor.js";
 import { FAMILY_REGISTRY } from "./registry.js";
 import type { StoreRefusal } from "./refusal.js";
+import { IN_REPO_STORE_OVERRIDE } from "./selection.js";
 
 /** The refusal a sealed write returns or throws. */
 export type StoreImportedRefusal = Extract<StoreRefusal, { code: "store-imported" }>;
@@ -21,6 +22,13 @@ const CONDITION = "This build of ARC predates the storage cutover, and this repo
   + "imported, so the write would be lost.";
 const REMEDY = "Merge the base branch into this checkout with Git (for example `git merge origin/main`), rebuild ARC, "
   + "then run the command again.";
+const NOTES_CONDITION = "Git notes are retired. Personal state lives in the store.";
+const NOTES_GUIDANCE = {
+  save: "Run `arc save` to save personal state.",
+  sync: "Run `arc sync` to synchronize personal state.",
+  "projected-files": "The projection keeps these files. No replacement step is needed.",
+  compact: "No notes history remains to compact.",
+};
 const files = { lstat, readFile: (path: string) => readFile(path, "utf8"), realpath };
 let defaultExec: GitExec | undefined;
 
@@ -85,10 +93,17 @@ export class StoreImportedError extends ArcError {
 
 /**
  * Throw before a Git-notes or tracked-state write once the store has been imported.
- * @param checkoutRoot - The checkout the write targets.
+ * @param checkoutRoot - The checkout the write targets, or undefined to use the executor's repository.
  * @param exec - Git executor for the ref lookup.
+ * @param notesWrite - Guidance for the refused Git-notes operation when the ref store is selected.
  * @returns Nothing when the write may proceed.
  */
-export async function refuseWriteIfStoreImported(checkoutRoot: string, exec?: GitExec): Promise<void> {
-  if (await storeImported(checkoutRoot, exec)) throw new StoreImportedError();
+export async function refuseWriteIfStoreImported(
+  checkoutRoot: string | undefined, exec?: GitExec, notesWrite?: keyof typeof NOTES_GUIDANCE,
+): Promise<void> {
+  const git = exec ?? (defaultExec ??= createExecaGitExec());
+  const imported = checkoutRoot === undefined ? await storeImportedHere(git) : await storeImported(checkoutRoot, git);
+  if (!imported) return;
+  if (notesWrite === undefined || (process.env[IN_REPO_STORE_OVERRIDE] ?? "") !== "") throw new StoreImportedError();
+  throw new ArcError(`${NOTES_CONDITION} ${NOTES_GUIDANCE[notesWrite]}`, "store.notes-retired");
 }

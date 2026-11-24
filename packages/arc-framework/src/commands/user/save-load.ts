@@ -117,7 +117,7 @@ export async function runUserSave(
   options: UserSaveOptions,
 ): Promise<UserSaveResult> {
   const { cwd, io, identity } = options;
-  await refuseWriteIfStoreImported(cwd, io.exec);
+  await refuseWriteIfStoreImported(cwd, io.exec, "save");
   const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
 
   // `git notes add` does its own unguarded read-modify-write on the notes tree,
@@ -247,7 +247,7 @@ const nodeRenameUserWorkspaceFs: RenameUserWorkspaceFs = {
 export async function runUserRenameWorkspace(
   options: UserRenameWorkspaceOptions,
 ): Promise<UserRenameWorkspaceResult> {
-  await refuseWriteIfStoreImported(options.cwd, options.io.exec);
+  await refuseWriteIfStoreImported(options.cwd, options.io.exec, "projected-files");
   const oldWuName = SlugSchema.parse(options.oldWuName);
   const newWuName = SlugSchema.parse(options.newWuName);
   const resolver = await resolveUserSurfaceResolver({
@@ -289,7 +289,7 @@ export async function runUserLoad(
   options: UserLoadOptions,
 ): Promise<UserLoadOutcome | null> {
   const { cwd, io, identity } = options;
-  await refuseWriteIfStoreImported(cwd, io.exec);
+  await refuseWriteIfStoreImported(cwd, io.exec, "projected-files");
   const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
   const resolver = await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
   const snapshot = await buildUserLoadManifestSnapshot({
