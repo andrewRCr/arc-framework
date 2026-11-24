@@ -123,6 +123,8 @@ describe("CodeRabbit summaries of a finished review with no review object", () =
   it.each([
     { layout: "its own status block", body: statusBlockSummary },
     { layout: "its own status block, CRLF", body: statusBlockSummary.replaceAll("\n", "\r\n") },
+    { layout: "its own status block, beside a count of zero", body: statusBlockSummary
+      .replace("<!-- recent_review_start -->", "<!-- recent_review_start -->\n**Actionable comments posted: 0**") },
     { layout: "the recent review block", body: statusBlockSummary
       .replace(NO_FINDINGS, "").replace("<!-- recent_review_start -->", `<!-- recent_review_start -->\n${NO_FINDINGS}`) },
   ])("reads the result from $layout", async ({ body }) => {
@@ -134,6 +136,13 @@ describe("CodeRabbit summaries of a finished review with no review object", () =
       .replace(NO_FINDINGS, "").replace("## Walkthrough", `## Walkthrough\n\n${NO_FINDINGS}`) },
     { gap: "the status block reports findings", body: statusBlockSummary
       .replace(NO_FINDINGS, "Actionable comments posted: 2") },
+    { gap: "the details block reports findings beside the status block's line", body: statusBlockSummary
+      .replace("<!-- recent_review_start -->", "<!-- recent_review_start -->\n**Actionable comments posted: 2**") },
+    { gap: "the status block reports findings beside the details block's line", body: statusBlockSummary
+      .replace(NO_FINDINGS, "**Actionable comments posted: 2**")
+      .replace("<!-- recent_review_start -->", `<!-- recent_review_start -->\n${NO_FINDINGS}`) },
+    { gap: "a block states a count of findings that is not a number", body: statusBlockSummary
+      .replace("<!-- recent_review_start -->", "<!-- recent_review_start -->\n**Actionable comments posted: several**") },
     { gap: "the status block appears twice", body: `${statusBlockSummary}
 <!-- recent_review_status_start -->
 <!-- recent_review_status_end -->` },

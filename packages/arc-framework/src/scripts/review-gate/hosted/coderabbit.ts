@@ -75,13 +75,16 @@ function summarySection(comment: HostedGitHubIssueComment, section: keyof typeof
   return comment.body.slice(start.index + start[0].length, end.index);
 }
 
+/** Whether a section carries the no-findings line and none states a nonzero count; sections that disagree do not. */
 function summaryReportsNoFindings(
   comment: HostedGitHubIssueComment,
   requestedAt: string,
 ): boolean {
-  return comment.updatedAt >= requestedAt && [summarySection(comment, "status"), summarySection(comment, "details")]
-    .some((section) => section !== null
-      && /\bno actionable comments were generated in the recent review\b/iu.test(section));
+  const sections = [summarySection(comment, "status"), summarySection(comment, "details")]
+    .filter((section) => section !== null);
+  return comment.updatedAt >= requestedAt
+    && sections.some((section) => /\bno actionable comments were generated in the recent review\b/iu.test(section))
+    && !sections.some((section) => /\bactionable comments posted:(?!\s*0\b)/iu.test(section));
 }
 
 function summaryCompletesHead(
