@@ -2079,6 +2079,13 @@ on the importing machine, outside the repository and uncited; each conclusion na
 - **Commits.** The window's own commits, each deletion commit and each merge a branch step makes, are made in the copied
   checkout, through its hooks. The stand-ins for live sessions' work ahead of the window, and each plant, are made in
   `<scratch>`, pushed to the mirror, and fetched.
+- **Hook checks on the copy.** A copied checkout's `origin` is the copy's mirror, and the host's check runner places
+  checks only for origins it has registered, so a routed check cannot be placed from the copy and its hook reports the
+  check could not run. Each commit and push in a copied checkout therefore runs with `HOME` pointed at an empty folder,
+  Git's identity kept through `GIT_CONFIG_GLOBAL`: ARC finds no machine runner and runs the hook's routed checks in the
+  copy itself, as on a machine with none. The command launches through `memcap_gated -m 6G` with `VITEST_MAX_WORKERS=2`;
+  four workers exceeded that cap in the push gate's unit tests. No check is skipped. On the day the flip checkout's
+  origin is the registered one, and its checks place as usual.
 - **Stops.** Each step's expected outcome is written down before the step runs. A different outcome stops the run: the
   fix lands in this change, and the stage re-runs from a fresh copy.
 
@@ -2117,15 +2124,19 @@ on the importing machine, outside the repository and uncited; each conclusion na
     5. `account`, then `chain --report <report>`, then `recompute`.
     6. Second refusal probe: in `<F>` with the override dropped, the flip build refuses, naming the imported route.
 4. **The flip's own landing (§ 10.5, Task 6.4.c):**
-    1. In `<F>` under the override: the deletion commit, `git rm -r` of § 3.2's five paths, its hooks passing; pushed
-       to the mirror.
+    1. In `<F>` under the override: the deletion commit, `git rm -r` of § 3.2's five paths, its hooks passing; pushed to
+       the mirror. The commit-msg hook warns that the footer's meta is not found, since this commit deletes it.
     2. `last-read`, passing.
     3. In `<scratch>`: merge the flip branch into `main` with `--no-ff` and push, standing in for the host merge.
     4. `<F>` then drops the override and, from the flip build:
-        - `arc archive`;
-        - the register closures, saved through write-back;
-        - its pre-flip workspace folder removed, kept files copied out;
-        - `arc locus release`.
+        - `arc archive cutover-flip --pr-url <url>`, naming the slug: the checkout's marker from before the flip is
+          unbound, so no current work unit resolves there and the bare `arc archive` refuses, naming `arc materialize
+          cutover-flip --here` and `arc locus release` as its exits;
+        - the register closures, saved through write-back (`arc save`); the save writes the local store, and the next
+          sync publishes it;
+        - its pre-flip workspace folder removed, kept files copied out, since release refuses over a withheld file;
+        - `arc locus release`, which removes the checkout itself, so anything else kept from it is copied out first and
+          the steps after it run from another checkout.
 5. **Each branch and checkout (§ 10.6, Task 6.4.d):**
     1. Each live branch other than `main` and the flip: `compare --branch`, then its branch step:
         - merge the mirror's tip where needed;
