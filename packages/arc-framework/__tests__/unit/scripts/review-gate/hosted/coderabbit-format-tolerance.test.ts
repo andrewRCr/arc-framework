@@ -5,11 +5,12 @@
  */
 import { readFileSync } from "node:fs";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CodeRabbitHostedAdapter } from "../../../../../src/scripts/review-gate/hosted/coderabbit.js";
 import { parseCodeRabbitReviewBody } from "../../../../../src/scripts/review-gate/hosted/coderabbit-body.js";
 import type {
+  HostedGitHubCommitStatus,
   HostedGitHubIssueComment,
   HostedGitHubPort,
   HostedGitHubReview,
@@ -24,8 +25,12 @@ const additionalCommentsBody = readFileSync(new URL(
   "../../../../fixtures/coderabbit-hosted/additional-comments-review-body.txt", import.meta.url), "utf8");
 const unmarkedCompletionReply = readFileSync(new URL(
   "../../../../fixtures/coderabbit-hosted/unmarked-completion-reply.txt", import.meta.url), "utf8");
+const statusBlockSummary = readFileSync(new URL(
+  "../../../../fixtures/coderabbit-hosted/status-block-summary.txt", import.meta.url), "utf8");
+const NO_FINDINGS = "No actionable comments were generated in the recent review.";
 
-function port(reviews: HostedGitHubReview[], comments: HostedGitHubIssueComment[]): HostedGitHubPort {
+function port(reviews: HostedGitHubReview[], comments: HostedGitHubIssueComment[],
+  statuses: HostedGitHubCommitStatus[] = []): HostedGitHubPort {
   return {
     currentActorIdentity: () => Promise.resolve("1234"),
     readHead: () => Promise.resolve(HEAD),
@@ -34,7 +39,7 @@ function port(reviews: HostedGitHubReview[], comments: HostedGitHubIssueComment[
     readThreads: () => Promise.resolve([]),
     readIssueComments: () => Promise.resolve(comments),
     readCheckRuns: () => Promise.resolve([]),
-    readCommitStatuses: () => Promise.resolve([]),
+    readCommitStatuses: () => Promise.resolve(statuses),
     findReplies: () => Promise.resolve([]),
     postReply: () => Promise.resolve({ kind: "ambiguous" }),
     readThread: () => Promise.resolve({ kind: "missing" }),
@@ -77,11 +82,11 @@ function reply(body = unmarkedCompletionReply, updatedAt = "2026-07-23T12:05:07.
   };
 }
 
-function handle(): ReturnType<typeof createHostedHandleFixture> {
+function handle(coverage: "complete" | "incremental" = "complete"): ReturnType<typeof createHostedHandleFixture> {
   return createHostedHandleFixture({
     provider: "coderabbit-pr",
-    requestedCoverage: "complete",
-    effectiveCoverage: "complete",
+    requestedCoverage: coverage,
+    effectiveCoverage: coverage,
     target,
     artifact: {
       kind: "issue-comment",
@@ -95,6 +100,98 @@ function handle(): ReturnType<typeof createHostedHandleFixture> {
 function observe(reviews: HostedGitHubReview[], comments: HostedGitHubIssueComment[]) {
   return new CodeRabbitHostedAdapter(port(reviews, comments)).observe(handle());
 }
+
+const summaryUrl = "https://github.com/owner/repo/pull/42#issuecomment-summary";
+
+/** What a finished review that posted no review object leaves: a commit status, one summary comment, the tagged reply. */
+function observeSummary(body: string | null, finished = reply(), statuses?: HostedGitHubCommitStatus[]) {
+  const summary: HostedGitHubIssueComment[] = body === null ? [] : [{ ...reply(body), id: "IC_SUMMARY", url: summaryUrl }];
+  const status: HostedGitHubCommitStatus = { context: "CodeRabbit", state: "success", description: "Review completed",
+    createdAt: "2026-07-23T12:05:05.000Z", updatedAt: "2026-07-23T12:05:05.000Z" };
+  return new CodeRabbitHostedAdapter(port([], [request(), ...summary, finished], statuses ?? [status])).observe(handle());
+}
+
+async function expectUnreadStop(observed: ReturnType<typeof observeSummary>): Promise<void> {
+  const result = await observed;
+  expect(result).toMatchObject({ kind: "terminal-failure" });
+  if (result.kind !== "terminal-failure") throw new Error("expected a stop");
+  expect(result.reason).toContain(`Receipt: ${reply().url}.`);
+  expect(result.reason).toContain(`Clean review is not established for ${HEAD}.`);
+}
+
+describe("CodeRabbit summaries of a finished review with no review object", () => {
+  it.each([
+    { layout: "its own status block", body: statusBlockSummary },
+    { layout: "its own status block, CRLF", body: statusBlockSummary.replaceAll("\n", "\r\n") },
+    { layout: "the recent review block", body: statusBlockSummary
+      .replace(NO_FINDINGS, "").replace("<!-- recent_review_start -->", `<!-- recent_review_start -->\n${NO_FINDINGS}`) },
+  ])("reads the result from $layout", async ({ body }) => {
+    await expect(observeSummary(body)).resolves.toEqual({ kind: "clean", reviewUrl: summaryUrl });
+  });
+
+  it.each([
+    { gap: "the line stands only outside both blocks", body: statusBlockSummary
+      .replace(NO_FINDINGS, "").replace("## Walkthrough", `## Walkthrough\n\n${NO_FINDINGS}`) },
+    { gap: "the status block reports findings", body: statusBlockSummary
+      .replace(NO_FINDINGS, "Actionable comments posted: 2") },
+    { gap: "the status block appears twice", body: `${statusBlockSummary}
+<!-- recent_review_status_start -->
+<!-- recent_review_status_end -->` },
+    { gap: "the status block never ends", body: statusBlockSummary.replace("<!-- recent_review_status_end -->", "") },
+    { gap: "the reviewed range ends at another head", body: statusBlockSummary
+      .replace(`and ${HEAD}`, `and ${"c".repeat(40)}`) },
+    { gap: "no reviewed range is named", body: statusBlockSummary
+      .replace(`between ${"b".repeat(40)} and ${HEAD}`, "this change") },
+  ])("stops naming the receipt, never clean, where $gap", async ({ body }) => {
+    expect(body).not.toBe(statusBlockSummary);
+    await expectUnreadStop(observeSummary(body));
+  });
+
+  it("stops naming the receipt when no summary or commit status came with the finished reply", async () => {
+    await expectUnreadStop(observeSummary(null, reply(), []));
+  });
+
+  describe("just after the finished reply", () => {
+    afterEach(() => { vi.useRealTimers(); });
+
+    it.each([
+      { after: "29 seconds", now: "2026-07-23T12:05:36.000Z", stops: false },
+      { after: "30 seconds", now: "2026-07-23T12:05:37.000Z", stops: true },
+    ])("waits up to 30 seconds for its result: $after", async ({ now, stops }) => {
+      vi.useFakeTimers({ now: new Date(now) });
+      const observed = observeSummary(null);
+      if (stops) await expectUnreadStop(observed);
+      else await expect(observed).resolves.toEqual({ kind: "pending" });
+    });
+  });
+
+  it.each([
+    { state: "reports the review running", body: "Full review triggered." },
+    { state: "reports a review other than the one requested", body: "Review finished." },
+  ])("keeps waiting while the tagged reply $state", async ({ body }) => {
+    await expect(observeSummary(statusBlockSummary, reply(unmarkedCompletionReply.replace("Full review finished.", body))))
+      .resolves.toEqual({ kind: "pending" });
+  });
+
+  it.each([
+    { observation: "an incremental request's", observeWith: (adapter: CodeRabbitHostedAdapter) =>
+      adapter.observe(handle("incremental")) },
+    { observation: "a handle-less", observeWith: (adapter: CodeRabbitHostedAdapter) => adapter.observeHandle(target) },
+  ])("keeps $observation observation pending after a finished reply that left no result", async ({ observeWith }) => {
+    const finished = reply(unmarkedCompletionReply.replace("Full review finished.", "Review finished."));
+    const adapter = new CodeRabbitHostedAdapter(port([], [{ ...request(), body: "@coderabbitai review" }, finished]));
+
+    await expect(observeWith(adapter)).resolves.toEqual({ kind: "pending" });
+  });
+
+  it.each([
+    { source: "another account", forged: { ...reply(), actorIdentity: "1234" } },
+    { source: "another app", forged: { ...reply(), appId: "999" } },
+    { source: "before the request", forged: { ...reply(), createdAt: "2026-07-23T11:59:00.000Z" } },
+  ])("never takes a finished reply from $source as the receipt", async ({ forged }) => {
+    await expect(observeSummary(null, forged)).resolves.toEqual({ kind: "pending" });
+  });
+});
 
 describe("CodeRabbit hosted review wording and layout changes", () => {
   it("reads a finding under a section label it does not know, without a completion icon or finding marker", async () => {

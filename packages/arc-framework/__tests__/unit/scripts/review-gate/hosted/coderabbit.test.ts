@@ -434,7 +434,8 @@ Full review finished.`,
         findings: [{ commentId: "graded-reply", severity: "major" }],
       });
       reply.body = "**✅ Resolved.** The `_🟠 Major_` concern is fixed.";
-      await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+        kind: "terminal-failure", reason: expect.stringContaining("without a readable result") });
     },
   );
 

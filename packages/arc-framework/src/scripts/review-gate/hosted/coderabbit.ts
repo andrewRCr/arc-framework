@@ -40,6 +40,8 @@ const BOT_USER_ID = "136622811";
 const APP_OWNER_ID = "132028505";
 const APP_ID = "347564";
 const ACTIONABLE_THREAD_VISIBILITY_GRACE_MS = 30_000;
+/** How long a finished reply may stand before a result it should have left counts as unreadable. */
+const COMPLETED_RESULT_VISIBILITY_GRACE_MS = 30_000;
 /**
  * Completion wording in CodeRabbit's tagged reply to a review command. The match is loose, since its layout, icons and
  * punctuation change; a full review's wording names the full review, and an incremental one's does not.
@@ -56,9 +58,16 @@ export const CODERABBIT_HOSTED_REGISTRATION = {
   identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID, appId: APP_ID },
 } as const;
 
-function recentReviewBody(comment: HostedGitHubIssueComment): string | null {
-  const starts = [...comment.body.matchAll(/<!--\s*recent_review_start\s*-->/giu)];
-  const ends = [...comment.body.matchAll(/<!--\s*recent_review_end\s*-->/giu)];
+/** The sections of CodeRabbit's summary comment that report a review's result; it moves the result between them. */
+const SUMMARY_SECTIONS = {
+  details: { start: /<!--\s*recent_review_start\s*-->/giu, end: /<!--\s*recent_review_end\s*-->/giu },
+  status: { start: /<!--\s*recent_review_status_start\s*-->/giu, end: /<!--\s*recent_review_status_end\s*-->/giu },
+} as const;
+
+/** The text of one summary section, or null where the comment does not hold exactly one. */
+function summarySection(comment: HostedGitHubIssueComment, section: keyof typeof SUMMARY_SECTIONS): string | null {
+  const starts = [...comment.body.matchAll(SUMMARY_SECTIONS[section].start)];
+  const ends = [...comment.body.matchAll(SUMMARY_SECTIONS[section].end)];
   if (starts.length !== 1 || ends.length !== 1) return null;
   const start = starts[0];
   const end = ends[0];
@@ -70,10 +79,9 @@ function summaryReportsNoFindings(
   comment: HostedGitHubIssueComment,
   requestedAt: string,
 ): boolean {
-  if (comment.updatedAt < requestedAt) return false;
-  const recent = recentReviewBody(comment);
-  return recent !== null
-    && /\bno actionable comments were generated in the recent review\b/iu.test(recent);
+  return comment.updatedAt >= requestedAt && [summarySection(comment, "status"), summarySection(comment, "details")]
+    .some((section) => section !== null
+      && /\bno actionable comments were generated in the recent review\b/iu.test(section));
 }
 
 function summaryCompletesHead(
@@ -82,7 +90,7 @@ function summaryCompletesHead(
   requestedAt: string,
 ): boolean {
   if (!summaryReportsNoFindings(comment, requestedAt)) return false;
-  const recent = recentReviewBody(comment);
+  const recent = summarySection(comment, "details");
   if (recent === null) return false;
   const ranges = [...recent.matchAll(/\bbetween\s+[a-f0-9]{7,40}\s+and\s+([a-f0-9]{7,40})\b/giu)];
   const reviewedHead = ranges[0]?.[1]?.toLowerCase();
@@ -132,6 +140,25 @@ function commentedReviewSettlement(
       reason: diagnostic("provider-completion-reply-unrecognized", { review: review.url, head: target.headSha }),
     }
     : { kind: "pending" };
+}
+
+/**
+ * Stop on a finished full review that left no result this reader can read, naming the reply that reports it finished.
+ *
+ * CodeRabbit edits that reply after it posts everything else, so a result still missing a little later is not coming or
+ * has changed its layout. The stop never records a clean result.
+ */
+function unreadableCompletion(
+  completedReply: HostedGitHubIssueComment | undefined,
+  target: HostedTarget,
+): HostedObservation {
+  if (completedReply === undefined
+    || Date.now() - Date.parse(completedReply.updatedAt) < COMPLETED_RESULT_VISIBILITY_GRACE_MS) return { kind: "pending" };
+  return {
+    kind: "terminal-failure",
+    reason: "CodeRabbit completed review without a readable result bound to the reviewed commit. "
+      + `Receipt: ${completedReply.url}. Clean review is not established for ${target.headSha}.`,
+  };
 }
 
 function commandInvocationMarkerCount(body: string): number {
@@ -496,7 +523,7 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
             ? { kind: "pending" }
             : { kind: "terminal-failure", reason: "provider-request-generation-overlap" };
         }
-        return { kind: "pending" };
+        return coverage === "complete" ? unreadableCompletion(completedReply, target) : { kind: "pending" };
       }
       if (coverage !== null && review.state === "commented") {
         const settlement = commentedReviewSettlement(providerComments, review, target,
