@@ -2075,7 +2075,10 @@ on the importing machine, outside the repository and uncited; each conclusion na
   run at a time. The import takes `NODE_OPTIONS=--max-old-space-size=3072`, a heap ceiling below the cap. Stage 1's
   imports peaked near 2.4 GiB and its operations near 2.9 GiB.
 - **The builds.** The pre-flip build is `<P>`'s, and a checkout with no built CLI runs it with that checkout as its
-  working directory. The flip build is built in `<F>` (`npm run build:fast`) and rebuilt there after any change to it.
+  working directory. The flip build is built in `<F>` (`npm run build:fast`) and rebuilt there after any change to it. A
+  checkout's hooks run that checkout's own CLI, so before its first commit of the window a checkout holds an install
+  that can start it and a build of its own: `npm run build:fast`, after `npm ci` where the CLI still cannot start, as in
+  the three planning checkouts whose installs predate a dependency `main` added.
 - **Commits.** The window's own commits, each deletion commit and each merge a branch step makes, are made in the copied
   checkout, through its hooks. The stand-ins for live sessions' work ahead of the window, and each plant, are made in
   `<scratch>`, pushed to the mirror, and fetched.
@@ -2098,10 +2101,15 @@ on the importing machine, outside the repository and uncited; each conclusion na
           records;
         - publish each copied Errand's branch, and abandon the Errand from its own checkout;
         - drop tracked-state stash entries;
+        - plant the stand-in for `main`'s pre-window change (A28): the test-only part of the flip's own commit
+          `24a8bea61d`, committed on `main`, after which `main`'s suite reads no tracked state from the tree;
+        - merge `main` into every live branch a checkout holds, and into a live branch no checkout holds by a merge
+          commit written without a checkout (`git merge-tree --write-tree`, `git commit-tree`, `git update-ref`);
         - merge `main` into the flip branch where `main` has moved since its last merge.
     3. Each copied unit holding an unpublished Candidate that those merges moved settles it (A6): `arc review
        pre-publication <wu>`, then the choice the live day would take through `arc candidate applicability resolve`,
-       committed and pushed in its checkout.
+       committed and pushed in its checkout. Read `<P>`'s roster after the merges: a unit whose checkout still reads
+       `work-unit` has nothing to settle.
     4. Where the copy holds none, make each before the lock: a live branch no checkout holds; a branch carrying a
        Candidate record `main` lacks; and a spawned pre-flip checkout. The copy holds no checkout claimed in place,
        which `check` would refuse as unmarked; that carry runs in its synthetic repository (Task 6.R).
@@ -2138,24 +2146,37 @@ on the importing machine, outside the repository and uncited; each conclusion na
         - `arc locus release`, which removes the checkout itself, so anything else kept from it is copied out first and
           the steps after it run from another checkout.
 5. **Each branch and checkout (§ 10.6, Task 6.4.d):**
-    1. Each live branch other than `main` and the flip: `compare --branch`, then its branch step:
+    1. Each live branch other than `main` and the flip: `compare --branch` first, which marks its tips before its step
+       moves one, then its branch step, the deletion ahead of any merge of the flipped `main` (§ 10.6):
         - merge the mirror's tip where needed;
+        - make its checkout's CLI runnable, as **The builds** states;
         - delete the five paths from disk and the index;
-        - commit in its checkout or, for a branch no checkout holds, from a temporary checkout removed afterwards;
-        - push.
+        - commit in its checkout or, for a branch no checkout holds, from a temporary checkout removed afterwards, the
+          hooks passing on the branch's own pre-flip build; the message's footer is `Context: standalone (maintenance)`,
+          since the commit deletes the meta a work-unit footer would name;
+        - push, its push gate passing.
     2. Each checkout, the primary first: `compare --checkout`, then its seven steps. The three removals run only where
-       its digest is unchanged.
+       its digest is unchanged. A linked checkout merges the flipped `main`, rebuilds, removes its pre-flip workspace
+       folder, takes its first materialization, and binds its marker with `arc materialize <slug> --here`. On the copy
+       that merge commit passes its commit hooks and is not pushed: a merge of the flipped `main` selects the whole push
+       gate, which the copy cannot run inside the cap for eleven branches, and on the day each session's push places it
+       as usual.
         - The checkout that merged `main` and rebuilt while still tracking state shows the refusal, then the remedy's
           deletion commit passing its hooks with the projection off, then its first materialization.
         - Each spawned pre-flip checkout's marker is bound.
         - The primary's identity root ends holding only ARC's surfaces and `scratch/`, its inbox and working memory laid
           from the store.
-    3. Each moved range is re-applied through the store and confirmed with `confirm`.
+    3. Each moved range is re-applied through the store and confirmed with `confirm <branch>`, naming `--local-tip` or
+       `--origin-tip` only for a side `compare` reported a range on; naming a side with no range refuses. A branch
+       compared before its step reports no range and needs no confirmation, since `close` reads the marks, not later
+       tips.
 6. **Notes retire, and the window closes (§ 10.7, § 12):**
     1. Move the notes ref with `git update-ref` to `refs/retired-notes/arc/user/<id>`, which is neither a tag nor
        matched by any push refspec, and delete the old ref.
     2. Each `arc user` notes writer refuses: `save`, `load`, `push`, `fetch`, `pull`, and `compact`.
-    3. `close`, passing, with no checkout reporting a withheld file.
+    3. `close`, passing, with no checkout reporting a withheld file. It refuses a live branch side with no comparison
+       mark and a reported range with no confirmation, and reads checkouts' heads for tracked state, so a live branch no
+       checkout holds must have taken its step by then on its own account.
     4. Clear every record under `<P>`'s `<commonDir>/arc/review-gate/` that names a path outside the copy, before any
        review runs on the copy. The records stay until here because the import reads every file under that folder
        (`readImportReviewGate`, `lib/store/ref/import/review-gate.ts`), so the copy's import reads what the live one
@@ -2233,6 +2254,51 @@ at `aeacd22686`) and the flip build the flip checkout's own. The carry holds (A2
 - **Setup commits ran with hooks off**, as the test suite's scratch repositories commit: a repository with no ARC CLI
   installed cannot run the installed pre-commit hook, and on a `--pm-mode none` install that hook's link check reports
   21 broken links among the installed strategies and workflows.
+
+#### Runs 4 and 5 (Tasks 6.4.c and 6.4.d), at `0fea09892a`: two stops, and what the stopped copies showed
+
+Both runs on 11-24 passed steps 1 to 3 as written, then stopped under the Stops rule. Neither is the stage's clean run;
+the next one takes a fresh copy at the head that holds the fixes below.
+
+- **Run 4** imported in 394.5 s at a 2,959 MiB peak, then stopped at step 4.1: the copied flip checkout's commit hook
+  could not place its routed check, since the host's runner serves only registered origins. The runbook's **Hook checks
+  on the copy** is the remedy.
+- **Run 5** took the trial in 429 s, `check` in 118 s, the import in 388 s at a 2,526 MiB peak, `account` in 125 s,
+  `chain` in 124 s and `recompute` in 2 s. Step 4 then ran as written through the deletion commit (1,068 files; "Checks:
+  3 passed, 11 not selected"), its push (76 s), `last-read` (2 s), the merge, the first status in `<F>` (13 s, 72
+  workspace files withheld), and the bare `arc archive`'s refusal. It stopped at 4.4.c on my expectation, which said no
+  new local-only store ref would appear: the store's local version token, `refs/arc/tmp/version`, did. The archive
+  itself was published. The expectation now names the published archive ref, not the ref set.
+
+Scouted on the stopped copies afterwards, as findings for the next run and the day, not as its evidence:
+
+- **A branch's deletion commit failed its commit hook** on every branch that had not merged the flip:
+  `test:arc-contracts`, 2 of 244, both in `main`'s `live-transition-records` suite, which reads the folder the commit
+  deletes. A28 makes its removal from `main` a pre-window condition. With that change applied in the copy's one
+  remaining pre-flip checkout, the deletion commit passed ("3 passed, 11 not selected", 1,070 files).
+- **Three planning checkouts could not start their own CLI in the hook** (`candidate-reroot-recovery-frame`,
+  `decomposition-doctrine`, `delivery-rebuild-continuity`): their installs predate `node-diff3`. `npm ci` and a rebuild
+  cleared it.
+- **Two notes writers did not end with the refusal**, fixed in `be5f99212d`: `arc user fetch` hung beneath its spinner,
+  and `arc user pull` asked for `--yes` first. On a build with the fix all six writers refuse with
+  `store.notes-retired`, before and after the notes ref moves.
+- **The flipped primary's roster read took 25.8 s**, against 1.8 s on the pre-flip build, and its session start 146 s.
+  Every store listing decodes each design record, and the decode parsed the whole document as Markdown to find its
+  Purpose. `2ffd4c69f3` parses only as far as the field: the roster read fell to 4.7 s and session start to 26 s. What
+  remains is the same decode repeated by each listing one command makes, which that commit does not address.
+- **`arc locus release` removes the checkout**, and refuses first over a withheld workspace file; `arc archive` needs
+  the slug in a checkout whose pre-flip marker is unbound; `arc materialize <slug> --here` binds a spawned pre-flip
+  marker with the unit's UID. The runbook's steps 4 and 5 carry each.
+- **Comparison and close:** a branch compared after its tip moved reports a `moved` range, `close` refuses it until
+  `confirm`, and then passes, with a live branch no checkout holds still tracking state.
+- **Seen beside them:** every command on the flipped primary prints "command start median 43 ms exceeds 25 ms"; `arc
+  status --project` warns that `adopter-install-authority` depends on a missing work unit `storage-cutover`, a cohort
+  named as a dependency; before the notes ref moves, the flip build's `arc status` still describes Git notes and names
+  `arc user push`; and `arc archive` archived the copied unit with tasks still open.
+
+The status and view arms ran on the flipped primary with exit 0: `status`, `status --project`, `status --user`, `status
+<slug>`, `status --json`, and `view` for the inbox, working memory, a cohort, a meta and an archived unit's task list.
+The copy holds no slug clash, so that arm needs one made.
 
 ## The parallel run from 11-24
 

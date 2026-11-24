@@ -1716,7 +1716,7 @@ rewritten workflows (§ 9.2).
 - _Goal:_ Each live branch's deletion commit passes its hooks before the branch merges the flip, since `main`'s suite no
   longer reads the tracked state that commit deletes and every live branch holds that change (A28).
 
-    - `[ ]` **6.R2.a The stand-in in the runbook**
+    - `[x]` **6.R2.a The stand-in in the runbook**
         - `notes-cutover-flip.md` § Stage 2's step 1 plants the change on the copy's `main` through the scratch clone,
           the test-only part of the flip's own commit, and merges `main` into every live branch and the flip before the
           lock; step 5 states what a checkout needs before its hooks can run, a current install and its own build.
