@@ -1588,9 +1588,12 @@ rewritten workflows (§ 9.2).
         - Each retains the command results and the record, UID, marker, checkout, code-ref, and personal-byte outcomes;
           handler or provider evidence stays labeled apart.
 
-    - `[ ]` **6.3.b The partial-protection start**
-        - Under `branch.protection: partial`, a work unit starts and drafts in its checkout, `arc plan check` proceeding
-          off-branch (`handlers/plan.ts`), as a new install gets by default.
+    - `[x]` **6.3.b The partial-protection start**
+        - `e2e/store-partial-protection-draft.e2e.test.ts` starts a work unit with `arc start <slug> --new` in a
+          repository `arc init` left at its default, `branch.protection: partial`. The spawned checkout sits detached at
+          `main` with its marker and projected meta; `arc plan check` there answers `proceed` with no current branch; a
+          draft written under `active/current/` passes `arc check increment` and `arc save` and reads back from the
+          store; and `arc set-class` and `arc repoint-design draft-created` land on the stored meta.
 
 ### `[ ]` **6.4 Stage 2 through the window's order — § 9.2, § 9.6, § 9.9, § 9.10, § 12**
 
