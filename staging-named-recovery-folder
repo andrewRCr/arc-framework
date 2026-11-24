@@ -3,7 +3,7 @@
   "slug": "staging-named-recovery-folder",
   "claimId": "5b4e72f70441334e8b8fdd988ce66c7c",
   "createdAt": "2026-11-24T16:48:38.974Z",
-  "updatedAt": "2026-11-24T18:10:48.831Z",
+  "updatedAt": "2026-11-24T19:48:37.872Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Report recovery copies below a real directory in the recovery folder whose name parses as a staged file, so removal does not delete an edited copy there",
@@ -11,13 +11,7 @@
   "origin": "inbox",
   "originEntry": "Reproduce, then fix, recovery copies hidden from removal by a directory named like a staging file",
   "originEntrySourceDigest": "sha256:3b68521f1abb869ccd09d8bbd4f735b7ff36354510f50b7666639c919442aee8",
-  "state": "awaiting-merge",
+  "state": "open",
   "savedHead": null,
-  "changeRequest": {
-    "repositoryRef": "andrewRCr/arc-framework",
-    "hostRef": "github.com",
-    "baseRef": "main",
-    "headRef": "fix/staging-named-recovery-folder",
-    "headSha": "825b524e5b1b965911797457adc04e88cd20734e"
-  }
+  "changeRequest": null
 }
