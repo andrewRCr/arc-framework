@@ -23,7 +23,7 @@ afterAll(async () => {
   // A setup that timed out before making the fixture leaves it unset.
   const fixture = producer as typeof producer | undefined;
   if (fixture !== undefined) await rm(fixture.root, { recursive: true, force: true });
-});
+}, process.platform === "win32" ? nestedRunLimit(10_000) : undefined);
 
 it.each(["lint-typecheck", "integration", "e2e", "portability"])(
   "qualifies transferred output and its preflight contract for %s", async (job) => {

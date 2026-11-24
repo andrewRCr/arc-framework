@@ -1,7 +1,7 @@
 /** Project entry point for check-only exact-index Markdown certification. */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { readFile, realpath } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 import { formatUnexpectedError } from "../lib/errors.js";
 import { gitExec } from "../lib/io-context.js";
@@ -52,4 +52,4 @@ export async function main(cwd: string = process.cwd()): Promise<number> {
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main();
+if (await isMainModule(import.meta, process.argv[1])) process.exitCode = await main();

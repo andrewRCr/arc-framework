@@ -81,6 +81,14 @@ function resolutionAliasRefusal(checkout: string, path: string): RefusedMark | n
   return intent?.accepted || !intent?.target?.aliases?.includes(path) ? null : intent.refusal;
 }
 
+/** Finish an accepted creation. An edit of its installed file ends the adoption: it is read and sent as any indexed file's. */
+async function checkResumedReadBack(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
+  reference: bigint | null, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{ index: ProjectionIndex; edited: boolean; reobserve: boolean }> {
+  const resumed = await resumeAdoptionReadBack(root, index, path, entry, onFile);
+  const checked = resumed.edited ? await checkFileAtPath(root, resumed.index, path, reference, undefined, onFile) : resumed;
+  return { index: checked.index, edited: checked.edited, reobserve: true };
+}
+
 async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null,
   observed?: FileStat | null, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{ index: ProjectionIndex; edited: boolean; reobserve?: boolean }> {
   const entry = index.entries[path];
@@ -99,7 +107,7 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
       index: withEntry(index, path, { ...entry, changed: entry.changed || changed.status === "changed",
         pending: true, refused: aliasRefusal }), checkpoint: root.context.checkpoint }), edited: false, reobserve: true };
   }
-  if (entry.adoption?.kind === "read-back") return { index: await resumeAdoptionReadBack(root, index, path, entry, onFile), edited: false, reobserve: true };
+  if (entry.adoption?.kind === "read-back") return checkResumedReadBack(root, index, path, entry, reference, onFile);
   if (entry.adoption?.kind === "write-back") return { index, edited: true };
   if (entry.withheld) {
     root.unsent.add(path);

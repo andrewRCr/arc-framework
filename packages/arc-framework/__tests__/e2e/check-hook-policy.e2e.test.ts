@@ -51,7 +51,8 @@ it.each(["project", "files"])("refuses partially staged %s inputs and resumes af
   expect(refused.exitCode, refused.stderr).toBe(2);
   expect(refused.stdout).toContain("src/a.ts");
   expect(refused.stdout).toMatch(/Stage.*whole/u);
-  expect(refused.stdout).toContain("ARC_SKIP=content");
+  expect(refused.stdout).toContain("git stash push --keep-index");
+  expect(refused.stdout).not.toContain("ARC_SKIP");
   await expect(readFile(join(root, "receipt.json"))).rejects.toMatchObject({ code: "ENOENT" });
   expect(await records(root)).toEqual([]);
   await exec("git", ["add", "src/a.ts"], { cwd: root, env: environmentForGitCwd(root) });

@@ -99,9 +99,10 @@ import its changed source. Do not wait for it: carry on with the next phase and 
   names a project and a package-relative path: drop the project label and prefix `packages/arc-framework/` to name
   the file from the repository root. When nothing is selected, report that the phase has no platform evidence.
 - Push the phase and dispatch them on the hosted pair with `gh workflow run ci.yml --ref <branch> -f
-  portability_files="<files>"`, naming repository-relative paths; each job takes a few minutes. No local runner gives
-  macOS evidence, since the Mac runners run checks in Linux VMs. A local Windows runner may stand in for Windows on
-  files that pass there on `main`, with the dispatch still covering macOS.
+  portability_files="<files>"`, naming repository-relative paths. Each job takes a few minutes. A local Windows runner
+  may stand in for Windows on files that pass there on `main`, with the dispatch still covering macOS.
+- For quick native macOS feedback during the phase, run `arc-offload --runner m4-mini-macos npm run -s test:file --
+  <file>` from the repository root for one test file. The hosted macOS dispatch supplies phase-close evidence.
 - When the phase changes test configuration or the lockfile, which no import graph bounds, say so in the report and
   leave the whole pair to verification's run.
 
@@ -128,12 +129,18 @@ package-local filters stay native and package-relative. Focused execution does n
 quality gate. Test preparation may reuse a qualifying build, but the full `npm run build` declaration gate and both
 type checks remain required.
 
+The Linux job `Portability (concurrency guards) (linux)` runs on pull requests in the reviewed lane with `heavy`
+CI weight. Hosted Windows and macOS runs come from the weekly schedule and explicit dispatches. For a
+platform-sensitive change outside a work unit's phase-close process, push the branch and run
+`gh workflow run ci.yml --ref <branch> -f run_portability_pair=true`. Check both platforms' results on the pushed
+head before the integration interlock.
+
 The store suites, every `store-ref-*` integration file, run in the `test:store` merge-gate check, selected by each
 suite's reach into the change, instead of in the integration tier. This departs from the quality-gates strategy's
 complete suite at the merge gate: for the store suites the gate rests on that reach and on the full run CI makes on
 every push to `main`, so a miss shows on `main` after merge rather than before it. The integration tier, the lane, and
-a pull request's portability run leave the store suites out, as does a dispatched portability run whose change reaches
-none of them. `ARC_STORE_CHECK=full` asks for a full run, and `ARC_STORE_CHECK=every` for every suite in its
+the Linux pull-request portability job leave the store suites out, as does a dispatched portability run whose change
+reaches none of them. `ARC_STORE_CHECK=full` asks for a full run, and `ARC_STORE_CHECK=every` for every suite in its
 per-change form.
 
 ## Testing Requirements

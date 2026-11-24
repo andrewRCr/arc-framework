@@ -67,15 +67,17 @@ it("acquires nested parent and sibling paths from a fresh Errand command and ret
   if (parentRow?.kind !== "work-unit" || parentRow.context === null) throw new Error(JSON.stringify(state));
   expect(parentRow.context).toMatchObject({ metaPath: ".arc/active/current/meta-parent.md", taskListPath: ".arc/active/current/tasks-parent.md" });
   const context = deriveRecoveryLocusContext({ state, identity: "test-user", workingMemoryPath: null });
-  expect(context.loadSet.entries.map(entry => entry.path)).toContain(".arc/active/current/meta-parent.md");
-  expect(context.loadSet.entries.map(entry => entry.path)).toContain(".arc/active/current/tasks-parent.md");
+  const anchored = (path: string) => join(parentRow.checkout.path, path);
+  expect(context.frame).toMatchObject({ parentCheckoutPath: parentRow.checkout.path });
+  expect(context.loadSet.entries.map(entry => entry.path)).toContain(anchored(".arc/active/current/meta-parent.md"));
+  expect(context.loadSet.entries.map(entry => entry.path)).toContain(anchored(".arc/active/current/tasks-parent.md"));
   const emitted = await emitCompactionSeed({ cwd: child, stateVersion: ok(await h.store.version()),
     envelope: { identity: { identity: "test-user" }, derivedLocusState: result(state),
       worktree: result({ branch, identity: { kind: "linked", path: child } }), active: result({ path: null, sessionType: null, currentWorkflow: null }),
       loadSet: result(context.loadSet) }, gitSnapshot: { branch, head, uncommittedFiles: [] }, writeSeed: async () => {} });
   if (emitted.status !== "written") throw new Error(JSON.stringify(emitted));
   expect(emitted.seed).toMatchObject({ activeWorkUnit: "parent", metaPath: ".arc/active/current/meta-parent.md", currentWorkflow: "run-errand" });
-  expect(emitted.seed.loadSet.entries.map(entry => entry.path)).toContain(".arc/active/current/tasks-parent.md");
+  expect(emitted.seed.loadSet.entries.map(entry => entry.path)).toContain(anchored(".arc/active/current/tasks-parent.md"));
   const fresh = tasks.replace("[ ]", "[x]");
   ok(await h.store.write({ action: "put", reference: task.reference, expected: task.version, content: fresh,
     provenance: { verb: "task-close", lifecycleAction: "update" } }));

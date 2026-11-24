@@ -25,6 +25,7 @@ import {
   MAX_GIT_OUTPUT_BYTES,
 } from "../lib/git/process-executor.js";
 import { GitProcessError, normalizeGitRejection } from "../lib/git/process-error.js";
+import { gitExecutable } from "../lib/git/executable.mjs";
 import { isGitObjectId } from "../lib/git/object-id.js";
 import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 import type { InteractionContext } from "./command-input/interaction-context.js";
@@ -455,9 +456,10 @@ export async function prepareGitRefVerification(
     throw new Error("Cannot prepare an invalid Git ref verification.");
   }
   const args = ["update-ref", "--stdin"];
-  const subprocess = execa("git", args, {
+  const env = environmentForGitCwd(cwd);
+  const subprocess = execa(gitExecutable(env), args, {
     cwd,
-    env: environmentForGitCwd(cwd),
+    env,
     stdio: ["pipe", "pipe", "pipe"],
     stripFinalNewline: false,
     maxBuffer: MAX_GIT_OUTPUT_BYTES,

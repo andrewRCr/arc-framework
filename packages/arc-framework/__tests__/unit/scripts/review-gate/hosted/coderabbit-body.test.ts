@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
-import { finding, parseCodeRabbitReviewBody } from
+import { finding, parseCodeRabbitReviewBody, parseCodeRabbitThreadFindings } from
   "../../../../../src/scripts/review-gate/hosted/coderabbit-body.js";
 import type { HostedGitHubReview, HostedGitHubThreadComment } from
   "../../../../../src/scripts/review-gate/hosted/github.js";
@@ -130,6 +130,59 @@ describe("CodeRabbit inline thread labels", () => {
       headSha: "a".repeat(40),
     };
   }
+
+  it("captures each marked finding in a folded inline comment with one thread settlement", () => {
+    const comment = threadComment(`<!-- coderabbit-ai-generated:v1 -->
+
+**<picture><img src="major.svg"></picture> Major** · **Correctness** · **Quick win**
+
+**Keep the first saved change.**
+
+<details>
+<summary>Example</summary>
+
+\`\`\`md
+<!-- cr-comment:v1:01234567 -->
+\`\`\`
+</details>
+
+<!-- cr-comment:v1:aaaaaaaa -->
+
+_Source: Path instructions_
+
+---
+
+**🟡 Minor** · **Correctness** · **Quick win**
+
+**Keep the second saved change.**
+
+<!-- cr-comment:v1:bbbbbbbb -->`);
+
+    expect(parseCodeRabbitThreadFindings("PRRT_1", comment)).toMatchObject({
+      kind: "parsed",
+      findings: [
+        { findingId: "PRRT_1:123", origin: "review-thread", settlement: "reply-and-resolve",
+          severity: "major", locus: "src/a.ts:7", sourceLabel: "**Keep the first saved change.**" },
+        { findingId: "PRR_1:bbbbbbbb", origin: "review-body", settlement: "not-applicable",
+          severity: "minor", locus: "src/a.ts:7", sourceLabel: "**Keep the second saved change.**",
+          url: "https://github.com/owner/repo/pull/42#discussion_r1" },
+      ],
+    });
+  });
+
+  it("fails closed when a second inline marker has no separate finding", () => {
+    const comment = threadComment(`_🟠 Major_
+
+**Keep the saved change.**
+
+<!-- cr-comment:v1:aaaaaaaa -->
+<!-- cr-comment:v1:bbbbbbbb -->`);
+
+    expect(parseCodeRabbitThreadFindings("PRRT_1", comment)).toEqual({
+      kind: "malformed",
+      reason: 'provider-folded-thread-findings-malformed: {"threadId":"PRRT_1","commentId":"123"}',
+    });
+  });
 
   describe.each(badgeEmphasis)("with %s badges", (_form, emphasize) => {
     const badges = badgeLine(emphasize, "🎯 Functional Correctness", "🟡 Minor", "⚡ Quick win");

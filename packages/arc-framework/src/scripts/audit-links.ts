@@ -9,10 +9,10 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, posix, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
@@ -226,6 +226,6 @@ function main(): void {
   process.stdout.write(`audit-links: ${String(paths.length)} file(s) validated\n`);
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   main();
 }
