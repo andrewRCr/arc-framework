@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "coderabbit-status-block",
+  "claimId": "71dee52e397261142dbb3b35a19a86b2",
+  "createdAt": "2026-11-24T18:11:04.314Z",
+  "updatedAt": "2026-11-24T18:11:04.314Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Read CodeRabbit's no-findings line from its recent_review_status block as well as recent_review, so a clean hosted review with no review object settles",
+  "branch": "fix/coderabbit-status-block",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
