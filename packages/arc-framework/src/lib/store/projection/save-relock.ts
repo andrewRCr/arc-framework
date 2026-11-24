@@ -1,8 +1,9 @@
 /** Close archive openings only after a read-only file's final check proves its bytes are stored. */
-import { chmod, lstat } from "node:fs/promises";
+import { chmod, lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
-import { checkChange, readReference, readStoredText } from "./change-detection.js";
+import { gitBlobId, storedBlobId } from "./blob-id.js";
+import { checkChange, readReference, readStat, readStoredText } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -43,7 +44,7 @@ async function settleFile(root: ProjectionRootState, index: ProjectionIndex, pat
   const changed = await readRelockedChange(root, path, entry, outcome);
   if ("mark" in changed) return retain(root, index, path, entry, changed.mark);
   if (changed.stat.size === 0n && admission.size !== 0n) return retain(root, index, path, entry, emptiedMark(path));
-  if (changed.status !== "changed") return finishRelock(root, index, path, entry, changed.stat.size);
+  if (changed.status !== "changed") return finishUnchanged(root, index, path, entry, outcome, changed.stat.size);
   if (outcome !== undefined) return retain(root, index, path, entry, pendingMark());
   const sent = await send(index, path, entry), current = sent.index.entries[path];
   if (current?.kind !== "record") return sent.index;
@@ -58,7 +59,30 @@ async function finishLateEdit(root: ProjectionRootState, index: ProjectionIndex,
   const changed = await readRelockedChange(root, path, entry, outcome);
   if ("mark" in changed) return retain(root, index, path, entry, changed.mark);
   return changed.status === "changed" ? retain(root, index, path, entry, pendingMark())
-    : finishRelock(root, index, path, entry, changed.stat.size);
+    : finishUnchanged(root, index, path, entry, outcome, changed.stat.size);
+}
+
+/** Close an opening whose file holds no edit, first recording text that differs from the projected bytes in line endings. */
+async function finishUnchanged(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
+  outcome: ProjectionFileWriteObservation | undefined, checkedSize: bigint): Promise<ProjectionIndex> {
+  if (outcome?.result.answer !== "no-edit" || path.endsWith(".md")) return finishRelock(root, index, path, entry, checkedSize);
+  const accepted = await acceptTextAtRest(root, path, entry);
+  return accepted === null ? retain(root, index, path, entry, pendingMark()) : finishRelock(root, index, path, accepted, checkedSize);
+}
+
+/**
+ * The bytes a no-edit save leaves at rest become the entry's projected ones, so each later check, which compares
+ * bytes, reads the file as unchanged. One read between two equal stats supplies both the comparison and the record.
+ */
+async function acceptTextAtRest(root: ProjectionRootState, path: string, entry: RecordEntry): Promise<RecordEntry | null> {
+  const file = join(root.checkout, path), { format } = root.context;
+  const before = await readStat(file), bytes = await allowMissingFile(readFile(file)), after = await readStat(file);
+  if (bytes === null || before?.type !== "file" || after?.type !== "file") return null;
+  if (before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ino !== after.ino) return null;
+  const written = gitBlobId(bytes, format);
+  if (written === entry.written) return entry;
+  if (storedBlobId(bytes.toString("utf8"), { format, markdown: false }) !== entry.written) return null;
+  return { ...entry, written, stat: after };
 }
 
 async function readRelockedChange(root: ProjectionRootState, path: string, entry: RecordEntry,

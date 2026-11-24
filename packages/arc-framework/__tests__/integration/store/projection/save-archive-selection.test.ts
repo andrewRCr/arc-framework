@@ -7,6 +7,7 @@ import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/e
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
+import { projectionCommand } from "../../../helpers/store/projection/command.js";
 import { readFile, chmod, writeFile } from "node:fs/promises";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -130,6 +131,39 @@ it("names arc edit before the marker remedy for an unopened archive conflict and
   await writeFile(join(h.checkout, path), renderStampedFile({ content: current.content, stamp: entry.base.blob }));
   expect(await save(h, ["--resolve", token])).toMatchObject({ status: "ok" });
   expect(success(await h.store.read({ reference: record.reference })).conflicts).toEqual([]);
+});
+
+it.each([false, true])("prints the saving checkout's remedy for a partly repaired archived entry list (opened=%s)", async opened => {
+  const h = await fixture(), reference = recordReferences["work-item/inbound"](h.primary.reference.owner);
+  const path = `${h.folder}/inbound-${h.primary.reference.owner.name}.md`;
+  const base = "# Inbound\n\n## Inbound\n\n### [ ] **First**\n\n- _Id:_ `11111111`\n\nbase first\n\n"
+    + "### [ ] **Second**\n\n- _Id:_ `22222222`\n\nbase second\n";
+  const record = await seed(h.f, reference, base);
+  for (const side of ["stored first", "incoming first"]) success(await h.store.write(update(h.f, record, base.replace("base first", side))));
+  const conflict = success(await h.store.read({ reference })).conflicts[0];
+  if (conflict === undefined) throw new Error("Native writes made no conflict");
+  await seedProjection({ store: h.store, checkout: h.checkout, files: [{ reference, path }] });
+  const file = join(h.checkout, path), laid = await readFile(file, "utf8");
+  expect(laid).toContain("<<<<<<<");
+  if (opened) await openArchivedProjectionFile(h, path);
+  else await chmod(file, 0o644);
+  // One entry's markers lose their end line while another entry is edited, so the edit lands and the set is retained.
+  await writeFile(file, laid.replace(/^>>>>>>>[^\n]*\n?/mu, "").replace("base second", "edited second"));
+  const saved = await save(h, ["--resolve", formatConflictToken(conflict)]);
+  if (saved.status !== "refused") throw new Error("The retained set was reported resolved");
+  const remedy = saved.refusal.remedy.text;
+  // The store replays the preparation without a worktree; the remedy printed is the saving checkout's own.
+  expect(remedy).not.toContain(" from . ");
+  if (opened) expect(remedy).not.toContain("arc edit");
+  else expect(remedy).toContain(`Run arc edit ${path} from ${h.checkout} first. `);
+  expect(success(await h.store.read({ reference })).content).not.toContain("edited second");
+  if (opened) return;
+  // The refusal left the entry unsettled, so a plain save sends it: the other entry lands and the set is retained.
+  const sent = await projectionCommand({ store: h.store, checkout: h.checkout }, ["save"]);
+  expect(sent.result).toMatchObject({ status: "ok" });
+  expect(success(await h.store.read({ reference })).content).toContain("edited second");
+  expect(sent.diagnostics).toContain(`Run arc edit ${path} from ${h.checkout} first. Finish resolving the affected set`);
+  expect(sent.diagnostics).not.toContain(" from . ");
 });
 
 it("finishes an unopened accepted archive adoption and its interrupted recording at save", async () => {

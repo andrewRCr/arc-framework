@@ -10,6 +10,7 @@ import { withProjectionLock, type ProjectionLockResult } from "./lock.js";
 import { readProjectionIndex, commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { inspectProjectionEditPath } from "./edit-path.js";
+import { PROJECTION_ARCHIVE_PREFIX } from "./paths.js";
 
 /** An opened local path, or the reason opening could not run. */
 export type ProjectionEditResult =
@@ -23,7 +24,7 @@ export async function projectionEditResult(store: Store, requested: string, oper
   if (state.skip?.reason === "switch") return refuse(state.skip.mark, "projection-skipped");
   if (!store.capabilities.stateOffBranch) return refuse({
     reason: "Archive opening is unavailable with the current storage backend.",
-    remedy: { text: "Before the storage switch, edit files under .arc/completed/ in place." },
+    remedy: { text: `Before the storage switch, edit files under ${PROJECTION_ARCHIVE_PREFIX} in place.` },
   }, "unsupported");
   const checkout = await canonicalCheckout(requested);
   const stopped = projectionStartRefusal("arc edit", checkout);

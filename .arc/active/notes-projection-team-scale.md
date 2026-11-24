@@ -33,6 +33,8 @@
 - [Amendment A16](#amendment-a16)
 - [Amendment A17](#amendment-a17)
 - [Amendment A18](#amendment-a18)
+- [Amendment A19](#amendment-a19)
+- [Line endings at the re-lock](#line-endings-at-the-re-lock)
 - [Delegated work from 11-24](#delegated-work-from-11-24)
 - [Model evidence](#model-evidence)
 
@@ -1009,9 +1011,10 @@ check's classification.
 Each notes section written between activation and A17 records the build at the commits it names. Read against the build
 after A17:
 
-- **Historical throughout,** recording the receipt, the path check with its holds, or the waiting rule as built: every
-  amendment section from § Amendment A2 to § Amendment A16, § Save after a retirement refusal, and § Interrupted
-  adoption and retirement recovery.
+- **Historical,** recording the receipt, the path check with its holds, or the waiting rule as built: every amendment
+  section from § Amendment A2 to § Amendment A16, § Save after a retirement refusal, and § Interrupted adoption and
+  retirement recovery. One rule in § Amendment A2 is still the build's: each refused path is reported once per command,
+  through the sweep and `arc save`'s re-lock too.
 - **§ Archive boundary corrections, in part.** A1's opening requirement, the link validation before archive pickup, and
   the mode change through a handle that identifies the observed file are withdrawn. The check of which checkout owns the
   requested path, the same-byte replacement kept opened while writable, the retirement's refusal of a late forced edit,
@@ -1020,8 +1023,10 @@ after A17:
   device and inode match, the cleared intent on a changed boundary, the accepted version recorded with its submitted
   bytes before read-back, and both recovery subsections (store-backed save recovery; late edits and archive adoption)
   are withdrawn. Its verification evidence and paired timings were measured on commits that carried those mechanisms and
-  are not readings of the build after A17. Its paragraph on a changed entry in a partition open for settlement stays
-  (A18).
+  are not readings of the build after A17. Within the late-edits subsection, the paragraph on the Windows
+  archive-conflict notice case and its 60 seconds describes a test that still runs. Its paragraph on a changed entry in
+  a partition open for settlement is corrected by § Amendment A19: an entry's own state decides what the persist step
+  finishes, never its partition's mark.
 - **Current:** every other section.
 
 ## Amendment A18
@@ -1044,6 +1049,40 @@ check and the persist step all leave such an entry to the step that finishes it.
 marks the entry pending; the next refresh over the file, the next plain `arc save`, or the persist step then lands it
 under the rights check every take-in makes. Nothing is lost on any of the three routes. Holding such a correction for
 `arc edit` at removal would restore part of the waiting rule A17 withdrew.
+
+## Amendment A19
+
+The fix check over pass 33's repairs read item 10 as A18 wrote it and found two answers for one retry. A18 listed the
+persist step's own refusal among the origins of an unsettled correction and said each named step, the persist step
+among them, lands it; its last sentence said the persist step keeps refusing over an entry its own refusal marked. A19
+separates the two and changes no behavior, approved 2026-11-24. Item 10 as A18 wrote it:
+
+> **An unopened correction left unsettled lands without `arc edit` (A17, A18).** A forced edit that a refresh could
+> not take in, that `arc sync`'s restoration refused, or that the persist step refused over, stays in its file (§ 7.1,
+> § 7.2, § 8). Where the refusal leaves its entry unsettled, the correction is no longer a forced edit as the Terms
+> define one, and each step that finishes unsettled entries lands it where its rights allow, without `arc edit`: a
+> refresh that touches its file (§ 7.1), the next plain `arc save` among § 6.1's unsettled entries, and the persist
+> step under § 8's rule for an unsettled entry. `arc sync`'s restoration still takes nothing in (§ 7.2), and the
+> persist step still lands no forced edit and keeps refusing over an entry its own refusal marked (§ 8).
+
+The same check corrected a paragraph of § Independent verification repairs that A17's list had kept: it said § 8
+permits finishing a changed entry in a partition already open for settlement. The header marks a quarter when any
+entry in it is unsettled (`index-file.ts`), which decides only what `arc save` and the persist step read.
+`unopenedArchiveEditMark` (`archive-inspection.ts`) tests the entry itself, so a settled file edited beside an opened
+one in the same quarter is a forced edit and the persist step refuses over it.
+
+## Line endings at the re-lock
+
+A save that changes only the line endings of an archived text file other than Markdown sends nothing: write-back reads
+such bytes as holding no edit on every root (`readStamplessFile`, `stampless.ts`). The re-lock then closed the opening
+with the entry still recording the bytes the projection wrote, and every later check, which compares bytes, read the
+file at rest as a forced edit whose remedy, `arc edit` then `arc save`, repeated the same save. The re-lock now records
+the bytes it accepts as the entry's projected ones (`acceptTextAtRest`, `save-relock.ts`), read once between two equal
+stats, so sync's report, the removal check, the persist step and a release's replace guard all read the file as
+unchanged. A line-ending change to a file nobody opened is a forced edit like any other, and `arc edit` then
+`arc save` clears it the same way. A first repair normalized line endings in the archive inspection alone; it was
+withdrawn, since the persist step's capture guard and the replace guard still compared bytes, and it reported a file
+the store holds with CRLF as edited.
 
 ## Delegated work from 11-24
 

@@ -152,7 +152,7 @@ it("names the stored spelling when a case alias addresses an archived file", asy
   ] });
   binding.alias = { operand: join(h.f.root, alias), file: join(h.f.root, path) };
   expect(await edit(h.f.store, h.f.root, alias)).toMatchObject({ status: "refused", refusal: {
-    code: "edit-refused", remedy: { text: expect.stringMatching(new RegExp(`arc edit \\S*notes-alpha\\.md from \\S+,`, "u")) },
+    code: "edit-refused", remedy: { text: `Run arc edit ${path} from ${h.f.root}, with the stored spelling.` },
   } });
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   expect(disk).toMatchObject({ kind: "index" });

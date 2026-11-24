@@ -1133,7 +1133,10 @@ it("adopts an opened archived path at the next command after failed save admissi
     condition: "Archived admission is locked.", remedy: { text: "Release the lock and retry save." } });
   const store = overrideEngineStore(h.f.store, { batch: input => blocked && input.writes[0]?.reference.kind === "work-item/companion"
     ? Promise.resolve({ status: "refused", refusal }) : h.f.store.batch(input) });
-  expect((await save({ store, checkout: h.f.root })).errors).toContain(refusal.condition);
+  const refused = await save({ store, checkout: h.f.root });
+  expect(refused.errors).toContain(refusal.condition);
+  // The refused admission names the path; the re-lock that keeps its opening does not name it again.
+  expect(refused.errors.split("\n").filter(line => line.startsWith(`projection: ${path}: `))).toHaveLength(1);
   expect(await readProjectionIndex(h.projected.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     entries: { [path]: { kind: "ownerless", opened: true, refused: expect.any(Object) } },
   } });

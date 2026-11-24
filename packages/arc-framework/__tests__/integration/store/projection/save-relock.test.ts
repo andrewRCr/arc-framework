@@ -508,7 +508,8 @@ it("retains an opening and retry remedy for a deferred take-in", async () => {
   const entry = disk.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("Missing opened archive record");
   const bytes = await readFile(file);
-  await writeFile(file, "");
+  // The file keeps content, so the deferred answer holds the opening, not the hold on an emptied file.
+  await writeFile(file, Buffer.concat([bytes, Buffer.from("\nA deferred change.\n")]));
   const observation = { path: h.path, result: { answer: "deferred", entry }, installation: "attempted" } as const;
   const held = await withProjectionLock(root.location, async session => {
     const saveRoot = { ...root, checkpoint: session.step, context: { ...root.context, checkpoint: session.step, verb: "save" as const } };

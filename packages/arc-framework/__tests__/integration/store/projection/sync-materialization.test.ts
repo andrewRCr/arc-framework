@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { ProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
+import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 import { releaseProjectionRemoval } from "../../../../src/lib/store/projection/removal-release.js";
 import { NATIVE_LEASE_PROCESS } from "../../../../src/lib/lease-process.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -346,7 +347,7 @@ it.each([
   }
 });
 
-it("leaves a correction sync's restoration refused unsettled, so the removal check passes and the release lands it", async () => {
+it.each(["persist", "release"] as const)("leaves a correction sync's restoration refused unsettled, so the removal check passes and %s lands it", async slot => {
   const h = await createEngineFixture(directories, { kind: "work-item/notes",
     path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
@@ -374,8 +375,9 @@ it("leaves a correction sync's restoration refused unsettled, so the removal che
   expect(refused).not.toHaveProperty("opened");
   // A refused take-in leaves the entry unsettled, which the steps that finish unsettled entries land under the rights check.
   const context = { store: h.store, identity: SlugSchema.parse("andrew") };
-  expect(await checkProjectionRemoval(h.checkout, context, "release")).toMatchObject({ kind: "passes" });
-  expect(await releaseProjectionRemoval(h.checkout, true, context)).toMatchObject({ kind: "released" });
+  expect(await checkProjectionRemoval(h.checkout, context, slot === "release" ? "release" : "remove")).toMatchObject({ kind: "passes" });
+  expect(slot === "release" ? await releaseProjectionRemoval(h.checkout, true, context) : await persistProjectionRemoval(h.checkout, context))
+    .toMatchObject({ kind: slot === "release" ? "released" : "persisted" });
   expect(success(await h.store.read({ reference: h.record.reference })).content).toContain("A late correction nobody opened.");
 });
 
