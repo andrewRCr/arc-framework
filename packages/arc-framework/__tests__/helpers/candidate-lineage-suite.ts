@@ -2521,7 +2521,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       state: "settled",
       completedActions: 1,
     });
-  });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("refuses a Candidate-bound disposition whose local review source disappeared", async () => {
     const { root, approvedHead } = await settledReviewLineage();
