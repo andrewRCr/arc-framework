@@ -2,9 +2,9 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { Command } from "commander";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
+import { projectionCommand } from "../../../helpers/store/projection/command.js";
 import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
@@ -17,7 +17,6 @@ import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identi
 import { completedCohortPath } from "../../../../src/lib/store/lifecycle-record-path.js";
 import { resolveArcPath } from "../../../../src/lib/layout/index.js";
 import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
-import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
 import { type ProjectionCommandInput } from "../../../../src/lib/store/projection/engine.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { locateProjection } from "../../../../src/lib/store/projection/location.js";
@@ -25,38 +24,16 @@ import { readProjectionIndex } from "../../../../src/lib/store/projection/index-
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
 import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
-import { readProjectionStatus } from "../../../../src/lib/store/projection/status.js";
-import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
-import { handleEdit } from "../../../../src/handlers/edit.js";
-import { handleSave } from "../../../../src/handlers/save.js";
 
 type Checkout = ProjectionCommandInput & { identity: Slug };
 
 async function command(input: Checkout, args: readonly string[]) {
-  const program = new Command("arc").exitOverride(), exit = process.exitCode;
-  let output = "", errors = "";
-  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
-  const stderr = vi.spyOn(process.stderr, "write").mockImplementation(chunk => { errors += String(chunk); return true; });
-  program.command("edit <path>").option("--json").action(async (path: string, options: { json?: boolean }) => {
-    await handleEdit({ path, ...options }, input.store, input.checkout);
-  });
-  program.command("save").option("--json").action(async (options: { json?: boolean }) => { await handleSave(options, input.store); });
-  program.command("status").option("--json").action(async () => {
-    process.stdout.write(JSON.stringify(await readProjectionStatus(input)) + "\n");
-  });
-  program.command("sync").option("--json").option("--dry-run").action(async (options: { dryRun?: boolean }) => {
-    await restoreSyncProjection(input.store, input.checkout, { dryRun: options.dryRun });
-    process.stdout.write("{}\n");
-  });
-  registerProjectionHooks(program, { input: () => input, writeError: text => { errors += text; } });
-  try { await program.parseAsync([...args, "--json"], { from: "user" }); }
-  finally { stdout.mockRestore(); stderr.mockRestore(); process.exitCode = exit; }
+  const { result, diagnostics } = await projectionCommand(input, args);
   // Performance notices share stderr with failures; this scenario asserts correction and recovery, not timing.
-  const diagnostics = errors.split("\n").filter(line => line !== "" &&
-    !/^projection: .+: (command start|fan-out|full materialization) median \d+\.\d ms exceeds \d+ ms\.$/.test(line));
-  expect(diagnostics).toEqual([]);
-  return JSON.parse(output) as unknown;
+  expect(diagnostics.split("\n").filter(line => line !== "" &&
+    !/^projection: .+: (command start|fan-out|full materialization) median \d+\.\d ms exceeds \d+ ms\.$/.test(line))).toEqual([]);
+  return result;
 }
 
 async function index(input: Checkout) {

@@ -42,7 +42,7 @@ async function settleFile(root: ProjectionRootState, index: ProjectionIndex, pat
   await root.ports.hooks?.beforeSaveMarkClear?.(path);
   const changed = await readRelockedChange(root, path, entry, outcome);
   if ("mark" in changed) return retain(root, index, path, entry, changed.mark);
-  if (changed.stat.size === 0n && admission.size !== 0n) return retain(root, index, path, entry, missingMark());
+  if (changed.stat.size === 0n && admission.size !== 0n) return retain(root, index, path, entry, emptiedMark(path));
   if (changed.status !== "changed") return finishRelock(root, index, path, entry, changed.stat.size);
   if (outcome !== undefined) return retain(root, index, path, entry, pendingMark());
   const sent = await send(index, path, entry), current = sent.index.entries[path];
@@ -72,7 +72,7 @@ async function readRelockedChange(root: ProjectionRootState, path: string, entry
   if (changed.stat.size === 0n) {
     // An editor that just emptied the file may still be saving. A settled empty text file can match its store bytes.
     const mark = emptyMark(path, changed.stat.mtimeNs, outcome);
-    if (mark !== null || changed.status === "changed") return { mark: mark ?? missingMark() };
+    if (mark !== null || changed.status === "changed") return { mark: mark ?? emptiedMark(path) };
   }
   return changed;
 }
@@ -81,7 +81,7 @@ async function finishRelock(root: ProjectionRootState, index: ProjectionIndex, p
   checkedSize: bigint): Promise<ProjectionIndex> {
   const current = await allowMissingFile(lstat(join(root.checkout, path), { bigint: true }));
   if (!current?.isFile()) return retain(root, index, path, entry, missingMark(), false);
-  if (current.size === 0n && checkedSize !== 0n) return retain(root, index, path, entry, missingMark());
+  if (current.size === 0n && checkedSize !== 0n) return retain(root, index, path, entry, emptiedMark(path));
   if ((current.mode & 0o222n) !== 0n) return retain(root, index, path, entry, pendingMark(), false);
   return closeOpening(root, index, path, entry);
 }
@@ -111,6 +111,8 @@ function missingMark(): RefusedMark {
   return { reason: "The opened file is absent or empty; its opening is retained.",
     remedy: { text: "Run arc sync in this checkout to restore the file, then retry arc save." } };
 }
+/** `arc sync` restores an absent file or emptied Markdown. Emptied text is an edit still to finish. */
+function emptiedMark(path: string): RefusedMark { return path.endsWith(".md") ? missingMark() : pendingMark(); }
 function pendingMark(): RefusedMark {
   return { reason: "The file remains opened because its latest edit or read-back has not settled.",
     remedy: { text: "Keep the file or its recorded aside copy, let saving finish, and retry arc save." } };

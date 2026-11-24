@@ -477,4 +477,8 @@ _Amended in:_ review-fix (A2). _Amended in:_ review-fix (A17).
   a returned alias disappears or a validated header outlives an unreadable partition. Verify classification and
   reporting before state advances, with proved absence as a control (A16)
 
+- `[ ]` Criteria 14 to 29 no longer bind: the archive's commands keep no receipt, journal, path check, access or
+  inventory hold, or waiting-edit rule of their own, and the storage contract's provenance, the index's entries, and the
+  handling of a copy or a fault under `completed/` are those every projected root has (A17)
+
 - `[ ]` Ready for integration

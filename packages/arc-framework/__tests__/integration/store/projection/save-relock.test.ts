@@ -134,7 +134,8 @@ it("keeps a companion opened when an editor empties it during the read-only lay"
     await utimes(file, new Date(0), new Date(0));
   } };
   const held = await save(h);
-  expect(held.errors).toContain("arc sync");
+  expect(held.errors).toContain("retry arc save");
+  expect(held.errors).not.toContain("arc sync");
   expect(held.result).not.toHaveProperty("result.relocked");
   expect(await diskEntry(h, path)).toHaveProperty("opened", true);
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
@@ -568,14 +569,32 @@ it("drops a deleted new opening and lands the returning file only after it is op
   await openArchivedProjectionFile(h, path);
   await rm(file);
   const saved = await save(h);
-  expect(saved.errors).toContain(path);
-  expect(saved.errors).toContain("arc edit");
+  expect(saved.errors).toMatch(new RegExp(`arc edit \\S*returned\\.txt from \\S+ to open it again`, "u"));
   expect(await diskEntry(h, path)).toBeUndefined();
   await writeFile(file, "Returning prose.\n");
   await openArchivedProjectionFile(h, path);
   expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
   expect(success(await h.store.read({ reference: recordReferences["work-item/companion"](h.primary.reference.owner, "returned.txt") })).content).toBe("Returning prose.\n");
   expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+});
+
+it("names the rights refusal that stops an accepted edit's read-back and finishes once the rights return", async () => {
+  const h = await fixture(), file = join(h.checkout, h.path), exec = createProjectionEnginePorts(h.checkout).exec;
+  await openArchivedProjectionFile(h, h.path);
+  const content = await edit(h, "Accepted before the rights changed.");
+  const ignore = join(await resolveGitCommonDir(exec, h.checkout), "info/exclude"), rules = await readFile(ignore, "utf8");
+  await writeFile(ignore, rules.replace(".arc/completed/\n", ""));
+  await save(h);
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
+  await writeFile(ignore, rules);
+  const identity = (name: string) => exec("git", ["config", "arc.identity", name], { cwd: h.checkout });
+  await identity("beth");
+  expect((await save(h)).errors).toContain("andrew");
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  await identity("andrew");
+  expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path: h.path }] } }, errors: "" });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
+  expect((await lstat(file)).mode & 0o222).toBe(0);
 });
 
 it.each(["unchanged", "late edit", "rebuilt"] as const)("resumes an accepted edit after ignore repair without hiding %s recovery", async race => {

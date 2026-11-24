@@ -20,8 +20,14 @@ export async function readUnchangedProjectionFile(context: WriteBackContext, req
     return observed.status === "ok" && observed.result.kind === "unedited" ? file.read : null;
   }
   if (file.stamp === null) return null;
-  const selected = await selectWriteBackBase(context, request, file.content, file.stamp);
-  if (selected.status !== "ok" || selected.result.kind !== "selected") return null;
-  const base = await readBaseContent(context, entry, selected.result.base);
-  return base.status === "ok" && base.result === file.content ? file.read : null;
+  return await isStoredMarkdownVersion(context, request, file.content, file.stamp) ? file.read : null;
+}
+
+/** Whether stamped Markdown content is the version of the request's own record that its stamp selects. */
+export async function isStoredMarkdownVersion(context: WriteBackContext, request: TakeInRequest, content: string,
+  stamp: string): Promise<boolean> {
+  const selected = await selectWriteBackBase(context, request, content, stamp);
+  if (selected.status !== "ok" || selected.result.kind !== "selected") return false;
+  const base = await readBaseContent(context, request.entry, selected.result.base);
+  return base.status === "ok" && base.result === content;
 }

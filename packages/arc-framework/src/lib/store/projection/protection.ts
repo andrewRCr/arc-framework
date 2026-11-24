@@ -19,7 +19,7 @@ export type ProjectionProtection = (record: StoreRecord) => Promise<RefusedMark 
 export interface ProjectionProtectionInput { store: Store; checkout: string; identity: Slug; exec: GitExec; verb?: "save" | "write-back"; evidence?: ProjectionProtectionEvidence }
 
 /** A failed ownership observation grants neither edit rights nor a semantic protection verdict. */
-export type ProjectionProtectionObservation = { readonly kind: "editable" }
+type ProjectionProtectionObservation = { readonly kind: "editable" }
   | { readonly kind: "protected" | "unobservable"; readonly mark: RefusedMark };
 
 /** Bind fresh protection by default, or use supplied rendering-round observations. */

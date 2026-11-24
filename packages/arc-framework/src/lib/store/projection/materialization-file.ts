@@ -163,12 +163,12 @@ export function withheldProjectionMark(path: string, newFileCheckout?: string): 
   const start = "Copy out anything wanted, then delete the withheld file";
   const edit = `arc edit ${renderRemedyArgument(path)}`;
   const remedy = !path.startsWith(".arc/completed/") ? `${start} and reapply the edit after it is projected again.`
-    : newFileCheckout === undefined ? `${start}. Once it is projected again, run ${edit} before reapplying the edit.`
+    : newFileCheckout === undefined ? `${start}. Once it is projected again, run ${edit} from the checkout's root before reapplying the edit.`
       : `${start}. Run any arc command from ${newFileCheckout} to clear the withheld mark. From that checkout's root, recreate the file, then run ${edit} and arc save.`;
   return { reason: "withheld: The projection has no trustworthy basis for this file.", remedy: { text: remedy } };
 }
 
 function archivedReapplyInstruction(path: string): string {
   return path.startsWith(".arc/completed/")
-    ? ` Once projected again, run arc edit ${renderRemedyArgument(path)} before reapplying any saved correction.` : "";
+    ? ` Once projected again, run arc edit ${renderRemedyArgument(path)} from the checkout's root before reapplying any saved correction.` : "";
 }

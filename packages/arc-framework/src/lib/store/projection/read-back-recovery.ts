@@ -1,5 +1,5 @@
 /** Resume a recorded accepted write's installation without submitting its content again. */
-import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
+import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { TakeInRead } from "./take-in-port.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
@@ -30,18 +30,12 @@ async function recoverAcceptedReadBack(root: ProjectionRootState, index: Project
   if (!isOwnSaveLanding(root.context.verb, root.checkout) || entry.opened !== true || entry.persisted === null
     || entry.persisted.recording === true || !root.writable(path) || root.blockedByLink(path) !== null) return null;
   const request = pendingFileRequest(root.checkout, path, { ...entry, pending: false, refused: null });
-  if (await root.rights?.(request) != null) return null;
+  const denied = await root.rights?.(request);
+  if (denied != null) return holdReadBack(root, index, path, entry, denied);
   await root.checkpoint?.();
   const current = await root.store.read({ reference: entry.reference });
-  if (current.status === "refused") {
-    const mark = { reason: `The accepted edit's read-back is pending: ${current.refusal.condition}`, remedy: current.refusal.remedy };
-    const held = { ...entry, pending: true, refused: mark };
-    root.context.report?.({ path, copy: null, mark });
-    root.unsent.add(path);
-    const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-      index: withProjectionEntry(index, path, held), checkpoint: root.context.checkpoint });
-    return { index: updated, observation: { path, installation: "attempted", result: { answer: "pending", entry: held } } };
-  }
+  if (current.status === "refused") return holdReadBack(root, index, path, entry,
+    { reason: `The accepted edit's read-back is pending: ${current.refusal.condition}`, remedy: current.refusal.remedy });
   await root.ports.hooks?.afterSaveRecoveryRead?.(path);
   const installed = await installWriteBack(root.context, index, request,
     { kind: "landed", record: current.result, result: { answer: "taken-in", entry: request.entry, read } });
@@ -49,4 +43,15 @@ async function recoverAcceptedReadBack(root: ProjectionRootState, index: Project
   const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: installed.index, checkpoint: root.context.checkpoint });
   return { index: updated, observation: { path, result: installed.result, installation: "attempted", rebuilt: installed.rebuilt } };
+}
+
+/** Keep the accepted edit pending under the refusal that stopped its installation, and report that refusal's remedy. */
+async function holdReadBack(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
+  mark: RefusedMark): Promise<{ index: ProjectionIndex; observation: ProjectionFileWriteObservation }> {
+  const held = { ...entry, pending: true, refused: mark };
+  root.context.report?.({ path, copy: null, mark });
+  root.unsent.add(path);
+  const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+    index: withProjectionEntry(index, path, held), checkpoint: root.context.checkpoint });
+  return { index: updated, observation: { path, installation: "attempted", result: { answer: "pending", entry: held } } };
 }

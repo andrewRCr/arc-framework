@@ -11,8 +11,8 @@ import { materializeProjectionRoot } from "./materialization.js";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import type { ProjectionLockResult } from "./lock.js";
-import { gitBlobId } from "./blob-id.js";
 import { captureWriteBackFile } from "./write-back.js";
+import { isStoredMarkdownVersion } from "./unchanged-file.js";
 import { refuseProjectionEdit } from "./rights-binding.js";
 import type { TakeInPort, TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { loadProjectionGroups, projectionIndexGroup, ProjectionPartitionMismatch } from "./index-memory.js";
@@ -78,7 +78,7 @@ async function restoreWithoutArchiveTakeIn(root: ProjectionRootState, request: T
     if (file.diagnostic !== undefined) report(file.diagnostic);
     return file.result;
   }
-  if (file.stamp !== null && gitBlobId(file.content, root.context.format) === file.stamp) {
+  if (file.stamp !== null && await isStoredMarkdownVersion(root.context, request, file.content, file.stamp)) {
     return { answer: "no-edit", entry: request.entry, read: file.read };
   }
   const edit = `arc edit ${renderRemedyArgument(request.path)} then arc save`;

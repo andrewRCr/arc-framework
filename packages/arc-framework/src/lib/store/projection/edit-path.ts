@@ -15,7 +15,7 @@ import { evidenceHeldProjectionMark, isEvidenceHeldEntry, withheldProjectionMark
 import { markStoreRefusal } from "./refusal-mark.js";
 
 /** The entry an opening may mark, or the same repair evidence its owner reports. */
-export type ProjectionEditInspection = { readonly kind: "ready"; readonly entry: ProjectionIndex["entries"][string] }
+type ProjectionEditInspection = { readonly kind: "ready"; readonly entry: ProjectionIndex["entries"][string] }
   | { readonly kind: "refused"; readonly mark: RefusedMark };
 
 type OwnerlessEntry = Extract<ProjectionIndex["entries"][string], { kind: "ownerless" }>;

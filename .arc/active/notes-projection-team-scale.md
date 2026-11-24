@@ -67,8 +67,6 @@ production callsite and the scenario that proves it.
 | A refresh takes a forced edit in and lays it read-only           | 1.3, 2.5     | 2.5's tests                            |
 | `arc sync` names a forced edit and a new archived file           | 3.1          | 3.1's tests; 3.5                       |
 | Removal persists an opened edit, refuses a forced one            | 3.2.a, 3.2.b | 3.2's tests; 3.5                       |
-| An archive save journals, submits, then reads its receipt (A3)   | 4.1          | § 9.2 test 11                          |
-| A path is checked at selection, then before each change (A2)     | 4.1          | § 9.2 test 12                          |
 
 ## Test migrations
 
@@ -369,7 +367,7 @@ this functional scenario sets no timing acceptance bound. Its corrected form pas
 unopened, settled record's forced edit by the racy rule, excluding deleted files, and resolves an unindexed file through
 the existing adoption readers without submitting it. `observeProjectionProtection` retains unavailable ownership
 evidence separately from denied rights; `readProjectionProtection` keeps its existing mark-returning interface.
-`reportArchivedProjectionFile` uses sync's stats, and `reportRemainingArchivedFiles` uses its root walk. Rebuilds
+`reportArchivedProjectionFile` uses sync's stats, and `reportUnknownArchivedFiles` uses its root walk. Rebuilds
 keep their withholding rules. Usable-index restoration retains the link report and excludes side files.
 
 The native `sync-archive-report.test.ts` cases drive Commander inputs through projection hooks and the sync restoration

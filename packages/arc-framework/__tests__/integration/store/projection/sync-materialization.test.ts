@@ -43,6 +43,7 @@ import { createProjectionFanOutDependencies } from "../../../../src/lib/store/pr
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -295,4 +296,40 @@ it.each([
     version: h.record.version, content: h.record.content,
   });
   expect(await readFile(file, "utf8")).toBe(bytes);
+});
+
+it.each([
+  { source: "another record's rendering", replaced: false },
+  { source: "its own stored rendering", replaced: true },
+])("treats $source written during sync restoration as an edit only when it is not this record's version", async ({ replaced }) => {
+  const h = await createEngineFixture(directories, { kind: "work-item/notes",
+    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
+  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
+  await endProjection(h);
+  const file = join(h.checkout, h.path), laid = await readFile(file, "utf8");
+  const other = "# Notes of another work item\n\nIts own stored text.\n";
+  const bytes = replaced ? laid : renderStampedFile({ content: other, stamp: gitBlobId(other, "sha1") });
+  await chmod(file, 0o644);
+  await writeFile(file, "");
+  await utimes(file, new Date(0), new Date(0));
+  let written = false;
+  binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async path => {
+    if (written || path !== h.path) return;
+    written = true;
+    await writeFile(file, bytes);
+  } } });
+  const result = await sync(h);
+  expect(written).toBe(true);
+  expect(success(await h.store.read({ reference: h.record.reference }))).toMatchObject({ version: h.record.version });
+  const restored = await readFile(file, "utf8");
+  if (replaced) {
+    expect(restored).toContain("arc-notice");
+    expect(result.errors).not.toContain("changed during sync restoration");
+  } else {
+    expect(restored).toBe(bytes);
+    expect(result.errors).toContain("An archived file changed during sync restoration");
+    expect(result.errors).toContain("arc edit");
+  }
 });

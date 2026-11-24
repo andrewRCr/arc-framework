@@ -81,7 +81,7 @@ async function reconcileAbsentAdoption(root: ProjectionRootState, index: Project
     index: withProjectionEntry(index, path, undefined) });
   if (entry.opened === true) root.context.report?.({ path, copy: null, mark: {
     reason: "The opened new file is absent; its opening was removed.",
-    remedy: { text: `If the file returns, run arc edit ${renderRemedyArgument(path)} to open it again.` },
+    remedy: { text: `If the file returns, run arc edit ${renderRemedyArgument(path)} from ${root.checkout} to open it again.` },
   } });
   return dropped;
 }
