@@ -1556,6 +1556,11 @@ operations through the family's npm script (§ 1.3).
 - Every live branch's changes to tracked state outside its own work item's records have landed on `main` and `main` has
   merged back into it, or have been dropped from it; a live branch is one a checkout holds, or a live work unit's or
   Errand's. The import reads those records only at `main`'s `HEAD`.
+- `main` carries no test that reads tracked state from the repository's own tree, and every live branch has merged
+  `main` since that change landed, so a branch's deletion commit (§ 10.6) passes its hooks before the branch merges the
+  flip: `main`'s `live-transition-records` suite read `.arc/system/.internal/transitions/`, which that commit deletes,
+  and failed `test:arc-contracts` on it. The change is the test-only part of the flip's own, so the flip merges it
+  without conflict (A28).
 - Every pull request into `main` but the flip's own is merged or closed, since the repository allows auto-merge and
   `main`'s ruleset requires only the `ci-ok` check, so an armed pull request would merge with no session running.
 - Every Errand is closed or abandoned, since the quiesce check refuses an Errand record in any state (§ 13.3), and each
@@ -2363,6 +2368,10 @@ retirement (§ 12) for criterion 10, and the canaries' landings (§ 9.11) for cr
 17. **A checkout claimed in place is carried apart from the copy.** In a synthetic repository whose work unit the
     pre-flip build started in place on a work branch and imported, the flip build's session start offers `arc
     materialize <slug> --here`, and that command writes an anchored marker carrying the work unit's UID (A27).
+18. **A live branch's deletion commit passes its hooks before the branch merges the flip.** On the Stage 2 copy, with
+    the stand-in for `main`'s change planted ahead of the lock and merged into every live branch, each live branch's
+    deletion commit passes its pre-commit and commit-msg hooks on the branch's own pre-flip build, and its push passes
+    the push gate (A28).
 
 ## Open Questions
 
@@ -2424,5 +2433,7 @@ None.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 7.1.
 - **A27** — 2026-11-24 — design: the in-place checkout's carry runs in a synthetic repository, not on the copy.
   _Supersedes:_ § 9.6 ¶1. _Trigger:_ 6.4.b must-stop. _Work:_ 6.R. _Revalidated:_ pending → 6.8.
+- **A28** — 2026-11-24 — spec-depth: ahead of the window, `main` stops testing tracked state and live branches merge it.
+  _Supersedes:_ none. _Trigger:_ 6.4.d must-stop. _Work:_ 6.R2. _Revalidated:_ pending → 6.4.
 
 ---

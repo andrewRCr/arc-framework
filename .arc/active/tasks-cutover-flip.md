@@ -1636,6 +1636,7 @@ rewritten workflows (§ 9.2).
         - Then notes retirement (§ 12), its old ref moved under a namespace neither a tag nor pushed and every `arc
           user` notes writer refusing, and last the window tooling's close, with no checkout reporting a withheld file.
         - _Amended in:_ 6.R (A27).
+        - _Amended in:_ 6.R2 (A28).
 
     - `[ ]` **6.4.e The flipped copy's paths**
         - The status and view arms, the roster read and the slug clash among them; the tripwire report's first live
@@ -1709,6 +1710,21 @@ rewritten workflows (§ 9.2).
           session start offered `arc materialize in-place-work --here`, which wrote an anchored marker carrying the
           imported UID with `HEAD` and the branch unmoved. `notes-cutover-flip.md` § Stage 2 holds the conclusion, at
           flip head `4738eea1e3`, and three observations made beside it.
+
+### `[ ]` **6.R2 `main` stops testing tracked state ahead of the window — § 10.1**
+
+- _Goal:_ Each live branch's deletion commit passes its hooks before the branch merges the flip, since `main`'s suite no
+  longer reads the tracked state that commit deletes and every live branch holds that change (A28).
+
+    - `[ ]` **6.R2.a The stand-in in the runbook**
+        - `notes-cutover-flip.md` § Stage 2's step 1 plants the change on the copy's `main` through the scratch clone,
+          the test-only part of the flip's own commit, and merges `main` into every live branch and the flip before the
+          lock; step 5 states what a checkout needs before its hooks can run, a current install and its own build.
+
+    - `[ ]` **6.R2.b The change on `main` and the pre-window list**
+        - The change reaches `main` as an Errand ahead of the window, and the pre-window list carries each live branch's
+          merge of `main` after it, the three checkouts whose installs predate a dependency `main` added, and each
+          checkout's own build; confirm both on the live repository before 6.8.
 
 ### `[ ]` **6.8 Stage 2 clean at the head that lands** — validate exit criterion at segment scope
 
