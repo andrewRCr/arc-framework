@@ -1,8 +1,8 @@
 /** The sweep over a seeded projection: the copies and staged files a stopped or exited writer left, taken over. */
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
-import { chmod, copyFile, link, lstat, mkdir, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { landingCopies, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions } from "../../../helpers/store/projection/swap-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories.js";
@@ -20,45 +20,9 @@ import { sweepAsideFolder, type SweepInput } from "../../../../src/lib/store/pro
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 import { createProjectionLinkBoundary } from "../../../../src/lib/store/projection/discovery-links.js";
-import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
-import { commitReturnedCopies } from "../../../../src/lib/store/projection/returned-copies.js";
-
-const lateAccess = vi.hoisted(() => ({ destinations: new Map<string, string>(), denied: "" }));
-const aliasAccess = vi.hoisted(() => ({ deniedOnce: "" }));
-vi.mock("node:fs/promises", async original => {
-  const actual = await original<typeof import("node:fs/promises")>();
-  const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
-    // Begin denial at the first copy's stat, after the sweep has preflighted both destinations.
-    lateAccess.denied ||= lateAccess.destinations.get(String(args[0])) ?? "";
-    if (args[0] === lateAccess.denied) {
-      throw Object.assign(new Error("Archive search access revoked after selection"), { code: "EACCES" });
-    }
-    return actual.lstat(...args);
-  }) as typeof actual.lstat;
-  return { ...actual, lstat, default: { ...actual, lstat } };
-});
-vi.mock("node:fs", async original => {
-  const actual = await original<typeof import("node:fs")>();
-  const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
-    if (args[0] === aliasAccess.deniedOnce) {
-      aliasAccess.deniedOnce = "";
-      throw Object.assign(new Error("Returned alias access refused"), { code: "EACCES" });
-    }
-    if (args[0] === lateAccess.denied) {
-      throw Object.assign(new Error("Archive search access revoked after selection"), { code: "EACCES" });
-    }
-    return actual.lstatSync(...args);
-  }) as typeof actual.lstatSync;
-  return { ...actual, lstatSync, default: { ...actual, lstatSync } };
-});
 
 const directories: string[] = [];
-afterEach(async () => {
-  lateAccess.destinations.clear();
-  lateAccess.denied = "";
-  aliasAccess.deniedOnce = "";
-  await removeGitBackedDirs(directories.splice(0));
-});
+afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 const execInput = createExecaGitExecInput();
 const gitFs: GitDirectoryFileAccess = { lstat, readFile: (path) => readFile(path, "utf8"), realpath };
@@ -84,8 +48,10 @@ async function leftBy(
   const prepared = await prepareSwap(options);
   directories.push(prepared.seeded.checkout);
   const hooks = hooksFor(prepared);
-  const { checkout, location } = prepared.seeded;
-  const sweep = await prepareSweep(checkout, location);
+  await writeFile(join(prepared.seeded.checkout, ".git/info/exclude"), EXCLUDE_LINES.map((line) => `${line}\n`).join(""));
+  await writeFile(join(prepared.seeded.checkout, ".gitignore"), ".arc/user/*/\n");
+  await mkdir(join(prepared.seeded.checkout, ".arc/user"), { recursive: true });
+  await writeFile(join(prepared.seeded.checkout, ".arc/user/.npmignore"), "*\n");
   const stopping: SwapHooks = stop === null ? hooks : { ...hooks, [stop]: async (path: string) => {
     await hooks[stop]?.(path);
     throw new Stop(`stopped ${stop}`);
@@ -95,21 +61,15 @@ async function leftBy(
   } catch (error) {
     if (!(error instanceof Stop)) throw error;
   }
-  return { ...prepared, checkout, location, sweep };
-}
-
-async function prepareSweep(checkout: string, location: SweepInput["location"]) {
-  await writeFile(join(checkout, ".git/info/exclude"), EXCLUDE_LINES.map(line => `${line}\n`).join(""));
-  await writeFile(join(checkout, ".gitignore"), ".arc/user/*/\n");
-  await mkdir(join(checkout, ".arc/user"), { recursive: true });
-  await writeFile(join(checkout, ".arc/user/.npmignore"), "*\n");
+  const { checkout, location } = prepared.seeded;
   /** Sweep with the index on disk, as the next command's start reads it. */
-  return async (takeIn: TakeInPort, overrides: Partial<SweepInput> = {}) => sweepAsideFolder({
+  const sweep = async (takeIn: TakeInPort, overrides: Partial<SweepInput> = {}) => sweepAsideFolder({
     ignoreRules: (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
     readIgnoreRules: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
     location, checkout, index: await indexOnDisk(location), format: "sha1", takeIn, writer: SWEEPER,
     guard: { root: checkout, identity, exec: execInput, fs: gitFs }, ...overrides,
   });
+  return { ...prepared, checkout, location, sweep };
 }
 
 async function indexOnDisk(location: Parameters<typeof readProjectionIndex>[0]): Promise<ProjectionIndex> {
@@ -117,112 +77,6 @@ async function indexOnDisk(location: Parameters<typeof readProjectionIndex>[0]):
   if (read.kind !== "index") throw new Error(`expected an index on disk, found ${read.kind}`);
   return read.index;
 }
-
-it.each([true, false])("retains returned archive bytes when a replacement wins before cleanup (indexed=%s)", async indexed => {
-  const left = await leftBy("afterMove", { path: ".arc/completed/one/cohort-one.md" });
-  const index = await indexOnDisk(left.location);
-  const [copy] = (await entryOnDisk(left.location, left.path)).copies;
-  if (copy === undefined) throw new Error("Expected a displaced archive copy");
-  const aside = join(left.checkout, copy.name);
-  await chmod(aside, 0o644);
-  await writeFile(aside, "Displaced archive edit.\n");
-  let returned = false, replaced = false;
-  const checkpoint = async () => {
-    if (!returned || replaced) return;
-    replaced = true;
-    await rm(left.file);
-    await writeFile(left.file, "A newer edit.\n");
-  };
-  if (indexed) {
-    await link(aside, left.file);
-    const committed = await commitReturnedCopies({ checkout: left.checkout, location: left.location, index,
-      returned: [{ path: left.path, copy: copy.name }], onPublished: () => { returned = true; }, checkpoint });
-    expect(committed.entries[left.path]).toMatchObject({ copies: [copy] });
-  } else {
-    const swept = await left.sweep(unreached, { index: null, fs: { link: async (from, to) => {
-      await link(from, to);
-      returned = true;
-    } }, checkpoint });
-    expect(swept.withheld).toEqual([copy.name]);
-  }
-  expect(replaced).toBe(true);
-  expect(await readFile(aside, "utf8")).toBe("Displaced archive edit.\n");
-  expect(await readFile(left.file, "utf8")).toBe("A newer edit.\n");
-});
-
-it("holds later returned aliases of the same destination after a denial during cleanup", async () => {
-  const h = await leftBy("afterMove", { path: ".arc/completed/one/first.md" });
-  const index = await indexOnDisk(h.location), entry = await entryOnDisk(h.location, h.path);
-  const [first] = entry.copies;
-  if (first === undefined) throw new Error("Missing original copy");
-  const second = nameAsideFile({ path: h.path, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
-  const siblingPath = ".arc/completed/two/sibling.md";
-  const sibling = nameAsideFile({ path: siblingPath, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
-  await mkdir(dirname(join(h.checkout, siblingPath)), { recursive: true });
-  await mkdir(dirname(join(h.checkout, sibling)), { recursive: true });
-  await link(join(h.checkout, first.name), h.file);
-  await link(h.file, join(h.checkout, second));
-  await copyFile(h.file, join(h.checkout, siblingPath));
-  await link(join(h.checkout, siblingPath), join(h.checkout, sibling));
-  const bound = { ...index, entries: { ...index.entries,
-    [h.path]: { ...entry, copies: [first, { ...first, name: second }] },
-    [siblingPath]: { ...entry, copies: [{ ...first, name: sibling }] } } };
-  const returned = [{ path: h.path, copy: first.name }, { path: h.path, copy: second }, { path: siblingPath, copy: sibling }];
-  const refusals: string[] = [];
-  const input = { checkout: h.checkout, location: h.location, returned };
-  const held = await commitReturnedCopies({ ...input, index: bound,
-    onPublished: () => { aliasAccess.deniedOnce = h.file; }, refuseChange: ({ path }) => { refusals.push(path); } });
-  expect(refusals).toEqual([h.path]);
-  expect(held.entries[h.path]).toMatchObject({ copies: [{ name: first.name }, { name: second }] });
-  expect(held.entries[siblingPath]).toMatchObject({ copies: [] });
-  await expect(readFile(join(h.checkout, first.name))).resolves.toEqual(await readFile(h.file));
-  await expect(readFile(join(h.checkout, second))).resolves.toEqual(await readFile(h.file));
-  await expect(readFile(join(h.checkout, sibling))).rejects.toMatchObject({ code: "ENOENT" });
-
-  const retried = await commitReturnedCopies({ ...input, index: held });
-  expect(retried.entries[h.path]).toMatchObject({ copies: [] });
-  await expect(readFile(join(h.checkout, first.name))).rejects.toMatchObject({ code: "ENOENT" });
-  await expect(readFile(join(h.checkout, second))).rejects.toMatchObject({ code: "ENOENT" });
-});
-
-it.each([false, true])("preserves a displaced opened archive file across nested-checkout settlement (edited=%s)", async edited => {
-  const path = ".arc/completed/one/cohort-one.md";
-  const basis = await prepareSwap({ path });
-  directories.push(basis.seeded.checkout);
-  const { checkout, location } = basis.seeded;
-  const folder = dirname(basis.file), bytes = await readFile(basis.file, "utf8");
-  await chmod(basis.file, 0o644);
-  const expected = edited ? `${bytes}\nAn edit after the move.\n` : bytes;
-  const swapped = await basis.swap({ files: [{ path, replace: { ...basis.replace, entry: { ...basis.laid, opened: true } } }], hooks: {
-    afterMove: async () => {
-      if (edited) {
-        const entry = await entryOnDisk(location, path);
-        const [copy] = entry.copies;
-        if (copy === undefined) throw new Error("Expected displaced copy");
-        await writeFile(join(checkout, copy.name), expected);
-      }
-      await createExecaGitExec()("git", ["init", "--quiet", folder], { cwd: checkout });
-    },
-  } });
-  const [copy] = swapped.copies;
-  if (copy === undefined) throw new Error("Expected displaced copy");
-  // The command selected the path before the nested checkout arrived, so its own second check may still read the copy; the
-  // copy's deletion asks again and is refused, and an edit the take-in defers stays in the copy.
-  const deferred: TakeInPort = async request => ({ answer: "deferred", entry: request.entry });
-  const checked = await runSecondCheck({ checkout, location, index: swapped.index, copies: swapped.copies,
-    format: "sha1", takeIn: edited ? deferred : unreached, writer: SWAP_WRITER });
-  expect(checked.settled).toMatchObject([{ settlement: edited ? { kind: "kept", answer: "deferred" }
-    : { kind: "blocked-destination", mark: { reason: expect.stringContaining("another checkout") } } }]);
-  const sweep = await prepareSweep(checkout, location);
-  expect((await sweep(unreached, { index: checked.index })).swept).toMatchObject([{ outcome: { kind: "blocked-destination" } }]);
-  expect((await sweep(unreached, { index: null })).left).toMatchObject([{ reason: "destination-blocked" }]);
-  expect(await readFile(join(checkout, copy.copy), "utf8")).toBe(expected);
-  expect(await readStat(basis.file)).toBeNull();
-  await rm(join(folder, ".git"), { recursive: true });
-  expect((await sweep(unreached, { index: checked.index })).swept).toMatchObject([{ outcome: { kind: "linked-back" } }]);
-  expect(await readFile(basis.file, "utf8")).toBe(expected);
-  expect(await readStat(join(checkout, copy.copy))).toBeNull();
-});
 
 async function entryOnDisk(location: Parameters<typeof readProjectionIndex>[0], path: string): Promise<RecordEntry> {
   const entry = (await indexOnDisk(location)).entries[path];
@@ -256,102 +110,6 @@ it("prunes empty scaffolding while preserving recovery names, foreign bytes, and
 });
 
 describe("the sweep", () => {
-  it.each(["destination stat", "recovery link"])("keeps a no-index copy refused at %s while restoring a sibling", async operation => {
-    const h = await leftBy("afterMove", { path: ".arc/completed/one/first.md" });
-    const entry = await entryOnDisk(h.location, h.path);
-    const [first] = entry.copies;
-    if (first === undefined) throw new Error("Missing stopped archive copy");
-    const sibling = ".arc/completed/two/second.md";
-    const second = nameAsideFile({ path: sibling, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
-    await mkdir(dirname(join(h.checkout, second)), { recursive: true });
-    await mkdir(dirname(join(h.checkout, sibling)), { recursive: true });
-    const bytes = await readFile(join(h.checkout, first.name));
-    await writeFile(join(h.checkout, second), bytes);
-    const copies = [{ path: h.path, name: first.name }, { path: sibling, name: second }];
-    if (operation === "destination stat") {
-      lateAccess.destinations = new Map(copies.map(({ name, path }) => [join(h.checkout, name), join(h.checkout, path)]));
-    }
-    let deniedLink = "";
-    const blocked = await h.sweep(unreached, { index: null, retrySleep: async () => {}, fs: { link: async (from, to) => {
-      if (operation === "recovery link") {
-        deniedLink ||= to;
-        if (to === deniedLink) throw Object.assign(new Error("Recovery link refused"), { code: "EACCES" });
-      }
-      await link(from, to);
-    } } });
-    const denied = operation === "destination stat" ? lateAccess.denied : deniedLink;
-    const held = copies.find(({ path }) => join(h.checkout, path) === denied);
-    const restored = copies.find(({ path }) => join(h.checkout, path) !== denied);
-    if (held === undefined || restored === undefined) throw new Error("Expected one denied and one accessible destination");
-    expect(blocked.left).toMatchObject([{ path: held.path, copy: held.name, reason: "destination-blocked",
-      refusal: { reason: expect.stringContaining("EACCES") } }]);
-    expect(await readFile(join(h.checkout, held.name))).toEqual(bytes);
-    expect(await readFile(join(h.checkout, restored.path))).toEqual(bytes);
-    expect(await readStat(join(h.checkout, restored.name))).toBeNull();
-
-    lateAccess.destinations.clear();
-    lateAccess.denied = "";
-    expect((await h.sweep(unreached, { index: null })).left).toEqual([]);
-    expect(await readFile(join(h.checkout, held.path))).toEqual(bytes);
-    expect(await readStat(join(h.checkout, held.name))).toBeNull();
-  });
-
-  it("keeps a missing recorded replacement on a denied stat and restores a sibling", async () => {
-    const h = await leftBy("afterRecheck", { path: ".arc/completed/one/first.txt", contents: ["Original.\n", "New version.\n"] });
-    const index = await indexOnDisk(h.location), entry = await entryOnDisk(h.location, h.path), [copy] = entry.copies;
-    if (copy === undefined || entry.inProgress === null) throw new Error("Missing planned text replacement");
-    const sibling = ".arc/completed/two/sibling.txt";
-    const siblingCopy = nameAsideFile({ path: sibling, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
-    await mkdir(dirname(join(h.checkout, siblingCopy)), { recursive: true });
-    await mkdir(dirname(join(h.checkout, sibling)), { recursive: true });
-    await copyFile(h.file, join(h.checkout, siblingCopy));
-    const both = { ...index, entries: { ...index.entries, [sibling]: { ...entry, inProgress: null, copies: [{ ...copy, name: siblingCopy }] } } };
-    await writeProjectionIndex(h.location, both);
-    lateAccess.destinations.set(join(h.checkout, copy.name), h.file);
-
-    const held = await h.sweep(unreached);
-    expect(held.swept).toMatchObject([
-      { path: h.path, copy: copy.name, outcome: { kind: "blocked-destination", access: true, entry } },
-      { path: sibling, outcome: { kind: "linked-back" } },
-    ]);
-    expect(await readFile(join(h.checkout, sibling), "utf8")).toBe("Original.\n");
-    lateAccess.destinations.clear();
-    lateAccess.denied = "";
-    const retry = await h.sweep(unreached);
-    expect(retry.swept).toMatchObject([{ path: h.path, outcome: { kind: "dropped", entry: { copies: [],
-      inProgress: entry.inProgress } } }]);
-    expect(await readFile(h.file, "utf8")).toBe("Original.\n");
-  });
-
-  it("holds both no-index copies of a denied destination and restores an accessible sibling", async () => {
-    const h = await leftBy("afterMove", { path: ".arc/completed/one/first.md" });
-    const entry = await entryOnDisk(h.location, h.path), [first] = entry.copies;
-    if (first === undefined) throw new Error("Missing stopped archive copy");
-    const second = nameAsideFile({ path: h.path, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
-    const sibling = ".arc/completed/two/sibling.md";
-    const third = nameAsideFile({ path: sibling, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
-    await mkdir(dirname(join(h.checkout, third)), { recursive: true });
-    await mkdir(dirname(join(h.checkout, sibling)), { recursive: true });
-    await copyFile(join(h.checkout, first.name), join(h.checkout, second));
-    await copyFile(join(h.checkout, first.name), join(h.checkout, third));
-    let deniedCopy = "";
-    const result = await h.sweep(unreached, { index: null, retrySleep: async () => {}, fs: { link: async (from, to) => {
-      if (to === h.file) {
-        deniedCopy ||= from;
-        if (from === deniedCopy) throw Object.assign(new Error("One link was denied"), { code: "EACCES" });
-      }
-      await link(from, to);
-    } } });
-    expect(result.left.map(copy => [copy.copy, copy.reason]).sort()).toEqual([
-      [first.name, "destination-blocked"], [second, "destination-blocked"],
-    ].sort());
-    expect(await readStat(h.file)).toBeNull();
-    expect(await readStat(join(h.checkout, first.name))).toMatchObject({ type: "file" });
-    expect(await readStat(join(h.checkout, second))).toMatchObject({ type: "file" });
-    expect(await readStat(join(h.checkout, sibling))).toMatchObject({ type: "file" });
-    expect(await readStat(join(h.checkout, third))).toBeNull();
-  });
-
   it.each(["recorded", "unrecorded", "no-index"])("keeps a %s copy outside a linked destination and permits recovery after repair", async mode => {
     const h = await leftBy("afterMove"), index = await indexOnDisk(h.location);
     const entry = index.entries[h.path];

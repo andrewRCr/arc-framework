@@ -5,7 +5,6 @@
 import { z } from "zod";
 import { SlugSchema, isManagedPath } from "../../kernel/index.js";
 import { RecordReferenceSchema, RecordVersionSchema, StateVersionSchema } from "../identity.js";
-import { ArchiveSaveIdSchema } from "../links.js";
 import { RemedySchema } from "../refusal.js";
 import { isProjectionIndexGroup, projectionIndexGroup } from "./index-memory.js";
 
@@ -47,25 +46,12 @@ const MarkersSchema = z.strictObject({
 /** What the last persisted write-back read: its Markdown stamp or stampless take-in base blob, and content taken in. */
 const PersistedSchema = z.strictObject({
   stamp: BlobIdSchema,
-  inputBlob: BlobIdSchema.optional(),
   recording: z.literal(true).optional(),
-  /** The blob of the file bytes the retained or accepted input was read from. */
-  read: BlobIdSchema.optional(),
-  /** The repair still required in a live input whose write only partially landed. */
-  retained: RefusedMarkSchema.optional(),
   takenIn: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("landed"), version: RecordVersionSchema }),
     z.strictObject({ kind: z.literal("copy"), name: z.string().min(1), blob: BlobIdSchema, version: RecordVersionSchema }),
   ]),
 }).refine(value => value.recording !== true || value.takenIn.kind === "copy", "Unfinished recording requires an input copy");
-
-const ArchiveSaveReadSchema = z.strictObject({ stat: FileStatSchema, blob: BlobIdSchema });
-const ArchiveSaveSubmissionSchema = z.strictObject({ id: ArchiveSaveIdSchema, stamp: BlobIdSchema,
-  name: z.string().regex(/^[a-f0-9]{40,64}\.[a-f0-9]{16}$/u), blob: BlobIdSchema, read: ArchiveSaveReadSchema.optional(),
-  aside: z.string().min(1).optional(), retained: RefusedMarkSchema.optional() });
-
-/** An input retained before publishing an archive save. */
-export type ArchiveSaveSubmission = z.output<typeof ArchiveSaveSubmissionSchema>;
 
 /** A replacement in progress of a file other than Markdown: the version it replaces and the copy its batch makes. */
 const InProgressSchema = z.strictObject({ replaces: StoredVersionSchema, copy: z.string().min(1).nullable() });
@@ -100,15 +86,6 @@ const RecordBasisSchema = z.strictObject({
   withheld: z.boolean(),
   refused: RefusedMarkSchema.nullable(),
   persisted: PersistedSchema.nullable(),
-  acceptedInputStat: FileStatSchema.pick({ ino: true, mtimeNs: true }).extend({
-    beforeLay: z.literal(true).optional(),
-    lay: z.discriminatedUnion("kind", [
-      z.strictObject({ kind: z.literal("pending") }),
-      z.strictObject({ kind: z.literal("linking"), originalCopy: z.string().min(1).nullable() }),
-      z.strictObject({ kind: z.literal("installed") }),
-    ]).optional(),
-  }).optional(),
-  archiveSubmission: ArchiveSaveSubmissionSchema.optional(),
   inProgress: InProgressSchema.nullable(),
   copies: z.array(AsideCopyRecordSchema),
   adoption: z.discriminatedUnion("kind", [
@@ -141,15 +118,11 @@ const OwnerlessBasisSchema = z.strictObject({
   stat: FileStatSchema.nullable(),
   refused: RefusedMarkSchema.optional(),
   opened: z.literal(true).optional(),
-  archiveSubmission: ArchiveSaveSubmissionSchema.extend({ reference: RecordReferenceSchema, read: ArchiveSaveReadSchema }).optional(),
 });
 const OwnerlessEntrySchema = z.union([
   OwnerlessBasisSchema.extend({ refused: RefusedMarkSchema }),
   OwnerlessBasisSchema.extend({ opened: z.literal(true) }),
 ]);
-
-/** A discovered path still awaiting its first stored binding. */
-export type OwnerlessEntry = z.output<typeof OwnerlessEntrySchema>;
 
 /** One index entry, keyed by its repository-relative path. */
 const IndexEntrySchema = z.union([RecordEntrySchema, OwnerlessEntrySchema]);
@@ -162,18 +135,6 @@ const IgnoreFileRecordSchema = z.union([
 
 /** An entry's key: a repository-relative path, validated but not branded, so a caller looks a path up as it is. */
 const EntryPathSchema = z.string().refine((path): boolean => isManagedPath(path), "Expected a repository-relative path");
-
-/** Rebuild retries are limited to checkout-relative archive scopes. */
-export function isArchiveDiscoveryScope(path: unknown): path is string {
-  return typeof path === "string" && isManagedPath(path) && (path === ".arc/completed" || path.startsWith(".arc/completed/"));
-}
-
-/** An uninspected branch of the copy namespace, spelled by its mirrored archive path. */
-export const ArchiveCopyScopeSchema = z.strictObject({
-  path: z.string().refine(isArchiveDiscoveryScope),
-  unindexed: z.literal(true).optional(),
-});
-export type ArchiveCopyScope = z.output<typeof ArchiveCopyScopeSchema>;
 
 /** The settings and claim a worktree was projected under. */
 const ProjectedUnderSchema = z.strictObject({
@@ -206,10 +167,6 @@ export const ProjectionIndexSchema = z.strictObject({
   projectedUnder: ProjectedUnderSchema,
   reprojectionPending: z.literal(true).optional(),
   withheldCopies: z.array(z.string().min(1)),
-  archiveRecoveryCopies: z.array(z.string().min(1)).optional(),
-  archiveDiscoveryPending: z.array(z.string().refine(isArchiveDiscoveryScope)).optional(),
-  archiveDiscoveryDirectories: z.array(z.string().refine(isArchiveDiscoveryScope)).optional(),
-  archiveCopyPending: z.array(ArchiveCopyScopeSchema).optional(),
   tripwires: z.record(z.string().min(1), z.array(z.number().nonnegative()).max(9)),
   ignoreFiles: z.array(IgnoreFileRecordSchema).nullable(),
   ignoreGuard: IgnoreGuardBasisSchema.nullable(),

@@ -5,8 +5,6 @@ import { formatConflictToken } from "../../status/conflict-token.js";
 import { projectionProcessState } from "./process-state.js";
 import type { CopySettlement } from "./aside-copies.js";
 import { projectionLinkRemedy } from "./discovery-links.js";
-import { refuseArchiveChange, refuseUnreadArchiveScope, type ArchiveSelectionRoot } from "./archive-selection.js";
-import type { LeftCopy } from "./sweep.js";
 
 /** Flush only new notices, diagnostics, and resolutions at command entry and completion. */
 export function createProjectionReporter(store: Pick<Store, "capabilities">,
@@ -32,10 +30,6 @@ export function createProjectionReporter(store: Pick<Store, "capabilities">,
 /** Retain the path and copy when settlement leaves a save for the person or a later command. */
 export function reportProjectionCopy(path: string, copy: string, settlement: CopySettlement): void {
   const kind = settlement.kind;
-  if (kind === "blocked-destination") {
-    projectionProcessState().diagnostics.push({ path, copy, mark: settlement.mark });
-    return;
-  }
   if (kind !== "moved-on" && kind !== "held-aside" && kind !== "kept" && kind !== "not-a-file") return;
   const mark = kind === "not-a-file" ? { reason: kind, remedy: settlement.remedy }
     : { reason: kind === "kept" ? `${kind}: ${settlement.answer}` : kind,
@@ -43,16 +37,6 @@ export function reportProjectionCopy(path: string, copy: string, settlement: Cop
         ? "The original path changed. Recover anything wanted from this aside copy, then remove the copy explicitly."
         : "Keep this aside copy; the next command will retry once the save has settled or its refusal is repaired." } };
   projectionProcessState().diagnostics.push({ path, copy, mark });
-}
-
-/** Report each copy a sweep left untouched; a refused archive path is kept as the command's answer and reported once. */
-export function reportLeftCopies(root: ArchiveSelectionRoot, left: readonly LeftCopy[]): void {
-  for (const copy of left) {
-    if (copy.refusal !== undefined && copy.access) refuseUnreadArchiveScope(root, copy.path, copy.refusal, copy.copy);
-    else if (copy.refusal !== undefined) refuseArchiveChange(root, copy.path, copy.refusal, copy.destinationRefusal ? null : copy.copy);
-    else root.context.report?.({ path: copy.path, copy: copy.copy, mark: { reason: copy.reason,
-      remedy: copy.remedy ?? { text: "Keep the aside copy until its edit is recovered or explicitly removed." } } });
-  }
 }
 
 /** Report unfollowed links without recording them as ownerless files or pending edits. */

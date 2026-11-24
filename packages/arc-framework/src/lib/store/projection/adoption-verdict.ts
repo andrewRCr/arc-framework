@@ -14,7 +14,6 @@ import { parseStampedFile } from "./stamp.js";
 import { observeProjectionProtection } from "./protection.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { markStoreRefusal } from "./refusal-mark.js";
-import { ArchiveDestinationBlocked, readArchiveBytes } from "./archive-file.js";
 
 /** Only read capabilities are required before the adopter chooses its effectful continuation. */
 export type AdoptionObservationRoot = ProjectionSelectionContext & {
@@ -38,25 +37,14 @@ export function missingMintedMetadataMark(): RefusedMark {
 /** Apply protection, link, existence, and primary-creation rules in the adopter's ordinary order. */
 export async function inspectProjectionAdoption(root: AdoptionObservationRoot, path: string,
   reference: RecordReference, stat: FileStat): Promise<ProjectionAdoptionVerdict> {
-  try {
-    const denied = await observeProjectionProtection({ store: root.store, checkout: root.checkout,
-      identity: root.identity, exec: root.ports.exec, verb: root.context.verb }, reference);
-    if (denied.kind !== "editable") return { kind: "refused", mark: denied.mark, stat,
-      ...(denied.kind === "unobservable" ? { readFailure: true as const } : {}) };
-    if (!path.startsWith(".arc/completed/")) {
-      const linked = (await readProjectionLinkBoundary(root.checkout, [path]))(path);
-      if (linked !== null) return { kind: "refused", stat: null, mark: { reason: "not-a-file", remedy: projectionLinkRemedy(linked) } };
-    }
-    return await inspectAdoptionContent(root, path, reference, stat);
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "refused", mark: error.mark, stat, readFailure: true };
-    throw error;
-  }
-}
-
-async function inspectAdoptionContent(root: AdoptionObservationRoot, path: string, reference: RecordReference,
-  stat: FileStat): Promise<ProjectionAdoptionVerdict> {
-  const bytes = path.startsWith(".arc/completed/") ? readArchiveBytes(root.checkout, path, stat) : await readFile(join(root.checkout, path));
+  const denied = await observeProjectionProtection({ store: root.store, checkout: root.checkout,
+    identity: root.identity, exec: root.ports.exec, verb: root.context.verb }, reference);
+  if (denied.kind !== "editable") return { kind: "refused", mark: denied.mark, stat,
+    ...(denied.kind === "unobservable" ? { readFailure: true as const } : {}) };
+  const boundary = await readProjectionLinkBoundary(root.checkout, [path]);
+  const linked = boundary(path);
+  if (linked !== null) return { kind: "refused", stat: null, mark: { reason: "not-a-file", remedy: projectionLinkRemedy(linked) } };
+  const bytes = await readFile(join(root.checkout, path));
   const read = { stat, blob: gitBlobId(bytes, root.context.format) };
   const existing = await root.store.read({ reference });
   if (existing.status === "ok") return { kind: "existing", record: existing.result, read };

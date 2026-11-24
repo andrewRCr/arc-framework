@@ -6,7 +6,7 @@ import type { Remedy, StoreRefusal } from "../refusal.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
-import { archiveEditCommand } from "./archive-admission.js";
+import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 
 /** A check grants only provisional feasibility; persistence repeats it under the target's lease. */
 export type ProjectionRemovalCheck = Awaited<ReturnType<ProjectionRemovalSlots["check"]>>;
@@ -87,8 +87,6 @@ export function projectionFeasibilityRefusal(prepared: ProjectionFeasibility, ch
   // A failed read leaves the edit unjudged. A refusal preparation reached on what it read is the edit's own; a Store
   // read that failed beneath it is still retained by the check's read observation.
   if (prepared.kind === "held" && prepared.readRefusal !== undefined) return unobservedRefusal(checkout, path, prepared.readRefusal);
-  if (prepared.kind === "held" && prepared.archiveAccess !== undefined)
-    return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, prepared.archiveAccess) };
   if (prepared.kind === "held" && prepared.result.answer === "no-edit") return null;
   if (prepared.kind === "refused" && prepared.nativeRefusal === true)
     return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, prepared.mark) };
@@ -108,11 +106,10 @@ export function unresolvedRemovalConflicts(checkout: string, path: string, open:
   return { kind: "would-refuse", remedy: { text: `${repair} from ${checkout} and retry ${retirementName(disposition)}.` } };
 }
 
-function archivedConflictRepair(checkout: string, path: string, entry: RecordEntry | undefined,
-  remaining: readonly RecordReference[]): string | null {
+function archivedConflictRepair(checkout: string, path: string, entry: RecordEntry | undefined, remaining: readonly RecordReference[]): string | null {
   if (!path.startsWith(".arc/completed/") || entry === undefined) return null;
   const notice = entry.notices.find(conflict => remaining.some(reference => sameReference(conflict, reference)));
   if (notice !== undefined) return `Run arc save --resolve ${formatConflictToken(notice)}`;
   return entry.markers !== null && entry.opened !== true
-    ? `Run ${archiveEditCommand(checkout, path)} first. Resolve the conflicts in ${path} by hand, then run arc save` : null;
+    ? `Run arc edit ${renderRemedyArgument(path)} from ${checkout} first. Resolve the conflicts in ${path} by hand, then run arc save` : null;
 }

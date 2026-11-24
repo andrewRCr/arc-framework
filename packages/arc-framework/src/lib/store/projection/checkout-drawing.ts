@@ -1,7 +1,7 @@
 /** Install a checkout-only clash through the same guarded swap as a stored read-back. */
 import { projectionLayMode, isOwnSaveLanding } from "./lay-mode.js";
 import { withProjectionEntry } from "./index-memory.js";
-import type { ProjectionIndex } from "./index-schema.js";
+import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import type { ReadBackContext } from "./read-back.js";
 import { createWriteBackPort, type WriteBackSend } from "./write-back.js";
@@ -11,14 +11,17 @@ import { guardReplacement } from "./replace-guard.js";
 import { readReference } from "./change-detection.js";
 import { swapBatch } from "./swap.js";
 import { createRecordRenderer } from "./record-render.js";
-import { baseDisagreementMark, unshownConflicts } from "./held-conflicts.js";
+import { unshownConflicts } from "./held-conflicts.js";
+import { randomUUID } from "node:crypto";
+import { RecordReferenceSchema, type RecordReference } from "../identity.js";
+import { formatConflictToken } from "../../status/conflict-token.js";
 
 /** Draw only at the file's own path; the take-in port and aside settlement never draw. */
 export async function drawCheckoutClash(context: ReadBackContext, index: ProjectionIndex, request: TakeInRequest,
   sent: Extract<WriteBackSend, { kind: "clashed" }>): Promise<{ result: TakeInResult; index: ProjectionIndex; rebuilt?: boolean }> {
   if (request.copy !== null) return { result: sent.result, index };
   const { drawing } = sent;
-  const mark = drawing.basesDisagree ? baseDisagreementMark(request.entry.reference) : undefined;
+  const mark = drawing.basesDisagree ? disagreementMark(request.entry.reference) : undefined;
   const refused = mark ?? (sent.result.entry.refused?.reason === "bases-disagree" ? sent.result.entry.refused : null);
   const renderer = createRecordRenderer(context);
   const staged = await stageRecordFile({ checkout: request.checkout, path: request.path, record: drawing.record,
@@ -28,12 +31,6 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
     renderer, rendering: { keepPending: true, refused } });
   if (staged.status === "refused") {
     const entry = { ...sent.result.entry, pending: true, unshown: unshownConflicts(sent.result.entry, drawing.record.conflicts) };
-    if (staged.archiveBlock !== undefined) {
-      const { mark, access } = staged.archiveBlock;
-      (context.refuseArchiveChange ?? context.report)?.({ path: request.path, copy: null, mark }, access);
-      return { result: { answer: "pending", entry, ...(access ? { archiveAccess: mark } : {}) },
-        index: withProjectionEntry(index, request.path, entry) };
-    }
     context.report?.({ path: request.path, copy: null, mark: {
       reason: `The checkout clash could not be drawn: ${staged.refusal.condition}`, remedy: staged.refusal.remedy } });
     return { result: { answer: "pending", entry }, index: withProjectionEntry(index, request.path, entry) };
@@ -57,4 +54,13 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
     context.report?.({ path: request.path, copy: null, mark });
   }
   return { result, rebuilt, index: swapped.index };
+}
+
+function disagreementMark(reference: RecordReference): RefusedMark {
+  const token = formatConflictToken(RecordReferenceSchema.parse({ owner: reference.owner,
+    kind: `${reference.kind.split("/")[0]}/conflict-record`, key: randomUUID() }));
+  return { reason: "bases-disagree", remedy: {
+    text: `The save's possible bases give different merges. Keep the stored side, or resolve with arc save --resolve ${token}.`,
+    argv: ["arc", "save", "--resolve", token],
+  } };
 }

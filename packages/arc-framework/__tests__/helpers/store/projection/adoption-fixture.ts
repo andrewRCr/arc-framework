@@ -16,19 +16,6 @@ import { workItemLayoutPlacement } from "../../../../src/lib/store/lifecycle-sto
 import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
-import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
-import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
-
-/** Encode an interrupted adoption using the journal format that predated the explicit lay phase. */
-export async function usePredecessorAdoptionJournal(location: ProjectionLocation, path: string): Promise<void> {
-  const read = await readProjectionIndex(location, true, { groups: "all" });
-  if (read.kind !== "index") throw new Error("No adoption index");
-  const entry = read.index.entries[path];
-  if (entry?.kind !== "record" || entry.acceptedInputStat === undefined) throw new Error("No staged adoption");
-  const { ino, mtimeNs } = entry.acceptedInputStat;
-  await writeProjectionIndex(location, withProjectionEntry(read.index, path, { ...entry, acceptedInputStat: { ino, mtimeNs, beforeLay: true } }));
-}
 
 /** Choose only physical inputs that the real marker, layout resolver, and metadata renderer produce. */
 export async function createAdoptionFixture(input: {

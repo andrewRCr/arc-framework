@@ -3,84 +3,32 @@ import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { TakeInRead } from "./take-in-port.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
-import { followsInstalledArchiveInput, readPendingProjectionInput } from "./unchanged-file.js";
+import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
 import { pendingFileRequest } from "./pending-request.js";
 import { installWriteBack } from "./read-back.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
-import { completeWriteBackRecording } from "./write-back-recording.js";
-import { completeLiveArchiveRecording } from "./write-back.js";
-import { recoverArchiveSave } from "./archive-save-recording.js";
-import { refuseUnreadArchiveScope } from "./archive-selection.js";
-import { archiveLayPhase, hasAcceptedArchiveInput } from "./recording-state.js";
-
-/** Settle a lost submission response before treating any live bytes as a new edit. */
-export async function recoverSubmittedArchiveEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  entry: RecordEntry, retainUnaccepted = false): Promise<{ index: ProjectionIndex; entry: RecordEntry; held: boolean }> {
-  const recovered = await recoverArchiveSave(root.context, entry, retainUnaccepted);
-  if (recovered.mark !== undefined) {
-    root.unsent.add(path);
-    root.context.report?.({ path, copy: null, mark: recovered.mark });
-    return { index, entry, held: true };
-  }
-  if (recovered.entry === entry) return { index, entry, held: false };
-  const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: withProjectionEntry(index, path, recovered.entry), checkpoint: root.context.checkpoint });
-  return { index: updated, entry: recovered.entry, held: false };
-}
-
-/** Finish recording accepted input without requiring the live file or trying to install it. */
-export async function recordAcceptedProjectionInput(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  entry: RecordEntry, live = false): Promise<{ index: ProjectionIndex; entry: RecordEntry; held: boolean }> {
-  const completed = live ? await completeLiveArchiveRecording(root.context, pendingFileRequest(root.checkout, path, entry))
-    : await completeWriteBackRecording(root.context, entry, { checkout: root.checkout, path });
-  entry = completed.mark === undefined ? completed.entry : { ...completed.entry, pending: true, refused: completed.mark };
-  const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: withProjectionEntry(index, path, entry), checkpoint: root.context.checkpoint });
-  if (completed.mark !== undefined) {
-    root.unsent.add(path);
-    root.context.report?.({ path, copy: null, mark: completed.mark });
-  }
-  return { index: updated, entry, held: completed.mark !== undefined };
-}
 
 /** Recognize accepted bytes left before installation and finish their read-back when this save can authorize it. */
 export async function checkUnchangedProjectionEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
   entry: RecordEntry, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{
-    index: ProjectionIndex; edited: boolean; reobserve?: true;
+    index: ProjectionIndex; edited: false; reobserve?: true;
   } | null> {
-  const completing = entry.persisted?.recording === true
-    && (path.startsWith(".arc/completed/") || entry.opened === true || hasAcceptedArchiveInput(entry));
-  if (completing) {
-    const completed = await recordAcceptedProjectionInput(root, index, path, entry, true);
-    ({ index, entry } = completed);
-    if (completed.held) return { index, edited: false, reobserve: true };
-  }
-  const input = await readPendingProjectionInput(root.context, pendingFileRequest(root.checkout, path, entry));
-  if (input === null) return completing
-    ? { index: withProjectionEntry(index, path, { ...entry, changed: true }), edited: true, reobserve: true } : null;
-  if (input.kind !== "unchanged") {
-    root.unsent.add(path);
-    if (input.kind === "inaccessible") refuseUnreadArchiveScope(root, path, input.mark);
-    else root.context.report?.({ path, copy: null, mark: input.mark });
-    return { index: withProjectionEntry(index, path, { ...entry, pending: true, refused: input.mark }), edited: false, reobserve: true };
-  }
+  const read = await readUnchangedProjectionFile(root.context, pendingFileRequest(root.checkout, path, entry));
+  if (read === null) return null;
   root.unsent.delete(path);
-  const recovered = await recoverAcceptedReadBack(root, index, path, entry, input.read, input.accepted === true);
-  if (recovered === null) return { index, edited: false, ...(completing ? { reobserve: true } : {}) };
+  const recovered = await recoverAcceptedReadBack(root, index, path, entry, read);
+  if (recovered === null) return { index, edited: false };
   onFile?.(recovered.observation);
   return { index: recovered.index, edited: false, reobserve: true };
 }
 
 /** Install only with durable acceptance evidence, an unchanged input proof, and current local authorization. */
 async function recoverAcceptedReadBack(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  entry: RecordEntry, read: TakeInRead, accepted: boolean): Promise<{ index: ProjectionIndex; observation: ProjectionFileWriteObservation } | null> {
-  const ownSave = isOwnSaveLanding(root.context.verb, root.checkout);
-  if ((!ownSave && !(accepted && root.context.verb === "write-back")) || entry.persisted === null
+  entry: RecordEntry, read: TakeInRead): Promise<{ index: ProjectionIndex; observation: ProjectionFileWriteObservation } | null> {
+  if (!isOwnSaveLanding(root.context.verb, root.checkout) || entry.opened !== true || entry.persisted === null
     || entry.persisted.recording === true || !root.writable(path) || root.blockedByLink(path) !== null) return null;
-  if (!accepted && entry.opened !== true && !followsInstalledArchiveInput({ path, entry })
-    && (archiveLayPhase(entry) !== "pending" || entry.persisted.read !== read.blob)) return null;
   const request = pendingFileRequest(root.checkout, path, { ...entry, pending: false, refused: null });
   if (await root.rights?.(request) != null) return null;
   await root.checkpoint?.();

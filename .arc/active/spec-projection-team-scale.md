@@ -72,9 +72,6 @@ changed marks, removal check, persist step, release step, and the flip — and a
   which a later rebuild settles (§ 12).
 - **Forced edit** — an archived file changed in a worktree while its entry there is a record entry neither opened nor
   unsettled: its file reads changed by the racy rule and not as deleted (§ 8).
-- **Waiting edit** — an edit to an archived file, at its path or in an aside copy, whose entry is a record entry neither
-  opened nor settled, other than bytes the store has already accepted for it; only an opening, or `arc save --resolve`
-  sending it as its subject, admits it (§ 4, A2).
 - **New archived path** — a path under `completed/` at which the store holds no record and which adoption binds to an
   archived work item: a file inside an archived work unit's folder, or an archived Errand's description,
   `errand-<slug>.md` directly in its quarter folder (`projectAddress`, `lib/layout/projection.ts`).
@@ -133,9 +130,6 @@ invariants and their tests, § 10 the forward amendments to shipped documents, �
   and the index's format version (§ 4), the start's and `arc save`'s reads of opened entries and the re-lock (§ 5, § 6),
   `arc sync`'s partition handling and report (§ 7.2), and the removal check's and the persist and release steps'
   treatment of archived entries (§ 8).
-- **`lib/store/`** — an archive save's receipt (A3): an optional receipt ID that a prepared archive file write carries
-  in its provenance, which the backend over Git renders as a trailer bound to the record, and which `history` takes to
-  return only the write carrying it (§ 9.1, § 10.5).
 - **`arc edit <path>`** — a new command, its handler, and its help text (§ 3).
 - **`arc status`** — lists opened files (§ 4).
 - **ADR-035** — a dated amendment to item 6 (§ 10.3).
@@ -208,9 +202,8 @@ entry for the path:
 - **A file outside `completed/`** lays as today, its mode the protection mark's.
 
 Edit rights and their protection mark stay as shipped: `workUnitRights` (`rights.ts`) answers `editable` for an archived
-work unit's owner, so the edit rights never refuse an archived edit for being archived, whether it arrives from an
-opened file, a refresh that meets a forced edit, or a persist step; whether the take-in admits it is § 4's admission
-rule (A2, A7).
+work unit's owner, so take-in never refuses an archived edit for being archived, whether it arrives from an opened file,
+a refresh that meets a forced edit, or a persist step.
 
 #### 2.2 The notice is content, the mode is not
 
@@ -299,13 +292,6 @@ Each refusal names why and its remedy:
   the remedy that sets `arc.identity`; and **a start that could not take its lock, lost its lease, or found the
   worktree's Git directory gone**, naming the holder, the loss, or the missing directory and a retry — each as
   `arc save` and `arc selection` refuse (`spec-projection-write-back.md` § 2.4, § 11.7).
-- **A folder or file that changed after the inspection,** found at the write bit: a folder above the path that became a
-  symbolic link or holds `.git`, or a file replaced since the inspection by anything but a symbolic link, or one it can
-  no longer observe (`changeArchiveFileMode`, `archive-file.ts`), naming its repair. `arc edit` then withdraws the
-  opening this invocation set, restoring the prior index entry without changing the replacement's mode (`openPath`,
-  `edit.ts`); once repaired, `arc edit` opens it (A6, A11). A deleted file or a symbolic link at the file keeps the
-  opening and names restoring the file and retrying `arc edit` (A9). A mode change that fails on the authorized file
-  also keeps the opening, naming a permission repair and retry (A11).
 - **Before the flip,** `unsupported` (§ 1.4).
 
 `arc edit` is not `arc editor`, which writes an editor's settings for projected files (`spec-projection-write-back.md`
@@ -335,38 +321,6 @@ rights change is refused there as any edit is, its edit kept in its file.
   replaces, so an ordinary command's adoption of a new archived file lays it writable, and it stays opened until
   `arc save`, whose own adoption of it re-locks it (§ 6.2). A refused adoption keeps the mark already, since `refuse`
   (`adoption.ts`) carries the ownerless entry's fields over.
-- **Only an opening admits an archived edit (A2).** One rule, applied where an edit reaches the take-in, decides from
-  the entry and the route alone whether an edit to an archived file lands. It lands where its entry is opened in this
-  worktree, where `arc save --resolve` sends it as its subject (§ 6.1), or where a refresh's replace guard meets a
-  forced edit, whose entry is settled (§ 7.1). Any other edit to an archived file is a waiting edit: plain `arc save`,
-  `arc sync`'s restoration, a refresh over an unsettled entry, a later command's settlement of an aside copy, and the
-  persist and release steps each leave it at its path, or put an aside copy holding it back at its path as
-  `spec-projection-substrate.md` § 5.2 puts back a refused copy. Each marks the entry pending, so it stays unsettled,
-  and names `arc edit` then `arc save` where the edit rights allow the edit, and otherwise the rights' remedy naming the
-  owner. A copy whose path has moved on is kept as § 5.2 keeps one and reported with its own remedy: recover what is
-  wanted from the copy, then delete it. No index field records a requirement to open, so no route writes, carries, or
-  clears one. An accepted landing is not an edit: where the store has accepted an archived edit whose recording,
-  read-back, or lay has not finished, such as an unfinished recording from its retained input copy, an archived save's
-  submission, or an edit landed but not yet laid, plain `arc save`, the persist step, and any command that finishes such
-  work finish it from what the store accepted, without an opening, and take in nothing more; bytes the file holds beyond
-  what the store accepted are a waiting edit. A waiting edit's entry stays unsettled, so each command in its worktree,
-  and each fan-out visit into that worktree, reads its record, renders, stages, and guards its file, keeps it waiting,
-  and reports it, until it is opened (§ 11 item 10).
-- **An archive save's journal (A3, A5, A10).** Before a command submits an opened archive file on a route that journals,
-  it records the submission on the file's entry and commits the index (`stageArchiveSave`, `archive-save-recording.ts`;
-  `submitAdoption`, `adoption.ts`): a receipt ID, the file's stamp and read observation, and the name and blob of the
-  input copy it retains (`ArchiveSaveSubmissionSchema`, `index-schema.ts`), with the record's reference for an
-  adoption. Three routes journal: `arc save` in its own checkout, landing an opened record from its file or displaced
-  copy, or attaching an opened path to an existing record; any other command attaching an opened path
-  (`needsOpenedSaveJournal`, `write-back.ts`); and any command adopting an opened new path. For a displaced edit,
-  `stageArchiveSave` also binds its aside name to the captured blob. Every other submission of an opened archive file,
-  such as an ordinary command's or a fan-out visit's landing of an opened record's edit, sends it without a journal,
-  as every landing outside the archive does (§ 11 item 12). Once the store's answer is known, the entry trades the
-  journal for the accepted-input recording (`acceptArchiveSave`), or drops it where the store refused the write
-  or holds no receipt (§ 9.1). The entry is opened while it carries the journal, so it is unsettled and every start
-  finds it, and the removal check refuses over it, naming `arc save` (`inspectArchivedProjectionFile`,
-  `archive-inspection.ts`), while the persist and release steps resolve it as `arc save` does (`hasArchiveRecording`,
-  `recording-state.ts`).
 - **A moved entry keeps the mark.** Where a refresh moves an opened record's file to a new path, the mark moves with its
   entry, as the changed mark does (`spec-projection-worktrees.md` § 11.7), through the changed mark's carriers (§ 12):
   the old path is held back from removal until the new path takes the mark; at a path another record still leaves, the
@@ -411,9 +365,7 @@ rights change is refused there as any edit is, its edit kept in its file.
 entries and the unsettled ones its marked partitions hold — a refusal a refresh left, an unfinished recording, an
 accepted adoption whose read-back has not installed — and the subject file `--resolve` names (below), so each remedy
 that names `arc save` still finishes, among them the unfinished recordings and uninstalled adoption read-backs
-`spec-projection-worktrees.md` § 12.2 deliberately holds. An unsettled entry that is not opened finishes only work that
-takes in no new edit, such as a lay a refusal left or an accepted landing (§ 4); a waiting edit in its file or in a copy
-waits for an opening (§ 4, A2), so a refusal a refresh left over the edit it met names § 4's remedy.
+`spec-projection-worktrees.md` § 12.2 deliberately holds.
 
 - **It walks no archive folder.** The walk of `.arc/completed/` that `startUnderLease` makes for `arc save` alone (the
   `mode === "save"` filters of the walked roots and of the index's loaded groups in `launchProjectionStart`,
@@ -494,10 +446,7 @@ edit (§ 11).
 - **A refresh that touches a forced edit** takes the edit in, as the replace guard takes in any edit a refresh meets
   (`spec-projection-substrate.md` § 5.1), and lays the file read-only again. Edit rights apply as anywhere, so an edit
   its maker may not make is refused there and stays in its file. This keeps the third pickup shipped
-  `spec-projection-write-back.md` § 8.4 names, "when a refresh touches the file". Where the store refuses or defers that
-  take-in, the edit stays in its file as a waiting edit, which only an opening admits after that refresh: its remedy
-  names `arc edit` then `arc save` where the edit rights allow the edit, and otherwise the rights' remedy naming the
-  owner (§ 4, A2).
+  `spec-projection-write-back.md` § 8.4 names, "when a refresh touches the file".
 - **The index lost between `arc edit` and `arc save`.** A start with no usable index rebuilds it with no opened marks to
   read (`spec-projection-worktrees.md` § 2.5): an opened file holding an edit is left as it is and marked withheld,
   named in every report, and refused over by the removal check and the persist and release steps; an unedited one is
@@ -528,9 +477,6 @@ deletes (§ 12). Here it reads every partition:
   `arc edit` then `arc save` where the edit rights allow the edit, and otherwise the rights' remedy naming the owner. It
   takes nothing in: such an edit lands when a refresh touches its file or after `arc edit` and `arc save`, and the
   removal refuses over it (§ 8).
-- **Restoration takes nothing in (A2).** An edit an editor writes at a path the restoration is laying, whether its
-  replace guard or its swap's copy check meets it, is a waiting edit: it stays at its path, or goes back there from its
-  copy as § 4 has it, is named with § 4's remedy, and lands only after an opening.
 - **`arc sync` reports new archived files.** From the walk its restoration already makes of every projected root
   (§ 12), it names each file under `completed/` that the index does not hold — editor side files and the folder files
   operating systems write aside, as adoption skips them (`spec-projection-write-back.md` § 9), and a symbolic link
@@ -540,12 +486,8 @@ deletes (§ 12). Here it reads every partition:
 - **Its cost.** The report costs a sync one read of the archive's partitions, which it does not read today, and a
   comparison over stats it already takes, as modelled from `notes-projection-worktrees.md` § Spike 4: about 15 ms at
   this repository's size, and about 0.4–0.7 s at 60,000 archived files on Windows. A sync over a mismatched partition
-  also pays the full materialization a start pays over an index it cannot use, which § 15.4 there bounds at its 800-file
-  reference. Each archived path the restoration considers also asks the archive path check once (A2), an `lstat` of each
-  folder between the file and the checkout's root and of a `.git` entry in each (`selectDeletedFiles`,
-  `materialization-selection.ts`; `archiveDestination`, `archive-file.ts`), so its cost grows with the archive's files
-  and their depth. It is not measured apart; the full-materialization timing of the projection's tripwire suite at the
-  head this change lands, which asks the same check for each archived path, is its measure.
+  also pays the full materialization a start pays over an index it cannot use, which § 15.4 there bounds at its
+  800-file reference.
 
 ### 8. The removal check and the persist and release steps
 
@@ -558,60 +500,6 @@ the remedy below; and otherwise the answers § 12.2 there gives. One function an
 `arc sync`'s report, the removal check, and the persist step (§ 7.2), and the persist step takes every forced edit and
 every file with no entry out of what it writes back, refusing over each, so it never lands one
 (`persistFiles`, `removal-persist.ts`).
-
-**Archive destination authority (A2).** An archive path is this checkout's to read or change only while no folder
-between the file and the checkout's root is a symbolic link or holds a `.git` entry. A symbolic link at the file itself
-is not this question: it reads as a deleted file and is never followed; `arc sync` rebuilds it, and a refresh leaves the
-linked path alone (`spec-projection-worktrees.md` § 2.4). One function answers the question for a path's folders
-(`archiveDestinationRefusal`, `archive-file.ts`, asked with the file itself excluded), and `arc edit` asks it for its
-target too, refusing a nested checkout's path with § 3.3's remedy. Each command asks it once for each archive path it
-selects: at its start, in a refresh or a fan-out's visit, in `arc sync`'s restoration, in the removal check and the
-persist and release steps, and for `arc edit`'s target. A path it refuses is left untouched for that command: no step
-reads, takes in, writes, or drops the path or its entry, so any opening, adoption, unfinished recording, and copy wait,
-and the command reports the path with the function's reason and remedy, which the removal check answers `unobservable`.
-Two steps write a refused path's entry without touching the path. A command records a receipt the store already accepted
-for an interrupted archive submission (`checkBlockedArchivePath`, `engine-files.ts`), so the index never falls behind
-the store. A rebuild over an unusable index records a refused path's entry pending under the refusal without reading the
-file, and the first command whose check passes rebuilds the path from its file (`prepareMaterializationFile`,
-`materialization-file.ts`). Each change a command makes at an archive path, whether a move into place or aside, a folder
-created, a mode changed, or a copy deleted, asks again just before it changes the path. A refusal there stops the work
-on that path: the path is left as a command stopped at that step leaves it, save `arc edit`'s write bit, whose refusal
-withdraws the opening it set unless the file is gone (§ 3.3) (A6, A9), and is reported with its remedy and left
-untouched for the rest of the command, which goes on with its other paths, as `arc save`'s re-lock and a fan-out's visit
-report each file they cannot finish (§ 6.3). Each later command's selection leaves it untouched while the refusal
-stands, and the first command after the repair settles it (`spec-projection-substrate.md` § 5.4) (A4). The removal check
-and the persist and release steps take the archive's work from one selection, the walk joined with every opened or
-unsettled archive entry, so a path the walk cannot see keeps its work.
-
-**Access to a copy's archive destination (A13).** The folder authority check can pass while the filesystem
-refuses a destination operation. Archive copy settlement treats a permission refusal during alias inspection,
-destination stat, or a guarded move or link as a hold on that path. The indexed sweep, command end, the
-retirement steps, and the sweep without an index preserve the affected copy and its outstanding recovery state
-and continue with accessible destinations. The hold names the path and the access repair. Once access is
-restored, the next command can finish the held work. The folder authority and lease checks still precede changes
-(`projectionFileReader`, `finalizeAsideCopy`, `retriedMoves`).
-
-**Incomplete archive discovery (A14).** A permission refusal during directory enumeration holds that subtree.
-A refusal while typing a listed child holds the child. In both cases discovery continues at accessible paths.
-Refresh, sync, retirement, and copy settlement consult those holds before probing their destinations again.
-Retirement settles accessible copies and reports the hold before completing. A rebuild records any incomplete
-archive scope in its index. A later command revisits just those scopes under its lease and the archive checks,
-withholding and reporting newly discovered unindexed edits under § 7.2 before advancing the rebuilt state.
-
-**An owed archive inventory scope survives a refusal (A16).** Discharge a retry only when observation under the
-archive checks proves absence, classifies its files, or records all remaining unread scope. Keep an owed subtree
-opaque while a folder link or nested checkout prevents inspection. A proved file leaf follows A2's deleted-file
-rule. A legacy scope whose kind is unknown stays pending when a link may hide a subtree. A newly encountered foreign
-tree outside owed inventory is excluded. Preserve obligations from a validated header when rebuilding damaged
-partitions. When a returned copy's retry shifts to its destination, publish that obligation with the change that
-removes the old one. The index state can advance after the owed edit is classified and reported.
-
-**A refresh's work at a refused path waits for the repair (A4).** A refresh whose planned change — a lay, a removal, or
-a move — is at a path the selection refuses leaves that change undone and counts itself incomplete, so it keeps the
-worktree's state version where it was (`refusesArchivePath`, `archive-selection.ts`; `applyProjectionRefresh`,
-`refresh.ts`). Each later command plans the refresh again, and the first after the repair makes the change: a record
-removed or moved while its folder was a link or a nested checkout leaves its path and entry until then (§ 11 item 11,
-Success Criterion 17).
 
 - **An opened file's edit persists, and an opened new file adopts,** as shipped `spec-projection-write-back.md` § 8.4
   has them persist any archived correction; the removal then takes the file.
@@ -637,8 +525,7 @@ Success Criterion 17).
   first as a forced edit (above).
 - **An unsettled entry** keeps `spec-projection-worktrees.md` § 12.2's handling. It sits in a partition the header
   marks, which `arc save` reads (§ 6.1), so its remedies naming `arc save` still work, and the persist step still
-  finishes it, save a waiting edit, over which the removal check answers `persist-would-refuse` and the persist and
-  release steps refuse, naming § 4's remedy (A2).
+  finishes it.
 
 Each refusal clears once repaired: after `arc edit` and `arc save` in that checkout over a forced edit, the removal
 check answers `removable` and the removal proceeds.
@@ -651,71 +538,29 @@ refusal or a stop, then runs a legitimate repair and the operation to completion
 
 #### 9.1 Local steps, under the worktree's projection lock
 
-This design adds one prepared step to a store write, an archive save's receipt (A3). `arc edit` writes only the
-worktree's index and the file's write bit; an opened file lands through write-back's own prepared admission
-(`spec-projection-write-back.md` § 7.2), which fences its own reads, and a new file adopts through
-`spec-projection-write-back.md` § 9's existing route, each journaled on the routes § 4 names (A5) as the step pair below
-has it; and the re-lock at `arc save` is local. Its own step pairs each run under the worktree's projection lock,
-ordered so a stop between them leaves a state the next command repairs:
+This design adds no prepared store write. `arc edit` writes only the worktree's index and the file's write bit; an
+opened file lands through write-back's own prepared admission (`spec-projection-write-back.md` § 7.2), which fences its
+own reads; a new file adopts through `spec-projection-write-back.md` § 9's existing route; and the re-lock at `arc save`
+is local. Its own step pairs each run under the worktree's projection lock, ordered so a stop between them leaves a
+state the next command repairs:
 
-- **An archive save: the journal, the submission, then the receipt read (A3).** The command commits the journal on the
-  routes § 4 names (A5, A10), then submits the write carrying the journal's receipt ID in its provenance
-  (`submitProjectionBatch`, `submission.ts`), which the store admits only for a prepared archive batch
-  (`BatchInputSchema`, `write.ts`; § 10.5). The backend over Git renders it as an `Arc-Archive-Save` trailer naming the
-  ID and a digest of the record's identity, by its owner's UID where the owner has one (`archiveSaveTrailer`,
-  `commit-provenance.ts`). A refused submission restores the entry as it was. A stop after the journal's commit leaves
-  an entry the next command that reaches it resolves by asking `history` for the write carrying its ID
-  (`findArchiveSaveAcceptance`, `archive-save-recording.ts`; `readArchiveSaveReceipt`, `ref/history.ts`): with no such
-  write, the store never accepted the save, so the journal is dropped and the opened edit is sent again; with one, the
-  store did, so the acceptance is recorded from the retained input copy without a second submission, and a command that
-  leaves the path untouched for its path check still records it (§ 8). A sweep recovers a displaced copy's receipt
-  before considering its edit again (`takeOverRecorded`, `sweep.ts`): `acceptArchiveSave` marks the exact bytes accepted
-  whole, so a different blob is still a possible edit. A partially accepted copy stays available for recovery (A10).
-  A receipt naming more than one version, or a history the store cannot read, holds the entry and reports why, until a
-  later command finds one answer. An unfinished recording whose retained input copy no longer matches the blob it names
-  cannot be repaired, and the store already holds what it accepted, so the recording ends and the file is withheld
-  with the withheld remedy. Once the file is deleted, the next command lays the stored record
-  (`completeWriteBackRecording`, `write-back-recording.ts`) (A8). The in-repo implementation renders no provenance and
-  answers no receipt. Without the journal, a stop after the store accepts the write would leave the index behind it,
-  and the next command could resend the same content and create a second version. Unjournaled routes accept this
-  residual (§ 11 item 12) (A5).
-- **Accepted input before its first lay (A12).** A saved or adopted archive input that the store accepted whole
-  stays eligible for its first lay by the captured bytes. A timestamp or inode change alone does not turn those
-  bytes into another submission while the original input is established. The swap binds the accepted input to
-  its recorded original copy when it moves that copy aside. If recovery restores that original, the accepted
-  bytes still finish their first lay. Once the replacement is proved installed, the recorded rendering supplies
-  the basis for later edits, including an intentional revert. Partial acceptance still holds the unrepaired bytes
-  (`swapBatch`, `restoreReturnedCopy`, `resumeAdoptionReadBack`, `readPendingProjectionInput`).
-- **Uncertain archive adoption installation (A15).** A Markdown edit saved by rename can replace the installed inode
-  before the journal records installation. If the exact accepted input reappears and recovery establishes neither
-  the original nor the installation, the old content match alone cannot choose a base. Where that choice changes
-  the result, keep the live file, its opening, and the possible bases. Report the ambiguity and let the user
-  reconcile against the stored content through the existing save resolution. Proved originals and installations
-  continue under A12.
 - **`arc edit`: the opened mark, then the write bit.** A stop between leaves an opened file still read-only, which
   `arc save` finds unchanged, lays read-only, and unmarks. The reverse order would leave a writable, unmarked file, a
-  forced edit once changed. A refusal at the write bit because the path's folder or file changed after its inspection,
-  unlike a stop, withdraws the mark this invocation set and leaves an earlier mark and the replacement's mode intact.
-  A file deleted since, a leaf symbolic link, or a failure to change the authorized file's mode leaves the mark as a
-  stop does (§ 3.3) (A6, A9, A11).
+  forced edit once changed.
 - **`arc save` over a landing: the store's acceptance, the read-back's swap, then the mark cleared.** A stop after the
-  store accepts the write, before the swap, leaves the edited file and the write's recording, which the next command
-  finishes (`spec-projection-write-back.md` § 7.1), laying the file read-only inside `arc save` and writable elsewhere;
-  the next `arc save` then finds it unchanged and re-locks it. A stop after the swap leaves the file read-only and still
-  marked, which the next `arc save` finds unchanged and unmarks. Clearing the mark before the swap would leave a
-  writable, unmarked file, and a swap without the guard's re-check would lock in a save made between the landing and the
-  swap, unseen while not opened.
+  store accepts the write falls in one of two windows (A17). Before the index records the write (`recordWriteBack`,
+  `taken-in.ts`), it leaves the edited file under its old entry, and the next command sends the edit again, as on every
+  root (`spec-projection-write-back.md` § 7.8, § 17 item 6; § 11). After the recording and before the swap, it leaves
+  the edited file and the write's recording, which the next command finishes (`spec-projection-write-back.md` § 7.1),
+  laying the file read-only inside `arc save` and writable elsewhere; the next `arc save` then finds it unchanged and
+  re-locks it. A stop after the swap leaves the file read-only and still marked, which the next `arc save` finds
+  unchanged and unmarks. Clearing the mark before the swap would leave a writable, unmarked file, and a swap without the
+  guard's re-check would lock in a save made between the landing and the swap, unseen while not opened.
 - **`arc save` over an unchanged file: the read-only lay, the re-check, then the mark cleared.** A save landing between
   the lay and the re-check is found by the re-check and settled as an edit. A stop after the lay leaves the file
   read-only and still marked, so every command still checks it as opened and takes in an edit written through the mode
   meanwhile, and the next `arc save` unmarks it. Re-checking before the lay would lock in a save made between the two,
   and clearing the mark before the re-check would leave such a save unseen.
-- **An archive path: the selection's check, then the check just before each change (A2, A7).** A command asks a path's
-  check once at its selection (`selectArchivePath`, `archive-selection.ts`) and again just before each change it makes
-  there (`changeArchiveFileMode`, `requireArchiveDestination`, `archive-file.ts`), and a refusal at the second stays the
-  path's answer for the rest of the command (`refuseArchiveChange`, `archive-selection.ts`). A stop between them leaves
-  the path unchanged. Asking only at the selection would let a symbolic link or a nested checkout made meanwhile take
-  the change (§ 8; § 11 item 9).
 
 #### 9.2 The perturbation tests
 
@@ -749,22 +594,13 @@ ordered so a stop between them leaves a state the next command repairs:
     laid read-only again; once the withheld file is deleted, opened again, and its edit re-applied, the correction lands.
     Where the rebuild's evidence is not whole, the opened file is held, and once the condition is resolved the next
     rebuild withholds it the same way (§ 7.1).
-11. An archive save stopped after its journal's commit, once before the store accepts its write and once after, for an
-    opened Markdown file and an opened text file, and once with the store's history unable to answer, each followed by
-    another command: the unaccepted save is sent again, the accepted one is recorded without a second submission, and
-    the held one resolves after its repair; and an ordinary command's attachment of an opened path and adoption of an
-    opened new path, each stopped after the store accepted it, recorded at the next command without a second
-    submission (§ 9.1) (A3, A5).
-12. A symbolic link or a nested checkout made above an archive path after a command's selection and before its change,
-    at `arc save` and at a refresh: the change is refused and reported once, the command finishes its other paths, and
-    the first command after the repair finishes it (§ 8, § 9.1) (A7).
 
 ### 10. Forward amendments to shipped documents
 
-`spec-projection-write-back.md` and `spec-projection-worktrees.md` have shipped (§ 12), and so has the storage contract,
-`spec-storage-contract.md`, before them. Where this design changes what they define, the change is stated here and built
-by this change; none is edited. ADR-035 takes a dated amendment, which this change writes (§ 10.3), and where the flip
-lands first, this change rewrites a workflow's errata convention (§ 10.4).
+`spec-projection-write-back.md` and `spec-projection-worktrees.md` have shipped (§ 12). Where this design changes what
+they define, the change is stated here and built by this change; neither is edited. ADR-035 takes a dated amendment,
+which this change writes (§ 10.3), and where the flip lands first, this change rewrites a workflow's errata convention
+(§ 10.4).
 
 #### 10.1 Write-back (`spec-projection-write-back.md`)
 
@@ -864,19 +700,6 @@ edit (`spec-projection-write-back.md` § 8.4), and this change rewrites it to th
 the archived meta, the edit to its Release Notes Entry, then `arc save`; a substantial change is a new work unit linked
 to its origin, since no verb reopens archived work.
 
-#### 10.5 The storage contract (`spec-storage-contract.md`)
-
-**Provenance carries one receipt (A3, A10).** D3's "Provenance, never evidence" paragraph has provenance carry a
-write's verb, lifecycle action, and code head, which `history` and `changes` return, and says no evidence needs
-provenance as its home. Here one field does: an optional archive save receipt ID, which the caller sets only on a
-prepared archive batch. `BatchInputSchema` (`write.ts`) admits a file input, or an indexed aside input for `save`,
-under the archive; `WriteInputSchema` refuses this field on single writes (`ArchiveSaveIdSchema`, `links.ts`). The
-backend over Git renders the receipt as a trailer bound to the record's identity (§ 9.1). `history` takes it as an
-optional input, returning only the writes whose provenance carries it (`HistoryInputSchema`, `contract.ts`). It
-shows that the store accepted the save, so an interrupted save can distinguish that write from an unsent one without
-sending it twice. The in-repo implementation renders no provenance, as D3 has it, so it answers no receipt, and
-`arc save` refuses there before any journal (§ 1.4).
-
 ### 11. Residuals the design accepts
 
 1. **A forced edit after a re-lock.** An agent continuing a correction past the `arc save` that re-locked its file, as a
@@ -908,28 +731,18 @@ sending it twice. The in-repo implementation renders no provenance, as D3 has it
 8. **The primary's release.** A forced edit or a new archived file made without `arc edit` in the primary's archive
    refuses the primary's release, which runs at every Errand's end there, until `arc edit` and `arc save` run on the
    primary (Alternatives & Rationale).
-9. **A link or nested checkout made during a command (A2).** A command checks an archive path's folders when it
-   selects the path and again just before each change it makes there, never at each read (§ 8). A symbolic link or a
-   `.git` entry made at a folder above the path after its selection lets that command's reads follow it until the
-   command ends: change detection and the take-in can read the link's target as the file, and an opened file's edit,
-   or a forced edit a refresh meets, read there can land as the record's next version, which its history keeps and a
-   correction replaces. A write lands outside the checkout only in the instant between a change's own check and the
-   change. The next command's selection leaves the path untouched.
-10. **A waiting edit left unopened (A2).** Each command in its worktree, and each fan-out visit into that worktree,
-    refreshes the waiting edit's record, rendering, staging, and guarding its file, and reports the edit again, until
-    `arc edit` and `arc save` land it or the file is restored to its recorded bytes: one record's refresh per waiting
-    edit per command or visit, named in every report.
-11. **A refresh held at a refused path (A4).** While a symbolic link or a nested checkout above an archive path holds a
-    refresh's planned change there, the worktree's state version stays where it was, so each command in that worktree
-    plans the refresh again from that version: it reads the store's changes since then and the partitions they touch,
-    finds its other paths' work already done, and reports the refused path again. A folder link holds it until a folder
-    replaces the link, and a folder holding `.git` until the nested checkout moves out of the archive (§ 8).
-12. **An opened landing without a journal (A5).** A submission of an opened archive file on a route § 4 does not
-    journal, such as an ordinary command's or a fan-out visit's landing of an opened record's edit, has no receipt.
-    Stopped after the store accepted it and before its recording, it is finished as write-back finishes any landing,
-    with nothing to tell an accepted write from an unsent one, so the next command may send the edit again and the
-    store keep a second version of the same content. `arc save` in its own checkout, the command the notice names,
-    journals its landing (§ 4).
+9. **A stopped landing sent again (A17).** An opened file's `arc save` stopped after the store accepts its write and
+   before the index records it sends the edit again at its next run, as on every root (`spec-projection-write-back.md`
+   § 7.8, § 17 item 6). The archive keeps no recording of its own for that window (§ 9.1).
+10. **An unsettled forced edit landed by a plain save (A17).** A forced edit that a refresh could not take in, or that
+    the persist step refused over, stays in its file (§ 7.1, § 8). Where that leaves its entry unsettled, the next plain
+    `arc save` reads it among § 6.1's unsettled entries and lands it where its rights allow, without `arc edit`.
+    `arc sync`'s restoration still takes nothing in (§ 7.2), and the persist step still lands no forced edit (§ 8).
+11. **A fault under `completed/` is handled as on any root (A17).** A symbolic link at a folder, a permission denial,
+    or a file that vanishes or changes type while a command handles an archived file or its aside copy gets the handling
+    every projected root gets. Where that handling stops the command with the fault, the archive's does too, holding no
+    path apart so that its siblings continue. `arc edit` refuses a path outside its checkout (§ 3.3) and does not look
+    for a Git checkout nested inside `completed/`.
 
 ### 12. Expected contracts
 
@@ -1038,13 +851,7 @@ sending it twice. The in-repo implementation renders no provenance, as D3 has it
   persisting at removal (§ 8) is covered by ADR-035 item 7: no write is lost silently.
 - **How each path treats an archived entry** (§ 2, § 5–§ 8): `none` — tactical choices inside the projection's engine;
   the lay mode's alternative is recorded here.
-- **The archive save's receipt, and the local steps' order** (§ 9): `none` — tactical: a journal in the index and one
-  recovery key in a write's provenance, the one evidence the storage contract's forward amendment admits there (§ 10.5)
-  (A3).
-- **One admission rule and one archive path check** (§ 4, § 8; A2): `none` — tactical choices inside the projection's
-  engine: the first decides from an entry and its route which archived edits land, and the second confines a command's
-  archive reads and changes to its own checkout's paths. Both narrow what a command does and move no authority; the
-  residual the check leaves is named (§ 11 item 9).
+- **No prepared store write, and the local steps' order** (§ 9): `none` — tactical.
 - **`arc edit`'s refusals, before the flip among them** (§ 1.4, § 3.3): `none` — tactical, following `arc save`'s.
 - **A substantial change is a new work unit** (Non-Goals): `none` — it records the existing lifecycle and decides
   nothing.
@@ -1067,9 +874,8 @@ sending it twice. The in-repo implementation renders no provenance, as D3 has it
 - **A header field listing opened paths — rejected** for the per-partition mark. It changes the header's format, and
   costs less than the mark only by copying each opened file's stat and blob id into the header beside its entry, a
   second copy of state the index must keep in step.
-- **An `archive` reason among the edit rights — rejected** for a lay mode. The edit rights answer alike for every
-  archived take-in — an opened file's, a refresh's pickup of a forced edit, a persist step's — so a reason there would
-  refuse each and need an exception for each; § 4's admission rule decides instead which of them lands (A2, A7).
+- **An `archive` reason among the edit rights — rejected** for a lay mode. It would refuse every archived take-in — an
+  opened file's, a refresh's pickup of a forced edit, a persist step's — and need an exception for each.
 - **`arc save` walking the archive's folders for new files — rejected.** It restores the cost this design removes; a new
   archived file opens with `arc edit` instead, and one made without it is named by `arc sync`'s report, which reuses the
   walk its restoration already makes, and refused over at removal (§ 7.2, § 11 item 3).
@@ -1100,12 +906,9 @@ sending it twice. The in-repo implementation renders no provenance, as D3 has it
   there is a silent loss. Rigor concentrates on the opened mark's lifetime (§ 4), the re-lock's order and its guard
   re-check (§ 6.2, § 9.1), and the paths that still meet a forced edit (§ 7, § 8), each with a perturbation test
   (§ 9.2). The residuals are named (§ 11).
-- **Trust boundary.** One rule is added (A2): an archive path is this checkout's to read or change only while no folder
-  between the file and the checkout's root is a symbolic link or holds a `.git` entry, asked once at each selection and
-  again just before each change (§ 8), and a link made between those checks is accepted as § 11 item 9 names it.
-  Otherwise unchanged: `arc edit` is a speed bump that narrows `arc save`'s reads and moves no authority; the rights
-  that bind are re-read at landing (§ 3.4), and a hand edit stays untrusted input through write-back's parser, write
-  check, and admission (`spec-projection-write-back.md` § 7).
+- **Trust boundary.** Unchanged. `arc edit` is a speed bump that narrows `arc save`'s reads and moves no authority; the
+  rights that bind are re-read at landing (§ 3.4), and a hand edit stays untrusted input through write-back's parser,
+  write check, and admission (`spec-projection-write-back.md` § 7).
 - **Performance.** `arc save`'s no-change cost stops growing with the archive (Success Criterion 1). Since a settled
   archive costs a start nothing while the worktree's state version is set (§ 12, § 11), what this design leaves growing
   with the archive is the header's map of archive partitions, one entry a quarter, under 0.1 ms at three years; reading
@@ -1253,6 +1056,9 @@ sending it twice. The in-repo implementation renders no provenance, as D3 has it
     still owed. After repair, withhold and report the edit before state advances. Verify the same obligation when
     a returned alias is gone or a validated header outlives an unreadable partition. A proved file-leaf deletion
     and a path whose absence is established clear their retries.
+30. **Criteria 14 to 29 no longer bind (A17).** The archive's commands keep no receipt, journal, path check, access or
+    inventory hold, or waiting-edit rule of their own: the storage contract's provenance, the index's entries, and the
+    handling of a copy or a fault under `completed/` are those every projected root has (§ 9.1, § 11).
 
 ## Open Questions
 
@@ -1294,5 +1100,7 @@ design open.
   _Trigger:_ atomic-markdown-revert-loses-installed-adoption-base review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A16** — 2026-11-21 — spec-depth: retain owed archive inventory until inspection settles it. _Supersedes:_ none.
   _Trigger:_ structural-refusal-clears-pending-rebuild-inventory review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A17** — 2026-11-24 — design: withdraw the mechanisms review added. _Supersedes:_ A1–A16, SC 14–29, § 9.1 ¶2.
+  _Trigger:_ later-refresh-overwrites-revert-to-accepted-markdown review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

@@ -1,4 +1,3 @@
-/** Save finds indexed archive work without discovering new archive files or reading cold partitions. */
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { parseStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
@@ -7,6 +6,7 @@ import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/e
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
+/** Save finds indexed archive work without discovering new archive files or reading cold partitions. */
 import { readFile, chmod, writeFile } from "node:fs/promises";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -81,7 +81,7 @@ it("leaves a new archived file unadopted unless it was opened", async () => {
   expect(await readFile(join(h.checkout, path), "utf8")).toBe(content);
 });
 
-it("keeps a forced edit whose refresh take-in the store refused waiting in a marked archive partition until an opening", async () => {
+it("retries a refusal left by a refresh in a marked archive partition without opening the file", async () => {
   const h = await fixture(), file = join(h.checkout, h.path), entry = h.projected.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("Missing archive entry");
   const remote = h.primary.content.replace("- **Next Action:** —", "- **Next Action:** Stored next action.");
@@ -106,15 +106,6 @@ it("keeps a forced edit whose refresh take-in the store refused waiting in a mar
     try { await writeBackProjectionFiles(root, disk.index, []); }
     finally { root.checkpoint = null; }
   });
-  expect(success(await h.store.read({ reference: h.primary.reference })).content).not.toContain("A forced local correction.");
-  expect(await readFile(file, "utf8")).toContain("A forced local correction.");
-  const waiting = await readProjectionIndex(h.projected.location, true, { groups: "all" });
-  expect(waiting).toMatchObject({ kind: "index", index: { entries: { [h.path]: {
-    pending: true, refused: { reason: expect.stringContaining("without opening") } } } } });
-  await endProjection(input);
-
-  await openArchivedProjectionFile(h, h.path);
-  expect(await save(h)).toMatchObject({ status: "ok" });
   const content = success(await h.store.read({ reference: h.primary.reference })).content;
   expect(content).toContain("Stored next action.");
   expect(content).toContain("A forced local correction.");

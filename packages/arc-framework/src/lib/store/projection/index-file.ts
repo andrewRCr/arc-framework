@@ -3,7 +3,7 @@ import { readFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { atomicWriteFile } from "../../fs.js";
-import { ArchiveCopyScopeSchema, isArchiveDiscoveryScope, PROJECTION_INDEX_FORMAT, type ProjectionIndex } from "./index-schema.js";
+import { PROJECTION_INDEX_FORMAT, type ProjectionIndex } from "./index-schema.js";
 import { readReference, smudgeRacyEntries, writeReference } from "./change-detection.js";
 import { gitBlobId } from "./blob-id.js";
 import {
@@ -54,10 +54,6 @@ async function publish(location: ProjectionLocation, index: ProjectionIndex, ref
   }
   const header: ProjectionIndexHeader = { format: index.format, state: index.state, projectedUnder: index.projectedUnder,
     ...(index.reprojectionPending === undefined ? {} : { reprojectionPending: index.reprojectionPending }),
-    ...(index.archiveRecoveryCopies === undefined ? {} : { archiveRecoveryCopies: index.archiveRecoveryCopies }),
-    ...(index.archiveDiscoveryPending === undefined ? {} : { archiveDiscoveryPending: index.archiveDiscoveryPending }),
-    ...(index.archiveDiscoveryDirectories === undefined ? {} : { archiveDiscoveryDirectories: index.archiveDiscoveryDirectories }),
-    ...(index.archiveCopyPending === undefined ? {} : { archiveCopyPending: index.archiveCopyPending }),
     withheldCopies: index.withheldCopies, tripwires: index.tripwires, ignoreFiles: index.ignoreFiles, ignoreGuard: index.ignoreGuard, groups };
   header.ignoreFiles = smudgeRacyEntries({ ...index, entries: {} }, reference).ignoreFiles;
   await atomicWriteFile(join(location.stateDir, PROJECTION_INDEX_FILE), stringifyProjectionJson(header), { createParents: false, checkpoint });
@@ -80,8 +76,7 @@ async function writePartition(location: ProjectionLocation, name: string, bytes:
 /** Whether an entry keeps its partition on ordinary command-start reads. */
 export function isProjectionEntryUnsettled(entry: ProjectionEntries[string]): boolean {
   return entry.kind === "ownerless" || entry.opened === true || entry.copies.length > 0 || entry.persisted?.takenIn.kind === "copy"
-    || entry.adoption !== undefined || entry.pending || entry.withheld
-    || entry.refused !== null || entry.unshown.length > 0;
+    || entry.adoption !== undefined || entry.pending || entry.withheld || entry.refused !== null || entry.unshown.length > 0;
 }
 
 async function collectPartitions(location: ProjectionLocation, groups: Record<string, ProjectionGroup>, checkpoint?: () => Promise<void>): Promise<void> {
@@ -176,15 +171,7 @@ function decodeHeader(text: string): { kind: "header"; header: ProjectionIndexHe
 }
 
 function headerFields(header: Record<string, unknown>): boolean {
-  const discovery = header.archiveDiscoveryPending;
-  const directories = header.archiveDiscoveryDirectories;
   return header.format === PROJECTION_INDEX_FORMAT && object(header.projectedUnder) && Array.isArray(header.withheldCopies)
-    && (header.archiveRecoveryCopies === undefined || Array.isArray(header.archiveRecoveryCopies)
-      && header.archiveRecoveryCopies.every(copy => typeof copy === "string" && copy.length > 0))
-    && (discovery === undefined || Array.isArray(discovery) && discovery.every(isArchiveDiscoveryScope))
-    && (directories === undefined || Array.isArray(directories) && directories.every(isArchiveDiscoveryScope))
-    && (header.archiveCopyPending === undefined || Array.isArray(header.archiveCopyPending)
-      && header.archiveCopyPending.every(scope => ArchiveCopyScopeSchema.safeParse(scope).success))
     && object(header.tripwires) && (header.ignoreFiles === null || Array.isArray(header.ignoreFiles))
     && (header.ignoreGuard === null || object(header.ignoreGuard));
 }

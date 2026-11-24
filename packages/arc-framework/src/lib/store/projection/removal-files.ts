@@ -1,15 +1,15 @@
 /** Read changed projected files through ordinary admission without submitting their writes. */
 import { join } from "node:path";
 import { PROJECTED_PERSONAL_ROOT } from "../../layout/index.js";
-import { observeProjectionFolder, unobservedFolderMark } from "./engine-walk.js";
-import { checkChange, projectionFileReader, readReference, readStat } from "./change-detection.js";
+import { readProjectionFolder, walkProjectionRoots } from "./engine-walk.js";
+import { checkChange, readReference } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
 import { unfinishedRecordingRefusal } from "./recording-state.js";
 import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, unobservedMarkDetail, type ProjectionRemovalCheck,
   type ProjectionRetirement } from "./removal-verdict.js";
 import { checkProjectionAdoption } from "./removal-adoption.js";
-import { checkPendingProjectionReadBack, observeRetirementInventory, type ProjectionRemovalGuard,
+import { checkPendingProjectionReadBack, type ProjectionRemovalGuard,
   type ProjectionRemovalObservationInput } from "./removal-observations.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { readProjectionProtection } from "./protection.js";
@@ -17,15 +17,10 @@ import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import { recordWriteBackSent } from "./aside-copies.js";
 import { withProjectionEntry } from "./index-memory.js";
-import { readPendingProjectionInput } from "./unchanged-file.js";
+import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import type { TakeInRequest } from "./take-in-port.js";
 import { pendingFileRequest } from "./pending-request.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { firstUnreadArchiveScope, retirementSelection, selectArchivePath } from "./archive-selection.js";
-import { releasesAbsentWithheld } from "./withheld.js";
-import type { ArchiveDiscoveryRoot } from "./archive-discovery.js";
-import { observeRecordingPayload } from "./write-back-recording.js";
 
 /** Discovery roots and the check's one guard join the shared target-local observation inputs. */
 export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput {
@@ -46,22 +41,18 @@ export async function checkProjectionRemovalFiles(input: ProjectionRemovalFilesI
     return prepared;
   } };
   const selected = await readRemovalProjectionRoots(root.checkout, roots, ports);
-  const coverage: ArchiveDiscoveryRoot = { ...root, ports };
-  const walked = await observeRetirementInventory(coverage, index, selected);
-  const hold = firstUnreadArchiveScope(coverage) ?? walked.opaque?.entries().next().value;
-  if (hold !== undefined) return { index, verdict: { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, hold[0], hold[1]) } };
+  const walked = await walkProjectionRoots(root.checkout, selected, ports.walkFs, ports.linkFs);
   const reference = await readReference(root.checkout);
   const retries = Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];
-    return entry?.kind === "record" && entry.adoption !== undefined || entry?.kind === "ownerless" && entry.minted !== undefined;
+    return entry?.kind === "record" && (entry.adoption !== undefined
+      || path.startsWith(".arc/completed/") && entry.persisted?.recording === true)
+      || entry?.kind === "ownerless" && entry.minted !== undefined;
   });
   const boundary = await readProjectionLinkBoundary(root.checkout, retries, ports.linkFs);
   const { guard } = input;
-  for (const path of retirementSelection(index, [...walked.files, ...retries])) {
-    // An archive path this checkout does not own is left untouched and leaves retirement unjudged.
-    const refused = selectArchivePath(root, path, { report: false });
-    if (refused !== null) return { index: preparedIndex, verdict: { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, refused) } };
-    if (!path.startsWith(".arc/completed/") && boundary(path) !== null) continue;
+  for (const path of new Set([...walked.files, ...retries])) {
+    if (boundary(path) !== null) continue;
     const checked = await checkRemovalFileAtPath({ ...input, root: observingRoot, index: preparedIndex }, path, reference, guard);
     if (checked.kind !== "passes") return { verdict: checked, index: preparedIndex };
   }
@@ -70,26 +61,9 @@ export async function checkProjectionRemovalFiles(input: ProjectionRemovalFilesI
 
 async function checkRemovalFileAtPath(input: ProjectionRemovalFilesInput, path: string,
   reference: bigint | null, guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
-  const { checkout } = input.root;
-  try {
-    return await observeRemovalFile(input, path, reference, guard);
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, error.mark) };
-    throw error;
-  }
-}
-
-async function observeRemovalFile(input: ProjectionRemovalFilesInput, path: string,
-  reference: bigint | null, guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
   const { root, index } = input;
   const entry = index.entries[path];
-  if (entry?.withheld) {
-    // Persist and release discard a withheld entry whose file is gone, so nothing of it is left to lose; the ignore check
-    // they run answers for the paths they may write.
-    if (releasesAbsentWithheld(() => true, path, entry) && await readStat(join(root.checkout, path)) === null) return { kind: "passes" };
-    return markedRemovalRefusal(root.checkout, path, entry.refused
-      ?? withheldProjectionMark(path, { checkout: root.checkout, known: entry.kind === "record" }), input.disposition);
-  }
+  if (entry?.withheld) return markedRemovalRefusal(root.checkout, path, entry.refused ?? withheldProjectionMark(path), input.disposition);
   const archive = await inspectArchivedProjectionFile(root, index, path, { reference });
   if (archive !== null) return archive.kind === "unobservable"
     ? { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, archive.mark) }
@@ -108,30 +82,11 @@ async function checkRecordRemoval(input: ProjectionRemovalFilesInput, path: stri
       exec: root.ports.exec, verb: root.context.verb }, entry.reference);
     if (denied !== null) return markedRemovalRefusal(root.checkout, path, denied, input.disposition);
   }
-  if (recording !== null) {
-    const accepted = await readPendingProjectionInput(root.context, pendingFileRequest(root.checkout, path, entry));
-    if (accepted?.kind === "unchanged" && accepted.accepted) return checkAcceptedRecording(input, path, entry, guard);
-    if (accepted?.kind === "inaccessible") return { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, accepted.mark) };
-    if (accepted?.kind === "retained") return markedRemovalRefusal(root.checkout, path, accepted.mark, input.disposition);
-    return checkUnfinishedRecording(root, path, guard, input.disposition);
-  }
+  if (recording !== null) return checkUnfinishedRecording(root, path, guard, input.disposition);
   if (entry.adoption?.kind === "read-back") return checkPendingProjectionReadBack(input, path, guard);
   // Persistence resends an attached adoption's observed file whatever its stat records, so the check predicts that send.
   if (entry.adoption?.kind === "write-back") return checkRemovalSend(root, pendingFileRequest(root.checkout, path, entry), guard, input.disposition);
   return checkIndexedRemovalEdit(root, path, entry, reference, guard, input.disposition);
-}
-
-/** Predict the store and retained reads that retirement needs before it can lay an accepted file. */
-async function checkAcceptedRecording({ root, disposition }: ProjectionRemovalFilesInput, path: string, entry: RecordEntry,
-  guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
-  const guarded = await guard(path);
-  if (guarded.kind !== "passes") return guarded;
-  const observed = await observeRecordingPayload(root.context, entry, { checkout: root.checkout, path });
-  if (observed.kind === "held") return markedRemovalRefusal(root.checkout, path, observed.mark, disposition);
-  const current = await root.store.read({ reference: entry.reference });
-  return current.status === "ok" ? guarded : markedRemovalRefusal(root.checkout, path, {
-    reason: current.refusal.condition, remedy: current.refusal.remedy,
-  }, disposition);
 }
 
 /** Persist finishes the recording where the ignore check lets it install, so the hold names the guard's remedy or that save. */
@@ -144,20 +99,13 @@ async function checkUnfinishedRecording(root: ReadOnlyProjectionRoot, path: stri
 
 async function checkIndexedRemovalEdit(root: ReadOnlyProjectionRoot, path: string, entry: RecordEntry,
   reference: bigint | null, guard: ProjectionRemovalGuard, disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
-  const reader = projectionFileReader(root.checkout, path);
   const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat,
-    written: entry.written, reference, format: root.context.format }, reader.read, reader.stat);
+    written: entry.written, reference, format: root.context.format });
   if (changed.status === "absent") return { kind: "passes" };
   const conflict = entry.markers !== null || entry.notices.length > 0 || entry.unshown.length > 0;
   if (changed.status !== "changed" && !conflict) return { kind: "passes" };
   const request = pendingFileRequest(root.checkout, path, entry);
-  const input = await readPendingProjectionInput(root.context, request);
-  if (input?.kind === "unchanged") return { kind: "passes" };
-  if (input?.kind === "inaccessible") return { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, input.mark) };
-  if (input?.kind === "retained") {
-    const guarded = await guard(path);
-    return guarded.kind === "passes" ? markedRemovalRefusal(root.checkout, path, input.mark, disposition) : guarded;
-  }
+  if (await readUnchangedProjectionFile(root.context, request) !== null) return { kind: "passes" };
   return checkRemovalSend(root, request, guard, disposition);
 }
 
@@ -177,8 +125,7 @@ export async function readRemovalProjectionRoots(checkout: string, roots: readon
   ports: Pick<ProjectionEnginePorts, "walkFs" | "linkFs"> = {}): Promise<readonly string[]> {
   const boundary = await readProjectionLinkBoundary(checkout, [PROJECTED_PERSONAL_ROOT], ports.linkFs);
   if (boundary(PROJECTED_PERSONAL_ROOT) !== null) return roots;
-  const folder = observeProjectionFolder(join(checkout, PROJECTED_PERSONAL_ROOT), ports.walkFs);
-  if (folder.kind === "unobserved") throw new Error(unobservedFolderMark(PROJECTED_PERSONAL_ROOT).reason);
-  if (folder.kind !== "listed") return roots;
-  return [...new Set([...roots, ...folder.entries.filter(entry => entry.isDirectory()).map(entry => `${PROJECTED_PERSONAL_ROOT}/${entry.name}`)])];
+  const entries = readProjectionFolder(join(checkout, PROJECTED_PERSONAL_ROOT), ports.walkFs);
+  if (entries === null) return roots;
+  return [...new Set([...roots, ...entries.filter(entry => entry.isDirectory()).map(entry => `${PROJECTED_PERSONAL_ROOT}/${entry.name}`)])];
 }

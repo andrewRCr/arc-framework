@@ -4,15 +4,14 @@ import type { ProjectionPersistContext } from "./removal-persist.js";
 import { retireProjectionRoot, withPersistedProjection } from "./removal-persist.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
-import { projectionFileReader, readReference } from "./change-detection.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { readReference, readStat } from "./change-detection.js";
 import { createRecordRenderer } from "./record-render.js";
 import { guardReplacement, notAFileHoldMark, type GuardResult } from "./replace-guard.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { retirementRefusal } from "./removal-verdict.js";
 import { swapBatch, type SwapFile } from "./swap.js";
 import { runSecondCheck } from "./second-check.js";
-import { readCopyDestinations, readProjectionLinkBoundary, type ProjectionLinkBoundary } from "./discovery-links.js";
+import { readProjectionLinkBoundary, type ProjectionLinkBoundary } from "./discovery-links.js";
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
@@ -27,8 +26,6 @@ import { removalCopyRefusal } from "./removal-persist-asides.js";
 import { checkUnrecordedProjectionCopies } from "./removal-asides.js";
 import { findRetainedReleaseEntry, retainedReleaseEntry, unfinishedReleaseRemedy } from "./release-entries.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
-import { firstUnreadArchiveScope } from "./archive-selection.js";
-import { observeOwedRetirementInventory } from "./removal-observations.js";
 
 /** Persist the target and remove only a linked checkout's projection. */
 export async function releaseProjectionRemoval(checkout: string, _isPrimary: boolean,
@@ -51,27 +48,21 @@ async function removeLinkedProjection(root: ProjectionRootState, initial: Projec
   // Nothing of an absent withheld entry remains on disk, so release discards it wherever the ignore check passes, as its
   // removal check predicts, including under another identity's root that persist leaves alone.
   const releasable = (path: string): boolean => ignoreMark === undefined || root.writable(path);
-  const index = await releaseAbsentWithheldPaths(root, initial, Object.keys(initial.entries), releasable);
-  const access = firstUnreadArchiveScope(root);
-  if (access !== undefined) {
-    if (index !== initial) await commitProjectionIndex({ checkout: root.checkout, location: root.location, index, checkpoint: root.context.checkpoint });
-    return { kind: "refused", remedy: retirementRefusal(root.checkout, access[0], access[1], "release") };
-  }
+  const index = await releaseAbsentWithheldPaths({ checkout: root.checkout, writable: releasable }, initial, Object.keys(initial.entries));
   const retained = await retainedReleaseRefusal(root, index, ignoreMark, releasable);
   if (retained !== undefined) return { kind: "refused", remedy: retained };
   const observed = observeRemovalSends(root);
-  const held = new Map<string, RefusedMark>();
-  const guarded = await guardReleasedFiles(root, index, observed, held);
+  const guarded = await guardReleasedFiles(root, index, observed);
   if (guarded.refusal !== undefined) return { kind: "refused", remedy: guarded.refusal };
   // The swap removes files the view still lays, so every index it and the second check publish carries no state version:
   // the next command's rebuild lays the files again even where release stops before it can write once more.
   removal.removed = guarded.files.length > 0;
   const batch = await swapBatch({ checkout: root.checkout, location: root.location, index: { ...guarded.index, state: null },
     files: guarded.files, readBack: false, format: root.context.format, writer: root.context.writer, takeIn: observed.takeIn,
-    checkpoint: root.context.checkpoint, hooks: root.ports.hooks, refuseChange: ({ path, mark }) => { held.set(path, mark); } });
+    checkpoint: root.context.checkpoint, hooks: root.ports.hooks });
   const latest = { index: batch.index };
   try {
-    return await finishLinkedRemoval(root, batch, observed, latest, removal, held);
+    return await finishLinkedRemoval(root, batch, observed, latest, removal);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return refusedAfterRemoval(root, removal, latest.index, {
@@ -81,29 +72,24 @@ async function removeLinkedProjection(root: ProjectionRootState, initial: Projec
 
 /** The second check and the takeover checks after the removal swap, each refusal there clearing the state version. */
 async function finishLinkedRemoval(root: ProjectionRootState, batch: Awaited<ReturnType<typeof swapBatch>>,
-  observed: ReturnType<typeof observeRemovalSends>, latest: { index: ProjectionIndex }, removal: ReleaseRemoval,
-  held: ReadonlyMap<string, RefusedMark>): Promise<ProjectionPersistResult> {
+  observed: ReturnType<typeof observeRemovalSends>, latest: { index: ProjectionIndex }, removal: ReleaseRemoval): Promise<ProjectionPersistResult> {
   const firstRefusal = observed.refusal();
   if (firstRefusal !== undefined) return refusedAfterRemoval(root, removal, batch.index, firstRefusal);
-  const removals = batch.removals.filter(path => !held.has(path));
-  const copies = batch.copies.filter(copy => !held.has(copy.path));
-  const destinations = await readCopyDestinations(root.checkout, [...removals, ...copies.flatMap(copy => [copy.path, copy.copy])], root.ports.linkFs);
+  const currentLinks = await readProjectionLinkBoundary(root.checkout,
+    [...batch.removals, ...batch.copies.flatMap(copy => [copy.path, copy.copy])], root.ports.linkFs);
   const diagnosticFrom = projectionProcessState().diagnostics.length;
   // Each publication advances the index a later refusal keeps, so a failure after the first never republishes an older one.
   const checked = await runSecondCheck({ checkout: root.checkout, location: root.location, index: batch.index,
     onPublished: published => { latest.index = published; },
-    copies: copies.filter(copy => destinations.blockedByLink(copy.copy) === null),
-    removals, ...destinations, archiveAccess: new Map([...held, ...destinations.archiveAccess]), format: root.context.format, writer: root.context.writer,
+    copies: batch.copies.filter(copy => currentLinks(copy.copy) === null),
+    removals: batch.removals, blockedByLink: currentLinks, format: root.context.format, writer: root.context.writer,
     takeIn: observed.takeIn, checkpoint: root.context.checkpoint });
   latest.index = checked.index;
   const secondRefusal = observed.refusal();
   if (secondRefusal !== undefined) return refusedAfterRemoval(root, removal, checked.index, secondRefusal);
-  const blocked = checked.blockedDestinations.entries().next().value;
-  if (blocked !== undefined) return refusedAfterRemoval(root, removal, checked.index,
-    retirementRefusal(root.checkout, blocked[0], blocked[1], "release"));
   for (const copy of checked.settled) {
     // An opaque destination still permits discarding a copy proven unchanged below.
-    if (destinations.blockedByLink(copy.path) !== null && copy.settlement.kind === "not-a-file") continue;
+    if (currentLinks(copy.path) !== null && copy.settlement.kind === "not-a-file") continue;
     const remedy = removalCopyRefusal(copy.settlement, root.checkout, copy.copy, diagnosticFrom, "release");
     if (remedy !== undefined) return refusedAfterRemoval(root, removal, checked.index, remedy);
   }
@@ -112,7 +98,6 @@ async function finishLinkedRemoval(root: ProjectionRootState, batch: Awaited<Ret
   const unrecorded = await checkUnrecordedProjectionCopies({ checkout: root.checkout, index: checked.index,
     format: root.context.format, linkFs: root.ports.linkFs, walkFs: root.ports.walkFs, disposition: "release" });
   if (unrecorded.kind === "would-refuse") return refusedAfterRemoval(root, removal, checked.index, unrecorded.remedy);
-  if (unrecorded.kind === "unobservable") return refusedAfterRemoval(root, removal, checked.index, { text: unrecorded.detail });
   await discardReleasedState(root);
   retireProjectionRoot(root);
   return { kind: "persisted" };
@@ -124,7 +109,7 @@ async function refusedAfterRemoval(root: ProjectionRootState, removal: ReleaseRe
   await commitProjectionIndex({ checkout: root.checkout, location: root.location, index: { ...index, state: null },
     checkpoint: root.context.checkpoint });
   removal.reported = true;
-  return { kind: "refused", remedy: removal.removed ? removedFilesRemedy(root.checkout, remedy) : remedy };
+  return { kind: "refused", remedy: removedFilesRemedy(root.checkout, remedy) };
 }
 
 function removedFilesRemedy(checkout: string, remedy: Remedy): Remedy {
@@ -132,26 +117,20 @@ function removedFilesRemedy(checkout: string, remedy: Remedy): Remedy {
 }
 
 /** Guard each recorded file's removal, stopping at the first one release cannot take over. */
-async function guardReleasedFiles(root: ProjectionRootState, initial: ProjectionIndex, observed: ReturnType<typeof observeRemovalSends>,
-  held: Map<string, RefusedMark>): Promise<{
+async function guardReleasedFiles(root: ProjectionRootState, initial: ProjectionIndex, observed: ReturnType<typeof observeRemovalSends>): Promise<{
   index: ProjectionIndex; files: SwapFile[]; refusal?: Remedy;
 }> {
   let index = initial;
-  const { blockedByLink, archiveAccess } = await readCopyDestinations(root.checkout, Object.keys(index.entries), root.ports.linkFs);
-  for (const [path, mark] of archiveAccess) held.set(path, mark);
+  const blocked = await readProjectionLinkBoundary(root.checkout, Object.keys(index.entries), root.ports.linkFs);
   const files: SwapFile[] = [];
   for (const [path, entry] of Object.entries(initial.entries)) {
-    if (entry.kind !== "record" || held.has(path) || blockedByLink(path) !== null) continue;
+    if (entry.kind !== "record" || blocked(path) !== null) continue;
     const replace = await guardReplacement({ checkout: root.checkout, path, entry, staged: null,
       reference: await readReference(root.checkout), format: root.context.format, store: root.store,
       writer: root.context.writer, takeIn: observed.takeIn, checkpoint: root.context.checkpoint,
       renderer: createRecordRenderer({ store: root.store, memo: root.context.memo }) });
     index = withProjectionEntry(index, path, replace.entry);
     if (replace.kind !== "replace") {
-      if (replace.cause === "unreadable") {
-        held.set(path, replace.mark);
-        continue;
-      }
       await commitProjectionIndex({ checkout: root.checkout, location: root.location, index, checkpoint: root.context.checkpoint });
       return { index, files, refusal: observed.refusal() ?? guardRefusal(root, path, replace) };
     }
@@ -196,39 +175,17 @@ async function discardReleasedState(root: ProjectionRootState): Promise<void> {
 async function incompleteRemoval(root: ProjectionRootState, index: ProjectionIndex): Promise<Remedy | undefined> {
   const names = Object.entries(index.entries).flatMap(([path, entry]) => [path,
     ...(entry.kind === "record" ? entry.copies.map(copy => copy.name) : [])]);
-  const { blockedByLink: links, archiveAccess } = await readCopyDestinations(root.checkout, names, root.ports.linkFs);
-  const denied = archiveAccess.entries().next().value;
-  if (denied !== undefined) return retirementRefusal(root.checkout, denied[0], denied[1], "release");
+  const links = await readProjectionLinkBoundary(root.checkout, names, root.ports.linkFs);
   for (const [path, entry] of Object.entries(index.entries)) {
-    const remedy = await unfinishedReleasePath(root, path, entry, links);
-    if (remedy !== undefined) return remedy;
+    const held = entry.kind === "record" ? await remainingCopies(root, path, entry, links) : undefined;
+    if (held !== undefined) return held;
+    if (links(path) !== null) continue;
+    if (entry.kind !== "record" || await readStat(join(root.checkout, path)) !== null) {
+      return entry.kind === "record" && entry.refused !== null ? retirementRefusal(root.checkout, path, entry.refused, "release")
+        : unfinishedReleaseRemedy(root.checkout, path);
+    }
   }
-  return unfinishedArchiveInventory(root, index);
-}
-
-/** Recheck the durable inventory before release removes the index that owns it. */
-async function unfinishedArchiveInventory(root: ProjectionRootState, index: ProjectionIndex): Promise<Remedy | undefined> {
-  const observed = await observeOwedRetirementInventory(root, index);
-  const opaque = observed?.incomplete.entries().next().value;
-  if (opaque !== undefined) return retirementRefusal(root.checkout, opaque[0], opaque[1], "release");
-  const file = observed?.files[0];
-  return file === undefined ? undefined : unfinishedReleaseRemedy(root.checkout, file);
-}
-
-async function unfinishedReleasePath(root: ProjectionRootState, path: string, entry: ProjectionIndex["entries"][string],
-  links: ProjectionLinkBoundary): Promise<Remedy | undefined> {
-  const held = entry.kind === "record" ? await remainingCopies(root, path, entry, links) : undefined;
-  if (held !== undefined || links(path) !== null) return held;
-  if (entry.kind !== "record") return unfinishedReleaseRemedy(root.checkout, path);
-  try {
-    if (await projectionFileReader(root.checkout, path).stat(join(root.checkout, path)) === null) return undefined;
-    return entry.refused !== null ? retirementRefusal(root.checkout, path, entry.refused, "release")
-      : unfinishedReleaseRemedy(root.checkout, path);
-  }
-  catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return retirementRefusal(root.checkout, path, error.mark, "release");
-    throw error;
-  }
+  return undefined;
 }
 
 async function remainingCopies(root: ProjectionRootState, path: string, entry: RecordEntry,
@@ -239,7 +196,6 @@ async function remainingCopies(root: ProjectionRootState, path: string, entry: R
     if (links(path) !== null || !root.writable(path) || !root.writable(copy.name)) {
       const observed = await observeAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format });
       if (observed.kind === "no-edit" || observed.kind === "gone") continue;
-      if (observed.kind === "blocked-destination") return retirementRefusal(root.checkout, copy.name, observed.mark, "release");
     }
     return { text: `Recover anything wanted from ${copy.name} in ${root.checkout}, then delete that copy explicitly and retry release.` };
   }
@@ -251,7 +207,7 @@ function observeRemovalSends(root: ProjectionRootState): { takeIn: TakeInPort; r
   return { refusal: () => refusal, takeIn: async request => {
     const diagnosticFrom = projectionProcessState().diagnostics.length;
     const result = await root.takeIn(request);
-    if (result.archiveAccess === undefined && result.answer !== "no-edit" && result.answer !== "taken-in") {
+    if (result.answer !== "no-edit" && result.answer !== "taken-in") {
       const mark = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each =>
         each.path === request.path && each.copy === request.copy)?.mark;
       refusal ??= mark?.remedy ?? ("mark" in result ? result.mark.remedy : result.entry.refused?.remedy)

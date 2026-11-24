@@ -1,27 +1,25 @@
 /** Recover the ownership of a reused projection pathname from its persisted installation evidence. */
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
-import { gateRead, projectionReadGate } from "./read-gate.js";
-import { projectionFileReader } from "./change-detection.js";
+import { gateRead } from "./read-gate.js";
+import { readStat } from "./change-detection.js";
 import { gitBlobId } from "./blob-id.js";
-import { readProjectionLinkBoundary, readWritableArchiveLinkBoundary } from "./discovery-links.js";
+import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { loadProjectionGroups, withProjectionEntry } from "./index-memory.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { ownershipHandoffMark } from "./ownership-hold.js";
 import { notAFileHoldMark } from "./replace-guard.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { Remedy } from "../refusal.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { heldArchivePath, refuseArchiveChange, refuseUnreadArchiveScope, selectArchivePath, type ArchiveSelectionRoot } from "./archive-selection.js";
 
 /** Lease-bound path authority shared by materialization and command settlement. */
-export type OwnershipRoot = OwnershipObservationRoot & Pick<ProjectionRootState, "location" | "context">;
+export type OwnershipRoot = Pick<ProjectionRootState, "checkout" | "location" | "context" | "writable" | "blockedByLink">;
 /** Filesystem authority needed to interpret an arrival, without publishing its confirmation. */
-export type OwnershipObservationRoot = ArchiveSelectionRoot & Pick<ProjectionRootState, "writable" | "blockedByLink"> & {
-  readonly context: Pick<ProjectionRootState["context"], "format" | "report">;
-  readonly ports?: Pick<ProjectionRootState["ports"], "linkFs">;
+export type OwnershipObservationRoot = Pick<OwnershipRoot, "checkout" | "writable" | "blockedByLink"> & {
+  readonly context: Pick<OwnershipRoot["context"], "format" | "report">;
 };
 
 /** A path the index binds to a record: its reference, observed bytes, and no arrival in flight. */
@@ -61,36 +59,23 @@ export async function observeProjectionHandoffs(root: OwnershipObservationRoot, 
     const entry = initial.entries[path];
     return entry?.kind === "record" && entry.handoff !== undefined;
   });
-  const boundary = retainReadFailure ? await readWritableArchiveLinkBoundary(root, paths, root.ports?.linkFs)
-    : await readProjectionLinkBoundary(root.checkout, paths, root.ports?.linkFs);
+  const boundary = await readProjectionLinkBoundary(root.checkout, paths);
   let index = initial;
   for (const path of paths) {
-    if (!root.writable(path) || root.blockedByLink(path) !== null || boundary(path) !== null || heldArchivePath(root, path) !== null) continue;
+    if (!root.writable(path) || root.blockedByLink(path) !== null || boundary(path) !== null) continue;
     const entry = index.entries[path];
     if (entry?.kind !== "record" || entry.handoff === undefined) continue;
-    if (selectArchivePath(root, path, { holdAccess: retainReadFailure }) !== null) continue;
-    const next = await observeHandoffAtPath(root, path, entry, retainReadFailure);
+    const next = await reconcilePath(root, path, entry, retainReadFailure);
     if (next !== entry) index = withProjectionEntry(index, path, next);
   }
   return index;
-}
-
-async function observeHandoffAtPath(root: OwnershipObservationRoot, path: string, entry: RecordEntry, retainReadFailure: boolean): Promise<RecordEntry> {
-  try { return await reconcilePath(root, path, entry, retainReadFailure); }
-  catch (error) {
-    if (!(error instanceof ArchiveDestinationBlocked) || error.access && !retainReadFailure) throw error;
-    if (error.access) refuseUnreadArchiveScope(root, path, error.mark);
-    else refuseArchiveChange(root, path, error.mark);
-    return entry;
-  }
 }
 
 async function reconcilePath(root: OwnershipObservationRoot, path: string, entry: RecordEntry, retainReadFailure: boolean): Promise<RecordEntry> {
   const arriving = entry.handoff;
   if (arriving === undefined) return entry;
   const absolute = join(root.checkout, path);
-  const reader = projectionFileReader(root.checkout, path);
-  const gate = await gateRead({ path: absolute, markdown: false }, projectionReadGate(root.checkout, path));
+  const gate = await gateRead({ path: absolute, markdown: false });
   if (gate.kind === "absent") {
     const leaving = { ...entry };
     delete leaving.handoff;
@@ -103,13 +88,11 @@ async function reconcilePath(root: OwnershipObservationRoot, path: string, entry
   if (gate.kind === "pending") return entry;
   if (gate.kind === "no-edit" && gate.deleted === "not-a-file") return notAFileArrival(root, path, entry, gate.remedy);
   if (gate.kind !== "read") return withheldArrival(root, path, entry);
-  let bytes: Buffer;
-  try { bytes = await reader.read(absolute); }
-  catch (error) {
-    if (error instanceof ArchiveDestinationBlocked || !retainReadFailure) throw error;
-    return entry;
-  }
-  if (!isDeepStrictEqual(gate.stat, await reader.stat(absolute))) return entry;
+  const bytes = await readFile(absolute).catch((error: unknown) => {
+    if (!retainReadFailure) throw error;
+    return null;
+  });
+  if (bytes === null || !isDeepStrictEqual(gate.stat, await readStat(absolute))) return entry;
   if (gate.stat.ino !== arriving.stat?.ino || gitBlobId(bytes, root.context.format) !== arriving.written) return withheldArrival(root, path, entry);
   // The arrival keeps only its own changed mark; a refresh moving its record here marked the arrival, directly or by the
   // leaving entry's `arrivingChanged` that the installation carried over.

@@ -35,8 +35,6 @@ export interface TakeInRequest {
   readonly adopting?: true;
   /** Present only for the selected subject at its own path, never a displaced copy. */
   readonly resolution?: TakeInResolution;
-  /** A refresh's replace guard met this edit at its path, where an archived file's forced edit may land. */
-  readonly forcedEdit?: true;
 }
 
 /** What the take-in answered, with the entry as it left it. */
@@ -48,11 +46,7 @@ export type TakeInResult = (
    * For an aside copy, the entry records beside the copy the blob id it held, as `landed`.
    */
   | { readonly answer: "taken-in"; readonly entry: RecordEntry; readonly read: TakeInRead }
-  | { readonly answer: "refused" | "unparseable"; readonly entry: RecordEntry; readonly mark: RefusedMark }) & {
-  readonly openConflicts?: readonly RecordReference[];
-  /** A native observation refusal that holds this destination for the owning command. */
-  readonly archiveAccess?: RefusedMark;
-};
+  | { readonly answer: "refused" | "unparseable"; readonly entry: RecordEntry; readonly mark: RefusedMark }) & { readonly openConflicts?: readonly RecordReference[] };
 
 /** An answer that leaves the edit where it is: in the file, or in its aside copy. */
 export type TakeInHeld = Exclude<TakeInResult["answer"], "no-edit" | "taken-in">;

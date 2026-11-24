@@ -1,16 +1,15 @@
 /** Open one archived projected file for an in-place correction. */
-import { realpath } from "node:fs/promises";
-import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { chmod, lstat, realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Store } from "../contract.js";
 import type { RefusedMark } from "./index-schema.js";
 import { projectionStartRefusal, type ProjectionStartRefusal } from "./start-refusal.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
-import { ProjectionLockLostError, withProjectionLock, type ProjectionLockResult } from "./lock.js";
+import { withProjectionLock, type ProjectionLockResult } from "./lock.js";
 import { readProjectionIndex, commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { inspectProjectionEditPath } from "./edit-path.js";
-import { ArchiveDestinationBlocked, changeArchiveFileMode } from "./archive-file.js";
 
 /** An opened local path, or the reason opening could not run. */
 export type ProjectionEditResult =
@@ -48,7 +47,6 @@ export async function projectionEditResult(store: Store, requested: string, oper
   return refuse(editLockRefusal(opened), "projection-skipped");
 }
 
-/** Its own lock's refusal stops only the opening: the command's projection runs on, and its unsent paths stay its own. */
 function editLockRefusal(result: Exclude<ProjectionLockResult<never>, { status: "done" }>): RefusedMark {
   switch (result.status) {
     case "held": return { reason: `Projection lock held by ${JSON.stringify(result.holder)}.`,
@@ -61,26 +59,18 @@ function editLockRefusal(result: Exclude<ProjectionLockResult<never>, { status: 
   }
 }
 
-/**
- * The operand's path within the checkout, whichever spelling of the checkout root it was written through: the canonical
- * one, or an alias such as a linked folder, macOS's `/tmp`, or a Windows short or substituted name. Only the root is
- * matched by its real path; the folders below it stay as written, so the archive path check still sees a link there.
- */
+/** Match the checkout's canonical root and preserve the operand's spelling below it. */
 async function checkoutRelativeOperand(checkout: string, absolute: string): Promise<string | null> {
-  const lexical = insideCheckout(relative(checkout, absolute));
-  if (lexical !== null) return lexical;
-  let found: string | null = null;
-  const below: string[] = [];
+  const path = relative(checkout, absolute);
+  if (!isAbsolute(path) && path !== ".." && !path.startsWith(`..${sep}`)) return path.split(sep).join("/");
+  let matched: string | null = null;
+  const suffix: string[] = [];
   for (let ancestor = absolute; ; ancestor = dirname(ancestor)) {
-    // The highest ancestor that is the checkout itself names the root; a deeper match is a link below it.
-    if (await realpath(ancestor).catch(() => null) === checkout) found = below.slice().reverse().join("/");
-    if (dirname(ancestor) === ancestor) return found;
-    below.push(basename(ancestor));
+    // The outermost match preserves any path components below the checkout alias.
+    if (await realpath(ancestor).catch(() => null) === checkout) matched = suffix.join("/");
+    if (dirname(ancestor) === ancestor) return matched;
+    suffix.unshift(basename(ancestor));
   }
-}
-
-function insideCheckout(path: string): string | null {
-  return isAbsolute(path) || path === ".." || path.startsWith(`..${sep}`) || path.startsWith("../") ? null : path.split(sep).join("/");
 }
 
 async function openPath(root: ProjectionRootState, path: string): Promise<ProjectionEditResult> {
@@ -88,31 +78,27 @@ async function openPath(root: ProjectionRootState, path: string): Promise<Projec
   const disk = await readProjectionIndex(root.location, true);
   if (disk.kind !== "index") return refuse({ reason: `Projection index is ${disk.cause}.`,
     remedy: { text: "Retry arc edit; the next command start rebuilds an unusable index." } }, "projection-refused");
-  const inspected = await inspectProjectionEditPath(root, disk.index, path).catch((error: unknown) => {
-    if (!(error instanceof ArchiveDestinationBlocked)) throw error;
-    return { kind: "refused" as const, mark: error.mark };
-  });
+  const inspected = await inspectProjectionEditPath(root, disk.index, path);
   if (inspected.kind === "refused") return refuse(inspected.mark);
   await commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
     index: withProjectionEntry(disk.index, path, { ...inspected.entry, opened: true }) });
   await root.ports.hooks?.afterOpenIndexCommit?.(path);
   await root.checkpoint?.();
-  let changed: Awaited<ReturnType<typeof changeArchiveFileMode>>;
+  const absolute = join(root.checkout, path);
+  const observed = await lstat(absolute).catch((error: unknown) => {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return null;
+    throw error;
+  });
+  if (observed?.isFile() !== true) return refuse({ reason: `${path} is no longer a regular file.`,
+    remedy: { text: "Restore the regular file and retry arc edit; its opened intent is retained." } });
+  await root.checkpoint?.();
   try {
-    changed = await changeArchiveFileMode(root, path, true, inspected.identity);
+    await chmod(absolute, observed.mode | 0o200);
   } catch (error) {
-    if (error instanceof ProjectionLockLostError) throw error;
     return refuse({ reason: `Could not make ${path} writable: ${error instanceof Error ? error.message : String(error)}`,
       remedy: { text: "Repair the file's permissions or restore it, then retry arc edit; its opened intent is retained." } });
   }
-  if (changed.kind === "mode-refused") return refuse(changed.mark);
-  if (changed.kind === "blocked" || changed.kind === "foreign") {
-    if (disk.index.entries[path]?.opened !== true) await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-      checkpoint: root.context.checkpoint, index: disk.index });
-    return refuse(changed.mark);
-  }
-  if (changed.kind === "missing") return refuse({ reason: `${path} is no longer a regular file.`,
-    remedy: { text: "Restore the regular file and retry arc edit; its opened intent is retained." } });
   return { status: "ok", result: { path } };
 }
 

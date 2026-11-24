@@ -41,15 +41,11 @@ export type Links = z.infer<typeof LinksSchema>;
 /** Verbs under which automatic write-back and explicit save persist hand edits. */
 export const HAND_EDIT_VERBS = ["write-back", "save"] as const;
 
-/** Correlates an indexed archive save with its durable store acceptance. */
-export const ArchiveSaveIdSchema = z.uuid();
-
 /** Only the caller's facts: backend identity and batch fields cannot be supplied. */
 export const CallerProvenanceSchema = z.strictObject({
   verb: z.string().trim().min(1),
   lifecycleAction: z.string().trim().min(1),
   codeHead: CommitShaSchema.optional(),
-  archiveSaveId: ArchiveSaveIdSchema.optional(),
 });
 /** The provenance supplied by a verb. */
 export type CallerProvenance = z.infer<typeof CallerProvenanceSchema>;

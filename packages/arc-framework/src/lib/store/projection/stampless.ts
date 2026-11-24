@@ -2,13 +2,12 @@
  * A file other than Markdown carries no stamp, so its index entry alone holds its base, and while a replacement is in
  * progress, the version it replaces and the aside copy its batch makes of the file.
  */
-import { removeRecoveredAsideFile } from "./aside-cleanup.js";
+import { removeProjectionAsideFile } from "./aside-cleanup.js";
 import { join } from "node:path";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import type { HistoryMemo } from "./base-recovery.js";
-import { projectionFileReader } from "./change-detection.js";
-import { awaitsArchiveInstallation, installedArchiveInput, provesArchiveInstallation } from "./recording-state.js";
+import { readStat } from "./change-detection.js";
 import type { RecordEntry } from "./index-schema.js";
 import { SETTLE_WINDOW_NS, wallClockNs } from "./read-gate.js";
 
@@ -97,7 +96,7 @@ export interface AsideCopyDeletion {
  */
 export async function deleteAsideCopy(input: AsideCopyDeletion): Promise<RecordEntry> {
   // A copy that is a symbolic link is removed as itself, never followed.
-  await removeRecoveredAsideFile(input.checkout, input.copy, input.path, input.checkpoint);
+  await removeProjectionAsideFile(input.checkout, input.copy, input.checkpoint);
   return finalizeAsideCopy(input);
 }
 
@@ -110,11 +109,8 @@ export async function deleteAsideCopy(input: AsideCopyDeletion): Promise<RecordE
 export async function finalizeAsideCopy(input: AsideCopyDeletion): Promise<RecordEntry> {
   const { entry } = input;
   const copies = entry.copies.filter((record) => record.name !== input.copy);
-  const replacing = entry.inProgress?.copy === input.copy;
-  const layCopy = awaitsArchiveInstallation(entry) && entry.copies.some(copy => copy.name === input.copy && copy.linked === entry.written);
-  if (!replacing && !layCopy) return { ...entry, copies };
-  const stat = await projectionFileReader(input.checkout, input.path).stat(join(input.checkout, input.path));
-  const holdsLinked = stat?.type === "file" && stat.ino === entry.stat?.ino;
-  const finalized = provesArchiveInstallation(entry, stat) ? installedArchiveInput(entry) : entry;
-  return { ...finalized, copies, inProgress: replacing && holdsLinked ? null : entry.inProgress };
+  if (entry.inProgress?.copy !== input.copy) return { ...entry, copies };
+  const stat = await readStat(join(input.checkout, input.path));
+  const holdsLinked = stat?.type === "file" && entry.stat !== null && stat.ino === entry.stat.ino;
+  return { ...entry, copies, inProgress: holdsLinked ? null : entry.inProgress };
 }

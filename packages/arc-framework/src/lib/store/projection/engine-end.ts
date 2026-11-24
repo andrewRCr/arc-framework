@@ -8,12 +8,11 @@ import { readProjectionIndex } from "./index-file.js";
 import { runSecondCheck } from "./second-check.js";
 import { removeTakenInCopies, TAKEN_IN_FOLDER } from "./taken-in.js";
 import { reportProjectionCopy } from "./report.js";
-import { readCopyDestinations } from "./discovery-links.js";
+import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { hasProjectionEndWork } from "./end-work.js";
 import { recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
-import { heldArchivePath, refuseArchiveChange } from "./archive-selection.js";
 
 /** Settle only this command's copies and collect unreferenced kept content under the same lease. */
 export async function finishProjectionRoot(root: ProjectionRootState): Promise<void> {
@@ -28,26 +27,21 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       loadProjectionGroups(fresh.index, "walked");
       const timings = [...root.fanOutTimes ?? []];
       const index = timings.reduce((recorded, elapsed) => recordProjectionTiming(recorded, "fan-out", elapsed), fresh.index);
-      const accessible = (path: string): boolean => heldArchivePath(root, path) === null;
-      const copies = root.copies.filter(copy => accessible(copy.path));
-      const removals = root.removals.filter(accessible);
-      const destinations = await readCopyDestinations(root.checkout,
-        [...copies.map(copy => copy.path), ...removals], root.ports.linkFs);
+      const blockedByLink = await readProjectionLinkBoundary(root.checkout,
+        [...root.copies.map(copy => copy.path), ...root.removals], root.ports.linkFs);
       const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index,
         onPublished: published => { root.fanOutTimes?.splice(0, timings.length); reportProjectionTripwires(root, published); },
-        ...destinations, copies, removals, format: root.context.format, takeIn: root.takeIn,
+        blockedByLink,
+        copies: root.copies, removals: root.removals, format: root.context.format, takeIn: root.takeIn,
         writer: root.context.writer, checkpoint: root.context.checkpoint });
-      for (const [path, mark] of checked.blockedDestinations) refuseArchiveChange(root, path, mark);
-      for (const copy of checked.settled) {
-        if (!checked.blockedDestinations.has(copy.path)) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
-      }
+      for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
       await reconcileProjectionHandoffs(root, checked.index);
-      const settled = await readProjectionIndex(root.location, true, { groups: "walked" });
+      const settled = await readProjectionIndex(root.location, true);
       if (settled.kind !== "index") return;
-      const named = new Set(Object.values(settled.index.entries).flatMap(entry => [
-        ...(entry.kind === "record" && entry.persisted?.takenIn.kind === "copy" ? [entry.persisted.takenIn.name] : []),
-        ...(entry.archiveSubmission ? [entry.archiveSubmission.name] : []),
-      ]));
+      loadProjectionGroups(settled.index, "walked");
+      const named = new Set(Object.values(settled.index.entries).flatMap(entry => (
+        entry.kind === "record" && entry.persisted?.takenIn.kind === "copy" ? [entry.persisted.takenIn.name] : []
+      )));
       const files = await keptCopies(root);
       await removeTakenInCopies(root.location, files.filter(file => !named.has(file)), root.context.checkpoint);
     } finally {

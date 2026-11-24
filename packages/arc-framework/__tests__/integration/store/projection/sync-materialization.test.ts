@@ -1,14 +1,15 @@
 /** Sync restores deleted projected files before its existing network orchestration. */
 import { chmod, lstat, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { NATIVE_LEASE_PROCESS } from "../../../../src/lib/lease-process.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 
-const binding = vi.hoisted(() => ({ store: null as Store | null, ports: null as ((ports: ProjectionEnginePorts) => ProjectionEnginePorts) | null,
-  deferRead: null as ((path: string) => boolean) | null }));
+const binding = vi.hoisted(() => ({ store: null as Store | null,
+  ports: null as ((ports: ProjectionEnginePorts) => ProjectionEnginePorts) | null,
+  afterStage: null as ((path: string) => Promise<void>) | null }));
 vi.mock("../../../../src/lib/store/create.js", async importOriginal => {
   const original = await importOriginal<typeof import("../../../../src/lib/store/create.js")>();
   return { ...original, createStore: (...args: Parameters<typeof original.createStore>) => binding.store ?? original.createStore(...args) };
@@ -22,10 +23,13 @@ vi.mock("../../../../src/lib/store/projection/engine-ports.js", async importOrig
   } };
 });
 
-vi.mock("../../../../src/lib/store/projection/read-gate.js", async importOriginal => {
-  const original = await importOriginal<typeof import("../../../../src/lib/store/projection/read-gate.js")>();
-  return { ...original, gateRead: (...args: Parameters<typeof original.gateRead>) => binding.deferRead?.(args[0].path)
-    ? Promise.resolve({ kind: "pending", reason: "unsettled" }) : original.gateRead(...args) };
+vi.mock("../../../../src/lib/store/projection/staging.js", async importOriginal => {
+  const original = await importOriginal<typeof import("../../../../src/lib/store/projection/staging.js")>();
+  return { ...original, stageRenderedRecordFile: async (input: Parameters<typeof original.stageRenderedRecordFile>[0]) => {
+    const staged = await original.stageRenderedRecordFile(input);
+    await binding.afterStage?.(input.path);
+    return staged;
+  } };
 });
 
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
@@ -39,14 +43,12 @@ import { createProjectionFanOutDependencies } from "../../../../src/lib/store/pr
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
-import { ASIDE_FILES_ROOT } from "../../../../src/lib/store/projection/aside.js";
-import { projectionCommand } from "../../../helpers/store/projection/command.js";
-import { commitProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
-import { waitingEditMark } from "../../../../src/lib/store/projection/archive-admission.js";
 
 const directories: string[] = [];
-afterEach(async () => { binding.store = null; binding.ports = null; binding.deferRead = null; beginProjectionCommand(); await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => {
+  binding.store = null; binding.ports = null; binding.afterStage = null;
+  beginProjectionCommand(); await removeGitBackedDirs(directories.splice(0));
+});
 
 async function sync(h: { store: Store; checkout: string }, args: readonly string[] = []) {
   const cwd = process.cwd(), previousExit = process.exitCode;
@@ -250,7 +252,12 @@ it("fans out a materialization take-in once after releasing its native lease", a
   expect((await h.h.stored()).content).toBe("An edit arriving during materialization.\n");
 });
 
-it.each(["empty", "displaced", "absent", "replaced"] as const)("holds an unopened edit during sync restoration (%s)", async arrival => {
+it.each([
+  { existence: "absent", timing: "before the guard" },
+  { existence: "absent", timing: "during the swap" },
+  { existence: "empty", timing: "during the swap" },
+  { existence: "empty", timing: "after the first copy check" },
+])("keeps a late archive correction out of sync restoration of a $existence file $timing", async ({ existence, timing }) => {
   const h = await createEngineFixture(directories, { kind: "work-item/notes",
     path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
@@ -261,205 +268,31 @@ it.each(["empty", "displaced", "absent", "replaced"] as const)("holds an unopene
   if (entry?.kind !== "record") throw new Error("Missing archive entry");
   const file = join(h.checkout, h.path);
   await chmod(file, 0o644);
-  if (arrival !== "empty" && arrival !== "displaced") await rm(file);
+  if (existence === "absent") await rm(file);
   else {
     await writeFile(file, "");
     await utimes(file, new Date(0), new Date(0));
   }
   let edited = false;
-  const content = "# Notes\n\nA late unopened correction.\n";
-  const expected = renderStampedFile({ content, stamp: entry.base.blob });
-  const installEdit = async (path: string) => {
+  const bytes = renderStampedFile({ content: "# Notes\n\nA late correction.\n", stamp: entry.base.blob });
+  const edit = async (path: string, target = file) => {
     if (edited || path !== h.path) return;
-    if (arrival !== "empty") {
-      // The first index publication leaves the entry unsettled, so the edit waits even if sync stops before settling.
-      expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true });
-    }
     edited = true;
-    if (arrival === "replaced") await chmod(file, 0o644);
-    if (arrival === "replaced") await rm(file);
-    await writeFile(file, expected);
+    await writeFile(target, bytes);
   };
-  binding.ports = ports => ({ ...ports, hooks: arrival === "displaced" ? { afterMove: installEdit }
-    : arrival === "empty" || arrival === "absent" ? { afterRecheck: installEdit } : { afterRebuildLink: installEdit } });
-  const result = await sync(h);
+  if (timing === "before the guard") binding.afterStage = edit;
+  else binding.ports = ports => ({ ...ports, hooks: timing === "during the swap" ? { afterRecheck: edit } : {
+    afterFirstCheck: async path => {
+      const indexed = (await h.disk()).entries[path];
+      const copy = indexed?.kind === "record" ? indexed.copies.at(-1) : undefined;
+      if (copy === undefined) throw new Error("Missing aside copy");
+      await edit(path, join(h.checkout, copy.name));
+    },
+  } });
+  await sync(h);
   expect(edited).toBe(true);
-  expect(result.errors).toContain(`arc edit ${h.path}`);
-  expect(await readFile(file, "utf8")).toBe(expected);
   expect(success(await h.store.read({ reference: h.record.reference }))).toMatchObject({
     version: h.record.version, content: h.record.content,
   });
-  if (arrival !== "empty") {
-    binding.ports = null;
-    expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true });
-    // The next command's refresh meets the unsettled entry and keeps the edit waiting.
-    expect((await projectionCommand(h, ["status"])).diagnostics).toContain(`arc edit ${h.path}`);
-    expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
-    expect((await projectionCommand(h, ["save"])).diagnostics).toContain(`arc edit ${h.path}`);
-    expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("without opening") } });
-    expect(await readFile(file, "utf8")).toBe(expected);
-    expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
-    expect((await projectionCommand(h, ["edit", file])).result).toMatchObject({ status: "ok" });
-    expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });
-    expect((await h.stored()).content).toBe(content);
-  }
-});
-
-it("leaves an edit made in place after restoration's link a forced edit that the next sync names", async () => {
-  const h = await createEngineFixture(directories, { kind: "work-item/notes",
-    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
-    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
-  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
-  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
-  await endProjection(h);
-  const entry = (await h.disk()).entries[h.path];
-  if (entry?.kind !== "record") throw new Error("Missing archive entry");
-  const file = join(h.checkout, h.path);
-  const content = "# Notes\n\nA correction written over the restored file.\n";
-  const expected = renderStampedFile({ content, stamp: entry.base.blob });
-  await chmod(file, 0o644);
-  await rm(file);
-  let edited = false;
-  binding.ports = ports => ({ ...ports, hooks: { afterRebuildLink: async path => {
-    if (edited || path !== h.path) return;
-    edited = true;
-    await chmod(file, 0o644);
-    await writeFile(file, expected);
-  } } });
-  await sync(h);
-  expect(edited).toBe(true);
-  binding.ports = null;
-  expect(await readFile(file, "utf8")).toBe(expected);
-  // The restoration settled its entry, so plain save leaves the forced edit where it lies.
-  await projectionCommand(h, ["save"]);
-  expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
-  expect((await sync(h)).errors).toContain(`arc edit ${h.path}`);
-  expect((await projectionCommand(h, ["edit", file])).result).toMatchObject({ status: "ok" });
-  expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });
-  expect((await h.stored()).content).toBe(content);
-});
-
-it("keeps an unsettled archive edit waiting through a temporary refresh refusal", async () => {
-  const h = await createEngineFixture(directories, { kind: "work-item/notes",
-    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
-    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
-  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
-  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
-  await endProjection(h);
-  const index = await h.disk();
-  const entry = index.entries[h.path];
-  if (entry?.kind !== "record") throw new Error("Missing archive entry");
-  const file = join(h.checkout, h.path);
-  const content = "# Notes\n\nA held correction survives a failed refresh.\n";
-  await chmod(file, 0o644);
-  await writeFile(file, renderStampedFile({ content, stamp: entry.base.blob }));
-  await commitProjectionIndex({ location: h.location, checkout: h.checkout,
-    index: withProjectionEntry(index, h.path, { ...entry, refused: waitingEditMark(h.checkout, h.path, true), pending: true }) });
-  const store = overrideEngineStore(h.store, { read: async request => request.reference.kind === "work-item/notes"
-    ? { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [],
-      condition: "Archive rendering is temporarily unavailable.", remedy: { text: "Retry after the store is available." } } }
-    : h.store.read(request) });
-  const refreshed = await projectionCommand({ ...h, store }, ["status"]);
-  expect(refreshed.diagnostics).toContain("Archive rendering is temporarily unavailable");
-  expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true,
-    refused: { remedy: { text: "Retry after the store is available." } } });
-  expect((await projectionCommand(h, ["save"])).diagnostics).toContain(`arc edit ${h.path}`);
-  expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
-  expect((await projectionCommand(h, ["edit", file])).result).toMatchObject({ status: "ok" });
-  expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });
-  expect((await h.stored()).content).toBe(content);
-});
-
-it("names the archive owner when a nonowner's edit wins sync restoration", async () => {
-  const h = await createEngineFixture(directories, { kind: "work-item/notes", workItemOwner: "beth",
-    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
-    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
-  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
-  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
-  await endProjection(h);
-  const file = join(h.checkout, h.path);
-  const bytes = renderStampedFile({ content: "# Notes\n\nA local correction.\n", stamp: h.entry.base.blob });
-  await chmod(file, 0o644);
-  await rm(file);
-  binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async candidate => {
-    if (candidate === h.path) await writeFile(file, bytes);
-  } } });
-  const result = await sync(h);
-  expect(result.errors).toContain("beth");
-  expect(result.errors).not.toContain(`arc edit ${h.path}`);
   expect(await readFile(file, "utf8")).toBe(bytes);
-  expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
-  expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true });
-});
-
-it("requires an explicit opening after sync encounters an unsettled late archive edit", async () => {
-  const h = await createEngineFixture(directories, { kind: "work-item/notes",
-    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
-    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
-  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
-  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
-  await endProjection(h);
-  const entry = (await h.disk()).entries[h.path];
-  if (entry?.kind !== "record") throw new Error("Missing archive entry");
-  const file = join(h.checkout, h.path), content = "# Notes\n\nAn editor was still saving this correction.\n";
-  const bytes = renderStampedFile({ content, stamp: entry.base.blob });
-  await chmod(file, 0o644);
-  await writeFile(file, "");
-  await utimes(file, new Date(0), new Date(0));
-  let reads = 0;
-  binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async path => {
-    if (path !== h.path) return;
-    await writeFile(file, bytes);
-    // The copy observation succeeds, then take-in sees the editor resume saving.
-    binding.deferRead = candidate => candidate.startsWith(join(h.checkout, ASIDE_FILES_ROOT)) && ++reads % 2 === 0;
-  } } });
-  expect((await sync(h)).errors).toContain(`arc edit ${h.path}`);
-  expect(reads).toBeGreaterThanOrEqual(2);
-  expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("without opening") } });
-  binding.deferRead = null;
-  binding.ports = ports => ({ ...ports, writer: async () => ({ ...await ports.writer(), processInstance: "editor-later-command" }) });
-  const saved = await projectionCommand(h, ["save"]);
-  expect(saved.diagnostics).toContain(`arc edit ${h.path}`);
-  expect(await readFile(file, "utf8")).toBe(bytes);
-  expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
-  expect((await projectionCommand(h, ["edit", file])).result).toMatchObject({ status: "ok" });
-  expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });
-  expect((await h.stored()).content).toBe(content);
-});
-
-it("keeps an archive edit waiting when restoration of an empty file is refused", async () => {
-  const h = await createEngineFixture(directories, { kind: "work-item/notes",
-    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
-    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
-  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
-  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
-  await endProjection(h);
-  const index = await h.disk();
-  const entry = index.entries[h.path];
-  if (entry?.kind !== "record") throw new Error("Missing archive entry");
-  const hold = waitingEditMark(h.checkout, h.path, true);
-  await commitProjectionIndex({ location: h.location, checkout: h.checkout,
-    index: withProjectionEntry(index, h.path, { ...entry, refused: hold, pending: true }) });
-
-  const file = join(h.checkout, h.path);
-  const boundary = join(dirname(file), ".git");
-  await chmod(file, 0o644);
-  await writeFile(file, "");
-  await utimes(file, new Date(0), new Date(0));
-  binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async path => {
-    if (path === h.path) await mkdir(boundary, { recursive: true });
-  } } });
-  const blocked = await sync(h);
-  expect(blocked.errors).toContain("another checkout");
-  expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true });
-
-  binding.ports = null;
-  await rm(boundary, { recursive: true });
-  const content = "# Notes\n\nAn unopened correction.\n";
-  await writeFile(file, renderStampedFile({ content, stamp: entry.base.blob }));
-  expect((await projectionCommand(h, ["save"])).diagnostics).toContain(`arc edit ${h.path}`);
-  expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
-  expect((await projectionCommand(h, ["edit", file])).result).toMatchObject({ status: "ok" });
-  expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });
-  expect((await h.stored()).content).toBe(content);
 });

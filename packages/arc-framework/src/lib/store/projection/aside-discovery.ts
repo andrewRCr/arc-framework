@@ -1,150 +1,30 @@
 /** Enumerate recovery names and completed scaffold visits without changing the aside tree. */
 import { join } from "node:path";
-import { lstatSync } from "node:fs";
 import { ASIDE_FILES_ROOT, parseAsideFile } from "./aside.js";
-import { observeProjectionFolder, unobservedFolderMark, type ProjectionWalkFs, type WalkEntry } from "./engine-walk.js";
-import { archiveOperationError, archivePermissionMark, isArchivePermissionRefusal } from "./archive-file.js";
-import { readFile } from "node:fs/promises";
-import { readStat } from "./change-detection.js";
-import { isArchiveDiscoveryScope, type RefusedMark } from "./index-schema.js";
-import { coversArchivePath } from "./archive-work.js";
-import { projectionLinkRemedy, readProjectionLinkBoundary, type ProjectionLinkFs } from "./discovery-links.js";
+import { readProjectionFolder, type ProjectionWalkFs, type WalkEntry } from "./engine-walk.js";
 
 /** Recovery names are opaque; directory events allow a writable consumer to prune on exit. */
-export type ProjectionAsideVisit = { readonly kind: "copy" | "directory"; readonly location: string } | UninspectedCopies;
-
-export interface UninspectedCopies {
-  readonly kind: "uninspected";
-  readonly location: string;
-  readonly cause: "link" | "access" | "changed";
-  /** Logical scope only when the location is already within the archive copy branch. */
-  readonly archivePath?: string;
-  readonly mark: RefusedMark;
-}
-
-const archiveAsideRoot = `${ASIDE_FILES_ROOT}/completed`;
-
-/** Map a physical branch within the archive copy tree to its logical scope. */
-function archiveCopyScope(location: string): string | undefined {
-  if (!coversArchivePath(archiveAsideRoot, location)) return undefined;
-  const scope = `.arc/${location.slice(ASIDE_FILES_ROOT.length + 1)}`;
-  return isArchiveDiscoveryScope(scope) ? scope : undefined;
-}
-
-/** Whether a physical obstruction can conceal the archive copy branch. */
-export function concealsArchiveCopies({ location }: UninspectedCopies): boolean {
-  return coversArchivePath(location, archiveAsideRoot);
-}
+export type ProjectionAsideVisit = { readonly kind: "copy" | "directory"; readonly location: string };
 
 /** Walk typed entries without following directory links or entering an opaque recovery directory. */
-export async function* walkProjectionAsideFolder(checkout: string, walkFs?: ProjectionWalkFs, linkFs?: ProjectionLinkFs):
-AsyncGenerator<ProjectionAsideVisit> {
-  const root = await inspectCopyRootAncestors(checkout, walkFs, linkFs);
-  if (root !== true) {
-    if (root !== false) yield root;
-    return;
-  }
+export async function* walkProjectionAsideFolder(checkout: string, walkFs?: ProjectionWalkFs): AsyncGenerator<ProjectionAsideVisit> {
   const pending = [{ directory: ASIDE_FILES_ROOT, visited: false }];
   for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
     const { directory } = next;
     if (next.visited) { yield { kind: "directory", location: directory }; continue; }
-    const scanned = scanCopyDirectory(checkout, directory, walkFs);
-    yield* scanned.visits;
-    if (!scanned.listed) continue;
-    pending.push({ directory, visited: true }, ...scanned.folders.map(directory => ({ directory, visited: false })));
+    const entries = asideDirectoryEntries(checkout, directory, walkFs);
+    pending.push({ directory, visited: true });
+    for (const entry of entries) {
+      const location = `${directory}/${entry.name}`;
+      const named = parseAsideFile(location);
+      if (named?.role === "aside" || (named !== undefined && !entry.isDirectory())) yield { kind: "copy", location };
+      if (named === undefined && entry.isDirectory()) pending.push({ directory: location, visited: false });
+    }
     await new Promise<void>(resolve => setImmediate(resolve));
   }
 }
 
-async function inspectCopyRootAncestors(checkout: string, walkFs?: ProjectionWalkFs, linkFs?: ProjectionLinkFs):
-Promise<boolean | UninspectedCopies> {
-  if (linkFs !== undefined) {
-    const boundary = await readProjectionLinkBoundary(checkout, [ASIDE_FILES_ROOT], linkFs);
-    const link = boundary(ASIDE_FILES_ROOT);
-    if (link !== null) return linkedCopyDirectory(link);
-  }
-  for (let end = ASIDE_FILES_ROOT.indexOf("/"); end >= 0; end = ASIDE_FILES_ROOT.indexOf("/", end + 1)) {
-    const check = inspectCopyDirectory(checkout, ASIDE_FILES_ROOT.slice(0, end), walkFs);
-    if (check !== true) return check;
-  }
-  return true;
-}
-
-function scanCopyDirectory(checkout: string, directory: string, walkFs?: ProjectionWalkFs): {
-  visits: readonly ProjectionAsideVisit[]; folders: readonly string[]; listed: boolean;
-} {
-  const checked = inspectCopyDirectory(checkout, directory, walkFs);
-  if (checked !== true) return { visits: checked === false ? [] : [checked], folders: [], listed: false };
-  const { entries, unread } = asideDirectoryEntries(checkout, directory, walkFs);
-  const visits: ProjectionAsideVisit[] = [...unread], folders: string[] = [];
-  for (const entry of entries ?? []) {
-    const location = `${directory}/${entry.name}`;
-    const named = parseAsideFile(location);
-    if (entry.isDirectory() && named?.role !== "aside") folders.push(location);
-    else if (named !== undefined) visits.push({ kind: "copy", location });
-    else if (entry.isSymbolicLink()) visits.push(linkedCopyDirectory(location));
-  }
-  return { visits, folders, listed: entries !== null };
-}
-
 /** One vanished entry never hides its siblings: the main walk's read keeps the surviving entries. */
-function asideDirectoryEntries(checkout: string, directory: string, walkFs?: ProjectionWalkFs): {
-  entries: readonly WalkEntry[] | null; unread: readonly UninspectedCopies[];
-} {
-  const unread: UninspectedCopies[] = [];
-  // A named aside is listed even if typing it fails. Its consumer can bind the refusal to its destination.
-  try {
-    const result = observeProjectionFolder(join(checkout, directory), walkFs, undefined,
-      (name, error) => { unread.push(deniedCopyDirectory(`${directory}/${name}`, error)); },
-      name => parseAsideFile(`${directory}/${name}`)?.role === "aside");
-    if (result.kind === "unobserved" || result.kind === "replaced") unread.push(
-      result.kind === "replaced" && result.stat.isSymbolicLink() ? linkedCopyDirectory(directory) : {
-      kind: "uninspected", cause: "changed", location: directory, archivePath: archiveCopyScope(directory),
-      mark: unobservedFolderMark(directory),
-    });
-    return { entries: result.kind === "listed" ? result.entries : null, unread };
-  } catch (error) {
-    return { entries: null, unread: [deniedCopyDirectory(directory, error)] };
-  }
-}
-
-function inspectCopyDirectory(checkout: string, location: string, walkFs?: ProjectionWalkFs): boolean | UninspectedCopies {
-  try {
-    const stat = (walkFs?.lstat ?? lstatSync)(join(checkout, location));
-    return stat.isSymbolicLink() ? linkedCopyDirectory(location) : stat.isDirectory();
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ENOTDIR") return false;
-    return deniedCopyDirectory(location, error);
-  }
-}
-
-function deniedCopyDirectory(location: string, error: unknown): UninspectedCopies {
-  const archivePath = archiveCopyScope(location);
-  if (!isArchivePermissionRefusal(error)) throw error;
-  const mark = archivePermissionMark(location, error, "inspect recovery folder");
-  return { kind: "uninspected", cause: "access", location, archivePath, mark: { ...mark,
-    remedy: { text: `Repair access to ${location} and retry the command.` } } };
-}
-
-function linkedCopyDirectory(location: string): UninspectedCopies {
-  return { kind: "uninspected", cause: "link", location, archivePath: archiveCopyScope(location),
-    mark: { reason: `Recovery copies under ${location} cross a symbolic link.`, remedy: projectionLinkRemedy(location) } };
-}
-
-/** A leaf copy link is observable as itself. A link above the copy conceals its contents. */
-export function archiveCopyLinkHold(path: string, name: string, link: string | null): RefusedMark | null {
-  return link !== null && link !== name && isArchiveDiscoveryScope(path) ? linkedCopyDirectory(link).mark : null;
-}
-
-/** Type a named recovery copy at the point its logical destination is known. */
-export async function readAsideStat(absolute: string, path: string): ReturnType<typeof readStat> {
-  try { return await readStat(absolute); }
-  catch (error) { throw archiveOperationError(path, error, "inspect a copy of"); }
-}
-
-/** Read a named recovery copy's contents for comparison under the same destination hold. */
-export async function readAsideText(absolute: string, path: string): Promise<string> {
-  try { return await readFile(absolute, "utf8"); }
-  catch (error) { throw archiveOperationError(path, error, "read a copy of"); }
+function asideDirectoryEntries(checkout: string, directory: string, walkFs?: ProjectionWalkFs): readonly WalkEntry[] {
+  return readProjectionFolder(join(checkout, directory), walkFs) ?? [];
 }

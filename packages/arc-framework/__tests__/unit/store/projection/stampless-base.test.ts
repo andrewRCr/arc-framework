@@ -1,5 +1,6 @@
 /** A stampless save is sent only when its recorded possible bases agree on the merge. */
 import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { afterEach, describe, expect, it } from "vitest";
 import { createWriteBackFixture, refreshWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";

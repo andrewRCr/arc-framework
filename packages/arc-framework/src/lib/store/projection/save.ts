@@ -12,26 +12,22 @@ export interface ProjectionSaveRefusal {
   readonly condition: string;
   readonly remedy: Remedy;
 }
+type RelockedFile = { readonly path: string; readonly remedy: Remedy };
+
 /** One whole result, including backend refusals without flattening their evidence. */
 export type ProjectionSaveResult =
   | { readonly status: "ok"; readonly result: { readonly version: StateVersion; readonly relocked?: readonly RelockedFile[] } }
   | { readonly status: "refused"; readonly refusal: ProjectionSaveRefusal | StoreRefusal; readonly relocked?: readonly RelockedFile[] };
 
-/** A file the save's start laid read-only and closed, with the `arc edit` remedy to keep editing it. */
-export interface RelockedFile { readonly path: string; readonly remedy: Remedy }
-
-/**
- * Read the start outcome rather than sending every file a second time. The files the start re-locked are named
- * however the save ends, since the re-lock ran before any refusal.
- */
+/** Report the completed save, including files re-locked at start even if a later step refused. */
 export async function projectionSaveResult(store: Store): Promise<ProjectionSaveResult> {
-  const result = await startOutcome(store);
-  const relocked = projectionProcessState().relocked;
-  if (relocked.length === 0) return result;
-  return result.status === "ok" ? { ...result, result: { ...result.result, relocked } } : { ...result, relocked };
+  const outcome = await saveOutcome(store);
+  const { relocked } = projectionProcessState();
+  if (relocked.length === 0) return outcome;
+  return outcome.status === "ok" ? { ...outcome, result: { ...outcome.result, relocked } } : { ...outcome, relocked };
 }
 
-async function startOutcome(store: Store): Promise<ProjectionSaveResult> {
+async function saveOutcome(store: Store): Promise<ProjectionSaveResult> {
   const skip = projectionProcessState().skip;
   if (skip?.reason === "switch") return { status: "refused", refusal: { code: "projection-skipped",
     condition: skip.mark.reason, remedy: skip.mark.remedy } };

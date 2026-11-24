@@ -3,18 +3,11 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { isManagedPath } from "../../kernel/index.js";
-import { BlobIdSchema, type AsideCopyRecord } from "./index-schema.js";
+import { BlobIdSchema } from "./index-schema.js";
 import { PROJECTION_ASIDE_ROOT, PROJECTION_LOCAL_ROOT } from "./paths.js";
-import { changeAside } from "./aside-access.js";
 
 /** The folder under the aside folder that mirrors each moved file's path. */
 export const ASIDE_FILES_ROOT = `${PROJECTION_ASIDE_ROOT}/aside`;
-
-/** A landed archive copy's accepted bytes supersede its original moving bytes as its edit baseline. */
-export function asideCopyHasEdit(path: string, copy: AsideCopyRecord, blob: string): boolean {
-  if (path.startsWith(".arc/completed/") && copy.landed !== null) return blob !== copy.landed;
-  return blob !== copy.moving && blob !== copy.landed;
-}
 
 const PROCESS_INSTANCE = /^[0-9A-Za-z-]+$/u;
 // `<base blob id>.<pid>-<instance>-<scope digest>.<nonce>.<role>`; the instance may hold hyphens, the others cannot.
@@ -102,8 +95,8 @@ function isProjectedPath(path: string): boolean {
  */
 export async function createStagedFile(checkout: string, location: string, content: string | Uint8Array, checkpoint?: () => Promise<void>): Promise<void> {
   const target = join(checkout, location);
-  const path = parseAsideFile(location)?.path ?? location;
-  const change = { checkout, path, location, checkpoint };
-  await changeAside(change, "prepare the staging directory for", () => mkdir(dirname(target), { recursive: true }));
-  await changeAside(change, "stage a rendering for", () => writeFile(target, content, { flag: "wx" }));
+  await checkpoint?.();
+  await mkdir(dirname(target), { recursive: true });
+  await checkpoint?.();
+  await writeFile(target, content, { flag: "wx" });
 }

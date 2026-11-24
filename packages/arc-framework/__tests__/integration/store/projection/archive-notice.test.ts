@@ -39,7 +39,8 @@ it.each(["work-unit", "cohort", "errand"] as const)("names the exact open and sa
     layMode: projectionLayMode(path), renderer: createRecordRenderer({ store: h.f.store, protection }),
     writer: { pid: process.pid, processInstance: "archive-notice", processScope: "archive-notice" } }));
   const bytes = await readFile(join(h.f.root, file.location), "utf8");
-  expect(bytes).toContain(`From the checkout's root, run arc edit ${path} to make this file writable.`);
+  expect(bytes).toContain(`arc edit ${path}`);
+  expect(bytes).toContain("for editing");
   expect(bytes).toContain("your editor");
   expect(bytes.indexOf(`arc edit ${path}`)).toBeLessThan(bytes.indexOf("arc save"));
   expect(file.rendering?.protected).toBe(false);
@@ -52,7 +53,7 @@ it("keeps the same notice bytes when an archived file opens and refreshes", asyn
   await rm(join(h.projected.location.stateDir, "index"));
   await startProjection(input); await endProjection(input);
   const before = await readFile(join(h.f.root, path));
-  expect(before.toString()).toContain(`arc edit ${path}`);
+  expect(before.toString()).toContain(`From the checkout's root, run arc edit ${path}`);
   const original = await stat(join(h.f.root, path), { bigint: true });
   await openArchivedProjectionFile(input, path);
   await startProjection(input); await endProjection(input);

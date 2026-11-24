@@ -1,7 +1,7 @@
 /** The swap over a seeded projection: the old file moved aside, the staged file linked in, between two index writes. */
-import { link, mkdir, readFile, rename, rm, stat as fsStat, symlink, utimes, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { link, readFile, rename, rm, stat as fsStat, symlink, utimes, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   deferring, landingCopies, prepareSwap, SWAP_PATH, type PrepareSwapOptions,
 } from "../../../helpers/store/projection/swap-fixture.js";
@@ -17,16 +17,7 @@ import { readStamplessFile } from "../../../../src/lib/store/projection/stamples
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 
 const directories: string[] = [];
-const inaccessible = vi.hoisted(() => ({ file: "" }));
-vi.mock("node:fs", async original => {
-  const actual = await original<typeof import("node:fs")>();
-  const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
-    if (args[0] === inaccessible.file) throw Object.assign(new Error("Destination access denied"), { code: "EACCES" });
-    return actual.lstatSync(...args);
-  }) as typeof actual.lstatSync;
-  return { ...actual, lstatSync, default: { ...actual, lstatSync } };
-});
-afterEach(async () => { inaccessible.file = ""; await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 const PATH = SWAP_PATH;
 
@@ -80,23 +71,6 @@ describe("the swap", () => {
     const result = await swap({ hooks: { afterMove: async () => writeFile(file, text) } });
     expect(await readFile(file, "utf8")).toBe(text);
     expect(result.index.entries[PATH]).toMatchObject({ base: laid.base, written: laid.written, pending: true });
-  });
-
-  it("keeps a late junction at a planned archive file when it conceals an owed child", async () => {
-    const h = await prepared(".arc/completed/2026-q4/01_alpha/meta-alpha.md");
-    const owed = `${h.path}/unindexed.md`, target = join(h.seeded.checkout, "late-archive-directory");
-    await mkdir(target);
-    await writeFile(join(target, "unindexed.md"), "An edit under the owed child path.\n");
-    const result = await h.swap({ index: { ...h.seeded.index, archiveDiscoveryPending: [owed], state: null },
-      hooks: { afterRecheck: async () => {
-        await rename(h.file, `${h.file}.previous`);
-        await symlink(target, h.file, "junction");
-      } } });
-    expect(await readStat(h.file)).toMatchObject({ type: "symlink" });
-    expect(result.index.archiveDiscoveryPending).toEqual([owed]);
-    expect(result.unreplaced).toContain(h.path);
-    expect(result.copies).toEqual([]);
-    expect(await readFile(join(target, "unindexed.md"), "utf8")).toBe("An edit under the owed child path.\n");
   });
 
   it("rebuilds an absent file by the link alone, its in-progress record cleared by the second write, kept where it yields", async () => {
@@ -230,79 +204,6 @@ describe("the swap", () => {
     if (copy === undefined) throw new Error("expected the aside copy's record");
     expect(await checkAsideCopy({ checkout: seeded.checkout, path, entry: written, copy, format: "sha1", takeIn: deferring }))
       .toEqual({ kind: "no-edit", entry: written });
-  });
-
-  it.each(["afterMove", "beforeRebuildLink"] as const)("checks archive ancestors before installation at %s", async point => {
-    const h = await prepared(".arc/completed/one/cohort-one.md");
-    const { checkout } = h.seeded, folder = dirname(h.file), alternate = join(checkout, "alternate");
-    const original = await readFile(h.file, "utf8");
-    await mkdir(alternate);
-    if (point === "beforeRebuildLink") await rm(h.file);
-    let installs = 0;
-    const swapped = await h.swap({ hooks: { [point]: async () => {
-      await rename(folder, `${folder}-held`);
-      await symlink(alternate, folder, "junction");
-    } }, fs: { link: async () => { installs += 1; throw new Error("Blocked archive destinations must not reach the link"); } } });
-    expect(installs).toBe(0);
-    expect(swapped.unreplaced).toEqual([h.path]);
-    expect(swapped.index.entries[h.path]).toMatchObject({ pending: true,
-      refused: { reason: expect.stringContaining("symbolic link") } });
-    if (point === "afterMove") {
-      const [copy] = swapped.copies;
-      if (copy === undefined) throw new Error("Expected the retained archive copy");
-      expect(await readFile(join(checkout, copy.copy), "utf8")).toBe(original);
-    } else expect(swapped.copies).toEqual([]);
-  });
-
-  it.each(["plan", "link", "final stat"] as const)("publishes an accessible sibling when archive access is denied at %s", async at => {
-    const h = await prepared(".arc/completed/one/first.md");
-    const sibling = await prepared(".arc/completed/two/sibling.md");
-    const { checkout, location } = h.seeded;
-    const stage = join(checkout, h.staged.location), staged = await readFile(stage);
-    const siblingFile = join(checkout, sibling.path), siblingStaged = join(checkout, sibling.staged.location);
-    await mkdir(dirname(siblingFile), { recursive: true });
-    await mkdir(dirname(siblingStaged), { recursive: true });
-    await writeFile(siblingFile, await readFile(sibling.file));
-    await writeFile(siblingStaged, await readFile(join(sibling.seeded.checkout, sibling.staged.location)));
-    if (at === "plan") inaccessible.file = h.file;
-    const reports: string[] = [];
-    const swapped = await h.swap({ files: [{ path: h.path, replace: h.replace }, { path: sibling.path, replace: sibling.replace }],
-      hooks: { afterFirstCheck: async path => { if (at === "final stat" && path === h.path) inaccessible.file = h.file; } },
-      fs: { link: async (from, to) => {
-        if (at === "link" && to === h.file) {
-          inaccessible.file = h.file;
-          throw Object.assign(new Error("Destination link denied"), { code: "EACCES" });
-        }
-        await link(from, to);
-      } }, retrySleep: async () => {}, refuseChange: refused => { reports.push(refused.path); } });
-    expect(reports).toEqual([h.path]);
-    expect(swapped.unreplaced).toEqual([h.path]);
-    expect(await onDisk(location, sibling.path)).toMatchObject({ pending: false, base: sibling.staged.base });
-    expect(parseStampedFile(await readFile(siblingFile, "utf8")).content).toBe(sibling.record.content);
-    const held = await onDisk(location, h.path);
-    expect(held).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("EACCES") } });
-    if (at !== "plan") expect(held.copies).toHaveLength(1);
-
-    inaccessible.file = "";
-    await mkdir(dirname(stage), { recursive: true });
-    await writeFile(stage, staged);
-    const moving = at === "final stat" ? h.staged.written : h.replace.moving;
-    const retried = await h.swap({ index: swapped.index, files: [{ path: h.path, replace: { ...h.replace, entry: held, moving } }] });
-    expect(retried.unreplaced).toEqual([]);
-    expect(await readFile(h.file)).toEqual(staged);
-  });
-
-  it("can replace an archive leaf link without reading its target", async () => {
-    const h = await prepared(".arc/completed/one/cohort-one.md");
-    const sentinel = join(h.seeded.checkout, "leaf-target.md");
-    await writeFile(sentinel, "Leave this file alone.\n");
-    const swapped = await h.swap({ hooks: { afterRecheck: async () => {
-      await rm(h.file);
-      await symlink(sentinel, h.file, "file");
-    } } });
-    expect(swapped.unreplaced).toEqual([]);
-    expect(parseStampedFile(await readFile(h.file, "utf8")).content).toBe(h.record.content);
-    expect(await readFile(sentinel, "utf8")).toBe("Leave this file alone.\n");
   });
 });
 

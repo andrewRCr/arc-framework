@@ -1,16 +1,14 @@
 /** Close archive openings only after a read-only file's final check proves its bytes are stored. */
+import { chmod, lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
-import { formatConflictToken } from "../../status/conflict-token.js";
-import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
-import { ArchiveDestinationBlocked, archivePermissionMark, changeArchiveFileMode, readArchiveFile } from "./archive-file.js";
-import { refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
-import { archiveEditCommand } from "./archive-admission.js";
+import { checkChange, readReference } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
+import { SETTLE_WINDOW_NS, wallClockNs } from "./read-gate.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 
 type Send = (index: ProjectionIndex, path: string, entry: RecordEntry) => Promise<{
@@ -25,8 +23,7 @@ export async function relockOpenedProjectionFiles(root: ProjectionRootState, ini
   for (const [path, original] of Object.entries(initial.entries)) {
     if (original.opened !== true) continue;
     if (original.kind !== "record") {
-      // A path the command's selection refused keeps its opening, reported once there; any other is named once.
-      if (selectArchivePath(root, path) === null) reportRetained(root, path, original.refused ?? pendingMark());
+      root.context.report?.({ path, copy: null, mark: original.refused ?? pendingMark() });
       continue;
     }
     index = await settleFile(root, index, path, original, outcomes.get(path), send);
@@ -37,21 +34,16 @@ export async function relockOpenedProjectionFiles(root: ProjectionRootState, ini
 async function settleFile(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
   outcome: ProjectionFileWriteObservation | undefined, send: Send): Promise<ProjectionIndex> {
   const admission = await relockAdmission(root, path, entry, outcome);
-  if (admission?.selected === true) {
-    // A path the command's selection refused keeps its opening, reported once for the command.
-    selectArchivePath(root, path);
-    return index;
-  }
-  if (admission !== null) return retain(root, index, path, entry, admission.mark, admission.writable);
+  if ("mark" in admission) return retain(root, index, path, entry, admission.mark, admission.writable);
   await root.checkpoint?.();
-  const laid = await changeArchiveFileMode(root, path, false);
-  if (laid.kind === "foreign") return leaveForeign(root, index, path, laid.mark);
-  if (laid.kind !== "file") return retain(root, index, path, entry, laid.kind === "missing" ? missingMark() : laid.mark, false);
+  const modeFailure = await changeOpeningMode(root, path, admission.mode & ~0o222);
+  if (modeFailure !== null) return retain(root, index, path, entry, modeFailure, false);
   if (outcome === undefined) await root.ports.hooks?.afterSaveReadOnly?.(path);
   await root.ports.hooks?.beforeSaveMarkClear?.(path);
-  const changed = await readRelockedChange(root, path, entry);
-  if ("mark" in changed) return retain(root, index, path, entry, changed.mark, changed.restoreWritable);
-  if (!changed.edited) return finishRelock(root, index, path, entry, changed.writable);
+  const changed = await readRelockedChange(root, path, entry, outcome);
+  if ("mark" in changed) return retain(root, index, path, entry, changed.mark);
+  if (changed.stat.size === 0n && admission.size !== 0n) return retain(root, index, path, entry, missingMark());
+  if (changed.status !== "changed") return finishRelock(root, index, path, entry, changed.stat.size);
   if (outcome !== undefined) return retain(root, index, path, entry, pendingMark());
   const sent = await send(index, path, entry), current = sent.index.entries[path];
   if (current?.kind !== "record") return sent.index;
@@ -61,42 +53,37 @@ async function settleFile(root: ProjectionRootState, index: ProjectionIndex, pat
 async function finishLateEdit(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
   outcome: ProjectionFileWriteObservation): Promise<ProjectionIndex> {
   if (outcome.rebuilt) return retain(root, index, path, entry, pendingMark(), false);
-  const unchanged = outcome.result.answer === "no-edit";
-  if (!unchanged && (outcome.result.answer !== "taken-in" || outcome.installation !== "attempted")) {
-    return retain(root, index, path, entry, "mark" in outcome.result ? outcome.result.mark : entry.refused ?? pendingMark());
-  }
+  if (failedInstallation(outcome)) return retain(root, index, path, entry, outcomeMark(entry, outcome));
   await root.ports.hooks?.beforeSaveMarkClear?.(path);
-  const changed = await readRelockedChange(root, path, entry);
-  if ("mark" in changed) return retain(root, index, path, entry, changed.mark, changed.restoreWritable);
-  return changed.edited ? retain(root, index, path, entry, pendingMark()) : finishRelock(root, index, path, entry, changed.writable);
+  const changed = await readRelockedChange(root, path, entry, outcome);
+  if ("mark" in changed) return retain(root, index, path, entry, changed.mark);
+  return changed.status === "changed" ? retain(root, index, path, entry, pendingMark())
+    : finishRelock(root, index, path, entry, changed.stat.size);
 }
 
-async function readRelockedChange(root: ProjectionRootState, path: string, entry: RecordEntry): Promise<
-  { edited: boolean; writable: boolean } | { mark: RefusedMark; restoreWritable: boolean }> {
-  const observed = await readArchiveFile(root, path);
-  if (observed.kind !== "file") return { mark: observed.kind === "missing" ? missingMark() : observed.mark, restoreWritable: false };
-  const reference = await readReference(root.checkout);
-  const reader = projectionFileReader(root.checkout, path);
-  let changed: Awaited<ReturnType<typeof checkChange>>;
-  try {
-    changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
-      reference, format: root.context.format }, reader.read, reader.stat);
-  } catch (error) {
-    return { mark: error instanceof ArchiveDestinationBlocked ? error.mark : archivePermissionMark(path, error), restoreWritable: false };
+async function readRelockedChange(root: ProjectionRootState, path: string, entry: RecordEntry,
+  outcome: ProjectionFileWriteObservation | undefined) {
+  // A no-edit check of ordinary text compares normalized line endings against the projected bytes.
+  const reader = outcome?.result.answer === "no-edit" && !path.endsWith(".md")
+    ? async (file: string) => Buffer.from((await readFile(file, "utf8")).replaceAll("\r\n", "\n")) : undefined;
+  const changed = await allowMissingFile(checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
+    reference: await readReference(root.checkout), format: root.context.format }, reader));
+  if (changed === null || changed.status === "absent") return { mark: missingMark() };
+  if (changed.stat.size === 0n) {
+    // An editor that just emptied the file may still be saving. A settled empty text file can match its store bytes.
+    const mark = emptyMark(path, changed.stat.mtimeNs, outcome);
+    if (mark !== null || changed.status === "changed") return { mark: mark ?? missingMark() };
   }
-  if (changed.status === "absent") return { mark: missingMark(), restoreWritable: false };
-  if (changed.stat.size === 0n && path.endsWith(".md")) return { mark: missingMark(), restoreWritable: true };
-  const current = await readArchiveFile(root, path);
-  if (current.kind !== "file") return { mark: current.kind === "missing" ? missingMark() : current.mark, restoreWritable: false };
-  const { stat } = current;
-  if (stat.dev !== observed.stat.dev || stat.ino !== changed.stat.ino || stat.mtimeNs !== changed.stat.mtimeNs
-    || stat.size !== changed.stat.size) return { mark: pendingMark(), restoreWritable: true };
-  return { edited: changed.status === "changed", writable: (stat.mode & 0o222n) !== 0n };
+  return changed;
 }
 
 async function finishRelock(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
-  writable: boolean): Promise<ProjectionIndex> {
-  return writable ? retain(root, index, path, entry, pendingMark(), false) : closeOpening(root, index, path, entry);
+  checkedSize: bigint): Promise<ProjectionIndex> {
+  const current = await allowMissingFile(lstat(join(root.checkout, path), { bigint: true }));
+  if (!current?.isFile()) return retain(root, index, path, entry, missingMark(), false);
+  if (current.size === 0n && checkedSize !== 0n) return retain(root, index, path, entry, missingMark());
+  if ((current.mode & 0o222n) !== 0n) return retain(root, index, path, entry, pendingMark(), false);
+  return closeOpening(root, index, path, entry);
 }
 
 async function closeOpening(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry): Promise<ProjectionIndex> {
@@ -104,7 +91,8 @@ async function closeOpening(root: ProjectionRootState, index: ProjectionIndex, p
   delete closed.opened;
   const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, closed), checkpoint: root.context.checkpoint });
-  projectionProcessState().relocked.push({ path, remedy: { text: `Run ${archiveEditCommand(root.checkout, path)} to keep editing.` } });
+  projectionProcessState().relocked.push({ path,
+    remedy: { text: `Run arc edit ${renderRemedyArgument(path)} from ${root.checkout} to keep editing.` } });
   return updated;
 }
 
@@ -112,23 +100,10 @@ async function retain(root: ProjectionRootState, index: ProjectionIndex, path: s
   mark: RefusedMark, writable = true): Promise<ProjectionIndex> {
   if (writable && !entry.protected) {
     await root.checkpoint?.();
-    const changed = await changeArchiveFileMode(root, path, true);
-    if (changed.kind === "foreign") return leaveForeign(root, index, path, changed.mark);
-    if (changed.kind === "blocked" || changed.kind === "mode-refused") mark = changed.mark;
+    const stat = await allowMissingFile(lstat(join(root.checkout, path)));
+    if (stat?.isFile()) mark = await changeOpeningMode(root, path, stat.mode | 0o200) ?? mark;
   }
-  reportRetained(root, path, mark);
-  return index;
-}
-
-/** Name a file the re-lock leaves opened, unless this command already reported a refusal at that path, which names it. */
-function reportRetained(root: ProjectionRootState, path: string, mark: RefusedMark): void {
-  const named = projectionProcessState().diagnostics.some(each => each.path === path && each.copy === null);
-  if (!named) root.context.report?.({ path, copy: null, mark });
-}
-
-/** Leave a path the check just before its mode change found is not this checkout's, its opening kept, reported once. */
-function leaveForeign(root: ProjectionRootState, index: ProjectionIndex, path: string, mark: RefusedMark): ProjectionIndex {
-  refuseArchiveChange(root, path, mark);
+  root.context.report?.({ path, copy: null, mark });
   return index;
 }
 
@@ -142,47 +117,63 @@ function pendingMark(): RefusedMark {
 }
 
 function awaitingInstallation(entry: RecordEntry, outcome: ProjectionFileWriteObservation | undefined): boolean {
-  return entry.withheld || entry.refused !== null || entry.adoption !== undefined || entry.archiveSubmission !== undefined || entry.persisted?.recording === true
-    || entry.unshown.length > 0 || outcome !== undefined && (entry.markers !== null || entry.notices.length > 0)
+  const landed = outcome?.result.answer === "taken-in";
+  return entry.withheld || entry.refused !== null || entry.adoption !== undefined || entry.persisted?.recording === true
+    || entry.unshown.length > 0 || landed && (entry.markers !== null || entry.notices.length > 0)
     || outcome === undefined && (entry.pending || entry.inProgress !== null);
 }
 
-/** A landing that did not take the file in; a no-edit answer holds nothing the store lacks, so it is no failure. */
 function failedInstallation(outcome: ProjectionFileWriteObservation | undefined): boolean {
   if (outcome === undefined || outcome.result.answer === "no-edit") return false;
   return outcome.result.answer !== "taken-in" || outcome.installation !== "attempted";
 }
-function emptyMark(outcome: ProjectionFileWriteObservation | undefined): RefusedMark {
+function emptyMark(path: string, mtimeNs: bigint, outcome: ProjectionFileWriteObservation | undefined): RefusedMark | null {
   const answer = outcome?.result.answer;
-  return answer === "pending" || answer === "deferred" ? pendingMark() : missingMark();
+  if (answer === "pending" || answer === "deferred" || wallClockNs() - mtimeNs < SETTLE_WINDOW_NS) return pendingMark();
+  return path.endsWith(".md") ? missingMark() : null;
 }
 
 async function relockAdmission(root: ProjectionRootState, path: string, entry: RecordEntry,
-  outcome: ProjectionFileWriteObservation | undefined): Promise<{ mark: RefusedMark; writable?: boolean; selected?: true } | null> {
+  outcome: ProjectionFileWriteObservation | undefined): Promise<{ mode: number; size: bigint } | { mark: RefusedMark; writable?: boolean }> {
   if (outcome?.rebuilt) return { mark: pendingMark(), writable: false };
-  const held = selectArchivePath(root, path, { report: false });
-  if (held !== null) return { mark: held, writable: false, selected: true };
-  // Edit rights bind where an edit is sent; a file that holds none is laid read-only and closed whoever saves.
-  if (!root.writable(path)) return { mark: entry.refused ?? pendingMark(), writable: false };
-  await root.checkpoint?.();
-  const file = await readArchiveFile(root, path);
-  if (file.kind === "blocked") return { mark: file.mark, writable: false };
-  if (file.kind === "missing") return { mark: missingMark(), writable: false };
-  if (file.stat.size === 0n && path.endsWith(".md")) return { mark: emptyMark(outcome) };
-  if (failedInstallation(outcome) || awaitingInstallation(entry, outcome)) return { mark: outcomeMark(path, entry, outcome) };
-  return null;
-}
-function outcomeMark(path: string, entry: RecordEntry, outcome: ProjectionFileWriteObservation | undefined): RefusedMark {
-  if (outcome !== undefined && "mark" in outcome.result) return outcome.result.mark;
-  if (entry.refused !== null) return entry.refused;
-  if (entry.markers !== null) return { reason: "The opened file still has conflict markers.",
-    remedy: { text: `Resolve the conflict markers in ${renderRemedyArgument(path)}, then retry arc save.` } };
-  const conflict = entry.notices[0] ?? entry.unshown[0];
-  if (conflict !== undefined) {
-    const token = formatConflictToken(conflict);
-    return { reason: "The opened file still has a whole-record conflict.",
-      remedy: { text: `Run arc save --resolve ${renderRemedyArgument(token)} to settle the conflict.`,
-        argv: ["arc", "save", "--resolve", token] } };
+  if (root.blockedByLink(path) !== null || !root.writable(path)) {
+    return { mark: entry.refused ?? pendingMark(), writable: false };
   }
-  return pendingMark();
+  await root.checkpoint?.();
+  const stat = await allowMissingFile(lstat(join(root.checkout, path), { bigint: true }));
+  if (stat === null) return { mark: missingMark() };
+  if (!stat.isFile()) return { mark: pendingMark(), writable: false };
+  const empty = stat.size === 0n ? emptyMark(path, stat.mtimeNs, outcome) : null;
+  if (empty !== null) return { mark: empty };
+  if (failedInstallation(outcome) || awaitingInstallation(entry, outcome)) return { mark: outcomeMark(entry, outcome) };
+  return { mode: Number(stat.mode), size: stat.size };
+}
+function outcomeMark(entry: RecordEntry, outcome: ProjectionFileWriteObservation | undefined): RefusedMark {
+  return outcome !== undefined && "mark" in outcome.result ? outcome.result.mark : entry.refused ?? pendingMark();
+}
+
+async function changeOpeningMode(root: ProjectionRootState, path: string, mode: number): Promise<RefusedMark | null> {
+  try {
+    await chmod(join(root.checkout, path), mode);
+    return null;
+  } catch (error) {
+    if (fileIsMissing(error)) return missingMark();
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "EACCES" && code !== "EPERM" && code !== "EROFS") throw error;
+    return { reason: `Cannot change permissions for ${path}: ${code}. The file remains opened.`,
+      remedy: { text: "Repair the file's permissions, then retry arc save." } };
+  }
+}
+
+async function allowMissingFile<T>(operation: Promise<T>): Promise<T | null> {
+  try { return await operation; }
+  catch (error) {
+    if (fileIsMissing(error)) return null;
+    throw error;
+  }
+}
+
+function fileIsMissing(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "ENOENT" || code === "ENOTDIR";
 }

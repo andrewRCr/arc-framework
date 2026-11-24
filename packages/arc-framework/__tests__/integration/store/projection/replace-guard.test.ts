@@ -2,8 +2,8 @@
 import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
 
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
-import { chmod, mkdir, readFile, rename, rm, stat as fsStat, utimes, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, readFile, rename, rm, stat as fsStat, utimes, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
@@ -13,7 +13,6 @@ import type { RecordVersion } from "../../../../src/lib/store/identity.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { readReference, readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { guardReplacement, type ReplaceGuardInput } from "../../../../src/lib/store/projection/replace-guard.js";
-import { swapBatch } from "../../../../src/lib/store/projection/swap.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { stageRecordFile, type StagedFile } from "../../../../src/lib/store/projection/staging.js";
 import type { TakeInPort, TakeInRequest } from "../../../../src/lib/store/projection/take-in-port.js";
@@ -75,21 +74,6 @@ function landing(store: ReturnType<typeof createReferenceFixture>["store"], expe
 const deferring: TakeInPort = async (request) => ({ answer: "deferred", entry: request.entry });
 
 describe("the replace guard", () => {
-  it("leaves a replacement pending at its move when a nested checkout arrives after the guard's reads", async () => {
-    const path = ".arc/completed/2026-q4/one/cohort-one.md";
-    const h = await projected(undefined, path);
-    await chmod(h.file, 0o644);
-    await h.save("# Cohort: one\n\nA correction taken in before the next check.\n");
-    const takeIn = landing(h.fixture.store, () => h.entry.base.version);
-    const result = await h.guard(takeIn);
-    if (result.kind !== "replace") throw new Error(`Expected a replacement, got ${result.kind}`);
-    const swapped = await swapBatch({ location: h.seeded.location, checkout: h.seeded.checkout, index: h.seeded.index,
-      files: [{ path, replace: result }], readBack: false, writer: WRITER, format: "sha1", takeIn,
-      hooks: { afterRecheck: () => mkdir(join(dirname(h.file), ".git")).then(() => undefined) } });
-    expect(swapped.index.entries[path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("another checkout") } });
-    expect(await readFile(h.file, "utf8")).toContain("A correction taken in before the next check.");
-  });
-
   it("leaves a directory and its contents in place with a repair route, then permits replacement", async () => {
     const h = await projected();
     await rm(h.file);

@@ -1,16 +1,10 @@
 /** Release withheld paths only after their bytes are absent, without following a link to inspect them. */
 import { join } from "node:path";
 import type { ProjectionIndex } from "./index-schema.js";
-import { loadProjectionGroups, withProjectionEntry } from "./index-memory.js";
-import { readWritableArchiveLinkBoundary } from "./discovery-links.js";
-import { projectionFileReader } from "./change-detection.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { heldArchivePath, refuseUnreadArchiveScope, selectArchivePath, type ArchiveSelectionRoot } from "./archive-selection.js";
 import type { ProjectionRootState } from "./process-state.js";
-
-type WithheldRoot = ArchiveSelectionRoot & Pick<ProjectionRootState, "writable"> & {
-  readonly ports?: Pick<ProjectionRootState["ports"], "linkFs">;
-};
+import { loadProjectionGroups, withProjectionEntry } from "./index-memory.js";
+import { readProjectionLinkBoundary } from "./discovery-links.js";
+import { readStat } from "./change-detection.js";
 
 /** Whether a withheld entry whose file is gone is released: only where its root accepts writes and no arrival holds it. */
 export function releasesAbsentWithheld(writable: (path: string) => boolean, path: string, entry: ProjectionIndex["entries"][string]): boolean {
@@ -18,28 +12,17 @@ export function releasesAbsentWithheld(writable: (path: string) => boolean, path
 }
 
 /** Keep unknown files held; an absent bound record becomes pending for the next replacement. */
-export async function releaseAbsentWithheldPaths(root: WithheldRoot, initial: ProjectionIndex, selection?: readonly string[],
-  writable = root.writable): Promise<ProjectionIndex> {
+export async function releaseAbsentWithheldPaths(root: Pick<ProjectionRootState, "checkout" | "writable">, initial: ProjectionIndex, selection?: readonly string[]): Promise<ProjectionIndex> {
   if (selection === undefined) loadProjectionGroups(initial, "walked");
-  const paths = (selection ?? Object.keys(initial.entries)).filter(path => initial.entries[path]?.withheld && writable(path)
-    && selectArchivePath(root, path, { holdAccess: true }) === null);
-  const boundary = await readWritableArchiveLinkBoundary(root, paths, root.ports?.linkFs);
+  const paths = (selection ?? Object.keys(initial.entries)).filter(path => initial.entries[path]?.withheld && root.writable(path));
+  const boundary = await readProjectionLinkBoundary(root.checkout, paths);
   let index = initial;
   for (const path of paths) {
-    if (heldArchivePath(root, path) !== null || boundary(path) !== null || !await absent(root, path)) continue;
+    if (boundary(path) !== null || await readStat(join(root.checkout, path)) !== null) continue;
     const entry = index.entries[path];
-    if (entry === undefined || !releasesAbsentWithheld(writable, path, entry)) continue;
+    if (entry === undefined || !releasesAbsentWithheld(root.writable, path, entry)) continue;
     index = withProjectionEntry(index, path, entry.kind === "ownerless" ? undefined
       : { ...entry, stat: null, withheld: false, pending: true, refused: null });
   }
   return index;
-}
-
-async function absent(root: WithheldRoot, path: string): Promise<boolean> {
-  try { return await projectionFileReader(root.checkout, path).stat(join(root.checkout, path)) === null; }
-  catch (error) {
-    if (!(error instanceof ArchiveDestinationBlocked) || !error.access) throw error;
-    refuseUnreadArchiveScope(root, path, error.mark);
-    return false;
-  }
 }

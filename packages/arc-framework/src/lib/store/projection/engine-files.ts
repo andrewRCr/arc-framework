@@ -1,31 +1,27 @@
 /** Send the command's edited files, keeping ignored roots untouched while recording their landings. */
-import { checkUnchangedProjectionEdit, recordAcceptedProjectionInput, recoverSubmittedArchiveEdit } from "./read-back-recovery.js";
+import { checkUnchangedProjectionEdit } from "./read-back-recovery.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { join } from "node:path";
 import type { FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { projectionProcessState } from "./process-state.js";
-import { checkChange, projectionFileReader, readReference, type ChangeVerdict } from "./change-detection.js";
+import { checkChange, readReference, type ChangeVerdict } from "./change-detection.js";
 import { commitProjectionIndex, isProjectionEntryUnsettled } from "./index-file.js";
 import { sendWriteBack } from "./write-back.js";
 import { writeBackFile } from "./read-back.js";
 import { unshownConflicts } from "./held-conflicts.js";
 import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { refuseProjectionEdit } from "./rights-binding.js";
-import { adoptProjectionFile, recoverSubmittedArchiveAdoption } from "./adoption.js";
+import { adoptProjectionFile } from "./adoption.js";
 import { resumeAdoptionReadBack } from "./adoption-read-back.js";
-import { isUnreadRebuildEntry, withheldProjectionMark } from "./materialization-file.js";
+import { withheldProjectionMark } from "./materialization-file.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import { pendingFileRequest } from "./pending-request.js";
 import type { ProjectionResolution } from "./save-resolution.js";
 
 import { relockOpenedProjectionFiles } from "./save-relock.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { refuseUnreadArchiveScope, selectArchivePath } from "./archive-selection.js";
-import { holdWaitingArchiveEdit } from "./archive-waiting.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
-import { hasArchiveRecording, liveArchiveReceipt } from "./recording-state.js";
 
 /** Check walked files, using short-lived start observations only until any recovery mutates files or publishes. */
 export async function writeBackProjectionFiles(root: ProjectionRootState, initial: ProjectionIndex, files: readonly string[],
@@ -42,7 +38,7 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   const selected = target?.refusal === null ? target.target?.path : undefined;
   const walked = [...new Set([...files, ...adoptionRetries(root, initial)])].sort();
   const paths = selected === undefined || target?.accepted ? walked : [...new Set([...walked, selected])].sort();
-  for (const path of paths.filter(path => root.blockedByLink(path) === null || hasArchiveRecording(path, index.entries[path]))) {
+  for (const path of paths.filter(path => root.blockedByLink(path) === null)) {
     const checked = await checkFileAtPath(root, index, path, reference, observations?.get(path), observe);
     index = checked.index;
     if (checked.reobserve) observations = undefined;
@@ -51,8 +47,8 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   for (const path of pending) {
     const entry = index.entries[path];
     if (entry?.kind !== "record") continue;
-    const resolution = selected === path && !target?.accepted ? target?.target?.resolution : undefined;
-    const request = pendingFileRequest(root.checkout, path, entry, resolution);
+    const request: TakeInRequest = { ...pendingFileRequest(root.checkout, path, entry),
+      ...(selected !== path || target?.accepted ? {} : { resolution: target?.target?.resolution }) };
     const sent = await sendFile(root, index, request);
     index = sent.index;
     observe({ path, result: sent.result, installation: sent.installation, rebuilt: sent.rebuilt });
@@ -75,8 +71,6 @@ function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): str
 
 /** Retry opened files and unfinished adoptions beyond the walked roots, retaining save's archive recovery. */
 export function retriesIndexedEntry(verb: string | undefined, path: string, entry: ProjectionIndex["entries"][string]): boolean {
-  // An entry a rebuild has not read waits for the lay that rebuilds it: no basis exists to judge its file against.
-  if (isUnreadRebuildEntry(entry)) return false;
   const selected = verb === "save" || !path.startsWith(".arc/completed/");
   return verb === "save" && isProjectionEntryUnsettled(entry) || entry.opened === true || entry.kind === "record" && entry.adoption?.kind === "read-back"
     || selected && (entry.kind === "ownerless" || entry.adoption !== undefined);
@@ -89,119 +83,45 @@ function resolutionAliasRefusal(checkout: string, path: string): RefusedMark | n
 
 async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null,
   observed?: FileStat | null, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{ index: ProjectionIndex; edited: boolean; reobserve?: boolean }> {
-  let entry = index.entries[path];
-  // The command's one selection-time check of an archive path; a refused path keeps its entry and any accepted work.
-  const blocked = selectArchivePath(root, path, { report: false, holdAccess: true });
-  if (blocked !== null) return checkBlockedArchivePath(root, index, path, entry);
-  if (entry?.kind === "record" && entry.archiveSubmission !== undefined) {
-    const recovered = await recoverSubmittedArchiveEdit(root, index, path, entry);
-    if (recovered.held) return { index, edited: false };
-    ({ index, entry } = recovered);
-  }
+  const entry = index.entries[path];
   if (entry?.kind !== "record") {
     const adopted = await adoptProjectionFile(root, index, path, onFile), bound = adopted.entries[path];
     return { index: adopted, edited: bound?.kind === "record" && bound.adoption?.kind === "write-back", reobserve: true };
   }
-  return checkIndexedFile(root, index, path, entry, reference, observed, onFile);
-}
-
-/** Recover store-only acceptance while a path cannot be inspected or installed: refused at selection, or unreadable. */
-async function checkBlockedArchivePath(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  entry: ProjectionIndex["entries"][string] | undefined, read?: ArchiveDestinationBlocked): Promise<{ index: ProjectionIndex; edited: false; reobserve?: true }> {
-  const recording = hasArchiveRecording(path, entry);
-  if (entry?.archiveSubmission !== undefined) {
-    await root.checkpoint?.();
-    const recovered = entry.kind === "record"
-      ? await recoverSubmittedArchiveEdit(root, index, path, entry, true)
-      : await recoverSubmittedArchiveAdoption(root, index, path, entry, true);
-    index = recovered.index;
-  }
-  if (recording || entry?.opened === true) root.unsent.add(path);
-  if (read?.access) refuseUnreadArchiveScope(root, path, read.mark);
-  // Save reports other held stored openings at re-lock, which observes the same path again.
-  // A file no entry names under a folder another checkout holds is that checkout's, and is not reported here.
-  if (entry !== undefined && (recording || !(root.context.verb === "save" && entry.kind === "record" && entry.opened === true))) {
-    // A refused selection is reported once per command; a read the file's permissions refused is reported here.
-    if (read === undefined) selectArchivePath(root, path);
-    else if (!read.access) root.context.report?.({ path, copy: null, mark: read.mark });
-  }
-  return { index, edited: false, ...(recording ? { reobserve: true } : {}) };
-}
-
-async function checkIndexedFile(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
-  reference: bigint | null, observed?: FileStat | null, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{
-    index: ProjectionIndex; edited: boolean; reobserve?: boolean;
-  }> {
   const aliasRefusal = resolutionAliasRefusal(root.checkout, path);
   if (aliasRefusal !== null) {
-    return checkRefusedAlias(root, index, path, entry, reference, observed, aliasRefusal);
+    await root.checkpoint?.();
+    const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat,
+      written: entry.written, reference, format: root.context.format, observed });
+    root.unsent.add(path);
+    root.context.report?.({ path, copy: null, mark: aliasRefusal });
+    return { index: await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+      index: withEntry(index, path, { ...entry, changed: entry.changed || changed.status === "changed",
+        pending: true, refused: aliasRefusal }), checkpoint: root.context.checkpoint }), edited: false, reobserve: true };
   }
-  const resolution = pendingResolutionAt(root.checkout, path);
-  if (continuesAdoptionReadBack(entry, resolution)) {
-    return { index: await resumeAdoptionReadBack(root, index, path, entry, onFile), edited: false, reobserve: true };
-  }
+  if (entry.adoption?.kind === "read-back") return { index: await resumeAdoptionReadBack(root, index, path, entry, onFile), edited: false, reobserve: true };
   if (entry.adoption?.kind === "write-back") return { index, edited: true };
   if (entry.withheld) {
     root.unsent.add(path);
-    root.context.report?.({ path, copy: null, mark: entry.refused ?? withheldProjectionMark(path, { checkout: root.checkout, known: true }) });
+    root.context.report?.({ path, copy: null, mark: entry.refused ?? withheldProjectionMark(path) });
     return { index, edited: false };
   }
-  const changed = await checkIndexedChange(root, path, entry, reference, observed);
-  if (changed instanceof ArchiveDestinationBlocked) return checkBlockedArchivePath(root, index, path, entry, changed);
-  if (changed.status === "absent") {
-    if (!path.startsWith(".arc/completed/") || entry.persisted?.recording !== true) return { index, edited: false };
-    const completed = await recordAcceptedProjectionInput(root, index, path, entry);
-    return { index: completed.index, edited: false, reobserve: true };
-  }
-  const unchanged = resolution === null && needsReadBackCheck(path, entry, changed)
-    ? await checkUnchangedProjectionEdit(root, index, path, entry, onFile) : null;
-  if (unchanged !== null) return unchanged;
-  if (changed.status !== "changed" && resolution === null && entry.persisted?.recording !== true) {
+  await root.checkpoint?.();
+  const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat,
+    written: entry.written, reference, format: root.context.format, observed });
+  if (changed.status === "absent") return { index, edited: path.startsWith(".arc/completed/") && entry.persisted?.recording === true };
+  const intent = checkoutResolution(root.checkout);
+  const resolving = intent?.target?.path === path && !intent.accepted && intent.refusal === null;
+  if (changed.status !== "changed" && !resolving && entry.persisted?.recording !== true) {
     root.unsent.delete(path);
     // A pending refresh is not an authored edit. Standing ambiguity tokens keep their separate resolution authority.
     return { index: recordCleanFile(index, path, entry, changed), edited: false };
   }
+  const unchanged = !resolving && changed.status === "changed"
+    ? await checkUnchangedProjectionEdit(root, index, path, entry, onFile) : null;
+  if (unchanged !== null) return unchanged;
   return { index: changed.status === "changed" ? withEntry(index, path, { ...entry, changed: true }) : index, edited: true };
 }
-
-function pendingResolutionAt(checkout: string, path: string): ProjectionResolution | null {
-  const intent = checkoutResolution(checkout);
-  return intent?.target?.path === path && !intent.accepted && intent.refusal === null ? intent : null;
-}
-
-function continuesAdoptionReadBack(entry: RecordEntry, resolution: ProjectionResolution | null): boolean {
-  const resolvesHold = resolution?.target?.resolution.kind === "hold" && entry.refused?.reason === "bases-disagree";
-  return entry.adoption?.kind === "read-back" && !resolvesHold;
-}
-
-function needsReadBackCheck(path: string, entry: RecordEntry, changed: ChangeVerdict): boolean {
-  return changed.status === "changed" || liveArchiveReceipt({ path, entry, copy: null }) !== null;
-}
-
-async function checkRefusedAlias(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
-  reference: bigint | null, observed: FileStat | null | undefined, mark: RefusedMark): Promise<{ index: ProjectionIndex; edited: false; reobserve?: true }> {
-  const changed = await checkIndexedChange(root, path, entry, reference, observed);
-  if (changed instanceof ArchiveDestinationBlocked) return checkBlockedArchivePath(root, index, path, entry, changed);
-  root.unsent.add(path);
-  root.context.report?.({ path, copy: null, mark });
-  return { index: await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: withEntry(index, path, { ...entry, changed: entry.changed || changed.status === "changed",
-      pending: true, refused: mark }), checkpoint: root.context.checkpoint }), edited: false, reobserve: true };
-}
-
-async function checkIndexedChange(root: ProjectionRootState, path: string, entry: RecordEntry,
-  reference: bigint | null, observed?: FileStat | null): Promise<ChangeVerdict | ArchiveDestinationBlocked> {
-  await root.checkpoint?.();
-  const reader = projectionFileReader(root.checkout, path);
-  try {
-    return await checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
-      reference, format: root.context.format, observed: path.startsWith(".arc/completed/") ? undefined : observed }, reader.read, reader.stat);
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return error;
-    throw error;
-  }
-}
-
 
 function recordCleanFile(index: ProjectionIndex, path: string, entry: RecordEntry,
   changed: Exclude<ChangeVerdict, { status: "absent" }>): ProjectionIndex {
@@ -214,9 +134,6 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
   index: ProjectionIndex; result: TakeInResult; installation: ProjectionFileWriteObservation["installation"]; rebuilt?: boolean;
 }> {
   const { path, entry } = request;
-  const waiting = await holdWaitingArchiveEdit(root, request);
-  if (waiting !== null) return { result: waiting, installation: "not-authorized", index: await commitProjectionIndex({ location: root.location,
-    checkout: root.checkout, index: withEntry(index, path, waiting.entry), checkpoint: root.context.checkpoint }) };
   const denied = await root.rights?.(request);
   if (denied !== undefined && denied !== null) {
     root.unsent.add(path);

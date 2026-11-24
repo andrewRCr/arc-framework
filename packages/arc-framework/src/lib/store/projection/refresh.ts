@@ -1,6 +1,7 @@
 /** Refresh indexed files from a captured source state while retaining the caller's observed index. */
 import { prepareConflictedRefresh, type ConflictedRefreshContext } from "./conflicted-refresh.js";
-import { gateRead, projectionReadGate } from "./read-gate.js";
+import { gateRead } from "./read-gate.js";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { StoreRecord } from "../read.js";
 import { unshownConflicts } from "./held-conflicts.js";
@@ -11,14 +12,13 @@ import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionConfiguration } from "./configuration.js";
 import { movedProjectionChanges, removeObsoleteProjectionPaths } from "./refresh-removals.js";
-import { archiveChangeRefusals, heldArchivePath, refuseArchiveChange, refusesArchivePath, selectArchivePath } from "./archive-selection.js";
 import { planProjectionRefresh, type ProjectionRefreshPlan } from "./refresh-plan.js";
 import { createRecordRenderer, type RecordRenderer, type RenderedRecord } from "./record-render.js";
 import { createProjectionProtection } from "./protection.js";
 import type { ProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
 import { isEvidenceHeldEntry, prepareMaterializationFile, projectionEntryForRecord, settleHeldMarks } from "./materialization-file.js";
-import { projectionFileReader, readReference } from "./change-detection.js";
+import { readReference } from "./change-detection.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { markStoreRefusal } from "./refusal-mark.js";
@@ -28,9 +28,6 @@ import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { planProjectionRebuild } from "./refresh-rebuild.js";
 import { laidProjectionPaths } from "./discovery-exclusions.js";
 import { markArrivingRecord } from "./changed-mark.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { pendingObservedRefusal } from "./recording-state.js";
-import { hasOutstandingArchiveWork } from "./archive-work.js";
 
 /** The saved source state and index held by the caller's lease. */
 export interface ProjectionRefreshRequest {
@@ -80,10 +77,10 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   const laid = laidProjectionPaths(planned.paths);
   const arrivals = findProjectionArrivals(index, laid);
   const moved = movedProjectionChanges(index, planned, laid);
-  // A moved record's old path, the only holder of its changed or opened mark, waits until its new path takes the mark.
+  // A moved record's old path, the only holder of its changed mark, waits until its new path takes the mark.
   const deferred = new Set([...moved.values()].flat());
   index = await removeObsoleteProjectionPaths({ root, index, plan: withRemovals(planned, [...planned.removals].filter(path => !deferred.has(path))),
-    renderer, reference, admitsForcedEdit: true });
+    renderer, reference });
   const prepared = await prepareLaidPaths({ root, source, renderer, renderContext, reference, rebuilding: planned.rebuild === true },
     index, laid, moved);
   index = prepared.index;
@@ -91,18 +88,13 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   if (prepared.files.length > 0) {
     const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files: prepared.files, readBack: false,
       settlementPublication: "caller", writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint,
-      takeIn: root.takeIn, hooks: root.context.hooks, refuseChange: archiveChangeRefusals(root) });
+      takeIn: root.takeIn, hooks: root.context.hooks });
     root.context.recordBatch?.(swapped);
     index = swapped.index;
   }
-  const settled = await settleMovedPaths({ root, renderer, reference, plan: planned, admitsForcedEdit: true }, index, moved, prepared.marked);
+  const settled = await settleMovedPaths({ root, renderer, reference, plan: planned }, index, moved, prepared.marked);
   index = settled.index;
-  // A planned path this command refused, at its selection or its change, waits for the repair: the refresh stays
-  // incomplete, so the command after the repair plans that path's work again.
-  const refused = refusesArchivePath(root, [...planned.removals, ...planned.paths.keys()]);
-  const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && !refused
-    && !hasOutstandingArchiveWork(index)
-    && projectionArrivalsInstalled(index, arrivals);
+  const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && projectionArrivalsInstalled(index, arrivals);
   index = { ...index, state: complete && options.advanceState !== false ? version : input.index.state };
   if (input.publication !== "caller") index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index, checkpoint: root.context.checkpoint });
@@ -110,10 +102,7 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   return { index, complete };
 }
 
-/**
- * Prepare each laid path, carrying a moved record's changed or opened mark to its new path wherever the pass leaves a
- * carrier.
- */
+/** Prepare each laid path, carrying a moved record's changed mark to its new path wherever the pass leaves a carrier. */
 async function prepareLaidPaths(base: Omit<IndexedFileInput, "index" | "path" | "target">, initial: ProjectionIndex,
   laid: ReadonlyMap<string, RecordReference>, moved: ReadonlyMap<string, readonly string[]>): Promise<{
   index: ProjectionIndex; files: SwapFile[]; unresolved: boolean; marked: ReadonlySet<string>;
@@ -197,28 +186,20 @@ async function prepareIndexedFile(input: IndexedFileInput): Promise<IndexedFileR
     if (root.unsent.has(path)) return { index, unresolved: true };
     const mark = markStoreRefusal(read.refusal);
     root.context.report?.({ path, copy: null, mark });
-    return { index: withProjectionEntry(index, path, pendingObservedRefusal(entry, mark)), unresolved: true };
+    return { index: withProjectionEntry(index, path, { ...entry, pending: true, refused: mark }), unresolved: true };
   }
   if (prior?.kind === "record" && !sameReference(prior.reference, read.result.reference)) {
     return { ...await prepareMaterializationFile({ root, index, path, record: read.result, renderer: input.renderer,
-      rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null,
-      admitsForcedEdit: true }), unresolved: true };
+      rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null }), unresolved: true };
   }
   if (root.unsent.has(path)) return { index: withProjectionEntry(index, path,
     { ...entry, pending: true, unshown: unshownConflicts(entry, read.result.conflicts) }), unresolved: false };
   return prepareCurrentFile(input, entry, read.result);
 }
 
-/**
- * A link at or above the path, an archive path this checkout does not own, or an ownership handoff in flight there,
- * leaves the path to a later pass.
- */
+/** A link at or above the path, or an ownership handoff in flight there, leaves the path to a later pass. */
 async function leftToLaterPass(input: IndexedFileInput, prior: ProjectionIndex["entries"][string] | undefined): Promise<boolean> {
-  if (selectArchivePath(input.root, input.path) !== null) return true;
-  const { root, path } = input;
-  const blockedByLink = await readProjectionLinkBoundary(root.checkout, [path], root.ports.linkFs,
-    (held, mark) => { refuseArchiveChange(root, held, mark); });
-  if (blockedByLink(path) !== null || heldArchivePath(root, path) !== null) return true;
+  if ((await readProjectionLinkBoundary(input.root.checkout, [input.path]))(input.path) !== null) return true;
   // An ownership handoff in flight is reconciliation's to settle, under the mark naming both identities.
   return prior?.kind === "record" && prior.handoff !== undefined;
 }
@@ -233,42 +214,25 @@ async function settleEvidenceHeldFile(input: IndexedFileInput): Promise<IndexedF
     return { index, unresolved: true };
   }
   return { unresolved: false, ...await prepareMaterializationFile({ root, index: withProjectionEntry(index, path, undefined), path,
-    record: read.result, renderer: input.renderer, rebuilding: true, reference: input.reference, blocked: root.blockedByLink(path) !== null,
-    admitsForcedEdit: true }) };
+    record: read.result, renderer: input.renderer, rebuilding: true, reference: input.reference, blocked: root.blockedByLink(path) !== null }) };
 }
 
 async function prepareCurrentFile(input: IndexedFileInput, entry: RecordEntry, record: StoreRecord): Promise<{ index: ProjectionIndex; file?: SwapFile; unresolved: boolean }> {
   const { root, path } = input;
   let rendered: RenderedRecord | undefined;
   if (entry.markers !== null && !entry.withheld && root.blockedByLink(path) === null) {
-    const prepared = await observeConflictedFile(input, entry, record);
-    if (prepared instanceof ArchiveDestinationBlocked) {
-      root.context.report?.({ path, copy: null, mark: prepared.mark });
-      return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }), unresolved: true };
+    const gate = await gateRead({ path: join(root.checkout, path), markdown: false });
+    if (gate.kind === "read") {
+      const prepared = await prepareConflictedRefresh(input.renderContext, { path, entry, current: record,
+        text: await readFile(join(root.checkout, path), "utf8") });
+      if (prepared.kind === "pending") {
+        root.context.report?.({ path, copy: null, mark: prepared.mark });
+        return { index: withProjectionEntry(input.index, path, { ...entry, pending: true, refused: prepared.mark,
+          unshown: unshownConflicts(entry, record.conflicts) }), unresolved: false };
+      }
+      rendered = prepared.rendered;
     }
-    if (prepared?.kind === "pending") {
-      root.context.report?.({ path, copy: null, mark: prepared.mark });
-      return { index: withProjectionEntry(input.index, path, { ...pendingObservedRefusal(entry, prepared.mark),
-        unshown: unshownConflicts(entry, record.conflicts) }), unresolved: false };
-    }
-    rendered = prepared?.rendered;
   }
   return { unresolved: false, ...await prepareMaterializationFile({ root, index: input.index, path, record, renderer: input.renderer,
-    rendered, rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null,
-    admitsForcedEdit: true }) };
-}
-
-async function observeConflictedFile(input: IndexedFileInput, entry: RecordEntry, current: StoreRecord) {
-  const { root, path } = input;
-  const absolute = join(root.checkout, path);
-  const reader = projectionFileReader(root.checkout, path);
-  try {
-    const gate = await gateRead({ path: absolute, markdown: false }, projectionReadGate(root.checkout, path));
-    if (gate.kind !== "read") return null;
-    const text = (await reader.read(absolute)).toString("utf8");
-    return await prepareConflictedRefresh(input.renderContext, { path, entry, current, text });
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return error;
-    throw error;
-  }
+    rendered, rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null }) };
 }

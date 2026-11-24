@@ -2,36 +2,31 @@
  * The sweep: every command, under the projection lock and before write-back reads a file, takes over the aside copies and
  * staged files a writer that has exited left, so a stop mid-swap loses no save.
  */
-import { removeProjectionAsideFile, removeRecoveredAsideFile, removeReturnedAsideFile, pruneAsideScaffold } from "./aside-cleanup.js";
+import { removeProjectionAsideFile, pruneAsideScaffold } from "./aside-cleanup.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
-import { readAsideStat, readAsideText, walkProjectionAsideFolder, type UninspectedCopies } from "./aside-discovery.js";
-import { asideCopyAccessHold, hasPathMovedOn, readPathHolding, restoreReturnedCopy, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
-import { linkedArchiveReturn, retriedMoves, type SwapMoves } from "./aside-moves.js";
-import { missingAsideOperand, requireAsideParents } from "./aside-access.js";
+import { walkProjectionAsideFolder } from "./aside-discovery.js";
+import { hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
+import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
 import { recordProjectionIgnoreCheck } from "./ignore-record.js";
 import { guardedProjectionRoots, type ProjectionIgnoreGuardInput } from "./ignore-guard.js";
 import type { ConfiguredIgnoreRules } from "./configuration.js";
-import { projectionFileReader, readReference } from "./change-detection.js";
-import { commitReturnedCopies, copyAliasAccessRefusal, sameProjectionFile } from "./returned-copies.js";
-import type { ArchiveCopyScope, AsideCopyRecord, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
-import type { ArchiveChangeRefusal } from "./archive-selection.js";
+import { readReference, readStat } from "./change-detection.js";
+import { commitReturnedCopies } from "./returned-copies.js";
+import type { AsideCopyRecord, ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
 import { notAFileRemedy, type ReadGateDependencies } from "./read-gate.js";
 import type { Remedy } from "../refusal.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInPort } from "./take-in-port.js";
-import { readCopyDestinations, projectionLinkRemedy, type ProjectionLinkBoundary } from "./discovery-links.js";
-import { ArchiveDestinationBlocked, archiveDestination, archiveDestinationRefusal, archiveFileChangeMark, isArchiveScope } from "./archive-file.js";
-import { copyAbsenceProved, pendingCopyScopes, recordedCopyNames, recoveredScopeNames, returnedDestinations,
-  uninspectedCopy, uninspectedCopyScopes, type CopyInventory } from "./archive-copy-recovery.js";
-import { commitProjectionIndex } from "./index-file.js";
+import { readProjectionLinkBoundary, projectionLinkRemedy, type ProjectionLinkBoundary } from "./discovery-links.js";
 
 /** What the sweep reads, run under the worktree's projection lock; its moves are the system's unless a test injects its own. */
 export interface SweepInput extends SwapMoves {
@@ -41,22 +36,12 @@ export interface SweepInput extends SwapMoves {
   readonly index: ProjectionIndex | null;
   /** Recovery metadata from a valid header whose partitions cannot be used. */
   readonly withheldCopies?: readonly string[];
-  /** Copy work recovered from the same header, including a return that removed its alias before inventory. */
-  readonly recoveryCopies?: readonly string[];
-  readonly recoveryScopes?: readonly ArchiveCopyScope[];
+  /** Copies this command made before rebuilding, eligible for recovery even while their writer is live. */
+  readonly commandCopies?: ReadonlySet<string>;
   readonly format: ObjectFormat;
   readonly takeIn: TakeInPort;
-  /** Resolve a displaced-copy receipt before the sweep can consider taking that copy in again. */
-  readonly recoverArchiveSubmission?: (index: ProjectionIndex, path: string, entry: RecordEntry) =>
-    Promise<{ index: ProjectionIndex; entry: RecordEntry; held: boolean }>;
   /** The sweeping process: it judges each writer's liveness and names any copy it makes in turn. */
   readonly writer: AsideWriterInput;
-  /** The command's one answer for whether an archive path is this checkout's, reported once; asked here where absent. */
-  readonly selectArchivePath?: (path: string) => RefusedMark | null;
-  /** A destination already held by discovery or by an earlier phase of the same command. */
-  readonly knownArchiveHold?: (path: string) => RefusedMark | null;
-  /** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */
-  readonly refuseChange?: ArchiveChangeRefusal;
   /** The ignore guard's Git and file-system boundaries, over this checkout. */
   readonly guard: ProjectionIgnoreGuardInput;
   /** The ignore rules from this command's one configuration read. */
@@ -81,14 +66,8 @@ export interface LeftCopy {
   readonly path: string;
   readonly copy: string;
   /** Why the copy remains untouched, including a destination outside the command's authorized roots. */
-  readonly reason: "other-scope" | "unrecorded" | "withheld" | "not-a-file" | "root-not-authorized" | "destination-blocked";
+  readonly reason: "other-scope" | "unrecorded" | "withheld" | "not-a-file" | "root-not-authorized";
   readonly remedy?: Remedy;
-  /** For a destination-blocked copy, the path check's refusal, which the command keeps as its path's answer. */
-  readonly refusal?: RefusedMark;
-  /** The obstruction is at the logical destination itself. */
-  readonly destinationRefusal?: true;
-  /** Access must be repaired before the command can finish this copy's recovery. */
-  readonly access?: true;
 }
 
 /** What the sweep did. */
@@ -103,10 +82,6 @@ export interface SweepResult {
   readonly withheld: readonly string[];
   /** The copies the sweep made in turn, each a replacement a swap back moved aside, for the command's second check. */
   readonly copies: readonly { readonly path: string; readonly copy: string }[];
-  /** Destinations restored without an indexed entry, awaiting rebuild inventory. */
-  readonly restoredUnindexed: readonly string[];
-  readonly pendingCopyScopes?: ArchiveCopyScope[];
-  readonly recoveryCopies?: string[];
 }
 
 /**
@@ -125,98 +100,34 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   });
   const writable = writableUnder(ignores, guarded);
   // A refusal of the aside folder, as a failed call refuses every root, leaves the sweep nothing it may write.
-  if (!writable(`${PROJECTION_ASIDE_ROOT}/`)) return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [], restoredUnindexed: [] };
-  const inventory = await listAsideFolder(input.checkout, input.checkpoint);
-  const pending = reportUnreadCopies(input, inventory);
-  const found = [...inventory.names];
+  if (!writable(`${PROJECTION_ASIDE_ROOT}/`)) return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [] };
+  const found = await listAsideFolder(input.checkout, input.checkpoint);
   const destinations = [
     ...Object.entries(input.index?.entries ?? {}).flatMap(([path, entry]) => entry.kind === "record" && entry.copies.length > 0 ? [path] : []),
     ...found.flatMap(copy => { const named = parseAsideFile(copy); return named?.role === "aside" ? [named.path] : []; }),
   ];
-  const { blockedByLink: observed, archiveAccess } = await readCopyDestinations(input.checkout, destinations.filter(writable),
-    undefined, input.knownArchiveHold);
+  const observed = await readProjectionLinkBoundary(input.checkout, destinations.filter(writable));
   const judges: SweepJudges = { writerOf: judgeWriters(input), writable,
-    blockedByLink: path => input.blockedByLink?.(path) ?? observed(path), archiveAccess, unread: inventory.unread, returnHolds: new Map() };
-  if (input.index === null) return { ignores, ...await sweepWithoutIndex(input, inventory, judges, pending) };
-  return sweepIndexedCopies(input, input.index, ignores, inventory, judges, pending);
-}
-
-function reportUnreadCopies(input: SweepInput, inventory: CopyInventory): ArchiveCopyScope[] {
-  if (inventory.unread.length === 0) return [];
-  const prior = input.index?.archiveCopyPending ?? input.recoveryScopes ?? [];
-  const known = [...input.index === null ? [] : recordedCopyNames(input.index),
-    ...input.index?.withheldCopies ?? input.withheldCopies ?? [],
-    ...input.index?.archiveRecoveryCopies ?? input.recoveryCopies ?? []];
-  const unread = new Map<string, RefusedMark>();
-  for (const hold of inventory.unread) {
-    for (const path of uninspectedCopyScopes(hold, prior, known, input.index === null)) unread.set(path, hold.mark);
-  }
-  for (const [path, mark] of unread) input.refuseChange?.({ path, copy: null, mark }, true);
-  return pendingCopyScopes([...unread.keys()], prior, input.index === null);
-}
-
-async function sweepIndexedCopies(input: SweepInput, initial: ProjectionIndex, ignores: IgnoreCheck, inventory: CopyInventory,
-  judges: SweepJudges, pending: ArchiveCopyScope[]): Promise<SweepResult> {
-  const found = [...inventory.names];
-  const newlyObserved = recoveredScopeNames(initial, inventory);
-  const indexWithNames = await publishRecoveryNames(input, initial, newlyObserved);
-  const recordedNames = recordedCopyNames(indexWithNames);
-  const recovering = new Set(indexWithNames.archiveRecoveryCopies?.filter(name =>
-    !indexWithNames.withheldCopies.includes(name) && !recordedNames.has(name)));
-  const retried = await recoverUnindexedCopies({ ...input, index: indexWithNames }, found.filter(copy => recovering.has(copy)), judges);
-  const recorded = await takeOverRecorded(input, indexWithNames, judges);
-  const unrecorded = await takeOverUnrecorded(input, recorded.index, recovering.size === 0 ? found : found.filter(copy => !recovering.has(copy)), judges);
+    blockedByLink: path => input.blockedByLink?.(path) ?? observed(path) };
+  if (input.index === null) return { ignores, ...await sweepWithoutIndex(input, found, judges) };
+  const recorded = await takeOverRecorded(input, input.index, judges);
+  const unrecorded = await takeOverUnrecorded(input, recorded.index, found, judges);
   await deleteStagedFiles(input, found, judges.writerOf);
-  const reconciled = releaseDeletedWithheldCopies(recorded.index, inventory);
-  const settled = recordUnindexedRecovery(reconciled, retried.left, recovering, inventory);
-  const observedIndex = recordProjectionIgnoreCheck(withCopyScopes(settled, pending), ignores);
-  const restoredUnindexed = [...retried.restoredUnindexed, ...returnedDestinations(inventory, recovering)];
-  // The caller publishes the rebuilt inventory. Keep the retry names in any intervening index publication
-  // so a stop after alias removal still leads the next command to those destinations.
-  const duringSettlement = protectUnindexedReturns(observedIndex, initial.archiveCopyPending ?? [], pending, recovering, restoredUnindexed);
+  const observedIndex = recordProjectionIgnoreCheck(releaseDeletedWithheldCopies(recorded.index, found), ignores);
   const index = recorded.swept.length === 0 ? observedIndex : await commitReturnedCopies({
     location: input.location, checkout: input.checkout, checkpoint: input.checkpoint,
-    returned: recorded.swept.filter(each => !judges.archiveAccess.has(each.path) && !judges.returnHolds.has(each.path)
-      && (each.outcome.kind === "returned" || each.outcome.kind === "linked-back"))
-      .map(({ path, copy }) => ({ path, copy })), index: duringSettlement, refuseChange: input.refuseChange,
+    returned: recorded.swept.filter(each => each.outcome.kind === "returned" || each.outcome.kind === "linked-back")
+      .map(({ path, copy }) => ({ path, copy })), index: observedIndex,
   });
   const copies = recorded.swept.flatMap(({ path, outcome }) => (
     outcome.kind === "returned" && outcome.replacement !== null ? [{ path, copy: outcome.replacement }] : []
   ));
-  return { ignores, index: index === observedIndex ? index
-    : { ...index, archiveRecoveryCopies: observedIndex.archiveRecoveryCopies, archiveCopyPending: observedIndex.archiveCopyPending,
-      archiveDiscoveryPending: observedIndex.archiveDiscoveryPending },
-    swept: recorded.swept, left: [...retried.left, ...recorded.left, ...unrecorded], withheld: [], copies,
-    restoredUnindexed };
-}
-
-function protectUnindexedReturns(index: ProjectionIndex, prior: readonly ArchiveCopyScope[], pending: readonly ArchiveCopyScope[],
-  recovering: ReadonlySet<string>, returned: readonly string[]): ProjectionIndex {
-  const settlement = keepUnindexedRetryNames(withCopyScopes(index, [...prior, ...pending]), recovering);
-  const destinations = returned.filter(isArchiveScope);
-  return destinations.length === 0 ? settlement : { ...settlement,
-    archiveDiscoveryPending: [...new Set([...settlement.archiveDiscoveryPending ?? [], ...destinations])] };
-}
-
-function withCopyScopes(index: ProjectionIndex, scopes: ArchiveCopyScope[]): ProjectionIndex {
-  if (scopes.length === 0 && index.archiveCopyPending === undefined) return index;
-  return { ...index, archiveCopyPending: scopes.length === 0 ? undefined : scopes };
-}
-
-async function publishRecoveryNames(input: SweepInput, index: ProjectionIndex, names: readonly string[]): Promise<ProjectionIndex> {
-  if (names.length === 0) return index;
-  // The prefix cannot locate an alias after it is removed. Publish the exact names before settling them.
-  return commitProjectionIndex({ location: input.location, checkout: input.checkout, checkpoint: input.checkpoint,
-    index: keepUnindexedRetryNames(index, new Set(names)) });
-}
-
-function keepUnindexedRetryNames(index: ProjectionIndex, prior: ReadonlySet<string>): ProjectionIndex {
-  return prior.size === 0 ? index : { ...index, archiveRecoveryCopies: [...new Set([...prior, ...index.archiveRecoveryCopies ?? []])] };
+  return { ignores, index, swept: recorded.swept, left: [...recorded.left, ...unrecorded], withheld: [], copies };
 }
 
 /** A withheld copy the person deleted is released: its name leaves the list once the aside folder no longer holds it. */
-function releaseDeletedWithheldCopies(index: ProjectionIndex, inventory: CopyInventory): ProjectionIndex {
-  const kept = index.withheldCopies.filter(copy => !copyAbsenceProved(inventory, copy));
+function releaseDeletedWithheldCopies(index: ProjectionIndex, found: readonly string[]): ProjectionIndex {
+  const kept = index.withheldCopies.filter(copy => found.includes(copy));
   return kept.length === index.withheldCopies.length ? index : { ...index, withheldCopies: kept };
 }
 
@@ -225,23 +136,12 @@ interface SweepJudges {
   readonly writerOf: (name: string) => WriterState;
   readonly writable: (path: string) => boolean;
   readonly blockedByLink: ProjectionLinkBoundary;
-  readonly archiveAccess: Map<string, RefusedMark>;
-  readonly unread: readonly UninspectedCopies[];
-  readonly returnHolds: Map<string, RefusedMark>;
 }
 
 /** Admit a copy destination before any read or restoration can traverse its path. */
 function destinationRefusal(path: string, copy: string, judges: SweepJudges): LeftCopy | null {
-  const unread = uninspectedCopy(judges.unread, copy);
-  if (unread !== undefined) return destinationBlockedCopy(path, copy, unread.mark, true);
-  const held = judges.returnHolds.get(path);
-  if (held !== undefined) return destinationBlockedCopy(path, copy, held, false, "parent");
-  const access = judges.archiveAccess.get(path);
-  if (access !== undefined) return destinationBlockedCopy(path, copy, access, true);
   const link = judges.blockedByLink(path);
-  if (link !== null) return isArchiveScope(path)
-    ? destinationBlockedCopy(path, copy, { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) }, false, "link")
-    : { path, copy, reason: "not-a-file", remedy: projectionLinkRemedy(link) };
+  if (link !== null) return { path, copy, reason: "not-a-file", remedy: projectionLinkRemedy(link) };
   return judges.writable(path) ? null : unauthorizedCopy(path, copy);
 }
 
@@ -267,29 +167,13 @@ async function takeOverRecorded(
   const { taking, left } = recordsToTake(initial, judges);
   let index = initial;
   const swept: { path: string; copy: string; outcome: SweptCopy }[] = [];
-  // The sweep asks whether each archive path is this checkout's once, before it takes over any of the path's copies.
-  const selection = new Map<string, RefusedMark | null>();
-  const select = input.selectArchivePath ?? ((path: string) => {
-    if (!selection.has(path)) selection.set(path, archiveDestinationRefusal(input.checkout, path));
-    return selection.get(path) ?? null;
-  });
   for (const { path, copy } of taking) {
     const current = index.entries[path];
-    if (judges.archiveAccess.has(path) || judges.returnHolds.has(path) || current?.kind !== "record") continue;
-    const refused = select(path);
-    const active = refused === null && current.archiveSubmission?.aside !== undefined
-      ? await input.recoverArchiveSubmission?.(index, path, current) : { index, entry: current, held: false };
-    if (active === undefined) continue;
-    index = active.index;
-    const record = active.entry.copies.find((record) => record.name === copy);
-    if (active.held || record === undefined) continue;
-    const outcome: SweptCopy = refused === null ? await sweepCopy(input, path, active.entry, record)
-      : { kind: "blocked-destination", entry: active.entry, mark: refused };
+    const record = current?.kind === "record" ? current.copies.find((record) => record.name === copy) : undefined;
+    if (current?.kind !== "record" || record === undefined) continue;
+    const outcome = await sweepCopy(input, path, current, record);
     index = withProjectionEntry(index, path, outcome.entry);
     swept.push({ path, copy: record.name, outcome });
-    const accessHold = asideCopyAccessHold(outcome);
-    if (accessHold !== undefined) judges.archiveAccess.set(path, accessHold);
-    else if (outcome.kind === "blocked-destination") judges.returnHolds.set(path, outcome.mark);
   }
   return { index, swept, left };
 }
@@ -325,7 +209,9 @@ async function takeOverUnrecorded(
   input: SweepInput, index: ProjectionIndex, found: readonly string[], judges: SweepJudges,
 ): Promise<LeftCopy[]> {
   const { writerOf } = judges;
-  const recorded = recordedCopyNames(index);
+  const recorded = new Set(Object.values(index.entries).flatMap((entry) => (
+    entry.kind === "record" ? entry.copies.map((copy) => copy.name) : []
+  )));
   const left: LeftCopy[] = [];
   for (const location of found) {
     const named = parseAsideFile(location);
@@ -334,9 +220,8 @@ async function takeOverUnrecorded(
     if (refusal !== null) { left.push(refusal); continue; }
     const writer = writerOf(location);
     if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
-    if (writer === "exited") {
-      const retained = await deleteIfUnedited(input, location, named);
-      if (retained !== null) recordLeftCopy(retained, left, judges);
+    if (writer === "exited" && !await deleteIfUnedited(input, location, named)) {
+      left.push(await retainedCopy(input.checkout, named.path, location, "unrecorded"));
     }
   }
   return left;
@@ -344,165 +229,64 @@ async function takeOverUnrecorded(
 
 /**
  * With no usable index the sweep takes nothing in: a regular copy whose path is absent is linked back, a symbolic
- * link or file equal to its base is deleted, and every other stays, reported with its path: withheld, unless its path
- * is an archive path this checkout may not change, which is reported with that refusal instead.
+ * link or file equal to its base is deleted, and every other stays, withheld and reported with its path.
  */
 async function sweepWithoutIndex(
-  input: SweepInput, inventory: CopyInventory, judges: SweepJudges, pending: ArchiveCopyScope[],
+  input: SweepInput, found: readonly string[], judges: SweepJudges,
 ): Promise<Omit<SweepResult, "ignores">> {
-  const found = [...inventory.names];
-  const prior = new Set(input.recoveryCopies?.filter(name => !input.withheldCopies?.includes(name)));
-  const recovered = await recoverUnindexedCopies(input, found, judges);
-  await deleteStagedFiles(input, found, judges.writerOf);
-  const withheld = [...new Set([...(input.withheldCopies ?? []).filter(copy => !copyAbsenceProved(inventory, copy)),
-    ...withheldUnindexedCopies(recovered.left)])];
-  return { index: null, swept: [], ...recovered, withheld, copies: [],
-    pendingCopyScopes: pending,
-    recoveryCopies: retainedRecoveryNames(recovered.left, prior, new Set(withheld), inventory),
-    restoredUnindexed: [...recovered.restoredUnindexed, ...returnedDestinations(inventory, prior)] };
-}
-
-/** Resume recovery with the same no-index evidence, including when a replacement index has since been published. */
-async function recoverUnindexedCopies(input: SweepInput, found: readonly string[], judges: SweepJudges): Promise<Pick<SweepResult, "left" | "restoredUnindexed">> {
+  const { writerOf } = judges;
+  const canRecover = (location: string, writer: WriterState) => writer === "exited" || input.commandCopies?.has(location) === true;
   const left: LeftCopy[] = [];
-  const restoredUnindexed: string[] = [];
+  const withheld: string[] = [];
   for (const location of found) {
     const named = parseAsideFile(location);
     if (named?.role !== "aside") continue;
-    const result = await recoverUnindexedCopy(input, location, named, judges);
-    if (result === null) continue;
-    if ("destinationOwed" in result) {
-      restoredUnindexed.push(named.path);
-      if (result.retained !== undefined) recordLeftCopy(result.retained, left, judges);
-    } else recordLeftCopy(result, left, judges);
-  }
-  return { left, restoredUnindexed };
-}
-
-function recordLeftCopy(copy: LeftCopy, left: LeftCopy[], judges: SweepJudges): void {
-  if (copy.access && copy.refusal !== undefined) judges.archiveAccess.set(copy.path, copy.refusal);
-  else if (copy.destinationRefusal && copy.refusal !== undefined) judges.returnHolds.set(copy.path, copy.refusal);
-  left.push(copy);
-}
-
-type UnindexedRecovery = LeftCopy | { readonly destinationOwed: true; readonly retained?: LeftCopy } | null;
-
-async function recoverUnindexedCopy(input: SweepInput, location: string, named: AsideFile, judges: SweepJudges): Promise<UnindexedRecovery> {
-  if ((input.index?.withheldCopies ?? input.withheldCopies)?.includes(location)) {
-    try { return await retainedCopy(input.checkout, named.path, location, "withheld"); }
-    catch (error) { return { ...blockedCopyObservation(named.path, location, error), reason: "withheld" }; }
-  }
-  const refusal = destinationRefusal(named.path, location, judges);
-  if (refusal !== null) return refusal;
-  const writer = judges.writerOf(location);
-  if (writer === "exited") return returnWithoutIndex(input, location, named);
-  if (writer === "other-scope" || input.index !== null || input.recoveryCopies?.includes(location)) {
-    return { path: named.path, copy: location, reason: "other-scope" };
-  }
-  return null;
-}
-
-function withheldUnindexedCopies(left: readonly LeftCopy[]): string[] {
-  return left.filter(copy => copy.reason === "withheld" || copy.reason === "not-a-file").map(copy => copy.copy);
-}
-
-function retainedRecoveryNames(left: readonly LeftCopy[], prior: ReadonlySet<string>, withheld: ReadonlySet<string>,
-  inventory: CopyInventory): string[] {
-  const retries = new Set([...prior].filter(name => uninspectedCopy(inventory.unread, name) !== undefined));
-  for (const copy of left) {
-    if (prior.has(copy.copy) || isArchiveScope(copy.path) && copy.reason === "destination-blocked") retries.add(copy.copy);
-  }
-  return [...retries].filter(name => !withheld.has(name));
-}
-
-/** Recovery eligibility survives obstruction but never supersedes a withheld disposition. */
-function recordUnindexedRecovery(index: ProjectionIndex, left: readonly LeftCopy[], prior: ReadonlySet<string>,
-  inventory: CopyInventory): ProjectionIndex {
-  if (left.length === 0 && prior.size === 0 && index.archiveRecoveryCopies === undefined) return index;
-  const withheld = new Set([...index.withheldCopies, ...withheldUnindexedCopies(left)]);
-  const retries = retainedRecoveryNames(left, prior, withheld, inventory);
-  return { ...index, withheldCopies: [...withheld], archiveRecoveryCopies: retries.length ? retries : undefined };
-}
-
-/** Link a copy back to its absent path, or retain it when its destination or contents prevent recovery. */
-async function returnWithoutIndex(input: SweepInput, location: string, named: AsideFile): Promise<UnindexedRecovery> {
-  const refusal = archiveDestinationHold(input.checkout, named.path, location);
-  if (refusal !== null) return refusal;
-  const at = { copy: join(input.checkout, location), path: join(input.checkout, named.path) };
-  try {
-    if ((await readAsideStat(at.copy, named.path))?.type === "file") {
-      if (await returnUnindexedFile(input, named, at)) return await finishUnindexedReturn(input, location, named);
+    if (input.withheldCopies?.includes(location)) {
+      withheld.push(location);
+      left.push(await retainedCopy(input.checkout, named.path, location, "withheld"));
+      continue;
     }
-  } catch (error) { return blockedCopyObservation(named.path, location, error); }
-  const retained = await deleteUneditedCopy(input, location, named, "withheld");
-  if (!isArchiveScope(named.path)) return retained;
-  return retained === null ? { destinationOwed: true } : { destinationOwed: true, retained };
-}
-
-async function finishUnindexedReturn(input: SweepInput, location: string, named: AsideFile): Promise<UnindexedRecovery> {
-  let retained: LeftCopy;
-  try {
-    const outcome = await removeReturnedAsideFile(input.checkout, location, named.path, input.checkpoint);
-    if (outcome !== "retained") return { destinationOwed: true };
-    retained = await retainedCopy(input.checkout, named.path, location, "withheld");
-  } catch (error) { retained = blockedCopyObservation(named.path, location, error); }
-  return isArchiveScope(named.path) ? { destinationOwed: true, retained } : retained;
-}
-
-async function returnUnindexedFile(input: SweepInput, named: AsideFile, at: { copy: string; path: string }): Promise<boolean> {
-  const holding = await projectionFileReader(input.checkout, named.path).stat(at.path);
-  if (holding === null) {
-    const moves = retriedMoves(input, { checkout: input.checkout, path: named.path });
-    return await moves.returnOnto(at.copy, at.path) === "linked";
+    const refusal = destinationRefusal(named.path, location, judges);
+    if (refusal !== null) {
+      left.push(refusal);
+      if (refusal.reason === "not-a-file") withheld.push(location);
+      continue;
+    }
+    const writer = writerOf(location);
+    if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
+    if (!canRecover(location, writer) || await returnWithoutIndex(input, location, named)) continue;
+    withheld.push(location);
+    left.push(await retainedCopy(input.checkout, named.path, location, "withheld"));
   }
-  if (holding.type === "symlink" && isArchiveScope(named.path)) throw linkedArchiveReturn(named.path);
-  // A stop may have occurred after linking the original but before removing its alias.
-  try { return await sameProjectionFile(at.copy, at.path); }
-  catch (error) { throw new ArchiveDestinationBlocked(copyAliasAccessRefusal(named.path, error), true); }
+  await deleteStagedFiles(input, found, writerOf);
+  return { index: null, swept: [], left, withheld, copies: [] };
+}
+
+/** Link a copy back to its absent path, or delete one that holds no edit; false where it holds one and stays. */
+async function returnWithoutIndex(input: SweepInput, location: string, named: AsideFile): Promise<boolean> {
+  const at = { copy: join(input.checkout, location), path: join(input.checkout, named.path) };
+  const isFile = (await readStat(at.copy))?.type === "file";
+  if (isFile && await readStat(at.path) === null && await retriedMoves(input).linkOnto(at.copy, at.path)) {
+    await input.checkpoint?.();
+    await removeProjectionAsideFile(input.checkout, at.copy, input.checkpoint);
+    return true;
+  }
+  return deleteIfUnedited(input, location, named);
 }
 
 /** Delete a symbolic link or a file equal to its base; retain directories and edits with their contents. */
-async function deleteIfUnedited(input: SweepInput, location: string, named: AsideFile): Promise<LeftCopy | null> {
-  return archiveDestinationHold(input.checkout, named.path, location) ?? deleteUneditedCopy(input, location, named, "unrecorded");
-}
-
-/** Delete an unedited copy of a path this sweep already selected; the deletion asks again just before it unlinks. */
-async function deleteUneditedCopy(input: SweepInput, location: string, named: AsideFile,
-  reason: "unrecorded" | "withheld"): Promise<LeftCopy | null> {
+async function deleteIfUnedited(input: SweepInput, location: string, named: AsideFile): Promise<boolean> {
   const copy = join(input.checkout, location);
-  try {
-    const stat = await readAsideStat(copy, named.path);
-    if (stat === null) return null;
-    if (stat.type === "other") return await retainedCopy(input.checkout, named.path, location, reason);
-    const unedited = stat.type !== "file"
-      || storedBlobId(await readAsideText(copy, named.path), { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
-    if (!unedited) return await retainedCopy(input.checkout, named.path, location, reason);
-    await removeRecoveredAsideFile(input.checkout, location, named.path, input.checkpoint);
-    return null;
-  } catch (error) {
-    if (isArchiveScope(named.path) && missingAsideOperand(error)) {
-      requireAsideParents(input.checkout, copy, named.path);
-      if (await readAsideStat(copy, named.path) === null) return null;
-      return destinationBlockedCopy(named.path, location, archiveFileChangeMark(named.path), true);
-    }
-    return blockedCopyObservation(named.path, location, error);
+  const stat = await readStat(copy);
+  if (stat === null) return true;
+  if (stat.type === "other") return false;
+  const unedited = stat.type !== "file"
+    || storedBlobId(await readFile(copy, "utf8"), { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
+  if (unedited) {
+    await input.checkpoint?.();
+    await removeProjectionAsideFile(input.checkout, copy, input.checkpoint);
   }
-}
-
-function blockedCopyObservation(path: string, copy: string, error: unknown): LeftCopy {
-  if (!(error instanceof ArchiveDestinationBlocked)) throw error;
-  return destinationBlockedCopy(path, copy, error.mark, error.access, error.destinationCause);
-}
-
-function archiveDestinationHold(checkout: string, path: string, copy: string): LeftCopy | null {
-  const destination = archiveDestination(checkout, path);
-  return destination === null ? null : destinationBlockedCopy(path, copy, destination.mark, destination.cause === "access", destination.cause);
-}
-
-function destinationBlockedCopy(path: string, copy: string, mark: RefusedMark, access: boolean,
-  cause?: ArchiveDestinationBlocked["destinationCause"]): LeftCopy {
-  return { path, copy, reason: "destination-blocked", remedy: mark.remedy, refusal: mark,
-    ...(access ? { access: true } : {}), ...(cause !== undefined && cause !== "access" ? { destinationRefusal: true } : {}) };
+  return unedited;
 }
 
 /** Delete the staged files a writer that has exited left. */
@@ -524,27 +308,18 @@ async function deleteStagedFiles(
 async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, record: AsideCopyRecord): Promise<SweptCopy> {
   const { checkout } = input;
   const at = { copy: join(checkout, record.name), path: join(checkout, path) };
+  const stat = await readStat(at.copy);
   // Moved back to its path, or never made after a stop.
-  try {
-    const stat = await readAsideStat(at.copy, path);
-    if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
-    const holding = await readPathHolding(checkout, path, input.format);
-    if (stat.type === "symlink") {
-      const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name, checkpoint: input.checkpoint });
-      // An absent path waits for the next refresh to rebuild it.
-      return { kind: "deleted", entry: holding.kind === "absent" ? { ...deleted, pending: true } : deleted };
-    }
-    if (stat.type === "file" && holding.kind === "absent" && !hasPathMovedOn(record, holding)
-      && !(path.startsWith(".arc/completed/") && record.landed !== null)) {
-      const returned = await retriedMoves(input, { checkout, path }).returnOnto(at.copy, at.path);
-      if (returned === "linked") return { kind: "linked-back", entry: restoreReturnedCopy(entry, record) };
-      if (returned === "source-absent") {
-        return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
-      }
-    }
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };
-    throw error;
+  if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
+  const holding = await readPathHolding(at.path, input.format);
+  if (stat.type === "symlink") {
+    const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name, checkpoint: input.checkpoint });
+    // An absent path waits for the next refresh to rebuild it.
+    return { kind: "deleted", entry: holding.kind === "absent" ? { ...deleted, pending: true } : deleted };
+  }
+  if (stat.type === "file" && holding.kind === "absent" && !hasPathMovedOn(record, holding)
+    && await retriedMoves(input).linkOnto(at.copy, at.path)) {
+    return { kind: "linked-back", entry: { ...restoreCopyRendering(entry, record), pending: true } };
   }
   // Every other copy, and one whose path reappeared before its link, is settled as any aside copy is.
   const { format, takeIn, writer, fs, retrySleep, gate } = input;
@@ -575,21 +350,19 @@ function judgeWriters(input: SweepInput): (name: string) => WriterState {
 }
 
 /** Every copy and staged file in the aside folder, a symbolic link read as itself, by repository-relative location. */
-async function listAsideFolder(checkout: string, checkpoint?: () => Promise<void>): Promise<CopyInventory> {
-  const names = new Set<string>();
-  const unread: UninspectedCopies[] = [];
+async function listAsideFolder(checkout: string, checkpoint?: () => Promise<void>): Promise<string[]> {
+  const found: string[] = [];
   for await (const visit of walkProjectionAsideFolder(checkout)) {
-    if (visit.kind === "copy") names.add(visit.location);
-    else if (visit.kind === "uninspected") unread.push(visit);
+    if (visit.kind === "copy") found.push(visit.location);
     else await pruneAsideScaffold(checkout, visit.location, checkpoint);
   }
-  return { names, unread };
+  return found;
 }
 
 /** Report retained directories with their repair route, without deleting their contents. */
 async function retainedCopy(checkout: string, path: string, copy: string, reason: "unrecorded" | "withheld"): Promise<LeftCopy> {
   const absolute = join(checkout, copy);
-  return (await readAsideStat(absolute, path))?.type === "other"
+  return (await readStat(absolute))?.type === "other"
     ? { path, copy, reason: "not-a-file", remedy: notAFileRemedy(absolute) }
     : { path, copy, reason };
 }

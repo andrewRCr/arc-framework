@@ -3,7 +3,7 @@ import type { ProjectionFileWriteObservation } from "./file-write-observation.js
 import { withProjectionEntry } from "./index-memory.js";
 import type { WriteResult } from "../write.js";
 import type { ProjectionRootState } from "./process-state.js";
-import type { ArchiveSaveSubmission, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
+import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { TakeInRead } from "./take-in-port.js";
 import { gitBlobId } from "./blob-id.js";
 import { commitProjectionIndex } from "./index-file.js";
@@ -12,36 +12,20 @@ import { recordPendingWriteBack } from "./taken-in.js";
 import { completeWriteBackRecording } from "./write-back-recording.js";
 import type { StoreRecord } from "../read.js";
 import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
-import { acceptedArchiveRecording } from "./archive-save-recording.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { refuseUnreadArchiveScope } from "./archive-selection.js";
-import { adoptionResolutionHold, pendingObservedRefusal } from "./recording-state.js";
-import { readArchiveAdoptionBaseline } from "./adoption-basis.js";
-import type { ReplaceGuardInput } from "./replace-guard.js";
 
 /** Record the returned creation basis with prepared content before attempting read-back. */
 export async function recordAdoptionAcceptance(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  accepted: WriteResult, input: string | ArchiveSaveSubmission, read: TakeInRead,
-  onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
-  const { recorded, pending } = await publishAdoptionAcceptance(root, index, path, accepted, input, read);
-  return resumeAdoptionReadBack(root, recorded, path, pending, onFile);
-}
-
-/** Record acceptance even where the destination cannot yet be observed or installed. */
-export async function publishAdoptionAcceptance(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  accepted: WriteResult, input: string | ArchiveSaveSubmission, read: TakeInRead): Promise<{ recorded: ProjectionIndex; pending: RecordEntry }> {
+  accepted: WriteResult, content: string, read: TakeInRead, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
   if (accepted.version === undefined) throw new Error("An accepted content creation returned no version");
-  const blob = typeof input === "string" ? gitBlobId(input, root.context.format) : input.blob;
   const entry: RecordEntry = { ...(index.entries[path]?.opened === true ? { opened: true as const } : {}), kind: "record", reference: accepted.reference, stat: read.stat, written: read.blob,
-    base: { blob, version: accepted.version }, markers: null, notices: [],
+    base: { blob: gitBlobId(content, root.context.format), version: accepted.version }, markers: null, notices: [],
     unshown: accepted.conflicts, protected: false, changed: true, pending: true, withheld: false, refused: null,
     persisted: null, inProgress: null, copies: [], adoption: { kind: "read-back", read } };
-  const pending: RecordEntry = typeof input === "string"
-    ? await recordPendingWriteBack({ ...root.context, entry, stamp: blob, takenIn: input, read: read.blob, version: accepted.version })
-    : { ...entry, ...acceptedArchiveRecording(input, accepted.version) };
+  const pending = await recordPendingWriteBack({ ...root.context, entry, stamp: entry.base.blob,
+    takenIn: content, version: accepted.version });
   const recorded = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, pending), checkpoint: root.context.checkpoint });
-  return { recorded, pending };
+  return resumeAdoptionReadBack(root, recorded, path, pending, onFile);
 }
 
 /** Finish an accepted creation without sending another expected-absent write or rebinding its owner by name. */
@@ -61,23 +45,10 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
   if (recorded.adoption === undefined) return index;
   entry = recorded;
   if (!root.writable(path)) return index;
-  let baseline: NonNullable<ReplaceGuardInput["baseline"]>;
-  try { baseline = await readArchiveAdoptionBaseline(root.checkout, path, entry, read.result, root.context.format) ?? adoption.read; }
-  catch (error) {
-    // A folder that refuses the archived file's stat holds this read-back with that refusal, as the other archive reads do.
-    if (!(error instanceof ArchiveDestinationBlocked)) throw error;
-    if (error.access) refuseUnreadArchiveScope(root, path, error.mark);
-    return holdReadBack(root, index, path, entry, error.mark, !error.access);
-  }
-  const hold = adoptionResolutionHold(entry);
-  if (hold !== null) {
-    root.context.report?.({ path, copy: null, mark: hold });
-    return index;
-  }
   const request = { checkout: root.checkout, path, copy: null, entry: { ...entry, refused: null, pending: false },
     base: { kind: "blob" as const, blob: entry.base.blob } };
   const installed = await installWriteBack(root.context, index, request, { kind: "landed", record: read.result,
-    result: { answer: "taken-in", entry: request.entry, read: adoption.read } }, baseline);
+    result: { answer: "taken-in", entry: request.entry, read: adoption.read } });
   if (installed.result.answer === "taken-in") root.unsent.delete(path);
   const completed = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: completeReadBack(installed.index, path), checkpoint: root.context.checkpoint });
@@ -89,7 +60,7 @@ async function completeAdoptionRecording(root: ProjectionRootState, index: Proje
   entry: RecordEntry, record: StoreRecord): Promise<ProjectionIndex> {
   const adoption = entry.adoption;
   if (adoption?.kind !== "read-back" || entry.persisted?.recording !== true) return index;
-  const recorded = await completeWriteBackRecording(root.context, entry, { checkout: root.checkout, path }, record);
+  const recorded = await completeWriteBackRecording(root.context, entry, record);
   if (recorded.mark !== undefined) return holdReadBack(root, index, path, recorded.entry, recorded.mark);
   const retained = adoption.retained;
   const updated: RecordEntry = { ...recorded.entry, refused: retained ?? null,
@@ -110,9 +81,9 @@ function completeReadBack(index: ProjectionIndex, path: string): ProjectionIndex
 }
 
 async function holdReadBack(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
-  mark: RefusedMark, report = true): Promise<ProjectionIndex> {
-  if (report) root.context.report?.({ path, copy: null, mark });
+  mark: RefusedMark): Promise<ProjectionIndex> {
+  root.context.report?.({ path, copy: null, mark });
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: withProjectionEntry(index, path, pendingObservedRefusal(entry, mark)),
+    index: withProjectionEntry(index, path, { ...entry, pending: true, refused: mark }),
     checkpoint: root.context.checkpoint });
 }

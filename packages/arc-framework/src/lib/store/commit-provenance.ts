@@ -2,21 +2,12 @@
 
 import type { RecordReference } from "./identity.js";
 import { StoredProvenanceSchema, type CallerProvenance, type StoredProvenance } from "./links.js";
-import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
-
-/** Match one save identity at one exact record, even when the owner's name changes. */
-export function archiveSaveTrailer(reference: RecordReference, id: string): string {
-  const owner = reference.owner;
-  return `Arc-Archive-Save: ${id} ${canonicalDigest([owner.type, "uid" in owner ? owner.uid ?? owner.name : owner.name,
-    reference.kind, reference.key ?? null])}`;
-}
 
 /** Render one ref commit's provenance using its first changed record as the owner. */
 export function renderStoreCommitMessage(provenance: CallerProvenance, reference: RecordReference,
   batchId: string, actor?: string): string {
   const owner = reference.owner;
-  return renderMessage(provenance, owner.name, batchId, actor, "uid" in owner ? owner.uid : undefined,
-    provenance.archiveSaveId === undefined ? undefined : archiveSaveTrailer(reference, provenance.archiveSaveId));
+  return renderMessage(provenance, owner.name, batchId, actor, "uid" in owner ? owner.uid : undefined);
 }
 
 /** Name a validated empty-quarter merge by namespace rather than inventing an affected record owner. */
@@ -25,14 +16,12 @@ export function renderEmptyArchiveMergeMessage(ref: string, batchId: string, act
   return renderMessage({ verb: "sync", lifecycleAction: "merge" }, ref, batchId, actor);
 }
 
-function renderMessage(provenance: CallerProvenance, subject: string, batchId: string,
-  actor?: string, ownerUid?: string, archiveSave?: string): string {
+function renderMessage(provenance: CallerProvenance, subject: string, batchId: string, actor?: string, ownerUid?: string): string {
   return `${encodeValue(provenance.verb)} ${subject}\n\n${[
     `Arc-Lifecycle-Action: ${encodeValue(provenance.lifecycleAction)}`,
     ...(provenance.codeHead ? [`Arc-Code-Head: ${provenance.codeHead}`] : []),
     ...(ownerUid ? [`Arc-Owner: ${ownerUid}`] : []),
     `Arc-Batch: ${batchId}`,
-    ...(archiveSave ? [archiveSave] : []),
     ...(actor ? [`Arc-Actor: ${actor}`] : []),
   ].join("\n")}\n`;
 }
@@ -47,14 +36,12 @@ export function parseStoreCommitProvenance(message: string, reference: RecordRef
   }));
   try {
     const owner = reference.owner;
-    const archiveSave = trailers.get("Archive-Save"), archiveSaveId = archiveSave?.split(" ")[0];
     const parsed = StoredProvenanceSchema.safeParse({
       verb: decodeValue(subject.slice(0, subject.lastIndexOf(" "))),
       lifecycleAction: decodeValue(trailers.get("Lifecycle-Action") ?? ""),
       ...(trailers.has("Code-Head") ? { codeHead: trailers.get("Code-Head") } : {}),
       reference, ...("uid" in owner && owner.uid ? { ownerUid: owner.uid } : {}),
       batchId: trailers.get("Batch") ?? "",
-      ...(archiveSaveId && archiveSaveTrailer(reference, archiveSaveId) === `Arc-Archive-Save: ${archiveSave}` ? { archiveSaveId } : {}),
     });
     if (parsed.success) return parsed.data;
   } catch { /* A legacy message can contain text that is not JSON. */ }

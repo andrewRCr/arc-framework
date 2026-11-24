@@ -14,8 +14,6 @@ import { markStoreRefusal } from "./refusal-mark.js";
 import { interpretProjectionView } from "./view-settings.js";
 import type { ProjectionSelectionContext } from "./selection-context.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
-import type { ArchiveSelection } from "./process-state.js";
-import { archivedEditWaits, hasAcceptedLanding, waitingEditMark } from "./archive-admission.js";
 
 /** A provisional preparation proves no write landed and grants no right to replace a file. */
 export type ProjectionFeasibility = Exclude<PreparedWriteBack, { kind: "ready" }>
@@ -28,8 +26,6 @@ export interface ReadOnlyProjectionRoot extends ProjectionSelectionContext {
   readonly context: WriteBackContext;
   readonly view: ReturnType<typeof interpretProjectionView>["view"];
   readonly takeIn: (request: TakeInRequest) => Promise<ProjectionFeasibility>;
-  /** Each archive path's answer from the path check, asked once by the check's one selection. */
-  readonly archiveSelection: Map<string, ArchiveSelection>;
 }
 
 /** Read the target's layout and actor without a lock, process registration, or machine-ID creation. */
@@ -43,26 +39,11 @@ export async function bindReadOnlyProjectionRoot(input: Omit<ProjectionRootBindi
     registry: ports.registry, verb: input.mode ?? "write-back", captureLocal: createProjectionLocalCapture(input) };
   const rights = bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back");
   return { checkout: input.checkout, ...layout, context, store: input.store, identity: config.identity.identity, ports: { exec: ports.exec },
-    view: interpretProjectionView(config.view).view, archiveSelection: new Map(),
+    view: interpretProjectionView(config.view).view,
     takeIn: async request => {
       const denied = await rights(request);
-      if (denied !== null) return { kind: "refused", mark: denied };
-      return waitingFeasibility(input.checkout, request, await prepareProjectionFeasibility(context, request));
+      return denied === null ? prepareProjectionFeasibility(context, request) : { kind: "refused", mark: denied };
     } };
-}
-
-/**
- * The persist and release steps leave a waiting archived edit where it is, so the check answers a sendable one the
- * same way. A preparation that holds or refuses keeps its own remedy, and an accepted landing passes while the file
- * still holds the bytes the store accepted.
- */
-function waitingFeasibility(checkout: string, request: TakeInRequest, feasible: ProjectionFeasibility): ProjectionFeasibility {
-  // The laid rendering itself is no edit: a conflict it shows keeps that conflict's remedy.
-  if (feasible.kind !== "ready" || !archivedEditWaits(request) || feasible.read.blob === request.entry.written) return feasible;
-  const persisted = request.entry.persisted;
-  const accepted = persisted?.recording === true ? persisted.read : undefined;
-  if (hasAcceptedLanding(request.entry) && (accepted === undefined || accepted === feasible.read.blob)) return feasible;
-  return { kind: "refused", mark: waitingEditMark(checkout, request.path, true) };
 }
 
 /** Run the normal read and sealed preparation, stopping before submission or local persistence. */

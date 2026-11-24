@@ -1,5 +1,5 @@
-/** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
 import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
+/** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
 import { retirementRecording, retirementRetainedBase, interruptedRetirementCopy, interruptedRetirementReplacement } from "../helpers/store/projection-retirement.js";
 import { createRefusingStore } from "../helpers/store/projection/refusing-store.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
@@ -348,24 +348,6 @@ describe("store retirement real Git", () => {
     expect(await readFile(join(h.checkout, h.path))).toEqual(authored);
     if (fault === "read-back") h.repair();
     else await rename(`${h.retained}.held`, h.retained);
-    expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
-    expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("Accepted input awaiting its recording.\n");
-  });
-
-  it("withholds a file whose retained input no longer matches, and removes once the person deletes it", async () => {
-    const h = await retirementRecording();
-    h.repair();
-    await writeFile(h.retained, "Bytes that no longer match the recorded input.\n");
-    const authored = await readFile(join(h.checkout, h.path));
-    expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining(
-      "withheld: The projection has no trustworthy basis for this file. Copy out anything wanted, then delete the withheld file") });
-    expect(await readFile(join(h.checkout, h.path))).toEqual(authored);
-    // The store already holds the accepted input, so the deleted file is laid again from the stored record.
-    await rm(join(h.checkout, h.path));
-    await startProjection(h.command); await endProjection(h.command);
-    expect(await readFile(join(h.checkout, h.path), "utf8")).toContain("Accepted input awaiting its recording.\n");
-    expect(await readProjectionIndex(h.location, true, { groups: "all" })).toMatchObject({ kind: "index",
-      index: { entries: { [h.path]: { withheld: false, persisted: null } } } });
     expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("Accepted input awaiting its recording.\n");
   });

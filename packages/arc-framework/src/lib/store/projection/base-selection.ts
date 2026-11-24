@@ -7,9 +7,9 @@ import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { readBaseContent, type BaseSelectionContext } from "./base-content.js";
 import { selectStamplessBase } from "./stampless-base.js";
 import { readRetainedBase, RetainedBaseUnavailable, selectPersistedBase } from "./taken-in.js";
-import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
+import type { TakeInRequest } from "./take-in-port.js";
 
-import { adoptionResolutionHold, archiveAdoptionBasis, unfinishedRecordingRefusal } from "./recording-state.js";
+import { unfinishedRecordingRefusal } from "./recording-state.js";
 
 /** A resolved base and the stamp recorded for this take-in. */
 export interface SelectedWriteBackBase {
@@ -20,17 +20,15 @@ export interface SelectedWriteBackBase {
 
 /** Either a selected base or an ambiguity that keeps the file pending. */
 export type WriteBackBaseDecision = SelectedWriteBackBase | {
-  readonly kind: "held"; readonly mark: RefusedMark; readonly readRefusal?: StoreRefusal; readonly keepLive?: true;
+  readonly kind: "held"; readonly mark: RefusedMark; readonly readRefusal?: StoreRefusal;
 };
 
 /** Select a file's base from its actual stamp, including the content its last persisted write-back took in. */
 export async function selectWriteBackBase(
-  context: BaseSelectionContext, request: TakeInRequest, content: string, stamp: string | null, read?: TakeInRead,
+  context: BaseSelectionContext, request: TakeInRequest, content: string, stamp: string | null,
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const unfinished = unfinishedRecordingRefusal(request.entry);
   if (unfinished !== null) return { status: "refused", refusal: unfinished };
-  const adoption = adoptedMarkdownBase(context, request, content, read);
-  if (adoption !== null) return { status: "ok", result: adoption };
   try {
     return await selectBase(context, request, content, stamp);
   } catch (error) {
@@ -63,25 +61,6 @@ async function selectBase(
     } };
   }
   return recoverSelectedBase({ ...context, memo }, request, content, stamp);
-}
-
-/** Apply the archive journal before trusting the stamp of exact accepted bytes. */
-function adoptedMarkdownBase(context: BaseSelectionContext, request: TakeInRequest, content: string,
-  read: TakeInRead | undefined): WriteBackBaseDecision | null {
-  const { entry } = request;
-  if (!request.path.startsWith(".arc/completed/") || !request.path.endsWith(".md") || request.copy !== null
-    || request.resolution?.kind === "hold") return null;
-  const hold = adoptionResolutionHold(entry);
-  if (hold !== null) return { kind: "held", keepLive: true, mark: hold };
-  if (request.resolution !== undefined || request.observedEdit !== true || read === undefined
-    || entry.adoption?.kind !== "read-back" || read.blob !== entry.adoption.read.blob) return null;
-  const basis = archiveAdoptionBasis(entry, entry.adoption.read.stat, read.stat);
-  if (basis === "installed") return { kind: "selected",
-    base: { kind: "stored", version: entry.base.version }, stamp: entry.base.blob };
-  if (basis === "original" || gitBlobId(content, context.format) === entry.base.blob) return null;
-  return { kind: "held", keepLive: true, mark: { reason: "ambiguous-base", remedy: {
-    text: "The archive installation could not be established. Keep this edit and reconcile it against the current stored content.",
-  } } };
 }
 
 async function selectHeldBase(context: BaseSelectionContext, entry: RecordEntry, stamp: string | null): Promise<StoreResult<SelectedWriteBackBase>> {

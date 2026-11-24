@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import type { StoreRecord } from "../read.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
-import { checkChange, projectionFileReader } from "./change-detection.js";
+import { checkChange } from "./change-detection.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { RenderedRecord } from "./record-render.js";
 import { renderedRecordText } from "./staging.js";
@@ -34,9 +34,8 @@ export async function keepSettledFileInPlace(input: SettledInPlaceInput): Promis
   const text = renderedRecordText({ path: input.path, record: input.record, content: input.rendered.content,
     notices: input.rendered.notices, format });
   if (gitBlobId(text, format) !== prior.written) return null;
-  const reader = projectionFileReader(input.checkout, input.path);
   const verdict = await checkChange({ path: join(input.checkout, input.path), recorded: prior.stat, written: prior.written,
-    reference: input.reference, format }, reader.read, reader.stat);
+    reference: input.reference, format });
   if (verdict.status !== "clean" && verdict.status !== "hashed-clean") return null;
   return { ...prior, ...input.rendered.state, protected: input.protected, stat: verdict.stat, pending: false,
     base: { blob: gitBlobId(input.record.content, format), version: input.record.version } };

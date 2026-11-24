@@ -2,7 +2,7 @@
 import { afterEach, expect, it } from "vitest";
 import { createWriteBackFixture, refreshWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
 import { success } from "../../../helpers/store/suite-tools.js";
-import { readPendingProjectionInput } from "../../../../src/lib/store/projection/unchanged-file.js";
+import { readUnchangedProjectionFile } from "../../../../src/lib/store/projection/unchanged-file.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";
 
@@ -24,7 +24,7 @@ it.each(["md", "txt"])("recognizes an unchanged interrupted %s rendering without
   const state = success(await h.store.version());
   await expect(refreshWriteBackFixture(h, h.index, { afterRecheck: async () => { throw new Stop(); } })).rejects.toBeInstanceOf(Stop);
   const entry = await interruptedEntry(h);
-  expect(await readPendingProjectionInput(h.context, { ...h.request, entry, observedEdit: true })).toMatchObject({ kind: "unchanged" });
+  expect(await readUnchangedProjectionFile(h.context, { ...h.request, entry, observedEdit: true })).not.toBeNull();
   expect(success(await h.store.version())).toBe(state);
   expect(await h.file()).toContain("opening\nbase\nclosing\n");
 });
@@ -36,15 +36,15 @@ it.each(["md", "txt"])("preserves an intentional %s revert after a recorded take
     .rejects.toBeInstanceOf(Stop);
   const entry = await interruptedEntry(h);
   await h.edit("opening\nbase\nclosing\n");
-  expect(await readPendingProjectionInput(h.context, { ...h.request, entry, observedEdit: true })).toBeNull();
+  expect(await readUnchangedProjectionFile(h.context, { ...h.request, entry, observedEdit: true })).toBeNull();
   expect(await h.file()).toContain("opening\nbase\nclosing\n");
 });
 
 it("leaves an explicit resolution and newly authored bytes to edit handling", async () => {
   const h = await createWriteBackFixture(); fixtures.push(h);
   const request = { ...h.request, entry: { ...h.entry, pending: true } };
-  expect(await readPendingProjectionInput(h.context, { ...request, resolution: { kind: "hold", token: "selected" } })).toBeNull();
+  expect(await readUnchangedProjectionFile(h.context, { ...request, resolution: { kind: "hold", token: "selected" } })).toBeNull();
   await h.edit("A real hand edit.\n");
-  expect(await readPendingProjectionInput(h.context, request)).toBeNull();
+  expect(await readUnchangedProjectionFile(h.context, request)).toBeNull();
   expect(await h.file()).toContain("A real hand edit.");
 });

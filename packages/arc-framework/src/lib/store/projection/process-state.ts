@@ -20,13 +20,6 @@ import type { ProjectionRefreshRequest } from "./refresh.js";
 import type { ProjectionLinkBoundary } from "./discovery-links.js";
 import type { ProjectionFanOutBinding } from "./fan-out-binding.js";
 
-/** One archive path's answer from the path check, and whether this command has reported its refusal. */
-export interface ArchiveSelection {
-  readonly mark: RefusedMark | null;
-  readonly access?: true;
-  reported: boolean;
-}
-
 /** A round visits every registered checkout; `own` visits the writer's checkout alone. */
 export type FanOutScope = "all" | "own";
 
@@ -61,12 +54,10 @@ export interface ProjectionRootState {
   claimKind?: "work-unit" | "errand" | "partial-errand";
   layoutActive: "nested" | "flat";
   checkpoint: (() => Promise<void>) | null;
-  readonly copies: { path: string; copy: string }[];
+  /** Copies awaiting their final check, with the creating operation's take-in policy where it was narrower. */
+  readonly copies: { path: string; copy: string; takeIn?: TakeInPort }[];
   readonly removals: string[];
   readonly unsent: Set<string>;
-  /** Each archive path's answer from the path check this command asked once, at the path's first selection. */
-  archiveSelection?: Map<string, ArchiveSelection>;
-  archiveDiscoveryHolds?: Map<string, RefusedMark>;
   readonly discovered: string[];
   changed: boolean;
   sent?: boolean;

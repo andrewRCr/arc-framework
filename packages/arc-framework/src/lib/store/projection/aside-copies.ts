@@ -2,23 +2,20 @@
  * The rules every reader of an aside copy applies: what it holds, whether its path has moved on since its swap, and the
  * one step that checks a copy and deletes, keeps, or drops it.
  */
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { Remedy } from "../refusal.js";
-import { asideCopyHasEdit, nameAsideFile, parseAsideFile, type AsideWriterInput } from "./aside.js";
-import { readAsideStat } from "./aside-discovery.js";
+import { nameAsideFile, parseAsideFile, type AsideWriterInput } from "./aside.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
-import { projectionFileReader, readStat } from "./change-detection.js";
-import type { AsideCopyRecord, RecordEntry, RefusedMark } from "./index-schema.js";
+import { readStat } from "./change-detection.js";
+import type { AsideCopyRecord, RecordEntry } from "./index-schema.js";
 import { gateRead, SYSTEM_READ_GATE, type ReadGateDependencies, type ReadGateVerdict } from "./read-gate.js";
-import { copyAliasAccessRefusal, sameProjectionFile } from "./returned-copies.js";
+import { sameProjectionFile } from "./returned-copies.js";
 import { unshownConflicts } from "./held-conflicts.js";
 import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
-import { ArchiveDestinationBlocked, archivePermissionMark, isArchivePermissionRefusal } from "./archive-file.js";
-import { restoreAcceptedArchiveInput } from "./recording-state.js";
 
 /** What a copy's path holds now: nothing, a file's blob id, or something not a file, which is never read. */
 export type PathHolding =
@@ -28,19 +25,15 @@ export type PathHolding =
 
 /**
  * Read what a path holds, by `lstat` first.
- * @param checkout - The file's checkout.
- * @param path - The repository-relative path.
+ * @param path - The absolute path.
  * @param format - The object format its blob id is taken in.
  * @returns What it holds.
  */
-export async function readPathHolding(checkout: string, path: string, format: ObjectFormat): Promise<PathHolding> {
-  const absolute = join(checkout, path);
-  const reader = projectionFileReader(checkout, path);
-  const stat = await reader.stat(absolute);
+export async function readPathHolding(path: string, format: ObjectFormat): Promise<PathHolding> {
+  const stat = await readStat(path);
   if (stat === null) return { kind: "absent" };
   if (stat.type !== "file") return { kind: "not-a-file" };
-  const blob = gitBlobId(await reader.read(absolute), format);
-  return { kind: "file", blob };
+  return { kind: "file", blob: gitBlobId(await readFile(path), format) };
 }
 
 /**
@@ -84,7 +77,6 @@ export interface AsideCopySettling extends SwapMoves {
 
 /** What checking a copy found, with the entry as the check left it; checking deletes nothing. */
 export type CopyCheck =
-  | { readonly kind: "blocked-destination"; readonly entry: RecordEntry; readonly mark: RefusedMark; readonly access?: boolean }
   /** It holds no edit: not a file, what its swap moved, what it held when its own take-in landed, or as the port found. */
   | { readonly kind: "no-edit"; readonly entry: RecordEntry }
   /** It holds an edit, but its path has moved on: never sent. */
@@ -107,7 +99,7 @@ export type CopyCheck =
 export type AsideCopyObservation = Exclude<CopyCheck, { readonly kind: "moved-on" | "sent" }>
   | { readonly kind: "edited"; readonly entry: RecordEntry; readonly bytes: Uint8Array; readonly blob: string };
 
-/** Read-only copy inputs, optionally carrying what the copy's path already holds instead of reading it. */
+/** Read-only copy inputs, optionally carrying an opaque destination observation instead of traversing its ancestors. */
 export type AsideCopyChecking = Pick<AsideCopySettling, "checkout" | "path" | "entry" | "copy" | "format" | "takeIn" | "gate" | "keepEmpty">
   & { readonly holding?: PathHolding };
 
@@ -122,30 +114,16 @@ export async function checkAsideCopy(input: AsideCopyChecking): Promise<CopyChec
   if (observed.kind !== "edited") return observed;
   const { checkout, path, copy } = input;
   const { entry, bytes, blob } = observed;
-  try {
-    // An older save from the same buffer and another editor's newer one cannot be told apart.
-    if (hasPathMovedOn(copy, input.holding ?? await readPathHolding(checkout, path, input.format))) return { kind: "moved-on", entry };
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };
-    throw error;
-  }
+  // An older save from the same buffer and another editor's newer one cannot be told apart, so it is never sent.
+  if (hasPathMovedOn(copy, input.holding ?? await readPathHolding(join(checkout, path), input.format))) return { kind: "moved-on", entry };
   const base = copyBase(copy, bytes, path.endsWith(".md"));
   const result = await input.takeIn({ checkout, path, copy: copy.name, entry, base, rendering: copy.rendering, observedEdit: true });
-  if (result.archiveAccess !== undefined) return { kind: "blocked-destination", entry: result.entry, mark: result.archiveAccess, access: true };
   if (result.answer === "no-edit") return { kind: "no-edit", entry: result.entry };
   return { kind: "sent", answer: result.answer, entry: result.entry, result, blob };
 }
 
 /** Compare only the copy's payload with its recorded moving or accepted blob; never settle it or read its destination. */
 export async function observeAsideCopy(input: Pick<AsideCopySettling, "checkout" | "path" | "copy" | "entry" | "format" | "gate" | "keepEmpty">): Promise<AsideCopyObservation> {
-  try { return await inspectAsideCopy(input); }
-  catch (error) {
-    if (!input.path.startsWith(".arc/completed/") || !isArchivePermissionRefusal(error)) throw error;
-    return { kind: "blocked-destination", entry: input.entry, mark: archivePermissionMark(input.path, error, "read a copy of"), access: true };
-  }
-}
-
-async function inspectAsideCopy(input: Pick<AsideCopySettling, "checkout" | "path" | "copy" | "entry" | "format" | "gate" | "keepEmpty">): Promise<AsideCopyObservation> {
   const { checkout, path, copy, entry } = input;
   const markdown = path.endsWith(".md");
   const gated = await gateRead({ path: join(checkout, copy.name), markdown }, input.gate ?? SYSTEM_READ_GATE);
@@ -161,7 +139,8 @@ async function inspectAsideCopy(input: Pick<AsideCopySettling, "checkout" | "pat
   const bytes = await readFile(join(checkout, copy.name));
   if (input.keepEmpty && bytes.byteLength === 0) return { kind: "empty", entry };
   const blob = gitBlobId(bytes, input.format);
-  if (!asideCopyHasEdit(path, copy, blob)) return { kind: "no-edit", entry };
+  // What the swap moved, or what the copy held when its own take-in landed, is no edit wherever it is read.
+  if (blob === copy.moving || blob === copy.landed) return { kind: "no-edit", entry };
   return { kind: "edited", entry: { ...entry, changed: true }, bytes, blob };
 }
 
@@ -173,8 +152,6 @@ function observedEmpty(verdict: ReadGateVerdict): boolean {
 
 /** What settling a copy did, with the entry as it now stands. */
 export type CopySettlement =
-  /** A foreign archive destination is left opaque with the copy held in the outer checkout. */
-  | { readonly kind: "blocked-destination"; readonly entry: RecordEntry; readonly mark: RefusedMark; readonly access?: boolean }
   /** The path and copy are aliases after an interrupted return; publish its restored mapping before unlinking. */
   | { readonly kind: "linked-back"; readonly entry: RecordEntry }
   /** A directory or other nonregular object is retained, reported with its path and a repair route. */
@@ -201,31 +178,23 @@ export type CopySettlement =
 /** An answer whose edit is never deleted while it stands. */
 export type HeldEdit = "refused" | "unparseable" | "clashed";
 
-/** The targeted access hold that leaves other destinations eligible for settlement. */
-export function asideCopyAccessHold(settlement: CopySettlement): RefusedMark | undefined {
-  return settlement.kind === "blocked-destination" && settlement.access ? settlement.mark : undefined;
-}
-
 /**
  * Check one aside copy and settle it: delete it once it holds no edit or its edit landed whole, else keep it.
  * @param input - The copy, the file it was made of, and how to take an edit in.
  * @returns What became of it.
  */
 export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySettlement> {
-  const { checkout, path, copy, entry } = input;
-  const linked = await sameProjectionFile(join(checkout, copy.name), join(checkout, path))
-    .catch((error: unknown) => copyAliasAccessRefusal(path, error));
-  if (typeof linked === "object") return { kind: "blocked-destination", entry, mark: linked, access: true };
-  if (linked) {
-    return { kind: "linked-back", entry: restoreReturnedCopy(input.entry, input.copy) };
+  if (await sameProjectionFile(join(input.checkout, input.copy.name), join(input.checkout, input.path))) {
+    return { kind: "linked-back", entry: { ...restoreCopyRendering(input.entry, input.copy), pending: true } };
   }
   const checked = await checkAsideCopy(input);
   switch (checked.kind) {
-    case "blocked-destination": return checked;
     case "not-a-file": return { ...checked, path: input.path, copy: input.copy.name };
     case "empty": return { kind: "kept", entry: checked.entry, answer: "empty" };
     case "no-edit": return deleted(input, checked.entry);
-    case "gone": return dropMissingCopy(input, checked.entry);
+    case "gone": return { kind: "dropped", entry: await finalizeAsideCopy({
+      checkout: input.checkout, path: input.path, entry: checked.entry, copy: input.copy.name,
+    }) };
     case "unsettled": return { kind: "kept", entry: checked.entry, answer: "unsettled" };
     case "moved-on": return { kind: "moved-on", entry: checked.entry, path: input.path, copy: input.copy.name };
     case "sent": {
@@ -234,17 +203,6 @@ export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySet
       if (answer === "deferred" || answer === "pending") return { kind: "kept", entry: checked.entry, answer };
       return putBack(input, { ...checked, answer });
     }
-  }
-}
-
-async function dropMissingCopy(input: AsideCopySettling, entry: RecordEntry): Promise<CopySettlement> {
-  try {
-    return { kind: "dropped", entry: await finalizeAsideCopy({
-      checkout: input.checkout, path: input.path, entry, copy: input.copy.name,
-    }) };
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };
-    throw error;
   }
 }
 
@@ -260,40 +218,30 @@ export async function putBack(
   input: AsideCopySettling, sent: Extract<CopyCheck, { readonly kind: "sent" }> & { readonly answer: HeldEdit },
 ): Promise<CopySettlement> {
   const { checkout, path, copy } = input;
-  const moves = retriedMoves(input, { checkout, path });
+  const moves = retriedMoves(input);
   const at = { copy: join(checkout, copy.name), path: join(checkout, path) };
+  const holding = await readPathHolding(at.path, input.format);
   const aside: CopySettlement = { kind: "held-aside", entry: sent.entry, path, copy: copy.name, held: sent.answer };
+  if (hasPathMovedOn(copy, holding)) return aside;
   const refused = "mark" in sent.result ? sent.result.mark : sent.entry.refused;
   const marked: RecordEntry = {
     ...restoreCopyRendering(sent.entry, copy, sent.result.openConflicts), pending: true, refused, copies: sent.entry.copies,
   };
-  let replacement: string | null = null;
-  let retained = sent.entry;
-  try {
-    const holding = await readPathHolding(checkout, path, input.format);
-    if (hasPathMovedOn(copy, holding)) return aside;
-    if (holding.kind === "file") {
-      replacement = nameAsideFile({ path, base: sent.entry.base.blob, writer: input.writer, role: "aside" });
-      const destination = join(checkout, replacement);
-      await moves.prepareAside(destination);
-      const moved = await moves.rename(at.path, destination, { kind: "put-back", blob: holding.blob, format: input.format });
-      if (moved === "changed") return aside;
-      if (moved === "absent") replacement = null;
-      else {
-        const record: AsideCopyRecord = { name: replacement, moving: holding.blob, linked: sent.blob, writeBackSent: false, landed: null,
-          rendering: { markers: sent.entry.markers, notices: sent.entry.notices } };
-        retained = { ...retained, copies: [...retained.copies, record] };
-      }
-    }
-    // A save that recreated the path in between wins it; the copy stays aside, and the replacement beside it.
-    if (await moves.returnOnto(at.copy, at.path) !== "linked") return { ...aside, entry: retained };
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry: retained, mark: error.mark, access: error.access };
-    throw error;
+  if (holding.kind !== "file") {
+    if (!await moves.linkOnto(at.copy, at.path)) return aside;
+    return { kind: "returned", entry: marked, held: sent.answer, how: "linked-back", replacement: null };
   }
+  const replacement = nameAsideFile({ path, base: sent.entry.base.blob, writer: input.writer, role: "aside" });
+  await input.checkpoint?.();
+  await mkdir(dirname(join(checkout, replacement)), { recursive: true });
+  await moves.rename(at.path, join(checkout, replacement));
+  const record: AsideCopyRecord = { name: replacement, moving: holding.blob, linked: sent.blob, writeBackSent: false, landed: null,
+    rendering: { markers: sent.entry.markers, notices: sent.entry.notices } };
+  // A save that recreated the path in between wins it; the copy stays aside, and the replacement beside it.
+  if (!await moves.linkOnto(at.copy, at.path)) return { ...aside, entry: { ...sent.entry, copies: [...sent.entry.copies, record] } };
   return {
-    kind: "returned", entry: { ...marked, copies: retained.copies }, held: sent.answer,
-    how: replacement === null ? "linked-back" : "swapped-back", replacement,
+    kind: "returned", entry: { ...marked, copies: [...marked.copies, record] }, held: sent.answer, how: "swapped-back",
+    replacement,
   };
 }
 
@@ -307,25 +255,15 @@ function copyBase(copy: AsideCopyRecord, bytes: Uint8Array, markdown: boolean): 
 
 async function deleted(input: AsideCopySettling, entry: RecordEntry): Promise<CopySettlement> {
   const { checkout, path } = input;
-  try {
-    if (input.keepEmpty) {
-      const stat = await readAsideStat(join(checkout, input.copy.name), path);
-      if (stat?.type === "file" && stat.size === 0n) return { kind: "kept", entry, answer: "empty" };
-    }
-    return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name, checkpoint: input.checkpoint }) };
-  } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };
-    throw error;
+  if (input.keepEmpty) {
+    const stat = await readStat(join(checkout, input.copy.name));
+    if (stat?.type === "file" && stat.size === 0n) return { kind: "kept", entry, answer: "empty" };
   }
+  return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name, checkpoint: input.checkpoint }) };
 }
 
 /** Restore the mapping only when a copy's own bytes return to its path; current conflict evidence keeps advancing. */
 export function restoreCopyRendering(entry: RecordEntry, copy: AsideCopyRecord, open?: readonly import("../identity.js").RecordReference[]): RecordEntry {
   const restored = { ...entry, ...copy.rendering };
   return open === undefined ? restored : { ...restored, unshown: unshownConflicts(restored, open) };
-}
-
-/** A recovery link restored this copy at the original destination. */
-export function restoreReturnedCopy(entry: RecordEntry, copy: AsideCopyRecord): RecordEntry {
-  return { ...restoreAcceptedArchiveInput(restoreCopyRendering(entry, copy), copy), pending: true };
 }

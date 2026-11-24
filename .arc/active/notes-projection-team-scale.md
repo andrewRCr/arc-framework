@@ -960,6 +960,53 @@ locator for an unindexed edit. A returned alias can also go away before inventor
 A16 preserves those obligations and requires observed coverage before dropping them. A legacy path with no
 file-type evidence can name an opaque directory, so a link at that path leaves the retry pending through repair.
 
+## Amendment A17
+
+Review added three mechanisms to the archive by amendment, each promising a property on every route a command can take.
+The archive save's receipt and journal are A3, A5, A8, A10, A12, and A15, with § 10.5's storage-contract trailer. The
+path check, with its access, destination, and inventory holds, is A2's second rule, A4, A6, A7, A9, A11, A13, A14, and
+A16. The waiting-edit admission rule is A1 and A2's first rule. The design as activated has none of them. From complete
+pass 4 to fix check 32 the lane's critical and major findings ran 4, 5, 5, 4, 4, 5, 6, 6, 5, 5, 5, 5, 4, 10, 6, 20, and
+19, and all 19 at the last look sit in the first two mechanisms. Source insertions over the base grew from 845 at the
+build as designed (`396b4e929b`) to 5,399 at `37f4531c1b`.
+
+A17 withdraws all three, approved 2026-11-24:
+
+- **The receipt** closes for the archive alone a window the shipped design accepts for every root: a command stopped
+  after a write lands and before the index records it sends the edit again (`spec-projection-write-back.md` § 7.8, § 17
+  item 6). An archived correction is rare, so the archive is the root where that resend costs least.
+- **The path check and its holds** answer a question that belongs to every projected root: whether a command re-checks a
+  link ancestor just before a write, and whether a fault holds one path while its siblings continue. The copy handling
+  they were laid over is shared code this unit had not changed, so each hold patched one site of it for one root.
+- **The waiting rule** kept a flagged, unopened edit out of every later command. Without it such an edit lands at the
+  next plain `arc save` (§ 11 item 10), as § 6.1 has read since activation. The narrower rules stay: sync's restoration
+  takes nothing in, and the persist step lands no forced edit.
+
+The body returns to its activated text in every section A1 to A16 revised; the text they wrote is the specification at
+`37f4531c1b`. Three places differ from the activated text, each marked: § 9.1's landing bullet and § 11 items 9 to 11.
+§ 9.1 as activated read:
+
+> A stop after the store accepts the write, before the swap, leaves the edited file and the write's recording, which the
+> next command finishes (`spec-projection-write-back.md` § 7.1), laying the file read-only inside `arc save` and
+> writable elsewhere; the next `arc save` then finds it unchanged and re-locks it.
+
+That holds only once the index has recorded the write. `sendAttempt` (`write-back.ts`) calls `submitProjectionBatch`,
+reads the store's result, and only then `recordWriteBack`, so a stop before that call leaves no recording. A17 states
+both windows and builds nothing for the first.
+
+Success Criteria 14 to 29 stand as written and are dispositioned superseded at verification. Two source references,
+in § 6.2 and § 8, now name the files that hold them in the build (`file-write-observation.ts`, `adoption-verdict.ts`).
+
+A stamped Markdown file restored to a rendering ARC laid equals its stamp's version, reads as unedited, and is refreshed
+(`spec-projection-substrate.md` § 3.3, § 3.6). The three critical findings of fix check 32 each restore such a file, and
+A12's promise to treat that revert as an edit goes with the first-lay proof.
+
+The code returns to the build as designed and keeps the earlier fixes that serve the activated text: `arc edit`'s
+refusals and remedies, the archive notice, the re-lock at `arc save`, sync's report and restoration, and the removal
+check's classification. The sections above from § Archive boundary corrections through § Amendment A16, with § Save
+after a retirement refusal and the receipt parts of § Independent verification repairs, record the withdrawn mechanisms
+as they were built.
+
 ## Model evidence
 
 The per-unit constants and model v2's growth table are in `notes-projection-worktrees.md` § Spike 3 and § Spike 4; the

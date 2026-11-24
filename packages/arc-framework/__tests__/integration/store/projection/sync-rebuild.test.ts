@@ -8,7 +8,7 @@ import { createRefusingStore } from "../../../helpers/store/projection/refusing-
 import { seed, success } from "../../../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
-import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
@@ -16,6 +16,7 @@ import { createProjectionEnginePorts } from "../../../../src/lib/store/projectio
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { createProjectionReporter } from "../../../../src/lib/store/projection/report.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
 
 const deletion = vi.hoisted(() => ({ partition: "", header: "", blocked: false }));
 vi.mock("node:fs/promises", async original => {
@@ -87,8 +88,7 @@ it.each([false, true])("rebuilds a mismatched cold quarter and preserves an open
   await endProjection(input);
 });
 
-it("settles the start's aside copies before sync rebuilds, leaving none for its end or the next command", async () => {
-  const h = await fixture();
+async function startWithAsideCopies(h: Awaited<ReturnType<typeof fixture>>) {
   await openArchivedProjectionFile(h.input, h.path);
   await writeFile(h.absolute, (await readFile(h.absolute, "utf8")) + "\nA landed correction.\n");
   const native = createProjectionEnginePorts(h.f.root);
@@ -96,20 +96,35 @@ it("settles the start's aside copies before sync rebuilds, leaving none for its 
     writer: async () => ({ ...await native.writer(), processInstance: "sync-rebuild-live-writer" }) }) });
   const root = projectionProcessState().roots.get(h.f.root);
   if (root === undefined || root.copies.length === 0) throw new Error("No live aside copy");
-  const retained = root.copies.map(copy => copy.copy);
-  const present = async () => (await Promise.all(retained.map(copy => stat(join(h.f.root, copy)).then(() => copy, () => null))))
-    .filter(copy => copy !== null);
+  return root.copies.map(copy => copy.copy);
+}
+
+it("settles copies made at command start when sync rebuilds the index", async () => {
+  const h = await fixture();
+  const retained = await startWithAsideCopies(h);
   await damage(h);
   await restoreSyncProjection(h.f.store, h.f.root, {});
-  const copies = root.copies.map(copy => copy.copy);
-  expect(copies.length).toBe(new Set(copies).size);
-  expect(copies.filter(copy => retained.includes(copy))).toEqual([]);
-  expect(await present()).toEqual([]);
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   expect(disk.kind).toBe("index");
   await endProjection(h.input);
-  await startProjection(h.input);
-  expect(projectionProcessState().diagnostics.filter(each => each.copy !== null && retained.includes(each.copy))).toEqual([]);
-  await endProjection(h.input);
+  expect(await checkProjectionRemoval(h.f.root, { store: h.f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
+  for (const copy of retained) await expect(stat(join(h.f.root, copy))).rejects.toMatchObject({ code: "ENOENT" });
   expect(success(await h.f.store.read({ reference: h.primary.reference })).content).toContain("A landed correction.");
+});
+
+it("retains a live edited aside copy for recovery when sync loses its index header", async () => {
+  const h = await fixture();
+  const [copy] = await startWithAsideCopies(h);
+  if (copy === undefined) throw new Error("No live aside copy");
+  const absolute = join(h.f.root, copy);
+  const bytes = (await readFile(absolute, "utf8")) + "\nA later correction to the aside copy.\n";
+  await writeFile(absolute, bytes);
+  await rm(join(h.projected.location.stateDir, "index"));
+  await restoreSyncProjection(h.f.store, h.f.root, {});
+  await endProjection(h.input);
+  expect(await readFile(absolute, "utf8")).toBe(bytes);
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  expect(disk).toMatchObject({ kind: "index", index: { withheldCopies: expect.arrayContaining([copy]) } });
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: h.path, copy }));
+  expect(success(await h.f.store.read({ reference: h.primary.reference })).content).not.toContain("A later correction");
 });

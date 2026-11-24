@@ -3,21 +3,14 @@ import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { readStat } from "./change-detection.js";
 import type { RefusedMark } from "./index-schema.js";
-import { archiveDestinationRefusal } from "./archive-file.js";
-
-type LayFolderRefusal = { readonly kind: "archive" | "occupied"; readonly mark: RefusedMark };
 
 /**
  * Create a laid path's folder.
  * @param checkout - The checkout root.
  * @param path - The repository-relative path to be laid.
- * @param checkpoint - The caller's lease proof before creating a directory.
- * @returns Null once the folder exists, or the remedy for a blocked destination.
+ * @returns Null once the folder exists, or the repository-relative path of the regular file occupying one of its folders.
  */
-export async function ensureLayFolder(checkout: string, path: string, checkpoint?: () => Promise<void>): Promise<LayFolderRefusal | null> {
-  await checkpoint?.();
-  const archive = archiveDestinationRefusal(checkout, path);
-  if (archive !== null) return { kind: "archive", mark: archive };
+export async function ensureLayFolder(checkout: string, path: string): Promise<string | null> {
   try {
     await mkdir(join(checkout, dirname(path)), { recursive: true });
     return null;
@@ -25,7 +18,7 @@ export async function ensureLayFolder(checkout: string, path: string, checkpoint
     const code = (error as NodeJS.ErrnoException).code;
     const occupying = code === "ENOTDIR" || code === "EEXIST" ? await occupyingFile(checkout, path) : null;
     if (occupying === null) throw error;
-    return { kind: "occupied", mark: occupiedFolderMark(checkout, path, occupying) };
+    return occupying;
   }
 }
 
@@ -41,7 +34,7 @@ async function occupyingFile(checkout: string, path: string): Promise<string | n
 }
 
 /** The report for a path left unlaid while a regular file occupies one of its folders. */
-function occupiedFolderMark(checkout: string, path: string, occupying: string): RefusedMark {
+export function occupiedFolderMark(checkout: string, path: string, occupying: string): RefusedMark {
   return { reason: `A regular file at ${occupying} occupies a folder ${path} needs, so it was not laid.`,
     remedy: { text: `Move or delete ${join(checkout, occupying)}, then run any arc command from ${checkout}; it lays ${path}.` } };
 }

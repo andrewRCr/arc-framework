@@ -32,10 +32,11 @@ describe("marker parse-back", () => {
     const path = ".arc/completed/2026-q4/01_alpha/correction.md";
     const content = damage === "edited-side" ? fixture.content.replace("stored side", "edited side")
       : fixture.content.replace(/^>>>>>>>[^\n]*\n?/mu, "");
+    const checkout = join(process.cwd(), "checkout");
     const input = { content, markers: fixture.entry.markers, conflicts: fixture.conflicts,
-      open: fixture.record.conflicts, site: { checkout: "/work/checkout", path }, opened: false };
+      open: fixture.record.conflicts, site: { path, checkout }, opened: false };
     expect(parseMarkerContent(input)).toMatchObject({ kind: "held", mark: {
-      remedy: { text: expect.stringContaining(`Run arc edit ${path} from /work/checkout first.`) },
+      remedy: { text: expect.stringContaining(`Run arc edit ${path} from ${checkout} first.`) },
     } });
     expect(parseMarkerContent({ ...input, opened: true })).toMatchObject({ kind: "held", mark: {
       remedy: { text: expect.not.stringContaining("arc edit") },

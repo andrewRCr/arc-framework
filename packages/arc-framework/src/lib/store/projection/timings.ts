@@ -10,33 +10,25 @@ export type ProjectionTimingKey = "start" | "fan-out" | "materialization";
 /** A complete recent window whose measured median exceeds its platform's bound. */
 export interface ProjectionTripwire { readonly key: ProjectionTimingKey; readonly medianMs: number; readonly boundMs: number }
 
-/**
- * Complete-operation acceptance limits, the separate raw start notice threshold, and two paired-difference limits, in
- * milliseconds.
- */
+/** Complete-operation acceptance limits and the separate raw start notice threshold, in milliseconds. */
 export interface ProjectionPerformanceBounds {
   readonly start: number;
   readonly startTripwire: number;
   readonly oneFileFanOut: number;
   readonly tenFileFanOut: number;
   readonly materialization: number;
-  /** The median paired difference a no-change save may show over a large archive against a small one, hot files alike. */
   readonly saveArchiveGrowth: number;
-  /**
-   * The median paired increment one opened archived file may add to a no-change start: the start budget less the slower
-   * calibration median.
-   */
   readonly openedStartIncrement: number;
 }
 
 /** Use each platform's calibrated limits; one fan-out notice uses the ten-file bound. */
 export function projectionPerformanceBounds(platform: NodeJS.Platform = process.platform): ProjectionPerformanceBounds {
   if (platform === "win32") return { start: 145, startTripwire: 200, oneFileFanOut: 2800, tenFileFanOut: 6000, materialization: 8000,
-    saveArchiveGrowth: 10, openedStartIncrement: 37.6 };
+    saveArchiveGrowth: 10, openedStartIncrement: 145 - 107.40 };
   if (platform === "darwin") return { start: 45, startTripwire: 60, oneFileFanOut: 600, tenFileFanOut: 2800, materialization: 4000,
-    saveArchiveGrowth: 10, openedStartIncrement: 12.96 };
+    saveArchiveGrowth: 10, openedStartIncrement: 45 - 32.04 };
   return { start: 20, startTripwire: 25, oneFileFanOut: 300, tenFileFanOut: 750, materialization: 1500,
-    saveArchiveGrowth: 5, openedStartIncrement: 5.36 };
+    saveArchiveGrowth: 5, openedStartIncrement: 20 - 14.64 };
 }
 
 const keys: readonly ProjectionTimingKey[] = ["start", "fan-out", "materialization"];

@@ -1,5 +1,5 @@
 /** Interpret indexed marker origins and substitute accepted sides before record parsing. */
-import { archiveEditCommand } from "./archive-admission.js";
+import { editRemedy } from "./save-markers.js";
 import type { TextConflictRecord } from "../conflict.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
@@ -20,7 +20,6 @@ export type MarkerParseResult = (
 interface MarkerInput {
   content: string; markers: NonNullable<RecordEntry["markers"]>; conflicts: readonly MarkerConflict[];
   open: readonly RecordReference[]; entries?: MarkerEntryPolicy; opened?: boolean;
-  /** The file's own path and checkout, which an unopened archived file's `arc edit` remedy names; an aside copy has none. */
   site?: { readonly checkout: string; readonly path: string };
 }
 
@@ -28,9 +27,10 @@ interface MarkerInput {
 export function parseMarkerContent(input: MarkerInput): MarkerParseResult {
   const result = parseMarkers(input);
   const mark = result.kind === "held" ? result.mark : result.retained;
-  const site = input.site;
+  const { site } = input;
   if (mark === undefined || site === undefined || !site.path.startsWith(".arc/completed/") || input.opened === true) return result;
-  const opened = { ...mark, remedy: { ...mark.remedy, text: `Run ${archiveEditCommand(site.checkout, site.path)} first. ${mark.remedy.text}` } };
+  const opened = { ...mark, remedy: { ...mark.remedy,
+    text: editRemedy(site.checkout, site.path) + mark.remedy.text } };
   return result.kind === "held" ? { ...result, mark: opened } : { ...result, retained: opened };
 }
 

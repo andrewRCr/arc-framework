@@ -149,6 +149,7 @@ names it.
   eligible paths first and exercise misplaced-path refusals through edit, preserving the same correction and identity.
 
 - _Amended in:_ review-fix (A2)
+- _Amended in:_ review-fix (A17)
 
 ### `[x]` **2.4 The re-lock and `arc save`'s report — § 6.2, § 6.3, § 9.1**
 
@@ -185,6 +186,7 @@ names it.
   coverage retains forced edits under their owner's rights and lays accepted corrections read-only.
 
 - _Amended in:_ review-fix (A2)
+- _Amended in:_ review-fix (A17)
 
 ### `[x]` **2.6 The scale benchmark — Success Criterion 1**
 
@@ -223,7 +225,7 @@ which the removal proceeds; and an opened file's edit persists at removal.
 _Design decisions:_ An archived file answers the removal check and the persist and release steps by the first of a read
 that fails, edit rights that refuse, a forced edit or a file with no entry, and the answers `projection-worktrees`'
 removal steps give today (spec § 8); one function answers its remedy for 3.1's report and 3.2's check and steps.
-_Amended in:_ review-fix (A2).
+_Amended in:_ review-fix (A2). _Amended in:_ review-fix (A17).
 
 ### `[x]` **3.1 `arc sync` reports forced edits and new archived files — § 7.2**
 
@@ -255,6 +257,7 @@ _Amended in:_ review-fix (A2).
           `notes-projection-team-scale.md` § Archived persistence.
 
 - _Amended in:_ review-fix (A2)
+- _Amended in:_ review-fix (A17)
 
 ### `[x]` **3.3 ADR-035's amendment — § 10.3**
 
@@ -340,6 +343,12 @@ _Amended in:_ review-fix (A2).
   could run; A9 scopes A6 to a changed folder or a file replaced by anything but a symbolic link, since a deleted or
   linked file keeps the opening. Success Criteria 21 and 22, appended below, are dispositioned at convergence
   verification against that head's evidence, and Criterion 22 supersedes Criterion 20.
+- _Review follow-up (A17):_ Fix check 32 left 19 critical and major findings, all in two mechanisms review had added by
+  amendment: the archive save's receipt and the path check with its holds. Amendment A17 withdraws both and the
+  waiting-edit rule. It returns the specification to its activated text, with § 9.1's stopped landing corrected and
+  three residuals named, and the code to the build as designed with the earlier fixes that serve it. Success Criteria 14
+  to 29 below are superseded and are dispositioned at convergence verification. `notes-projection-team-scale.md` §
+  Amendment A17 records the reasons.
 
 ---
 

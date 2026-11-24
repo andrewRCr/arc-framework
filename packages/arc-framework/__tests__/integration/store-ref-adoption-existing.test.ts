@@ -1,6 +1,6 @@
-/** An unindexed copy retains its established record's identity and ordinary merge basis. */
 import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 import { projectionEditResult } from "../../src/lib/store/projection/edit.js";
+/** An unindexed copy retains its established record's identity and ordinary merge basis. */
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdir, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -249,8 +249,8 @@ it.each([
   const prior = await seed(f, reference, body);
   success(await f.store.write({ ...update(f, prior, body), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
     provenance: { verb: "archive", lifecycleAction: "archive" } }));
-  const archived = success(await f.store.read({ reference: prior.reference }));
-  const path = completedCohortPath(archived), content = body.replace("Original archived prose", "Archived correction");
+  const path = completedCohortPath(success(await f.store.read({ reference: prior.reference })));
+  const content = body.replace("Original archived prose", "Archived correction");
   await mkdir(dirname(join(f.root, path)), { recursive: true });
   await writeFile(join(f.root, path), renderStampedFile({ content, stamp: gitBlobId(body, "sha1") }));
   let incomplete = true;
@@ -267,11 +267,11 @@ it.each([
   expect(await check()).toEqual({ kind: "unobservable", detail: `${path} in ${f.root}: ${detail}` });
   incomplete = false;
   expect(await check()).toMatchObject({ kind: "would-refuse", remedy: { text: expect.stringContaining(`arc edit ${path} then arc save`) } });
-  expect(success(await store.read({ reference: archived.reference })).content).toBe(body);
+  expect(success(await store.read({ reference })).content).toBe(body);
   await openArchivedProjectionFile(input, path);
   await startProjection({ ...input, mode: "save" });
   await endProjection(input);
-  expect(success(await store.read({ reference: archived.reference })).content).toBe(content);
+  expect(success(await store.read({ reference })).content).toBe(content);
   expect(await check()).toEqual({ kind: "passes" });
 });
 

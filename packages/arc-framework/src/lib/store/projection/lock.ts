@@ -104,8 +104,8 @@ async function acquire(
   }
 }
 
-/** Raised by a step taken after the lease was lost, ending the operation there; the lock owner classifies it. */
-export class ProjectionLockLostError extends Error {}
+/** Raised by a step taken after the lease was lost, ending the operation there. */
+class ProjectionLockLostError extends Error {}
 
 /**
  * Run the operation under a renewable lease that renews and releases through the same create seam, and whose loss

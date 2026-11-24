@@ -7,7 +7,7 @@ import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
 import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, unobservedMarkDetail, unobservedRefusal, unresolvedRemovalConflicts,
   type ProjectionRemovalCheck, type ProjectionRetirement } from "./removal-verdict.js";
 import { markStoreRefusal } from "./refusal-mark.js";
-import { gateRead, projectionReadGate } from "./read-gate.js";
+import { gateRead } from "./read-gate.js";
 import { classifyBacklogAdoption, resolveOwnedAdoptionReference, resolveProjectionAdoptionIntent } from "./adoption-intent.js";
 import { inspectProjectionAdoption, missingMintedMetadataMark } from "./adoption-verdict.js";
 import { existingProjectionEntry } from "./adoption-existing.js";
@@ -24,7 +24,7 @@ import { readProjectionProtection } from "./protection.js";
  */
 export async function checkProjectionAdoption(root: ReadOnlyProjectionRoot, index: ProjectionIndex, path: string,
   guard: ProjectionRemovalGuard, disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
-  const gate = await gateRead({ path: join(root.checkout, path), markdown: false }, projectionReadGate(root.checkout, path));
+  const gate = await gateRead({ path: join(root.checkout, path), markdown: false });
   if (gate.kind === "absent") {
     const entry = index.entries[path];
     return entry?.kind === "ownerless" && entry.minted !== undefined
@@ -41,9 +41,7 @@ async function checkReadableAdoption(root: ReadOnlyProjectionRoot, index: Projec
   const target = await readRemovalAdoptionTarget(root, index, path, disposition);
   if (target.kind !== "reference") return target;
   const verdict = await inspectProjectionAdoption(root, path, target.reference, stat);
-  if (verdict.kind === "refused") return verdict.readFailure === true
-    ? { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, verdict.mark) }
-    : markedRemovalRefusal(root.checkout, path, verdict.mark, disposition);
+  if (verdict.kind === "refused") return markedRemovalRefusal(root.checkout, path, verdict.mark, disposition);
   if (verdict.kind === "existing") return checkExistingProjectionAdoption(root, path,
     existingProjectionEntry(verdict.record, verdict.read, root.context.format), disposition);
   const invalid = checkSerializationRules(verdict.reference, verdict.file.content);

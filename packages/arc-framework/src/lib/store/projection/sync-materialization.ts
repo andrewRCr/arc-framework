@@ -1,19 +1,24 @@
 /** Restore a sync command's projection before its network orchestration begins. */
+import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import type { Store } from "../contract.js";
+import type { StateVersion } from "../identity.js";
 import { observeProjectionConfiguration } from "./command-configuration.js";
-import { readProjectionConfiguration } from "./configuration.js";
+import { readProjectionConfiguration, type ProjectionConfiguration } from "./configuration.js";
 import { refreshProjectionRootLayout } from "./engine-binding.js";
 import { withProjectionFanOutLock } from "./fan-out-lock.js";
-import { readProjectionIndex } from "./index-file.js";
+import { readProjectionIndex, type HeldProjectionIndexRead } from "./index-file.js";
 import { materializeProjectionRoot } from "./materialization.js";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import type { ProjectionLockResult } from "./lock.js";
+import { gitBlobId } from "./blob-id.js";
+import { captureWriteBackFile } from "./write-back.js";
+import { refuseProjectionEdit } from "./rights-binding.js";
+import type { TakeInPort, TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { loadProjectionGroups, projectionIndexGroup, ProjectionPartitionMismatch } from "./index-memory.js";
-import { readCopyDestinations } from "./discovery-links.js";
+import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { runSecondCheck } from "./second-check.js";
 import { reportProjectionCopy } from "./report.js";
-import { heldArchivePath, refuseArchiveChange } from "./archive-selection.js";
 
 /** Materialize through the command's existing root, retaining its copy checks and containing failures. */
 export async function restoreSyncProjection(store: Store, requested: string, options: { dryRun?: boolean }): Promise<void> {
@@ -35,14 +40,7 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
         const version = await store.version();
         if (version.status === "refused") { report(version.refusal.condition, version.refusal.remedy.text); return; }
         const disk = await readProjectionIndex(root.location, true, { groups: "all" });
-        const basis = { root, source: store, configuration, version: version.result, reportedLinks: root.reportedLinks };
-        const materialized = await materializeProjectionRoot(disk.kind === "index"
-          ? { ...basis, index: disk.index, onlyDeleted: true }
-          : { ...basis, index: null, recovered: disk.header, settleBeforeSweep: () => settleCommandCopies(root) });
-        if (disk.kind !== "index") {
-          const copies = new Map(root.copies.map(copy => [copy.copy, copy]));
-          root.copies.splice(0, root.copies.length, ...copies.values());
-        }
+        const materialized = await materializeForSync(root, store, configuration, version.result, disk);
         if (materialized.kind === "refused") report(materialized.mark.reason, materialized.mark.remedy.text);
       } finally { root.checkpoint = null; }
     }, { invalidatePartition: true, ...(root.ports.maxWaitMs === undefined ? {} : { maxWaitMs: root.ports.maxWaitMs }) }, root.ports.lock);
@@ -53,35 +51,66 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
   } catch (error) { report(error instanceof Error ? error.message : String(error)); }
 }
 
-/**
- * Settle the aside copies this command already made against the entries that alone record them, before a rebuild
- * replaces those entries. A copy whose own partition cannot be read stays for the next command's sweep.
- */
-async function settleCommandCopies(root: ProjectionRootState): Promise<void> {
+async function materializeForSync(root: ProjectionRootState, source: Store, configuration: ProjectionConfiguration,
+  version: StateVersion, disk: HeldProjectionIndexRead) {
+  const takeIn: TakeInPort = request => restoreWithoutArchiveTakeIn(root, request);
+  if (disk.kind !== "index") await settleStartCopies(root, takeIn);
+  const firstCopy = root.copies.length;
+  const basis = { root, source, configuration, version, reportedLinks: root.reportedLinks, takeIn };
+  let materialized;
+  try {
+    materialized = await materializeProjectionRoot(disk.kind === "index" ? { ...basis, index: disk.index, onlyDeleted: true }
+      : { ...basis, index: null, recovered: disk.header });
+  } finally {
+    // Finish copies made by the restoration under the same take-in policy.
+    const copies = root.copies.splice(firstCopy);
+    root.copies.push(...copies.map(copy => ({ ...copy, takeIn })));
+  }
+  if (disk.kind !== "index" && materialized.kind === "materialized") root.copies.splice(0, firstCopy);
+  return materialized;
+}
+
+async function restoreWithoutArchiveTakeIn(root: ProjectionRootState, request: TakeInRequest): Promise<TakeInResult> {
+  if (!request.path.startsWith(".arc/completed/")) return root.takeIn(request);
+  const file = await captureWriteBackFile(root.context, request);
+  const report = (mark: NonNullable<typeof request.entry.refused>) => root.context.report?.({ path: request.path, copy: request.copy, mark });
+  if (file.kind === "held") {
+    if (file.diagnostic !== undefined) report(file.diagnostic);
+    return file.result;
+  }
+  if (file.stamp !== null && gitBlobId(file.content, root.context.format) === file.stamp) {
+    return { answer: "no-edit", entry: request.entry, read: file.read };
+  }
+  const edit = `arc edit ${renderRemedyArgument(request.path)} then arc save`;
+  const mark = await root.rights?.(request) ?? {
+    reason: "An archived file changed during sync restoration.",
+    remedy: { text: `Run ${request.entry.opened ? "arc save" : edit} from ${root.checkout} to retain this correction.` },
+  };
+  report(mark);
+  return refuseProjectionEdit(request.entry, mark);
+}
+
+/** Use the start's copy records while their partitions can still be read. */
+async function settleStartCopies(root: ProjectionRootState, takeIn: TakeInPort): Promise<void> {
   if (root.copies.length === 0) return;
   const start = await readProjectionIndex(root.location, true);
   if (start.kind !== "index") return;
-  const readable = root.copies.filter(({ path }) => {
-    if (heldArchivePath(root, path) !== null) return false;
+  const copies = root.copies.filter(({ path, copy }) => {
+    if (!root.writable(path) || !root.writable(copy)) return false;
     try { loadProjectionGroups(start.index, [projectionIndexGroup(path)]); return true; }
     catch (error) {
       if (error instanceof ProjectionPartitionMismatch) return false;
       throw error;
     }
   });
-  if (readable.length === 0) return;
-  const destinations = await readCopyDestinations(root.checkout, readable.map(copy => copy.path), root.ports.linkFs);
-  const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index: start.index, ...destinations,
-    copies: readable, format: root.context.format, takeIn: root.takeIn, writer: root.context.writer,
-    checkpoint: root.context.checkpoint });
-  for (const [path, mark] of checked.blockedDestinations) refuseArchiveChange(root, path, mark);
-  const settled = new Set<string>();
-  for (const copy of checked.settled) {
-    if (checked.blockedDestinations.has(copy.path)) continue;
-    reportProjectionCopy(copy.path, copy.copy, copy.settlement);
-    settled.add(copy.copy);
+  if (copies.length === 0) return;
+  const blockedByLink = await readProjectionLinkBoundary(root.checkout, copies.map(copy => copy.path), root.ports.linkFs);
+  const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index: start.index, blockedByLink,
+    copies, format: root.context.format, takeIn, writer: root.context.writer, checkpoint: root.context.checkpoint });
+  for (const { path, copy, settlement } of checked.settled) {
+    reportProjectionCopy(path, copy, settlement);
+    if (settlement.kind === "returned" && settlement.replacement !== null) root.copies.push({ path, copy: settlement.replacement });
   }
-  root.copies.splice(0, root.copies.length, ...root.copies.filter(copy => !settled.has(copy.copy)));
 }
 
 /** The lease status that stopped a restoration, with its detail and the remedy that fits it. */

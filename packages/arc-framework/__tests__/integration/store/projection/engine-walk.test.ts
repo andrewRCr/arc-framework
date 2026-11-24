@@ -16,7 +16,6 @@ import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
-import type { RefusedMark } from "../../../../src/lib/store/projection/index-schema.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -58,30 +57,6 @@ describe("the command's projected-root walk", () => {
       readdirSync(path, { withFileTypes: true }).map(entry => !tagged.has(join(path, entry.name)) ? entry
         : { name: entry.name, isDirectory: () => false, isFile: () => false, isSymbolicLink: () => true }) });
     expect(result).toEqual({ files: [`${root}/synced/inner.md`, `${root}/tagged.md`], links: [`${root}/link`] });
-  });
-
-  it.each(["link-like entry", "typed listing fallback"] as const)("keeps a readable archive child beside a denied %s", async mode => {
-    const h = await createEngineFixture(directories);
-    const root = ".arc/completed/test", held = `${root}/refused.md`, sibling = `${root}/readable.md`;
-    await mkdir(join(h.checkout, root), { recursive: true });
-    await writeFile(join(h.checkout, held), "an unindexed edit\n");
-    await writeFile(join(h.checkout, sibling), "readable\n");
-    let deny = true;
-    const denied = () => Object.assign(new Error("Child typing refused"), { code: "EACCES" });
-    const fs = {
-      readdir: (path: string) => {
-        if (deny && mode === "typed listing fallback") throw denied();
-        return readdirSync(path, { withFileTypes: true }).map(entry => entry.name === "refused.md"
-          ? { name: entry.name, isDirectory: (): boolean => false, isFile: (): boolean => false, isSymbolicLink: (): boolean => true } : entry);
-      },
-      readdirNames: (path: string) => readdirSync(path),
-      lstat: (path: string) => { if (deny && path === join(h.checkout, held)) throw denied(); return lstatSync(path); },
-    };
-    const access = new Map<string, RefusedMark>();
-    expect(await walkProjectionRoots(h.checkout, [root], fs, undefined, access)).toEqual({ files: [sibling], links: [] });
-    expect([...access.keys()]).toEqual([held]);
-    deny = false;
-    expect(await walkProjectionRoots(h.checkout, [held], fs, undefined, new Map(), true)).toEqual({ files: [held], links: [] });
   });
 
   it("keeps a folder's other files when one entry vanishes while an untyped read types it", async () => {

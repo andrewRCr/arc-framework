@@ -1,11 +1,9 @@
 /** Bind one checkout's projection operations independently of the command's entering checkout. */
-import { readPendingProjectionInput } from "./unchanged-file.js";
+import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import { readProjectionCheckoutContext } from "../checkout-layout.js";
 import { refreshProjectionRoot } from "./refresh.js";
 import { reprojectProjectionRoot } from "./reprojection.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
-import { holdWaitingArchiveEdit } from "./archive-waiting.js";
-import { refuseArchiveChange, refuseUnreadArchiveScope } from "./archive-selection.js";
 import { createProjectionLocalCapture } from "./engine-capture.js";
 import { createWriteBackPort } from "./write-back.js";
 import type { ReadBackContext } from "./read-back.js";
@@ -39,6 +37,7 @@ export interface ProjectionRootBindingInput {
   readonly mint?: ProjectionStubMintPort;
   readonly unsent?: Set<string>;
   readonly links?: readonly string[];
+  readonly refuseCapturedEdit?: ReadBackContext["refuseCapturedEdit"];
 }
 
 /** Bind reads, rights, capture, and replacement bookkeeping to the target checkout. */
@@ -55,7 +54,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
     await root.checkpoint();
   };
   const context: ReadBackContext = { store: input.store, location, format: config.objectFormat, actor, writer, memo: input.history, versionRecoveries: [],
-    registry: ports.registry,
+    registry: ports.registry, refuseCapturedEdit: input.refuseCapturedEdit,
     captureLocal: createProjectionLocalCapture(input),
     protection: createProjectionProtection({ store: input.store, checkout: input.checkout, identity: config.identity.identity, exec: ports.exec, verb: input.mode ?? "write-back" }),
     verb: input.mode ?? "write-back", checkpoint, hooks: ports.hooks, takeIn: request => root.takeIn(request),
@@ -71,8 +70,6 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
       if (intent?.target?.resolution.kind === "stored" && sameReference(intent.target.resolution.reference, resolution.reference)) intent.accepted = true;
     },
     reportExplicitResolution: () => { if (state.command?.checkout === input.checkout && state.resolution !== null) state.resolution.accepted = true; },
-    refuseArchiveAccess: refused => { refuseUnreadArchiveScope(root, refused.path, refused.mark, refused.copy); },
-    refuseArchiveChange: ({ path, mark, copy }, access) => { refuseArchiveChange(root, path, mark, copy, access); },
     recordBatch: batch => { root.copies.push(...batch.copies); root.removals.push(...batch.removals); } };
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
@@ -87,23 +84,11 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
         context.report?.({ path: request.path, copy: request.copy, mark: held.mark });
         return held;
       }
-      const input = await readPendingProjectionInput(context, request);
-      if (input !== null && input.kind !== "unchanged") {
-        root.unsent.add(request.path);
-        const diagnostic = { path: request.path, copy: request.copy, mark: input.mark };
-        if (input.kind === "inaccessible") {
-          context.refuseArchiveAccess?.(diagnostic);
-          return { ...refuseProjectionEdit(request.entry, input.mark), archiveAccess: input.mark };
-        }
-        context.report?.(diagnostic);
-        return refuseProjectionEdit(request.entry, input.mark);
-      }
-      if (input?.kind === "unchanged" && request.entry.persisted?.recording !== true) {
+      const unchanged = await readUnchangedProjectionFile(context, request);
+      if (unchanged !== null) {
         root.unsent.delete(request.path);
-        return { answer: "no-edit", entry: request.entry, read: input.read };
+        return { answer: "no-edit", entry: request.entry, read: unchanged };
       }
-      const waiting = await holdWaitingArchiveEdit(root, request);
-      if (waiting !== null) return waiting;
       request = observeProjectionEdit(request);
       const denied = await root.rights?.(request);
       if (denied === undefined || denied === null) return send(request);

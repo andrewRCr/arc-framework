@@ -1,6 +1,6 @@
-/** Archive adoption binds exact generations and isolates repairable ownership failures. */
 import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 import { projectionEditResult } from "../../src/lib/store/projection/edit.js";
+/** Archive adoption binds exact generations and isolates repairable ownership failures. */
 import { afterEach, expect, it } from "vitest";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";

@@ -16,7 +16,7 @@ import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { type HistoryMemo } from "./base-recovery.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
-import { unfinishedRecordingRefusal, type AcceptedArchiveInput } from "./recording-state.js";
+import { unfinishedRecordingRefusal } from "./recording-state.js";
 
 /** The folder under `arc-projection/` that keeps copies of content a persisted write-back took in. */
 export const TAKEN_IN_FOLDER = "taken-in";
@@ -120,8 +120,7 @@ export async function removeTakenInCopies(location: ProjectionLocation, names: r
 }
 
 /** Keep a copy inside the state folder, which exists under the projection lock, never creating that folder. */
-export async function keepTakenInCopy(location: ProjectionLocation, content: string, format: ObjectFormat,
-  checkpoint?: () => Promise<void>): Promise<{ name: string; blob: string }> {
+async function keepCopy(location: ProjectionLocation, content: string, format: ObjectFormat, checkpoint?: () => Promise<void>): Promise<{ name: string; blob: string }> {
   const blob = gitBlobId(content, format);
   const name = `${blob}.${randomBytes(8).toString("hex")}`;
   const folder = join(location.stateDir, TAKEN_IN_FOLDER);
@@ -181,10 +180,6 @@ export interface WriteBackRecording {
   readonly stamp: string;
   /** What write-back read from the file after parse-back. */
   readonly takenIn: string;
-  /** The blob of the file bytes that input was read from. */
-  readonly read?: string;
-  /** Raw first-lay proof tied to this acceptance, if the caller has no submission journal. */
-  readonly acceptedInput?: AcceptedArchiveInput;
   readonly outcome: WriteBackOutcome;
   /** The record read back after a landing. */
   readonly readBack: { readonly version: RecordVersion; readonly content: string } | null;
@@ -195,13 +190,10 @@ export interface WriteBackRecording {
 }
 
 /** Keep the accepted input until read-back can restore its stored entry IDs and complete the take-in mapping. */
-export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "read" | "format" | "checkpoint" | "acceptedInput">
+export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "format" | "checkpoint">
   & { readonly version: RecordVersion }): Promise<RecordEntry> {
-  const { stat, ...evidence } = input.acceptedInput ?? { read: input.read, stat: undefined };
-  return { ...input.entry, acceptedInputStat: stat, persisted: { stamp: input.stamp, recording: true,
-    ...evidence,
-    takenIn: { kind: "copy", version: input.version,
-    ...await keepTakenInCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
+  return { ...input.entry, persisted: { stamp: input.stamp, recording: true, takenIn: { kind: "copy", version: input.version,
+    ...await keepCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
 }
 
 /**
@@ -226,15 +218,8 @@ export async function recordWriteBack(input: WriteBackRecording): Promise<{ entr
   const released = kept?.kind === "copy" ? [kept.name] : [];
   const record = readBack.version === outcome.version && sameApartFromStampedIds(readBack.content, takenIn, grammar)
     ? { kind: "landed" as const, version: outcome.version }
-    : { kind: "copy" as const, version: outcome.version, ...await keepTakenInCopy(input.location, takenIn, input.format, input.checkpoint) };
-  const previous = input.entry.persisted;
-  const recordedInput = previous?.recording === true ? previous.inputBlob : undefined;
-  const legacyInput = kept?.kind === "copy" && previous?.recording === true && input.entry.opened === true ? kept.blob : undefined;
-  const { stat, ...acceptedInput } = input.acceptedInput ?? { inputBlob: recordedInput ?? legacyInput, read: previous?.read,
-    retained: previous?.retained, stat: input.entry.acceptedInputStat };
-  const evidence = acceptedInput.inputBlob === undefined ? undefined : acceptedInput;
-  return { entry: { ...input.entry, acceptedInputStat: evidence === undefined ? undefined : stat,
-    persisted: { stamp: input.stamp, takenIn: record, ...evidence } }, released };
+    : { kind: "copy" as const, version: outcome.version, ...await keepCopy(input.location, takenIn, input.format, input.checkpoint) };
+  return { entry: { ...input.entry, persisted: { stamp: input.stamp, takenIn: record } }, released };
 }
 
 async function acceptedIdReference(input: WriteBackRecording, readBack: NonNullable<WriteBackRecording["readBack"]>,
@@ -255,7 +240,7 @@ async function acceptedIdReference(input: WriteBackRecording, readBack: NonNulla
  * Whether the record read back holds the content taken in, apart from the ID lines the store stamped: those whose IDs
  * the content taken in lacks, with the final newline normalized.
  */
-export function sameApartFromStampedIds(readBack: string, takenIn: string, grammar: EntryListConfig | undefined): boolean {
+function sameApartFromStampedIds(readBack: string, takenIn: string, grammar: EntryListConfig | undefined): boolean {
   if (grammar === undefined) return withFinalNewline(readBack) === withFinalNewline(takenIn);
   const carried = carriedIds(splitEntryList(takenIn, grammar));
   const split = splitEntryList(readBack, grammar);

@@ -1,7 +1,8 @@
-/** Save runs through the registered CLI, its start hook, and a real reference backend. */
 import { projectionEditResult } from "../../../../src/lib/store/projection/edit.js";
+/** Save runs through the registered CLI, its start hook, and a real reference backend. */
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { afterEach, expect, it, vi } from "vitest";
 import { Command } from "commander";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -291,7 +292,7 @@ it.each<BlockedHistoryPull>(["lock-held", "state-failed", "candidate-failed", "d
     expect(pulls).toBe(2);
   });
 
-it.each(["history", "primary-read"] as const)("keeps a late archived aside edit waiting at command start and plain save, and lands it after an opening (%s)", async fault => {
+it.each(["history", "primary-read"] as const)("keeps a late archived aside edit offline at ordinary command start and names save as its repair (%s)", async fault => {
   const h = await archivedView();
   await openArchivedProjectionFile(h, h.path);
   const stamp = parseStampedFile(await h.file()).stamp;
@@ -336,18 +337,14 @@ it.each(["history", "primary-read"] as const)("keeps a late archived aside edit 
   const diagnostic = output.slice(0, output.indexOf("command output")).join("");
   expect(diagnostic).toContain(h.path);
   expect(diagnostic).toContain(copy);
-  // Unobservable rights name their own repair; observable ones leave the edit waiting for an opening.
-  expect(diagnostic).toContain(fault === "history" ? `arc edit ${h.path}` : "arc save");
-  expect((await save({ store, checkout: h.checkout })).errors).toContain(`arc edit ${h.path}`);
-  expect((await h.stored()).content).toBe(first);
-  await openArchivedProjectionFile({ store, checkout: h.checkout }, h.path);
+  expect(diagnostic).toContain("arc save");
   expect((await save({ store, checkout: h.checkout })).errors).toBe("");
   expect((await h.stored()).content).toBe(late);
   expect((await h.stored()).placement).toEqual(h.placement);
   expect(pulls).toBe(1);
 });
 
-it("keeps an edit made without opening after an interrupted archived replacement waiting until an opening lands it", async () => {
+it("keeps an interrupted archived stampless edit offline and names save before a repaired retry lands", async () => {
   const h = await archivedView("companion");
   const original = h.index.entries[h.path];
   if (original?.kind !== "record") throw new Error("The companion was not projected");
@@ -389,10 +386,8 @@ it("keeps an edit made without opening after an interrupted archived replacement
   expect(await h.file()).toBe(content);
   expect(pulls).toBe(0);
   expect(await readProjectionIndex(h.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: { entries: { [h.path]: { pending: true } } } });
-  expect(diagnostic).toContain(`arc edit ${h.path}`);
-  expect((await save({ store, checkout: h.checkout })).errors).toContain(`arc edit ${h.path}`);
-  expect((await h.stored()).content).toBe(next);
-  await openArchivedProjectionFile({ store, checkout: h.checkout }, h.path);
+  expect(diagnostic).toContain(h.path);
+  expect(diagnostic).toContain("arc save");
   expect((await save({ store, checkout: h.checkout })).errors).toBe("");
   expect((await h.stored()).content).toBe(content);
   expect((await h.stored()).placement).toEqual(h.placement);
@@ -445,18 +440,11 @@ it.each(["no-history-named", "namespace-corrupt"] as const)("does not pull an ar
   expect(refused.errors).toContain(refusal.remedy.text);
   expect((await h.stored()).content).toBe(h.record.content);
   expect(await h.file()).toBe(bytes);
-  const held = await readProjectionIndex(h.location, true, { groups: "all" });
-  expect(held).toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
-  expect((await lstat(join(h.checkout, h.path))).mode & 0o200).toBe(0o200);
   expect(pulls).toBe(0);
   blocked = false;
   expect((await save({ store, checkout: h.checkout })).errors).toBe("");
   expect((await h.stored()).content).toBe(content);
   expect((await h.stored()).placement).toEqual(h.placement);
-  const repaired = await readProjectionIndex(h.location, true, { groups: "all" });
-  if (repaired.kind !== "index") throw new Error("The archive index did not survive repair");
-  expect(repaired.index.entries[h.path]).not.toHaveProperty("opened");
-  expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
   expect(pulls).toBe(0);
 });
 

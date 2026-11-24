@@ -97,7 +97,7 @@ it("rebuilds an unedited opened archive file closed and read-only after its inde
   expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
 });
 
-it("rebuilds an unchanged empty archive text companion closed after index loss", async () => {
+it("rebuilds an unchanged empty archive companion closed after index loss", async () => {
   const h = await fixture(), path = `${h.folder}/empty.txt`, file = join(h.checkout, path);
   const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "empty.txt");
   const stored = await seed(h.f, reference, "");
@@ -106,10 +106,28 @@ it("rebuilds an unchanged empty archive text companion closed after index loss",
   await openArchivedProjectionFile(h, path);
   await rm(join(h.projected.location.stateDir, "index"));
   await startProjection(h); await endProjection(h);
-  const rebuilt = await entry({ ...h, path });
-  expect(rebuilt).toMatchObject({ withheld: false });
-  expect(rebuilt).not.toHaveProperty("opened");
+  expect(await entry({ ...h, path })).toMatchObject({ kind: "record", withheld: false });
+  expect(await entry({ ...h, path })).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
   expect(await readFile(file, "utf8")).toBe("");
   expect(success(await h.store.read({ reference }))).toMatchObject({ content: "", version: stored.version });
+});
+
+it("gives a withheld new archive companion a recovery route that lands it", async () => {
+  const h = await fixture(), path = `${h.folder}/new.txt`, file = join(h.checkout, path);
+  const content = "A companion created before opening.\n";
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "new.txt");
+  await writeFile(file, content);
+  await rm(join(h.projected.location.stateDir, "index"));
+  await startProjection(h); await endProjection(h);
+  expect(await entry({ ...h, path })).toMatchObject({ kind: "ownerless", withheld: true, refused: { remedy: {
+    text: expect.stringContaining(`recreate the file, then run arc edit ${path}`),
+  } } });
+  await rm(file);
+  await startProjection(h); await endProjection(h);
+  await expect(lstat(file)).rejects.toMatchObject({ code: "ENOENT" });
+  await writeFile(file, content);
+  await openArchivedProjectionFile(h, path);
+  await save(h);
+  expect(success(await h.store.read({ reference })).content).toBe(content);
 });
