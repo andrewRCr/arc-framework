@@ -1462,6 +1462,7 @@ command declares it (`integration/command-surface-documentation.test.ts`).
         - The Locus role derives from the marker and the store and holds through exact teardown or release; § How ARC
           Works names the meta and its session context; the transient-identity line drops SESSION-NOTES.
           `locus-methodology-contracts`' Locus case pins the new wording.
+        - _Amended in:_ 5.R2 (A29).
 
     - `[x]` **5.10.b `DEV-RULES.ARC.md`**
         - A save is a persist, not a commit, under the review-increment invariant; its bounded exception keeps
@@ -1509,6 +1510,16 @@ command declares it (`integration/command-surface-documentation.test.ts`).
 - _Outcome:_ `verify-work-unit.md` Step 1 keeps the notes companion through the archive and consolidates it unless it
   is already reference-ready. `clean-work-unit.md` drops its search for references to a deleted notes file, and its
   "When to Use" names verification's Step 1, its one caller, where it named integration's Step 3.
+
+### `[x]` **5.R2 The brief's Cohort definition names `Parent` — § 8.16**
+
+- _Goal:_ The always-loaded Cohort definition states where a subcohort's nesting is recorded, since from the flip its
+  `Parent` is that record and the store checks open members' paths against it (A29).
+
+    - `[x]` **5.R2.a The definition and the template note**
+        - `AGENT-BRIEF.ARC.md`'s Cohort definition says a subcohort's `Parent` records its nesting and each member's
+          path-valued `Cohort` field agrees with it; `template-cohort.md`'s `Parent` note says "each open member's".
+          Both copies of each file carry the change.
 
 ### `[x]` **5.12 The retired forms exhausted** — validate exit criterion at segment scope
 

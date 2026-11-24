@@ -1262,6 +1262,10 @@ Every sentence in `AGENT-BRIEF.ARC.md`, `DEV-RULES.ARC.md`, and QUICK-REFERENCE'
   (§ 2.1). `resume-work-unit.md`'s sibling sentence follows.
 - `AGENT-BRIEF.ARC.md` § How ARC Works, which names the state files as a tracked `meta-{name}.md` and a gitignored
   `SESSION-NOTES.md`: the meta is a stored record and session notes are its session context.
+- `AGENT-BRIEF.ARC.md`'s Cohort definition, "Nesting is path-valued via the `Cohort` field": from the flip a subcohort's
+  `Parent` records its nesting, and the store checks each open member's `Cohort` path against it (`checkCohortParent`,
+  `lib/store/kinds/cohort/rules.ts`), so the definition names `Parent` as that record and the path as what agrees with
+  it. `template-cohort.md`'s `Parent` note says "each open member's", as that check reads (A29).
 - `DEV-RULES.ARC.md` § Commit Discipline's task-list accuracy, which marks the parent `[x]` and stages the task list,
   and its meta-file timing and meta-file commit shape, which commit a meta edit with its ceremony or alone as
   `chore(arc):`: the close verb closes tasks and the meta is saved. § Atomicity's "commit shared documentation (task
@@ -2435,5 +2439,7 @@ None.
   _Supersedes:_ § 9.6 ¶1. _Trigger:_ 6.4.b must-stop. _Work:_ 6.R. _Revalidated:_ pending → 6.8.
 - **A28** — 2026-11-24 — spec-depth: ahead of the window, `main` stops testing tracked state and live branches merge it.
   _Supersedes:_ none. _Trigger:_ 6.4.d must-stop. _Work:_ 6.R2. _Revalidated:_ pending → 6.4.
+- **A29** — 2026-11-24 — spec-depth: the brief's Cohort definition names a subcohort's `Parent` as its nesting's record.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R2. _Revalidated:_ pending → 7.1.
 
 ---
