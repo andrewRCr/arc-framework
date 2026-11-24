@@ -118,23 +118,26 @@ it("names the owner for a new file in another person's archived work unit and cl
   expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
-it.each(["persist", "release"] as const)("retires through %s after a save that changed only a text companion's line endings", async slot => {
+it.each(["persist", "release"] as const)("retires through %s once a line-ending-only save's opening is closed", async slot => {
   const h = await archiveRetirementFixture(), content = "First line.\nSecond line.\n";
   const path = `${h.folder}/endings.txt`, file = join(h.checkout, path);
   await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "endings.txt"), content);
   expect((await projectionCommand(h.input, ["status"])).result).toMatchObject({ kind: "ready" });
   expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
-  // The file keeps the time its editor wrote it, so the index's next write cannot trust its recorded stat.
   await writeFile(file, content.replaceAll("\n", "\r\n"));
+  const saved = await projectionCommand(h.input, ["save"]);
+  expect(saved.diagnostics).toContain("Restore the file's line endings, then retry arc save.");
+  expect((await h.disk()).index.entries[path]).toHaveProperty("opened", true);
+  // The opening is an unsettled entry, never a forced edit: sync names no unopened correction for it.
+  expect((await projectionCommand(h.input, ["sync"])).diagnostics).not.toContain("edited without opening");
+  await writeFile(file, content);
   expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
-  expect((await h.disk()).index.entries[path]).not.toHaveProperty("opened");
   expect((await projectionCommand(h.input, ["sync"])).diagnostics).not.toContain(path);
   expect(await h.check(h.checkout)).toEqual({ kind: "removable" });
-  expect(await readFile(file, "utf8")).toBe(content.replaceAll("\n", "\r\n"));
   expect(await h.retire(slot)).toEqual({ kind: slot === "release" ? "released" : "persisted" });
 }, 30_000);
 
-it("holds a never-opened text companion whose line endings were changed, at every step, until edit and save", async () => {
+it("holds a never-opened text companion whose line endings were changed, at every step, until they are restored", async () => {
   const h = await archiveRetirementFixture(), content = "First line.\nSecond line.\n";
   const path = `${h.folder}/closed.txt`, file = join(h.checkout, path);
   await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "closed.txt"), content);
@@ -144,12 +147,12 @@ it("holds a never-opened text companion whose line endings were changed, at ever
   expect((await projectionCommand(h.input, ["sync"])).diagnostics).toContain(path);
   expect(await h.check(h.checkout)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(`arc edit ${path}`) } });
   expect(await h.retire("persist")).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(`arc edit ${path}`) } });
-  // The remedy clears it: the save finds no edit to send and accepts the bytes at rest.
-  await h.openAndSave(path);
-  expect((await projectionCommand(h.input, ["sync"])).diagnostics).not.toContain(path);
+  // The named remedy opens it, and the save then says what the file still needs.
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  expect((await projectionCommand(h.input, ["save"])).diagnostics).toContain("Restore the file's line endings, then retry arc save.");
+  await writeFile(file, content);
+  expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
   expect(await h.check(h.checkout)).toEqual({ kind: "removable" });
-  expect(await readFile(file, "utf8")).toBe(content.replaceAll("\n", "\r\n"));
-  expect(success(await h.store.read({ reference: recordReferences["work-item/companion"](h.primary.reference.owner, "closed.txt") })).content).toBe(content);
   expect(await h.retire("persist")).toEqual({ kind: "persisted" });
 }, 30_000);
 

@@ -415,6 +415,11 @@ against the entry (`checkChange`) finds a file unchanged.
   which replaces the file — changes its modification time, which the re-check compares beside its size and inode
   (`FileStatSchema`, `index-schema.ts`; `isStatClean`, `change-detection.ts`), so the re-check finds it and settles it
   as an edit, as the cases above and below state.
+- **Only its line endings changed (A20).** Write-back answers `no-edit` for a file other than Markdown whose bytes
+  differ from the projected ones only in line endings, and records its stat (`stamplessVerdict`, `write-back.ts`), so a
+  stat match cannot show that the file holds the projected bytes. The re-lock compares such a file's bytes before it
+  clears the mark, and where they differ leaves the file opened and writable, its report naming the remedy: restore
+  the file's line endings, then `arc save`.
 - **It is gone or emptied.** Where its check finds the path absent, or a Markdown file emptied past the settle window,
   which write-back reads as deleted (`settledVerdict`, `read-gate.ts`; `spec-projection-substrate.md` § 4), or the
   unchanged case's re-check finds the path absent, `arc save` leaves a stored record's file opened, and its report names
@@ -1110,5 +1115,7 @@ design open.
   _Trigger:_ spec-residual-10-calls-an-unsettled-entry-a-forced-edit review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A19** — 2026-11-24 — design: residual 10 separates the persist step's own refusal. _Supersedes:_ § 11 item 10.
   _Trigger:_ a18-gives-conflicting-persist-outcomes review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A20** — 2026-11-24 — spec-depth: a line-ending-only save keeps its opening. _Supersedes:_ none.
+  _Trigger:_ status-before-save-leaves-closed-text-with-old-digest review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

@@ -2,8 +2,8 @@
 import { chmod, lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
-import { gitBlobId, storedBlobId } from "./blob-id.js";
-import { checkChange, readReference, readStat, readStoredText } from "./change-detection.js";
+import { gitBlobId } from "./blob-id.js";
+import { checkChange, readReference } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -44,8 +44,8 @@ async function settleFile(root: ProjectionRootState, index: ProjectionIndex, pat
   const changed = await readRelockedChange(root, path, entry, outcome);
   if ("mark" in changed) return retain(root, index, path, entry, changed.mark);
   if (changed.stat.size === 0n && admission.size !== 0n) return retain(root, index, path, entry, emptiedMark(path));
-  if (changed.status !== "changed") return finishUnchanged(root, index, path, entry, outcome, changed.stat.size);
-  if (outcome !== undefined) return retain(root, index, path, entry, pendingMark());
+  if (changed.status !== "changed") return finishUnchanged(root, index, path, entry, changed.stat.size);
+  if (outcome !== undefined) return retain(root, index, path, entry, unsentMark(path, outcome));
   const sent = await send(index, path, entry), current = sent.index.entries[path];
   if (current?.kind !== "record") return sent.index;
   return finishLateEdit(root, sent.index, path, current, sent.observation);
@@ -58,39 +58,32 @@ async function finishLateEdit(root: ProjectionRootState, index: ProjectionIndex,
   await root.ports.hooks?.beforeSaveMarkClear?.(path);
   const changed = await readRelockedChange(root, path, entry, outcome);
   if ("mark" in changed) return retain(root, index, path, entry, changed.mark);
-  return changed.status === "changed" ? retain(root, index, path, entry, pendingMark())
-    : finishUnchanged(root, index, path, entry, outcome, changed.stat.size);
+  return changed.status === "changed" ? retain(root, index, path, entry, unsentMark(path, outcome))
+    : finishUnchanged(root, index, path, entry, changed.stat.size);
 }
 
-/** Close an opening whose file holds no edit, first recording text that differs from the projected bytes in line endings. */
+/** Close an opening whose file holds no edit, unless text at rest differs from the projected bytes. */
 async function finishUnchanged(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
-  outcome: ProjectionFileWriteObservation | undefined, checkedSize: bigint): Promise<ProjectionIndex> {
-  if (outcome?.result.answer !== "no-edit" || path.endsWith(".md")) return finishRelock(root, index, path, entry, checkedSize);
-  const accepted = await acceptTextAtRest(root, path, entry);
-  return accepted === null ? retain(root, index, path, entry, pendingMark()) : finishRelock(root, index, path, accepted, checkedSize);
+  checkedSize: bigint): Promise<ProjectionIndex> {
+  if (!await restsAsProjected(root, path, entry)) return retain(root, index, path, entry, unstoredBytesMark());
+  return finishRelock(root, index, path, entry, checkedSize);
 }
 
 /**
- * The bytes a no-edit save leaves at rest become the entry's projected ones, so each later check, which compares
- * bytes, reads the file as unchanged. One read between two equal stats supplies both the comparison and the record.
+ * Whether a closing file holds the projected bytes. Write-back reads text other than Markdown that differs only in
+ * line endings as no edit and records its stat, so the stat cannot stand for the bytes here; every later check of a
+ * closed archive file compares bytes.
  */
-async function acceptTextAtRest(root: ProjectionRootState, path: string, entry: RecordEntry): Promise<RecordEntry | null> {
-  const file = join(root.checkout, path), { format } = root.context;
-  const before = await readStat(file), bytes = await allowMissingFile(readFile(file)), after = await readStat(file);
-  if (bytes === null || before?.type !== "file" || after?.type !== "file") return null;
-  if (before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ino !== after.ino) return null;
-  const written = gitBlobId(bytes, format);
-  if (written === entry.written) return entry;
-  if (storedBlobId(bytes.toString("utf8"), { format, markdown: false }) !== entry.written) return null;
-  return { ...entry, written, stat: after };
+async function restsAsProjected(root: ProjectionRootState, path: string, entry: RecordEntry): Promise<boolean> {
+  if (path.endsWith(".md")) return true;
+  const bytes = await allowMissingFile(readFile(join(root.checkout, path)));
+  return bytes !== null && gitBlobId(bytes, root.context.format) === entry.written;
 }
 
 async function readRelockedChange(root: ProjectionRootState, path: string, entry: RecordEntry,
   outcome: ProjectionFileWriteObservation | undefined) {
-  // A no-edit check of ordinary text compares normalized line endings against the projected bytes.
-  const reader = outcome?.result.answer === "no-edit" && !path.endsWith(".md") ? readStoredText : undefined;
   const changed = await allowMissingFile(checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
-    reference: await readReference(root.checkout), format: root.context.format }, reader));
+    reference: await readReference(root.checkout), format: root.context.format }));
   if (changed === null || changed.status === "absent") return { mark: missingMark() };
   if (changed.stat.size === 0n) {
     // An editor that just emptied the file may still be saving. A settled empty text file can match its store bytes.
@@ -141,6 +134,14 @@ function missingMark(): RefusedMark {
     remedy: { text: "Run arc sync in this checkout to restore the file, then retry arc save." } };
 }
 /** `arc sync` restores an absent file or emptied Markdown. Emptied text is an edit still to finish. */
+/** A changed file the save found no edit in differs only in bytes the store does not keep; any other waits on its save. */
+function unsentMark(path: string, outcome: ProjectionFileWriteObservation): RefusedMark {
+  return outcome.result.answer === "no-edit" && !path.endsWith(".md") ? unstoredBytesMark() : pendingMark();
+}
+function unstoredBytesMark(): RefusedMark {
+  return { reason: "The file differs from its stored text only in line endings, which are not stored; its opening is retained.",
+    remedy: { text: "Restore the file's line endings, then retry arc save." } };
+}
 function emptiedMark(path: string): RefusedMark { return path.endsWith(".md") ? missingMark() : pendingMark(); }
 function pendingMark(): RefusedMark {
   return { reason: "The file remains opened because its latest edit or read-back has not settled.",

@@ -34,7 +34,7 @@
 - [Amendment A17](#amendment-a17)
 - [Amendment A18](#amendment-a18)
 - [Amendment A19](#amendment-a19)
-- [Line endings at the re-lock](#line-endings-at-the-re-lock)
+- [Amendment A20](#amendment-a20)
 - [Delegated work from 11-24](#delegated-work-from-11-24)
 - [Model evidence](#model-evidence)
 
@@ -1013,8 +1013,8 @@ after A17:
 
 - **Historical,** recording the receipt, the path check with its holds, or the waiting rule as built: every amendment
   section from § Amendment A2 to § Amendment A16, § Save after a retirement refusal, and § Interrupted adoption and
-  retirement recovery. One rule in § Amendment A2 is still the build's: each refused path is reported once per command,
-  through the sweep and `arc save`'s re-lock too.
+  retirement recovery. One rule in § Amendment A2 is still the build's in part: `arc save`'s re-lock does not report
+  again a path the command already reported. Two distinct conditions at one path are each still reported.
 - **§ Archive boundary corrections, in part.** A1's opening requirement, the link validation before archive pickup, and
   the mode change through a handle that identifies the observed file are withdrawn. The check of which checkout owns the
   requested path, the same-byte replacement kept opened while writable, the retirement's refusal of a late forced edit,
@@ -1067,22 +1067,28 @@ separates the two and changes no behavior, approved 2026-11-24. Item 10 as A18 w
 
 The same check corrected a paragraph of § Independent verification repairs that A17's list had kept: it said § 8
 permits finishing a changed entry in a partition already open for settlement. The header marks a quarter when any
-entry in it is unsettled (`index-file.ts`), which decides only what `arc save` and the persist step read.
-`unopenedArchiveEditMark` (`archive-inspection.ts`) tests the entry itself, so a settled file edited beside an opened
-one in the same quarter is a forced edit and the persist step refuses over it.
+entry in it is unsettled (`index-file.ts`), which decides only what a plain `arc save` reads; the persist step reads
+every quarter. `unopenedArchiveEditMark` (`archive-inspection.ts`) tests the entry itself, so a settled file edited
+beside an opened one in the same quarter is a forced edit and the persist step refuses over it.
 
-## Line endings at the re-lock
+## Amendment A20
 
-A save that changes only the line endings of an archived text file other than Markdown sends nothing: write-back reads
-such bytes as holding no edit on every root (`readStamplessFile`, `stampless.ts`). The re-lock then closed the opening
-with the entry still recording the bytes the projection wrote, and every later check, which compares bytes, read the
-file at rest as a forced edit whose remedy, `arc edit` then `arc save`, repeated the same save. The re-lock now records
-the bytes it accepts as the entry's projected ones (`acceptTextAtRest`, `save-relock.ts`), read once between two equal
-stats, so sync's report, the removal check, the persist step and a release's replace guard all read the file as
-unchanged. A line-ending change to a file nobody opened is a forced edit like any other, and `arc edit` then
-`arc save` clears it the same way. A first repair normalized line endings in the archive inspection alone; it was
-withdrawn, since the persist step's capture guard and the replace guard still compared bytes, and it reported a file
-the store holds with CRLF as edited.
+The build as activated closed an opening only when `checkChange` found the file's bytes unchanged. A review round then
+let the re-lock close a text file other than Markdown whose save changed only its line endings, since write-back reads
+such bytes as holding no edit where the store holds LF (`readStamplessFile`, `stampless.ts`). That left a closed file
+whose bytes differed from its entry's, while sync's report, the removal check, the persist step's capture guard and a
+release's replace guard all compare bytes: pass 33 found the file read as a forced edit whose remedy repeated the same
+save. Two repairs tried to make the other steps agree, first by normalizing line endings in the archive inspection,
+then by recording the accepted bytes on the entry, and each left a route that disagreed: a file the store holds with
+CRLF reported as edited, a release that still refused, a `status` between the edit and the save that skipped the
+record, and bytes accepted through a text decoding that could not tell them apart.
+
+A20 withdraws the exception, approved 2026-11-24. The re-lock closes a text file only when its bytes are the projected
+ones (`restsAsProjected`, `save-relock.ts`). It reads them itself, because write-back's `no-edit` answer records the
+file's stat (`stamplessVerdict`, `write-back.ts`) and a later check would trust that stat. A line-ending-only save
+keeps its opening, writable, with a remedy that names restoring the line endings; a save that also changes the text
+lands and its read-back lays the stored text. A line-ending change to a file nobody opened is a forced edit like any
+other. No entry is rewritten, so every later comparison is the one the designed build made.
 
 ## Delegated work from 11-24
 

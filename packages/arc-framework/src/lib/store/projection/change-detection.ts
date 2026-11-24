@@ -107,11 +107,6 @@ export async function checkChange(
   return blob === check.written ? { status: "hashed-clean", stat } : { status: "changed", stat, blob };
 }
 
-/** Read a text file other than Markdown as the store holds it, with LF line endings, for a hash against its blob. */
-export async function readStoredText(path: string): Promise<Uint8Array> {
-  return Buffer.from((await fsReadFile(path, "utf8")).replaceAll("\r\n", "\n"));
-}
-
 /**
  * Read a path's `lstat` as bigints, or its `stat` where links are followed.
  * @param path - The absolute path.

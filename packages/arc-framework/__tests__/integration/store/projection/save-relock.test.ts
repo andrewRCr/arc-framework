@@ -258,12 +258,24 @@ it("re-locks an unchanged opening with standing conflict markers", async () => {
   expect(success(await h.store.read({ reference }))).toEqual(before);
 });
 
-it("re-locks an opened text companion after a line-ending-only edit", async () => {
+it.each([false, true])("keeps a text companion opened after a save that changed only its line endings (observed first=%s)", async observed => {
   const h = await fixture(), content = "First line.\nSecond line.\n";
   const { path, file, reference, base } = await projectedCompanion(h, "endings.txt", content);
   await openArchivedProjectionFile(h, path);
   await writeFile(file, content.replaceAll("\n", "\r\n"));
   await utimes(file, new Date(0), new Date(0));
+  // An earlier command reads the file as holding no edit and records its stat, which must not stand for its bytes.
+  if (observed) { expect(await startProjection(h)).toMatchObject({ kind: "ready" }); await endProjection(h); }
+  const saved = await save(h);
+  expect(saved.result).toMatchObject({ status: "ok" });
+  expect(saved.result).not.toHaveProperty("result.relocked");
+  expect(pathLines(saved.errors, path)).toEqual([expect.stringContaining("only in line endings, which are not stored")]);
+  expect(saved.errors).toContain("Restore the file's line endings, then retry arc save.");
+  expect(success(await h.store.read({ reference }))).toEqual(base);
+  expect(await diskEntry(h, path)).toHaveProperty("opened", true);
+  expect((await lstat(file)).mode & 0o200).toBe(0o200);
+  expect(await readFile(file, "utf8")).toBe(content.replaceAll("\n", "\r\n"));
+  await writeFile(file, content);
   expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path }] } }, errors: "" });
   expect(success(await h.store.read({ reference }))).toEqual(base);
   expect(await diskEntry(h, path)).not.toHaveProperty("opened");
@@ -507,9 +519,7 @@ it("retains an opening and retry remedy for a deferred take-in", async () => {
   if (root === undefined || disk.kind !== "index") throw new Error("No opened archive projection");
   const entry = disk.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("Missing opened archive record");
-  const bytes = await readFile(file);
-  // The file keeps content, so the deferred answer holds the opening, not the hold on an emptied file.
-  await writeFile(file, Buffer.concat([bytes, Buffer.from("\nA deferred change.\n")]));
+  // The file is left as laid, so the deferred answer alone holds the opening.
   const observation = { path: h.path, result: { answer: "deferred", entry }, installation: "attempted" } as const;
   const held = await withProjectionLock(root.location, async session => {
     const saveRoot = { ...root, checkpoint: session.step, context: { ...root.context, checkpoint: session.step, verb: "save" as const } };
@@ -523,7 +533,6 @@ it("retains an opening and retry remedy for a deferred take-in", async () => {
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
   await endProjection(h);
 
-  await writeFile(file, bytes);
   expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path: h.path }] } } });
   expect(await diskEntry(h)).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
