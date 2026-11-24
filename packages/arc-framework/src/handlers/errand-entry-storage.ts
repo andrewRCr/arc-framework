@@ -2,6 +2,7 @@
 import { legacyInboxEntryDigest } from "../lib/store/legacy-inbox-origin.js";
 import { removePartialOrigin } from "../lib/inbox/partial-origin.js";
 import { resolveQueueExecutionOffer } from "../lib/inbox/offer.js";
+import { readQueueState } from "../lib/inbox/queue-storage.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { bindStoreSyncPort } from "../lib/store/operational-sync.js";
 import { consumePull, writePullNotices } from "../lib/store/pull-consumption.js";
@@ -64,6 +65,9 @@ export async function prepareHandlerErrandReturn(slug: string, protection: "full
  * @returns Exact disposition and queue selection or refusal.
  */
 export async function settleStorePartialCapture(binding: { originEntry: string | null; originEntryVersion?: string; originEntrySourceDigest?: string; parentCheckoutPath: string | null }, context: InboxContext, legacyDigest: (content: string, title: string, expectedDigest?: string) => string = legacyInboxEntryDigest) {
+  // An unreadable queue refuses before the capture is removed, so the refusal leaves the inbox as it found it.
+  const queue = await readQueueState(context);
+  if (queue.status === "refused") return { outcome: { kind: "refused" as const, reason: `${queue.refusal.condition} ${queue.refusal.remedy.text}` }, disposition: "retained" as const, offer: null };
   const removed = await removePartialOrigin(binding, context, legacyDigest);
   if (removed.status === "refused") return { outcome: { kind: "refused" as const, reason: `${removed.refusal.condition} ${removed.refusal.remedy.text}` }, disposition: "retained" as const, offer: null };
   const offer = await resolveQueueExecutionOffer(context, binding.parentCheckoutPath);
