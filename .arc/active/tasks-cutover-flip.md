@@ -1521,6 +1521,17 @@ command declares it (`integration/command-surface-documentation.test.ts`).
           member's path-valued `Cohort` field agrees with it; `template-cohort.md`'s `Parent` note says "each open
           member's". Both copies of each file carry the change.
 
+### `[x]` **5.R3 `init-work-unit.md` states promotion and release as the store has them — § 8.6**
+
+- _Goal:_ The init workflow's sentences on an in-place primary's release, a promoted Errand's occupancy, and a
+  promotion's replay state what the store verbs do (A30).
+
+    - `[x]` **5.R3.a Three sentences, both copies**
+        - An in-place primary stays occupied until exact teardown or `arc locus release` removes its marker, teardown
+          alone restoring base; `arc errand promote` converts the checkout's occupancy to WU ownership on the primary as
+          in a spawned checkout; and a rerun's replay authority is the `Promotion Receipt` with the role write's history
+          holding its exact cut, a rerun refusing where either is missing.
+
 ### `[x]` **5.12 The retired forms exhausted** — validate exit criterion at segment scope
 
 - _Goal:_ The closure search over the shipped text at this head finds only the recorded kept sites; Framework files

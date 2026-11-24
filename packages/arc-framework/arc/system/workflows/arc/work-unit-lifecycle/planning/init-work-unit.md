@@ -49,9 +49,9 @@ in-place escape hatch.
   for the WU. Before spawning, run the [in-flight scope check][in-flight-scope-check] — an advisory pass over
   in-flight work units that surfaces scope overlap and never gates.
 - **In-place** — `arc start --here` converts the current checkout into the WU-owned checkout, leaving its `HEAD` where
-  it stands. When that checkout is the physical primary, the primary is occupied for the WU's lifetime: it is not also
-  the launchpad or available to an Errand, grooming pass, housekeep drain, or another WU. Only exact WU teardown
-  removes the WU marker, restores base, and makes it the free primary again.
+  it stands. When that checkout is the physical primary, the primary is occupied until exact WU teardown, or a release
+  (`arc locus release`), removes the WU marker: it is not also the launchpad or available to an Errand, grooming pass,
+  housekeep drain, or another WU. Teardown also restores base, which makes it the free primary again.
 
 **Default mode selection.** Resolve the mode per protection mode ([§ Branch Protection Modes][work-org-protection]):
 
@@ -262,10 +262,11 @@ task-list backfill. Carry any landed errand commit as context in the new WU's sp
    Render `recommendedPromptText`. Continue only from an `applied` result whose exact `subject`, `generation`,
    `branch`, `metaPath`, `checkoutPath`, allocation, and parent checkout evidence accompanies
    `settlement.state: settled` with the identity retired: the write settled the exact source-capture generation and
-   retired the identity, and the verb then removed primary transient occupancy or converted spawned occupancy to WU
+   retired the identity, and the verb then converted the checkout's occupancy, on the primary or spawned, to WU
    ownership. A `confirmation-required`, `refused`, or `error` result is a stop; use only the CLI-composed retry after
-   explicit confirmation. Re-run the exact command after a lost response; the immutable `Promotion Receipt` supplies
-   replay authority after the identity's retirement, and the rerun reports the same exact `subject` and `generation`.
+   explicit confirmation. Re-run the exact command after a lost response; the immutable `Promotion Receipt`, with the
+   role write's history holding its exact cut, supplies replay authority after the identity's retirement, and the rerun
+   reports the same exact `subject` and `generation`. A rerun that finds either missing refuses.
    Pass `--priority` / `--class` when known, or resolve `Class` at the planning entry (step 5).
 
 4. **Push the work branch.**
