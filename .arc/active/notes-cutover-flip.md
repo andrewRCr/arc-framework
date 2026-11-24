@@ -2311,6 +2311,38 @@ The status and view arms ran on the flipped primary with exit 0: `status`, `stat
 <slug>`, `status --json`, and `view` for the inbox, working memory, a cohort, a meta and an archived unit's task list.
 The copy holds no slug clash, so that arm needs one made.
 
+#### Run 7 (Tasks 6.4.c and 6.4.d), at `677549c2f8`: steps 1 to 6 as written
+
+Run on 11-24 from a fresh copy taken at 2:55 pm, with `main` at `270bcf15e8` and the stand-in for its pre-window change
+planted (A28). Every step from the copy to the close matched the outcome written before it, in 54 minutes; the window's
+own part, from the lock to the close, took 46.
+
+- **Preparation (8 min).** The copy's one Errand abandoned without reaching the host; the stand-in committed on `main`
+  and `main` merged without conflict into all twelve held branches and the flip; an unheld local branch planted. No
+  copied unit's Candidate was left unresolved by the merges, so the A6 settlement had nothing to settle.
+- **Quiesce and import (20 min).** Trial 403 s, `check` 90 s, the import 422 s at a 2,602 MiB peak, `account` 118 s,
+  `chain` 128 s, `recompute` 3 s; each `arc user save` pass over 14 checkouts 7 s.
+- **The flip's landing (2 min).** The deletion commit removed 1,068 files and passed its hooks, its push its gate;
+  `last-read` passed; the merge left `main` tracking nothing under the five paths; the archive was published with State
+  `Shipped`; the 26 register rows closed and saved; the flip checkout released.
+- **Each branch (17 min).** Thirteen live branches compared with no range. Each of the twelve held branches made its
+  deletion commit, 1,066 to 1,070 files, through its own pre-flip hooks before merging the flip, and pushed through its
+  gate, which is A28's criterion (Success Criterion 18). Three checkouts reinstalled first. The unheld branch took the
+  same commit from a temporary checkout given its hook shims.
+- **Each checkout (7 min).** The primary fast-forwarded and materialized with nothing withheld. Eleven linked checkouts
+  merged the flipped `main`, materialized, and bound their markers. `projection-team-scale`'s merge conflicted in five
+  files outside the five paths and was left to its own session; its branch step had passed.
+- **Close.** The notes ref moved under `refs/retired-notes/`, all six notes writers refused, `close` passed, and 411
+  review-gate records naming the live repository were cleared.
+
+One runbook item has no evidence in this run: a checkout that merges `main` and rebuilds while still tracking its
+records. The driver took every branch deletion-first and designated none, so the refusal, the remedy's deletion commit
+with the projection off, and that checkout's first materialization remain to be run. Step 7 runs on this run's copy.
+
+For the day: the primary's identity root keeps its pre-flip `STATUS.USER.md`, which no step removes; a session that
+makes a checkout with a plain `git worktree add` must run `npm run prepare` before committing there; and
+`projection-team-scale` will meet the same five conflicts when it merges the flipped `main`.
+
 ## The parallel run from 11-24
 
 A draft for the Owner's approval on Tuesday 11-24. The Owner decided at 9:04 pm on 11-20 that the flip runs in parallel
