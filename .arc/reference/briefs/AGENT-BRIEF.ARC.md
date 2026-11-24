@@ -46,9 +46,9 @@ Precise meanings — assume the technical sense.
   from quality gates.
 - **Cohort:** A deliberate grouping of sibling work units, recorded by a `cohort-{name}.md` that holds the
   group's shared coordination. The work unit is the leaf. Nesting is capped at one level —
-  `<cohort>/<subcohort>/<wu>`. A subcohort's `Parent` records it, and each member's path-valued `Cohort` field agrees
-  with it. When an active WU names a `Cohort`, session-init resolves and reads that `cohort-{name}.md`, so the group's
-  shared coordination loads as session context.
+  `<cohort>/<subcohort>/<wu>`. A subcohort's `Parent` records it, and each open member's path-valued `Cohort` field
+  agrees with it. When an active WU names a `Cohort`, session-init resolves and reads that `cohort-{name}.md`, so the
+  group's shared coordination loads as session context.
 - **Chunk:** A bounded, contract-cohesive slice of one exact change set reviewed in one pass. It is a review
   boundary, not a Work Unit, review increment, task-plan phase, branch, PR, or merge unit; closure, complete union
   coverage, and a seam review preserve local and cross-chunk review. Delivery vocabulary is reserved compatibly:

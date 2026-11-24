@@ -1517,9 +1517,9 @@ command declares it (`integration/command-surface-documentation.test.ts`).
   `Parent` is that record and the store checks open members' paths against it (A29).
 
     - `[x]` **5.R2.a The definition and the template note**
-        - `AGENT-BRIEF.ARC.md`'s Cohort definition says a subcohort's `Parent` records its nesting and each member's
-          path-valued `Cohort` field agrees with it; `template-cohort.md`'s `Parent` note says "each open member's".
-          Both copies of each file carry the change.
+        - `AGENT-BRIEF.ARC.md`'s Cohort definition says a subcohort's `Parent` records its nesting and each open
+          member's path-valued `Cohort` field agrees with it; `template-cohort.md`'s `Parent` note says "each open
+          member's". Both copies of each file carry the change.
 
 ### `[x]` **5.12 The retired forms exhausted** — validate exit criterion at segment scope
 
