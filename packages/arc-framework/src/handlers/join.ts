@@ -104,7 +104,8 @@ export async function handleJoin(opts: JoinOptions, context: InteractionContext,
   const templateDir = getArcTemplatePath();
 
   const spinner = p.spinner();
-  spinner.start("Setting up developer workspace...");
+  const progress = { spinner, label: "Setting up developer workspace..." };
+  spinner.start(progress.label);
 
   try {
     const identity = identityResult === null ? null : SlugSchema.parse(identityResult);
@@ -122,7 +123,7 @@ export async function handleJoin(opts: JoinOptions, context: InteractionContext,
       prompts,
       identityResult,
       store,
-      confirmIdentityInUse: confirmPersonalIdentity(joinIdentityInUsePromptSite, context, storePorts.renderer),
+      confirmIdentityInUse: confirmPersonalIdentity(joinIdentityInUsePromptSite, context, storePorts.renderer, progress),
     });
 
     spinner.stop("Workspace setup complete.");

@@ -186,7 +186,6 @@ export async function handleUserAdd(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc user add");
-  const output = createSyncOutput(false);
 
   const normalizedIdentity = normalizeCommandIdentity(rawIdentity);
   const parsed = UserAddInputSchema.safeParse({ identity: normalizedIdentity });
@@ -204,15 +203,16 @@ export async function handleUserAdd(
   if (!cwd) return;
   const io = createUserIOContext(context?.subprocess);
 
+  // The handler holds the spinner so the identity question can clear it before asking.
+  const spinner = p.spinner();
+  const progress = { spinner, label: `Creating user directory for ${identity}...` };
+  spinner.start(progress.label);
   try {
-    await runWithSpinner(
-      output,
-      `Creating user directory for ${identity}...`,
-      () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(),
-        confirmIdentityInUse: confirmPersonalIdentity(userAddIdentityInUsePromptSite, context) }),
-      `User directory created for ${identity}.`,
-    );
+    await runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(),
+      confirmIdentityInUse: confirmPersonalIdentity(userAddIdentityInUsePromptSite, context, undefined, progress) });
+    spinner.stop(`User directory created for ${identity}.`);
   } catch (err) {
+    spinner.stop("Failed.");
     if (isHandledError(err)) return;
     throw err;
   }
