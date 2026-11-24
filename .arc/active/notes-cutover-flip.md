@@ -2161,6 +2161,47 @@ on the importing machine, outside the repository and uncited; each conclusion na
 Steps 2 to 6 are the window's day (12-01). Stage 1's trial and import each took 15 to 19 minutes; each Stage 2 run
 records every step's time here, which sizes that day.
 
+### Run conclusions
+
+#### The import side (Task 6.4.b), at `bb54d166ab`
+
+Run on 11-24 over a copy of the live repository taken that morning: `main` at `cedb6f49e1`, 15 checkouts, 6.7 GB, copied
+in 44 seconds. Every step's outcome matched the one written before it.
+
+- **Preparation (step 1), about 8 minutes.** The copy's flip checkout held uncommitted work, dropped, and two branches
+  ahead of the mirror, published. The tracked-state remedy merged `main` into no branch (237 s). Seven planning branches
+  lacked the sealing anchor and took a merge of `main` (193 s). One open Errand was abandoned from its checkout. The
+  merges moved Planning units only, so no Candidate needed settling, and the copy already held every plant step 1.4
+  names.
+- **First refusal probe.** Over the copied primary, registry absent, the flip build with the override dropped refused as
+  § 3.2 states, naming both routes and never the override, and changed nothing.
+- **The quiesce (step 2), about 9.5 minutes.** `lock` locked the 13 linked checkouts. The 14 checkouts' saves took 7
+  seconds. The trial took 422 s: 364 refs to create, none refused, no differing note, and 22 notices, each that a
+  completed unit's task list cannot be scanned, which the import adds after deciding it is not blocked. `check` passed
+  in 117 s and wrote the hold.
+- **Six broken Candidate chains.** The trial and the import both list six, in completed units: an entry `treatment`
+  outside today's enumeration in `decompose-extraction`, `delivery-native-stack-composition`,
+  `integration-boundary-accuracy`, `plan-segmentation`, and `test-suite-right-sizing`, and a superseded Candidate absent
+  from reachable history in `evidence-applicability`. Stage 1's report lists the same six. They do not block the import,
+  and `chain` passed over them. The window's driver should expect them in the trial's report.
+- **The designation and the import (step 3), about 11.5 minutes.** The import took 417 s and peaked at 2,515 MiB
+  resident, inside the 4 GiB cap, under an 8,192 MiB address-space limit and `--max-old-space-size=3072` (V8 reports
+  that ceiling as 3,168 MiB). The mirror holds all 364 store refs. The report maps 66 review sources and leaves 4,023
+  behind. The sealed write refused in each of the four checkouts with a build of its own, the flip build under the
+  override among them, and no Errand identity ref or kept tip remains. `account` passed (122 s; 1,076 files imported, 26
+  superseded, 2 deliberately left), `chain` passed (122 s), and `recompute` passed (2 s).
+- **Second refusal probe.** In the flip checkout after the import, the flip build with the override dropped refused
+  naming the imported route alone: delete the five paths, commit, merge the base.
+- **Sizing the day.** Steps 2 and 3 ran in 20 minutes end to end, against Stage 1's 15 to 19 minutes for the trial and
+  again for the import.
+- **An earlier run the same morning stopped before `check`.** Its trial listed the six chains where the expectation
+  written for it said none. The expectation was wrong, not the trial; under the Stops rule the stage re-ran from a fresh
+  copy with the expectation corrected. That run's copy also held a stash entry of `projection-team-scale`'s, which its
+  session had cleared by the second copy.
+- **For the live day.** Before the lock: the seven planning branches merge `main`, and the open Errand
+  `adoption-read-back-baseline` closes or is abandoned. The copied primary's review-gate folder held 379 records naming
+  paths under the live repository, cleared at step 6.4.
+
 ## The parallel run from 11-24
 
 A draft for the Owner's approval on Tuesday 11-24. The Owner decided at 9:04 pm on 11-20 that the flip runs in parallel
