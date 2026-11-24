@@ -2073,12 +2073,16 @@ on the importing machine, outside the repository and uncited; each conclusion na
     - `check` also takes `--path` with a `PATH` holding no `arc` outside the copy.
 - **Memory.** The import's trial, the import, and each tooling operation launch through `memcap_gated -m 4G`, one capped
   run at a time. The import takes `NODE_OPTIONS=--max-old-space-size=3072`, a heap ceiling below the cap. Stage 1's
-  imports peaked near 2.4 GiB and its operations near 2.9 GiB.
+  imports peaked near 2.4 GiB and its operations near 2.9 GiB. Each capped launch first waits for the host's serial cap
+  lock, since `memcap_gated` refuses at once while another session's capped run holds it and that refusal would read as
+  the step's failure.
 - **The builds.** The pre-flip build is `<P>`'s, and a checkout with no built CLI runs it with that checkout as its
   working directory. The flip build is built in `<F>` (`npm run build:fast`) and rebuilt there after any change to it. A
   checkout's hooks run that checkout's own CLI, so before its first commit of the window a checkout holds an install
   that can start it and a build of its own: `npm run build:fast`, after `npm ci` where the CLI still cannot start, as in
-  the three planning checkouts whose installs predate a dependency `main` added.
+  the three planning checkouts whose installs predate a dependency `main` added. A checkout made by a plain `git
+  worktree add` also lacks the hook shims under `.husky/_`, and without them Git runs no hook and reports nothing, so
+  such a checkout runs `npm run prepare` and the step checks the shims exist before it commits.
 - **Commits.** The window's own commits, each deletion commit and each merge a branch step makes, are made in the copied
   checkout, through its hooks. The stand-ins for live sessions' work ahead of the window, and each plant, are made in
   `<scratch>`, pushed to the mirror, and fetched.
@@ -2154,7 +2158,7 @@ on the importing machine, outside the repository and uncited; each conclusion na
         - commit in its checkout or, for a branch no checkout holds, from a temporary checkout removed afterwards, the
           hooks passing on the branch's own pre-flip build; the message's footer is `Context: standalone (maintenance)`,
           since the commit deletes the meta a work-unit footer would name;
-        - push, its push gate passing.
+        - push, its push gate passing; a branch `origin` does not hold has no push to make.
     2. Each checkout, the primary first: `compare --checkout`, then its seven steps. The three removals run only where
        its digest is unchanged. A linked checkout merges the flipped `main`, rebuilds, removes its pre-flip workspace
        folder, takes its first materialization, and binds its marker with `arc materialize <slug> --here`. On the copy
@@ -2257,7 +2261,7 @@ at `aeacd22686`) and the flip build the flip checkout's own. The carry holds (A2
 
 #### Runs 4 and 5 (Tasks 6.4.c and 6.4.d), at `0fea09892a`: two stops, and what the stopped copies showed
 
-Both runs on 11-24 passed steps 1 to 3 as written, then stopped under the Stops rule. Neither is the stage's clean run;
+Runs 4 and 5 on 11-24 passed steps 1 to 3 as written, then stopped under the Stops rule. Neither is the stage's clean run;
 the next one takes a fresh copy at the head that holds the fixes below.
 
 - **Run 4** imported in 394.5 s at a 2,959 MiB peak, then stopped at step 4.1: the copied flip checkout's commit hook
@@ -2269,6 +2273,13 @@ the next one takes a fresh copy at the head that holds the fixes below.
   workspace files withheld), and the bare `arc archive`'s refusal. It stopped at 4.4.c on my expectation, which said no
   new local-only store ref would appear: the store's local version token, `refs/arc/tmp/version`, did. The archive
   itself was published. The expectation now names the published archive ref, not the ref set.
+
+- **Run 6**, at `583e7db566` with the stand-in for `main`'s change planted, passed steps 1 to 4 and the twelve held
+  branches' steps: trial 395 s, `check` 95 s, import 418 s at a 2,484 MiB peak, `account` 113 s, `chain` 124 s; step 4
+  in two minutes; each held branch's deletion commit passed its own pre-flip hooks and its push its gate, 17 minutes for
+  the twelve (A28's criterion). It stopped on the thirteenth: the unheld branch's temporary checkout had no hook shims,
+  so its commit ran no hook. With the shims installed the scout on that copy passed the rest as written: that commit,
+  every checkout's steps, notes retirement, `close`, and 411 review-gate records cleared.
 
 Scouted on the stopped copies afterwards, as findings for the next run and the day, not as its evidence:
 
