@@ -1623,6 +1623,7 @@ rewritten workflows (§ 9.2).
           surfaces and `scratch/`.
         - Then notes retirement (§ 12), its old ref moved under a namespace neither a tag nor pushed and every `arc
           user` notes writer refusing, and last the window tooling's close, with no checkout reporting a withheld file.
+        - _Amended in:_ 6.R (A27).
 
     - `[ ]` **6.4.e The flipped copy's paths**
         - The status and view arms, the roster read and the slug clash among them; the tripwire report's first live
@@ -1684,6 +1685,21 @@ rewritten workflows (§ 9.2).
       refspec push of the commit to the branch. The tree hash is recorded.
     - The run is dispatched (`gh workflow run ci.yml --ref <branch>`) with no diagnostic inputs set and recorded by run
       ID; it passes when every job succeeds or is skipped, since `ci-ok` runs only on a pull request.
+
+### `[ ]` **6.R The in-place checkout's carry in a synthetic repository — § 9.6**
+
+- _Goal:_ A checkout claimed in place before the flip is carried to an anchored marker in a synthetic repository beside
+  Stage 2, since the copy can hold none (A27).
+
+    - `[ ]` **6.R.a The synthetic carry**
+        - In a scratch repository with a remote, the pre-flip build, the copied primary's, starts a work unit in place
+          on a work branch with `arc start --here`, then designates the remote and imports (`arc store remote origin
+          push`, `arc store migrate --import`). The branch takes the flip's deletion as § 10.6's branch step makes it.
+        - The flip build's session start (`arc status --session-init --json`) offers `arc materialize <slug> --here` for
+          the checkout, which holds no marker (`lib/session-init/materializable-work-units.ts`); run there, the command
+          writes an anchored marker carrying the work unit's UID and leaves `HEAD` and the branch where they were.
+        - The run's conclusion is recorded in `notes-cutover-flip.md` § Stage 2 beside the copy's, naming the flip head
+          it ran at.
 
 ### `[ ]` **6.8 Stage 2 clean at the head that lands** — validate exit criterion at segment scope
 
@@ -1804,6 +1820,10 @@ landing after verification).
 
 - `[ ]` On the store, a command whose projection start cannot update Git's `info/exclude` runs with its projection
   refused, naming the file and its repair, and projects once the file is repaired (A25).
+
+- `[ ]` In a synthetic repository whose work unit the pre-flip build started in place on a work branch and imported, the
+  flip build's session start offers `arc materialize <slug> --here`, and that command writes an anchored marker carrying
+  the work unit's UID (A27).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

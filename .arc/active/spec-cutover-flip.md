@@ -1340,8 +1340,9 @@ that no record under the copy's `<commonDir>/arc/review-gate/` names a path outs
 first.
 
 Alongside it, the destructive CLI matrix (§ 9.8) and the partial-protection start (§ 9.7) run in synthetic scratch
-repositories through the spawned built CLI. The window opens only after a clean Stage 2, re-run at the new head after
-any later change to the flip change, the import, or the rewritten workflows.
+repositories through the spawned built CLI. The in-place checkout's carry runs in a synthetic repository of its own
+(§ 9.6; A27). The window opens only after a clean Stage 2, re-run at the new head after any later change to the flip
+change, the import, or the rewritten workflows.
 
 #### 9.3 Controlled perturbations
 
@@ -1425,20 +1426,25 @@ Integration's candidate tail lies past the host boundary, with the work-unit can
 
 #### 9.6 The checkout carries
 
-Before the flip no in-place arm writes a checkout marker: the cold start, `arc start --here`'s graduation,
-`arc materialize --here`, in-place resume, and promotion on the primary leave none (`spec-seam-locus.md` § 2.7), and
-the import leaves markers out as machine-local (`spec-storage-ref-backend.md` § 10.8). From the flip, locus derivation
-reads only the marker and the store, so a checkout claimed in place before the flip holds its work unit with no
-marker; session start then offers `arc materialize <slug> --here` for a marker-less checkout that has out a branch an
-owned in-flight work unit links, and a work unit no checkout holds takes the ordinary materialize offer. Separately,
-from the flip a work-unit checkout claim carries and matches its owner's UID, with no slug fallback, and no pre-flip
-marker carries one, so every spawned pre-flip checkout's claim refuses until it is bound
-(`spec-lifecycle-slug-selection.md` § 7). Such a marker is unbound rather than re-stamped (§ 7.4): claim readers and
-holder matching refuse it, naming the exits its marker and slug select — `arc materialize <slug> --here` for a live
-holder, the cold start's rerun for an anchored leftover whose slug has no record, and `arc locus release`. Stage 2
-carries a pre-flip `arc start --here` checkout on a work branch to an anchored marker after the import, and binds a
-spawned pre-flip checkout (§ 9 of that specification). The cold start on base under partial protection runs in the
-synthetic repositories (§ 9.7), since this repository runs full protection.
+Before the flip no in-place arm writes a checkout marker: the cold start, `arc start --here`'s graduation, `arc
+materialize --here`, in-place resume, and promotion on the primary leave none (`spec-seam-locus.md` § 2.7), and the
+import leaves markers out as machine-local (`spec-storage-ref-backend.md` § 10.8). From the flip, locus derivation reads
+only the marker and the store, so a checkout claimed in place before the flip holds its work unit with no marker;
+session start then offers `arc materialize <slug> --here` for a marker-less checkout that has out a branch an owned
+in-flight work unit links, and a work unit no checkout holds takes the ordinary materialize offer. Separately, from the
+flip a work-unit checkout claim carries and matches its owner's UID, with no slug fallback, and no pre-flip marker
+carries one, so every spawned pre-flip checkout's claim refuses until it is bound (`spec-lifecycle-slug-selection.md`
+§ 7). Such a marker is unbound rather than re-stamped (§ 7.4): claim readers and holder matching refuse it, naming the
+exits its marker and slug select — `arc materialize <slug> --here` for a live holder, the cold start's rerun for an
+anchored leftover whose slug has no record, and `arc locus release`. Stage 2 binds a spawned pre-flip checkout (§ 9 of
+that specification). A checkout claimed in place cannot sit on the copy: the window's check refuses a linked checkout
+that holds no marker (`windowUnmarkedCheckoutFindings`, `scripts/cutover-window/checkout-holders.ts`), and the copy's
+primary stays free on `main`, as the live primary does, for the window tooling to run from. So a pre-flip `arc start
+--here` checkout on a work branch is carried to an anchored marker in a synthetic repository beside Stage 2: the
+pre-flip build starts the work unit in place and imports the repository, and once its branch has taken the flip's
+deletion (§ 10.6) the flip build's session start offers `arc materialize <slug> --here`, which writes an anchored marker
+carrying the work unit's UID (A27). The cold start on base under partial protection runs in the synthetic repositories
+(§ 9.7), since this repository runs full protection.
 
 #### 9.7 The partial-protection start
 
@@ -2190,6 +2196,14 @@ None closes by being listed here.
   head is fixed, the flip ships the errata convention's in-place form, the archive lays writable, and `arc save` reads
   every archived file; that unit's landing rewrites the convention onto `arc edit` and lays the archive read-only. The
   residual is disclosed at the window.
+- **Objects retyped at a projection's removal** (A26). Removal walks a checkout's projected roots, reading each folder
+  once per walk (`walkProjectionRoots`, `lib/store/projection/engine-walk.ts`), so one walk misses a file that replaces
+  a folder while it enumerates. Removal walks more than once and catches such a change at each read before its last; a
+  change landing at that last read, a new file or another identity's retyped root among them, goes with the checkout
+  unsaved, the edge of the window `spec-projection-worktrees.md` § 17 item 3 accepts. A regular file standing where a
+  whole projected root belongs is seen by no walk. Under ARC's required ignore rules Git's own check refuses the removal
+  as dirty; where a project's rules also ignore that file's name the removal proceeds and the file is lost, as it was
+  for each of four roots tried at `main`'s `cedb6f49e1`. The window does not wait on a fix (Owner, 2026-11-24).
 
 ## Alternatives & Rationale
 
@@ -2346,6 +2360,9 @@ retirement (§ 12) for criterion 10, and the canaries' landings (§ 9.11) for cr
 16. **Session-init stays passive over read-only Git metadata.** On the store, `arc status --session-init` in a linked
     worktree whose shared Git directory is read-only runs with projection disabled, reporting the skip, and returns the
     same code-repository values as an unrestricted run (A17).
+17. **A checkout claimed in place is carried apart from the copy.** In a synthetic repository whose work unit the
+    pre-flip build started in place on a work branch and imported, the flip build's session start offers `arc
+    materialize <slug> --here`, and that command writes an anchored marker carrying the work unit's UID (A27).
 
 ## Open Questions
 
@@ -2403,5 +2420,9 @@ None.
   _Supersedes:_ § 7.5 ¶1. _Trigger:_ 3.5 door. _Work:_ none. _Revalidated:_ 3.7.
 - **A25** — 2026-11-20 — spec-depth: a projection start that cannot update Git's exclude refuses rather than crashing.
   _Supersedes:_ none. _Trigger:_ 3.6.a must-stop. _Work:_ 3.R10. _Revalidated:_ 3.7.
+- **A26** — 2026-11-24 — spec-depth: removal's miss of a retyped object or a file-replaced root is a named residual.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 7.1.
+- **A27** — 2026-11-24 — design: the in-place checkout's carry runs in a synthetic repository, not on the copy.
+  _Supersedes:_ § 9.6 ¶1. _Trigger:_ 6.4.b must-stop. _Work:_ 6.R. _Revalidated:_ pending → 6.8.
 
 ---

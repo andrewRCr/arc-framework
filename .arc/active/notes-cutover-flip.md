@@ -1895,6 +1895,23 @@ The refused result keeps commands that never need the projection, read-only ones
 repaired, as an ignore guard refusal already does. Ending each command with a structured refusal instead would block all
 of them on a file only the projection writes.
 
+## A27 — the in-place checkout's carry
+
+Stage 2's first run stopped at the runbook's plant of a checkout claimed in place. The window's check refuses every
+linked checkout that is neither marked nor a husk (`windowUnmarkedCheckoutFindings`,
+`scripts/cutover-window/checkout-holders.ts`), and before the flip no in-place arm writes a marker (§ 9.6), so on the
+copy that checkout could only be the primary. The runbook drives the window from the copied primary on `main`, as the
+driver will from the live one, and the live repository holds no checkout claimed in place, which the same check would
+refuse on the day. Section 9.6 read, superseded:
+
+> Stage 2 carries a pre-flip `arc start --here` checkout on a work branch to an anchored marker after the import, and
+> binds a spawned pre-flip checkout (§ 9 of that specification).
+
+Making the copied primary that checkout would have kept the sentence and taken the rehearsal off the path the live
+primary walks. The carry still gets a run, since it is the path a repository whose checkout was claimed in place takes
+when it flips, so it runs in a synthetic repository beside Stage 2 (Task 6.R), as the cold start does (§ 9.7). The copy
+keeps binding its spawned pre-flip checkouts.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.
@@ -2079,12 +2096,10 @@ on the importing machine, outside the repository and uncited; each conclusion na
        pre-publication <wu>`, then the choice the live day would take through `arc candidate applicability resolve`,
        committed and pushed in its checkout.
     4. Where the copy holds none, make each before the lock: a live branch no checkout holds; a branch carrying a
-       Candidate record `main` lacks; a pre-flip `arc start --here` checkout on a work branch; and a spawned pre-flip
-       checkout.
+       Candidate record `main` lacks; and a spawned pre-flip checkout. The copy holds no checkout claimed in place,
+       which `check` would refuse as unmarked; that carry runs in its synthetic repository (Task 6.R).
     5. Build the flip build in `<F>`. First refusal probe: the flip build, with the override dropped, over `<P>`
        refuses as § 3.2 states with the registry absent, naming both routes.
-    6. Assert that no record under `<P>`'s `<commonDir>/arc/review-gate/` names a path outside the copy, or clear those
-       records.
 2. **The quiesce (§ 10.2), in order:**
     1. No review attempt in flight.
     2. Ended holders' checkouts and husks torn down, the files each keeps copied out first.
@@ -2121,7 +2136,7 @@ on the importing machine, outside the repository and uncited; each conclusion na
        its digest is unchanged.
         - The checkout that merged `main` and rebuilt while still tracking state shows the refusal, then the remedy's
           deletion commit passing its hooks with the projection off, then its first materialization.
-        - The `--here` checkout is carried to an anchored marker, and the spawned one bound.
+        - Each spawned pre-flip checkout's marker is bound.
         - The primary's identity root ends holding only ARC's surfaces and `scratch/`, its inbox and working memory laid
           from the store.
     3. Each moved range is re-applied through the store and confirmed with `confirm`.
@@ -2130,6 +2145,10 @@ on the importing machine, outside the repository and uncited; each conclusion na
        matched by any push refspec, and delete the old ref.
     2. Each `arc user` notes writer refuses: `save`, `load`, `push`, `fetch`, `pull`, and `compact`.
     3. `close`, passing, with no checkout reporting a withheld file.
+    4. Clear every record under `<P>`'s `<commonDir>/arc/review-gate/` that names a path outside the copy, before any
+       review runs on the copy. The records stay until here because the import reads every file under that folder
+       (`readImportReviewGate`, `lib/store/ref/import/review-gate.ts`), so the copy's import reads what the live one
+       will.
 7. **The flipped copy's paths (Task 6.4.e):**
     - the status and view arms, the roster read, and the slug clash;
     - `arc handoff write` and an `arc sync` push, for the tripwire report's first live figures;
