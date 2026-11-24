@@ -64,27 +64,41 @@ const SUMMARY_SECTIONS = {
   status: { start: /<!--\s*recent_review_status_start\s*-->/giu, end: /<!--\s*recent_review_status_end\s*-->/giu },
 } as const;
 
-/** The text of one summary section, or null where the comment does not hold exactly one. */
-function summarySection(comment: HostedGitHubIssueComment, section: keyof typeof SUMMARY_SECTIONS): string | null {
+/** One summary section's text, null where the comment holds none of its markers. */
+function summarySection(
+  comment: HostedGitHubIssueComment,
+  section: keyof typeof SUMMARY_SECTIONS,
+): { text: string | null } | "malformed" {
   const starts = [...comment.body.matchAll(SUMMARY_SECTIONS[section].start)];
   const ends = [...comment.body.matchAll(SUMMARY_SECTIONS[section].end)];
-  if (starts.length !== 1 || ends.length !== 1) return null;
+  if (starts.length === 0 && ends.length === 0) return { text: null };
   const start = starts[0];
   const end = ends[0];
-  if (start === undefined || end === undefined || end.index <= start.index) return null;
-  return comment.body.slice(start.index + start[0].length, end.index);
+  if (starts.length !== 1 || ends.length !== 1 || start === undefined || end === undefined
+    || end.index <= start.index) return "malformed";
+  return { text: comment.body.slice(start.index + start[0].length, end.index) };
 }
 
-/** Whether a section carries the no-findings line and none states a nonzero count; sections that disagree do not. */
+/** Every summary section's text, or null where any section's markers are not exactly one pair in order. */
+function summarySections(comment: HostedGitHubIssueComment): { status: string | null; details: string | null } | null {
+  const status = summarySection(comment, "status");
+  const details = summarySection(comment, "details");
+  return status === "malformed" || details === "malformed" ? null : { status: status.text, details: details.text };
+}
+
+/**
+ * Whether the summary reports no findings: one section carries the line and none states a nonzero count. Sections that
+ * disagree, or that cannot all be read, report nothing.
+ */
 function summaryReportsNoFindings(
   comment: HostedGitHubIssueComment,
   requestedAt: string,
 ): boolean {
-  const sections = [summarySection(comment, "status"), summarySection(comment, "details")]
-    .filter((section) => section !== null);
-  return comment.updatedAt >= requestedAt
-    && sections.some((section) => /\bno actionable comments were generated in the recent review\b/iu.test(section))
-    && !sections.some((section) => /\bactionable comments posted:(?!\s*0\b)/iu.test(section));
+  const sections = summarySections(comment);
+  if (sections === null || comment.updatedAt < requestedAt) return false;
+  const texts = [sections.status, sections.details].filter((text) => text !== null);
+  return texts.some((text) => /\bno actionable comments were generated in the recent review\b/iu.test(text))
+    && !texts.some((text) => /\bactionable comments posted:(?!\s*0\b)/iu.test(text));
 }
 
 function summaryCompletesHead(
@@ -93,7 +107,7 @@ function summaryCompletesHead(
   requestedAt: string,
 ): boolean {
   if (!summaryReportsNoFindings(comment, requestedAt)) return false;
-  const recent = summarySection(comment, "details");
+  const recent = summarySections(comment)?.details ?? null;
   if (recent === null) return false;
   const ranges = [...recent.matchAll(/\bbetween\s+[a-f0-9]{7,40}\s+and\s+([a-f0-9]{7,40})\b/giu)];
   const reviewedHead = ranges[0]?.[1]?.toLowerCase();

@@ -103,6 +103,10 @@ function observe(reviews: HostedGitHubReview[], comments: HostedGitHubIssueComme
 
 const summaryUrl = "https://github.com/owner/repo/pull/42#issuecomment-summary";
 
+/** A summary whose details block carries the line too: the first copy is the status block's, for a case to replace. */
+const LINE_IN_DETAILS = statusBlockSummary
+  .replace("<!-- recent_review_start -->", `<!-- recent_review_start -->\n${NO_FINDINGS}`);
+
 /** What a finished review that posted no review object leaves: a commit status, one summary comment, the tagged reply. */
 function observeSummary(body: string | null, finished = reply(), statuses?: HostedGitHubCommitStatus[]) {
   const summary: HostedGitHubIssueComment[] = body === null ? [] : [{ ...reply(body), id: "IC_SUMMARY", url: summaryUrl }];
@@ -141,6 +145,15 @@ describe("CodeRabbit summaries of a finished review with no review object", () =
     { gap: "the status block reports findings beside the details block's line", body: statusBlockSummary
       .replace(NO_FINDINGS, "**Actionable comments posted: 2**")
       .replace("<!-- recent_review_start -->", `<!-- recent_review_start -->\n${NO_FINDINGS}`) },
+    { gap: "a repeated status block reports findings beside the details block's line", body: `${LINE_IN_DETAILS
+      .replace(NO_FINDINGS, "**Actionable comments posted: 2**")}
+<!-- recent_review_status_start -->
+<!-- recent_review_status_end -->` },
+    { gap: "an unclosed status block reports findings beside the details block's line", body: LINE_IN_DETAILS
+      .replace(NO_FINDINGS, "**Actionable comments posted: 2**").replace("<!-- recent_review_status_end -->", "") },
+    { gap: "a reversed status block reports findings beside the details block's line", body: LINE_IN_DETAILS
+      .replace(NO_FINDINGS, "**Actionable comments posted: 2**")
+      .replace(/(<!-- recent_review_status_start -->)([\s\S]*?)(<!-- recent_review_status_end -->)/u, "$3$2$1") },
     { gap: "a block states a count of findings that is not a number", body: statusBlockSummary
       .replace("<!-- recent_review_start -->", "<!-- recent_review_start -->\n**Actionable comments posted: several**") },
     { gap: "the status block appears twice", body: `${statusBlockSummary}
