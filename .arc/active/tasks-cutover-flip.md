@@ -1564,29 +1564,32 @@ rewritten workflows (§ 9.2).
   write-back's hand-editable inventory through `classifyStoreAddress` over a sample of every layout address form,
   keeping the kinds that project, and requires it inside both derived sets.
 
-### `[ ]` **6.3 The destructive CLI matrix and the partial-protection start — § 9.7, § 9.8**
+### `[x]` **6.3 The destructive CLI matrix and the partial-protection start — § 9.7, § 9.8**
 
 - _Goal:_ Every group in `notes-seam-locus.md` § Destructive-path verification and flip release checks, with that file's
   § A26 session entry and recovery over a removed primary, succeeds, refuses on each material refusal, and continues
   after repair through a spawned built CLI on the ref backend with production ports, and a work unit starts and drafts
   under partial protection.
 
-    - `[ ]` **6.3.a The matrix as end-to-end tests over scratch repositories**
-        - Cold and named start with the default bound lifecycle ports; graduate, materialize, rename, and teardown;
-          locus release, anchored and spawned; inbox and route insertion, move, and carry, and the Errand queue and
-          queue set; full and partial Errand open with link, leave and rematerialize, abandon and failed-open rollback,
-          close and removal by ID and version, and promotion; personal reconcile and scratch, and handoff write from
-          file and stdin; identity add, `init`, and `join`; session-init, handoff status, recovery, and Candidate
-          orientation with the orphan-branch sweep's store-backed outcome (`orphanWorkLanded`,
-          `lib/session-init/orphan-branch-sweep.ts`).
-        - Session entry and recovery over a work unit whose primary record a store abandonment or a cut removed, its
-          terminal lineage kept (`readTerminalWorkUnitLineage`, `lib/locus/store-terminal-work-unit.ts`).
-        - The Errand close's changed-code landing reads its merged pull request from the host
-          (`observeExactChangeRequest`, `lib/errand/change-request-lifecycle.ts`), so its run puts on `PATH` a `gh`
-          stub that answers for one merged stand-in pull request on the Errand's branch and fails every other call, as
-          `e2e/delivery-plan.e2e.test.ts` stubs `gh`; that run's evidence is labeled stubbed host evidence.
-        - Each retains the command results and the record, UID, marker, checkout, code-ref, and personal-byte outcomes;
-          handler or provider evidence stays labeled apart.
+    - `[x]` **6.3.a The matrix as end-to-end tests over scratch repositories**
+        - Fifteen end-to-end files under `__tests__/e2e/` run the built CLI on the ref store with production ports, each
+          refusal followed by its repair and the same command succeeding, with records, UIDs, markers, checkouts, code
+          refs, and personal bytes compared around it: `store-lifecycle-{start,placement,holders}` (start, graduate,
+          materialize, rename, teardown), `store-locus-inbox-{release,route,queue}`,
+          `store-errand-{inbox,recovery,close,promotion}`, and
+          `store-session-personal-{reconcile,handoff,identity,recovery,candidate}`. `recovery` enters and recovers a
+          work unit whose primary an abandonment or a cut removed. The changed-code close reads its merged pull request
+          from a `gh` stub, labeled stubbed host evidence in the test.
+        - The orphan-branch sweep's store-backed outcome stays with `session-init-orphan-actions.e2e.test.ts`, and
+          self-rename and self-teardown with `rename.e2e.test.ts` and `store-checkout-removal.e2e.test.ts`, which
+          already run the built CLI on the ref store.
+        - Two defects the matrix exposed are fixed with it. A partial Errand close over an unreadable queue removed its
+          capture before refusing; `settleStorePartialCapture` (`handlers/errand-entry-storage.ts`) now reads the queue
+          first. `arc init`, `arc join`, and `arc user add` asked the identity question under a running spinner, which
+          takes Ctrl-C and exits 0; `confirmPersonalIdentity` (`handlers/identity-setup.ts`) clears the spinner before
+          asking.
+        - The cases that drive a POSIX pseudo-terminal, a shell wrapper around Git, or the `gh` stub are skipped on
+          Windows.
 
     - `[x]` **6.3.b The partial-protection start**
         - `e2e/store-partial-protection-draft.e2e.test.ts` starts a work unit with `arc start <slug> --new` in a
