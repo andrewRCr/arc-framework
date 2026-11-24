@@ -3,7 +3,7 @@
   "slug": "stop-reading-tracked-state",
   "claimId": "097892134f40f9405d4020e89085891a",
   "createdAt": "2026-11-24T20:33:33.183Z",
-  "updatedAt": "2026-11-24T20:33:33.183Z",
+  "updatedAt": "2026-11-24T21:10:27.526Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Stop two tests reading tracked state from this repository's tree, so a branch that deletes its records before merging the flip passes its own hook",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stop reading tracked state from this repository's tree in two tests",
   "originEntrySourceDigest": "sha256:6f13618f56b6ea24eac6cc46ba272e825b8eb0a0fe271506da41087d7e465e16",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/stop-reading-tracked-state",
+    "headSha": "2e4fd23a1433fb3f0c3b5dec4ea1aa303855a70f"
+  }
 }
