@@ -43,13 +43,40 @@ export function readDesignPurpose(content: string): string | null {
   return values.join(" ").replace(/\s+/gu, " ").trim();
 }
 
-/** Locate a real field inside a paragraph rather than in code or HTML. */
+const PURPOSE_FIELD = "**Purpose:**";
+
+/** Locate a real field inside a paragraph rather than in code or HTML.
+ *
+ * A record's decode calls this for every design document a listing reads, so the document is parsed only as far as
+ * the block holding its first candidate field: one with no candidate is not parsed, and a whole parse runs only
+ * when that first candidate turns out to sit in code or HTML and another follows.
+ */
 function purposeParagraph(content: string): string | null {
+  const first = nextCandidate(content, 0);
+  if (first === -1) return null;
+  const blockEnd = content.slice(first).search(/\r?\n[ \t]*\r?\n/u);
+  const head = blockEnd === -1 ? content : content.slice(0, first + blockEnd);
+  const field = firstField(head);
+  if (field !== null || head.length === content.length) return field;
+  return nextCandidate(content, first + PURPOSE_FIELD.length) === -1 ? null : firstField(content);
+}
+
+/** The next offset at or after `from` where the field's text opens a line or a list item, or -1. */
+function nextCandidate(content: string, from: number): number {
+  for (let at = content.indexOf(PURPOSE_FIELD, from); at !== -1; at = content.indexOf(PURPOSE_FIELD, at + 1)) {
+    const prefix = content.slice(content.lastIndexOf("\n", at - 1) + 1, at);
+    if (prefix === "" || prefix === "- ") return at;
+  }
+  return -1;
+}
+
+/** The first field Markdown reads as paragraph text, with its paragraph's remainder. */
+function firstField(content: string): string | null {
   const visit = (node: MarkdownNode, paragraphEnd?: number): string | null => {
     const end = node.type === "paragraph" ? node.position?.end.offset : paragraphEnd;
     if (node.type === "strong" && end !== undefined) {
       const start = node.position?.start.offset;
-      if (start !== undefined && content.startsWith("**Purpose:**", start)) {
+      if (start !== undefined && content.startsWith(PURPOSE_FIELD, start)) {
         const lineStart = content.lastIndexOf("\n", start - 1) + 1;
         const prefix = content.slice(lineStart, start);
         if (prefix === "" || prefix === "- ") return content.slice(start, end);
