@@ -295,13 +295,19 @@ it("never sends a save left open across a held retry's drawing over the teammate
   const h = await stoppedCreation("open-handle.txt");
   await writeFile(h.absolute, h.created.replace("five", "PERSON"));
   const editor = await open(h.absolute, "r+"), native = createProjectionEnginePorts(h.f.root);
+  const late = h.created.replace("five", "LATE");
+  let saved = false;
   try {
     await h.next({ ports: () => ({ ...native, hooks: { afterMove: async () => {
+      saved = true;
       await editor.truncate(0);
-      await editor.write(h.created.replace("five", "LATE"), 0);
+      await editor.write(late, 0);
     } } }) });
   } finally { await editor.close(); }
+  expect(saved).toBe(true);
+  expect(await h.file()).toBe(late);
   await h.next();
+  expect(await h.file()).toBe(late);
   expect(await h.stored()).toMatchObject({ version: h.version, content: h.teammate });
   expect(await h.entry()).toMatchObject({ kind: "record", pending: true, refused: { reason: "bases-disagree" } });
 });
