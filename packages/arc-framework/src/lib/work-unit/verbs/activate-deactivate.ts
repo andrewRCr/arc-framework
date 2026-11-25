@@ -94,9 +94,9 @@ export type DeactivateResult =
 /**
  * Run `activate`: rotate the `plan/<name>` branch onto the caller-supplied working
  * branch, raise the phase `Planning → Active`, and set the orientation soft fields.
- * The dependent reconcile is validated first and its exact content guard applies
- * before the transition starts. Rejects when the source is not a planning WU on its
- * branch (the table's illegal-edge lookup).
+ * Prepare dependent reconciliation first and bind it to the activation batch on the
+ * operational store. Rejects when the source is not a planning WU on its branch
+ * (the table's illegal-edge lookup).
  *
  * @param ctx - The executor and current-WU reconcile seams.
  * @param params - The target WU, the working branch, and the orientation inputs.

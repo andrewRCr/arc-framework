@@ -1,5 +1,5 @@
 /** Store-capability activation and deactivation around the shared lifecycle executor. */
-import { sameReference } from "../../store/identity.js";
+import { recordReferences, sameReference } from "../../store/identity.js";
 import { resolveProjectIdentity } from "../../store/project-identity.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
@@ -9,13 +9,15 @@ import type { LifecycleEntry } from "../../store/lifecycle-index.js";
 import { computeDefaultCaptureSet } from "../../git/default-capture-set.js";
 import { readLifecycleView } from "../../store/lifecycle-view.js";
 import { lifecycleArtifactPath, requireCompleteInventory } from "../../store/lifecycle-storage.js";
-import { mergeLifecycleLinks, readOwnDraft, readWorkUnit, workUnitArtifactName } from "../../store/lifecycle-write.js";
-import type { Mutation } from "../../store/write.js";
-import { executeTransition } from "../lifecycle-executor.js";
-import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
+import { parseLifecycleMetaContent } from "../../store/lifecycle-meta-content.js";
+import { mergeLifecycleLinks, readWorkUnit, workUnitArtifactName } from "../../store/lifecycle-write.js";
+import { observeRecords } from "../../store/record-observations.js";
+import type { Mutation, RecordObservation } from "../../store/write.js";
+import { executeTransition, type TransitionOutcome } from "../lifecycle-executor.js";
 import { activationBlockerReport } from "./activation-blocker-report.js";
 import { activationCaptureReport, planActivationBranch } from "./activation-branch-plan.js";
-import type { CurrentWuReconcileResult } from "../side-effects/discharge-dep-edges.js";
+import { hasPendingReconcileFindings, type CurrentWuReconcileResult } from "../side-effects/discharge-dep-edges.js";
+import type { StoreTransitionInputs } from "../store-transition-types.js";
 import type { ActivateContext, ActivateParams, ActivateResult, DeactivateContext, DeactivateParams, DeactivateResult } from "./activate-deactivate.js";
 
 /** Activate only after branch preflight, fetches and inventory refusals have all resolved. */
@@ -36,46 +38,81 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   const plan = await planActivationBranch({ exec: ctx.exec, execRaw: ctx.execRaw, cwd: ctx.cwd, name: params.name,
     toBranch: params.toBranch, baseBranch: params.baseBranch, repository: repository.id, primary, otherPrimaries: peers.records });
   if (plan.status === "refused") return { status: "rejected", reason: plan.reason };
-  const retired = await supersededDraftRemoval(store, primary, record.design);
-  if (retired.status === "rejected") return retired;
-  const reconciled = await reconcileForActivation(ctx, store, { name: params.name, entry, primary });
-  if (reconciled.status !== "ready") return reconciled;
-  const { metaPath, reconcile, updated } = reconciled;
-  const links = mergeLifecycleLinks(updated.links, { branches: [plan.link] },
+  const prepared = await prepareActivationRecords(ctx, store, entry);
+  if (prepared.status === "rejected") return prepared;
+  const { metaPath, reconcile, transition, blockers, retired } = prepared;
+  const links = mergeLifecycleLinks(transition.primary.links, { branches: [plan.link] },
     plan.priorRef === null ? {} : { branches: [{ repository: plan.link.repository, ref: plan.priorRef }] });
   const outcome = await executeTransition(ctx, { verb: "activate", slug: params.name, inputs: {
-    storeTransition: { primary: updated, links, gitSteps: [plan.step], additionalWrites: retired.writes },
+    storeTransition: { ...transition, links, gitSteps: [plan.step] },
     softFields: { nextAction: params.nextAction },
   } });
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,
-    ...(outcome.status === "rejected" ? { refusal: outcome.refusal, remedy: outcome.remedy } : {}) };
+  if (outcome.status !== "ok") return rejectActivationTransition(outcome, params.name);
   return { status: "activated", outcome, metaPath, reconcile, branch: plan.link.ref,
-    report: [...plan.report, ...activationBlockerReport(ParsedMetaRecordSchema.parse(updated.fields).blockers, reconcile.prepared.plan.dependency.discharged)],
-    ...(plan.remoteDelete === undefined ? {} : { remoteDelete: plan.remoteDelete }), ...retired.result };
+    report: [...plan.report, ...activationBlockerReport(blockers, reconcile.prepared.plan.dependency.discharged)],
+    ...(plan.remoteDelete === undefined ? {} : { remoteDelete: plan.remoteDelete }), ...retired };
 }
 
-/** A draft the design no longer names rides the activation batch as its removal; one it still names is the design. */
-async function supersededDraftRemoval(store: Store, primary: StoreRecord, design: readonly string[]):
-  Promise<{ status: "ready"; writes: Mutation[]; result: { removedDraft?: string } } | Rejected> {
-  const name = workUnitArtifactName(primary.reference.owner.name, "draft");
-  const draft = design.includes(name) ? undefined : await readOwnDraft(store, primary);
-  if (draft === undefined) return { status: "ready", writes: [], result: {} };
-  if (draft.status === "refused") return { status: "rejected", reason: draft.refusal.condition, refusal: draft.refusal };
-  return { status: "ready", writes: [{ action: "remove", reference: draft.result.reference, expected: draft.result.version }],
-    result: { removedDraft: name } };
+function rejectActivationTransition(outcome: Exclude<TransitionOutcome, { status: "ok" }>, name: string): Rejected {
+  const rejected: Rejected = { status: "rejected", reason: outcome.message };
+  if (outcome.status !== "rejected") return rejected;
+  const { refusal, remedy } = outcome;
+  if (refusal?.code === "version-conflict" && outcome.recovery === undefined) return { ...rejected,
+    refusal: { ...refusal, remedy: { text: `Rerun arc activate ${name} with the original options to use the current records.` } } };
+  return { ...rejected, refusal, remedy };
 }
 
-/** Reconcile the current work unit onto the activating one, then re-read the primary the reconcile may have touched. */
-async function reconcileForActivation(ctx: ActivateContext, store: Store, { name, entry, primary }: { name: string; entry: LifecycleEntry; primary: StoreRecord }):
-  Promise<{ status: "ready"; metaPath: string; reconcile: CurrentWuReconcileResult; updated: StoreRecord } | Exclude<ActivateResult, { status: "activated" }>> {
+interface DraftRetirement {
+  status: "ready";
+  writes: Mutation[];
+  observations: RecordObservation[];
+  retired: { removedDraft?: string };
+}
+
+/** Bind reconciliation and draft retirement to the primary version used by the activation batch. */
+async function prepareActivationRecords(ctx: ActivateContext, store: Store, entry: LifecycleEntry): Promise<Rejected | {
+  status: "ready"; metaPath: string; reconcile: CurrentWuReconcileResult; blockers: string | null;
+  transition: StoreTransitionInputs & { primary: StoreRecord }; retired: DraftRetirement["retired"];
+}> {
+  const name = entry.reference.owner.name;
   const metaPath = await lifecycleArtifactPath(ctx.cwd, entry, "meta");
-  const prepared = await ctx.currentWuReconcile.prepare({ slug: name, metaPath, reference: primary.reference });
-  if (prepared.status === "conflict") return { status: "rejected", reason: `Cannot activate ${name}: current-WU reconcile refused (${prepared.reason}).` };
-  const reconcile = await ctx.currentWuReconcile.apply(prepared.prepared);
-  if (reconcile.status === "conflict") return { status: "reconcile-failed", reason: `Activation reconcile became stale; retry arc activate ${name}.`, metaPath, reconcile };
-  const updated = await store.read({ reference: primary.reference });
-  if (updated.status === "refused") return { status: "rejected", reason: updated.refusal.condition, refusal: updated.refusal };
-  return { status: "ready", metaPath, reconcile, updated: updated.result };
+  const inspected = await ctx.currentWuReconcile.prepare({ slug: name, metaPath, reference: entry.reference });
+  if (inspected.status === "conflict") return { status: "rejected", reason: `Cannot activate ${name}: current-WU reconcile refused (${inspected.reason}).` };
+  const { prepared } = inspected;
+  const plan = prepared.storePlan;
+  const primary = plan?.records.find(record => sameReference(record.reference, entry.reference));
+  if (plan === undefined || primary === undefined) return { status: "rejected",
+    reason: `Reconcile did not acquire the stored metadata for ${name}. Rerun arc activate ${name} through the operational store.` };
+  const primaryWrite = plan.writes.find(write => sameReference(write.reference, primary.reference));
+  const content = primaryWrite?.action === "put" ? primaryWrite.content : primary.content;
+  const fields = parseLifecycleMetaContent(content);
+  if (!fields.success) return { status: "rejected",
+    reason: `Reconciled metadata for ${name} is invalid: ${fields.error} Repair the metadata and rerun arc activate ${name}.` };
+  const { design, blockers } = fields.data;
+  const draftName = workUnitArtifactName(name, "draft");
+  const draft = recordReferences["work-item/draft"](primary.reference.owner);
+  const retireDraft = !design.includes(draftName);
+  const retirement = retireDraft ? await readDraftRetirement(store, draft, draftName)
+    : { status: "ready" as const, writes: [], observations: [], retired: {} };
+  if (retirement.status === "rejected") return retirement;
+  const keepsRecord = (record: { reference: StoreRecord["reference"] }) => !retireDraft || !sameReference(record.reference, draft);
+  const reconciledCompanions = plan.writes.filter(write => keepsRecord(write) && !sameReference(write.reference, primary.reference));
+  const reconcile = primaryWrite !== undefined || reconciledCompanions.length > 0
+    ? { status: "applied" as const, prepared, stagedPaths: [] }
+    : { status: hasPendingReconcileFindings(prepared.plan) ? "pending" as const : "clean" as const, prepared };
+  return { status: "ready", metaPath, reconcile, blockers, retired: retirement.retired, transition: {
+    primary, content, additionalWrites: [...reconciledCompanions, ...retirement.writes],
+    observations: [...observeRecords(plan.records.filter(keepsRecord)), ...retirement.observations],
+  } };
+}
+
+/** A superseded draft is removed only at its read version, or observed absent in the same batch. */
+async function readDraftRetirement(store: Store, reference: StoreRecord["reference"], name: string): Promise<DraftRetirement | Rejected> {
+  const draft = await store.read({ reference });
+  if (draft.status === "ok") return { status: "ready", observations: [],
+    writes: [{ action: "remove", reference: draft.result.reference, expected: draft.result.version }], retired: { removedDraft: name } };
+  if (draft.refusal.code === "not-found") return { status: "ready", writes: [], observations: [{ reference, expected: null }], retired: {} };
+  return { status: "rejected", reason: draft.refusal.condition, refusal: draft.refusal };
 }
 
 /** Keep the branch and its link, reporting task work while returning the work unit to Planning. */
