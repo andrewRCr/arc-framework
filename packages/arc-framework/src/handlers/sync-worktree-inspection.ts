@@ -31,7 +31,8 @@ export async function isDetachedPlanningAtBase(input: {
       localLifecycleTip(exec, cwd, `refs/remotes/origin/${baseBranch}`),
     ]);
     const { stdout } = await exec("git",
-      ["--no-optional-locks", "status", "--porcelain=v2", "--branch", "--untracked-files=normal", "--ignore-submodules=none"],
+      ["--no-optional-locks", "status", "--porcelain=v2", "--branch", "--no-show-stash",
+        "--untracked-files=normal", "--ignore-submodules=none"],
       { cwd, objectAccess: "local-only" });
     const lines = stdout.trimEnd().split(/\r?\n/u);
     return lines.length === 2 && lines[1] === "# branch.head (detached)"
