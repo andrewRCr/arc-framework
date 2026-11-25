@@ -7,6 +7,7 @@ import { createProjectionProtectionEvidence, type ProjectionProtectionEvidence }
 import { readGitDirectories } from "../../git/directories.js";
 import { createCheckoutObservation } from "../../locus/checkout-observation.js";
 import type { RecordReference, StateVersion } from "../identity.js";
+import { findTrackedStateRoots } from "../selection.js";
 import type { ProjectionCommandInput } from "./engine.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { PROJECTION_STATE_FOLDER, type ProjectionLocation } from "./location.js";
@@ -141,6 +142,9 @@ async function visitTarget(round: FanOutRound, observed: ObservedTarget): Promis
   if (disk === "failed" || disk.kind !== "index") return unmarked;
   try {
     await round.ports.beforeFanOutTarget?.(checkout);
+    // Command entry checks the writer's HEAD. Each sibling has its own tree and may have switched branches.
+    if (checkout !== round.input.checkout && (await findTrackedStateRoots((command, args, options) =>
+      round.ports.exec(command, args, { ...options, cwd: checkout }))).length > 0) return [];
     const target: FanOutTarget = { checkout, location, index: disk.index };
     const result = await withProjectionFanOutLock(location, session => refreshTarget(round, target, session),
       { maxWaitMs: SIBLING_LOCK_WAIT_MS }, round.ports.lock);

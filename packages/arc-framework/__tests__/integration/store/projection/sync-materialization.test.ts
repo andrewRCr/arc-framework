@@ -285,3 +285,33 @@ it("fans out a materialization take-in once after releasing its native lease", a
   expect.soft(await h.file()).toContain(pushed);
   expect((await h.h.stored()).content).toBe(pushed);
 });
+
+it("leaves a projected sibling untouched until its tracked-state deletion is committed", async () => {
+  const { h: writer, input, store, sibling, file: siblingFile } = await createFanOutFixture(directories);
+  await endProjection(input);
+  const before = await siblingFile();
+  const git = (...args: string[]) => writer.exec("git", args, { cwd: sibling.checkout });
+  const tracked = ".arc/active/meta-legacy.md";
+  await mkdir(join(sibling.checkout, ".arc/active"), { recursive: true });
+  await writeFile(join(sibling.checkout, tracked), "Legacy state\n");
+  await git("add", "-f", "--", tracked);
+  await git("commit", "-m", "Track legacy state");
+  await git("rm", "--", tracked);
+
+  const remote = writer.remote(true);
+  if (remote === undefined) throw new Error("Missing fixture remote");
+  success(await writer.store.push());
+  const content = "Updated on the remote.\n";
+  success(await remote.write(update(writer, writer.record, content)));
+  const command = { checkout: writer.checkout, store };
+  const pulled = await sync(command);
+  expect(JSON.parse(pulled.output)).toMatchObject({ state: { pull: { result: "success" } } });
+  expect(await writer.file()).toContain(content);
+  expect.soft(await siblingFile(), "sibling bytes while HEAD still tracks state").toBe(before);
+
+  await git("commit", "-m", "Remove legacy state");
+  const afterDeletion = "Updated after the deletion commit.\n";
+  success(await remote.write(update(writer, await writer.stored(), afterDeletion)));
+  await sync(command);
+  expect(await siblingFile()).toContain(afterDeletion);
+});

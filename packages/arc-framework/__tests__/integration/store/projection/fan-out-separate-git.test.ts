@@ -1,5 +1,5 @@
 /** Native separate Git directories never become projection destinations from their roster spelling. */
-import { access, mkdtemp, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -38,11 +38,13 @@ for (const name of ["git-data", ".git"] as const) it.each([false, true])(`refres
   await endProjection(linkedInput);
   const writer = writerPrimary ? initial : linkedInput;
   const store = withFanOut(h.store, createProjectionFanOutDependencies(writer.checkout));
+  const linkedCheckout = await realpath(checkout);
   let observing = false, fallbacks = 0;
   const ports = writer.ports();
-  const command = { ...writer, store, ports: () => ({ ...ports, exec: async (...args: Parameters<typeof ports.exec>) => {
-    if (observing && args[0] === "git" && args[1][0] === "rev-parse") fallbacks++;
-    return ports.exec(...args);
+  const command = { ...writer, store, ports: (): typeof ports => ({ ...ports, exec: async (command, args, options) => {
+    const checksSiblingTree = options?.cwd === linkedCheckout && args.at(-1) === "HEAD^{tree}";
+    if (observing && command === "git" && args[0] === "rev-parse" && !checksSiblingTree) fallbacks++;
+    return ports.exec(command, args, options);
   } }) };
   expect(await startProjection(command)).toMatchObject({ kind: "ready" });
   const before = await readProjectionIndex(location, true), current = await h.stored();

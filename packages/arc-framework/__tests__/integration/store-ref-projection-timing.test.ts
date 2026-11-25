@@ -177,8 +177,8 @@ async function fanOutMedians(fixture: Templates, observer: ProjectionTimingObser
       }
       await endProjection(input);
     }
-    // The reference round's physical Git processes: six control starts, one changes reader, and two readers per owner.
-    expect(retained.map(sample => sample.gitCalls)).toEqual(retained.map(() => 7 + 2 * count));
+    // Six control starts, one changes reader, two readers per owner, and two Git calls per sibling's HEAD tree.
+    expect(retained.map(sample => sample.gitCalls)).toEqual(retained.map(() => 7 + 2 * count + 2 * destinations.length));
     return medianTiming(retained);
   };
   return { linkedWorktrees: destinations.length, oneFile: await measure(1), tenFiles: await measure(10) };

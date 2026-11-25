@@ -1,6 +1,7 @@
 /** Observe landed public store writes and sync attempts without changing their outcomes. */
 import type { Store } from "../contract.js";
 import type { RecordReference } from "../identity.js";
+import type { StoreResult } from "../refusal.js";
 
 /** An invocation-owned notification sink, which may refuse stale command authority before scheduling. */
 export type FanOutRequest = (references: readonly RecordReference[]) => Promise<void>;
@@ -27,22 +28,26 @@ export function withFanOut(store: Store, deps: FanOutDependencies): Store {
     if (result.status === "ok") await notify(deps, request, result.result.writes.map(write => write.reference));
     return result;
   };
-  const pull: Store["pull"] = async input => {
-    const request = captureRequest(deps);
-    try { return await store.pull(input); }
-    finally { await notify(deps, request, []); }
-  };
-  const push: Store["push"] = async input => {
-    const request = captureRequest(deps);
-    try { return await store.push(input); }
-    finally { await notify(deps, request, []); }
-  };
-  const wrapped: Store = { capabilities: store.capabilities, write, batch, pull, push,
+  const wrapped: Store = { capabilities: store.capabilities, write, batch,
+    pull: input => syncAndNotify(deps, () => store.pull(input)),
+    push: input => syncAndNotify(deps, () => store.push(input)),
     read: input => store.read(input), list: input => store.list(input), version: () => store.version(),
     history: input => store.history(input), changes: input => store.changes(input), lookup: input => store.lookup(input),
     maintain: () => store.maintain() };
   decorated.add(wrapped);
   return wrapped;
+}
+
+async function syncAndNotify<T>(deps: FanOutDependencies, sync: () => Promise<StoreResult<T>>): Promise<StoreResult<T>> {
+  const request = captureRequest(deps);
+  let result: StoreResult<T> | undefined;
+  try {
+    result = await sync();
+    return result;
+  } finally {
+    // The tree guard stops before sync can merge anything. Other failures can follow a merge.
+    if (result?.status !== "refused" || result.refusal.code !== "tracked-state") await notify(deps, request, []);
+  }
 }
 
 function captureRequest(deps: FanOutDependencies): FanOutRequest | null {

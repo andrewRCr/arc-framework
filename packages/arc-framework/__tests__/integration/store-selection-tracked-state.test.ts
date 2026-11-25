@@ -6,8 +6,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
-import { selectStore } from "../../src/lib/store/create.js";
+import { afterEach, describe, expect, it, onTestFinished } from "vitest";
+import { createStore, selectStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
+import { bindProjectionFanOut, disposeProjectionFanOut } from "../../src/lib/store/projection/fan-out-binding.js";
+import { locateProjection } from "../../src/lib/store/projection/location.js";
+import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 import { findTrackedStateRoots } from "../../src/lib/store/selection.js";
 import type { StoreResult } from "../../src/lib/store/refusal.js";
 import { cleanupTempDir, commitAll, createTempRepo, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
@@ -94,6 +98,29 @@ describe("the tracked-state refusal", () => {
     await git(target, "rm", "-r", ".arc/active/");
     await commitAll(target, "delete tracked state");
     expect(await selectStore(ports, {}).version()).toMatchObject({ status: "ok" });
+  });
+
+  it("does not fan out when the public store refuses sync in a linked checkout", async () => {
+    const primary = await repository();
+    await commitAll(primary, "seed clean checkout");
+    const sibling = await mkdtemp(join(tmpdir(), "arc-tracked-sibling-"));
+    cleanup.push(sibling);
+    await git(primary, "worktree", "add", "--detach", sibling);
+    await track(sibling, ".arc/active/record.md");
+
+    const command = beginProjectionCommand();
+    onTestFinished(disposeProjectionFanOut);
+    const ports = createDefaultStorePorts({ checkoutRoot: primary });
+    let rounds = 0;
+    await bindProjectionFanOut({ checkout: primary, location: await locateProjection(primary, ports), ports,
+      run: async () => { rounds++; return undefined; } });
+    expect(command.fanOutBinding?.active).toBe(true);
+
+    const linkedStore = createStore(createDefaultStorePorts({ checkoutRoot: sibling }));
+    for (const operation of ["pull", "push"] as const) {
+      expect(refusalOf(await linkedStore[operation]())).toMatchObject({ code: "tracked-state", roots: [".arc/active/"] });
+      expect.soft(rounds, `projection rounds after refused ${operation}`).toBe(0);
+    }
   });
 
   it("directs a live branch to compare before deletion where the store has been imported", async () => {
