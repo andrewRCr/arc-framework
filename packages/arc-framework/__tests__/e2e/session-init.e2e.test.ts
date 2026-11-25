@@ -493,7 +493,8 @@ describe("session-init E2E — sessionType across type variants", () => {
   });
 
   it("writes the compaction seed sidecar when requested with session-init", async () => {
-    await seedBoundWorkUnit(tmpDir, "feat/foo", "foo", taskListFixture("Do seed"), {
+    const leafLine = "    - `[ ]` **1.1.a Write the seed**";
+    await seedBoundWorkUnit(tmpDir, "feat/foo", "foo", taskListFixture("Do seed") + leafLine + "\n", {
       nextTask: "Task 1.1 — Do seed (line ~12)",
       nextAction: "Start Task 1.1",
     });
@@ -521,16 +522,20 @@ describe("session-init E2E — sessionType across type variants", () => {
       metaPath: ".arc/active/current/meta-foo.md",
       sessionType: "execution",
       taskCursor: {
-        section: { id: "1.1", title: "Do seed", lineHint: 19 },
-        leaf: { id: "1.1", title: "Do seed", lineHint: 19 },
+        section: { id: "1.1", title: "Do seed" },
+        leaf: { id: "1.1.a", title: "Write the seed" },
       },
       uncommittedFiles: [],
     });
     expect(seed.head).toMatch(/^[0-9a-f]{40}$/);
     expect(seed.loadSet.manifestVersion).toBe(LOAD_SET_MANIFEST_VERSION);
-    expect(seed.loadSet.entries).toContainEqual({
-      path: ".arc/active/current/tasks-foo.md",
-      readMode: { kind: "partial-strategic" },
+    const taskList = seed.loadSet.entries.find(entry => entry.readMode.kind === "partial-strategic");
+    expect(taskList?.path).toBe(".arc/active/current/tasks-foo.md");
+    const lines = (await readFile(join(tmpDir, taskList!.path), "utf8")).split(/\r?\n/u);
+    const { section, leaf } = seed.taskCursor!;
+    expect({ section: lines[section.lineHint - 1], leaf: lines[leaf.lineHint - 1] }).toEqual({
+      section: "### `[ ]` **1.1 Do seed**",
+      leaf: leafLine,
     });
   });
 

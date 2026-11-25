@@ -21,6 +21,7 @@ import { resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js"
 import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
+import { renderStampedFile } from "../../../src/lib/store/projection/stamp.js";
 import { resolveTaskListCursor } from "../../../src/lib/task-list/cursor.js";
 import {
   RecoveryAuditVerdictSchema,
@@ -341,6 +342,8 @@ function archivedIntegrationOptions(options: {
   };
 }
 
+const CORRECTION_PROJECTION = { stamp: "a".repeat(40), notices: ["Read-only projection."] };
+
 function publicIntegrationToTaskOptions(input: {
   seedContent?: string;
   freshContent?: string;
@@ -353,7 +356,7 @@ function publicIntegrationToTaskOptions(input: {
   const freshLoadSet = input.freshLoadSet ?? INTEGRATION_TASK_LOAD_SET;
   const checkoutPath = input.checkoutPath ?? "/repo";
   const freshWorkUnit = input.freshWorkUnit ?? "demo";
-  const freshCursor = resolveTaskListCursor(freshContent);
+  const freshCursor = resolveTaskListCursor(renderStampedFile({ content: freshContent, ...CORRECTION_PROJECTION }));
   if (freshCursor.status !== "found") throw new Error("expected an appended correction cursor");
   const row = workUnitRow({
     checkout: { folderPresent: true, path: checkoutPath, head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
@@ -412,8 +415,8 @@ function integrationTaskProgressionOptions(input: {
   loadSet: LoadSetManifest;
   workUnitStage?: "delivery-correction";
 }): Partial<AuditRecoveryStateOptions> {
-  const seedCursor = resolveTaskListCursor(APPENDED_INTEGRATION_TASKS);
-  const freshCursor = resolveTaskListCursor(input.freshContent);
+  const seedCursor = resolveTaskListCursor(renderStampedFile({ content: APPENDED_INTEGRATION_TASKS, ...CORRECTION_PROJECTION }));
+  const freshCursor = resolveTaskListCursor(renderStampedFile({ content: input.freshContent, ...CORRECTION_PROJECTION }));
   if (seedCursor.status !== "found") throw new Error("expected a seed correction cursor");
   if (freshCursor.status === "malformed") throw new Error("expected a valid fresh task list");
   const row = workUnitRow({

@@ -316,7 +316,7 @@ function provesAppendedCorrection(
   const seedCursor = resolveTaskListCursor(seedContent);
   const freshCursor = resolveTaskListCursor(freshContent);
   if (seedCursor.status !== "no-open-task" || freshCursor.status !== "found"
-    || actual.status !== "found" || !cursorEqual(freshCursor.cursor, actual.cursor)) return false;
+    || actual.status !== "found" || !sameCursorItems(freshCursor.cursor, actual.cursor)) return false;
   const oldTasks = structuralTasks(seedContent);
   const newTasks = structuralTasks(freshContent);
   if (oldTasks === null || newTasks === null) return false;
@@ -353,7 +353,7 @@ function provesClosedSeedCursor(
   if (expected === null) return false;
   const tasks = structuralTasks(freshContent);
   const projected = resolveTaskListCursor(freshContent);
-  if (tasks === null || !taskCursorResultEqual(projected, actual)) return false;
+  if (tasks === null || !taskCursorResultEqual(projected, actual, sameCursorItems)) return false;
   const byId = uniqueTasks(tasks);
   if (byId === null) return false;
   const section = byId.get(expected.section.id);
@@ -460,9 +460,10 @@ function strictlyIncreasing(values: readonly number[]): boolean {
   return values.every((value, index) => index === 0 || value > (values[index - 1] ?? value));
 }
 
-function taskCursorResultEqual(left: TaskListCursorFileResult, right: TaskListCursorFileResult): boolean {
+function taskCursorResultEqual(left: TaskListCursorFileResult, right: TaskListCursorFileResult,
+  compareCursors = cursorEqual): boolean {
   if (left.status !== right.status) return false;
-  if (left.status === "found" && right.status === "found") return cursorEqual(left.cursor, right.cursor);
+  if (left.status === "found" && right.status === "found") return compareCursors(left.cursor, right.cursor);
   if (left.status === "malformed" && right.status === "malformed") {
     return left.error.line === right.error.line && left.error.message === right.error.message;
   }
@@ -471,9 +472,15 @@ function taskCursorResultEqual(left: TaskListCursorFileResult, right: TaskListCu
 }
 
 function cursorEqual(left: TaskListCursor, right: TaskListCursor): boolean {
+  return sameCursorItems(left, right)
+    && left.section.lineHint === right.section.lineHint && left.leaf.lineHint === right.leaf.lineHint;
+}
+
+/** Match cursor items across stored and projected task lists, where their line coordinates may differ. */
+function sameCursorItems(left: TaskListCursor, right: TaskListCursor): boolean {
   return itemEqual(left.section, right.section) && itemEqual(left.leaf, right.leaf);
 }
 
 function itemEqual(left: TaskListCursor["section"], right: TaskListCursor["section"]): boolean {
-  return left.id === right.id && left.title === right.title && left.lineHint === right.lineHint;
+  return left.id === right.id && left.title === right.title;
 }

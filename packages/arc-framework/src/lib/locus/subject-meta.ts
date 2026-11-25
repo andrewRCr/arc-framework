@@ -1,7 +1,11 @@
 /** Checkout-directed projection of one exact work-unit metadata subject. */
 
+import { readFile } from "node:fs/promises";
 import type { Store } from "../store/contract.js";
+import { readStat } from "../store/projection/change-detection.js";
+import { readProjectionLinkBoundary } from "../store/projection/discovery-links.js";
 import { recordComposedStoreCapability } from "../store/projection/process-state.js";
+import { parseStampedFile } from "../store/projection/stamp.js";
 import { readStoreSubjectCandidate } from "./subject-meta-candidate.js";
 import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
 import { WorkUnitReadPlacementSchema } from "../store/placement.js";
@@ -39,7 +43,7 @@ import {
   type LoadSetWorkUnitStage,
 } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
-import { resolveTaskListCursor } from "../task-list/cursor.js";
+import { resolveTaskListCursor, type TaskListCursor } from "../task-list/cursor.js";
 import { resolveActiveCohortDocPath } from "../session-init/cohort-doc.js";
 import {
   resolveTaskListCursorFromFile,
@@ -482,7 +486,32 @@ async function readStoreTaskCursor(checkoutRoot: string, store: Store, primary: 
   if (read.result.conflicts.length > 0) return { kind: "unresolved", message:
     `The task list has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.` };
   const path = await workItemArtifactPath(checkoutRoot, slug, "tasks", WorkUnitReadPlacementSchema.parse(primary.placement), cohort);
-  return { kind: "read", path, cursor: resolveTaskListCursor(read.result.content) };
+  const cursor = resolveTaskListCursor(read.result.content);
+  if (store.capabilities.stateOffBranch && cursor.status === "found") {
+    cursor.cursor = await projectTaskCursorLines(checkoutRoot, path, read.result.content, cursor.cursor);
+  }
+  return { kind: "read", path, cursor };
+}
+
+async function projectTaskCursorLines(checkoutRoot: string, path: string, content: string, cursor: TaskListCursor): Promise<TaskListCursor> {
+  // Checkout bytes supply only line coordinates. A missing or divergent projection leaves the record's hints in place.
+  let text: string;
+  try {
+    const boundary = await readProjectionLinkBoundary(checkoutRoot, [path]);
+    const absolute = join(checkoutRoot, path);
+    if (boundary(path) !== null || (await readStat(absolute))?.type !== "file") return cursor;
+    text = await readFile(absolute, "utf8");
+  } catch {
+    return cursor;
+  }
+  const stamped = parseStampedFile(text);
+  if (stamped.stamp === null || stamped.content !== content.replaceAll("\r\n", "\n")) return cursor;
+  const projected = resolveTaskListCursor(text);
+  if (projected.status !== "found") return cursor;
+  return {
+    section: { ...cursor.section, lineHint: projected.cursor.section.lineHint },
+    leaf: { ...cursor.leaf, lineHint: projected.cursor.leaf.lineHint },
+  };
 }
 
 async function readHeldSubmissionBoundary(options: Pick<Parameters<typeof projectCheckoutSubjectMeta>[0],
