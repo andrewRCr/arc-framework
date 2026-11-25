@@ -11,6 +11,7 @@ import { createDefaultRefStorePorts } from "../../src/lib/store/default-ports.js
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 import { cleanupTempDir, commitAll, createTempRepo, git, runArcNoTty, unwrapPresentationOutput } from "../e2e/helpers.js";
+import { stateGit } from "./store-locus-inbox-fixture.js";
 import { readStoreRecord } from "./store/seed-store.js";
 
 export const LIFECYCLE_TIMEOUT_MS = 90_000;
@@ -87,14 +88,26 @@ export async function markerBytes(checkout: string): Promise<Buffer | null> {
   }
 }
 
-export async function lifecycleSnapshot(repo: string, checkout = repo) {
-  const [head, branch, refs, worktrees, marker] = await Promise.all([
+interface LifecycleSnapshot {
+  head: string;
+  branch: string;
+  refs: string;
+  storeRefs: string;
+  worktrees: string;
+  marker: Buffer | null;
+}
+
+/** Observe the checkout and durable refs in the code repository and the selected state store. */
+export async function lifecycleSnapshot(repo: string, checkout = repo): Promise<LifecycleSnapshot> {
+  // A read may retain a new manifest without changing any records.
+  const refArgs = ["for-each-ref", "--exclude=refs/arc/tmp/version", "--format=%(refname) %(objectname)"];
+  const [head, branch, refs, storeRefs, worktrees, marker] = await Promise.all([
     git(checkout, ["rev-parse", "HEAD"]),
     git(checkout, ["branch", "--show-current"]),
-    // A read may retain a new manifest; compare the records' refs and the code refs.
-    git(repo, ["for-each-ref", "--exclude=refs/arc/tmp/version", "--format=%(refname) %(objectname)"]),
+    git(repo, refArgs),
+    stateGit(repo, [...refArgs, "refs/arc/"]),
     git(repo, ["worktree", "list", "--porcelain"]),
     markerBytes(checkout),
   ]);
-  return { head, branch, refs, worktrees, marker };
+  return { head, branch, refs, storeRefs, worktrees, marker };
 }

@@ -84,6 +84,27 @@ it.each(["start", "materialize"] as const)("refuses %s --here while a partial Er
   await expectPlacement(h.repo, h.repo, "planned-work", h.base, "main", false);
 }, LIFECYCLE_TIMEOUT_MS);
 
+it("refuses to materialize another person's released work and binds its original UID for the owner", async () => {
+  const h = await lifecycleRepository();
+  const slug = "released-work";
+  const owner = "another-user";
+  await seedWorkUnit(h.repo, slug, { identity: owner, meta: { ...planning, owner } });
+  const record = await readLifecycleMeta(h.repo, slug);
+  const before = await lifecycleSnapshot(h.repo);
+  expect(before.marker).toBeNull();
+  const args = ["materialize", slug, "--here"];
+
+  expectLifecycleResult(await h.run(args), 1, /released-work is not owned in-flight work/u);
+  expect(await lifecycleSnapshot(h.repo)).toEqual(before);
+  expect(await readLifecycleMeta(h.repo, slug)).toEqual(record);
+
+  await git(h.repo, ["config", "--local", "arc.identity", owner]);
+  expectLifecycleResult(await h.run(args), 0, /Materialized[\s\S]*released-work/u);
+  expect(await readWorktreeMarker(h.repo)).toMatchObject({ kind: "present",
+    marker: { spawnedByArc: false, spawningIdentity: owner, createdFor: seededWorkUnitSubject(record) } });
+  expect(await readLifecycleMeta(h.repo, slug)).toEqual(record);
+}, LIFECYCLE_TIMEOUT_MS);
+
 it("refuses a corrupt marker and materializes branchless work in place without moving personal code", async () => {
   const h = await lifecycleRepository();
   await seedWorkUnit(h.repo, "branchless-work", { identity: LIFECYCLE_IDENTITY, meta: planning });

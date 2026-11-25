@@ -14,7 +14,7 @@ import { seedStore } from "../helpers/store/seed-store.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import {
   expectLifecycleResult, lifecycleRepository, lifecycleSnapshot, LIFECYCLE_IDENTITY, LIFECYCLE_TIMEOUT_MS,
-  markerBytes, readLifecycleInventory, readLifecycleMeta,
+  markerBytes, PERSONAL_BYTES, readLifecycleInventory, readLifecycleMeta,
 } from "../helpers/store-lifecycle-fixture.js";
 
 const editorRoot = resolveArcPath({ kind: "editor-document-root" });
@@ -131,7 +131,10 @@ it.each(["in-place", "spawned"] as const)("refuses a second marker for a %s star
   const h = await lifecycleRepository();
   const holder = h.checkoutPath("interrupted");
   const startedCheckout = mode === "spawned" ? h.checkoutPath("fresh") : h.repo;
+  const worktreesWithoutHolder = await git(h.repo, ["worktree", "list", "--porcelain"]);
   await git(h.repo, ["worktree", "add", "--detach", holder, h.base]);
+  const personal = join(holder, "personal.txt");
+  if (mode === "in-place") await writeFile(personal, PERSONAL_BYTES);
   await writeWorktreeMarker(holder, { spawnedByArc: mode === "spawned", spawningIdentity: LIFECYCLE_IDENTITY,
     createdFor: { kind: "work-unit", name: "fresh" }, createdAt: "2026-10-24T00:00:00Z" });
   const marker = await markerBytes(holder);
@@ -147,6 +150,14 @@ it.each(["in-place", "spawned"] as const)("refuses a second marker for a %s star
 
   expectLifecycleResult(await h.run(["locus", "release", "--json"], holder), 0, /"status"\s*:\s*"released"/u);
   expect(await markerBytes(holder)).toBeNull();
+  const worktrees = await git(h.repo, ["worktree", "list", "--porcelain"]);
+  if (mode === "in-place") {
+    expect(await readFile(personal)).toEqual(PERSONAL_BYTES);
+    expect(worktrees).toBe(before.worktrees);
+  } else {
+    await expect(readdir(holder)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(worktrees).toBe(worktreesWithoutHolder);
+  }
   expectLifecycleResult(await h.run(args), 0, /(?:Cold-started|Started)[\s\S]*fresh/u);
   await expectPlanningClaim(h.repo, startedCheckout, "fresh", mode === "spawned");
   expect(await git(startedCheckout, ["rev-parse", "HEAD"])).toBe(h.base);
@@ -160,4 +171,37 @@ it.each(["in-place", "spawned"] as const)("refuses a second marker for a %s star
     await expect(readFile(join(h.repo, projected))).rejects.toMatchObject({ code: "ENOENT" });
     expect(await markerBytes(h.repo)).toBeNull();
   }
+}, LIFECYCLE_TIMEOUT_MS);
+
+it("rolls back an anchored claim when Git refuses the work-unit write and retries after repair", async () => {
+  const h = await lifecycleRepository();
+  const personal = join(h.repo, "personal-edit.txt");
+  await writeFile(personal, PERSONAL_BYTES);
+  const before = await lifecycleSnapshot(h.repo);
+  expect(before.marker).toBeNull();
+  expect(await readLifecycleInventory(h.repo)).toEqual([]);
+
+  const hook = join(h.repo, ".git/arc/store/hooks/reference-transaction");
+  await writeFile(hook, [
+    "#!/bin/sh",
+    'checkout="$(git rev-parse --absolute-git-dir)/../../.."',
+    'if [ "$1" = prepared ] && grep -q " refs/arc/work/" && test -s "$checkout/.arc/system/.internal/worktree-marker.json"; then',
+    '  echo "Refused work-unit write with anchored marker present" >&2',
+    "  exit 1",
+    "fi",
+    "",
+  ].join("\n"), { mode: 0o755, flag: "wx" });
+  const args = ["start", "retry-unit", "--new", "--here", "--yes"];
+  expectLifecycleResult(await h.run(args), 1, /Refused work-unit write with anchored marker present/u);
+  expect(await lifecycleSnapshot(h.repo)).toEqual(before);
+  expect(await readLifecycleInventory(h.repo)).toEqual([]);
+  expect(await readFile(personal)).toEqual(PERSONAL_BYTES);
+
+  await rm(hook);
+  expectLifecycleResult(await h.run(args), 0, /Cold-started[\s\S]*retry-unit/u);
+  const subject = await expectPlanningClaim(h.repo, h.repo, "retry-unit");
+  expect(await readLifecycleInventory(h.repo)).toMatchObject([{ reference: { owner: { uid: subject.uid } } }]);
+  expect(await lifecycleSnapshot(h.repo)).toMatchObject({ head: before.head, branch: before.branch, worktrees: before.worktrees });
+  expect(await git(h.repo, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/", "refs/remotes/"])).toBe(`refs/heads/main ${h.base}`);
+  expect(await readFile(personal)).toEqual(PERSONAL_BYTES);
 }, LIFECYCLE_TIMEOUT_MS);

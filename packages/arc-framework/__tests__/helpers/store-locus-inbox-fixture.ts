@@ -55,8 +55,12 @@ export async function repository(fullProtection = false): Promise<string> {
 export async function stateDirectory(root: string): Promise<string> {
   const common = join(root, ".git");
   const separate = join(common, "arc", "store");
-  const directory = await stat(separate, { throwIfNoEntry: false });
-  return directory?.isDirectory() ? separate : common;
+  try {
+    return (await stat(separate)).isDirectory() ? separate : common;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return common;
+    throw error;
+  }
 }
 
 /** Read the real state refs and objects through Git. */

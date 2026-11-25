@@ -26,6 +26,9 @@ it("starts a work unit under partial protection and saves its draft from the spa
   try {
     await runSuccessfully(repo, "init", "--yes", "--name", "test-project");
     await commitAll(repo, "chore: initialize ARC");
+    const base = await git(repo, ["rev-parse", "refs/heads/main"]);
+    const branchRefs = ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/"];
+    const branches = await git(repo, branchRefs);
     await runSuccessfully(repo, "start", slug, "--new");
 
     const owner = OwnerIdentitySchema.parse({ type: "work-item", name: slug });
@@ -45,7 +48,8 @@ it("starts a work unit under partial protection and saves its draft from the spa
       },
     });
     expect(await git(checkout, ["branch", "--show-current"])).toBe("");
-    expect(await git(checkout, ["rev-parse", "HEAD"])).toBe(await git(repo, ["rev-parse", "main"]));
+    expect(await git(checkout, ["rev-parse", "HEAD"])).toBe(base);
+    expect(await git(repo, branchRefs)).toBe(branches);
     const current = join(checkout, ".arc", "active", "current");
     const projectedMeta = parseStampedFile(await readFile(join(current, `meta-${slug}.md`), "utf8"));
     expect(projectedMeta.content).toBe(meta.content);
@@ -66,6 +70,9 @@ it("starts a work unit under partial protection and saves its draft from the spa
     await runSuccessfully(checkout, "repoint-design", "draft-created");
     const captured = await readStoreRecord(repo, identity, meta.reference);
     expect(captured.fields).toMatchObject({ workClass: "Heavy", design: [draftName] });
+    expect(await git(repo, branchRefs)).toBe(branches);
+    expect(await git(checkout, ["branch", "--show-current"])).toBe("");
+    expect(await git(checkout, ["rev-parse", "HEAD"])).toBe(base);
   } finally {
     await cleanupTempDir(checkout);
     await cleanupTempDir(repo);
