@@ -95,7 +95,12 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
       index: withEntry(index, path, { ...entry, changed: entry.changed || changed.status === "changed",
         pending: true, refused: aliasRefusal }), checkpoint: root.context.checkpoint }), edited: false, reobserve: true };
   }
-  if (entry.adoption?.kind === "read-back") return { index: await resumeAdoptionReadBack(root, index, path, entry), edited: false, reobserve: true };
+  if (entry.adoption?.kind === "read-back") {
+    const resumed = await resumeAdoptionReadBack(root, index, path, entry);
+    // An edit of the installed file ends the adoption: it is read and sent as any indexed file's.
+    const checked = resumed.edited ? await checkFileAtPath(root, resumed.index, path, reference) : resumed;
+    return { index: checked.index, edited: checked.edited, reobserve: true };
+  }
   if (entry.adoption?.kind === "write-back") return { index, edited: true };
   if (entry.withheld) {
     root.unsent.add(path);
