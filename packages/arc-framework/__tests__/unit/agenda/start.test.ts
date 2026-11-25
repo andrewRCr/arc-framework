@@ -124,6 +124,12 @@ describe("Start readiness surfaces", () => {
       derivedLocusState: async () => derivedFrameFromActive(active, "test-user", null, null, null, true) });
     await h.seedMeta("target", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
     input.signals = { start: "target" };
+    const unavailable = await compile(input);
+    const refusal = unavailable.steps.filter(step => step.type === "note").find(step => step.surface === "freshness-gap");
+    expect(refusal?.text).toContain("No record has the requested reference.");
+    expect(refusal?.text).toContain("create its record before reading it");
+
+    await h.seedMeta("work");
     const agenda = await compile(input);
     expect(agenda.steps).toContainEqual({ type: "note", surface: "freshness-gap", text: "There is no handoff baseline for this session." });
     expect(agenda.steps.filter(step => step.type === "read").some(step => /meta-work|tasks-work|process-task-loop/u.test(step.path))).toBe(false);

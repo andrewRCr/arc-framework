@@ -4,13 +4,14 @@ import { createAgendaFixtureInput } from "../../helpers/agenda-fixtures.js";
 import { activeSessionInit, derivedFrameFromActive, sessionInitFixture } from "../../helpers/session-init-fixtures.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import { resolveTaskListCursor } from "../../../src/lib/task-list/cursor.js";
-import { compileResumeContext, resolveAgendaSessionType } from "../../../src/commands/agenda/context.js";
+import { compileCheckoutFreshness, compileResumeContext, compileStateFreshness, resolveAgendaSessionType } from "../../../src/commands/agenda/context.js";
 import type { LoadSetSessionType } from "../../../src/lib/load-set/projection.js";
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import { seed, success } from "../../helpers/store/suite-tools.js";
 import { createKindRegistry } from "../../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../../src/lib/store/kinds/registrations.js";
 import { ENTRY_CONFIGS } from "../../../src/lib/store/kinds/entry-configs.js";
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
 import { writeMetaNextAction, writeMetaSessionContext, writeMetaSessionType, writeMetaStateAtHandoff } from "../../../src/lib/store/kinds/meta/writers.js";
@@ -123,11 +124,13 @@ describe("agenda session-notes fields", () => {
 const workUnit = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "work" }));
 const cohortRecord = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" }));
 const freshnessGaps = (steps: readonly AgendaStep[]) => steps.filter(step => step.type === "note" && step.surface === "freshness-gap");
+const handoffStore = () => createReferenceFixture(ENTRY_CONFIGS, createKindRegistry(PRODUCTION_REGISTRATIONS));
 
 /** A work unit handed off through the store, whose meta the projection reads back at the meta's path. */
-async function storeFixture(options: { sessionType?: "planning" | "execution"; sessionContext?: string | null } = {}) {
-  const f = createReferenceFixture(ENTRY_CONFIGS, createKindRegistry(PRODUCTION_REGISTRATIONS));
-  const seeded = await seed(f, workUnit, makeMetaFixture("work"));
+async function storeFixture(options: { sessionType?: "planning" | "execution"; sessionContext?: string | null } = {}, f = handoffStore()) {
+  const seeded = await seed(f, workUnit, makeMetaFixture("work", { owner: "andrew" }));
+  const owner = seeded.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected a UID for the entering work unit");
   const baseline = success(await f.store.version());
   let content = writeMetaStateAtHandoff(seeded.content, baseline);
   content = writeMetaSessionType(content, options.sessionType ?? null);
@@ -135,10 +138,10 @@ async function storeFixture(options: { sessionType?: "planning" | "execution"; s
   success(await f.store.write({ ...recordPut(seeded, { content }), provenance: { verb: "handoff-write", lifecycleAction: "handoff" } }));
   const active = activeSessionInit({ resolution: "single", path: metaPath, taskListPath: taskPath, sessionType: "execution", planningStage: null });
   const cursor = resolveTaskListCursor("# Tasks\n\n## **Phase 1:** Work\n\n### `[ ]` **1.1 Implement behavior**\n");
-  const envelope = await sessionInitFixture({ derivedLocusState: async () => derivedFrameFromActive(active, "andrew", null, cursor, null, true) });
+  const envelope = await sessionInitFixture({ derivedLocusState: async () => derivedFrameFromActive(active, "andrew", null, cursor, null, true, owner.uid) });
   const base = createAgendaFixtureInput(envelope, { read: {
     exists: async path => path !== notesPath, size: async () => 1000,
-    read: async path => path === metaPath ? success(await f.store.read({ reference: workUnit })).content : "",
+    read: async path => path === metaPath ? success(await f.store.read({ reference: seeded.reference })).content : "",
     git: async args => {
       if (args[0] === "log" && args.includes("--oneline")) return "c123456 Context changed\n";
       throw new Error(`Unexpected Git read: ${args.join(" ")}`);
@@ -162,13 +165,48 @@ describe("agenda handoff fields off the branch", () => {
     expect(freshnessGaps((await compileResumeContext(input)).steps)).toEqual([]);
   });
 
-  it("reports no gap when the meta's State at Handoff is the current version", async () => {
+  it("reports another work unit's later handoff when both writers read the same baseline", async () => {
     const { f, input } = await storeFixture();
-    const current = success(await f.store.read({ reference: workUnit }));
-    const read = input.read.read;
-    const pinned = { ...input, read: { ...input.read, read: async (path: string) => path === metaPath
-      ? writeMetaStateAtHandoff(current.content, success(await f.store.version())) : read(path) } };
-    expect(freshnessGaps((await compileResumeContext(pinned)).steps)).toEqual([]);
+    const peerRef = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "peer" }));
+    const peer = await seed(f, peerRef, makeMetaFixture("peer"));
+    const entering = success(await f.store.read({ reference: workUnit }));
+    const baseline = success(await f.store.version());
+    for (const meta of [entering, peer]) {
+      const content = writeMetaStateAtHandoff(meta.content, baseline);
+      success(await f.store.write({ ...recordPut(meta, { content }), provenance: { verb: "handoff-write", lifecycleAction: "handoff" } }));
+    }
+
+    const gaps = freshnessGaps((await compileResumeContext(input)).steps);
+    expect(gaps).toMatchObject([{ text: expect.stringContaining("work-item/meta peer by handoff-write") }]);
+    expect(gaps[0]).not.toMatchObject({ text: expect.stringContaining("work-item/meta work by handoff-write") });
+  });
+
+  it("keeps the saved handoff baseline when the projected meta is absent", async () => {
+    const { input } = await storeFixture();
+    const unprojected = { ...input, read: { ...input.read,
+      exists: async path => path !== metaPath && await input.read.exists(path),
+    } } satisfies typeof input;
+    const steps = (await compileResumeContext(unprojected)).steps;
+    expect(steps).toContainEqual({ type: "note", surface: "missing-file", text: expect.stringContaining(metaPath) });
+    expect(freshnessGaps(steps)).toEqual([]);
+    expect(await compileCheckoutFreshness(unprojected)).toBeNull();
+  });
+
+  it("honors a saved planning handoff when the projected meta still says execution", async () => {
+    const { input } = await storeFixture({ sessionType: "planning" });
+    const staleMeta = writeMetaSessionType(await input.read.read(metaPath), "execution");
+    const steps = (await compileResumeContext({ ...input, read: { ...input.read,
+      read: async path => path === metaPath ? staleMeta : input.read.read(path),
+    } })).steps;
+    expect(steps).toContainEqual(expect.objectContaining({ type: "read", path: ".arc/system/workflows/arc/draft-design.md" }));
+    expect(steps).not.toContainEqual(expect.objectContaining({ type: "read", path: ".arc/system/workflows/arc/process-task-loop.md" }));
+  });
+
+  it("reports no gap when the meta's State at Handoff is the current version", async () => {
+    const { f } = await storeFixture();
+    const current = success(await f.store.version());
+    const meta = success(await f.store.read({ reference: workUnit }));
+    expect(await compileStateFreshness(f.store, current, meta.reference, "andrew")).toBeNull();
   });
 
   it("takes the meta's Session Type as the session-type override", async () => {
@@ -201,5 +239,30 @@ describe("agenda handoff fields off the branch", () => {
     expect(gaps[0]).toMatchObject({ text: expect.stringContaining("cohort/document group") });
     expect(gaps[0]).toMatchObject({ text: expect.stringContaining(`Meta changed: ${metaChanged ? "yes" : "no"}.`) });
     expect(gaps[0]).not.toMatchObject({ text: expect.stringContaining("handoff-write") });
+  });
+
+  it("includes personal changes after a handoff to the same identity", async () => {
+    const { f, input } = await storeFixture();
+    f.identity("andrew");
+    const owner = OwnerIdentitySchema.parse({ type: "person", name: "andrew" });
+    const scratch = recordReferences["personal/document"](owner, "scratch/after-handoff.md");
+    await seed(f, scratch, "Follow-up notes.");
+
+    expect(freshnessGaps((await compileResumeContext(input)).steps)).toEqual([
+      expect.objectContaining({ text: expect.stringContaining("scratch/after-handoff.md") }),
+    ]);
+  });
+
+  it("lists an archived generation's edit without marking the entering generation's meta as changed", async () => {
+    const f = handoffStore();
+    const archived = await seed(f, workUnit, makeMetaFixture("work", { state: "Shipped" }),
+      { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+    const { input } = await storeFixture({}, f);
+    success(await f.store.write({ ...recordPut(archived, { content: writeMetaNextAction(archived.content, "Correct the archive.") }),
+      provenance: { verb: "save", lifecycleAction: "edit" } }));
+
+    const [gap] = freshnessGaps((await compileResumeContext(input)).steps);
+    expect(gap).toMatchObject({ text: expect.stringContaining("work-item/meta work by save") });
+    expect(gap).toMatchObject({ text: expect.stringContaining("Meta changed: no.") });
   });
 });
