@@ -17,12 +17,12 @@ import { createGitExec } from "../../lib/io-context.js";
 import { readProjectedSelection, type ProjectedSelectionReader } from "../../lib/checks/projected-selection.js";
 import { createExecaGitExecInput, createExecaRawGitExec } from "../../lib/git/process-executor.js";
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
-import { declaredChecksExitCode, runDeclaredRequest, type RunDeclaredChecksResult } from "./run.js";
+import { declaredChecksExitCode, runDeclaredRequest, type DeclaredCheckResult, type RunDeclaredChecksResult } from "./run.js";
 import { isCheckHookForm, type CheckForm, type CheckRequest } from "../../lib/checks/request.js";
 import { classifyPushRef, readPushEvent, type PushEvent } from "../../lib/checks/push.js";
 import { isPushGateId, writePushGateRefusal, type PushGateRefusal } from "../../lib/checks/push-gate-record.js";
 import { checkVerification } from "./report.js";
-import { renderDeclaredChecks } from "./run-output.js";
+import { renderDeclaredChecks, renderNonPassingCheck } from "./run-output.js";
 import { readMachineCheckRunner } from "../../lib/checks/runner/machine-config.js";
 import { createCheckRunnerRequestControl, type CheckRunnerRequestControl } from "../../lib/checks/runner/request-control.js";
 import { retainedRunnerRemedy } from "./runner-recovery.js";
@@ -212,8 +212,16 @@ function parseRequestOptions(options: CheckScopeOptions, form: CheckForm) {
 
 async function handleDeclaredRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm, overrides: Partial<CheckHandlerDependencies> = {}): Promise<void> {
   const control = createCheckRunnerRequestControl();
-  const outcome = await runDeclaredCliRequest(options, interaction, form, control, overrides);
-  report(await finishRunnerRequest(control, outcome), options.json === true);
+  const reported = new Set<DeclaredCheckResult>();
+  const onCheckResult = options.json || options.ci || options.dryRun || isCheckHookForm(form)
+    ? undefined : (check: DeclaredCheckResult) => {
+      const row = renderNonPassingCheck(check);
+      if (row === undefined) return;
+      process.stdout.write(row);
+      reported.add(check);
+    };
+  const outcome = await runDeclaredCliRequest(options, interaction, form, control, overrides, onCheckResult);
+  report(await finishRunnerRequest(control, outcome), options.json === true, reported);
 }
 
 async function finishRunnerRequest(control: CheckRunnerRequestControl, outcome: RunDeclaredChecksResult): Promise<RunDeclaredChecksResult> {
@@ -222,7 +230,9 @@ async function finishRunnerRequest(control: CheckRunnerRequestControl, outcome: 
     message: [outcome.error.message, ...retained.map(retainedRunnerRemedy)].join("\n") } } : outcome;
 }
 
-async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm, control: CheckRunnerRequestControl, overrides: Partial<CheckHandlerDependencies> = {}): Promise<RunDeclaredChecksResult> {
+async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm,
+  control: CheckRunnerRequestControl, overrides: Partial<CheckHandlerDependencies> = {},
+  onCheckResult?: (check: DeclaredCheckResult) => void): Promise<RunDeclaredChecksResult> {
   const parsed = parseRequestOptions(options, form);
   if (!parsed.success) {
     return { kind: "error", exitCode: 2, error: { kind: "usage", code: "input.invalid", message: parsed.error.message } };
@@ -244,6 +254,7 @@ async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: In
       readRunnerConfiguration: readMachineCheckRunner,
       prepareExecution: control.prepare,
       interrupted: () => control.interrupted,
+      onCheckResult,
       git, gitInput: createExecaGitExecInput(undefined, interaction.subprocess),
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),
@@ -259,8 +270,8 @@ async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: In
   return outcome;
 }
 
-function report(outcome: RunDeclaredChecksResult, json: boolean): void {
-  const rendered = renderDeclaredChecks(outcome, json);
+function report(outcome: RunDeclaredChecksResult, json: boolean, reported?: ReadonlySet<DeclaredCheckResult>): void {
+  const rendered = renderDeclaredChecks(outcome, json, reported);
   if (outcome.kind === "error" && !json) process.stderr.write(rendered);
   else process.stdout.write(rendered);
   process.exitCode = outcome.exitCode;

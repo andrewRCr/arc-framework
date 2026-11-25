@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { execaMock } = vi.hoisted(() => ({ execaMock: vi.fn() }));
+const { execaMock, gitExecutableMock } = vi.hoisted(() => ({ execaMock: vi.fn(), gitExecutableMock: vi.fn() }));
 
 vi.mock("execa", () => ({ execa: execaMock }));
+vi.mock("../../../src/lib/git/executable.mjs", () => ({ gitExecutable: gitExecutableMock }));
 
 import {
   createExecaGitExec,
@@ -12,6 +13,7 @@ import {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  gitExecutableMock.mockReturnValue("git");
 });
 
 afterEach(() => {
@@ -66,6 +68,42 @@ it("guards the final Windows argv including repository and executor prefixes", a
     .resolves.toEqual({ stdout: "Child started", stderr: "" });
   await expect(createExecaGitExec()("git", args, { checkNativeWindowsArgv: true, objectAccess: "local-only" }))
     .rejects.toMatchObject({ kind: "command-line-capacity", stdout: "", stderr: "", commandLine: { limit: 32_767 } });
+});
+
+describe("the Git executable", () => {
+  const binary = "C:\\Program Files\\Git\\mingw64\\bin\\git.exe";
+
+  it("starts what the resolver names for each executor's environment", async () => {
+    gitExecutableMock.mockReturnValue(binary);
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("git", ["status"]);
+    await createExecaRawGitExec("/repo")(["status"]);
+    await createExecaGitExecInput()(["hash-object", "--stdin"], "bytes");
+
+    expect(execaMock.mock.calls.map(([command]) => command)).toEqual([binary, binary, binary]);
+    expect(gitExecutableMock.mock.calls[0]).toEqual([undefined]);
+    expect(gitExecutableMock.mock.calls[1]?.[0]).toMatchObject({ GIT_TERMINAL_PROMPT: "0" });
+  });
+
+  it("starts any other command by its own name", async () => {
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("gh", ["--version"]);
+
+    expect(execaMock).toHaveBeenCalledWith("gh", ["--version"], expect.anything());
+    expect(gitExecutableMock).not.toHaveBeenCalled();
+  });
+
+  it("sizes the Windows argv guard by the executable it starts, refusing as git", async () => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+    gitExecutableMock.mockReturnValue(binary);
+    const args = ["--git-dir=C:/" + "x".repeat(32_738), "push"];
+
+    await expect(createExecaGitExec()("git", args, { checkNativeWindowsArgv: true }))
+      .rejects.toMatchObject({ kind: "command-line-capacity", command: "git" });
+    expect(execaMock).not.toHaveBeenCalled();
+  });
 });
 
 it("preserves already-aborted cancellation ahead of Windows capacity", async () => {

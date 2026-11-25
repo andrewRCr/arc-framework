@@ -1,8 +1,8 @@
 /** Check indexed Markdown for under-wrapping, or explicit worktree files for feedback. */
+import { isMainModule } from "../lib/main-module.mjs";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import MarkdownIt from "markdown-it";
 import { lint } from "markdownlint/promise";
@@ -150,4 +150,4 @@ export async function main(cwd = process.cwd(), receivedPaths: readonly string[]
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main();
+if (await isMainModule(import.meta, process.argv[1])) process.exitCode = await main();

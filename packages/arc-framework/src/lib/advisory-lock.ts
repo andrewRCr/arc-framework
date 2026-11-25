@@ -149,7 +149,7 @@ export interface AdvisoryLockRenewOptions extends Pick<
 }
 
 /** Outcome of one renewable-lease heartbeat attempt. */
-export type AdvisoryLockRenewalResult = "renewed" | "ownership-lost" | "retry";
+export type AdvisoryLockRenewalResult = "renewed" | "ownership-lost" | "maintenance-busy" | "retry";
 
 /** Injectable seams and wait tuning for releasing an owned advisory lock. */
 export type AdvisoryLockReleaseOptions = Pick<
@@ -371,7 +371,7 @@ function normalizeError(error: unknown): Error {
  * @param handle - The acquisition whose lease should be renewed.
  * @param leaseDurationMs - New duration measured from the renewal clock.
  * @param options - Injectable filesystem, liveness, and clock seams.
- * @returns Whether the lease renewed, ownership is confirmed lost, or transient contention should retry.
+ * @returns Renewal, confirmed loss, maintenance contention, or an inconclusive ownership read.
  */
 export async function renewAdvisoryLock(
   handle: AdvisoryLockHandle,
@@ -412,7 +412,7 @@ export async function renewAdvisoryLock(
     processInstance: ownedHolder.processInstance,
   };
   const breakHandle = await tryAcquireBreakLock(context);
-  if (breakHandle === null) return "retry";
+  if (typeof breakHandle !== "object") return breakHandle;
 
   try {
     const latestHolder = await readHolderSettled(readFile, sleep, handle.path);
@@ -433,7 +433,7 @@ function classifyRenewalOwnership(
   handle: AdvisoryLockHandle,
 ):
   | { readonly state: "owned"; readonly holder: AdvisoryLockHolder }
-  | { readonly state: Exclude<AdvisoryLockRenewalResult, "renewed"> } {
+  | { readonly state: "ownership-lost" | "retry" } {
   if (typeof holder === "object" && holder.pid === handle.pid && holder.token === handle.token) {
     return { state: "owned", holder };
   }
@@ -462,7 +462,7 @@ interface SerializedBreakContext {
 async function attemptSerializedBreak(context: SerializedBreakContext): Promise<void> {
   if (budgetSpent(context.acquisitionBudget)) return;
   const breakHandle = await tryAcquireBreakLock(context);
-  if (!breakHandle) return;
+  if (typeof breakHandle !== "object") return;
 
   try {
     const currentHolder = await readHolderSettled(context.readFile, context.sleep, context.lockPath, context.acquisitionBudget);
@@ -500,8 +500,10 @@ type BreakLockContext = Pick<
   | "acquisitionBudget"
 >;
 
-async function tryAcquireBreakLock(context: BreakLockContext): Promise<AdvisoryLockHandle | null> {
-  if (budgetSpent(context.acquisitionBudget)) return null;
+async function tryAcquireBreakLock(
+  context: BreakLockContext,
+): Promise<AdvisoryLockHandle | "maintenance-busy" | "retry"> {
+  if (budgetSpent(context.acquisitionBudget)) return "retry";
   const breakToken = `${context.token}:break`;
   try {
     await context.exclusiveCreate(
@@ -514,11 +516,12 @@ async function tryAcquireBreakLock(context: BreakLockContext): Promise<AdvisoryL
   }
 
   const holder = await readHolderSettled(context.readFile, context.sleep, context.breakLockPath, context.acquisitionBudget);
+  if (holder === "unreadable") return "retry";
   if (!budgetSpent(context.acquisitionBudget)
     && isBreakLockBreakable(holder, context.isProcessAlive, context.now, context.breakLockTtlMs)) {
     await tolerantRemove(context.removeFile, context.breakLockPath);
   }
-  return null;
+  return "maintenance-busy";
 }
 
 async function acquireBreakLockForRelease(
@@ -532,7 +535,7 @@ async function acquireBreakLockForRelease(
 
   for (;;) {
     const handle = await tryAcquireBreakLock(context);
-    if (handle !== null) return handle;
+    if (typeof handle === "object") return handle;
     if (context.now() >= deadline) {
       throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs, "release");
     }

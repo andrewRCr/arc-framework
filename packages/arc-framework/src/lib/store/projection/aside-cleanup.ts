@@ -1,8 +1,9 @@
 /** Remove spent aside files and their empty scaffolding without following links or deleting recovery directories. */
-import { lstatSync, rmdirSync } from "node:fs";
+import { lstatSync, rmdirSync, unlinkSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { ASIDE_FILES_ROOT, parseAsideFile } from "./aside.js";
+import { readStatSync, sameProjectionFile } from "./change-detection.js";
 
 /** The filesystem calls pruning makes, replaceable so a refusal can be exercised. */
 export interface AsideScaffoldFs {
@@ -18,8 +19,26 @@ export async function removeProjectionAsideFile(checkout: string, location: stri
   const absolute = isAbsolute(location) ? location : join(checkout, location);
   await checkpoint?.();
   await rm(absolute, { force: true });
+  if (pruneParents) await pruneParentOf(checkout, absolute, checkpoint, fs);
+}
+
+/**
+ * Unlink a returned alias only while it and its path hold one regular file. Nothing is awaited between that test and the
+ * unlink, so a save that replaced the path during the command keeps the alias, then the last name for the bytes it holds.
+ */
+export async function removeReturnedAsideFile(checkout: string, location: string, path: string,
+  checkpoint?: () => Promise<void>): Promise<"removed" | "retained" | "missing"> {
+  const alias = join(checkout, location);
+  await checkpoint?.();
+  if (!sameProjectionFile(alias, join(checkout, path))) return readStatSync(alias) === null ? "missing" : "retained";
+  unlinkSync(alias);
+  await pruneParentOf(checkout, alias, checkpoint);
+  return "removed";
+}
+
+async function pruneParentOf(checkout: string, absolute: string, checkpoint?: () => Promise<void>, fs?: AsideScaffoldFs): Promise<void> {
   const local = relative(checkout, absolute).split(sep).join("/");
-  if (pruneParents && parseAsideFile(local) !== undefined) await pruneAsideScaffold(checkout, local.slice(0, local.lastIndexOf("/")), checkpoint, fs);
+  if (parseAsideFile(local) !== undefined) await pruneAsideScaffold(checkout, local.slice(0, local.lastIndexOf("/")), checkpoint, fs);
 }
 
 /**

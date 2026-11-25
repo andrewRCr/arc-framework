@@ -6,7 +6,7 @@ import { bindStoreSyncPort, type StoreSyncPort } from "../store/operational-sync
 import { readStateHistory, StateHistoryRefusal } from "../handoff/state-history.js";
 import { CompactionSeedSchema } from "../compaction-seed/schema.js";
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
-import { resolveRecoveryParentContext, type RecoveryLocusFrame } from "./locus-context.js";
+import { anchorParentPath, resolveRecoveryParentContext, type RecoveryLocusFrame } from "./locus-context.js";
 import type { StateVersion } from "../store/identity.js";
 
 type RecoveryBasisProbe = Pick<RecoveryAuditProbeState, "recoveryFrame" | "loadSet" | "taskCursor">
@@ -55,7 +55,8 @@ function requireOriginalSubject(seed: CompactionSeed, recover: RecoveryBasisProb
   const sameWorkUnit = frame.kind === "resolved" && frame.subject.kind === "work-unit" && frame.subject.key === seed.activeWorkUnit;
   const parent = recover.derivedLocusState?.ok === true ? resolveRecoveryParentContext(recover.derivedLocusState.value, frame) : null;
   const parentMetas = recover.loadSet.ok ? recover.loadSet.value.entries.flatMap(entry => {
-    if (parent !== null && entry.path === parent.metaPath) return [parent.workUnit];
+    if (parent !== null && frame.parentCheckoutPath !== null
+      && entry.path === anchorParentPath(frame.parentCheckoutPath, parent.metaPath)) return [parent.workUnit];
     const artifact = identifyWorkUnitArtifactPath(entry.path);
     return artifact?.artifact === "meta" ? [artifact.slug] : [];
   }) : [];

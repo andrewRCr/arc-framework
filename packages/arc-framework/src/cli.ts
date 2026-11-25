@@ -21,6 +21,7 @@ import {
   runDevBuildGuard,
   createDevBuildGuardDeps,
   refreshDevBuildAfterAction,
+  rerunDevCommand,
 } from "./lib/dev-check.js";
 import { reviewRequestAction } from "./lib/command-input/review-request-action.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
@@ -2562,14 +2563,17 @@ reviewCmd
 
 let devBuildRefreshEligible = false;
 
-program.hook("preAction", (_thisCommand, actionCommand) => {
-  devBuildRefreshEligible = runDevBuildGuard(
+program.hook("preAction", async (_thisCommand, actionCommand) => {
+  const admission = await runDevBuildGuard(
     {
       commandPath: formatCommandPath(actionCommand),
       writeCompactionSeed: actionCommand.opts<Record<string, unknown>>().writeCompactionSeed === true,
     },
     createDevBuildGuardDeps(fileURLToPath(import.meta.url)),
   );
+  // The stale bundle stays loaded in this process, so the command runs again on the rebuilt one instead.
+  if (admission.kind === "rerun") return await rerunDevCommand();
+  devBuildRefreshEligible = admission.refreshEligible;
 });
 
 program.hook("postAction", async () => {

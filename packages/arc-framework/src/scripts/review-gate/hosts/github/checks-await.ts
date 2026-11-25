@@ -1,6 +1,6 @@
 /** GitHub required-check observations for one pull request. */
 
-import type { HostedProcessRunner } from "../../hosted/gh-process.js";
+import { runGhRead, type HostedProcessRunner } from "../../hosted/gh-process.js";
 import type { RequiredCheck, RequiredChecksPort } from "../../checks-await.js";
 import { GitObjectIdSchema } from "../../core/gate-contract-v2-schema.js";
 
@@ -207,8 +207,8 @@ export async function readGhRequiredStatusPolicy(
 ): Promise<GhRequiredStatusPolicy> {
   const encodedBaseRef = encodeURIComponent(baseRef);
   const [branchResult, rulesResult] = await Promise.all([
-    runner.run(["api", `repos/${repository}/branches/${encodedBaseRef}`], { signal }),
-    runner.run([
+    runGhRead(runner, `GET repos/${repository}/branches/${encodedBaseRef}`, ["api", `repos/${repository}/branches/${encodedBaseRef}`], { signal }),
+    runGhRead(runner, `GET repos/${repository}/rules/branches/${encodedBaseRef}`, [
       "api", "--paginate", "--slurp",
       `repos/${repository}/rules/branches/${encodedBaseRef}?per_page=100`,
     ], { signal }),
@@ -270,8 +270,9 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
     repository: string,
     pullRequest: number,
     signal: AbortSignal,
+    purpose: string,
   ): Promise<unknown> {
-    return parse((await runner.run([
+    return parse((await runGhRead(runner, `GET repos/${repository}/pulls/${pullRequest} (${purpose})`, [
       "api", `repos/${repository}/pulls/${pullRequest}`,
     ], { signal })).stdout, "pull-request");
   }
@@ -282,9 +283,9 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
     signal: AbortSignal,
   ): Promise<string[]> {
     for (;;) {
-      const baseRef = pullRequestBaseRef(await readPullRequest(repository, pullRequest, signal));
+      const baseRef = pullRequestBaseRef(await readPullRequest(repository, pullRequest, signal, "base before required-status policy"));
       const { contexts } = await readGhRequiredStatusPolicy(runner, repository, baseRef, signal);
-      const currentBaseRef = pullRequestBaseRef(await readPullRequest(repository, pullRequest, signal));
+      const currentBaseRef = pullRequestBaseRef(await readPullRequest(repository, pullRequest, signal, "base after required-status policy"));
       if (currentBaseRef === baseRef) return contexts;
     }
   }
@@ -302,8 +303,8 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
   ): Promise<RequiredCheck[]> {
     const checks = rows.map(({ name, state }) => ({ name, state }));
     if (!rows.some(({ state, runId }) => state === "failed" && runId !== null)) return checks;
-    const headSha = pullRequestHeadSha(await readPullRequest(repository, pullRequest, signal));
-    const superseded = supersededRunIds(headWorkflowRuns(parse((await runner.run([
+    const headSha = pullRequestHeadSha(await readPullRequest(repository, pullRequest, signal, "head for superseded failures"));
+    const superseded = supersededRunIds(headWorkflowRuns(parse((await runGhRead(runner, `GET repos/${repository}/actions/runs`, [
       "api", `repos/${repository}/actions/runs?head_sha=${headSha}&per_page=100`,
     ], { signal })).stdout, "head-runs")));
     return rows.map(({ name, state, runId }) => ({
@@ -318,7 +319,7 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
     signal: AbortSignal,
     requiredOnly: boolean,
   ): Promise<RequiredCheck[]> {
-    const result = await runner.run([
+    const result = await runGhRead(runner, `gh pr checks ${repository}#${pullRequest} (${requiredOnly ? "required" : "observed"})`, [
       "pr", "checks", String(pullRequest), "--repo", repository,
       ...(requiredOnly ? ["--required"] : []),
       "--json", "name,state,bucket,link",
@@ -346,7 +347,7 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
   return {
     resolveRepository: async (signal) => {
       const value = record(parse(
-        (await runner.run(["repo", "view", "--json", "nameWithOwner"], { signal })).stdout,
+        (await runGhRead(runner, "gh repo view --json nameWithOwner", ["repo", "view", "--json", "nameWithOwner"], { signal })).stdout,
         "repository",
       ), "repository");
       if (typeof value.nameWithOwner !== "string" || value.nameWithOwner === "") {
@@ -355,7 +356,7 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
       return value.nameWithOwner;
     },
     readHead: async (repository, pullRequest, signal) => {
-      return pullRequestHeadSha(await readPullRequest(repository, pullRequest, signal));
+      return pullRequestHeadSha(await readPullRequest(repository, pullRequest, signal, "head identity"));
     },
     readRequiredChecks: async (repository, pullRequest, signal) => {
       const observed = await readChecks(repository, pullRequest, signal, true);

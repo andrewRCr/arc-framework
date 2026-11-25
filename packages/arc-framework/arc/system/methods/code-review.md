@@ -234,7 +234,9 @@ effective triage override changes presentation; its header, Decisions block, and
 the assessment, the successor recommendation, and what approval releases. Obtain complete-set approval over the exact
 report and canonical set before any mutation or commitment. A complete no-action record-only set also needs approval for
 its exact target before continuing. The approver need not repeat the digest. Submit the exact approved set and its
-advisory fix tags through the second call; follow only its returned action through [review-response][review-response].
+advisory fix tags through the second call, with the lane's resolve request as `policyRequest`: set its lane, target,
+scope mode and `completedPasses` as the first call's `payload.approvalPolicyBinding` gives them, and end its attempts
+in that binding's findings attempt. Follow only the returned action through [review-response][review-response].
 
 That approval is the fix round's structured gate under [DEV-RULES.ARC's review-increment
 invariant][review-increment-invariant]. Apply only the approved fixes, preserving
