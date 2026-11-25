@@ -305,7 +305,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
       const identity = await resolveIdentity({ exec: input.exec });
       if (identity === null) throw new Error("An ARC identity is required to read the integration checkpoint.");
       return readIntegrationCheckpointComposition(
-        integrationCheckpointLocation({ cwd: input.cwd, identity, workUnit, store: input.store }),
+        await integrationCheckpointLocation({ cwd: input.cwd, identity, workUnit, store: input.store, exec: input.exec }),
         handle,
       );
     },

@@ -1,7 +1,7 @@
 /** Default integration adapters preserve native project repair before opening review-family readers. */
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { handleIntegrationCheckpoint, handleIntegrationMerge } from "../../src/handlers/integration.js";
 import { IntegrationCheckpointResultSchema } from "../../src/scripts/integration/checkpoint.js";
@@ -9,6 +9,7 @@ import { IntegrationMergeResultSchema } from "../../src/scripts/integration/merg
 import { ProjectIdentityError } from "../../src/lib/store/project-identity.js";
 import { integrationCheckpointLocation, persistIntegrationCheckpointComposition } from "../../src/scripts/integration/checkpoint-store.js";
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
+import * as settlement from "../../src/scripts/integration/settlement-execution.js";
 import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -33,8 +34,8 @@ async function fixture() {
   });
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
   if (primary.reference.owner.type !== "work-item" || primary.reference.owner.uid === undefined) throw new Error("Expected work-item UID");
-  const checkpoint = await persistIntegrationCheckpointComposition(integrationCheckpointLocation({ cwd,
-    identity: SlugSchema.parse("test-user"), workUnit: "example", store: h.reference.store }), {
+  const checkpoint = await persistIntegrationCheckpointComposition(await integrationCheckpointLocation({ cwd,
+    identity: SlugSchema.parse("test-user"), workUnit: "example", store: h.reference.store, exec }), {
     workUnit: "example", approvedHead: head, lifecycleVersion: primary.version,
     nativeOwnership: { projectId, workItemUid: primary.reference.owner.uid },
     target: { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: "topic/opaque", headSha: head },
@@ -54,7 +55,7 @@ async function fixture() {
   const pull = { number: 42, state: "open", merged: false, draft: false, mergeable: true, mergeable_state: "clean", merge_commit_sha: mergeCommit,
     head: { ref: "topic/opaque", sha: head, repo: { full_name: "owner/repo" } },
     base: { ref: "main", sha: base, repo: { full_name: "owner/repo" } } };
-  await writeFile(join(bin, "gh"), ["#!/bin/sh", 'case "$1:$2" in',
+  await writeFile(join(bin, "gh"), ["#!/bin/sh", 'printf "%s %s\\n" "$1" "$2" >> "$0.calls"', 'case "$1:$2" in',
     `repo:view) printf '%s\\n' '{"nameWithOwner":"owner/repo"}' ;;`,
     `pr:list) printf '%s\\n' '${JSON.stringify([candidate])}' ;;`,
     "pr:checks) echo 'no required checks reported' >&2; exit 1 ;;",
@@ -100,9 +101,23 @@ it.each(["checkpoint", "merge"] as const)("preserves %s project repair and retur
     expect(h.primary.links?.branches).toMatchObject([{ repository: restoredProject, ref: "topic/opaque" }]);
     if (command === "checkpoint") expect(await run(undefined, "missing")).toMatchObject({ exitCode: 1, result: {
       detail: "No stored work unit is named `missing`. Name the work unit to integrate, then retry." } });
+    const execute = command === "merge" ? vi.spyOn(settlement, "executeSettlementPlan") : undefined;
+    if (execute !== undefined) {
+      await h.reference.seedMeta("other", { branch: null }, { kind: "active" });
+      onTestFinished(() => { execute.mockRestore(); });
+      const calls = join(h.bin, "gh.calls");
+      await writeFile(calls, "");
+      expect(await run(undefined, "other")).toMatchObject({ exitCode: 0, result: {
+        workUnit: "other", state: "blocked", reason: "operation-failed",
+        detail: expect.stringContaining("generation differs from the checkpoint"),
+      } });
+      expect(execute).not.toHaveBeenCalled();
+      expect(new Set((await readFile(calls, "utf8")).trim().split("\n"))).toEqual(new Set(["pr list"]));
+    }
     const repaired = await run();
     expect(repaired, JSON.stringify(repaired)).toMatchObject({ exitCode: 0,
       result: { reason: command === "checkpoint" ? "lifecycle-incomplete" : "lifecycle-moved" } });
+    if (execute !== undefined) expect(execute).toHaveBeenCalledOnce();
   } finally {
     process.chdir(originalCwd);
     if (originalPath === undefined) delete process.env.PATH; else process.env.PATH = originalPath;

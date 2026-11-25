@@ -645,12 +645,14 @@ export async function mergeIntegration(
     }
     target = IntegrationMergeTargetSchema.parse(checkpoint.target);
     const existing = await dependencies.readMerged(target);
-    if (existing.merged) return await completeMergedIntegration(request, checkpoint, target,
-      existing.providerMergeId, dependencies, existing.confirmationDetail);
-    try { await dependencies.validateCheckpointOwnership?.(checkpoint); }
-    catch (error) {
+    try {
+      // A landed retry under the recorded name keeps the checkpoint's generation after slug reuse.
+      if (!existing.merged || request.workUnit !== checkpoint.workUnit) await dependencies.validateCheckpointOwnership?.(checkpoint);
+    } catch (error) {
       return mergeOperationRefusal(request.workUnit, nativeRefusalText(error) ?? (error instanceof Error ? error.message : String(error)));
     }
+    if (existing.merged) return await completeMergedIntegration(request, checkpoint, target,
+      existing.providerMergeId, dependencies, existing.confirmationDetail);
     const settlement = await dependencies.executeSettlement(checkpoint);
     if (settlement.state === "invalidated") {
       return await invalidated(base, "settlement-invalidated", { settlement }, dependencies, target);

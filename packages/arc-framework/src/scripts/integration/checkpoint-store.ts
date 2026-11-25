@@ -8,11 +8,12 @@ import { z } from "zod";
 
 import { canonicalDigest, canonicalize } from "../../lib/kernel/canonical/canonical-json.js";
 import { atomicCreateFile } from "../../lib/fs.js";
+import type { GitExec } from "../../lib/git/exec.js";
 import { SlugSchema, type Slug } from "../../lib/kernel/schema/slug.js";
 import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
 import type { Store } from "../../lib/store/contract.js";
 import { StoredUidSchema } from "../../lib/store/identity.js";
-import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
+import { createUserSurfaceResolver, resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { ValidatedMergeMethodSchema } from "./checkpoint.js";
 import { CanonicalSettlementPlanSchema } from "./settlement-plan.js";
 
@@ -141,17 +142,20 @@ async function readIfPresent(fs: IntegrationCheckpointStoreFs, path: string): Pr
 }
 
 /**
- * Resolve where the checkpoint keeps a work unit's records in this checkout.
- *
- * @param input - The checkout root, the ARC identity, the work unit, and the store whose capability selects the arm.
- * @returns The workspace location before the flip, or the identity's machine-local location on the store path.
+ * Resolve the native checkpoint location in the primary worktree, or the workspace in the invoking checkout.
  */
-export function integrationCheckpointLocation(input: {
-  cwd: string; identity: Slug; workUnit: string; store: Pick<Store, "capabilities">;
-}): IntegrationCheckpointLocation {
-  const surfaces = createUserSurfaceResolver({ cwd: input.cwd, identity: input.identity });
-  return input.store.capabilities.stateOffBranch ? { kind: "identity", root: surfaces.identityGlobalRoot }
-    : { kind: "workspace", root: surfaces.workUnitRoot(SlugSchema.parse(input.workUnit)), workUnit: input.workUnit };
+export async function integrationCheckpointLocation(input: {
+  cwd: string; identity: Slug; workUnit: string; store: Pick<Store, "capabilities">; exec: GitExec;
+}): Promise<IntegrationCheckpointLocation> {
+  const { cwd, identity, workUnit, store, exec } = input;
+  if (store.capabilities.stateOffBranch) {
+    const surfaces = await resolveUserSurfaceResolver({
+      cwd, identity, exec: (cmd, args, options) => exec(cmd, args, { ...options, cwd }),
+    });
+    return { kind: "identity", root: surfaces.identityGlobalRoot };
+  }
+  const surfaces = createUserSurfaceResolver({ cwd, identity });
+  return { kind: "workspace", root: surfaces.workUnitRoot(SlugSchema.parse(workUnit)), workUnit };
 }
 
 function writePath(location: IntegrationCheckpointLocation, input: IntegrationCheckpointCompositionInput, handle: string): string {

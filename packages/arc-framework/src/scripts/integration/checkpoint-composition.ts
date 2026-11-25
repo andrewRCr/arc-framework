@@ -1445,7 +1445,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
       }
       const nativeOwnership = await checkpointNativeOwnership(input);
       const handle = await persistIntegrationCheckpointComposition(
-        integrationCheckpointLocation({ cwd: input.cwd, identity: resolvedIdentity, workUnit, store: input.store }),
+        await integrationCheckpointLocation({ cwd: input.cwd, identity: resolvedIdentity, workUnit, store: input.store, exec: input.exec }),
         {
           workUnit,
           approvedHead,

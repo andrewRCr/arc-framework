@@ -105,7 +105,8 @@ function primaryUid(h: Awaited<ReturnType<typeof compositionFixture>>): string {
 
 it("persists the exact stored meta version the checkpoint observed", async () => {
   const h = await compositionFixture(), handle = await createCheckpoint(h);
-  const location = integrationCheckpointLocation({ cwd: h.cwd, identity: SlugSchema.parse("test-user"), workUnit: "example", store: h.store });
+  const location = await integrationCheckpointLocation({ cwd: h.cwd, identity: SlugSchema.parse("test-user"),
+    workUnit: "example", store: h.store, exec: h.options.exec });
   const saved = await readIntegrationCheckpointComposition(location, handle);
   expect(saved?.nativeOwnership).toEqual({ projectId: "123e4567-e89b-42d3-a456-426614174099", workItemUid: primaryUid(h) });
   expect(saved?.lifecycleVersion).toBe(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).version);
