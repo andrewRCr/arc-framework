@@ -228,6 +228,44 @@ describe("the sweep", () => {
     expect(await readStat(join(left.checkout, copy.name))).toBeNull();
   });
 
+  it.each([["with an index", true], ["with no usable index", false]] as const)(
+    "keeps a returned copy %s wherever an editor's rename-save replaces its path before the alias is unlinked", async (_name, indexed) => {
+      let replacements = 0;
+      for (let step = 1; ; step += 1) {
+        const left = await leftBy("afterMove");
+        const [copy] = (await entryOnDisk(left.location, left.path)).copies;
+        if (copy === undefined) throw new Error("expected the stopped swap's copy record");
+        const alias = join(left.checkout, copy.name);
+        const edited = renderStampedFile({ content: "# Cohort: one\n\nFirst save.\n", stamp: left.laid.base.blob });
+        await writeFile(alias, edited);
+        let aliased = 0;
+        const replaced = async () => {
+          // Each step from the link onto the path until the alias is gone, one per pass.
+          const [held, returned] = await Promise.all([readStat(alias), readStat(left.file)]);
+          if (held === null || held.ino !== returned?.ino) return;
+          aliased += 1;
+          if (aliased !== step) return;
+          await writeFile(`${left.file}.editor`, "Second save.\n");
+          await rename(`${left.file}.editor`, left.file);
+        };
+        const swept = await left.sweep(unreached, { checkpoint: replaced, ...(indexed ? {} : { index: null }) });
+        if (aliased < step) break;
+        replacements += 1;
+        expect(await readFile(left.file, "utf8")).toBe("Second save.\n");
+        expect(await readFile(alias, "utf8")).toBe(edited);
+        if (indexed) {
+          // The next command reports it with its path, neither sent nor deleted.
+          const later = await left.sweep(unreached);
+          expect(later.swept).toMatchObject([{ path: left.path, copy: copy.name, outcome: { kind: "moved-on" } }]);
+          expect(await readFile(alias, "utf8")).toBe(edited);
+        } else {
+          expect(swept.withheld).toEqual([copy.name]);
+          expect(swept.left).toEqual([{ path: left.path, copy: copy.name, reason: "withheld" }]);
+        }
+      }
+      expect(replacements).toBeGreaterThan(0);
+    }, 60_000);
+
   it("marks a file pending where the person deleted it after a whole swap, its copy linked back or, a link, deleted", async () => {
     const whole = await leftBy(null);
     expect(await entryOnDisk(whole.location, whole.path)).toMatchObject({ pending: false });

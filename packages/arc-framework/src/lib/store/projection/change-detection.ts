@@ -127,7 +127,18 @@ export async function readStat(path: string, followLinks = false): Promise<FileS
 
 /** Observe one file synchronously for platforms where native synchronous stats cost less than a worker pool. */
 export function readStatSync(path: string): FileStat | null {
-  try { return projectionFileStat(lstatSync(path, { bigint: true })); }
+  const stat = observeSync(path);
+  return stat === null ? null : projectionFileStat(stat);
+}
+
+/** Prove two names hold one regular file, following no final symbolic link. Synchronous, so a caller can act in the same turn. */
+export function sameProjectionFile(left: string, right: string): boolean {
+  const a = observeSync(left), b = observeSync(right);
+  return a !== null && b !== null && a.isFile() && b.isFile() && a.dev === b.dev && a.ino === b.ino;
+}
+
+function observeSync(path: string): BigIntStats | null {
+  try { return lstatSync(path, { bigint: true }); }
   catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP") return null;
