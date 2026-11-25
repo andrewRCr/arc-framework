@@ -62,6 +62,17 @@ function expectBranchComparisonBeforeRemoval(remedy: string): void {
   expect(afterRemoval).toMatch(/reappl\w*.*state.*store/isu);
 }
 
+function expectCheckoutRecovery(remedy: string): void {
+  const liveBranch = remedy.slice(remedy.indexOf("git rm"));
+  expect(liveBranch).toMatch(/cutover window.*checkout steps/isu);
+  const [beforeReplay, afterReplay] = liveBranch.split(/reappl\w*.*?state.*?store/isu);
+  expect(beforeReplay).toMatch(/personal digest/iu);
+  expect(beforeReplay).toMatch(/materializ/iu);
+  expect(beforeReplay).toMatch(/withheld personal files/iu);
+  expect(beforeReplay).toMatch(/marker bind|bind.*marker/iu);
+  expect(afterReplay).toMatch(/confirm.*range.*exact tip.*run the command again/isu);
+}
+
 /** Assert no store write reached the repository: no ref store directory, and no state refs. */
 async function expectNoStoreWrites(root: string): Promise<void> {
   const commonDir = await git(root, "rev-parse", "--path-format=absolute", "--git-common-dir");
@@ -135,6 +146,7 @@ describe("the tracked-state refusal", () => {
     expect(refusal.remedy.text).toMatch(/git merge origin\/main/u);
     expect(refusal.remedy.text).not.toMatch(/store migrate --import/u);
     expectBranchComparisonBeforeRemoval(refusal.remedy.text);
+    expectCheckoutRecovery(refusal.remedy.text);
   });
 
   it("names both routes and the fact that decides between them where no imported store is present", async () => {
@@ -146,6 +158,7 @@ describe("the tracked-state refusal", () => {
     expect(refusal.remedy.text).toMatch(/git rm\b[^`]*\.arc\/backlog\//u);
     expect(refusal.remedy.text).toContain("arc store migrate --import");
     expectBranchComparisonBeforeRemoval(refusal.remedy.text);
+    expectCheckoutRecovery(refusal.remedy.text);
   });
 
   it.each([true, false])("gives stale main a merge-only route (local registry: %s)", async (imported) => {
@@ -166,7 +179,7 @@ describe("the tracked-state refusal", () => {
     expect(await store(root).version()).toMatchObject({ status: "ok" });
   });
 
-  it("lists and removes the root's tracked state with the printed recovery commands from a subdirectory", async () => {
+  it("directs recovery from a subdirectory to the repository top level for both Git commands", async () => {
     const root = await repository();
     const record = ".arc/active/record.md";
     await track(root, record);
@@ -177,10 +190,11 @@ describe("the tracked-state refusal", () => {
 
     const refusal = refusalOf(await store(nested).version());
     expect(refusal).toMatchObject({ code: "tracked-state", roots: [".arc/active/"] });
+    expect(refusal.remedy.text).toMatch(/(?:top level|top-level).*git rev-parse --show-toplevel/iu);
+    const top = await git(nested, ...recoveryArgs(refusal.remedy.text, "rev-parse"));
     const list = recoveryArgs(refusal.remedy.text, "ls-tree");
-    expect(await git(root, ...list)).toBe(record);
-    expect.soft(await git(nested, ...list)).toBe(record);
-    await git(nested, ...recoveryArgs(refusal.remedy.text, "rm"));
+    expect(await git(top, ...list)).toBe(record);
+    await git(top, ...recoveryArgs(refusal.remedy.text, "rm"));
     expect(await git(root, "diff", "--cached", "--diff-filter=D", "--name-only")).toBe(record);
     await commitAll(root, "delete tracked state");
     expect(await findTrackedStateRoots(makeGitExec(nested))).toEqual([]);
@@ -205,7 +219,7 @@ describe("the tracked-state refusal", () => {
     expect(await store(root).version()).toMatchObject({ status: "ok" });
   });
 
-  it("finishes deleting tracked state with the printed command after one root's removal is staged", async () => {
+  it("finishes removing tracked state with literal pathspecs and one root's removal already staged", async () => {
     const root = await repository();
     await track(root, ".arc/active/meta-one.md");
     await track(root, ".arc/backlog/stub.md");
@@ -214,12 +228,32 @@ describe("the tracked-state refusal", () => {
     await git(root, "rm", "-r", "--", ".arc/active/");
 
     const refusal = refusalOf(await store(root).version());
-    await git(root, ...recoveryArgs(refusal.remedy.text, "rm"));
+    await execFileAsync("git", recoveryArgs(refusal.remedy.text, "rm"), {
+      cwd: root, env: { ...process.env, GIT_LITERAL_PATHSPECS: "1" },
+    });
     expect(await git(root, "ls-files", "--", ".arc/active/", ".arc/backlog/")).toBe("");
     await expect(lstat(join(root, ".arc/backlog/stub.md"))).rejects.toMatchObject({ code: "ENOENT" });
     expect(refusal.remedy.text).toMatch(/check.*(?:on disk|disk copies).*before committing/isu);
     await commitAll(root, "delete tracked state");
     expect(await store(root).version()).toMatchObject({ status: "ok" });
+  });
+
+  it("keeps case-insensitive pathspecs from including files outside the protected roots", async () => {
+    const root = await repository();
+    const record = ".arc/active/record.md";
+    await track(root, record);
+    await track(root, ".arc/Backlog/other.md");
+    await git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+    const { remedy } = refusalOf(await store(root).version());
+    const env: NodeJS.ProcessEnv = { ...process.env, GIT_ICASE_PATHSPECS: "1" };
+    if (/`unset GIT_ICASE_PATHSPECS`/u.test(remedy.text)) delete env.GIT_ICASE_PATHSPECS;
+
+    const args = recoveryArgs(remedy.text, "rm");
+    args.splice(1, 0, "--dry-run");
+    const removal = await execFileAsync("git", args, { cwd: root, env });
+    expect.soft(removal.stdout.trim()).toBe(`rm '${record}'`);
+    const listing = await execFileAsync("git", recoveryArgs(remedy.text, "ls-tree"), { cwd: root, env });
+    expect(listing.stdout.trim()).toBe(record);
   });
 
   it("composes the ref backend over a tree that tracks no state", async () => {

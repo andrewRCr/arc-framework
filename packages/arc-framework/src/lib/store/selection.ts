@@ -80,19 +80,25 @@ async function isUnbornHead(exec: GitExec): Promise<boolean> {
  */
 export async function trackedStateRefusal(exec: GitExec, roots: readonly string[]): Promise<TrackedStateRefusal> {
   const { storeImportedHere } = await import("./store-imported.js");
-  const paths = TRACKED_STATE_ROOTS.map((root) => `:/${root}`).join(" ");
+  const paths = TRACKED_STATE_ROOTS.join(" ");
+  const fromTop = "Run the Git commands below from the repository's top level (`git rev-parse --show-toplevel`). "
+    + "Before listing or removing state, clear `GIT_ICASE_PATHSPECS` if set (`unset GIT_ICASE_PATHSPECS` in a POSIX shell).\n";
   const steps = "On `main`, merge the updated base (`git merge origin/main`), rebuild ARC, and run the command again.\n"
     + "On any other live branch, use the cutover window's `compare --branch` step to compare the local and host tips against "
     + "the cutover record and record any moved ranges. Merge any host-only commits into the local branch first. "
     + `Then remove tracked state from disk and the index (\`git rm -r --ignore-unmatch -- ${paths}\`). `
     + "Check for copies of the removed files left on disk. Save any wanted edits elsewhere and remove those copies before committing. "
     + "Commit the deletion, merge the updated base (`git merge origin/main`), rebuild ARC, and push the branch. "
-    + "After materializing the checkout, reapply the recorded state changes through the store, then run the command again.";
+    + "Follow the cutover window's checkout steps for personal digest comparison, materialization, handling withheld "
+    + "personal files, and binding the pre-flip marker before reapplying the recorded state changes through the store, "
+    + "then confirm each replayed range at its exact tip and run the command again.";
   const text = await storeImportedHere(exec)
-    ? `This repository's store has been imported. Run \`git fetch origin\` before continuing with the updated base.\n${steps}`
-    : "No imported store is present here, which may only mean it has not been fetched. Run `git fetch origin` and check "
+    ? `This repository's store has been imported.\n${fromTop}`
+      + `Run \`git fetch origin\` before continuing with the updated base.\n${steps}`
+    : "No imported store is present here, which may only mean it has not been fetched.\n" + fromTop
+      + "Run `git fetch origin` and check "
       + "whether its base branch still tracks ARC state (for example "
-      + `\`git ls-tree -r --full-tree --name-only origin/main -- ${TRACKED_STATE_ROOTS.join(" ")}\`). `
+      + `\`git ls-tree -r --full-tree --name-only origin/main -- ${paths}\`). `
       + "If the listing still shows state, import it with the build of ARC that wrote it (`arc store migrate --import`), "
       + `then run the command again. If the listing succeeds and is empty, follow these steps.\n${steps}`;
   return { code: "tracked-state", class: "recoverable", roots: [...roots],
