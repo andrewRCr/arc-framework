@@ -33,7 +33,8 @@ See DEV-RULES.ARC § Commit Discipline.
 
 Precise meanings — assume the technical sense.
 
-- **Work unit (WU):** Wrapper noun — a bounded, _spec-worthy_ concern with one branch, a meta file, and one PR.
+- **Work unit (WU):** Wrapper noun — a bounded, _spec-worthy_ concern with a meta file and one PR. A newly started
+  work unit plans in its claimed checkout before activation creates its work branch.
   Artifact group: `meta-{name}.md` plus any present `spec-*`, `draft-*`, `tasks-*`, `notes-*` companions. Not
   "any piece of work".
 - **Class:** A work unit's recorded _weight_ — `Light` / `Heavy` / `Novel` (`[TBD]` until resolved). `Heavy`

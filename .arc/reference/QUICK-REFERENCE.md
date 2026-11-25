@@ -343,7 +343,8 @@ arc finalize <create-spec|amend-design|generate-tasks> --class <Light|Heavy|Nove
 
 # Save pending edits in every projected root — work-unit records and your personal records
 arc save
-# Close tasks after their commit, capturing the increment's code commits (process-task-loop.md)
+# For tracked changes, close tasks after committing and capture the increment's commits (process-task-loop.md)
+# With no tracked changes, close approved tasks directly.
 arc task close [ids...] [--commit <sha>]
 # Defer a task and cascade its parent marker
 arc task defer <id>

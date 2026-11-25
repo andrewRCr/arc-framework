@@ -195,13 +195,12 @@ Class tags name the fire-site type; routing follows § Workflow class-tag routin
   user confirmation.
 
 - **Task list accuracy:** Before committing, verify the task list's completion notes reflect the completed work.
-  A task closes through the close verb after its commit (`arc release commit --close`, or `arc task close`), which
-  also closes a parent whose subtasks are all closed; the task list is saved, never staged.
+  When an increment changes tracked files, commit before closing the task. Use `arc release commit --close` or
+  run `arc task close` after the commit. With no tracked changes, close the approved task directly with
+  `arc task close`. The close verb also closes a parent whose subtasks are all closed. Save the task list to the store.
 
-- **Meta-file timing:** The meta is written **only where a workflow ceremony explicitly instructs the write** — at
-  handoff and at the lifecycle and planning-stage ceremonies that emit a meta update. A write's authority to touch
-  the meta comes from the ceremony workflow it runs, not from an enumerated list; task completion never touches it,
-  and nothing writes it mid-stage.
+- **Meta-file timing:** Edit the meta's Markdown **only when the ceremony workflow explicitly instructs the edit**,
+  at handoff or at a lifecycle or planning-stage ceremony. `arc task close` maintains capture links in the stored meta.
 
 - **Meta-file persistence:** The meta is a stored record. The ceremony's verb or `arc save` persists its edit; no
   commit carries it, code commit or otherwise.
@@ -223,8 +222,8 @@ requirements.
 
 ### Atomicity
 
-One logical change per commit. When multiple tasks are completed between commits, separate code
-changes by task and close each task with the commit that carries its work.
+One logical change per commit. Separate tracked changes by task and close each task after the commit that carries its
+work. Close approved tasks with no tracked changes directly with `arc task close`.
 
 ---
 
@@ -357,12 +356,12 @@ inside the change already under review discharges that: fix it and name the corr
 **Otherwise, route by urgency × isolation** — a coarse _inline / message / errand-now / inbox-defer_ call. The finer
 destination (existing stub, new stub, standalone errand, flush to shared) resolves later, at drain.
 
-| The concern is…                        | Can I write its home here? | Route                                                     |
-| -------------------------------------- | -------------------------- | --------------------------------------------------------- |
-| The current WU's own                   | Yes — you're on its branch | Fix **inline**. Never capture.                            |
-| Another WU's, live (it has a checkout) | Its inbound list only      | **Route** it there and message its session (`arc-inbox`). |
-| Out-of-WU, **urgent**                  | No — isolation needed now  | **Errand now** — own session (`arc-session --errand`).    |
-| Out-of-WU, not urgent                  | No — defer the write       | **Capture** to your personal inbox (via `arc-inbox`).     |
+| The concern is…                        | Can I write its home here?      | Route                                                  |
+| -------------------------------------- | ------------------------------- | ------------------------------------------------------ |
+| The current WU's own                   | With record edit rights         | Fix **inline**. Never capture.                         |
+| Another WU's, live (it has a checkout) | Use [routing][arc-methods-rdw]. | If admitted, add to inbound and message (`arc-inbox`). |
+| Out-of-WU, **urgent**                  | No — isolation needed now       | **Errand now** — own session (`arc-session --errand`). |
+| Out-of-WU, not urgent                  | No — defer the write            | **Capture** to your personal inbox (via `arc-inbox`).  |
 
 In-WU multi-step discovery folds into the active task list (an existing task, a new subtask, or a new task; a
 whole new phase may mean it isn't this WU's — ask).
@@ -497,18 +496,19 @@ Movable `.arc/` records — every work-item and cohort record: a WU's `draft-*`,
 companions, an Errand's records, and `cohort-*` — are project-internal. Each one's path varies by lifecycle and by
 checkout (`active/current/`, `active/in-flight/<slug>/`, `completed/`); personal records and the project inbox keep one
 path. Except for the commit-pinned link to the design document in a pull request's diff, shipped or published content
-cannot reference movable records and the following filename-only/no-links rule applies. Two rules keep internal
-references stable across relocation:
+cannot reference movable records. Apply these rules to local references:
 
 - **To a movable record:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
   include the task ID + task-list filename: "Task X.Y - `tasks-name.md`".
+- **From projected Markdown:** Refer to a record under any projected root, including a fixed record, by backticked
+  filename. Local links from projected Markdown must resolve outside every projected root.
 - **From a movable record:** no relative-path links at all, even to stable docs — a movable source's path changes
-  when it relocates, so any relative link would break. Link a tracked file from the repository root (`/path`) instead;
-  relative paths are legal only in non-moving docs.
+  when it relocates, so any relative link would break. Link a tracked file from the repository root (`/path`) instead.
 
-A save refuses a record write that adds a link breaking either rule.
+A save refuses a record write that adds a link breaking these rules.
 
-Otherwise, paths serve current-location metadata, commands, and links between non-moving docs.
+Otherwise, paths serve current-location metadata, commands, and links between non-moving docs. Relative links from
+fixed records must resolve outside every projected root.
 
 ### Write for the reader, not the author
 

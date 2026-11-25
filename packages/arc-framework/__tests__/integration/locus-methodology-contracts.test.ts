@@ -273,19 +273,25 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("contains no retired locus mutation or liveness instructions", async () => {
+  it.each([
+    { guidance: "published session init", example: "" },
+    {
+      guidance: "session init documenting a stale checkout held by another identity",
+      example: "\nFor a work unit owned by another identity, the sweep can report `arc locus release` in the marked checkout.\n",
+    },
+  ])("contains no retired locus mutation or liveness instructions ($guidance)", async ({ example }) => {
     for (const base of [packageArc, projectArc]) {
+      const sessionInit = await readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"), "utf8");
       const surfaces = await Promise.all([
         readFile(resolve(base, "system/workflows/arc/supplemental/run-errand.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-concurrent-work.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-work-organization.md"), "utf8"),
-        readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"), "utf8"),
       ]);
       const resume = await readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8");
 
-      for (const surface of surfaces) {
+      for (const surface of [...surfaces, sessionInit + example]) {
         expect(surface).not.toMatch(
-          /arc locus (?:attach|release|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,
+          /arc locus (?:attach|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,
         );
       }
       expect(resume).toMatch(softWrappedProse("exact teardown, or a release (`arc locus release`), removes its marker"));
