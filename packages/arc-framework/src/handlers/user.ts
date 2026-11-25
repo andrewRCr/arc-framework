@@ -911,7 +911,7 @@ export const userCommandInputRegistrations = [
     commandPath: "user inbox-remove",
     schema: UserInboxRemoveInputSchema,
     schemaFields: {
-      "operand.slug": "literal",
+      "operand.title": "literal",
       "option.id": "id",
       "option.expected-version": "expectedVersion",
       "option.inbox-title-file": "inboxTitleFile",
