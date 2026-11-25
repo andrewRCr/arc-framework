@@ -15,6 +15,7 @@ import { commitProjectionIndex, readProjectionIndex } from "./index-file.js";
 import { refreshHeldProjectionRoot, type HeldProjectionRefresh } from "./held-refresh.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionLockResult } from "./lock.js";
+import { findTrackedStateRefusal } from "../selection.js";
 
 /** Run a bound spawn request; a process with no root hook remains dark. */
 export async function materializeSpawnedProjection(checkout: string): Promise<void> {
@@ -38,6 +39,8 @@ export function bindSpawnMaterialization(command: ProjectionCommandInput): void 
 
 async function materializeSpawn(input: ProjectionCommandInput, checkout: string): Promise<void> {
   const ports = input.ports?.() ?? createProjectionEnginePorts(checkout);
+  const refusal = await findTrackedStateRefusal((cmd, args, options) => ports.exec(cmd, args, { ...options, cwd: checkout }));
+  if (refusal !== null) { reportFailure(checkout, refusal.condition, refusal.remedy.text); return; }
   const location = await locateProjection(checkout, ports);
   // Only the command's own checkout may delete a mismatched partition; another worktree keeps it for its own start.
   const invalidatePartition = projectionProcessState().command?.checkout === checkout;

@@ -1,9 +1,10 @@
 /** The root hook binds a command's projection to its ARC root, and binds none where ARC is not installed. */
 import { Command } from "commander";
-import { mkdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
+import { PROJECTION_STATE_FOLDER } from "../../../../src/lib/store/projection/location.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { commitAll, createTempRepoCore, makeTempRoot, removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 
@@ -48,6 +49,27 @@ describe("native projection binding", () => {
     async (_place, place) => {
       expect(await runFrom(await place())).toMatchObject({ start: "no-projection", stderr: "" });
     });
+
+  it("keeps a nested repository separate from an enclosing project that still tracks ARC state", async () => {
+    const parent = await repository();
+    const active = join(parent, ".arc", "active");
+    await mkdir(active, { recursive: true });
+    await writeFile(join(active, "meta-example.md"), "tracked\n");
+    await commitAll(parent);
+
+    const subdir = join(parent, "src");
+    await mkdir(subdir);
+    await expect(runFrom(subdir)).rejects.toMatchObject({ refusal: { code: "tracked-state" } });
+
+    const child = join(parent, "child");
+    await rename(await repository(), child);
+    const nested = join(child, "src");
+    await mkdir(nested);
+    expect(await runFrom(nested)).toEqual({ start: "no-projection", stderr: "" });
+    for (const root of [child, parent]) {
+      await expect(lstat(join(root, ".git", PROJECTION_STATE_FOLDER))).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  });
 
   it("reports an installed ARC root outside any Git repository as missing its Git directory", async () => {
     const root = await makeTempRoot("arc-hook-installed-");

@@ -42,15 +42,36 @@ export async function composeRefStorePorts(ports: StorePorts): Promise<RefStoreP
 export async function findTrackedStateRoots(exec: GitExec): Promise<string[]> {
   let tree: string;
   try {
-    tree = (await exec("git", ["rev-parse", "--verify", "--quiet", "HEAD^{tree}"], { diagnosticLocale: "stable" })).stdout.trim();
+    tree = (await exec("git", ["rev-parse", "--verify", "--quiet", "HEAD^{tree}"],
+      { diagnosticLocale: "stable", objectAccess: "local-only" })).stdout.trim();
   } catch (error) {
-    if (isGitProcessError(error) && error.kind === "nonzero-exit"
-      && (error.exitCode === 1 || (error.exitCode === 128 && /not a git repository/iu.test(error.stderr)))) return [];
-    throw error;
+    if (!isGitProcessError(error) || error.kind !== "nonzero-exit") throw error;
+    if (error.exitCode === 128 && /not a git repository/iu.test(error.stderr)) return [];
+    if (error.exitCode !== 1 || !await isUnbornHead(exec)) throw error;
+    return [];
   }
   const listed = (await exec("git", ["ls-tree", "-z", "--full-tree", "--name-only", tree, "--", ...TRACKED_STATE_ROOTS],
-    { clearPathspecEnvironment: true })).stdout.split("\0");
+    { clearPathspecEnvironment: true, objectAccess: "local-only" })).stdout.split("\0");
   return TRACKED_STATE_ROOTS.filter((root) => listed.some((path) => path.startsWith(root)));
+}
+
+async function isUnbornHead(exec: GitExec): Promise<boolean> {
+  let branch: string;
+  try {
+    branch = (await exec("git", ["symbolic-ref", "--quiet", "--no-recurse", "HEAD"],
+      { objectAccess: "local-only" })).stdout.trim();
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return false;
+    throw error;
+  }
+  if (!branch.startsWith("refs/heads/")) return false;
+  try {
+    await exec("git", ["show-ref", "--exists", branch], { objectAccess: "local-only" });
+    return false;
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 2) return true;
+    throw error;
+  }
 }
 
 /** Build the tracked-state refusal, its remedy chosen by whether this repository holds an imported store locally.
@@ -59,15 +80,21 @@ export async function findTrackedStateRoots(exec: GitExec): Promise<string[]> {
  */
 export async function trackedStateRefusal(exec: GitExec, roots: readonly string[]): Promise<TrackedStateRefusal> {
   const { storeImportedHere } = await import("./store-imported.js");
-  const steps = `on this checkout's branch, delete the tracked state from disk and the index (\`git rm -r -- ${roots.join(" ")}\`), `
-    + "commit the deletion, merge the base branch (for example `git merge origin/main`), then run the command again";
+  const paths = TRACKED_STATE_ROOTS.map((root) => `:/${root}`).join(" ");
+  const steps = "On `main`, merge the updated base (`git merge origin/main`), rebuild ARC, and run the command again.\n"
+    + "On any other live branch, use the cutover window's `compare --branch` step to compare the local and host tips against "
+    + "the cutover record and record any moved ranges. Merge any host-only commits into the local branch first. "
+    + `Then remove tracked state from disk and the index (\`git rm -r --ignore-unmatch -- ${paths}\`). `
+    + "Check for copies of the removed files left on disk. Save any wanted edits elsewhere and remove those copies before committing. "
+    + "Commit the deletion, merge the updated base (`git merge origin/main`), rebuild ARC, and push the branch. "
+    + "After materializing the checkout, reapply the recorded state changes through the store, then run the command again.";
   const text = await storeImportedHere(exec)
-    ? `This repository's store has been imported: ${steps}.`
-    : "No imported store is present here, which may only mean it has not been fetched. Fetch `origin` and check whether "
-      + "its base branch still tracks ARC state (for example "
-      + `\`git ls-tree -r --name-only origin/main -- ${TRACKED_STATE_ROOTS.join(" ")}\`). If it no longer does, the store `
-      + `has been imported: ${steps}. If it still does, the store has not been imported yet: import it with the build of `
-      + "ARC that wrote this state (`arc store migrate --import`), then run the command again.";
+    ? `This repository's store has been imported. Run \`git fetch origin\` before continuing with the updated base.\n${steps}`
+    : "No imported store is present here, which may only mean it has not been fetched. Run `git fetch origin` and check "
+      + "whether its base branch still tracks ARC state (for example "
+      + `\`git ls-tree -r --full-tree --name-only origin/main -- ${TRACKED_STATE_ROOTS.join(" ")}\`). `
+      + "If the listing still shows state, import it with the build of ARC that wrote it (`arc store migrate --import`), "
+      + `then run the command again. If the listing succeeds and is empty, follow these steps.\n${steps}`;
   return { code: "tracked-state", class: "recoverable", roots: [...roots],
     condition: `This checkout's HEAD tracks ARC state under ${roots.join(", ")}, which this build of ARC keeps in its `
       + "store rather than on the branch.", remedy: { text } };

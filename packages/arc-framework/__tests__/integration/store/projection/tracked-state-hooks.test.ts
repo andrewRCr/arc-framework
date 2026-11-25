@@ -4,18 +4,23 @@ import { execFile } from "node:child_process";
 import { lstat, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import type { Command } from "commander";
+import { Command } from "commander";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { StorePorts } from "../../../../src/lib/store/ports.js";
+import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
 import { PROJECTION_STATE_FOLDER } from "../../../../src/lib/store/projection/location.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { materializeSpawnedProjection } from "../../../../src/lib/store/projection/spawn-materialization.js";
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
 import { cleanupTempDir, commitAll, createTempRepo } from "../../../helpers/integration.js";
+import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
+import { makeTempRoot } from "../../../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 const CREATE_MODULE = "../../../../src/lib/store/create.js";
 const cleanup: string[] = [];
+const ACTIVE_REMOVAL = /git rm\b[^`]*\.arc\/active\//u;
 
 /** A registered command's path, with the arguments Commander needs to reach its action. */
 interface Invocation { readonly path: readonly string[]; readonly args: readonly string[] }
@@ -128,7 +133,7 @@ describe("a checkout whose HEAD tracks ARC state", () => {
     expect(result.ran).toEqual([{ command: name, spawnBound: false }]);
     expect(result.operations).toEqual([]);
     expect(projectionProcessState().skip).toMatchObject({ reason: "tracked-state", mark: {
-      reason: expect.stringContaining(".arc/active/"), remedy: { text: expect.stringContaining("git rm -r -- .arc/active/") } } });
+      reason: expect.stringContaining(".arc/active/"), remedy: { text: expect.stringMatching(ACTIVE_REMOVAL) } } });
     await expectUntouched(root);
   });
 
@@ -138,7 +143,7 @@ describe("a checkout whose HEAD tracks ARC state", () => {
     // The dispatch loads its own module graph, so the error is matched by shape rather than class identity.
     expect(result.error).toMatchObject({ name: "StoreRefusalError", offBranch: true, refusal: {
       code: "tracked-state", class: "recoverable", roots: [".arc/active/"],
-      remedy: { text: expect.stringContaining("git rm -r -- .arc/active/") } } });
+      remedy: { text: expect.stringMatching(ACTIVE_REMOVAL) } } });
     expect(result.ran).toEqual([]);
     expect(result.operations).toEqual([]);
     await expectUntouched(root);
@@ -163,6 +168,40 @@ describe("the remedy", () => {
 });
 
 describe("a checkout whose HEAD tracks no ARC state", () => {
+  it("reports the tracked-state remedy before creating a projection in a spawned worktree", async () => {
+    const root = await repository(true);
+    await configureEngineCheckout(root);
+    await commitAll(root, "configure projection ignores");
+    await git(root, "branch", "pre-cutover");
+    await git(root, "rm", "-r", ".arc/active");
+    await commitAll(root, "delete tracked state");
+    const target = await makeTempRoot("arc-pre-cutover-worktree-");
+    cleanup.push(target);
+    await git(root, "worktree", "add", target, "pre-cutover");
+    const gitDir = await git(target, "rev-parse", "--absolute-git-dir");
+
+    async function runSpawn(): Promise<string> {
+      const messages: string[] = [];
+      const program = new Command("arc").exitOverride();
+      registerProjectionHooks(program, { writeError: message => messages.push(message) });
+      program.command("spawn-probe").action(() => materializeSpawnedProjection(target));
+      const cwd = vi.spyOn(process, "cwd").mockReturnValue(root);
+      try { await program.parseAsync(["spawn-probe"], { from: "user" }); }
+      finally { cwd.mockRestore(); }
+      return messages.join("");
+    }
+
+    const diagnostic = await runSpawn();
+    expect(diagnostic).toContain("HEAD tracks ARC state");
+    expect(diagnostic).toMatch(ACTIVE_REMOVAL);
+    expect(await exists(join(gitDir, PROJECTION_STATE_FOLDER))).toBe(false);
+
+    await git(target, "rm", "-r", ".arc/active");
+    await commitAll(target, "delete tracked state");
+    expect(await runSpawn()).toBe("");
+    expect(await exists(join(gitDir, PROJECTION_STATE_FOLDER))).toBe(true);
+  });
+
   it.each(cases([...HOOK_COMMANDS, ...OTHER_COMMANDS]))("starts the projection for %s as before", async (name, invocation) => {
     const root = await repository(false);
     const result = await dispatch(root, invocation);

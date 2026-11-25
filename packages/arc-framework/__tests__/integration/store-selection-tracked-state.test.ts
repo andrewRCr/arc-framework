@@ -1,13 +1,14 @@
 /** A ref store composed over a checkout whose HEAD still tracks ARC state refuses at its first use. */
 
 import { execFile } from "node:child_process";
-import { lstat, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, rename, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { selectStore } from "../../src/lib/store/create.js";
-import { findTrackedStateRoots, TRACKED_STATE_ROOTS } from "../../src/lib/store/selection.js";
+import { findTrackedStateRoots } from "../../src/lib/store/selection.js";
 import type { StoreResult } from "../../src/lib/store/refusal.js";
 import { cleanupTempDir, commitAll, createTempRepo, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { testStorePorts } from "../helpers/store/in-repo-ports.js";
@@ -15,6 +16,8 @@ import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
 
 const execFileAsync = promisify(execFile);
 const REGISTRY = "refs/arc/project/registry";
+const STATE_ROOTS = [".arc/active/", ".arc/backlog/", ".arc/completed/", ".arc/system/.internal/candidates/",
+  ".arc/system/.internal/transitions/"];
 const cleanup: string[] = [];
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
@@ -42,6 +45,19 @@ function refusalOf(result: StoreResult<unknown>) {
   return result.refusal;
 }
 
+function recoveryArgs(remedy: string, verb: string): string[] {
+  const command = remedy.split("`").find((part, index) => index % 2 === 1 && part.startsWith(`git ${verb} `));
+  if (command === undefined) throw new Error(`Missing git ${verb} command in ${remedy}`);
+  return command.slice("git ".length).split(" ");
+}
+
+function expectBranchComparisonBeforeRemoval(remedy: string): void {
+  const [beforeRemoval, afterRemoval] = remedy.split("git rm");
+  expect(beforeRemoval).toMatch(/compar\w*.*local.*(?:host|origin).*tips?.*record/isu);
+  expect(beforeRemoval).toMatch(/(?:merge|incorporate).*host.*commits/isu);
+  expect(afterRemoval).toMatch(/reappl\w*.*state.*store/isu);
+}
+
 /** Assert no store write reached the repository: no ref store directory, and no state refs. */
 async function expectNoStoreWrites(root: string): Promise<void> {
   const commonDir = await git(root, "rev-parse", "--path-format=absolute", "--git-common-dir");
@@ -54,7 +70,7 @@ const provenance = { verb: "test", lifecycleAction: "update" };
 afterEach(async () => { await Promise.all(cleanup.splice(0).map((dir) => cleanupTempDir(dir))); });
 
 describe("the tracked-state refusal", () => {
-  it.each(TRACKED_STATE_ROOTS.map((root) => [root]))("refuses at first use, before any store write, over a tree tracking %s",
+  it.each(STATE_ROOTS)("refuses at first use, before any store write, over a tree tracking %s",
     async (stateRoot) => {
       const root = await repository();
       await track(root, `${stateRoot}record.md`);
@@ -64,25 +80,84 @@ describe("the tracked-state refusal", () => {
       await expectNoStoreWrites(root);
     });
 
-  it("names the deletion of the tracked roots and the base merge where the store has been imported", async () => {
+  it("uses the target checkout for the refusal and its remedy when Git defaults to another repository", async () => {
+    const target = await repository();
+    await track(target, ".arc/active/meta-one.md");
+    await git(target, "update-ref", REGISTRY, "HEAD");
+    const other = await repository();
+    await track(other, "README.md");
+
+    const ports = testStorePorts(target, makeGitExec(other), makeGitExecInput(other));
+    const refusal = refusalOf(await selectStore(ports, {}).version());
+    expect(refusal).toMatchObject({ code: "tracked-state", roots: [".arc/active/"] });
+    expect(refusal.remedy.text).not.toContain("arc store migrate --import");
+    await git(target, "rm", "-r", ".arc/active/");
+    await commitAll(target, "delete tracked state");
+    expect(await selectStore(ports, {}).version()).toMatchObject({ status: "ok" });
+  });
+
+  it("directs a live branch to compare before deletion where the store has been imported", async () => {
     const root = await repository();
     await track(root, ".arc/active/meta-one.md");
+    await git(root, "switch", "-c", "work");
     await track(root, ".arc/system/.internal/transitions/one.json");
     await git(root, "update-ref", REGISTRY, await git(root, "rev-parse", "HEAD"));
     const refusal = refusalOf(await store(root).version());
-    expect(refusal.remedy.text).toContain("git rm -r -- .arc/active/ .arc/system/.internal/transitions/");
-    expect(refusal.remedy.text).toMatch(/commit the deletion/u);
+    expect(refusal.remedy.text).toMatch(/git rm\b[^`]*\.arc\/active\/[^`]*\.arc\/system\/\.internal\/transitions\//u);
+    expect(refusal.remedy.text).toMatch(/commit the deletion/iu);
     expect(refusal.remedy.text).toMatch(/git merge origin\/main/u);
     expect(refusal.remedy.text).not.toMatch(/store migrate --import/u);
+    expectBranchComparisonBeforeRemoval(refusal.remedy.text);
   });
 
   it("names both routes and the fact that decides between them where no imported store is present", async () => {
     const root = await repository();
     await track(root, ".arc/backlog/stub.md");
+    await git(root, "switch", "-c", "work");
     const refusal = refusalOf(await store(root).version());
     expect(refusal.remedy.text).toMatch(/origin.*base branch|base branch.*origin/u);
-    expect(refusal.remedy.text).toContain("git rm -r -- .arc/backlog/");
+    expect(refusal.remedy.text).toMatch(/git rm\b[^`]*\.arc\/backlog\//u);
     expect(refusal.remedy.text).toContain("arc store migrate --import");
+    expectBranchComparisonBeforeRemoval(refusal.remedy.text);
+  });
+
+  it.each([true, false])("gives stale main a merge-only route (local registry: %s)", async (imported) => {
+    const root = await repository();
+    await track(root, ".arc/active/record.md");
+    await git(root, "switch", "-c", "cutover");
+    await git(root, "rm", "-r", ".arc/active/");
+    await commitAll(root, "delete tracked state");
+    await git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+    if (imported) await git(root, "update-ref", REGISTRY, "HEAD");
+    await git(root, "switch", "main");
+
+    const { remedy } = refusalOf(await store(root).version());
+    const mainRoute = remedy.text.split("\n").find((line) => /(?:on|if.*on) `main`/iu.test(line)) ?? "";
+    expect(mainRoute).toMatch(/\bgit merge origin\/main\b/u);
+    expect(mainRoute).not.toMatch(/git rm|commit the deletion/u);
+    await git(root, ...recoveryArgs(mainRoute, "merge"));
+    expect(await store(root).version()).toMatchObject({ status: "ok" });
+  });
+
+  it("lists and removes the root's tracked state with the printed recovery commands from a subdirectory", async () => {
+    const root = await repository();
+    const record = ".arc/active/record.md";
+    await track(root, record);
+    await git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+    await git(root, "switch", "-c", "work");
+    const nested = join(root, "packages");
+    await mkdir(nested);
+
+    const refusal = refusalOf(await store(nested).version());
+    expect(refusal).toMatchObject({ code: "tracked-state", roots: [".arc/active/"] });
+    const list = recoveryArgs(refusal.remedy.text, "ls-tree");
+    expect(await git(root, ...list)).toBe(record);
+    expect.soft(await git(nested, ...list)).toBe(record);
+    await git(nested, ...recoveryArgs(refusal.remedy.text, "rm"));
+    expect(await git(root, "diff", "--cached", "--diff-filter=D", "--name-only")).toBe(record);
+    await commitAll(root, "delete tracked state");
+    expect(await findTrackedStateRoots(makeGitExec(nested))).toEqual([]);
+    expect(await store(root).version()).toMatchObject({ status: "ok" });
   });
 
   it("never names the in-repo override", async () => {
@@ -103,6 +178,23 @@ describe("the tracked-state refusal", () => {
     expect(await store(root).version()).toMatchObject({ status: "ok" });
   });
 
+  it("finishes deleting tracked state with the printed command after one root's removal is staged", async () => {
+    const root = await repository();
+    await track(root, ".arc/active/meta-one.md");
+    await track(root, ".arc/backlog/stub.md");
+    await git(root, "update-ref", REGISTRY, "HEAD");
+    await git(root, "switch", "-c", "work");
+    await git(root, "rm", "-r", "--", ".arc/active/");
+
+    const refusal = refusalOf(await store(root).version());
+    await git(root, ...recoveryArgs(refusal.remedy.text, "rm"));
+    expect(await git(root, "ls-files", "--", ".arc/active/", ".arc/backlog/")).toBe("");
+    await expect(lstat(join(root, ".arc/backlog/stub.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(refusal.remedy.text).toMatch(/check.*(?:on disk|disk copies).*before committing/isu);
+    await commitAll(root, "delete tracked state");
+    expect(await store(root).version()).toMatchObject({ status: "ok" });
+  });
+
   it("composes the ref backend over a tree that tracks no state", async () => {
     const root = await repository();
     await track(root, ".arc/system/arc-config.yml");
@@ -112,6 +204,37 @@ describe("the tracked-state refusal", () => {
   it("composes the ref backend over an unborn HEAD", async () => {
     const root = await repository();
     expect(await store(root).version()).toMatchObject({ status: "ok" });
+  });
+
+  it("reports an unavailable HEAD tree and leaves it absent in a treeless clone", async () => {
+    const source = await repository();
+    await track(source, ".arc/active/meta-one.md");
+    const tree = await git(source, "rev-parse", "HEAD^{tree}");
+    await git(source, "config", "uploadpack.allowFilter", "true");
+    const clone = await mkdtemp(join(tmpdir(), "arc-tracked-state-treeless-"));
+    cleanup.push(clone);
+    await git(source, "clone", "--filter=tree:0", "--no-checkout", pathToFileURL(source).href, clone);
+
+    const treePresent = async () =>
+      (await git(clone, "cat-file", "--batch-all-objects", "--batch-check=%(objectname)")).split("\n").includes(tree);
+    expect(await treePresent()).toBe(false);
+    const [inspection] = await Promise.allSettled([findTrackedStateRoots(makeGitExec(clone))]);
+    expect({ treePresent: await treePresent(), inspection: inspection?.status })
+      .toEqual({ treePresent: false, inspection: "rejected" });
+    await git(clone, "checkout", "--force", "HEAD");
+    expect(await findTrackedStateRoots(makeGitExec(clone))).toEqual([".arc/active/"]);
+  });
+
+  it("propagates the Git failure at first use when the branch's commit object is missing", async () => {
+    const root = await repository();
+    await track(root, ".arc/active/meta-one.md");
+    const commit = await git(root, "rev-parse", "HEAD");
+    const path = join(root, ".git", "objects", commit.slice(0, 2), commit.slice(2));
+    await rename(path, `${path}.saved`);
+    expect(await git(root, "rev-parse", "--verify", "refs/heads/main")).toBe(commit);
+    await expect(store(root).version()).rejects.toMatchObject({ kind: "nonzero-exit" });
+    await rename(`${path}.saved`, path);
+    expect(refusalOf(await store(root).version())).toMatchObject({ code: "tracked-state" });
   });
 
   it("reads the whole tree from a checkout root below the repository's top level", async () => {

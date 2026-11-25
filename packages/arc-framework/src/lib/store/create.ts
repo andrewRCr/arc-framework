@@ -29,7 +29,8 @@ export function selectStore(ports: StorePorts, environment: Readonly<Record<stri
       .then(({ createInRepoBackend }) => createInRepoBackend(ports)));
   }
   return lazyStore(ports.checkoutRoot, true, async () => {
-    const refusal = await findTrackedStateRefusal(ports.exec);
+    const refusal = await findTrackedStateRefusal((cmd, args, options) =>
+      ports.exec(cmd, args, { ...options, cwd: ports.checkoutRoot }));
     if (refusal !== null) return refusingStore(refusal);
     const { createRefBackend } = await import("./ref/backend.js");
     return createRefBackend(await composeRefStorePorts(ports));

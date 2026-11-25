@@ -1,6 +1,7 @@
 /** Bind command entry and completion to projection write-back and stderr reporting. */
 import type { ProjectionStubMintPort } from "./stub-mint-port.js";
 import type { Command } from "commander";
+import { isAbsolute, relative, sep } from "node:path";
 import type { ProjectionCommandInput } from "./engine.js";
 import { startProjection, endProjection } from "./engine.js";
 import { createStore } from "../create.js";
@@ -8,6 +9,9 @@ import { createDefaultStorePorts } from "../default-store-ports.js";
 import { StoreRefusalError } from "../refusal-error.js";
 import { findTrackedStateRefusal, type TrackedStateRefusal } from "../selection.js";
 import { resolveArcRoot } from "../../paths.js";
+import type { GitExec } from "../../git/exec.js";
+import { isGitProcessError } from "../../git/process-error.js";
+import { canonicalCheckout } from "./checkout-identity.js";
 import { createProjectionReporter } from "./report.js";
 import { bindSpawnMaterialization } from "./spawn-materialization.js";
 
@@ -60,16 +64,31 @@ function runsFromGitHook(program: Command, action: Command): boolean {
   return action.parent?.parent === program && action.parent.name() === "check" && GIT_HOOK_CHECKS.has(action.name());
 }
 
-function nativeProjectionInput(): ProjectionHookInput {
+async function nativeProjectionInput(): Promise<ProjectionHookInput> {
   const cwd = process.cwd();
   const ports = createDefaultStorePorts({ checkoutRoot: cwd });
   const store = createStore(ports);
   if (!store.capabilities.stateOffBranch) return { store, checkout: cwd };
-  // The predicate reads `HEAD`'s tree from the repository's top level, whichever directory runs it.
-  const findTrackedState = () => findTrackedStateRefusal(ports.exec);
-  // Where ARC is not installed there is nothing to project into, and the guard could only refuse its missing ignores.
-  const checkout = resolveArcRoot(cwd);
-  if (checkout === null) return { store, checkout: cwd, unprojected: true, findTrackedState };
-  return { checkout, store: checkout === cwd ? store : createStore(createDefaultStorePorts({ checkoutRoot: checkout })),
-    findTrackedState };
+  const arcRoot = resolveArcRoot(cwd);
+  const installed = arcRoot !== null && (arcRoot === cwd || await insideWorktree(ports.exec, arcRoot));
+  const checkout = installed ? arcRoot : cwd;
+  const boundPorts = checkout === cwd ? ports : createDefaultStorePorts({ checkoutRoot: checkout });
+  return { checkout, store: checkout === cwd ? store : createStore(boundPorts), unprojected: !installed,
+    findTrackedState: () => findTrackedStateRefusal(boundPorts.exec) };
+}
+
+/** An enclosing ARC installation belongs to this command only if it lies within the caller's worktree. */
+async function insideWorktree(exec: GitExec, arcRoot: string): Promise<boolean> {
+  let toplevel: string;
+  try {
+    toplevel = (await exec("git", ["rev-parse", "--show-toplevel"],
+      { diagnosticLocale: "stable", preserveOutput: true })).stdout.replace(/\r?\n$/u, "");
+  } catch (error) {
+    // Keep the installed-but-not-a-repository path, where the engine reports its missing Git directory.
+    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 128
+      && /not a git repository/iu.test(error.stderr)) return true;
+    throw error;
+  }
+  const fromTop = relative(await canonicalCheckout(toplevel), await canonicalCheckout(arcRoot));
+  return fromTop !== ".." && !fromTop.startsWith(`..${sep}`) && !isAbsolute(fromTop);
 }

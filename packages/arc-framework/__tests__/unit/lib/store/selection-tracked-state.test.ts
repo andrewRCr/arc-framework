@@ -11,7 +11,14 @@ function failingHead(exitCode: number, stderr: string): GitExec {
 
 describe("tracked-state predicate failures", () => {
   it("finds nothing tracked over an unborn HEAD", async () => {
-    expect(await findTrackedStateRoots(failingHead(1, ""))).toEqual([]);
+    const exec: GitExec = async (command, args) => {
+      if (args[0] === "symbolic-ref") return { stdout: "refs/heads/main\n" };
+      if (args[0] === "show-ref" && args[2] === "refs/heads/main") {
+        throw makeGitProcessError({ command, args, exitCode: 2, stderr: "error: reference does not exist" });
+      }
+      return failingHead(1, "")(command, args);
+    };
+    expect(await findTrackedStateRoots(exec)).toEqual([]);
   });
 
   it("finds nothing tracked outside a Git repository", async () => {
