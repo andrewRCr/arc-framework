@@ -123,6 +123,23 @@ async function enterWithoutSeed(root: string) {
   return SessionInitProbeResultSchema.parse(JSON.parse(result.stdout));
 }
 
+it("directs a returning session to resume paused work before closing its uncaptured commit", async () => {
+  const { root } = await activeWork();
+  expect(await enter(root)).toMatchObject({ compactionSeedWrite: { status: "written" } });
+  const sha = await commitWork(root);
+  const pause = ["--skip-projection", "pause", "session-subject", "--reason", "Awaiting review"];
+  expectExit(pause, await runArc(pause, root));
+
+  const unclosedTaskCommits = { status: "available", commits: [{ sha }], actions: [{
+    argv: ["arc", "resume", "session-subject"], checkout: root,
+    text: expect.stringMatching(/arc resume session-subject.*arc task close/su),
+  }] };
+  expect(await enterWithoutSeed(root)).toMatchObject({ derivedLocusState: { ok: true, value: {
+    active: { context: { unclosedTaskCommits } },
+  } } });
+  expect((await audit(root)).verdict).toMatchObject({ status: "ready", taskCursor: { match: true }, unclosedTaskCommits });
+}, SESSION_COMMAND_TIMEOUT_MS);
+
 it("reports handoff restate changes from persisted records and Git with the saved baselines intact", async () => {
   const f = await activeWork();
   const memory = personalRecords(sessionIdentity).memory;
@@ -170,6 +187,7 @@ it.each([null, "unavailable-state"])("rebuilds the %s seed state for the origina
   const original = CompactionSeedSchema.parse(JSON.parse(await readFile(seedPath(f.root), "utf8")));
   await writeFile(seedPath(f.root), JSON.stringify({ ...original, stateVersion: unavailable }));
   const seed = await readFile(seedPath(f.root));
+  const sha = await commitWork(f.root);
   const other = await seedWorkUnit(f.root, "another-subject", { identity: sessionIdentity,
     meta: { owner: sessionIdentity, state: "Planning", currentWorkflow: "draft-design" } });
   await writeWorktreeMarker(f.root, { spawnedByArc: false, createdFor: seededWorkUnitSubject(other.meta),
@@ -191,7 +209,7 @@ it.each([null, "unavailable-state"])("rebuilds the %s seed state for the origina
   expect(await audit(f.root)).toMatchObject({ stateBasis: { rebuilt: true, stateVersion: version },
     seed: { stateVersion: unavailable, head: f.head, branch: f.branch, locus: original.locus },
     recover: { recoveryFrame: { ok: true, value: { kind: "resolved", subject: { kind: "work-unit", key: "session-subject" } } } },
-    verdict: { status: "ready", locus: { expectedHead: f.head, actualHead: f.head, headRelation: "same" } },
+    verdict: { status: "ready", locus: { expectedHead: f.head, actualHead: sha, headRelation: "advanced" } },
   });
   expect(await readFile(seedPath(f.root))).toEqual(seed);
   expect(await readFile(markerPath(f.root))).toEqual(f.marker);

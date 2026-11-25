@@ -2,7 +2,7 @@
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import {
@@ -69,8 +69,11 @@ it.each(["derivation", "scale"] as const)("preserves a conflicting branch and cu
   expect(JSON.parse(await readFile(markerPath(holder), "utf8"))).toMatchObject({ spawnedByArc: false, createdFor: { kind: "work-unit", name, uid } });
 }, ERRAND_TIMEOUT_MS);
 
-it("recovers the recorded cut after a ref lock and captures the Errand work through task close", async () => {
+it.each(["files", "reftable"])("recovers the recorded cut after branch creation fails with %s refs", async format => {
+  vi.stubEnv("GIT_DEFAULT_REF_FORMAT", format);
+  onTestFinished(() => { vi.unstubAllEnvs(); });
   const repo = await errandRepository();
+  expect(await repo.git(["rev-parse", "--show-ref-format"])).toBe(format);
   const slug = "interrupted-promotion";
   const name = "recovered-work";
   const branch = `feat/${name}`;
@@ -78,11 +81,11 @@ it("recovers the recorded cut after a ref lock and captures the Errand work thro
   const args = promote(slug, name, "scale");
   const workRef = `refs/arc/work/${uid}`;
   const beforeRole = await repo.git(["rev-parse", workRef]);
-  const lock = join(repo.root, ".git", "refs", "heads", "feat", `${name}.lock`);
-  await mkdir(dirname(lock), { recursive: true });
-  await writeFile(lock, "External Git ref lock\n");
+  const blockingBranch = `${branch}/blocker`;
+  // Git rejects the new ref while leaving the exact target branch absent.
+  await repo.git(["branch", blockingBranch, "main"]);
   expect(resultJson(await repo.arc(args, holder), 1)).toMatchObject({ outcome: "error",
-    error: { message: expect.stringContaining(`${name}.lock`) } });
+    error: { message: expect.stringContaining(`refs/heads/${blockingBranch}`) } });
   const role = await repo.read(metaReference(name));
   const roleTip = await repo.git(["rev-parse", workRef]);
   expect(roleTip).not.toBe(beforeRole);
@@ -94,7 +97,7 @@ it("recovers the recorded cut after a ref lock and captures the Errand work thro
   expect(await repo.git(["branch", "--show-current"], holder)).toBe(sourceBranch);
   expect(await repo.git(["rev-parse", "HEAD"], holder)).toBe(cut);
   expect(await repo.git(["branch", "--list", branch])).toBe("");
-  await rm(lock);
+  await repo.git(["branch", "-d", blockingBranch]);
 
   await repo.git(["config", "arc.identity", "another-user"]);
   expect(resultJson(await repo.arc(args, holder), 1)).toMatchObject({ outcome: "refused", reason: "identity-conflict",

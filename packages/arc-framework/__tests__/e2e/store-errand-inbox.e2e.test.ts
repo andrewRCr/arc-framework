@@ -4,6 +4,7 @@ import { access, readFile } from "node:fs/promises";
 import { expect, it } from "vitest";
 
 import { recordReferences } from "../../src/lib/store/identity.js";
+import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
 import {
   capture, ERRAND_TIMEOUT_MS, errandQueue, errandRepository, listCapture, markerPath, openErrand,
   personalInbox, primaryReference, projectInbox, resultJson, setProjectQueue, workItemUid,
@@ -127,7 +128,9 @@ it("binds a partial Errand to the listed version and leaves its capture and rema
   expect(await repo.git(["branch", "--show-current"])).toBe("main");
   expect(await repo.read(projectInbox)).toEqual(original);
   const queue = await repo.read(errandQueue);
-  expect(queue.content).toContain("abcdef12");
+  expect(parseEntryList(queue.content, "personal/errand-queue")).toMatchObject({
+    success: true, data: { entries: [{ id: "abcdef12", fields: { Inbox: "project" } }] },
+  });
 
   expect(resultJson(await repo.arc(["errand", "abandon", slug, "--json"]))).toMatchObject({ outcome: "applied", operation: "errand-abandon",
     subject: { kind: "partial-errand", slug }, settlement: { kind: "capture", disposition: "retained" } });

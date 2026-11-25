@@ -1,6 +1,6 @@
 /** Persist handoff requests and their computed anchors through the packaged CLI. */
 import { execFileSync } from "node:child_process";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { expect, it } from "vitest";
 
@@ -10,11 +10,45 @@ import { competingStoreWriter, expectExit, fixtureStore, markerPath, SESSION_COM
   sessionIdentity, sessionRepo, stored } from "../helpers/store-session-personal-fixture.js";
 import { HandoffWriteResultSchema } from "../../src/lib/handoff/write-schema.js";
 import { writeMetaNextAction } from "../../src/lib/store/kinds/meta/writers.js";
+import { recordReferences } from "../../src/lib/store/identity.js";
+import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
 
 const fileRequest = { schemaVersion: 1, sessionContext: "Prior context\n\n- Keep this first.", nextAction: "Continue",
   sessionType: "execution" };
 const replacement = { schemaVersion: 1, sessionContext: "Replacement context\n\n- Keep this next.", nextAction: "Continue after repair" };
 const stdinArgs = ["--skip-projection", "handoff", "write", "-"];
+
+it.each(["file", "stdin"])("saves pending notes before anchoring a %s handoff and projects its context", async source => {
+  const root = await sessionRepo();
+  const slug = "handoff-subject";
+  const initial = "# Notes\n\n";
+  const { meta } = await seedWorkUnit(root, slug, { identity: sessionIdentity, bind: root,
+    meta: { owner: sessionIdentity, state: "Planning", currentWorkflow: "draft-design" },
+    records: [{ kind: "work-item/notes", content: initial }] });
+  const locus = ["locus", "--json"];
+  expectExit(locus, await runArc(locus, root));
+  const current = join(root, ".arc", "active", "current");
+  const notesPath = join(current, `notes-${slug}.md`);
+  expect(parseStampedFile(await readFile(notesPath, "utf8")).content).toBe(initial);
+  const edit = "Keep this decision for the next session.\n";
+  await appendFile(notesPath, edit);
+
+  const request = JSON.stringify(fileRequest);
+  const file = join(root, ".git", "handoff.json");
+  if (source === "file") await writeFile(file, request);
+  const args = ["handoff", "write", source === "file" ? file : "-"];
+  const result = source === "file" ? await runArc(args, root) : await runArcWithStdin(args, root, request);
+  expectExit(args, result);
+  const written = HandoffWriteResultSchema.parse(JSON.parse(result.stdout));
+  if (written.status !== "written") throw new Error(JSON.stringify(written));
+
+  const store = fixtureStore(root);
+  const notes = recordReferences["work-item/notes"](meta.reference.owner);
+  expect(stored(await store.read({ reference: notes, asOf: written.stateAtHandoff })).content).toBe(initial + edit);
+  const saved = stored(await store.read({ reference: meta.reference }));
+  expect(saved.fields).toMatchObject({ sessionContext: fileRequest.sessionContext, stateAtHandoff: written.stateAtHandoff });
+  expect(parseStampedFile(await readFile(join(current, `meta-${slug}.md`), "utf8")).content).toBe(saved.content);
+}, SESSION_COMMAND_TIMEOUT_MS);
 
 async function fixture() {
   const root = await sessionRepo();
