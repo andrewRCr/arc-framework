@@ -80,14 +80,23 @@ describe("built CLI navigation", () => {
     expect(migrate.stdout).not.toContain("--import");
   });
 
-  it("explains that partial close removes the originating inbox entry only if its version still matches", async () => {
+  it("explains that partial close removes an inbox entry only if its recorded version or digest matches", async () => {
     const help = await runCli(["errand", "close", "--help"]);
     expect(help.exitCode).toBe(0);
     const purpose = help.stdout.split("\nOptions:")[0]?.replace(/\s+/gu, " ").trim();
-    expect(purpose).toMatch(/\binbox\b/iu);
-    expect(purpose).toMatch(/\bpartial\b/iu);
-    expect(purpose).toMatch(/remov|drop|delet/iu);
-    expect(purpose).toMatch(/unchanged|unmodified|unedited|same version|version.*match|match.*version/iu);
+    const partial = purpose?.match(/\bpartial\b[^.]+/iu)?.[0];
+    expect(partial).toMatch(/remov\w*[^.]*\binbox\b[^.]*\bonly if\b/iu);
+    const condition = partial?.split(/\bonly if\b/iu)[1];
+    expect(condition).toMatch(/\bversion\b[^.]*\bor\b[^.]*\bdigest\b/iu);
+    expect(condition).toMatch(/\bmatch\w*\b/iu);
+  });
+
+  it("distinguishes full-protection adoption by ID from inbox removal at close for a title", async () => {
+    const help = await runCli(["errand", "close", "--help"], { env: { ARC_IN_REPO_STORE: "1" } });
+    expect(help.exitCode).toBe(0);
+    const purpose = help.stdout.split("\nOptions:")[0]?.replace(/\s+/gu, " ").trim();
+    expect.soft(purpose).toMatch(/\bfull protection\b[^.]*\bmov\w*\b[^.]*\bdescription\b[^.]*\bopen\w*\b[^.]*\bID\b/iu);
+    expect.soft(purpose).toMatch(/\bclose\b[^.]*\bremov\w*\b[^.]*\bopen\w*\b[^.]*\btitle\b/iu);
   });
 
   it("keeps deep command purposes, inherited flags, and structured-request discovery", async () => {
