@@ -74,19 +74,33 @@ describe("session authority documentation", () => {
     }
   });
 
-  it("requires publication of the new Owner even if sync exits successfully with no state push", async () => {
-    for (const base of arcRoots) {
-      const content = await readHandoff(base);
-      const transfer = content.split("**Person-to-person handoff:**")[1]?.split(/\r?\n\r?\n/u)[0];
-      expect(transfer, "The handoff must sync the state written by arc handover").toMatch(
-        /`arc handover <slug> --to <identity>`[\s\S]*`arc sync --json`[\s\S]*`state\.push\.result`[\s\S]*`success`/u,
+  it.each(arcRoots)("verifies the sender's handover publication before confirming transfer in %s", async (base) => {
+    const content = await readHandoff(base);
+    const transfer = content.split("**Person-to-person handoff:**")[1]?.split(/\r?\n\r?\n/u)[0] ?? "";
+    const team = await readFile(resolve(ROOT, base, "reference/strategies/arc/strategy-team-coordination.md"), "utf8");
+    const protocol = section(team, "Person-to-Person Task Handoff");
+    const outgoing = protocol.split("### Incoming Bootstrap")[0] ?? "";
+
+    for (const [label, instructions] of [["handoff workflow", transfer], ["team strategy", outgoing]] as const) {
+      expect.soft(instructions, `Sync after handover in the ${label}`).toMatch(
+        /`arc handover <slug> --to <identity>`[\s\S]*`arc sync --json`/u,
       );
-      expect(transfer).toMatch(/pending[\s\S]*\barc sync\b/u);
-      const team = await readFile(resolve(ROOT, base, "reference/strategies/arc/strategy-team-coordination.md"), "utf8");
-      const protocol = section(team, "Person-to-Person Task Handoff");
-      expect(protocol).toMatch(/pull store state[\s\S]*Owner[\s\S]*Session Context/u);
-      expect(protocol).not.toMatch(/arc user (?:fetch|load)|git notes/u);
+      expect.soft(instructions, `Read the synced work unit after either eligible push result in the ${label}`).toMatch(
+        /`arc sync --json`[\s\S]*`state\.push\.result`[^.]*`success`\s+or(?:\s|>)*`noop`[^.]*`arc view meta --for <slug>`/u,
+      );
+      expect.soft(instructions, `Require both the recipient and conflict-free meta in the ${label}`).toMatch(
+        /`arc view meta --for <slug>`[\s\S]*[Cc]onfirm(?: the)? transfer only (?:if|when)[^.]*(?:`Owner`|Owner)[^.]*recipient[^.]*\band\b[^.]*no[^.]*conflict[^.]*meta/u,
+      );
+      expect.soft(instructions, `Report pending publication with the observed reason in the ${label}`).toMatch(
+        /`blocked`[^.]*`failed`[^.]*`skipped`[\s\S]*pending[\s\S]*observed reason[\s\S]*\barc sync\b/u,
+      );
+      expect.soft(instructions, `Keep ownership mismatches or meta conflicts pending in the ${label}`).toMatch(
+        /pending[^.]*(?:`Owner`|Owner)[^.]*recipient[^.]*conflict/u,
+      );
     }
+    expect(transfer).toMatch(/confirm(?: the)? transfer[\s\S]*`arc locus release`/iu);
+    expect(protocol).toMatch(/pull store state[\s\S]*Owner[\s\S]*Session Context/u);
+    expect(protocol).not.toMatch(/arc user (?:fetch|load)|git notes/u);
   });
 
   it("reports task closure from the store and keeps pending closes on the recovery route", async () => {
