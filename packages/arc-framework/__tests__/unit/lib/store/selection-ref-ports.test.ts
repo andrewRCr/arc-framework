@@ -16,7 +16,7 @@ function missing(path: string): Error {
 }
 
 /** In-memory file access holding a `.git` directory, recording every path it is asked about. */
-function memoryFiles(): StoreFileAccess & { files: Map<string, string>; touched: string[] } {
+function memoryFiles(): StoreFileAccess & { files: Map<string, string>; touched: string[]; realpath(path: string): Promise<string> } {
   const files = new Map<string, string>();
   const touched: string[] = [];
   const directories = new Set([join(checkoutRoot, ".git")]);
@@ -38,6 +38,7 @@ function memoryFiles(): StoreFileAccess & { files: Map<string, string>; touched:
       files.set(path, content);
     },
     unlink: async (path) => { touched.push(path); files.delete(path); },
+    realpath: async (path) => path,
   };
 }
 
