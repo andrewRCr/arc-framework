@@ -110,8 +110,8 @@ The outgoing developer runs a standard session handoff with these additions:
 
 2. **Transfer ownership and publish it.** Share the work branch and run `arc handover <slug> --to <identity>`.
    After it succeeds, publish the new Owner with `arc sync --json` per the session-handoff workflow. Confirm transfer
-   only when `state.push.result` reports `success`. If publication is pending, resolve the reported condition and
-   run or retry sync.
+   only when `state.push.result` reports `success`, or `noop` when the remote already holds it. On `blocked`,
+   `failed`, or `skipped`, publication is pending: resolve the reported condition and run or retry sync.
 
 ### Incoming Bootstrap
 

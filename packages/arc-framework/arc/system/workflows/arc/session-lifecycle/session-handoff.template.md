@@ -85,10 +85,10 @@ default — if your project overrides session-state, follow the override instead
 > and [Finalize Handoff State](#finalize-handoff-state), ensure the work branch is shared and run
 > `arc handover <slug> --to <identity>`. If handover refuses, show its remedy and retry after resolving the condition.
 > After `handed-over`, publish the new Owner with `arc sync --json` under the sync interlock. Require
-> `state.push.result` to be `success` before confirming transfer, then free this checkout with `arc locus release`.
-> Without a successful state push, report the transfer as pending. Give the observed reason and any reported remedy,
-> then have the sender run or retry `arc sync` to publish the saved Owner change. See the
-> [Team Coordination Strategy][team-coordination] § Person-to-Person Task Handoff.
+> `state.push.result` to be `success`, or `noop` when the remote already holds it, before confirming transfer, then
+> free this checkout with `arc locus release`. On `blocked`, `failed`, or `skipped`, report the transfer as pending.
+> Give the observed reason and any reported remedy, then have the sender run or retry `arc sync` to publish the saved
+> Owner change. See the [Team Coordination Strategy][team-coordination] § Person-to-Person Task Handoff.
 
 **Active-WU handoff** — the work unit's handoff, written with `arc handoff write`. Use
 [Active-WU Handoff Format](#active-wu-handoff-format).
