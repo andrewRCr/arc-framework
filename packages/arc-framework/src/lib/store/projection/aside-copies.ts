@@ -8,10 +8,9 @@ import type { Remedy } from "../refusal.js";
 import { nameAsideFile, parseAsideFile, type AsideWriterInput } from "./aside.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
-import { readStat } from "./change-detection.js";
+import { readStat, sameProjectionFile } from "./change-detection.js";
 import type { AsideCopyRecord, RecordEntry } from "./index-schema.js";
 import { gateRead, SYSTEM_READ_GATE, type ReadGateDependencies, type ReadGateVerdict } from "./read-gate.js";
-import { sameProjectionFile } from "./returned-copies.js";
 import { unshownConflicts } from "./held-conflicts.js";
 import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
@@ -184,7 +183,7 @@ export type HeldEdit = "refused" | "unparseable" | "clashed";
  * @returns What became of it.
  */
 export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySettlement> {
-  if (await sameProjectionFile(join(input.checkout, input.copy.name), join(input.checkout, input.path))) {
+  if (sameProjectionFile(join(input.checkout, input.copy.name), join(input.checkout, input.path))) {
     return { kind: "linked-back", entry: { ...restoreCopyRendering(input.entry, input.copy), pending: true } };
   }
   const checked = await checkAsideCopy(input);
