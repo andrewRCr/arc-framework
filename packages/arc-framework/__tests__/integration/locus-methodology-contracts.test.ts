@@ -12,6 +12,21 @@ const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
 
 describe("locus methodology contracts", () => {
+  it("checks the entering checkout and reads the target's lifecycle state after launch", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/assess-start-readiness.md"), "utf8");
+      const afterStart = method.split("`arc start <slug>`")[1] ?? "";
+
+      expect.soft(afterStart).toContain("`arc locus --json`");
+      expect.soft(afterStart).toMatch(/`entering\.kind`[^.]*`selected`/u);
+      expect.soft(afterStart).toMatch(/`entering\.row`[^.]*`work-unit`/u);
+      expect.soft(afterStart).toMatch(/`checkout\.path`[^.]*worktree path/u);
+      expect.soft(afterStart).toMatch(/`subject\.key`[^.]*slug/u);
+      expect.soft(afterStart).toMatch(/`arc status <slug> --json`[^.]*`position\.phase`[^.]*`Planning`/u);
+      expect.soft(afterStart).toMatch(/`entering\.row\.context`[^.]*handoff/u);
+    }
+  });
+
   it("publishes the current Errand lifecycle signature", async () => {
     const references = await Promise.all([
       readFile(resolve(packageArc, "reference/QUICK-REFERENCE.template.md"), "utf8"),
@@ -199,6 +214,22 @@ describe("locus methodology contracts", () => {
     }
   });
 
+  it("hands spawned starts to the reconciliation path for their work unit", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const workflow = await readFile(
+        resolve(base, "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md"), "utf8",
+      );
+      const freshStart = workflow.match(/^### 2\).*?(?=^### 3\))/msu)?.[0] ?? "";
+      const spawnedHandoff = workflow.match(/^#### Spawned handoff.*?(?=^### 4\))/msu)?.[0] ?? "";
+      const freshReconciliation = workflow.split("**Path B — Fresh WU**")[1]?.split("### 5)")[0] ?? "";
+
+      expect.soft(freshStart).toMatch(/spawned start[^.]*spawned handoff/iu);
+      expect.soft(spawnedHandoff).toMatch(/worktree path[^.]*`arc start`/u);
+      expect.soft(spawnedHandoff).toMatch(/Path B[^.]*fresh[^.]*Path A[^.]*stub[^.]*before[^.]*planning/iu);
+      expect.soft(freshReconciliation).toContain("`arc set-class <Class>`");
+    }
+  });
+
   it("binds Errand promotion to exact receipt settlement", async () => {
     for (const base of [packageArc, projectArc]) {
       const runErrand = await readFile(
@@ -213,6 +244,12 @@ describe("locus methodology contracts", () => {
       for (const workflow of [runErrand, initWorkUnit]) {
         expect(workflow).not.toContain("`settlement.state: commit-required`");
         expect(workflow).toContain("`settlement.state: settled`");
+      }
+      const continuation = initWorkUnit.split(/\.\s+/u).find((sentence) =>
+        /\bcontinue\b/iu.test(sentence) && sentence.includes("`applied`"));
+      expect(continuation).toContain("`idempotent`");
+      for (const evidence of ["`subject`", "`generation`", "`checkoutPath`", "`settlement.state: settled`", "retired"]) {
+        expect(continuation).toContain(evidence);
       }
       expect(initWorkUnit).toMatch(softWrappedProse("same exact `subject` and `generation`"));
       expect(initWorkUnit).toContain("immutable `Promotion Receipt`");

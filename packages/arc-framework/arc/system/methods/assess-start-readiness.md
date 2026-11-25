@@ -43,9 +43,12 @@ On approval:
 
 1. Run `arc start <slug>`. Its `Class` guard remains in force. A refusal or failed command stops the launch; surface
    its result before continuing.
-2. Take the worktree path from the successful result, and verify the checkout there holds the target: `arc locus`,
-   run at that path, resolves to the exact launched slug in Planning. If it does not, surface the gap rather than
-   reporting a clean launch.
+2. Run `arc locus --json` from the worktree path in the start result. Require `entering.kind` to be `selected` and
+   `entering.row` to be a `work-unit` whose `checkout.path` matches the canonical worktree path and whose `subject.key`
+   matches the launched slug. Run `arc status <slug> --json` there and confirm `position.phase` is `Planning` for that slug.
+   Inspect `entering.row.context` before handoff. If either probe fails or the evidence differs, report the observed
+   result and pause the handoff. Confirm the worktree path against the start result, address any reported diagnostics,
+   and rerun `arc locus --json` and `arc status <slug> --json` before handing off.
 3. Hand off with the worktree path and slug, and “open a fresh session there with your harness of choice.”
    Emit no harness-specific launch command.
 

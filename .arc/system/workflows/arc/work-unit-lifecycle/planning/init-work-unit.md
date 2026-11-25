@@ -104,10 +104,9 @@ arc start {name} --new --here   # explicit in-place placement
 ```
 
 The verb creates the WU's meta record in Planning, recording you as its `Owner`, and establishes the checkout as
-WU-owned. It writes only records: nothing is staged, committed, or pushed. A spawned start emits the exact
-next-session recipe; consume that recipe and skip Step 4. On `--here`, continue with Step 4 in the now WU-owned
-checkout. If that checkout is the physical primary, do not allocate transient work there until the WU exits through
-guarded teardown.
+WU-owned. It writes only records. After a spawned start, follow the [spawned handoff](#spawned-handoff). On
+`--here`, run Step 4 Path B in the now WU-owned checkout. If that checkout is the physical primary, do not allocate
+transient work there until the WU exits through guarded teardown.
 
 ### 3) Start a Backlog Stub · `arc-in-git` only
 
@@ -133,10 +132,16 @@ The placement mode follows [§ Execution Modes](#execution-modes) — spawned by
 caller explicitly chooses in-place work. The session locus occupancy guard refuses an in-place start into an
 occupied checkout; it never displaces the current role. Like a fresh start, it writes only records.
 
-On a spawned start, consume the emitted `Next session` recipe before continuing. The common invariant is the
-spawned WU worktree: post-create provisioning and registered harness-dir copy have already run there, so the next
-session's effective config and scripts resolve from that root. Do not continue planning from the invoking checkout
-after a spawned start succeeds.
+After a spawned start, follow the [spawned handoff](#spawned-handoff). On `--here`, run Step 4 Path A in the
+now WU-owned checkout. Preserve the stub's `Origin`, `Depends On`, and `Cohort` during reconciliation.
+
+See [Work Planning Strategy][work-planning] for the draft-doc lifecycle.
+
+#### Spawned handoff
+
+Use the worktree path printed by `arc start` to hand off to a fresh session in that worktree. Name Step 4 in
+the handoff and have the next session complete Path B for a fresh WU or Path A for a graduated stub before
+entering planning.
 
 - **Claude Code** — tell the user to start a fresh session in the emitted worktree path and invoke `/arc-session`
   there. `EnterWorktree` is the escape hatch, for a user who asks to keep this session: call it with the emitted path,
@@ -149,14 +154,6 @@ after a spawned start succeeds.
 - **Other harnesses** — enter the emitted worktree root by the harness-native mechanism, then invoke that
   harness's ARC session entry. Record only capability differences forced by the harness's own discovery model.
 
-Step 4's Path A then runs in that next session, from the new worktree, before its planning stage: name it in the
-handoff, since `arc repoint-design` acts only on the checkout's own work unit.
-
-The meta carries the intentional metadata set at backlog-stub creation (`Origin`, `Depends On`, `Cohort`); Step 4's
-Path A reconciles `Design` and `Next Action` without overwriting these fields.
-
-See [Work Planning Strategy][work-planning] for the draft-doc lifecycle.
-
 ### 4) Reconcile the Meta
 
 Two paths depending on Step 3's outcome. `State`, `Owner`, `Class`, and `Current Workflow` are the verbs' to write;
@@ -168,11 +165,11 @@ Two paths depending on Step 3's outcome. `State`, `Owner`, `Class`, and `Current
 it up to the realized floor via [`classify-work-unit`][classify-work-unit]. Persist any ratchet with
 `arc set-class <Class> {name}` before reconciling the remaining fields:
 
-1. **Design** → for a stub specified before its start, run `arc repoint-design spec-finalized`, which points
-   `Design` at the spec, removes the draft record, and advances `Current Workflow` to `generate-tasks`. Otherwise,
-   the backticked `draft-{name}.md` filename when one exists, or leave it as-is.
-2. **Current Workflow** → `draft-design`, the entry planning stage, which `arc start` sets, or `generate-tasks` after
-   item 1's repoint — no hand-set needed
+1. **Design** → preserve a declared PRD/RFC pair and its `generate-tasks` stage. If a finalized singleton spec still
+   needs its design pointer or stage reconciled, run `arc repoint-design spec-finalized` to point `Design` at the spec,
+   remove the draft record, and advance `Current Workflow` to `generate-tasks`. For a stub still at `draft-design`,
+   use the backticked `draft-{name}.md` filename when one exists, or leave `Design` as-is.
+2. **Current Workflow** → use the stage set by `arc start` or by item 1's repoint.
 3. **Next Action** → a within-stage planning note or the `[begin current workflow]` sentinel — never a
    workflow pointer. Leave the spec-readiness call to the consuming session (`arc-plan` → `draft-design`),
    which assesses against the actual draft state.
@@ -201,8 +198,8 @@ Then reconcile the judgment fields the scaffold seeds at defaults:
 Remaining fields take their field-model defaults.
 
 **Idempotent.** If the work unit's meta already exists (e.g., resuming a partial init from a prior session, not from a
-stub's start), do not recreate it. Reconcile **Design** and **Next Action** as in Path B, and set **Current Workflow**
-with `arc set-stage <stage>`; preserve other field values.
+stub's start), do not recreate it. Reconcile **Design** and **Next Action** as in Path B and resolve **Class** there if
+it is still `[TBD]`. Set **Current Workflow** with `arc set-stage <stage>` and preserve the remaining fields.
 
 Run `arc check increment` over the reconciled meta, then save it:
 
@@ -212,9 +209,10 @@ arc save
 
 ### 5) Proceed to Next Step
 
-- If the work needs synthesis exploration first: create `draft-*.md` documents (see [Work Planning
+- If `Current Workflow` is `generate-tasks`, proceed to [generate-tasks][generate-tasks] with every spec in `Design`.
+- Otherwise, if the work needs synthesis exploration first: create `draft-*.md` documents (see [Work Planning
   Strategy][work-planning] for conventions)
-- If ready for requirements: proceed to [create-spec][create-spec]
+- Otherwise, if ready for requirements: proceed to [create-spec][create-spec]
 
 ## Promote Errand to Work Unit Path
 
@@ -258,15 +256,13 @@ task-list backfill. Carry any landed errand commit as context in the new WU's sp
    arc errand promote {slug} --name {name} --type {type} --floor {derivation|scale} --json
    ```
 
-   Render `recommendedPromptText`. Continue only from an `applied` result whose exact `subject`, `generation`,
-   `branch`, `metaPath`, `checkoutPath`, allocation, and parent checkout evidence accompanies
-   `settlement.state: settled` with the identity retired: the write settled the exact source-capture generation and
-   retired the identity, and the verb then converted the checkout's occupancy, on the primary or spawned, to WU
-   ownership. A `confirmation-required`, `refused`, or `error` result is a stop; use only the CLI-composed retry after
-   explicit confirmation. Re-run the exact command after a lost response; the immutable `Promotion Receipt`, with the
-   role write's history holding its exact cut, supplies replay authority after the identity's retirement, and the rerun
-   reports the same exact `subject` and `generation`. A rerun that finds either missing refuses.
-   Pass `--priority` / `--class` when known, or resolve `Class` at the planning entry (step 5).
+   Render `recommendedPromptText`. Continue only from an `applied` or `idempotent` result whose exact `subject`,
+   `generation`, `branch`, `metaPath`, `checkoutPath`, allocation, and parent checkout evidence match the promotion,
+   with `settlement.state: settled` and the identity retired. A `confirmation-required`, `refused`, or `error` result is
+   a stop. Use only the CLI-composed retry after explicit confirmation. Re-run the exact command after a lost response.
+   The immutable `Promotion Receipt`, with the role write's history holding its exact cut, supplies replay authority
+   after the identity's retirement, and the rerun reports the same exact `subject` and `generation`. A rerun that finds
+   either missing refuses. Pass `--priority` / `--class` when known, or resolve `Class` at the planning entry (step 5).
 
 4. **Push the work branch.**
 
