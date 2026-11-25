@@ -5,6 +5,7 @@ import { runSetStage } from "../../../../src/lib/work-unit/verbs/set-stage.js";
 import { runFinalizeStage } from "../../../../src/lib/work-unit/verbs/finalize-stage.js";
 import { runRepointDesign } from "../../../../src/lib/work-unit/verbs/repoint-design.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { runSetClass } from "../../../../src/lib/work-unit/verbs/set-class.js";
 import { writeMetaPause, writeMetaClass, writeMetaCurrentWorkflow, writeMetaNextAction, writeMetaTaskList, writeMetaDesign } from "../../../../src/lib/store/kinds/meta/writers.js";
 
@@ -26,10 +27,13 @@ it("finalize writes Class, Task List and Next Action as the typed writers render
     "Task list finalized — ready to activate"));
 });
 it("repoint reads the stored Design rather than a stale caller value", async () => {
-  const { store, seedMeta } = createLifecycleHarness();
+  const { store, seed, seedMeta } = createLifecycleHarness();
   const record = await seedMeta("example", { state: "Planning", currentWorkflow: "create-spec", design: ["draft-example.md"] });
+  await seed(recordReferences["work-item/spec"](record.reference.owner), "# Spec (`brief`): example\n");
   const context = { cwd: "/project", store, writeDesignField: async () => {} };
-  expect(await runRepointDesign(context, { name: "example", event: "spec-finalized", currentDesign: ["stale"] })).toMatchObject({ status: "ok" });
+  expect(await runRepointDesign(context, {
+    owner: record.reference.owner, event: "spec-finalized", currentDesign: ["stale"],
+  })).toMatchObject({ status: "ok" });
   const afterRepoint = lifecycleSuccess(await store.read({ reference: record.reference }));
   expect(afterRepoint.content).toBe(writeMetaNextAction(writeMetaCurrentWorkflow(writeMetaDesign(record.content, ["spec-example.md"]),
     "generate-tasks"), "[begin current workflow]"));
@@ -39,8 +43,9 @@ it("repoint reads the stored Design rather than a stale caller value", async () 
 });
 
 it("paused stage advancement refuses while class, repoint's design-coherence batch, and a hand edit proceed", async () => {
-  const { store, seedMeta } = createLifecycleHarness();
+  const { store, seed, seedMeta } = createLifecycleHarness();
   const record = await seedMeta("example", { state: "Planning", currentWorkflow: "create-spec", design: ["draft-example.md"] });
+  await seed(recordReferences["work-item/spec"](record.reference.owner), "# Spec (`brief`): example\n");
   lifecycleSuccess(await store.write({ action: "put", reference: record.reference, expected: record.version, placement: { kind: "active" },
     content: writeMetaPause(record.content, { pausedBy: SlugSchema.parse("test-user"), since: "2026-10-14T00:00:00Z", reason: "Wait.", waitsOn: null, resumeNotes: null, open: false }),
     provenance: { verb: "pause", lifecycleAction: "pause" } }));
@@ -49,7 +54,8 @@ it("paused stage advancement refuses while class, repoint's design-coherence bat
     { name: "example", stage: "create-spec", advance: true })).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "resume", "example"] } });
   expect(lifecycleSuccess(await store.read({ reference: record.reference }))).toEqual(paused);
   expect(await runSetClass({ cwd: "/checkout", store }, { name: "example", workClass: "Novel" })).toMatchObject({ status: "ok" });
-  expect(await runRepointDesign({ cwd: "/project", store, writeDesignField: async () => {} }, { name: "example", event: "spec-finalized" })).toMatchObject({ status: "ok" });
+  expect(await runRepointDesign({ cwd: "/project", store, writeDesignField: async () => {} },
+    { owner: record.reference.owner, event: "spec-finalized" })).toMatchObject({ status: "ok" });
   const repointed = lifecycleSuccess(await store.read({ reference: record.reference }));
   lifecycleSuccess(await store.write({ action: "put", reference: record.reference, expected: repointed.version, placement: { kind: "active" },
     content: writeMetaNextAction(repointed.content, "Clarified next action."), provenance: { verb: "save", lifecycleAction: "hand-edit" } }));

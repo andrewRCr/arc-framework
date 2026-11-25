@@ -112,6 +112,7 @@ import {
   type TeardownResult,
 } from "../lib/work-unit/verbs/teardown.js";
 import type { StoreRecord } from "../lib/store/read.js";
+import type { OwnerIdentity } from "../lib/store/identity.js";
 import type { StoreRefusal, StoreResult } from "../lib/store/refusal.js";
 import { handleStoreMaterialize } from "./materialize-store.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
@@ -125,7 +126,7 @@ import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
-import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
+import { runRepointDesign } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
   type MaterializableWorkUnit,
@@ -156,17 +157,17 @@ import {
 import { permitDeliveryReopen, publishCandidateWithReviewBoundary, refuseProjectIdentityFailure } from "./lifecycle-delivery-review.js";
 
 /** Resolve this checkout's identity through the invocation's operational store. */
-async function resolveCurrentWuSlug(cwd: string, store?: Store): Promise<string | UnboundMarkerClassification | null> {
+async function resolveCurrentWuOwner(cwd: string, store?: Store): Promise<OwnerIdentity | UnboundMarkerClassification | null> {
   const current = await resolveCurrentWorkUnit({ cwd, store });
   if (current.status === "unbound") return current.unbound;
-  return current.status === "resolved" ? current.candidate.reference.owner.name : null;
+  return current.status === "resolved" ? current.candidate.reference.owner : null;
 }
 
-async function resolveStageWorkUnit(base: VerbBase, store: Store | undefined, verb: string): Promise<string | null> {
-  const slug = await resolveCurrentWuSlug(base.cwd, usesOffBranchState(store) ? store : base.store);
-  if (slug !== null && typeof slug !== "string") { refuseUnboundTarget(slug); return null; }
-  if (slug === null) refuse(`\`arc ${verb}\` needs exactly one active work unit to target — none resolved in this worktree.`);
-  return slug;
+async function resolveStageWorkUnit(base: VerbBase, store: Store | undefined, verb: string): Promise<OwnerIdentity | null> {
+  const owner = await resolveCurrentWuOwner(base.cwd, usesOffBranchState(store) ? store : base.store);
+  if (owner !== null && "exits" in owner) { refuseUnboundTarget(owner); return null; }
+  if (owner === null) refuse(`\`arc ${verb}\` needs exactly one active work unit to target — none resolved in this worktree.`);
+  return owner;
 }
 
 /**
@@ -189,10 +190,10 @@ export async function resolveVerbTargetOrReport(
   store?: Store,
 ): Promise<string | null> {
   const needsCurrentWu = !slugArg?.trim() && DISPATCH_MODE[verb] === "context-defaulting";
-  const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd, store) : null;
-  if (currentWuSlug !== null && typeof currentWuSlug !== "string") { refuseUnboundTarget(currentWuSlug, json); return null; }
+  const current = needsCurrentWu ? await resolveCurrentWuOwner(cwd, store) : null;
+  if (current !== null && "exits" in current) { refuseUnboundTarget(current, json); return null; }
 
-  const target = selectVerbTarget(verb, slugArg, currentWuSlug);
+  const target = selectVerbTarget(verb, slugArg, current?.name ?? null);
   if (target.kind === "resolved") return canonicalVerbTarget(target.slug, store, json);
 
   const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(cwd, store) : undefined;
@@ -1979,7 +1980,7 @@ export async function handleSetStage(
   const stageArg = input.stage;
 
   const { executor } = await buildExecutor(base);
-  const slug = await resolveStageWorkUnit(base, executor.store, "set-stage");
+  const slug = (await resolveStageWorkUnit(base, executor.store, "set-stage"))?.name ?? null;
   if (slug === null) return;
 
   const result = await runSetStage(executor, { name: slug, stage: stageArg, advance: input.advance ?? false });
@@ -2028,7 +2029,7 @@ export async function handleFinalizeStage(
   const firePointArg = input.firePoint;
 
   const { executor } = await buildExecutor(base);
-  const slug = await resolveStageWorkUnit(base, executor.store, "finalize");
+  const slug = (await resolveStageWorkUnit(base, executor.store, "finalize"))?.name ?? null;
   if (slug === null) return;
 
   // `writeClassField` is an optional direct-invoke seam on the executor (like the
@@ -2085,20 +2086,15 @@ export async function handleRepointDesign(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const eventArg = input.event;
-
   const { executor } = await buildExecutor(base);
-  const slug = await resolveStageWorkUnit(base, executor.store, "repoint-design");
-  if (slug === null) return;
+  const owner = await resolveStageWorkUnit(base, executor.store, "repoint-design");
+  if (owner === null) return;
+  const slug = owner.name;
 
   const currentDesign = usesOffBranchState(executor.store) ? undefined
     : parseMetaRecord(await readFile(materializeActiveMetaPath(base.cwd, slug), "utf8")).design;
 
-  const result = await runRepointDesign(executor, {
-    name: slug,
-    event: eventArg satisfies RepointDesignEvent,
-    currentDesign,
-  });
+  const result = await runRepointDesign(executor, { owner, event: input.event, currentDesign });
   if (result.status === "rejected") {
     refuse(result.reason, result.refusal);
     return;
