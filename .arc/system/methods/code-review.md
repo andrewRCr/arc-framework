@@ -270,9 +270,9 @@ Once the fix is committed and the worktree is clean, replay the exact approved `
 `verifiedFix` carrying the approved applicability and actual verification evidence, leaving out `supersedes`.
 Require the caller's exact advanced/current response state before any push interlock releases. This is the performed
 response evidence, never a new proposal or provider review. An uncommitted replay follows its commit-then-replay remedy.
-A Candidate response whose fix amends the spec re-exports its review copy; the caller commits that copy under the same
-approved increment before Candidate-currentness or delivery-preparation reads. The typed delivery controller owns any
-machine commits.
+When a Candidate response reports `design-exported` and the review copy is staged, commit only that copy as
+`taskCommit` under the same approved increment before Candidate-currentness or delivery-preparation reads. With no
+staged review copy, continue directly. The typed delivery controller owns any machine commits.
 
 Then push when the caller's route requires it and the configured interlock releases:
 

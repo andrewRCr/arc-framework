@@ -286,8 +286,8 @@ primary verified it.
 
 Once the loop has two or more looks, render the Trend after the finding sections: one
 [trend reading][review-model-trend] saying where the review stands, then the critical and major findings at each look,
-each line naming the kind briefly, as `Spec pass 1: 3 → 1`. Planning counts come from the pass record, including
-each fix-check round.
+each line naming the kind briefly, as `Spec pass 1: 3 → 1`. For planning, use the [planning review
+history](planning-review.md#findings-and-pass-record) for prior pass and fix-check counts.
 
 Put each decision in the Decisions block — the decision a fix creates about the next round or pass, and open questions,
 each with its recommendation — then end with the one question asking for complete-set approval, as `Approve: 2 fixes,
@@ -510,24 +510,30 @@ the work unit — draft, spec, task list, notes — since folds can extend beyon
 The identity's internal directory is per checkout, a stub groomed before start included, and the store holds no
 record under it, so the copies stay local.
 
-Record each artifact's filename and hash in the pass's record for the pass and each round. Remove the copies once the
-loop has ended, its stop reason is recorded, and no round is offered or running. Moving to another machine or
-checkout may lose the copies; scope the fix check from the account alone and disclose that limitation in its report.
+When [Pass record](#pass-record) applies, include each artifact's filename and hash for the pass and each round.
+Remove the copies once the loop has ended, its stop reason is recorded, and no round is offered or running. If the
+copies are unavailable in another machine or checkout, scope the fix check from the account alone and disclose that
+limitation in its report.
 
 **Kept prompts and reports.** Whether fold verification is on or off, save each look's exact prompts before sending
-and its returned reports on receipt, including scoped, chunk, seam, aggregate, and fix-check calls. Keep them in an
-`adversarial-review/` folder in the work unit's scratch folder, `.arc/user/{identity}/scratch/work-unit/{slug}/`, a
-stub groomed before it starts included; they outlast the loop. Name each file `{sha256}.md` from its exact content;
-reuse a name only for identical content and never replace it with different bytes.
+and its returned reports on receipt, including scoped, chunk, seam, aggregate, and fix-check calls. For the work-unit
+activities in [Pass record](#pass-record), keep them in `adversarial-review/` under the work unit's scratch folder,
+`.arc/user/{identity}/scratch/work-unit/{slug}/`, including for a stub groomed before it starts. For other looks, use
+the identity's scratch folder. Keep the files after the loop ends. Name each file `{sha256}.md` from its exact content
+and reuse a name only for identical content.
 
 ### Pass record
 
-Record each approved pass with `arc review adversarial record`, naming its activity and the work unit, a stub groomed
-before it starts included. The request carries the rubric, the pass number and its cap, the approval and any over-cap
-approval, the stop reason, and each finding's action and account; the verb adds the versions of the work unit's
-stored artifacts, and for a `verification` or `criteria` pass the checkout's code head. The request's `report` carries
-the rest of the entry below. This creates no lane-progress record, stored review-gate operation, Candidate, policy
-binding, or receipt.
+For `draft-readiness` with a stored draft, `spec-finalization`, `task-generation`, `design-amendment`, `verification`,
+and `criteria`, record each approved pass with `arc review adversarial record`, naming its activity and work unit,
+including a stub groomed before it starts. The request carries the rubric, the pass number and its cap, the approval
+and any over-cap approval, the stop reason, and each finding's action and account. The verb adds the versions of the
+work unit's stored artifacts and, for a `verification` or `criteria` pass, the checkout's code head. The request's
+`report` carries the rest of the entry below. This creates no lane-progress record, stored review-gate operation,
+Candidate, policy binding, or receipt.
+
+Frontline and local standard code review use the producer results, disposition sets, and lane progress described by
+[review-model](review-model.md#cadence-and-records), including for Errands and changes outside work units.
 
 Each record's `report` names each kept look file's filename, content hash, and role (`prompt` or `report`),
 identifying its pass and any fix-check round, chunk, seam, or aggregate call.

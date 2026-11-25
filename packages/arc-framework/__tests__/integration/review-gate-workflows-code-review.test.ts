@@ -156,6 +156,9 @@ describe("shared code-review workflow contracts", () => {
     const candidateReroot = compactResponse.indexOf("rerun Step 1");
     expect(fixCommit).toBeGreaterThanOrEqual(0);
     expect(replay).toBeGreaterThan(fixCommit);
+    const copyCommit = round.slice(replay, round.indexOf("Then push", replay));
+    expect(copyCommit).toMatch(/(?:if|when)[^.]*`design-exported`[^.]*staged[^.]*commit/iu);
+    expect(copyCommit).toMatch(/(?:without|no) (?:a )?staged (?:review )?copy[^.]*continue/iu);
     expect(verifiedResponse).toBeGreaterThanOrEqual(0);
     expect(responseCommit).toBeGreaterThan(verifiedResponse);
     expect(candidateReroot).toBeGreaterThan(responseCommit);

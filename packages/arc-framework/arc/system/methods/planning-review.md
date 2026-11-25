@@ -130,8 +130,14 @@ After each returned look, apply [adversarial-review's complete-disposition and c
 Beside every disposition set carrying a fix, offer its [fix check][fold-verification] after author grounding, before
 a successor pass or the final reread. Decide each round on the fixes alone under review-model.
 
-Record each pass with `arc review adversarial record`, following [Pass record][pass-record]; it records against the
-work unit, a stub groomed before its start included. Later passes take their history from those records.
+For a determinacy confirmation without a stored draft, settle and return the findings without recording an adversarial
+pass. For other planning passes, record each pass with `arc review adversarial record` following
+[Pass record][pass-record], including for a stub groomed before its start.
+
+Keep each pass's number, approved dispositions and their accounts, fix-check findings and decisions, stop reason,
+and scratch report paths in the unit's notes. Persist the notes and reports with `arc save` at the caller's save
+point. To resume, read the unit's notes with `arc view notes --for <slug>` and consult the scratch reports when available.
+
 An accepted return to shaping ends the loop as `re-entered`; the caller owns authoring, readiness, and the fresh loop.
 
 ### Post-settle reread

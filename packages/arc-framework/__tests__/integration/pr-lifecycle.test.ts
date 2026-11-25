@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { guidanceMarkdownFiles } from "../helpers/guidance-markdown.js";
 import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { ReviewAdversarialActivitySchema } from "../../src/lib/store/kinds/review/adversarial-pass/schema.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
@@ -433,6 +434,23 @@ describe("PR lifecycle and review contracts", () => {
     }
   });
 
+  it("limits work-unit scratch and pass records to supported advisory activities", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const [scratch, records] = method.split("**Kept prompts and reports.**")[1]?.split("### Pass record") ?? [];
+      const passRecord = records?.split("### ")[0]?.replace(/\s+/gu, " ") ?? "";
+      const recordingRule = passRecord.match(/[^.]*`arc review adversarial record`[^.]*/u)?.[0] ?? "";
+      for (const activity of ReviewAdversarialActivitySchema.options) {
+        expect(recordingRule).toContain(`\`${activity}\``);
+      }
+      expect(scratch?.replace(/\s+/gu, " ")).toMatch(/(?:for|on) (?:the|these) work-unit activities[^.]*scratch folder/iu);
+      expect(recordingRule).toMatch(/stub groomed before (?:it starts|its start)/iu);
+      expect(passRecord).toMatch(
+        /frontline and local standard code review[^.]*producer results[^.]*lane progress[^.]*\[review-model\]/iu,
+      );
+    }
+  });
+
   it("keeps withstood advisory and applies claim-type verification proportionally", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
@@ -509,6 +527,26 @@ describe("PR lifecycle and review contracts", () => {
     }
   });
 
+  it("settles review of a draftless determinacy confirmation without writing a pass record", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/planning-review.md"), "utf8");
+      const findings = method.split("### Findings and pass record")[1]?.split("### ")[0]?.replace(/\s+/gu, " ") ?? "";
+      expect(findings).toMatch(
+        /determinacy confirmation without a (?:stored )?draft[^.]*settle[^.]*without recording (?:an adversarial|a) pass/iu,
+      );
+    }
+  });
+
+  it("resumes planning from saved dispositions and fix checks using notes and available scratch reports", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/planning-review.md"), "utf8");
+      const findings = method.split("### Findings and pass record")[1]?.split("### ")[0]?.replace(/\s+/gu, " ") ?? "";
+      expect(findings).toMatch(/approved dispositions[^.]*fix.check[^.]*stop reason[^.]*notes/iu);
+      expect(findings).toContain("`arc save`");
+      expect(findings).toMatch(/(?:resume|resuming)[^.]*`arc view notes --for <slug>`[^.]*scratch reports/iu);
+    }
+  });
+
   it("keeps the advisory settlement protocol reachable at every direct planning and criteria caller", async () => {
     const callers = ["draft-design.md", "create-spec.md", "generate-tasks.template.md"];
     for (const base of [packageArc, projectArc]) {
@@ -518,8 +556,7 @@ describe("PR lifecycle and review contracts", () => {
       expect(method).toContain("adversarial-review:");
       expect(normalized).toContain("complete-disposition and continuation protocol");
       expect(normalized).toContain("record each pass with `arc review adversarial record`");
-      expect(normalized).toContain("a stub groomed before its start included");
-      expect(normalized).toContain("later passes take their history from those records");
+      expect(normalized).toMatch(/(?:including (?:for )?a stub groomed before its start|a stub groomed before its start included)/u);
       expect(normalized).not.toContain("adversarial-passes.md");
       expect(normalized).toContain("creates no lane-progress record");
       for (const packagedPath of callers) {
