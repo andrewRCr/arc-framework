@@ -43,7 +43,10 @@ describe("Orient standing routes", () => {
       kind: "actions", label: materializable.candidates[0]?.actions?.[0]?.text, accepts: [],
       actions: materializable.candidates[0]?.actions, then: { kind: "handoff" },
     }] });
-    expect(result.agenda.steps).toContainEqual({ type: "render", surface: "materializable-work-units", text: expect.stringContaining("`released`") });
+    const menu = result.agenda.steps.find(step => step.type === "render" && step.surface === "materializable-work-units");
+    if (menu?.type !== "render") throw Error("Expected materializable work units");
+    expect(menu.text).toContain("`released`");
+    expect(menu.text.split("\n")[0]).not.toMatch(/\bremote\b/i);
   });
 });
 

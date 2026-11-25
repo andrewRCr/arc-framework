@@ -4,7 +4,6 @@ import { agendaQuestionKey, buildAgendaArgv } from "./argv.js";
 import type { AgendaCompileInput } from "./compile-input.js";
 import { createSessionInitAgenda } from "./document.js";
 import { compileCheckoutSessionOrientation, orderOrientationSurfaces } from "./orientation.js";
-import { compileSyncPrefix } from "./prefix.js";
 import { carryAgendaAnswers } from "./progress.js";
 import { compileUniversalReads } from "./reads.js";
 import type { AgendaOrientation, AgendaStep, SessionInitAgenda } from "./schema.js";
@@ -13,15 +12,13 @@ import type { AgendaOrientation, AgendaStep, SessionInitAgenda } from "./schema.
 export async function compilePlanSignal(input: AgendaCompileInput): Promise<SessionInitAgenda> {
   const requested = typeof input.signals.plan === "string" ? input.signals.plan : "";
   const orientation: AgendaOrientation = { shape: "subject", subject: { kind: "groom", key: requested || null } };
-  const prefix = compileSyncPrefix(input, "none");
-  if (prefix.at(-1)?.type === "exec") return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, prefix));
   const { stub, failure } = await lookupStub(input, requested);
   if (stub !== null) orientation.subject.key = stub.slug;
   const tail: AgendaStep = stub === null ? planPicker(input, requested, failure) : { type: "fragment", target: {
     kind: "workflow", path: ".arc/system/workflows/arc/draft-design.md",
   }, args: { stub: stub.slug, onGroomingBranch: isGroomingBranch(input, stub.slug) } };
   return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, [
-    ...prefix, ...await compileUniversalReads(input),
+    ...await compileUniversalReads(input),
     ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "none")), tail,
   ]));
 }

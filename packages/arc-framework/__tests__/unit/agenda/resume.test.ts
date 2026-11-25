@@ -53,6 +53,14 @@ describe("agenda work-unit resume", () => {
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
   });
 
+  it.each(["partialPushMarker", "compactionAdvisory", "retiredSubdirs"] as const)("auto-proceeds on a clean --next resume when %s fails", async slot => {
+    const agenda = await compile(await input({
+      [slot]: async () => { throw new Error("Retired notes probe failed"); },
+    }, { next: true }));
+    expect(agenda.steps.filter(step => step.type === "gate" || (step.type === "render" && step.surface === "degraded-slot")))
+      .toEqual([{ type: "gate", kind: "proceed", autoProceed: true }]);
+  });
+
   it.each(["no-next", "dirty", "freshness", "blockers", "seed", "offer", "domain-warning", "degraded"] as const)("withholds automatic proceed for %s", async cause => {
       const probes: SessionInitProbeOverrides = {};
       if (cause === "dirty") probes.dirty = async () => dirtyState({ state: "dirty", fileCount: 2 });

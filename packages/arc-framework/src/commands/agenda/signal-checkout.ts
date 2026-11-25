@@ -2,7 +2,6 @@
 import type { AgendaCompileInput } from "./compile-input.js";
 import { createSessionInitAgenda } from "./document.js";
 import { compileCheckoutSessionOrientation, orderOrientationSurfaces } from "./orientation.js";
-import { compileSyncPrefix } from "./prefix.js";
 import { carryAgendaAnswers } from "./progress.js";
 import { compileUniversalReads } from "./reads.js";
 import type { AgendaOrientation, AgendaStep, SessionInitAgenda } from "./schema.js";
@@ -19,10 +18,8 @@ export function compileContextSignal(input: AgendaCompileInput): Promise<Session
 }
 
 async function compileCheckoutEntry(input: AgendaCompileInput, orientation: AgendaOrientation, tail: AgendaStep): Promise<SessionInitAgenda> {
-  const prefix = compileSyncPrefix(input, "none");
-  if (prefix.at(-1)?.type === "exec") return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, prefix));
   return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, [
-    ...prefix, ...await compileUniversalReads(input),
+    ...await compileUniversalReads(input),
     ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "none")), tail,
   ]));
 }

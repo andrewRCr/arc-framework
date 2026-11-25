@@ -28,8 +28,8 @@ export const ORIENTATION_SURFACE_ORDER = [
 const ORDER = new Map<string, number>(ORIENTATION_SURFACE_ORDER.map((id, index) => [id, index]));
 const UNIVERSAL_DIAGNOSTIC_SLOTS = ["config", "domainRules"] as const;
 const RESUME_SLOTS = ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", ...UNIVERSAL_DIAGNOSTIC_SLOTS, "hooksPath",
-  "currentWuReconcile", "userReferenceReconcile", "deliveryPosition", "currentHusk", "partialPushMarker", "compactionAdvisory",
-  "retiredSubdirs", "sweep", "orphanBranchSweep", "errandSweep", "errandState", "workUnitState"] as const;
+  "currentWuReconcile", "userReferenceReconcile", "deliveryPosition", "currentHusk",
+  "sweep", "orphanBranchSweep", "errandSweep", "errandState", "workUnitState"] as const;
 
 /** Order whole surfaces while preserving their internal narration/remedy sequence. */
 export function orderOrientationSurfaces(surfaces: OrientationSurface[]): AgendaStep[] {
@@ -54,8 +54,7 @@ export function compileCheckoutSessionOrientation(input: AgendaCompileInput, cha
   if (locus !== null) steps.push(locus);
   const answered = renderAnswered(input);
   if (answered !== null) steps.push(answered);
-  for (const name of ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", ...UNIVERSAL_DIAGNOSTIC_SLOTS, "hooksPath",
-    "partialPushMarker", "compactionAdvisory", "retiredSubdirs"] as const) {
+  for (const name of ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", ...UNIVERSAL_DIAGNOSTIC_SLOTS, "hooksPath"] as const) {
     const degraded = renderDegradedSlot(name, input.envelope[name]);
     if (degraded !== null) steps.push(degraded);
   }

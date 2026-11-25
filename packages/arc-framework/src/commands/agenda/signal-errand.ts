@@ -9,7 +9,6 @@ import { buildAgendaArgv } from "./argv.js";
 import type { AgendaCompileInput } from "./compile-input.js";
 import { createSessionInitAgenda } from "./document.js";
 import { compileCheckoutSessionOrientation, orderOrientationSurfaces } from "./orientation.js";
-import { compileSyncPrefix } from "./prefix.js";
 import { carryAgendaAnswers } from "./progress.js";
 import { compileUniversalReads } from "./reads.js";
 import type { AgendaOrientation, AgendaStep, OfferChoice, SessionInitAgenda } from "./schema.js";
@@ -18,9 +17,7 @@ import type { AgendaOrientation, AgendaStep, OfferChoice, SessionInitAgenda } fr
 export async function compileErrandSignal(input: AgendaCompileInput): Promise<SessionInitAgenda> {
   const seed = typeof input.signals.errand === "string" ? input.signals.errand : null;
   const orientation: AgendaOrientation = { shape: "subject", subject: { kind: "errand", key: seed } };
-  const prefix = compileSyncPrefix(input, "none");
-  if (prefix.at(-1)?.type === "exec") return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, prefix));
-  if (input.signals.next) return compileQueueHead(input, prefix);
+  if (input.signals.next) return compileQueueHead(input);
   const { entries, notes } = await readCaptures(input);
   const capture = await resolveErrandCapture(seed, entries, input.entry.store?.capabilities.stateOffBranch === true);
   const decision: AgendaStep = seed === null ? pickErrand(input, entries) : { type: "fragment", target: {
@@ -28,7 +25,7 @@ export async function compileErrandSignal(input: AgendaCompileInput): Promise<Se
   }, args: { mode: "launch", seed, isolate: input.signals.isolate === true,
     ...(capture === undefined ? {} : { fromInbox: capture }) } };
   return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, [
-    ...prefix, ...await compileUniversalReads(input),
+    ...await compileUniversalReads(input),
     ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "none")), ...notes, decision,
   ]));
 }
@@ -56,7 +53,7 @@ function pickErrand(input: AgendaCompileInput, entries: ErrandCapture[]): Agenda
   ] };
 }
 
-async function compileQueueHead(input: AgendaCompileInput, prefix: AgendaStep[]): Promise<SessionInitAgenda> {
+async function compileQueueHead(input: AgendaCompileInput): Promise<SessionInitAgenda> {
   const result = await resolveErrandNext(input.entry);
   const key = result.nextOffer?.key ?? null;
   const tail: AgendaStep = result.state === "available" ? { type: "fragment", target: {
@@ -64,7 +61,7 @@ async function compileQueueHead(input: AgendaCompileInput, prefix: AgendaStep[])
   }, args: { mode: "launch", fromInbox: key, isolate: input.signals.isolate === true } }
     : { type: "gate", kind: "stop", autoProceed: false };
   return createSessionInitAgenda(input, { shape: "subject", subject: { kind: "errand", key } }, carryAgendaAnswers(input, [
-    ...prefix, ...await compileUniversalReads(input), { type: "render", surface: "errand-next", text: result.recommendedPromptText },
+    ...await compileUniversalReads(input), { type: "render", surface: "errand-next", text: result.recommendedPromptText },
     ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "none", { next: true })), tail,
   ]));
 }
