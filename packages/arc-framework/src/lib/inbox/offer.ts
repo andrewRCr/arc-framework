@@ -1,6 +1,6 @@
 /** Queue offers are read-only selections with separate left-out and conflict reports. */
 import { z } from "zod";
-import { readQueueState } from "./queue-storage.js";
+import { readQueueState, type QueueState } from "./queue-storage.js";
 import { resolveEntryList } from "./lists.js";
 import { rowsInList } from "./listing.js";
 import { listCoordinate } from "./receipts.js";
@@ -27,16 +27,21 @@ export interface QueueExecutionOffer {
 export async function resolveQueueExecutionOffer(context: InboxContext, parentCheckoutPath: string | null = null): Promise<InboxOutcome<QueueExecutionOffer>> {
   const queue = await readQueueState(context);
   if (queue.status === "refused") return queue;
+  return { status: "ok", result: await selectQueueExecutionOffer(queue.result, context, parentCheckoutPath) };
+}
+
+/** Select an offer from the validated queue using the current inbox entries. */
+export async function selectQueueExecutionOffer(queue: QueueState, context: InboxContext, parentCheckoutPath: string | null): Promise<QueueExecutionOffer> {
   const result: QueueExecutionOffer = { nextOffer: null, leftOut: [], skipped: [] };
-  for (const member of queue.result.members) {
-    const inspected = await inspectMember(member, queue.result.saved, context);
+  for (const member of queue.members) {
+    const inspected = await inspectMember(member, queue.saved, context);
     if (inspected.kind === "ready") {
       result.nextOffer = { kind: "errand", key: `${member.inbox}:${member.id}`, parentCheckoutPath };
       break;
     }
     result[inspected.kind === "skipped" ? "skipped" : "leftOut"].push({ inbox: member.inbox, id: member.id, reason: inspected.reason, remedy: { text: "Repair or reorder this member with arc errand queue set." } });
   }
-  return { status: "ok", result };
+  return result;
 }
 
 type MemberInspection = { kind: "ready" } | { kind: "skipped" | "left-out"; reason: string };

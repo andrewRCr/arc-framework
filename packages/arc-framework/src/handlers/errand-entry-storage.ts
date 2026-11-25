@@ -1,8 +1,9 @@
 /** Capability-selected entry plans keep lifecycle handlers focused on their runtime operation. */
 import { legacyInboxEntryDigest } from "../lib/store/legacy-inbox-origin.js";
 import { removePartialOrigin } from "../lib/inbox/partial-origin.js";
-import { resolveQueueExecutionOffer } from "../lib/inbox/offer.js";
+import { selectQueueExecutionOffer, type QueueExecutionOffer } from "../lib/inbox/offer.js";
 import { readQueueState } from "../lib/inbox/queue-storage.js";
+import type { EntryRemoval } from "../lib/inbox/removal.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { bindStoreSyncPort } from "../lib/store/operational-sync.js";
 import { consumePull, writePullNotices } from "../lib/store/pull-consumption.js";
@@ -10,6 +11,7 @@ import { prepareErrandAdoption } from "../lib/inbox/errand-adoption.js";
 import { prepareErrandReturn, type ErrandReturn } from "../lib/inbox/errand-return.js";
 import type { ErrandInboxOrigin } from "../lib/errand/inbox-origin.js";
 import type { ErrandOperationResult } from "../lib/errand/operation-result.js";
+import type { PartialErrandInboxSettlement } from "../lib/errand/partial-settle-runtime.js";
 import type { InboxContext } from "../lib/inbox/types.js";
 import type { Mutation } from "../lib/store/write.js";
 
@@ -64,15 +66,22 @@ export async function prepareHandlerErrandReturn(slug: string, protection: "full
  * @param legacyDigest - Compatibility caller's existing exact digest primitive.
  * @returns Exact disposition and queue selection or refusal.
  */
-export async function settleStorePartialCapture(binding: { originEntry: string | null; originEntryVersion?: string; originEntrySourceDigest?: string; parentCheckoutPath: string | null }, context: InboxContext, legacyDigest: (content: string, title: string, expectedDigest?: string) => string = legacyInboxEntryDigest) {
+export async function settleStorePartialCapture(
+  binding: { originEntry: string | null; originEntryVersion?: string; originEntrySourceDigest?: string; parentCheckoutPath: string | null },
+  context: InboxContext,
+  legacyDigest: (content: string, title: string, expectedDigest?: string) => string = legacyInboxEntryDigest,
+): Promise<{
+  outcome: Exclude<PartialErrandInboxSettlement, { kind: "error" }>;
+  disposition: EntryRemoval["disposition"];
+  offer: QueueExecutionOffer | null;
+}> {
   // An unreadable queue refuses before the capture is removed, so the refusal leaves the inbox as it found it.
   const queue = await readQueueState(context);
-  if (queue.status === "refused") return { outcome: { kind: "refused" as const, reason: `${queue.refusal.condition} ${queue.refusal.remedy.text}` }, disposition: "retained" as const, offer: null };
+  if (queue.status === "refused") return { outcome: { kind: "refused", reason: `${queue.refusal.condition} ${queue.refusal.remedy.text}` }, disposition: "retained", offer: null };
   const removed = await removePartialOrigin(binding, context, legacyDigest);
-  if (removed.status === "refused") return { outcome: { kind: "refused" as const, reason: `${removed.refusal.condition} ${removed.refusal.remedy.text}` }, disposition: "retained" as const, offer: null };
-  const offer = await resolveQueueExecutionOffer(context, binding.parentCheckoutPath);
-  if (offer.status === "refused") return { outcome: { kind: "refused" as const, reason: `${offer.refusal.condition} ${offer.refusal.remedy.text}` }, disposition: removed.result.disposition, offer: null };
-  return { outcome: { kind: removed.result.disposition === "removed" ? "applied" as const : "idempotent" as const, nextOffer: offer.result.nextOffer }, disposition: removed.result.disposition, offer: offer.result };
+  if (removed.status === "refused") return { outcome: { kind: "refused", reason: `${removed.refusal.condition} ${removed.refusal.remedy.text}` }, disposition: "retained", offer: null };
+  const offer = await selectQueueExecutionOffer(queue.result, context, binding.parentCheckoutPath);
+  return { outcome: { kind: removed.result.disposition === "removed" ? "applied" : "idempotent", nextOffer: offer.nextOffer }, disposition: removed.result.disposition, offer };
 }
 
 /** Include the previously ended home which admission observed, without changing its new origin.
