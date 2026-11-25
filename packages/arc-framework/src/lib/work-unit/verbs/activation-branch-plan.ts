@@ -111,7 +111,7 @@ async function oldRemoteDeletion(exec: GitExec, cwd: string, branch: string, tar
     .then(() => true, (error: unknown) => { if (isMissingExit(error)) return false; throw error; });
   const argv = ["git", "push", "origin", "--delete", branch];
   return held ? { text: argv.join(" "), argv }
-    : { text: `git merge --ff --no-edit ${tip} && git push -u origin ${target} && ${argv.join(" ")}` };
+    : { text: `After git merge --ff --no-edit ${tip}, and once ${target} is pushed, ${argv.join(" ")}` };
 }
 async function checkoutBranch(exec: GitExec, cwd: string): Promise<string | null> {
   try { const result = await exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd }); return result.stdout.trim(); }

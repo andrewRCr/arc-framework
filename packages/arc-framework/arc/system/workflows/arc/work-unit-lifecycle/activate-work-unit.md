@@ -54,9 +54,12 @@ the task list and its success criteria. An outcome cannot hold a capture in this
 
 Record each rejection or dismissal and its reason in the `notes-{name}.md` companion, creating it on first need.
 Record the source list, entry ID, and version with each rejection, dismissal, or fold in the notes. Run
-`arc check increment` and `arc save` successfully before removing any source whose disposition required these edits.
-On retry, check the saved disposition for that exact source, ID, and version. Finish any missing edits and save them
-before removal. If the disposition and its edits are already saved, finish the removal directly.
+`arc check increment` and `arc save` before removing any source whose disposition required these edits. A save can
+succeed while an edit stays pending or refused, so inspect `arc status --json` afterwards and require `projection` to
+report a ready index with no `files` entry for the notes, spec, or task list just edited. Surface any outstanding
+condition, apply its reported remedy or repair the pending edit, and repeat the check, save, and status check before
+removal. On retry, check the saved disposition for that exact source, ID, and version. Finish any missing edits and
+save them the same way before removal. If the disposition and its edits are already saved, finish the removal directly.
 
 - For a personal capture, use `arc user inbox-remove --id <id> --expected-version <version>` with the listed values.
 - For an inbound entry, verify its listed ID and version still match, delete that row from the owner's list, and

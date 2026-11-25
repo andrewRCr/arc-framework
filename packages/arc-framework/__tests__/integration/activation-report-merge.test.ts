@@ -33,6 +33,8 @@ describe("activation report merge", () => {
     const commands = plan.remoteDelete?.text.match(/\bgit (?:merge|push) [^,;&`\n]+/gu) ?? [];
     for (const command of commands) {
       if (command.includes("--delete")) {
+        // The report leaves publication to the caller's own push step, which runs between the merge and the deletion.
+        await exec("git", ["push", "-u", "origin", plan.link.ref]);
         const published = await exec("git", ["rev-parse", `refs/heads/${plan.link.ref}`], { cwd: origin });
         expect(published.stdout.trim(), "replacement branch tip before deletion").toBe(oldTip);
       }
@@ -94,7 +96,7 @@ it("keeps original-graph merge and deletion advice when replacement refs fake co
   expect(replaced.status).toBe("ready"); if (replaced.status !== "ready") return;
   expect(replaced.report).toContain(`${remote}: first git merge --ff --no-edit ${remote}; then arc task close <ids> --commit ${remote}`);
   expect(replaced.remoteDelete).toEqual({
-    text: `git merge --ff --no-edit ${remote} && git push -u origin fix/demo && git push origin --delete feat/demo`,
+    text: `After git merge --ff --no-edit ${remote}, and once fix/demo is pushed, git push origin --delete feat/demo`,
   });
   await exec("git", ["replace", "-d", local]);
   const original = await planActivationBranch(input);
