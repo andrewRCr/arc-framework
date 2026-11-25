@@ -25,6 +25,7 @@ const HandoffRefusalReasonSchema = z.enum([
 const WorkUnitSubjectSchema = z.strictObject({
   kind: z.literal("work-unit"),
   key: LocusOpaqueTextSchema,
+  uid: z.uuid().optional(),
 });
 
 const TransientSubjectSchema = z.discriminatedUnion("kind", [

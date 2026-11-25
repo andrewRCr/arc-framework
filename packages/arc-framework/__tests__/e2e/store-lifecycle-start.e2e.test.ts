@@ -1,4 +1,4 @@
-/** Cold and named starts through the built CLI's default checkout binding. */
+/** Cold and named starts and their checkout binding through the built CLI. */
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
@@ -57,6 +57,22 @@ it("cold-starts on the protected base with one Planning primary and ignored chec
   expect(await markerBytes(sibling)).toBeNull();
   await expect(readdir(join(sibling, editorRoot))).rejects.toMatchObject({ code: "ENOENT" });
   expect(await git(h.repo, ["status", "--porcelain"])).toBe("");
+}, LIFECYCLE_TIMEOUT_MS);
+
+it("selects work-unit release for handoff from a started checkout", async () => {
+  const h = await lifecycleRepository();
+  const slug = "handoff-unit";
+  const checkout = h.checkoutPath(slug);
+  expectLifecycleResult(await h.run(["start", slug, "--new", "--yes"]), 0, /Started[\s\S]*handoff-unit/u);
+  const { uid } = await expectPlanningClaim(h.repo, checkout, slug, true);
+
+  const result = await h.run(["status", "--session-handoff", "--json"], checkout);
+
+  expect(result.exitCode, result.output).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    mode: "session-handoff",
+    handoffLocus: { ok: true, value: { kind: "release-work-unit", subject: { kind: "work-unit", key: slug, uid } } },
+  });
 }, LIFECYCLE_TIMEOUT_MS);
 
 it("requires a name on detached HEAD and cold-starts there after a corrupt marker is removed", async () => {

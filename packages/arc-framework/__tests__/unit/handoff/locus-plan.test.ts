@@ -5,8 +5,10 @@ import { describe, expect, it } from "vitest";
 import { deriveHandoffLocusPlan } from "../../../src/lib/handoff/locus-plan.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
+import type { DerivedWorkUnitSubject } from "../../../src/lib/locus/role-derivation.js";
 
 const CLAIM = "c".repeat(32);
+const STORE_SUBJECT = { kind: "work-unit", key: "demo", uid: "d672c069-a38d-4bc2-ad42-e73e81c7ad83" } as const;
 
 function row(overrides: Partial<DerivedCheckoutRow> = {}): DerivedCheckoutRow {
   return {
@@ -37,11 +39,11 @@ function frame(entering: DerivedCheckoutRow, siblings: readonly DerivedCheckoutR
   };
 }
 
-function workUnit(): DerivedCheckoutRow {
+function workUnit(subject: DerivedWorkUnitSubject = { kind: "work-unit", key: "demo" }): DerivedCheckoutRow {
   return row({
     kind: "work-unit",
     checkout: { folderPresent: true, path: "/repo.demo", head: "b".repeat(40), branch: "feat/demo", detached: false, primary: false },
-    subject: { kind: "work-unit", key: "demo" },
+    subject,
     context: {
       kind: "resolved",
       metaPath: ".arc/active/meta-demo.md",
@@ -107,6 +109,26 @@ describe("deriveHandoffLocusPlan", () => {
       checkoutPath: "/repo.demo",
       workflow: "process-task-loop",
       sessionType: "execution",
+    });
+  });
+
+  it("preserves the store work-unit UID in a release plan", () => {
+    expect(deriveHandoffLocusPlan(frame(workUnit(STORE_SUBJECT)))).toEqual({
+      kind: "release-work-unit",
+      subject: STORE_SUBJECT,
+      checkoutPath: "/repo.demo",
+      workflow: "process-task-loop",
+      sessionType: "execution",
+    });
+  });
+
+  it("preserves the store work-unit UID when incomplete context prevents release", () => {
+    const entering = { ...workUnit(STORE_SUBJECT), context: null };
+
+    expect(deriveHandoffLocusPlan(frame(entering))).toMatchObject({
+      kind: "refused",
+      reason: "locus-unresolved",
+      subject: STORE_SUBJECT,
     });
   });
 
