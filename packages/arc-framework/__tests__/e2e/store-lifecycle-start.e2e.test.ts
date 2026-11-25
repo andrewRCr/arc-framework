@@ -2,7 +2,7 @@
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 
 import { readWorktreeMarker, resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
@@ -174,6 +174,8 @@ it.each(["in-place", "spawned"] as const)("refuses a second marker for a %s star
 }, LIFECYCLE_TIMEOUT_MS);
 
 it("rolls back an anchored claim when Git refuses the work-unit write and retries after repair", async () => {
+  vi.stubEnv("GIT_TEMPLATE_DIR", "");
+  onTestFinished(() => { vi.unstubAllEnvs(); });
   const h = await lifecycleRepository();
   const personal = join(h.repo, "personal-edit.txt");
   await writeFile(personal, PERSONAL_BYTES);
@@ -182,6 +184,7 @@ it("rolls back an anchored claim when Git refuses the work-unit write and retrie
   expect(await readLifecycleInventory(h.repo)).toEqual([]);
 
   const hook = join(h.repo, ".git/arc/store/hooks/reference-transaction");
+  await mkdir(dirname(hook), { recursive: true });
   await writeFile(hook, [
     "#!/bin/sh",
     'checkout="$(git rev-parse --absolute-git-dir)/../../.."',

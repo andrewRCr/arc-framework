@@ -219,7 +219,7 @@ it.each(["Integrating", "completed"] as const)("preserves both lists when the de
   const to = "survey-plan";
   await seedWorkUnit(root, to, { identity, ...(stage === "Integrating"
     ? { meta: { owner: identity, state: "Integrating" } }
-    : { meta: { owner: identity, state: "Shipped", completed: "2026-07-14" },
+    : { meta: { owner: identity, state: "Active" },
       placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q3") } }) });
   await insert(root, "personal", capture, "Errand");
   const { entry } = await refusedMove(root, "personal", to, "destination-refused");

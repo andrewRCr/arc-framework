@@ -10,6 +10,7 @@ import {
 } from "../../src/scripts/review-gate/hosts/local/frontline-materialization.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { projectIdentityRecord } from "../../src/lib/store/project-identity.js";
+import { assertProjectIdentitySeed } from "../helpers/store/assert-project-identity-seed.js";
 import { readStoreRecord, seedProjectIdentity } from "../helpers/store/seed-store.js";
 import {
   deriveLocalReviewTarget,
@@ -39,7 +40,7 @@ async function fixture() {
   await git(root, "switch", "-c", "feature");
   await writeFile(join(root, "tracked.txt"), "feature\n", "utf8");
   await git(root, "commit", "-am", "feature");
-  const repositoryId = await seedProjectIdentity(root, identity);
+  const repositoryId = await assertProjectIdentitySeed(() => seedProjectIdentity(root, identity));
   return {
     root,
     target: await deriveLocalReviewTarget({ exec, cwd: root, baseRef: "main", repositoryId }),
