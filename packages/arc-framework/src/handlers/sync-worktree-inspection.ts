@@ -1,14 +1,45 @@
-/** Sync's materializing preflight and recoverable fetch-failure presentation. */
+/** Sync's worktree evidence and recoverable fetch-failure presentation. */
 import type { GitExec } from "../lib/git/exec.js";
+import { localLifecycleTip } from "../lib/git/lifecycle-ref-refresh.js";
 import {
   runMaterializingWorktreeInspection,
   WorktreeFetchFailedError,
   WorktreeFetchTimeoutError,
   type WorktreeMaterializingInspectionResult,
 } from "../lib/git/worktree-sync.js";
+import type { Store } from "../lib/store/contract.js";
+import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
 import type { SyncOutput } from "../lib/sync-output.js";
 import type { InterlockState, LegOutcomeRecord, SyncOptions } from "./sync.js";
 import { writeSyncAuditEntry } from "./sync-audit.js";
+
+/** Verify a clean detached checkout held by a Planning work unit at a known base tip. */
+export async function isDetachedPlanningAtBase(input: {
+  exec: GitExec;
+  cwd: string;
+  store: Store;
+  baseBranch: string;
+}): Promise<boolean> {
+  const { exec, cwd, store, baseBranch } = input;
+  try {
+    const current = await resolveCurrentWorkUnit({ cwd, store });
+    if (current.status !== "resolved" || current.warnings.length !== 0
+      || current.candidate.record?.state !== "Planning") return false;
+
+    const [local, tracking] = await Promise.all([
+      localLifecycleTip(exec, cwd, `refs/heads/${baseBranch}`),
+      localLifecycleTip(exec, cwd, `refs/remotes/origin/${baseBranch}`),
+    ]);
+    const { stdout } = await exec("git",
+      ["--no-optional-locks", "status", "--porcelain=v2", "--branch", "--untracked-files=normal", "--ignore-submodules=none"],
+      { cwd, objectAccess: "local-only" });
+    const lines = stdout.trimEnd().split(/\r?\n/u);
+    return lines.length === 2 && lines[1] === "# branch.head (detached)"
+      && [local, tracking].some((tip) => tip !== null && lines[0] === `# branch.oid ${tip}`);
+  } catch {
+    return false;
+  }
+}
 
 interface FetchFailurePresentation {
   error: WorktreeFetchTimeoutError | WorktreeFetchFailedError;

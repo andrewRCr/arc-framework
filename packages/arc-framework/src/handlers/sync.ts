@@ -104,7 +104,7 @@ import type { PromptOutcome } from "../lib/command-input/prompter.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveUserIdentity } from "./shared.js";
-import { inspectSyncWorktree } from "./sync-worktree-inspection.js";
+import { inspectSyncWorktree, isDetachedPlanningAtBase } from "./sync-worktree-inspection.js";
 import { writeSyncAuditEntry } from "./sync-audit.js";
 import { syncStoreDesignationSite } from "../prompts/sync-store-designation.js";
 import { runStateLeg, type StateLegOutcome } from "./sync-state-leg.js";
@@ -486,7 +486,8 @@ export async function handleSync(
 
   if (stateOffBranch) {
     await finishStoreSync({ opts, store, interlockState, recommendedSummaryLine, worktreeAction: decideWorktree(matrixInput),
-      designationPorts, leg: { worktreeState: worktree.state, worktreeAhead: worktree.ahead, worktreeBehind: worktree.behind,
+      baseBranch: resolvedSettings.settings["branch.base"], designationPorts,
+      leg: { worktreeState: worktree.state, worktreeAhead: worktree.ahead, worktreeBehind: worktree.behind,
         branch, io, output, cwd, identity, interaction: context } });
     return;
   }
@@ -551,21 +552,35 @@ interface StoreSyncRun {
   interlockState: InterlockState;
   recommendedSummaryLine: string | null;
   worktreeAction: WorktreeAction;
+  baseBranch: string;
   designationPorts: StoreDesignationPorts;
   leg: BranchLegContext;
+}
+
+type StoreWorktreeAction = WorktreeAction | { kind: "skip-planning-base" };
+
+async function decideStoreWorktree(run: StoreSyncRun): Promise<StoreWorktreeAction> {
+  const { leg, store, baseBranch, worktreeAction } = run;
+  if (worktreeAction.kind === "skip-blocked-worktree" && worktreeAction.reason === "detached-head"
+    && await isDetachedPlanningAtBase({ exec: leg.io.exec, cwd: leg.cwd, store, baseBranch })
+    && await detectRebaseSaveBlock(leg) === null) return { kind: "skip-planning-base" };
+  return worktreeAction;
 }
 
 /** Publish state first and alone, then take the branch leg; no notes, save, or Errand leg runs. Either leg's failure
  * fails the sync, and a failed state leg still leaves the branch push to run. */
 async function finishStoreSync(run: StoreSyncRun): Promise<void> {
-  const { leg, worktreeAction } = run;
+  const { leg } = run;
+  const state = run.opts.dryRun ? null
+    : await runStateLeg({ store: run.store, cwd: leg.cwd, context: leg.interaction, output: leg.output }, run.designationPorts);
+  const worktreeAction = await decideStoreWorktree(run);
   const cell = storeCellName(worktreeAction);
   const reconcile = worktreeAction.kind === "skip-blocked-worktree" && worktreeAction.reason === "diverged"
     ? { ahead: worktreeAction.ahead, behind: worktreeAction.behind, branch: worktreeAction.branch ?? leg.branch ?? "HEAD" }
     : undefined;
   const report = { interlockState: run.interlockState, recommendedSummaryLine: run.recommendedSummaryLine,
     ...(reconcile === undefined ? {} : { reconcile }) };
-  if (run.opts.dryRun) {
+  if (state === null) {
     const planned = (action: string): LegOutcomeRecord => ({ action, result: "skipped", detail: "dry-run" });
     leg.output.log.info(`Worktree: ${describeWorktreeAction(worktreeAction)}`);
     leg.output.log.info("State:    pull, then push");
@@ -574,7 +589,6 @@ async function finishStoreSync(run: StoreSyncRun): Promise<void> {
       state: { pull: planned("pull"), push: planned("push") }, exitCode: 0, ...report, mode: "dry-run" });
     return;
   }
-  const state = await runStateLeg({ store: run.store, cwd: leg.cwd, context: leg.interaction, output: leg.output }, run.designationPorts);
   const branch = await executeBranchLeg(leg, worktreeAction);
   const outcome: SyncOutcome = { cell, worktree: branch.record, state: state.state, exitCode: state.failed || branch.failed ? 1 : 0,
     ...report,
@@ -590,13 +604,15 @@ function emitStoreSyncOutcome(run: StoreSyncRun, outcome: SyncOutcome): void {
 }
 
 /** The branch leg alone, as the worktree decision directs it. */
-async function executeBranchLeg(ctx: BranchLegContext, worktree: WorktreeAction): Promise<{ record: LegOutcomeRecord; failed: boolean }> {
+async function executeBranchLeg(ctx: BranchLegContext, worktree: StoreWorktreeAction): Promise<{ record: LegOutcomeRecord; failed: boolean }> {
   const moves = worktree.kind === "push" || worktree.kind === "push-with-upstream-init" || worktree.kind === "inbound-ff-pull";
   if (moves && await detectRebaseSaveBlock(ctx) !== null) {
     ctx.output.log.warn("Branch leg skipped: rebase in progress; complete or abort the rebase, then run `arc sync` again.");
     return { record: rebaseWorktreeRecord(worktree), failed: true };
   }
   switch (worktree.kind) {
+    case "skip-planning-base":
+      return { record: { action: "skip", result: "noop", detail: "detached-planning-at-base" }, failed: false };
     case "push": case "push-with-upstream-init": return pushBranch(ctx, worktree);
     case "inbound-ff-pull": {
       const pulled = await pullBranchInbound(ctx, worktree.branch);
@@ -614,13 +630,13 @@ async function executeBranchLeg(ctx: BranchLegContext, worktree: WorktreeAction)
 }
 
 /** The cell a store sync reports: the state leg beside the worktree's own decision. */
-function storeCellName(worktree: WorktreeAction): string {
+function storeCellName(worktree: StoreWorktreeAction): string {
   switch (worktree.kind) {
     case "push": return "state+worktree";
     case "push-with-upstream-init": return "state+worktree-with-upstream-init";
     case "inbound-ff-pull": return "state+inbound-pull";
     case "skip-blocked-worktree": return `state+blocked-${worktree.reason}`;
-    case "skip-not-configured": return "state-only";
+    case "skip-not-configured": case "skip-planning-base": return "state-only";
   }
 }
 
@@ -1529,7 +1545,7 @@ function buildDryRunOutcome(
 }
 
 /** The worktree-leg `action` label a runtime execution would record. */
-function dryRunWorktreeAction(worktree: WorktreeAction): string {
+function dryRunWorktreeAction(worktree: StoreWorktreeAction): string {
   if (worktree.kind === "push" || worktree.kind === "push-with-upstream-init") return "push";
   return worktree.kind === "inbound-ff-pull" ? "inbound-ff-pull" : "skip";
 }
@@ -1562,7 +1578,7 @@ function renderDryRunHuman(decision: MatrixDecision, output: SyncOutput): void {
   output.outro("Done.");
 }
 
-function describeWorktreeAction(action: WorktreeAction): string {
+function describeWorktreeAction(action: StoreWorktreeAction): string {
   switch (action.kind) {
     case "push":
       return `push origin ${action.branch}`;
@@ -1570,6 +1586,8 @@ function describeWorktreeAction(action: WorktreeAction): string {
       return `push -u origin ${action.branch}`;
     case "skip-not-configured":
       return "skip (push_interlock: manual)";
+    case "skip-planning-base":
+      return "skip (clean detached Planning checkout at base)";
     case "skip-blocked-worktree":
       return `skip (${action.reason}: ${action.ahead} ahead, ${action.behind} behind)`;
     case "inbound-ff-pull":
@@ -1592,7 +1610,7 @@ function worktreeBlockGuidance(
     case "no-upstream":
       return `Worktree push blocked: set upstream first with \`git push -u origin ${branch}\`.`;
     case "detached-head":
-      return "Worktree push blocked: HEAD is detached. Check out a branch first.";
+      return "Worktree push blocked: HEAD is detached. Run `git switch -c <name>` to preserve HEAD, then retry `arc sync`.";
     case "no-remote":
       return "Worktree push blocked: no `origin` remote is configured.";
     case "remote-unavailable":
