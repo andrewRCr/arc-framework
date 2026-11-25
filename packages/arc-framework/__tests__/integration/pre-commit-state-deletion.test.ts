@@ -1,10 +1,10 @@
 /** The shipped pre-commit hook selects its cohort check only for a staged cohort record or planned meta, so a commit
  * that only deletes ARC state selects nothing and passes the hook. */
 import { execa } from "execa";
-import { chmod, cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, chmod, cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { environmentForGitCwd } from "../../src/lib/git/process-executor.js";
 import { cleanupTempDir, commitAll, createTempRepo } from "../helpers/integration.js";
 
@@ -18,8 +18,37 @@ const cleanup: string[] = [];
 afterEach(async () => { await Promise.all(cleanup.splice(0).map((dir) => cleanupTempDir(dir))); });
 
 async function git(root: string, ...args: string[]) {
-  return execa("git", args, { cwd: root, reject: false, env: environmentForGitCwd(root) });
+  return execa("git", args, { cwd: root, reject: false, env: environmentForGitCwd(root), extendEnv: false });
 }
+
+it("uses the fixture worktree and index when the caller has Git selectors", async () => {
+  const fixture = await createTempRepo("arc-pre-commit-fixture-");
+  cleanup.push(fixture);
+  const caller = await createTempRepo("arc-pre-commit-caller-");
+  cleanup.push(caller);
+  const args = ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-path", "index"];
+  const expected = await git(fixture, ...args);
+  expect(expected.exitCode).toBe(0);
+
+  try {
+    const alternateIndex = join(caller, "alternate-index");
+    vi.stubEnv("GIT_DIR", join(caller, ".git"));
+    vi.stubEnv("GIT_WORK_TREE", caller);
+    vi.stubEnv("GIT_INDEX_FILE", alternateIndex);
+    const result = await git(fixture, ...args);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe(expected.stdout);
+
+    const { root } = await repository();
+    const tracked = await git(root, "ls-tree", "-r", "--name-only", "HEAD", "--", META, COHORT);
+    expect(tracked.exitCode).toBe(0);
+    expect(tracked.stdout.split(/\r?\n/u)).toEqual([COHORT, META]);
+    expect((await git(caller, "rev-parse", "--verify", "HEAD")).exitCode).not.toBe(0);
+    await expect(access(alternateIndex)).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 
 /** A feature branch tracking a planned meta and its cohort record, with the shipped hooks installed over a CLI that
  * records each call and succeeds. */

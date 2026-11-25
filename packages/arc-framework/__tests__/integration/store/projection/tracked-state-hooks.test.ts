@@ -3,9 +3,11 @@
 import { execFile } from "node:child_process";
 import { lstat, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { Readable } from "node:stream";
 import { promisify } from "node:util";
 import { Command } from "commander";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { sanitizeGitRepositoryEnvironment } from "../../../../src/lib/git/repository-environment.mjs";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { StorePorts } from "../../../../src/lib/store/ports.js";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
@@ -14,6 +16,7 @@ import { beginProjectionCommand, projectionProcessState } from "../../../../src/
 import { materializeSpawnedProjection } from "../../../../src/lib/store/projection/spawn-materialization.js";
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
 import { cleanupTempDir, commitAll, createTempRepo } from "../../../helpers/integration.js";
+import { writeProjectedIgnores } from "../../../helpers/projected-ignores.js";
 import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { makeTempRoot } from "../../../helpers/temp-repo.js";
 
@@ -47,8 +50,26 @@ afterEach(async () => {
 });
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
-  return (await execFileAsync("git", args, { cwd })).stdout.trim();
+  return (await execFileAsync("git", args, { cwd, env: sanitizeGitRepositoryEnvironment(process.env) })).stdout.trim();
 }
+
+it("uses the fixture worktree and index when the caller has Git selectors", async () => {
+  const fixture = await createTempRepo("arc-tracked-state-fixture-");
+  cleanup.push(fixture);
+  const caller = await createTempRepo("arc-tracked-state-caller-");
+  cleanup.push(caller);
+  const args = ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-path", "index"];
+  const expected = await git(fixture, ...args);
+
+  try {
+    vi.stubEnv("GIT_DIR", join(caller, ".git"));
+    vi.stubEnv("GIT_WORK_TREE", caller);
+    vi.stubEnv("GIT_INDEX_FILE", join(caller, "alternate-index"));
+    expect(await git(fixture, ...args)).toBe(expected);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 
 /** A checkout whose `HEAD` tracks a work unit's meta, or tracks nothing under the state roots. */
 async function repository(tracksState: boolean): Promise<string> {
@@ -60,6 +81,9 @@ async function repository(tracksState: boolean): Promise<string> {
   // An installed project, so the checkout keeps its ARC root once the remedy deletes the tracked state.
   await mkdir(join(root, ".arc", "system"), { recursive: true });
   await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch.base: main\n", "utf8");
+  const identity = "test-user";
+  await git(root, "config", "arc.identity", identity);
+  await writeProjectedIgnores(root, identity, { tracksState });
   await commitAll(root, `track ${path}`);
   return root;
 }
@@ -73,15 +97,21 @@ interface Dispatched {
 }
 
 /** Run a command through the real registration tree from the checkout, with the default store bound to the selection. */
-async function dispatch(root: string, invocation: Invocation): Promise<Dispatched> {
+async function dispatch(root: string, invocation: Invocation, runAction = false): Promise<Dispatched> {
   const ran: { command: string; spawnBound: boolean }[] = [];
   const operations: string[] = [];
   const cwd = vi.spyOn(process, "cwd").mockReturnValue(root);
+  const record = (): void => {
+    ran.push({ command: invocation.path.join(" "), spawnBound: projectionProcessState().materializeSpawn !== null });
+  };
   try {
-    await dispatchRegisteredCli([...invocation.path, ...invocation.args], (program) => { recordAction(program, invocation.path, ran); }, () => {
+    await dispatchRegisteredCli([...invocation.path, ...invocation.args], (program) => {
+      if (runAction) program.hook("preAction", record);
+      else replaceAction(program, invocation.path, record);
+    }, () => {
       vi.doMock(CREATE_MODULE, async (importOriginal) => {
         const actual = await importOriginal<typeof import("../../../../src/lib/store/create.js")>();
-        return { ...actual, createStore: (ports: StorePorts) => recording(actual.selectStore(ports, {}), operations) };
+        return { ...actual, createStore: (ports: StorePorts) => recording(actual.createStore(ports), operations) };
       });
       return Promise.resolve();
     });
@@ -95,14 +125,38 @@ async function dispatch(root: string, invocation: Invocation): Promise<Dispatche
 }
 
 /** Replace the dispatched command's action, keeping its registration, with one that records it ran. */
-function recordAction(program: Command, path: readonly string[], ran: { command: string; spawnBound: boolean }[]): void {
+function replaceAction(program: Command, path: readonly string[], record: () => void): void {
   let command = program;
   for (const name of path) {
     const next = command.commands.find((candidate) => candidate.name() === name);
     if (next === undefined) throw new Error(`No registered command for ${path.join(" ")}.`);
     command = next;
   }
-  command.action(() => { ran.push({ command: path.join(" "), spawnBound: projectionProcessState().materializeSpawn !== null }); });
+  command.action(record);
+}
+
+/** Run the registered hook action with fixture-local Git selection and capture its process result. */
+async function dispatchHook(root: string, invocation: Invocation, input: string): Promise<Dispatched & { stdout: string; exitCode: number }> {
+  const env = process.env;
+  const exitCode = process.exitCode;
+  const stdin = vi.spyOn(process, "stdin", "get")
+    .mockReturnValue(Readable.from(input === "" ? [] : [Buffer.from(input)]) as typeof process.stdin);
+  const output: string[] = [];
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
+    output.push(chunk.toString());
+    return true;
+  });
+  try {
+    process.env = sanitizeGitRepositoryEnvironment(env);
+    process.exitCode = 0;
+    const result = await dispatch(root, invocation, true);
+    return { ...result, stdout: output.join(""), exitCode: Number(process.exitCode ?? 0) };
+  } finally {
+    process.env = env;
+    process.exitCode = exitCode;
+    stdout.mockRestore();
+    stdin.mockRestore();
+  }
 }
 
 function recording(store: Store, operations: string[]): Store {
@@ -128,10 +182,29 @@ async function expectUntouched(root: string): Promise<void> {
 describe("a checkout whose HEAD tracks ARC state", () => {
   it.each(cases(HOOK_COMMANDS))("runs %s with its projection off, opening no store", async (name, invocation) => {
     const root = await repository(true);
-    const result = await dispatch(root, invocation);
+    await git(root, "rm", "-r", "--", ".arc/active");
+    let args = invocation.args;
+    let stdin = "";
+    let expectedOutput: string | undefined;
+    if (name === "check pre-commit") expectedOutput = "none declared";
+    if (name === "check commit-msg") {
+      const message = join(root, ".git", "COMMIT_EDITMSG");
+      await writeFile(message, "chore: remove tracked state\n\nContext: standalone (maintenance)\n");
+      args = [message];
+      expectedOutput = "Commit validation PASSED";
+    }
+    if (name === "check pre-push") {
+      const ref = await git(root, "symbolic-ref", "HEAD");
+      const tip = await git(root, "rev-parse", "HEAD");
+      stdin = `${ref} ${tip} ${ref} ${"0".repeat(tip.length)}\n`;
+      expectedOutput = `${ref}: checked`;
+    }
+    const result = await dispatchHook(root, { ...invocation, args }, stdin);
     expect(result.error).toBeUndefined();
     expect(result.ran).toEqual([{ command: name, spawnBound: false }]);
     expect(result.operations).toEqual([]);
+    expect(result.exitCode, result.stdout).toBe(0);
+    if (expectedOutput !== undefined) expect(result.stdout).toContain(expectedOutput);
     expect(projectionProcessState().skip).toMatchObject({ reason: "tracked-state", mark: {
       reason: expect.stringContaining(".arc/active/"), remedy: { text: expect.stringMatching(ACTIVE_REMOVAL) } } });
     await expectUntouched(root);
@@ -164,6 +237,7 @@ describe("the remedy", () => {
     expect(result.ran).toEqual([{ command: "status", spawnBound: true }]);
     const gitDir = await git(root, "rev-parse", "--path-format=absolute", "--git-dir");
     expect(await exists(join(gitDir, PROJECTION_STATE_FOLDER))).toBe(true);
+    expect(projectionProcessState().start?.kind).toBe("ready");
   });
 });
 
@@ -210,5 +284,6 @@ describe("a checkout whose HEAD tracks no ARC state", () => {
     expect(projectionProcessState().skip?.reason).not.toBe("tracked-state");
     const gitDir = await git(root, "rev-parse", "--path-format=absolute", "--git-dir");
     expect(await exists(join(gitDir, PROJECTION_STATE_FOLDER))).toBe(true);
+    expect(projectionProcessState().start?.kind).toBe("ready");
   });
 });

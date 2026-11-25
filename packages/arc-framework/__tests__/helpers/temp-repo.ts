@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { sanitizeGitRepositoryEnvironment } from "../../src/lib/git/repository-environment.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -157,13 +158,14 @@ export interface CreateTempRepoOptions {
 export async function createTempRepoCore(options: CreateTempRepoOptions = {}): Promise<string> {
   const { prefix = "arc-test-", identity, refFormat, objectFormat } = options;
   const dir = await makeTempRoot(prefix);
+  const gitOptions = { cwd: dir, env: sanitizeGitRepositoryEnvironment(process.env) };
   try {
-    await execFileAsync("git", ["init", "-b", "main", ...(refFormat ? [`--ref-format=${refFormat}`] : []), ...(objectFormat ? [`--object-format=${objectFormat}`] : []), dir]);
-    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
-    await execFileAsync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
-    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+    await execFileAsync("git", ["init", "-b", "main", ...(refFormat ? [`--ref-format=${refFormat}`] : []), ...(objectFormat ? [`--object-format=${objectFormat}`] : []), dir], gitOptions);
+    await execFileAsync("git", ["config", "gc.auto", "0"], gitOptions);
+    await execFileAsync("git", ["config", "user.email", "test@test.com"], gitOptions);
+    await execFileAsync("git", ["config", "user.name", "Test User"], gitOptions);
     if (identity !== undefined) {
-      await execFileAsync("git", ["config", "arc.identity", identity], { cwd: dir });
+      await execFileAsync("git", ["config", "arc.identity", identity], gitOptions);
     }
     return dir;
   } catch (error) {
@@ -187,7 +189,8 @@ export async function createTempRepoCore(options: CreateTempRepoOptions = {}): P
  * @param message - Commit message.
  */
 export async function commitAll(dir: string, message = "chore: commit fixture state"): Promise<void> {
-  await execFileAsync("git", ["add", "-A"], { cwd: dir });
+  const gitOptions = { cwd: dir, env: sanitizeGitRepositoryEnvironment(process.env) };
+  await execFileAsync("git", ["add", "-A"], gitOptions);
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-q", "--allow-empty", "-m", message],
-    { cwd: dir });
+    gitOptions);
 }
