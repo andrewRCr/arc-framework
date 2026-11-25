@@ -1,6 +1,6 @@
 /** Built-CLI rewrites preserve contribution proof and record real remote ref changes. */
 import { expect, it } from "vitest";
-import { createNativePublishedDeliveryFixture } from "../helpers/store/native-delivery-refusal.js";
+import { createNativeDeliveryReviewRepository } from "../helpers/store/native-delivery-repository.js";
 import { TRANSITION_RECORD_NAMESPACE } from "../../src/lib/work-unit/transition-record-store.js";
 import { seedStore } from "../helpers/store/seed-store.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
@@ -11,12 +11,10 @@ import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-stat
 import { runArcWithStdin } from "./helpers.js";
 
 it("rewrites an equivalent published member through the built CLI", async () => {
-  const h = await createNativePublishedDeliveryFixture();
-  // The fixture's work unit lives in an in-process store, and the subprocess opens the repository's own, which refuses a
-  // checkout whose HEAD tracks a transition record: drop the fixture's, then hold the project and work unit there, bound
-  // to the checkout in place.
-  await h.git("rm", "-r", "-q", "--cached", "--", TRANSITION_RECORD_NAMESPACE);
-  await h.git("commit", "-m", "Drop the tracked transition record");
+  const h = await createNativeDeliveryReviewRepository("delivery/example/member-1", "codex-pr", undefined, {
+    trackTransitionRecord: false,
+  });
+  // Bind the project and work unit in the repository's store for the subprocess to read.
   await seedStore(h.cwd, SlugSchema.parse("andrew"), [projectIdentityRecord(h.projectId)]);
   await seedWorkUnit(h.cwd, "example", { identity: "andrew", branch: h.branches[1]!, bind: h.cwd,
     meta: { branch: h.branches[1]!, owner: "andrew", workClass: "Light" } });
@@ -39,4 +37,12 @@ it("rewrites an equivalent published member through the built CLI", async () => 
   expect(stored).toMatchObject({ status: "ok", value: { value: {
     activeOperation: null, members: expect.arrayContaining([requested.members[0]]),
   } } });
+  const remoteTransitions = (ref: string) =>
+    h.git("--git-dir", h.origin, "ls-tree", "-r", "--name-only", ref, "--", TRANSITION_RECORD_NAMESPACE);
+  expect({
+    protectedBase: await remoteTransitions("refs/heads/main"),
+    originalMember: await remoteTransitions(member.coordinates.head),
+    rewrittenMember: await remoteTransitions(member.ref),
+    checkout: await h.git("ls-files", "--cached", "--others", "--", TRANSITION_RECORD_NAMESPACE),
+  }).toEqual({ protectedBase: "", originalMember: "", rewrittenMember: "", checkout: "" });
 }, 60_000);

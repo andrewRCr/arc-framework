@@ -6,7 +6,7 @@ import { expect, onTestFinished, vi } from "vitest";
 import { createReviewRepositoryHarness } from "./review-differential.js";
 import { deliveryStackPlanForWorkUnitFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
-import { DeliveryStateV1Schema } from "../../../src/lib/delivery/schema.js";
+import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-state.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../../../src/lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../../../src/lib/delivery/plan.js";
@@ -19,9 +19,32 @@ import { writeSubmissionBoundary } from "../../../src/lib/store/kinds/review/int
 import { createStandardReviewReservation, projectPublicationBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import { stageUnrelatedTransitionRecord } from "../delivery-transition-record.js";
+import type { IntegrationBoundaryLocusV2 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 
-/** Seed a published local stack, a native Candidate and reservation, and an isolated GitHub executable. */
-export async function createNativeDeliveryReviewRepository(firstBranch = "member-1", sourceId = "delegated-agent", maxPasses?: number) {
+type ReviewRepositoryHarness = Awaited<ReturnType<typeof createReviewRepositoryHarness>>;
+type NativeDeliveryReviewRepository = ReviewRepositoryHarness & {
+  cwd: string;
+  realExec: ReviewRepositoryHarness["native"]["exec"];
+  git(...args: string[]): Promise<string>;
+  primary: Awaited<ReturnType<ReviewRepositoryHarness["reference"]["seedMeta"]>>;
+  project: Awaited<ReturnType<ReviewRepositoryHarness["reference"]["seedProject"]>>;
+  projectId: string;
+  heads: string[];
+  branches: string[];
+  plan: ReturnType<typeof deliveryStackPlanForWorkUnitFixture>;
+  state: DeliveryStateV1;
+  boundary: IntegrationBoundaryLocusV2;
+  obligation: ReturnType<typeof projectStandardReviewObligation>;
+  access: { store: ReviewRepositoryHarness["reference"]["store"]; owner: NativeDeliveryReviewRepository["primary"]["reference"]["owner"] };
+  updatePull(index: number, changes: { merged?: boolean; baseRef?: string }): Promise<void>;
+  stateRevision: number;
+};
+
+/** Seed a published stack, a native Candidate and reservation, and optionally base rename history. */
+export async function createNativeDeliveryReviewRepository(
+  firstBranch = "member-1", sourceId = "delegated-agent", maxPasses?: number,
+  { trackTransitionRecord = true }: { trackTransitionRecord?: boolean } = {},
+): Promise<NativeDeliveryReviewRepository> {
   const branches = [firstBranch, "member-2"];
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
@@ -32,7 +55,7 @@ export async function createNativeDeliveryReviewRepository(firstBranch = "member
     + (maxPasses === undefined ? "" : `review.standard_max_passes: ${maxPasses}\n`));
   await writeFile(join(cwd, ".gitignore"), ".arc/system/.internal/\n.arc/user/\n");
   await git("add", ".");
-  await stageUnrelatedTransitionRecord(cwd);
+  if (trackTransitionRecord) await stageUnrelatedTransitionRecord(cwd);
   await git("commit", "-m", "Configure delivery review");
   await git("push", "origin", "main");
   const base = await git("rev-parse", "HEAD"), baseTree = await git("rev-parse", "HEAD^{tree}");

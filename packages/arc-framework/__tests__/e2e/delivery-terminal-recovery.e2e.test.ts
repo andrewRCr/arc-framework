@@ -25,8 +25,10 @@ import { parseIntegrationBoundaryLocus } from "../../src/scripts/review-gate/pol
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seedWorkUnit, type SeedWorkUnitOptions } from "../helpers/store/seed-work-unit.js";
-import { canonicalize } from "../../src/lib/kernel/index.js";
+import { canonicalize, SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { IntegrationBoundaryLocusV2Schema } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
@@ -283,6 +285,13 @@ describe("delivery terminal recovery", () => {
       currentTree,
       request,
     } = await installTerminalRebindFixture();
+    const identity = SlugSchema.parse("test-user");
+    const owner = OwnerIdentitySchema.parse({ type: "work-item", name: deliveryStackPlanFixture().workUnitId });
+    const boundary = await readStoreRecord(repository, identity, recordReferences["review/integration-boundary"](owner));
+    const meta = await readStoreRecord(repository, identity, recordReferences["work-item/meta"](owner));
+    expect(boundary.fields).toMatchObject({ locus: "publication-pending" });
+    expect(meta.fields).toMatchObject({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
+
     const readPositionRequest = `${JSON.stringify({
       ...(JSON.parse(request) as Record<string, unknown>),
       continuation: "read-position",
@@ -1328,10 +1337,12 @@ function onStore(): boolean {
 }
 
 /** Hold the delivery plan's work unit in the store with the given records, bound to the checkout in place. */
-async function holdPlanWorkUnit(records: NonNullable<SeedWorkUnitOptions["records"]>): Promise<void> {
+async function holdPlanWorkUnit(
+  records: NonNullable<SeedWorkUnitOptions["records"]>, meta?: SeedWorkUnitOptions["meta"],
+): Promise<void> {
   const branch = await git(repository, ["branch", "--show-current"]);
   await seedWorkUnit(repository, deliveryStackPlanFixture().workUnitId, {
-    identity: "test-user", branch, bind: repository, records,
+    identity: "test-user", branch, bind: repository, records, meta,
   });
 }
 
@@ -1376,7 +1387,7 @@ async function holdTerminalCandidate(input: {
       { kind: "review/integration-boundary", content: canonicalize(IntegrationBoundaryLocusV2Schema.parse({
         ...boundary, schemaVersion: 2, deliveryReviewTermini: [], readinessBinding: null,
       })) },
-    ]);
+    ], { state: "Integrating", currentWorkflow: "integrate-work-unit" });
     return [];
   }
   const candidatePath = join(repository, resolveCandidateRecordRelativePath(workUnit));

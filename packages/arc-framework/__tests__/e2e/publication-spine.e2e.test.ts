@@ -445,7 +445,7 @@ async function reachAtCapConvergence(root: string, store: boolean): Promise<{
       postAttestContinuation: {
         reviewedHead: string;
         nextAction: { command: string };
-        projectionDisposition: string;
+        projectionDisposition?: string;
       };
     };
   };
@@ -464,6 +464,7 @@ async function reachAtCapConvergence(root: string, store: boolean): Promise<{
       },
     },
   });
+  if (store) expect(envelope.nextAction.postAttestContinuation).not.toHaveProperty("projectionDisposition");
   const continuationArgv = envelope.nextAction.postAttestContinuation.nextAction.command.split(" ");
   expect(JSON.parse(Buffer.from(continuationArgv[5] ?? "", "base64url").toString("utf8"))).toEqual({
     candidateId: envelope.candidateId,
@@ -982,6 +983,7 @@ describe.each(ARMS)("attest → pre-publication → publish on $arm", ({ store }
         nextAction: { command: pending.continuationCommand },
       },
     });
+    if (store) expect(attestedResult.locus).not.toHaveProperty("postAttestContinuation.projectionDisposition");
 
     // A plain same-head re-entry reads the saved nondefault self-review, routing, lane, and
     // ceiling judgments from the durable continuation; it has no caller-supplied resume token.
