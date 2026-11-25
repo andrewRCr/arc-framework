@@ -41,7 +41,7 @@ const roots: string[] = [];
 const repository = "owner/repo";
 const pullRequest = 42;
 const slug = "review-currency";
-const branch = `chore/${slug}`;
+const importedBranch = `chore/${slug}`;
 const claimId = "0123456789abcdef0123456789abcdef";
 
 afterEach(async () => {
@@ -88,7 +88,7 @@ async function withHost<T>(bin: string, run: () => Promise<T>): Promise<T> {
   }
 }
 
-async function installHost(root: string, headSha: string, remote: string): Promise<string> {
+async function installHost(root: string, headSha: string, remote: string, branch: string): Promise<string> {
   const bin = join(root, ".arc-fixture", "bin");
   await mkdir(bin, { recursive: true });
   const candidate = {
@@ -122,7 +122,7 @@ async function installHost(root: string, headSha: string, remote: string): Promi
   return bin;
 }
 
-async function recordHostedReview(root: string, base: string, head: string, outcome: ReviewOutcome) {
+async function recordHostedReview(root: string, base: string, head: string, outcome: ReviewOutcome, branch: string) {
   const { operations: store, repositoryId } = await reviewAccess(root);
   const standardReview = {
     obligation: "required" as const, reasons: ["sensitive-change-set" as const],
@@ -209,6 +209,7 @@ async function recordLocalReview(root: string) {
 type ReviewOutcome = "clean" | "findings";
 
 interface ReviewedErrandOptions {
+  readonly importedClaim?: boolean;
   /** Further branch-side history, returning a deferred base publication when one is needed. */
   readonly arrange?: (root: string) => Promise<(() => Promise<void>) | undefined>;
   /** Files the base carries before the branch forks, keyed by repository path. */
@@ -225,6 +226,7 @@ async function reviewedErrand(
 ) {
   const root = await createTempRepoCore({ prefix: "arc-errand-currency-", identity: "andrew" });
   roots.push(root);
+  const branch = onStore() && !options.importedClaim ? `${importedBranch}-01234567` : importedBranch;
   const record = TransientIdentityRecordV3Schema.parse({
     version: 3, kind: "errand", slug, claimId, purpose: "errand", origin: "description", originEntry: null,
     intent: "Review one exact Errand", branch, state: "open", savedHead: null, changeRequest: null,
@@ -273,9 +275,9 @@ async function reviewedErrand(
   const publish = await options.arrange?.(root);
   const headSha = await git(root, ["rev-parse", "HEAD"]);
   await git(root, ["push", "origin", branch]);
-  const bin = await installHost(root, headSha, remote);
+  const bin = await installHost(root, headSha, remote, branch);
   await withHost(bin, async () => {
-    if (carrier === "hosted") await recordHostedReview(root, base, headSha, options.outcome ?? "clean");
+    if (carrier === "hosted") await recordHostedReview(root, base, headSha, options.outcome ?? "clean", branch);
     else await recordLocalReview(root);
   });
   const target = { repository, headRef: branch, headSha };
@@ -310,7 +312,7 @@ async function reviewedErrand(
     }
     const reconciled = await git(root, ["rev-parse", "HEAD"]);
     await git(root, ["push", "origin", branch]);
-    await installHost(root, reconciled, remote);
+    await installHost(root, reconciled, remote, branch);
     return { ...target, headSha: reconciled };
   };
   return { root, base, target, paths, status, publish, reconcile };
@@ -359,6 +361,26 @@ async function keepsReviewSettled(carrier: "hosted" | "local", kind: BaseMovemen
 }
 
 describe("Errand review currency across base movement", () => {
+  it("exercises the branch spelling of a freshly opened stored Errand", async () => {
+    const fixture = await reviewedErrand("hosted", "disjoint");
+    const checkedOut = await git(fixture.root, ["branch", "--show-current"]);
+    const stored = await readStoreRecord(fixture.root, IDENTITY, recordReferences["work-item/record"](ERRAND));
+    expect(TransientIdentityRecordV3Schema.parse(JSON.parse(stored.content)).branch).toBe(checkedOut);
+    expect(stored.links).toMatchObject({ branches: [{ ref: checkedOut, linkedAs: "created" }] });
+    expect(fixture.target.headRef).toBe(checkedOut);
+    expect(await fixture.status()).toMatchObject({ routedObligation: { state: "settled" } });
+    expect(checkedOut).toMatch(/^chore\/review-currency-[0-9a-f]{8}$/u);
+  });
+
+  it("keeps review settled for an imported Errand with an unsuffixed branch", async () => {
+    const fixture = await reviewedErrand("hosted", "disjoint", { importedClaim: true });
+    const advanced = await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+    expect(fixture.target.headRef).toBe(importedBranch);
+    expect(await fixture.status()).toMatchObject({
+      routedObligation: { state: "settled" }, currentBaseOid: advanced.head, movement: "disjoint",
+    });
+  });
+
   it.each(["hosted", "local"] as const)("keeps %s review settled after disjoint movement", async (carrier) => {
     await keepsReviewSettled(carrier, "disjoint");
   });

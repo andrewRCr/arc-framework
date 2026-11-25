@@ -95,6 +95,9 @@ it.each(["checkpoint", "merge"] as const)("preserves %s project repair and retur
     expect(fetchRequired).toMatchObject({ exitCode: command === "checkpoint" ? 1 : 0,
       result: { detail: expect.stringContaining("git fetch origin") } });
     await h.reference.seedProject(projectId);
+    const restoredProject = await h.reference.projectId();
+    expect(restoredProject).toBe(projectId);
+    expect(h.primary.links?.branches).toMatchObject([{ repository: restoredProject, ref: "topic/opaque" }]);
     if (command === "checkpoint") expect(await run(undefined, "missing")).toMatchObject({ exitCode: 1, result: {
       detail: "No stored work unit is named `missing`. Name the work unit to integrate, then retry." } });
     const repaired = await run();

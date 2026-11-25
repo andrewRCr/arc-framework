@@ -13,6 +13,7 @@ import { readProjectIdentityBinding } from "../../src/lib/store/project-identity
 import { DEFAULT_PROMPTS, createTempRepo, makeIOContext } from "../helpers/integration.js";
 import { getArcTemplatePath, getInternalTemplatePath, loadRecipe } from "../helpers/init-temp-repo.js";
 import { inRepoStore } from "../helpers/store/in-repo-ports.js";
+import { createReviewHarness } from "../helpers/store/review-harness.js";
 import { commitAll, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const exec = promisify(execFile);
@@ -78,6 +79,19 @@ it("mints a project ID and designates nothing without a remote", async () => {
   await init(r);
   expect(await roles(r.cwd)).toBe("");
   expect((await readProjectIdentityBinding(r.store)).id).toMatch(UUID);
+}, 60_000);
+
+it("accepts the review harness's repaired project identity in the ref store", async () => {
+  const review = createReviewHarness();
+  const projectId = "123e4567-e89b-42d3-a456-426614174099";
+  const { reference, content } = await review.seedProject(projectId);
+  expect(await review.projectId()).toBe(projectId);
+
+  const { store } = await repository(null);
+  const write = await store.write({ action: "put", reference, content, expected: null,
+    provenance: { verb: "init", lifecycleAction: "create" } });
+  expect(write.status, write.status === "refused" ? write.refusal.condition : undefined).toBe("ok");
+  expect((await readProjectIdentityBinding(store)).id).toBe(projectId);
 }, 60_000);
 
 it("pulls a designated remote first and adopts the project ID it holds", async () => {

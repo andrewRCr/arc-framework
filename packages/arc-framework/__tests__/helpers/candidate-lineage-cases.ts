@@ -40,6 +40,7 @@ const NATIVE_CASES = {
     "refuses an exact re-root continuation after its staged subject changes",
     "resolves review responses and deliberate re-rooting from an archived Shipped record",
     "does not advance a completed Candidate while another work unit owns the checkout",
+    "preserves unstaged completed Candidate edits when another work unit owns the checkout",
   ]),
   settlement: new Set([
     "advances and replays a settled hosted fix through Candidate convergence",

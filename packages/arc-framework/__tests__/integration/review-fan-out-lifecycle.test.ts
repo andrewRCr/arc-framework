@@ -9,6 +9,8 @@ import { access, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { delimiter, join } from "node:path";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { seedProjectIdentity } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -20,7 +22,7 @@ import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidat
 import { handleReviewStatus, handleReviewHostedAwait, handleReviewHostedRequest, handleReviewHostedSettle, handleReviewResolve, handleReviewTerminusAccept } from "../../src/handlers/review.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
 import { canonicalDigest, type CanonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
-import { CanonicalDigestSchema } from "../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 
@@ -49,7 +51,7 @@ import { bindReviewSourceReference } from "../../src/scripts/review-gate/core/re
 import { awaitHostedReview, HostedAwaitEnvelopeSchema, HostedAwaitResultSchema } from "../../src/scripts/review-gate/hosted/await.js";
 import { createHostedAdmission, HostedRequestResultSchema, requestHostedReview, type HostedRequestEnvelope, type HostedRequestHandle, type HostedRequestOutcome } from "../../src/scripts/review-gate/hosted/request.js";
 import { settleHostedFinding } from "../../src/scripts/review-gate/hosted/settle.js";
-import { acknowledgeHostedRequest, bindHostedAttemptDisposition, hostedLaneAttemptId, laneProgressOperationId, readLaneResponsePerformance, recordHostedAwaitAttempt, recordLaneAttempt, recordHostedRequestAdmission, recordHostedRequestConclusion, recordLaneResponsePerformance, settleLaneAttempt, settleHostedAttemptFinding } from "../../src/scripts/review-gate/lane-progress.js";
+import { acknowledgeHostedRequest, bindHostedAttemptDisposition, hostedLaneAttemptId, laneProgressOperationId, readLaneResponsePerformance, recordHostedAwaitAttempt, recordLaneAttempt, recordHostedRequestAdmission, recordHostedRequestConclusion, recordLaneResponsePerformance, resolveHostedAwaitResult, settleLaneAttempt, settleHostedAttemptFinding } from "../../src/scripts/review-gate/lane-progress.js";
 import { LocalReviewOperationStateStore } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { HostedRequestOwnerIndex } from "../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
 import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
@@ -75,6 +77,7 @@ import { DeliveryReviewTerminusAcceptanceResultSchema, DeliveryReviewTerminusOff
 
 import { respondToReviewCommand } from "../../src/scripts/review-gate/runtime/respond-command.js";
 import { createRespondDependencies } from "../../src/scripts/review-gate/runtime/respond-composition.js";
+import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
 import { bindDeliveryReviewTerminusOffer, ReviewStatusCommandResultSchema, ReviewStatusResultSchema } from "../../src/scripts/review-gate/status.js";
 import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
 import { deliveryStackPlanWithMemberTitlesFixture } from "../fixtures/delivery-plan.js";
@@ -207,10 +210,11 @@ async function requestThroughHandler(
   root: string,
   exec: GitExec,
   actorIdentity = "andrew",
+  stored?: { repositoryId: string; inFlight: Parameters<typeof recordHostedRequestAdmission>[0] },
 ) {
   const publisher = new RepositoryGitCommonStatePublisher(exec, root);
-  const store = new LocalReviewOperationStateStore(publisher);
-  const repositoryId = await resolveRepositoryIdentity(publisher);
+  const store = stored?.inFlight ?? new LocalReviewOperationStateStore(publisher);
+  const repositoryId = stored?.repositoryId ?? await resolveRepositoryIdentity(publisher);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ cwd: root, exec });
   const delivery = request.vehicle?.kind === "delivery-member"
     ? await deliveryMemberLookup.resolveMemberByVehicle(request.vehicle)
@@ -5099,12 +5103,19 @@ describe("hosted review fan-out lifecycle", () => {
   }, 120_000);
 });
 
-// A singleton request carries no delivery vehicle, so its progression runs on the store.
 describe("hosted review singleton progression", () => {
-  it("keeps the existing hosted progression compatible with a singleton target", async () => {
+  it("persists the clean hosted outcome for a singleton target", async () => {
     const root = await createTempRepo("arc-review-singleton-");
     roots.push(root);
     const exec = makeGitExec(root);
+    const identity = SlugSchema.parse("andrew");
+    await git(root, ["config", "arc.identity", identity]);
+    await seedProjectIdentity(root, identity);
+    const { meta } = await seedWorkUnit(root, "singleton", { identity, bind: root });
+    const context = createReviewCompositionContext({ cwd: root, exec, workItem: meta.reference.owner });
+    if (context.family.mode !== "stored") throw new Error("Expected the singleton work item's ref store");
+    const { inFlight, outcomes } = context.family.ports;
+    const repositoryId = await context.projectId();
     const request = {
       schemaVersion: 1 as const,
       target: { repository, pullRequest: 51, headSha: oid("e") },
@@ -5120,13 +5131,22 @@ describe("hosted review singleton progression", () => {
         createdAt: "2026-08-24T04:10:00.000Z",
       },
       effectiveCoverage: "complete",
-    }, root, exec);
+    }, root, exec, identity, { repositoryId, inFlight });
     expect(result).toMatchObject({ state: "requested" });
     if (result.nextAction !== "await") throw new Error("expected singleton review handle");
     expect(result.handle).not.toHaveProperty("vehicle");
-    await expect(awaitThroughObserver(result.handle, {
-      kind: "clean",
-      reviewUrl: "https://example.test/review-singleton",
-    })).resolves.toMatchObject({ state: "clean" });
+    const { handle } = result;
+    const awaited = await resolveHostedAwaitResult(inFlight, {
+      repositoryId, handle, now: () => "2026-09-01T10:00:00.000Z",
+      observe: () => awaitThroughObserver(handle, {
+        kind: "clean",
+        reviewUrl: "https://example.test/review-singleton",
+      }),
+    });
+    expect(awaited.result).toMatchObject({ state: "clean" });
+    expect(await outcomes.list()).toMatchObject({
+      status: "complete",
+      records: [{ value: { outcome: "clean", attemptId: hostedLaneAttemptId(result.handle) } }],
+    });
   });
 });

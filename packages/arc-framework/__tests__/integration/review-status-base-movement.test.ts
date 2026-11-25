@@ -238,11 +238,13 @@ async function installHost(root: string): Promise<string> {
  */
 async function singletonUnderReview(
   arrange?: (root: string) => Promise<void>,
+  additionalBaseCommit = false,
 ): Promise<{ root: string; headSha: string; bin: string }> {
   const root = await initInTempRepo(DEFAULT_PROMPTS);
   cleanups.push(async () => cleanupTempDir(root));
   await git(root, ["add", "-A"]);
   await git(root, ["commit", "-m", "init"]);
+  if (additionalBaseCommit) await git(root, ["commit", "--allow-empty", "-m", "advance main before branching"]);
 
   const remote = join(root, ".arc-fixture", "origin.git");
   await mkdir(join(root, ".arc-fixture"), { recursive: true });
@@ -461,7 +463,7 @@ async function retainsHostedSource(
     await completeLifecycleArtifacts(root);
     await git(root, ["add", "-A"]);
     await git(root, ["commit", "-m", "complete singleton lifecycle artifacts"]);
-  } : undefined);
+  } : undefined, onStore() && sourceId === "codex-pr" && convergenceScope === "full");
   phase("pre-publication");
   const reviewed = await runHandlerAt(fixture.root, async () => {
     await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
@@ -922,6 +924,10 @@ async function retainsHostedSource(
         expect(customRemoteRetained, JSON.stringify(customRemoteRetained)).toMatchObject({
           state: "settled", nextAction: "continue-reconcile",
         });
+        const upstreamBase = await git(fixture.root, ["rev-parse", "--verify", "refs/remotes/upstream/main"]);
+        const originBase = await git(fixture.root, ["rev-parse", "--verify", "refs/remotes/origin/main"]);
+        expect(customRemoteRetained.currentBaseOid).toBe(upstreamBase);
+        expect(upstreamBase, "upstream/main must differ from the stale origin/main").not.toBe(originBase);
       }
     }
   }

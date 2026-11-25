@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,15 +8,16 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import {
   prepareFrontlineTargetMaterialization,
 } from "../../src/scripts/review-gate/hosts/local/frontline-materialization.js";
-import { canonicalize, SlugSchema } from "../../src/lib/kernel/index.js";
-import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
-import { seedStore } from "../helpers/store/seed-store.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { projectIdentityRecord } from "../../src/lib/store/project-identity.js";
+import { readStoreRecord, seedProjectIdentity } from "../helpers/store/seed-store.js";
 import {
   deriveLocalReviewTarget,
 } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 
 const roots: string[] = [];
 const exec = createExecaGitExec();
+const identity = SlugSchema.parse("test-user");
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(async (root) => rm(root, { recursive: true, force: true })));
@@ -39,9 +39,7 @@ async function fixture() {
   await git(root, "switch", "-c", "feature");
   await writeFile(join(root, "tracked.txt"), "feature\n", "utf8");
   await git(root, "commit", "-am", "feature");
-  const repositoryId = randomUUID();
-  await seedStore(root, SlugSchema.parse("test-user"), [{ reference: recordReferences["project-registry/identity"](
-    OwnerIdentitySchema.parse({ type: "project", name: "project" })), content: canonicalize({ projectId: repositoryId }) }]);
+  const repositoryId = await seedProjectIdentity(root, identity);
   return {
     root,
     target: await deriveLocalReviewTarget({ exec, cwd: root, baseRef: "main", repositoryId }),
@@ -51,6 +49,8 @@ async function fixture() {
 describe("frontline exact-target materialization", () => {
   it("re-derives and retains the exact detached head while the caller branch moves away and returns", async () => {
     const records = await fixture();
+    const project = projectIdentityRecord(records.target.repositoryId);
+    await expect(readStoreRecord(records.root, identity, project.reference)).resolves.toMatchObject(project);
     const materialized = await prepareFrontlineTargetMaterialization({
       exec,
       cwd: records.root,

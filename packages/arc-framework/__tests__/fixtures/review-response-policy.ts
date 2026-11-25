@@ -81,7 +81,7 @@ export async function responsePolicyRequest(
   root: string,
   source: ResponsePolicySource,
   repository = "owner/repo",
-) {
+): Promise<ReviewPolicyCommandRequest> {
   // A store's reference names the work item whose records hold its producer.
   const bound = source.kind === "attested-local"
     ? parseReviewSourceReference(source.receiptRef, source.kind, true)
@@ -135,9 +135,10 @@ export async function responsePolicyRequest(
   });
 }
 
-/** The store keeps an ended producer as its attempt's outcome record, with the facts the in-repo store keeps on its
- * operation; a hosted producer's carries its pull request. */
-async function storedResponsePolicyRequest(root: string, workItem: OwnerIdentity, attemptId: string, repository: string) {
+/** The stored outcome carries the producer's target, scope and review requirement. */
+async function storedResponsePolicyRequest(
+  root: string, workItem: OwnerIdentity, attemptId: string, repository: string,
+): Promise<ReviewPolicyCommandRequest> {
   const family = createReviewCompositionContext({ cwd: root, exec: gitExec, workItem }).family;
   if (family.mode !== "stored") throw new Error("a store's response source needs the store");
   const response = await family.ports.responses.read(attemptId, "producer-result");
@@ -147,10 +148,12 @@ async function storedResponsePolicyRequest(root: string, workItem: OwnerIdentity
   if (outcome.source.kind === "frontline" || requirement === undefined) {
     throw new Error(`the store's ${outcome.source.kind} response producer is not composed here`);
   }
+  const target = outcome.local?.deliveryAdmission?.target ?? outcome.hosted?.target ?? {
+    repository, pullRequest: null, headSha: outcome.target.headSha,
+  };
   return responsePolicyRequestFixture({
-    repository,
-    pullRequest: outcome.hosted?.target.pullRequest ?? null,
-    headSha: outcome.target.headSha,
+    ...target,
+    scopeSelection: outcome.local === undefined ? undefined : { mode: outcome.local.scopeMode, target },
     sourceId: outcome.source.sourceId,
     reviewOperationId: outcome.attemptId,
     completedPasses: outcome.logicalPass,

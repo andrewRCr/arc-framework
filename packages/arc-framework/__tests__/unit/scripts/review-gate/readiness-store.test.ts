@@ -84,6 +84,9 @@ it("refuses a clone holding no project ID with the port's typed failure, and is 
   expect(refused).toMatchObject({ failure: { remedy: {
     text: "Restore the project's unique, valid identity record from its authoritative state source, then retry." } } });
   await h.seedProject(projectId);
+  const restoredProject = await h.projectId();
+  expect(restoredProject).toBe(projectId);
+  expect(h.primary.links?.branches).toMatchObject([{ repository: restoredProject, ref: "topic/opaque" }]);
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready", diagnostics: [] });
 });
 

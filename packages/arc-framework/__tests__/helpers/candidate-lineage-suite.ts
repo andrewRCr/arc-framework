@@ -133,7 +133,8 @@ import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../../src/lib/store/identity.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
-import { CandidateManagedRecordV1Schema, type CandidateManagedRecordV1 } from "../../src/lib/work-unit/candidate-attestation.js";
+import type { CandidateManagedRecordV1 } from "../../src/lib/work-unit/candidate-attestation.js";
+import { readCandidateRecordVersioned as readStoredCandidateVersioned } from "../../src/lib/store/kinds/review/candidate/access.js";
 import type {
   IntegrationBoundaryLocus,
   PublishedIntegrationBoundaryLocus,
@@ -515,11 +516,9 @@ async function commitState(root: string, message: string, stage: readonly string
 }
 
 /** Read `example`'s Candidate record and its version where the running store keeps it. */
-async function readCandidateVersioned(root: string): Promise<{ record: CandidateManagedRecordV1 | null; version: string | null }> {
+export async function readCandidateVersioned(root: string): Promise<{ record: CandidateManagedRecordV1 | null; version: string | null }> {
   if (!onStore()) return readCandidateRecordVersioned(root, "example");
-  const held = await readStoreRecord(root, IDENTITY, recordReferences["review/candidate"](EXAMPLE)).catch(() => null);
-  return held === null ? { record: null, version: null }
-    : { record: CandidateManagedRecordV1Schema.parse(JSON.parse(held.content)), version: held.version };
+  return readStoredCandidateVersioned(root, "example", { exec: gitExec, owner: await exampleOwner(root) });
 }
 
 async function readCandidate(root: string): Promise<CandidateManagedRecordV1 | null> {
@@ -1059,6 +1058,34 @@ async function archiveArtifacts(root: string, companions: readonly string[] = []
   }
   await git(root, ["commit", "-m", "archive the shipped work unit"]);
   return destination;
+}
+
+async function completedCandidateFix(): Promise<{ root: string; responseStdin: string }> {
+  const root = await fixture();
+  expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+  await commitState(root, "verification");
+  const source = await reviewToFindings(root);
+  const dispositions = await approvedSet(root, source);
+
+  await shipExample(root);
+  await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
+    schemaVersion: 1,
+    source,
+    dispositions,
+  }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+
+  await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+  await git(root, ["add", "reviewed.txt"]);
+  await git(root, ["commit", "-m", "apply approved fix"]);
+
+  const responseStdin = `${JSON.stringify(withReviewReport({
+    schemaVersion: 1,
+    source,
+    dispositions,
+    verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
+    policyRequest: await responsePolicyRequest(root, source),
+  }))}\n`;
+  return { root, responseStdin };
 }
 
 function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
@@ -2136,82 +2163,67 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
   }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("does not advance a completed Candidate while another work unit owns the checkout", async () => {
-    const root = await fixture();
-    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
-    await commitState(root, "verification");
-    const source = await reviewToFindings(root);
-    const dispositions = await approvedSet(root, source);
-
-    await shipExample(root);
-    await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
-      schemaVersion: 1,
-      source,
-      dispositions,
-    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
-
-    await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
-    await git(root, ["add", "reviewed.txt"]);
-    await git(root, ["commit", "-m", "apply approved fix"]);
-
-    if (onStore()) {
-      // The store gives the checkout to the work unit its marker binds, so another owns it once the marker is rebound.
-      await seedWorkUnit(root, "active-owner", { identity: "test-user", bind: root,
-        meta: { owner: "test-user", workClass: "Light", priority: "P2" } });
-    } else {
-      await mkdir(join(root, ".arc", "active"), { recursive: true });
-      await writeFile(
-        join(root, ".arc", "active", "meta-active-owner.md"),
-        META.replaceAll("example", "active-owner"),
-        "utf8",
-      );
-      await writeFile(
-        join(root, ".arc", "active", "tasks-active-owner.md"),
-        "# Task List: Active owner\n\n- [ ] Continue active work\n",
-        "utf8",
-      );
-      await git(root, ["add", ".arc/active"]);
-      await git(root, ["commit", "-m", "activate another work unit"]);
-    }
-
-    const candidatePath = join(root, ".arc", "system", ".internal", "candidates", "example.json");
+    const { root, responseStdin } = await completedCandidateFix();
+    const markerPath = join(root, MARKER_EXCLUDE.trim());
+    const owningMarker = await readFile(markerPath, "utf8");
     const recordBefore = await readCandidateVersioned(root);
-    const response = await runArcWithStdin(["review", "respond", "-"], root, `${JSON.stringify(withReviewReport({
-      schemaVersion: 1,
-      source,
-      dispositions,
-      verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
-    }))}\n`);
+    expect(recordBefore.version).not.toBeNull();
 
+    await seedWorkUnit(root, "active-owner", { identity: "test-user", bind: root,
+      meta: { owner: "test-user", workClass: "Light", priority: "P2" } });
+    const response = await runArcWithStdin(["review", "respond", "-"], root, responseStdin);
     expect(response.exitCode).not.toBe(0);
+    expect(JSON.parse(response.stdout)).toMatchObject({
+      error: { message: "a verified fix requires a work unit carrying the reviewed managed Candidate record" },
+    });
     expect(await readCandidateVersioned(root)).toEqual(recordBefore);
     expect(await git(root, ["diff", "--cached", "--name-only"])).toBe("");
-    // A dirty Candidate file is the in-repo store's alone; the store holds the record off the branch.
-    if (onStore()) return;
 
-    const candidateBefore = await readFile(candidatePath, "utf8");
-    const candidateDirty = `${candidateBefore}\n`;
-    await writeFile(candidatePath, candidateDirty, "utf8");
-    const responseWithForeignDirt = await runArcWithStdin(
-      ["review", "respond", "-"],
-      root,
-      `${JSON.stringify(withReviewReport({
-        schemaVersion: 1,
-        source,
-        dispositions,
-        verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
-      }))}\n`,
+    await writeFile(markerPath, owningMarker, "utf8");
+    expect(envelope(await runArcWithStdin(["review", "respond", "-"], root, responseStdin)))
+      .toMatchObject({ state: "candidate-advanced" });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
+
+  it("preserves unstaged completed Candidate edits when another work unit owns the checkout", async () => {
+    const { root, responseStdin } = await completedCandidateFix();
+    await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await writeFile(
+      join(root, ".arc", "active", "meta-active-owner.md"),
+      makeMetaFixture("active-owner", { owner: "test-user", branch: "feat/example", workClass: "Light",
+        priority: "P2", taskList: "tasks-active-owner.md" }),
+      "utf8",
     );
-    expect(responseWithForeignDirt.exitCode).not.toBe(0);
-    expect(await readFile(candidatePath, "utf8")).toBe(candidateDirty);
-    expect(await git(root, [
-      "diff",
-      "--cached",
-      "--name-only",
-      "--",
-      ".arc/system/.internal/candidates/example.json",
-    ])).toBe("");
-    expect(await git(root, ["status", "--short", "--", candidatePath]))
-      .toBe("M .arc/system/.internal/candidates/example.json");
+    await writeFile(
+      join(root, ".arc", "active", "tasks-active-owner.md"),
+      "# Task List: Active owner\n\n- [ ] Continue active work\n",
+      "utf8",
+    );
+    await git(root, ["add", ".arc/active"]);
+    await git(root, ["commit", "-m", "activate another work unit"]);
+
+    const candidatePath = ".arc/system/.internal/candidates/example.json";
+    const candidateFile = join(root, candidatePath);
+    const candidateBefore = await readFile(candidateFile, "utf8");
+    const candidateDirty = `${candidateBefore}\n`;
+    await writeFile(candidateFile, candidateDirty, "utf8");
+    const response = await runArcWithStdin(["review", "respond", "-"], root, responseStdin);
+    expect(response.exitCode).not.toBe(0);
+    expect(JSON.parse(response.stdout)).toMatchObject({
+      error: { message: "dirty-worktree" },
+      remedy: { argv: ["arc", "review", "respond", "-"] },
+    });
+    expect(await readFile(candidateFile, "utf8")).toBe(candidateDirty);
+    expect(await git(root, ["diff", "--cached", "--name-only", "--", candidatePath])).toBe("");
+    expect(await git(root, ["status", "--short", "--", candidatePath])).toBe(`M ${candidatePath}`);
+
+    await writeFile(candidateFile, candidateBefore, "utf8");
+    const cleanResponse = await runArcWithStdin(["review", "respond", "-"], root, responseStdin);
+    expect(cleanResponse.exitCode).not.toBe(0);
+    expect(JSON.parse(cleanResponse.stdout)).toMatchObject({
+      error: { message: "a verified fix requires a work unit carrying the reviewed managed Candidate record" },
+    });
+    expect(await readFile(candidateFile, "utf8")).toBe(candidateBefore);
+    expect(await git(root, ["status", "--short", "--", candidatePath])).toBe("");
   }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("does not advance an owned Candidate from an unresolved work-unit carrier", async () => {
@@ -2220,12 +2232,13 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await commitState(root, "verification");
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    const responseInput = {
+    const responseStdin = `${JSON.stringify(withReviewReport({
       schemaVersion: 1,
       source,
       dispositions,
+      policyRequest: await responsePolicyRequest(root, source),
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
-    };
+    }))}\n`;
 
     await expect(invoke(root, ["review", "respond", "-"], withReviewReport({
       schemaVersion: 1,
@@ -2272,12 +2285,16 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       const candidatePath = join(carrier, ".arc", "system", ".internal", "candidates", "example.json");
       const readHeld = async () => onStore() ? readCandidateVersioned(root) : readFile(candidatePath, "utf8");
       const candidateBefore = await readHeld();
+      if (typeof candidateBefore !== "string") expect(candidateBefore.version).not.toBeNull();
       const refused = await runArcWithStdin(
         ["review", "respond", "-"],
         carrier,
-        `${JSON.stringify(withReviewReport(responseInput))}\n`,
+        responseStdin,
       );
       expect(refused.exitCode).not.toBe(0);
+      expect(JSON.parse(refused.stdout)).toMatchObject({
+        error: { message: "a verified fix requires a work unit carrying the reviewed managed Candidate record" },
+      });
       expect(await readHeld()).toEqual(candidateBefore);
       expect(await git(carrier, ["diff", "--cached", "--name-only", "--", candidatePath])).toBe("");
     } finally {
@@ -2287,7 +2304,8 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       await git(root, ["switch", "feat/example"]);
     }
 
-    await expect(invoke(root, ["review", "respond", "-"], withReviewReport(responseInput))).resolves.toMatchObject({
+    const ownerResponse = await runArcWithStdin(["review", "respond", "-"], root, responseStdin);
+    expect(envelope(ownerResponse)).toMatchObject({
       state: "candidate-advanced",
     });
   }, SUBPROCESS_HEAVY_TIMEOUT);
@@ -2620,7 +2638,8 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     // The deferred set moves no implementation and therefore does not advance the Candidate lineage.
     // Its durable approval still authorizes one exact-target replay action at checkpoint settlement.
     const lineage = await readCandidate(root);
-    expect(lineage === null ? [] : candidateReviewResponses(lineage).map(({ dispositionId }) => dispositionId))
+    if (lineage === null) throw new Error("Expected the Candidate whose responses are being checked");
+    expect(candidateReviewResponses(lineage).map(({ dispositionId }) => dispositionId))
       .not.toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.dispositionIds).toHaveLength(2);
     expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
@@ -3293,6 +3312,7 @@ function registerRoutedReviewObligation(it: typeof vitestIt): void {
  * plan resolution refuses a base that holds no transition records.
  */
 const IN_REPO_SUBJECTS: ReadonlySet<string> = new Set([
+  "preserves unstaged completed Candidate edits when another work unit owns the checkout",
   "keeps a settled-findings verdict outstanding until a complete clean pass",
   "advances the root Candidate after a private delivery-member frontline fix",
   "keeps bound delivery-member frontline authority on the bound route",

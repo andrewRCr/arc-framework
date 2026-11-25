@@ -238,7 +238,8 @@ describe("arc attest on the store", () => {
     await git(root, ["add", "src/example.ts"]);
     await git(root, ["commit", "-m", "implementation"]);
     const read = (reference: RecordReference = meta.reference) => readStoreRecord(root, SlugSchema.parse("test-user"), reference);
-    return { root, meta, read, candidate: recordReferences["review/candidate"](meta.reference.owner) };
+    return { root, meta, read, candidate: recordReferences["review/candidate"](meta.reference.owner),
+      boundary: recordReferences["review/integration-boundary"](meta.reference.owner) };
   }
 
   // The store takes Candidate authority from the Candidate record alone, and from the flip no verb writes the meta's
@@ -295,6 +296,7 @@ describe("arc attest on the store", () => {
     });
     expect(await f.read()).toEqual(before);
     await expect(f.read(f.candidate)).rejects.toThrow(/not-found/u);
+    await expect(f.read(f.boundary)).rejects.toThrow(/not-found/u);
   });
 
   it("refuses Candidate attestation when the task list is missing, writing nothing", async () => {
@@ -307,6 +309,7 @@ describe("arc attest on the store", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ status: "rejected" });
     expect(await f.read()).toEqual(before);
     await expect(f.read(f.candidate)).rejects.toThrow(/not-found/u);
+    await expect(f.read(f.boundary)).rejects.toThrow(/not-found/u);
   });
 
   it.each([
@@ -335,5 +338,7 @@ describe("arc attest on the store", () => {
       remedy: { argv: ["arc", "attest", "example"] },
     });
     expect(await f.read()).toEqual(before);
+    await expect(f.read(f.candidate)).rejects.toThrow(/not-found/u);
+    await expect(f.read(f.boundary)).rejects.toThrow(/not-found/u);
   });
 });
