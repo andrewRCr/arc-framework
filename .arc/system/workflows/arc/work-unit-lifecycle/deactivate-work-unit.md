@@ -1,9 +1,6 @@
 ---
 purpose: Reverse a work unit activation when no task work has executed — a state flip keeping the branch, or deletion.
 audience: collaborative (human and agent)
-arc:
-  methods:
-    - branch-format
 ---
 
 # Workflow: Deactivate Work Unit
@@ -30,7 +27,7 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 
 ## Prerequisites (Case A / A-delete)
 
-- In the checkout `arc locus` resolves to the WU, on its `<type>/<name>` work branch (per [`branch-format`][branch-format])
+- In the checkout `arc locus` resolves to the WU, on its linked work branch
 - `arc view meta` shows `**State:** Active`
 - Task list checkboxes all `[ ]` (no task work executed)
 - No commits from this WU have merged to the base branch (PRs closed without merge, or never opened)
@@ -45,7 +42,7 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 
 ### 1) Close any open PR
 
-If a PR was opened for `<type>/<name>`, close it without merging — note the deactivation in the closure comment
+If a PR was opened for the linked work branch, close it without merging — note the deactivation in the closure comment
 to leave a search trail.
 
 ```bash
@@ -70,7 +67,12 @@ reports unshared work. `{name}` defaults to the current checkout's WU.
 
 ## Steps (Case A-delete — abandon entirely)
 
-### 1) Close any open PR
+### 1) Withdraw or close the PR
+
+If the source is `Integrating` (Case B), follow the withdrawal in [`reopen-work-unit`][reopen] from the source's own
+checkout, in the default close mode. When the source is Active and its PR is closed, go directly to Step 2.
+
+For an Active source with an open PR, close it before abandoning:
 
 ```bash
 gh pr close {pr-number} --comment "Deactivating work unit; abandoning. No task work executed."
@@ -91,8 +93,8 @@ The verb ends the WU in one write, removing its records and recording the abando
 then removes this checkout, or releases an anchored one, and reaps the work branch ARC created, local and remote, with
 no merge check. `--yes` confirms the cascade — `arc abandon` prints the impact plan and refuses without it; the slug is
 required (`abandon` never defaults to the current WU). When the checkout's removal or the branch's reap fails after the
-write, the result names `arc teardown {name}` as its continuation; run it. The agent's prior cwd no longer exists if
-it was in a removed WU worktree.
+write, run the exact `arc teardown <UID>` continuation printed by `arc abandon`. Keep that UID for retries, including
+across sessions. The agent's prior cwd no longer exists if it was in a removed WU worktree.
 
 ### 3) Clean up outside ARC (per `pm.mode`)
 
@@ -106,9 +108,7 @@ it was in a removed WU worktree.
 
 Task work has run but nothing has merged to base, so the activation is no longer the only thing to undo —
 committed work exists and its fate is the operator's call. A WU in `**State:** Integrating` (PR open, awaiting
-review) is the live form of this case — deactivate does not rotate an `Integrating` meta; finish through
-[`integrate-work-unit.md`][integrate] or close the PR first. This workflow does not automate Case B; it names the
-three paths and routes each to the workflow that owns it.
+review) is the live form of this case. The operator chooses one of the following paths.
 
 - **Integrate the partial scope.** The work done so far stands on its own and is worth shipping. Run
   [`integrate-work-unit.md`][integrate] from the WU branch; the completed scope merges through the normal PR
@@ -121,9 +121,6 @@ three paths and routes each to the workflow that owns it.
 - **Move the work to a successor.** The direction changed but the committed work seeds a new approach.
   Cherry-pick the relevant commits onto the successor WU's branch — the successor's meta records the
   continuation through its `**Origin:**` — then run the Case A-delete abandon above on the original.
-
-Case B is operator-driven throughout: no state flip, and no automated branch handling beyond whichever terminal
-path (integrate or Case A-delete) the operator selects.
 
 ---
 
@@ -144,4 +141,4 @@ planning in the same checkout at the stage `**Current Workflow:**` names (Case A
 
 [activate]: activate-work-unit.md
 [integrate]: integrate-work-unit.md
-[branch-format]: ../../../methods/branch-format.md
+[reopen]: reopen-work-unit.md

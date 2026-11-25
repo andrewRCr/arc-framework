@@ -1,9 +1,6 @@
 ---
 purpose: Withdraw an Integrating work unit back to Active task execution or Candidate preparation.
 audience: agent
-arc:
-  methods:
-    - branch-format
 ---
 
 # Workflow: Reopen Work Unit
@@ -25,7 +22,7 @@ that needs private convergence. Withdrawing returns it to Candidate-bearing `Act
 
 ## Prerequisites
 
-- In the checkout `arc locus` resolves to the WU, on its `<type>/<name>` work branch (per [`branch-format`][branch-format])
+- In the checkout `arc locus` resolves to the WU, on its linked work branch
 - `arc view meta` shows `**State:** Integrating`
 - The WU's PR is open and **not merged** (a draft PR still qualifies; a merged PR does not)
 - The canonical task list has exactly the intended shape: a found executable cursor for `--task`, or
@@ -86,6 +83,12 @@ flip the meta and strand a half-done reopen). A non-`Integrating` source falls t
 
 The reopen writes only the record and the PR's state: nothing is staged, committed, or pushed.
 
+If reopen refuses before saving the transition, stop, surface the reason, and apply the reported remedy before retrying
+`arc reopen`. If it reports records saved with `withdraw-pr` remaining, the unit is already Active. Run the printed
+continuation command. Use its PR selector with `gh pr view <pr> --json state,isDraft` to confirm the PR is closed in
+default mode or open and draft with `--keep-pr`. If the intended state cannot be confirmed, stop, report the observed
+condition and retain the continuation command for retry. Proceed only after the withdrawal is settled.
+
 ### 3) Resume execution or Candidate preparation
 
 With `--task`, resume [`process-task-loop.md`](../process-task-loop.md) at the exact canonical cursor. When the final
@@ -114,7 +117,6 @@ back to [`integrate-work-unit.md`][integrate].
 
 ---
 
-[branch-format]: ../../../methods/branch-format.md
 [integrate]: integrate-work-unit.md
 [prepare]: prepare-work-unit.md
 [deliver-stack]: ../supplemental/deliver-stack.md

@@ -12,8 +12,9 @@ changes neither its `State` nor its placement, so the unit stays in flight with 
 
 **When to use:** A started unit must step aside without being abandoned — a deliberate, resumable pause. Choosing a
 pause over [`abandon`][deactivate] _is_ the resume commitment. A paused unit shows with its reason in `arc status`'s
-Paused tier, and a verb that advances its work — activation, deactivation, publication, a stage change, a task close —
-refuses until it resumes.
+Paused tier. Each advancing verb — activation, deactivation, publication, `arc set-stage`, or task close — refuses
+until the unit resumes. For a Planning unit, `arc repoint-design {name} spec-finalized` can advance the stage while
+preserving the pause.
 
 ---
 
@@ -21,10 +22,12 @@ refuses until it resumes.
 
 ### 1) Gate
 
-From `**State:**` (`arc view meta`):
+Use the requested name, or resolve the current checkout's unit with `arc locus` if no name was supplied.
+Read the selected unit's `**State:**` with `arc view meta --for {name}`.
 
 - `Planning` or `Active` → pause.
-- `Integrating` → **stop.** Withdraw the open PR via `arc reopen` first, then pause.
+- `Integrating` → **stop.** Verify with `arc locus` that the checkout holds the selected unit, then follow the
+  withdrawal steps in [`reopen-work-unit`][reopen] with `arc reopen {name}`. Pause only after withdrawal completes.
 - A stub is not in flight and never pauses: work it with `arc start {name}` instead.
 
 ### 2) Judgment — the reason and what it waits on
@@ -49,8 +52,8 @@ clear those fields, and `--no-open` closes it to takers.
 
 ### 4) Free the checkout (optional)
 
-The checkout stays held for the unit. To free it, run `arc locus release` from it, which removes a spawned checkout once
-its removal check passes, or releases an anchored one; `arc materialize {name}` gives the unit a checkout again later.
+The checkout stays held for the unit. To free it, run `arc locus release {name}`. It removes a spawned checkout once
+its removal check passes or releases an anchored one. `arc materialize {name}` gives the unit a checkout again later.
 
 ---
 
@@ -70,6 +73,7 @@ pause.
 ---
 
 [resume]: resume-work-unit.md
+[reopen]: reopen-work-unit.md
 [decompose]: decompose-work-unit.md
 [deactivate]: deactivate-work-unit.md
 [integrate]: integrate-work-unit.md

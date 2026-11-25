@@ -12,9 +12,8 @@ arc:
 # Workflow: Activate Work Unit
 
 Transition an existing WU from `**State:** Planning` to `**State:** Active` in the checkout that holds it. `arc activate`
-flips the state and gives the WU its `<type>/<name>` work branch there: it creates one at the base branch's tip from a
-detached checkout or one on base, takes over a branch of your own by renaming it, or keeps the branch the WU already
-links.
+flips the state and establishes the work branch in that checkout. It creates one at base's tip from a detached checkout
+or one on base, takes over a branch of your own by renaming it, or keeps the branch the WU already links.
 
 **When to use:** After `generate-tasks.md` produces the task list, when ready to begin implementation.
 
@@ -50,11 +49,23 @@ route-discovered-work:
   host: this work unit
 ```
 
-On confirmation, carry out each outcome before the activation. A `fold` amends the spec and carries what it changes
-into the task list and its success criteria; no outcome holds the capture in this work unit. Remove each routed
-capture with `arc user inbox-remove --id <id> --expected-version <version>`, taking both from its listed row, or
-rewrite it in place when its outcome is itself a capture. Record each rejection or dismissal, with its reason, in the
-`notes-{name}.md` companion, creating it on first need. Then re-run the gate.
+On confirmation, carry out each outcome before activation. A `fold` amends the spec and carries what it changes into
+the task list and its success criteria. An outcome cannot hold a capture in this work unit.
+
+Record each rejection or dismissal and its reason in the `notes-{name}.md` companion, creating it on first need.
+Record the source list, entry ID, and version with each rejection, dismissal, or fold in the notes. Run
+`arc check increment` and `arc save` successfully before removing any source whose disposition required these edits.
+On retry, check the saved disposition for that exact source, ID, and version. Finish any missing edits and save them
+before removal. If the disposition and its edits are already saved, finish the removal directly.
+
+- For a personal capture, use `arc user inbox-remove --id <id> --expected-version <version>` with the listed values.
+- For an inbound entry, verify its listed ID and version still match, delete that row from the owner's list, and
+  persist the edit with `arc save`.
+- A moved entry has already left its source list. When the outcome rewrites a capture in place, make that edit at
+  the listed version and save it in place.
+
+On a changed version or a save conflict, refresh the listing and settle the current entry. Re-run both listings
+and require the gate to pass before proceeding.
 
 ### 2) Supplementary alignment checks
 
@@ -83,34 +94,35 @@ Settle `**Class:**` via [`classify-work-unit`][classify-work-unit] — pre-imple
 confirm-or-ratchet before execution. Ratchet up to the realized floor with `arc set-class <Class>` when planning
 authored design since the last touchpoint; otherwise confirm the value holds.
 
-When a Step 1 fold changed spec or task-list prose, or Step 1 recorded a rejection or dismissal, run
-`arc check increment` over that text and save it:
-
-```bash
-arc save
-```
-
 Compose the activation inputs (judgment — never fabricated):
 
-- `<type>` — working-branch type per [`branch-format`][branch-format]; composes the `{type}/{name}` working branch
+- `<type>` — working-branch type per [`branch-format`][branch-format]. The selected branch is `{type}/{name}` when
+  creating or renaming it. A linked work branch already checked out with the same type keeps its current name.
 - next action — the post-activation pointer (the next executable step, not this workflow)
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before activation unless the operator has already approved this transition and its inputs.
+> Present the unit, proposed branch and type, next action, and the move from Planning to Active, including the branch
+> creation, rename, or reattachment. Await approval to activate.
 
 ```bash
 arc activate {name} --type {type} --action "{next action}"
 ```
 
-The verb flips `**State:** Planning → Active`, gives the WU its `{type}/{name}` work branch in this checkout and links
-it, writes `**Next Action:**`, discharges satisfied `**Depends On:**` edges, and removes a draft that `Design` no longer
+The verb flips `**State:** Planning → Active`, links the selected work branch in this checkout, writes
+`**Next Action:**`, discharges satisfied `**Depends On:**` edges, and removes a draft that `Design` no longer
 names, in one write. `{name}` defaults to the current checkout's WU. Its report names any commits it excluded from the
 WU's task work and the old name's remote branch to delete (Step 4).
 
 ### 4) Push the work branch
 
-> [!CAUTION]
-> `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
+If the activation report requires a merge before deleting the old remote branch, complete that merge on the work branch
+before pushing. Use the `Branch` value reported by successful activation as `{branch}`.
 
-When the activation result names the old name's remote branch deletion, run it as printed, as raw `git` — the
-wrapper refuses `--delete` by design. A deletion it names after a merge waits until that merge has run. See
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `-u origin {branch}`.
+
+Only after the push succeeds, run any remote branch deletion named in the activation report as raw `git`. See
 [Work Organization Strategy § Branching][work-org-branching] for the work branch's role in the WU lifecycle.
 
 ### 5) Absorption-source cleanup · `arc-in-git` only

@@ -29,6 +29,19 @@ const errandSkill = "system/.internal/skills/arc-errand/SKILL.md";
 const housekeepSkill = "system/.internal/skills/arc-housekeep/SKILL.md";
 
 describe("routing workflow contract", () => {
+  it("settles activation captures by their actual source and rechecks both lists", async () => {
+    const workflow = await shipped("system/workflows/arc/work-unit-lifecycle/activate-work-unit.md");
+    const gate = section(workflow, "### 1) Pre-condition gate", "### 2)");
+    const removalInstructions = gate.split(/(?<=[.!?])\s+/u).filter(sentence => sentence.includes("`arc user inbox-remove"));
+
+    expect(removalInstructions).toHaveLength(1);
+    expect(removalInstructions[0], "Identify the personal source and remove its listed version")
+      .toMatch(/\bpersonal\b[^.`]*`arc user inbox-remove --id <id> --expected-version <version>`/iu);
+    expect(gate).toMatch(/\binbound\b[^.]*\b(?:delete|remove)\b[^.]*\barc save\b/iu);
+    expect(gate).toMatch(/\bmov(?:e|ed)\b[^.]*\b(?:already|skip)\b/iu);
+    expect(gate).toMatch(/\bre-?run\b[^.]*\bboth\b/iu);
+  });
+
   it("carries routing outcomes out through the routing verb, with no writer line or owner adoption", async () => {
     const binding = section(await shipped(method), "### Binding: carrying out outcomes");
 

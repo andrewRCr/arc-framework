@@ -104,13 +104,14 @@ export async function activationCaptureReport(exec: GitExec, cwd: string,
   }
   return { lines, mergeRequired };
 }
-async function oldRemoteDeletion(exec: GitExec, cwd: string, branch: string) {
+async function oldRemoteDeletion(exec: GitExec, cwd: string, branch: string, target: string) {
   const tip = await optionalTip(exec, cwd, `refs/remotes/origin/${branch}`);
   if (tip === null) return undefined;
   const held = await exec("git", ["--no-replace-objects", "merge-base", "--is-ancestor", tip, "HEAD"], { cwd, objectAccess: "local-only" })
     .then(() => true, (error: unknown) => { if (isMissingExit(error)) return false; throw error; });
   const argv = ["git", "push", "origin", "--delete", branch];
-  return held ? { text: argv.join(" "), argv } : { text: `After git merge --ff --no-edit ${tip}, ${argv.join(" ")}` };
+  return held ? { text: argv.join(" "), argv }
+    : { text: `git merge --ff --no-edit ${tip} && git push -u origin ${target} && ${argv.join(" ")}` };
 }
 async function checkoutBranch(exec: GitExec, cwd: string): Promise<string | null> {
   try { const result = await exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd }); return result.stdout.trim(); }
@@ -131,7 +132,7 @@ function mergeExclusions(prior: CommitCapture[], added: CommitCapture[]): Commit
 }
 
 async function activationRemoteDeletion(input: ActivationBranchPlanInput, own: BranchLink | undefined, branch: string, target: string) {
-  return own?.linkedAs === "created" && target !== branch ? await oldRemoteDeletion(input.exec, input.cwd, branch) : undefined;
+  return own?.linkedAs === "created" && target !== branch ? await oldRemoteDeletion(input.exec, input.cwd, branch, target) : undefined;
 }
 
 function activationTarget(own: BranchLink | undefined, requested: string): string {

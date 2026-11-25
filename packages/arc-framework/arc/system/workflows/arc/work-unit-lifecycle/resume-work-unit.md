@@ -14,10 +14,11 @@ section in the work unit's meta and nothing else, since a pause moved nothing.
 
 ### 1) Pre-condition gate
 
-Confirm the target is paused:
+Read the selected unit's meta and confirm that it has a `## Pause` section. Review the recorded `Reason` and what
+the unit waits on before proceeding. If no name was supplied, use `arc locus` to resolve this checkout's unit.
 
 ```bash
-arc status {name}   # expect a pause, with its reason
+arc view meta --for {name}
 ```
 
 A unit that is not paused has nothing to resume.
@@ -55,13 +56,16 @@ arc wu reconcile {name} --apply --json
 ```
 
 - `clean` — continue without a write, stage, or commit.
-- `pending` — stop and surface every advisory reference. Inspect the referenced content; either edit it in this
-  dependent-owned review increment, run `arc check increment`, save it with `arc save`, and rerun until `clean` /
-  `applied`, or obtain explicit user direction to retain the advisory as intentional before continuing. Never classify
-  this schema-valid result as malformed.
-- `applied` — the reconcile wrote the dependent-owned repairs; continue.
+- `pending` — resolve the outstanding findings below.
+- `applied` — the reconcile wrote the dependent-owned repairs. Check `advisories` and `dependency.held` before
+  continuing and resolve any outstanding findings below.
 - `conflict` — stop the resume workflow and surface the typed reason. The pause is already cleared; do not pause again
   to roll it back.
+
+For either `pending` or `applied`, surface each advisory and held edge. Inspect the referenced content and obtain
+explicit user direction for each advisory to retain. For each held edge, follow its reported `repair`. Check any edits
+with `arc check increment`, save with `arc save`, and rerun the reconcile. Proceed once each advisory is corrected
+or explicitly retained and no held edge remains.
 
 ---
 

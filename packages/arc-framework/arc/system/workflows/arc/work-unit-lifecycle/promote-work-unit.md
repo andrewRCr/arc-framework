@@ -60,6 +60,10 @@ ratchet of an existing estimate writes through `arc set-class <Class> {name}` fi
 
 ### 3) Promote provisional → planned
 
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before promotion unless the operator has already approved this transition and Class.
+> Present the named stub, its resolved Class, and the move from provisional to planned. Await approval to promote.
+
 Fire the transition:
 
 ```bash

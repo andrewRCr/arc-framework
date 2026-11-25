@@ -17,6 +17,18 @@ async function markdownFiles(directory: string): Promise<string[]> {
 }
 
 describe("PR lifecycle and review contracts", () => {
+  it("settles a pending PR withdrawal before resuming reopened work", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/reopen-work-unit.md"), "utf8",
+    );
+    const step = workflow.slice(workflow.indexOf("### 2)"), workflow.indexOf("### 3)")).replace(/\s+/gu, " ");
+    const retry = step.search(/\b(?:run|execute|follow)\b[^.]*?\b(?:continuation|(?:printed|emitted|reported|retry) command)\b/iu);
+    expect(retry, "Run the emitted withdrawal command before resuming reopened work").toBeGreaterThanOrEqual(0);
+    const afterRetry = step.slice(retry);
+    expect(afterRetry).toMatch(/\b(?:confirm|verify|check|observe)\b[^.]*\bclosed\b/iu);
+    expect(afterRetry).toMatch(/\b(?:confirm|verify|check|observe)\b[^.]*\bdraft\b/iu);
+  });
+
   it("omits retired dispatch from PR workflows while retaining resolver binding", async () => {
     for (const base of [packageArc, projectArc]) {
       for (const path of ["work-unit-lifecycle/integrate-work-unit.md", "supplemental/run-errand.md"]) {
