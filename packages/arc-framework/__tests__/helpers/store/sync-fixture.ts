@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { onTestFinished } from "vitest";
 import { setupMultiClone } from "../multi-clone.js";
 import { makeGitExec, makeGitExecInput } from "../integration.js";
+import { useInRepoStore } from "../in-repo-store-override.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from "../../../src/lib/errand/identity-record.js";
@@ -33,6 +34,7 @@ export function syncPut(intent = "original", expected: Parameters<Store["write"]
     placement: { kind: "active" as const }, provenance: syncProvenance };
 }
 export async function syncFixture() {
+  useInRepoStore();
   const topology = await setupMultiClone({ cloneA: { config: { "arc.identity": syncIdentity } }, cloneB: { config: { "arc.identity": syncIdentity } } });
   onTestFinished(topology.cleanup);
   const a = await syncCheckout(topology.cloneA);

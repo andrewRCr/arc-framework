@@ -130,6 +130,8 @@ async function invokeImport(boundary: { ports: RefStorePorts } | { cwd: string }
 /** Explicitly reconcile fixture personal files before invoking the independent import operation. */
 export async function saveImportPersonal(root: string, load = true): Promise<void> {
   const options = { cwd: root, io: makeUserIO(root), identity: "andrew", currentWuName: "alpha" };
-  await runUserSave(options);
-  if (load) await runUserLoad(options);
+  await withInRepoOverride(async () => {
+    await runUserSave(options);
+    if (load) await runUserLoad(options);
+  });
 }

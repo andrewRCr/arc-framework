@@ -21,6 +21,7 @@ import {
   pushBranchBoundedNotesExport,
 } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
 import type { GitExec } from "../../src/lib/git/index.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const IDENTITY = "test-user";
 const NOTES_REF = `refs/notes/arc/user/${IDENTITY}`;
@@ -31,6 +32,7 @@ async function git(cwd: string, args: string[]): Promise<string> {
 }
 
 describe("canonical notes publication", () => {
+  useInRepoStoreForEach();
   const cleanup = new Set<string>();
 
   afterEach(async () => {

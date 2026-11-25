@@ -1,5 +1,5 @@
 /**
- * Seal this build's operational-state and Git-notes writes once the repository's store has been imported.
+ * Refuse retired Git-notes writes and seal legacy writes once the repository's store has been imported.
  *
  * An import publishes the project registry ref, and every checkout of a repository shares its refs, so the moment one
  * checkout imports, a build that still writes tracked files, identity refs or Git notes would write state nothing reads
@@ -25,7 +25,8 @@ const REMEDY = "Merge the base branch into this checkout with Git (for example `
 const NOTES_CONDITION = "Git notes are retired. Personal state lives in the store.";
 const NOTES_GUIDANCE = {
   save: "Run `arc save` to save personal state.",
-  sync: "Run `arc sync` to synchronize personal state.",
+  sync: "Run `arc sync` to pull store state. It also publishes store state to the configured push remote "
+    + "and can push local code commits when the branch push policy allows it.",
   "projected-files": "The projection keeps these files. No replacement step is needed.",
   compact: "No notes history remains to compact.",
 };
@@ -92,7 +93,7 @@ export class StoreImportedError extends ArcError {
 }
 
 /**
- * Throw before a Git-notes or tracked-state write once the store has been imported.
+ * Throw before a Git-notes write on the ref store, or a legacy write once the store has been imported.
  * @param checkoutRoot - The checkout the write targets, or undefined to use the executor's repository.
  * @param exec - Git executor for the ref lookup.
  * @param notesWrite - Guidance for the refused Git-notes operation when the ref store is selected.
@@ -101,9 +102,10 @@ export class StoreImportedError extends ArcError {
 export async function refuseWriteIfStoreImported(
   checkoutRoot: string | undefined, exec?: GitExec, notesWrite?: keyof typeof NOTES_GUIDANCE,
 ): Promise<void> {
+  if (notesWrite !== undefined && (process.env[IN_REPO_STORE_OVERRIDE] ?? "") === "") {
+    throw new ArcError(`${NOTES_CONDITION} ${NOTES_GUIDANCE[notesWrite]}`, "store.notes-retired");
+  }
   const git = exec ?? (defaultExec ??= createExecaGitExec());
   const imported = checkoutRoot === undefined ? await storeImportedHere(git) : await storeImported(checkoutRoot, git);
-  if (!imported) return;
-  if (notesWrite === undefined || (process.env[IN_REPO_STORE_OVERRIDE] ?? "") !== "") throw new StoreImportedError();
-  throw new ArcError(`${NOTES_CONDITION} ${NOTES_GUIDANCE[notesWrite]}`, "store.notes-retired");
+  if (imported) throw new StoreImportedError();
 }

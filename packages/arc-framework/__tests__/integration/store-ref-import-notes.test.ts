@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import { importFixture } from "../helpers/store/import-fixture.js";
 import { makeCommit, makeUserIO } from "../helpers/integration.js";
 import { runUserSave, runUserLoad } from "../../src/commands/user.js";
+import { withInRepoStore } from "../helpers/in-repo-store-override.js";
 import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import type { StoreMigrateResult, MigrateReport } from "../../src/lib/store/commands.js";
@@ -24,8 +25,10 @@ async function put(root: string, path: string, content: string, person = "andrew
 }
 async function reconcile(root: string, currentWuName = "alpha"): Promise<void> {
   const options = { cwd: root, io: makeUserIO(root), identity: "andrew", currentWuName };
-  await runUserSave(options);
-  await runUserLoad(options);
+  await withInRepoStore(async () => {
+    await runUserSave(options);
+    await runUserLoad(options);
+  });
 }
 function personal(kind: "personal/inbox" | "personal/document", key?: string) {
   return RecordReferenceSchema.parse({ kind, owner: { type: "person", name: "andrew" }, ...(key ? { key } : {}) });
@@ -71,7 +74,7 @@ it("reports snapshot-only files separately and ignores only shared-file tombston
   await unlink(join(h.root, ".arc/user/andrew/memo.txt"));
   expect(trialReport(await h.migrate(true)).differingNotes).toEqual([{ person: "andrew", path: "memo.txt", kind: "snapshot-only" }]);
   expect(await h.migrate()).toMatchObject({ status: "refused" });
-  await runUserLoad({ cwd: h.root, io: makeUserIO(h.root), identity: "andrew", currentWuName: "alpha" });
+  await withInRepoStore(() => runUserLoad({ cwd: h.root, io: makeUserIO(h.root), identity: "andrew", currentWuName: "alpha" }));
   expect(await readFile(join(h.root, ".arc/user/andrew/memo.txt"), "utf8")).toBe("Restore these exact bytes.\n");
   const clean = (await readFile(join(h.root, ".arc/user/andrew/USER-INBOX.md"), "utf8")).replace(/\n+$/u, "\n");
   await put(h.root, "USER-INBOX.md", clean);
@@ -203,7 +206,7 @@ it("compares every person's notes and stale root copies, including a notes-only 
   await io.writeNote("refs/notes/arc/user/alex", JSON.stringify({ version: 2, files: { "memo.txt": "Alex original.\n" } }), "HEAD");
   expect(trialReport(await h.migrate(true)).differingNotes).toEqual([{ person: "alex", path: "memo.txt", kind: "snapshot-only" }]);
   const alex = { cwd: h.root, io, identity: "alex", currentWuName: "alpha" };
-  await runUserLoad(alex);
+  await withInRepoStore(() => runUserLoad(alex));
   const directory = await mkdtemp(join(tmpdir(), "arc-import-roots-"));
   onTestFinished(() => rm(directory, { recursive: true, force: true }));
   const checkout = join(directory, "linked");
