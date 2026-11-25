@@ -213,6 +213,20 @@ it("keeps the selected Errand merge ready after a second live Errand arrives on 
       })),
     ) });
   }
+
+  await writeLink(`refs/heads/${selected.branch}`);
+  const retiring = success(await f.store.read({ reference: other.reference }));
+  success(await f.store.write({
+    ...recordPut(retiring, { placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+    provenance: { verb: "errand", lifecycleAction: "retire" },
+  }));
+  const lookup = vi.spyOn(f.store, "lookup");
+  try {
+    expect(await releaseBySlug()).toMatchObject(ready);
+    expect(lookup.mock.calls.filter(([input]) => input.kind === "ref")).toHaveLength(1);
+  } finally {
+    lookup.mockRestore();
+  }
 }, 60_000);
 
 it("refuses a clashed branch on the machine holding only the other Errand checkout", async () => {

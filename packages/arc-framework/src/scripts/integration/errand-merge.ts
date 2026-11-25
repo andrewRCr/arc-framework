@@ -786,7 +786,7 @@ export async function mergeErrand(
         "The exact Errand merge lock could not be released.",
         target,
         final.baseOid,
-        release.diagnostics.some(({ code }) => code === "errand-branch-mismatch") ? "retry" : "stop",
+        release.diagnostics.some(({ code }) => ["errand-branch-mismatch", "errand-record-conflict"].includes(code)) ? "retry" : "stop",
         release.diagnostics,
       ),
     );

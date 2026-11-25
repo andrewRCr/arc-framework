@@ -144,7 +144,7 @@ it.each(["command", "integration"] as const)("%s lock retains the invocation's m
     expect(registryReads, "project identity observations in the original invocation").toBe(1);
   }, 30_000);
 
-async function errandLockFixture(root: "command" | "integration", linked: string) {
+async function errandLockFixture(root: "command" | "integration", linked: string, draft = true) {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native, slug = "fix-thing", branch = "chore/fix-thing-0a1b2c3d";
@@ -160,7 +160,6 @@ async function errandLockFixture(root: "command" | "integration", linked: string
     changeRequest: null, createdAt: "2026-11-13T12:00:00Z", updatedAt: "2026-11-13T12:00:00Z" });
   if (record.kind !== "errand" || record.purpose !== "errand") throw new Error("Expected ordinary Errand");
   const primary = await h.reference.seedErrand(record, { branches: [{ repository: projectId, ref: linked, linkedAs: "created", excluded: [] }] });
-  let draft = true;
   const runner: HostedProcessRunner = { run: async args => {
     if (args[0] === "repo") return { stdout: JSON.stringify({ nameWithOwner: "owner/repo", defaultBranchRef: { name: "main" } }), stderr: "" };
     if (args[0] === "api") return { stdout: JSON.stringify({ number: 42, state: "open", draft,
@@ -196,15 +195,17 @@ it.each(["command", "integration"] as const)("%s lock refuses an Errand whose he
       diagnostics: expect.arrayContaining([expect.objectContaining({ code: "errand-branch-mismatch" })]) });
   }, 30_000);
 
-it("reports the stored branch mismatch at Errand merge and accepts the same request after relinking", async () => {
-  const { record, primary, store, target, dependencies } = await errandLockFixture("integration", "chore/fix-thing-ffffffff");
+type ErrandLockFixture = Awaited<ReturnType<typeof errandLockFixture>>;
+
+async function errandMergeAttempt({ target, dependencies }: ErrandLockFixture) {
   const request = ErrandMergeRequestSchema.parse({ schemaVersion: 1, identity: await dependencies.readCurrentIdentity(),
     approvedTarget: target, lane: "reviewed", mergeMethod: { method: "merge", policyFingerprint: `sha256:${"d".repeat(64)}` } });
   const holdLock = vi.fn(dependencies.holdLock);
   const mergePinned = vi.fn<typeof dependencies.mergePinned>().mockResolvedValue({ state: "merged", target, providerMergeId: "merge-42" });
   const base = "b".repeat(40);
-  const merge = () => mergeErrand(request, {
+  const merge = (releaseLock = dependencies.releaseLock) => mergeErrand(request, {
     ...dependencies, holdLock, mergePinned,
+    releaseLock,
     readMerged: async () => ({ merged: false, providerMergeId: null }),
     refreshTarget: async () => target,
     observeChecks: async () => ({ schemaVersion: 1, mode: "review-checks-observe", state: "not-required", nextAction: "complete",
@@ -217,7 +218,13 @@ it("reports the stored branch mismatch at Errand merge and accepts the same requ
           baseRef: target.baseRef, base, head: target.headSha } },
       reviewApplicability: { verdict: "carries", residual: null, reason: "base-movement-disjoint", judgmentRequired: false } }),
   });
+  return { request, merge, holdLock, mergePinned };
+}
 
+it("reports the stored branch mismatch at Errand merge and accepts the same request after relinking", async () => {
+  const fixture = await errandLockFixture("integration", "chore/fix-thing-ffffffff");
+  const { record, primary, store, target } = fixture;
+  const { request, merge, holdLock, mergePinned } = await errandMergeAttempt(fixture);
   const refused = await merge();
   expect(holdLock).toHaveBeenCalledExactlyOnceWith(target);
   expect(mergePinned).not.toHaveBeenCalled();
@@ -238,4 +245,39 @@ it("reports the stored branch mismatch at Errand merge and accepts the same requ
       text: expect.stringMatching(/correct.*branch link/iu), argv: ["arc", "errand", "merge", record.slug, "-", "--json"], stdin: request,
     } },
   });
+}, 30_000);
+
+it("re-holds the approved target and retries the same Errand merge after a late primary conflict is resolved", async () => {
+  const fixture = await errandLockFixture("integration", "chore/fix-thing-0a1b2c3d", false);
+  const { primary, store, target, dependencies } = fixture;
+  const { request, merge, holdLock, mergePinned } = await errandMergeAttempt(fixture);
+  const { reference, content, version, formatVersion, placement, links } = primary;
+  const conflict = recordReferences["work-item/conflict-record"](reference.owner, "subject-conflict");
+  const time = fixture.record.createdAt;
+  const releaseLock = vi.fn(dependencies.releaseLock).mockImplementationOnce(async (exactTarget, identity) => {
+    lifecycleSuccess(await store.write({ action: "put", reference: conflict, expected: null,
+      content: JSON.stringify({ record: reference, location: { kind: "record" }, base: null,
+        current: { value: { reference, content, version, formatVersion, placement, links }, label: { actor: "alice", time } },
+        incoming: { value: null, label: { actor: "bob", time } } }),
+      provenance: { verb: "merge", lifecycleAction: "capture" } }));
+    return dependencies.releaseLock(exactTarget, identity);
+  });
+
+  const refused = await merge(releaseLock);
+  expect(releaseLock).toHaveBeenCalledExactlyOnceWith(target, request.identity);
+  expect(holdLock).toHaveBeenCalledExactlyOnceWith(target);
+  expect(await holdLock.mock.results[0]?.value).toMatchObject({ state: "held", payload: { headSha: target.headSha } });
+  expect(mergePinned).not.toHaveBeenCalled();
+  const conflicted = lifecycleSuccess(await store.read({ reference }));
+  expect(conflicted.conflicts).toEqual([conflict]);
+  lifecycleSuccess(await store.write({ ...recordPut(conflicted, { links }), resolves: [conflict],
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await merge()).toMatchObject({ state: "merged" });
+  expect(mergePinned).toHaveBeenCalledExactlyOnceWith(target, "merge");
+
+  expect(refused).toMatchObject({ state: "operation-failed", reason: "lock-operation-failed", nextAction: "retry",
+    continuation: { kind: "remedy", remedy: { argv: ["arc", "errand", "merge", fixture.record.slug, "-", "--json"], stdin: request } },
+  });
+  expect(formatErrandMergeResult(refused, false).text).toContain(JSON.stringify(conflict));
+  expect(formatErrandMergeResult(refused, false).text).toContain("Resolve the named conflict records");
 }, 30_000);

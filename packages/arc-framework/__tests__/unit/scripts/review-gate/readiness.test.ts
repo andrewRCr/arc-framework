@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
-import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 
 import { renderMetaFile } from "../../../../src/lib/active/meta-reader.js";
@@ -1399,7 +1399,7 @@ async function nativeErrandFixture() {
   const check = (headBranch = branch) => evaluateReviewReadiness(readinessRequest({ kind: "errand", slug: record.slug }, { headBranch }), {
     fs: buildFs({}), store: h.store,
   });
-  return { store: h.store, primary, check };
+  return { store: h.store, primary, check, record, branch, projectId };
 }
 
 it("reads a native Errand's own record and no lifecycle record", async () => {
@@ -1422,6 +1422,20 @@ it("refuses a completed Errand even when its retained branch matches", async () 
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
     provenance: { verb: "errand", lifecycleAction: "retire" } }));
   expect((await check()).state).toBe("invalid");
+});
+
+it("prefers the live Errand when a completed Errand retains the full branch ref", async () => {
+  const { store, record, branch, projectId, check } = await nativeErrandFixture();
+  const slug = SlugSchema.parse("previous");
+  lifecycleSuccess(await store.write({
+    action: "put", expected: null,
+    reference: recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug })),
+    content: serializeTransientIdentityRecord({ ...record, slug, branch: "fix/previous-abcdef02", claimId: "2".repeat(32) }),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    links: { branches: [{ repository: projectId, ref: `refs/heads/${branch}`, linkedAs: "created", excluded: [] }] },
+    provenance: { verb: "seed", lifecycleAction: "create" },
+  }));
+  expect(await check()).toMatchObject({ state: "ready", diagnostics: [] });
 });
 
 it("refuses the promoted work unit's branch when an Errand lookup precedes promotion", async () => {
@@ -1455,6 +1469,20 @@ it("refuses a matching branch when the active record lacks an ordinary Errand id
   expect((await check()).state).toBe("ready");
 });
 
+it("refuses a matching active Errand with no owner and admits it after repair", async () => {
+  const { store, primary, record, check } = await nativeErrandFixture();
+  lifecycleSuccess(await store.write({ ...recordPut(primary, { content: JSON.stringify({ ...record, owner: undefined }) }),
+    provenance: { verb: "seed-lifecycle", lifecycleAction: "update" } }));
+  const refused = await check();
+  const ownerless = lifecycleSuccess(await store.read({ reference: primary.reference }));
+  lifecycleSuccess(await store.write({ ...recordPut(ownerless, { content: primary.content }),
+    provenance: { verb: "restore", lifecycleAction: "update" } }));
+  expect((await check()).state).toBe("ready");
+  expect(refused).toMatchObject({ state: "invalid", diagnostics: [expect.objectContaining({
+    code: "malformed-artifact", message: expect.stringMatching(/owner.*restor|owner.*repair/iu),
+  })] });
+});
+
 it("rejects a matching Errand branch when the primary has an open conflict", async () => {
   const { store, primary, check } = await nativeErrandFixture();
   const { reference, content, version, formatVersion, placement, links } = primary;
@@ -1467,7 +1495,7 @@ it("rejects a matching Errand branch when the primary has an open conflict", asy
   expect(await store.read({ reference })).toMatchObject({ status: "ok", result: { conflicts: [conflict] } });
   const result = await check();
   expect(result.state).toBe("invalid");
-  expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "malformed-artifact", path: "work-item/record:demo",
+  expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "errand-record-conflict", path: "work-item/record:demo",
     message: expect.stringContaining(JSON.stringify(conflict)) }));
   expect(result.diagnostics[0]?.message).toContain("Resolve the named conflict records");
   const conflicted = lifecycleSuccess(await store.read({ reference }));

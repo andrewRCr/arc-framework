@@ -8,6 +8,7 @@ import type { MemoryRecord } from "./model.js";
 import { z } from "zod";
 import { missingLookup, namespaceAdmission, ok, recordAdmission, refused } from "./refusals.js";
 import { compareCompletedPlacements } from "../../../src/lib/store/placement.js";
+import { workBranchName } from "../../../src/lib/store/lifecycle-branch.js";
 
 function primary(record: MemoryRecord): boolean {
   return record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record";
@@ -36,8 +37,9 @@ function completedWinner(records: MemoryRecord[]): MemoryRecord[] {
 }
 
 function preferredRefRecords(records: MemoryRecord[], input: Extract<LookupInput, { kind: "ref" }>): MemoryRecord[] {
+  const branchName = workBranchName(input.ref);
   const matches = records.filter(record => primary(record)
-    && record.links?.branches?.some(branch => branch.repository === input.repository && branch.ref === input.ref));
+    && record.links?.branches?.some(branch => branch.repository === input.repository && workBranchName(branch.ref) === branchName));
   const live = matches.filter(record => record.placement?.kind !== "completed");
   return live.length > 0 ? live : completedWinner(matches);
 }

@@ -2,11 +2,10 @@
 import { deserializeTransientIdentityRecord } from "../../lib/errand/identity-record.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import { storeRemedyText } from "../../lib/store/native-refusal.js";
-import type { StoreRefusal, StoreResult } from "../../lib/store/refusal.js";
+import type { StoreRefusal } from "../../lib/store/refusal.js";
 import type { ReviewReadinessFact, ReviewReadinessRequest } from "./readiness-contract.js";
 import type { Store } from "../../lib/store/contract.js";
 import { sameOwner, sameReference, type OwnerIdentity, type RecordReference } from "../../lib/store/identity.js";
-import type { LookupResult } from "../../lib/store/lookup.js";
 import type { StoreRecord } from "../../lib/store/read.js";
 import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath } from "../../lib/store/lifecycle-write.js";
 import { selectWorkBranchLink, workBranchName } from "../../lib/store/lifecycle-branch.js";
@@ -74,7 +73,7 @@ export async function evaluateStoredErrandReadiness(request: ErrandRequest, auth
   const { store, errand } = authority, slug = SlugSchema.parse(request.vehicle.slug);
   const path = `work-item/record:${slug}`, branch = workBranchName(request.pullRequest.headBranch);
   const repository = await authority.projectId();
-  const found = errand === undefined ? await lookupErrandBranch(store, repository, branch)
+  const found = errand === undefined ? await store.lookup({ kind: "ref", repository, ref: branch })
     : await store.lookup({ kind: "claim", claim: { kind: "errand", slug, claimId: errand.claimId } });
   if (found.status === "refused") {
     if (errand === undefined && found.refusal.code === "not-found") {
@@ -99,22 +98,6 @@ export async function evaluateStoredErrandReadiness(request: ErrandRequest, auth
   return [errandBranchMismatch(detail)];
 }
 
-async function lookupErrandBranch(store: Store, repository: string, branch: string): Promise<StoreResult<LookupResult>> {
-  // Stored links admit both short branch names and fully qualified heads refs.
-  const short = await store.lookup({ kind: "ref", repository, ref: branch });
-  if (short.status === "refused" && short.refusal.code !== "not-found") return short;
-  const full = await store.lookup({ kind: "ref", repository, ref: `refs/heads/${branch}` });
-  if (full.status === "refused") return full.refusal.code === "not-found" ? short : full;
-  if (short.status === "ok" && !sameReference(short.result.reference, full.result.reference)) {
-    return { status: "refused", refusal: {
-      code: "ambiguous-match", class: "recoverable", candidates: [short.result.reference, full.result.reference],
-      condition: `Multiple records link the branch \`${branch}\` in project ${repository}.`,
-      remedy: { text: "Run `arc status --json` to identify the holders, then correct the competing branch links and retry." },
-    } };
-  }
-  return full;
-}
-
 function errandRecordFact(record: StoreRecord, selected: RecordReference, slug: string, path: string,
   errand: StoredReadinessAuthority["errand"]): ReviewReadinessFact | null {
   const { reference, placement } = record;
@@ -122,15 +105,18 @@ function errandRecordFact(record: StoreRecord, selected: RecordReference, slug: 
     || reference.owner.name !== slug || placement?.kind !== "active") {
     return fact("malformed-artifact", path, `The selected ${placement?.kind ?? "unplaced"} ${reference.kind} for \`${reference.owner.name}\` is not the active Errand \`${slug}\`. Run \`arc status --json\` and use the current vehicle for this branch.`);
   }
-  if (record.conflicts.length > 0) {
-    return fact("malformed-artifact", path, `The stored Errand has unresolved conflicts.${describeRecordConflicts(record.conflicts)}`);
-  }
   const decoded = deserializeTransientIdentityRecord(record.content, slug);
   if (decoded.kind !== "valid" || decoded.record.kind !== "errand" || decoded.record.purpose !== "errand") {
     return fact("malformed-artifact", path, `The active record does not encode an ordinary Errand named \`${slug}\`. Restore its valid identity from authoritative state, then retry.`);
   }
+  if (decoded.record.owner === undefined) {
+    return fact("malformed-artifact", path, `The active Errand \`${slug}\` has no owner. Restore its owner from authoritative state, then retry.`);
+  }
   if (errand !== undefined && (decoded.record.claimId !== errand.claimId || decoded.record.branch !== errand.branch)) {
     return fact("malformed-artifact", path, `The Errand records claim ${decoded.record.claimId} on \`${decoded.record.branch}\`, which differs from the approved claim or branch. Recompose the request for the current Errand and obtain approval.`);
+  }
+  if (record.conflicts.length > 0) {
+    return fact("errand-record-conflict", path, `The stored Errand has unresolved conflicts.${describeRecordConflicts(record.conflicts)}`);
   }
   return null;
 }
