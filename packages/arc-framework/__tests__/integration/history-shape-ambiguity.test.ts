@@ -23,10 +23,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
-import type { RawGitExec } from "../../src/lib/change-facts.js";
-import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
+import type { RawGitExec } from "../../src/lib/git/exec.js";
+import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createCandidateSubjectSnapshot } from "../../src/lib/work-unit/candidate-attestation.js";
-import { handleAttest, LifecycleCommandRefusalSchema } from "../../src/handlers/lifecycle.js";
+import { handleAttest } from "../../src/handlers/lifecycle-delivery-review.js";
+import { LifecycleCommandRefusalSchema } from "../../src/handlers/lifecycle-shared.js";
 import { handleIntegrationCheckpoint } from "../../src/handlers/integration.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { runBaseDrift } from "../../src/lib/git/base-distance.js";
@@ -47,10 +48,11 @@ import { runHandlerAt } from "../helpers/handler.js";
 import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
-  initInTempRepo,
   makeGitExec,
 } from "../helpers/integration.js";
+import { initInTempRepo } from "../helpers/init-temp-repo.js";
 import { setupMultiClone } from "../helpers/multi-clone.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -130,34 +132,10 @@ function machineContext() {
 }
 
 function metaDocument(state: "Active" | "Integrating"): string {
-  return [
-    `# Metadata: ${WORK_UNIT}`,
-    "",
-    "| **State** | **Owner**   | **Branch**           | **Class** | **Priority** |",
-    "| --------- | ----------- | -------------------- | --------- | ------------ |",
-    `| \`${state}\` | \`test-user\` | \`feat/${WORK_UNIT}\` | \`Light\`   | \`P2\`         |`,
-    "",
-    "- **Cohort:** [none]",
-    "- **Depends On:** [none]",
-    "",
-    "- **Origin:** [internal]",
-    "- **Design:** [none]",
-    `- **Task List:** \`tasks-${WORK_UNIT}.md\``,
-    "- **Review Rubric:** [none]",
-    "",
-    "- **Current Workflow:** [none]",
-    "- **Last Completed:** verification",
-    "- **Next Task:** [none]",
-    "- **Blockers:** [none]",
-    "",
-    "- **Next Action:** verification complete",
-    "",
-    "- **PR URL:** [none]",
-    "- **Completed:** [none]",
-    "",
-    "---",
-    "",
-  ].join("\n");
+  return makeMetaFixture(WORK_UNIT, {
+    state, owner: "test-user", branch: `feat/${WORK_UNIT}`, workClass: "Light", priority: "P2",
+    taskList: `tasks-${WORK_UNIT}.md`, lastCompleted: "verification", nextAction: "verification complete",
+  });
 }
 
 function taskDocument(): string {
@@ -374,7 +352,7 @@ describe("the Candidate attestation ceremony over an ambiguous history", () => {
     expect(refused.exitCode).toBe(1);
     const refusal = LifecycleCommandRefusalSchema.parse(refused.result);
     expect(refusal.reason).toContain("merge-base-ambiguous");
-    expect(refusal.remedy.argv).toEqual(["arc", "attest", WORK_UNIT]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "attest", WORK_UNIT] });
 
     // The remedy the refusal names, run as an operator would run it: one merge leaves the advanced base an
     // ancestor of the branch, so the pair has one best ancestor again and the same ceremony goes through.

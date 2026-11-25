@@ -1,8 +1,8 @@
 /**
  * Shared helpers for integration tests.
  *
- * Provides temp git repo setup, real I/O context construction, and
- * a full `arc init` runner for tests that need a working installation.
+ * Provides temp git repo setup and real I/O context construction. The full `arc init` runner lives in
+ * `init-temp-repo.ts`.
  */
 
 import {
@@ -23,13 +23,11 @@ import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { onTestFinished } from "vitest";
 
-import { runInit } from "../../src/commands/init.js";
 import type { IOContext } from "../../src/commands/init.js";
 import type { GitExec } from "../../src/lib/git/index.js";
 import type { GitExecInput } from "../../src/lib/errand/index.js";
-import type { Recipe, Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
+import type { Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
-import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
 import { MANIFEST_SCHEMA_VERSION } from "../../src/lib/constants.js";
 import {
   NOTES_COMPACTION_MANIFEST_PATH,
@@ -37,7 +35,10 @@ import {
   type NotesCompactionManifest,
 } from "../../src/lib/user-sync/compaction-manifest.js";
 import { createTempRepoCore, removeGitBackedDir } from "./temp-repo.js";
-import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
+import { createExecaGitExec, createExecaGitExecInput } from "../../src/lib/git/process-executor.js";
+import { createUserIOContext } from "../../src/lib/io-context.js";
+
+export { commitAll } from "./temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -54,21 +55,9 @@ export function makeGitExec(cwd: string): GitExec {
  * `mktree`) that reads its payload from stdin.
  */
 export function makeGitExecInput(cwd: string): GitExecInput {
-  return (args, input) =>
-    new Promise((resolve, reject) => {
-      const proc = spawn("git", args, { cwd });
-      let stdout = "";
-      let stderr = "";
-      proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-      proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-      proc.on("close", (code) => {
-        if (code === 0) resolve(stdout);
-        else reject(new Error(`git ${args.join(" ")} failed (code ${code}): ${stderr}`));
-      });
-      proc.on("error", reject);
-      proc.stdin.write(input);
-      proc.stdin.end();
-    });
+  const exec = createExecaGitExecInput();
+  return async (args, input, options) =>
+    await exec(args, input, { ...options, cwd: options?.cwd ?? cwd });
 }
 
 /** One entry in a synthetic notes tree. */
@@ -159,19 +148,10 @@ export async function makeNotesTreeCommit(
   return { blobs, manifestBlob, tip: stdout.trim() };
 }
 
-/**
- * Stub GitExec returning a fixed `git rev-parse --abbrev-ref HEAD` value
- * for tests that need branch-pattern fallback behavior without a real
- * git repo. Pass `null` for detached HEAD (emits the literal `HEAD`).
- */
-export function stubGitExec(branch: string | null): GitExec {
-  const stdout = branch ?? "HEAD";
-  return async () => ({ stdout, stderr: "" });
-}
-
 /** Create a real IOContext for a given cwd. */
 export function makeIOContext(cwd: string): IOContext {
   return {
+    writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     readFile: (path) => readFile(path, "utf-8"),
     writeFile: (path, content) => writeFile(path, content, "utf-8"),
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
@@ -205,16 +185,6 @@ export function cleanupTempDir(dir: string): Promise<void> {
   return removeGitBackedDir(dir);
 }
 
-/** Load the real init recipe from the template directory. */
-export async function loadRecipe(): Promise<Recipe> {
-  const templateDir = getArcTemplatePath();
-  const content = await readFile(
-    join(templateDir, "..", "init-recipe.json"),
-    "utf-8",
-  );
-  return JSON.parse(content) as Recipe;
-}
-
 /** Sensible defaults for InitPromptResult. Override only what matters per test. */
 export const DEFAULT_PROMPTS: InitPromptResult = {
   project_name: "Test Project",
@@ -222,33 +192,6 @@ export const DEFAULT_PROMPTS: InitPromptResult = {
   pm_mode: "none",
   team_mode: false,
 };
-
-/**
- * Run a full `arc init` in a temp repo with the given prompt values.
- *
- * Returns the temp directory path. Caller is responsible for cleanup.
- */
-export async function initInTempRepo(
-  prompts: InitPromptResult,
-  identity = "test-user",
-): Promise<string> {
-  const dir = await createTempRepo();
-  const templateDir = getArcTemplatePath();
-  const recipe = await loadRecipe();
-  const io = makeIOContext(dir);
-
-  await runInit({
-    cwd: dir,
-    io,
-    templateDir,
-    internalTemplateDir: getInternalTemplatePath(),
-    recipe,
-    prompts,
-    identityResult: identity,
-  });
-
-  return dir;
-}
 
 /**
  * Recursively list files under a directory (relative paths).
@@ -458,47 +401,12 @@ export function makeGitNoteReader(cwd: string) {
   };
 }
 
-/**
- * Read directory entries with name and size (real filesystem).
- * Recurses into subdirectories — entries use relative paths.
- * Skips dot-directories (infrastructure, not user content).
- */
-export async function readUserDir(dirPath: string): Promise<DirEntry[]> {
-  const entries: DirEntry[] = [];
-
-  async function walk(currentPath: string, prefix: string): Promise<void> {
-    let names: string[];
-    try {
-      names = await readdir(currentPath);
-    } catch {
-      return;
-    }
-    for (const name of names) {
-      const fullPath = join(currentPath, name);
-      const s = await stat(fullPath);
-      if (s.isDirectory()) {
-        if (name.startsWith(".")) continue;
-        await walk(fullPath, prefix ? `${prefix}/${name}` : name);
-      } else if (s.isFile()) {
-        const relativeName = prefix ? `${prefix}/${name}` : name;
-        entries.push({ name: relativeName, size: s.size });
-      }
-    }
-  }
-
-  await walk(dirPath, "");
-  return entries;
-}
-
 /** Create a real UserIOContext for a temp repo. */
 export function makeUserIO(cwd: string): UserIOContext {
   return {
+    ...createUserIOContext(),
     exec: makeGitExec(cwd),
     execInput: makeGitExecInput(cwd),
-    readFile: (path) => readFile(path, "utf-8"),
-    writeFile: (path, content) => writeFile(path, content, "utf-8"),
-    mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
-    readDir: readUserDir,
     writeNote: makeGitNoteWriter(cwd),
     readNote: makeGitNoteReader(cwd),
   };
@@ -520,6 +428,8 @@ export type TestFinishedRegistrar = (handler: () => Promise<void>) => void;
 
 /** Bare-remote cleanup ownership. */
 export interface AddBareRemoteOptions {
+  /** Object format matching the working repository when it is not the default. */
+  objectFormat?: "sha1" | "sha256";
   /** Explicit registrar for per-test cleanup; defaults to Vitest's current test. */
   registerCleanup?: TestFinishedRegistrar;
   /** Setup-hook escape hatch when an existing `afterEach` owns the returned path. */
@@ -546,7 +456,7 @@ export async function addBareRemote(
   const remoteDir = await mkdtemp(join(tmpdir(), "arc-remote-"));
   let originAdded = false;
   try {
-    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", ...(options.objectFormat ? [`--object-format=${options.objectFormat}`] : []), remoteDir]);
     await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd });
     originAdded = true;
     await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd });
@@ -578,5 +488,4 @@ export type {
   PreparedRepositoryTemplate,
 } from "./prepared-repository.js";
 export { execFileAsync };
-export { getArcTemplatePath, getInternalTemplatePath };
-export type { IOContext, GitExec, GitExecInput, Recipe, InitPromptResult, Manifest, DirEntry, UserIOContext };
+export type { IOContext, GitExec, GitExecInput, InitPromptResult, Manifest, DirEntry, UserIOContext };

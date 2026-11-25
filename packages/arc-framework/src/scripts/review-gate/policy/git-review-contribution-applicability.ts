@@ -2,13 +2,12 @@
 
 import { z } from "zod";
 
-import type { RawGitExec } from "../../../lib/change-facts.js";
 import {
-  DeliveryContributionCoordinateSchema,
-  DeliveryContributionEndpointsSchema,
-} from "../../../lib/delivery/contribution-proof.js";
-import { proveGitDeliveryContribution } from "../../../lib/delivery/git-contribution-proof.js";
-import { normalizeGitRejection } from "../../../lib/git/process-error.js";
+  contributionReadFailure,
+  proveContributionFacts,
+  readMergeBases,
+} from "../../../lib/evidence-applicability/git-contribution-facts.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import {
   ReviewContributionApplicabilityResultSchema,
   ReviewContributionApplicabilitySelectorSchema,
@@ -20,27 +19,6 @@ import {
 
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const ObservedEndpointsSchema = z.strictObject({ head: ObjectIdSchema, base: ObjectIdSchema });
-const decoder = new TextDecoder("utf-8", { fatal: true });
-
-class MalformedGitEvidenceError extends Error {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause === undefined ? undefined : { cause });
-    this.name = "MalformedGitEvidenceError";
-  }
-}
-
-function decodeEvidence(bytes: Uint8Array, description: string): string {
-  try {
-    return decoder.decode(bytes);
-  } catch (error) {
-    throw new MalformedGitEvidenceError(`${description} is not valid UTF-8.`, error);
-  }
-}
-
-function decodeLines(bytes: Uint8Array): string[] {
-  const value = decodeEvidence(bytes, "Git line evidence").trim();
-  return value === "" ? [] : value.split(/\r?\n/u);
-}
 
 function failure(
   selector: ReviewContributionApplicabilitySelector,
@@ -92,21 +70,25 @@ function movement(
   });
 }
 
-async function coordinate(exec: RawGitExec, head: string) {
-  const [commitResult, treeResult] = await Promise.all([
-    exec(["rev-parse", "--verify", `${head}^{commit}`], { objectAccess: "local-only" }),
-    exec(["rev-parse", `${head}^{tree}`], { objectAccess: "local-only" }),
-  ]);
-  const commit = decodeEvidence(commitResult.stdout, "Git commit evidence").trim();
-  const tree = decodeEvidence(treeResult.stdout, "Git tree evidence").trim();
-  if (commit !== head) throw new MalformedGitEvidenceError(`Git did not resolve the exact commit ${head}.`);
-  return DeliveryContributionCoordinateSchema.parse({ head, tree });
-}
-
 export interface GitReviewContributionApplicabilityInput {
   readonly selector: ReviewContributionApplicabilitySelector;
   readonly exec: RawGitExec;
   readonly observeEndpoints: () => Promise<{ head: string; base: string }>;
+}
+
+async function comparisonBase(
+  selector: ReviewContributionApplicabilitySelector,
+  exec: RawGitExec,
+): Promise<string | ReviewContributionApplicabilityResult> {
+  if (selector.priorHead === selector.currentHead) return selector.priorBase;
+  const bases = await readMergeBases(exec, selector.priorHead, selector.currentBase);
+  if (bases === null) {
+    return unavailable(selector, "merge-base-missing", "No prior-review-to-current merge base is available.");
+  }
+  if (bases.length > 1) {
+    return unavailable(selector, "merge-base-ambiguous", "Multiple prior-review-to-current merge bases exist.");
+  }
+  return ObjectIdSchema.parse(bases[0]);
 }
 
 /** Derive exact D4 facts while detecting movement before and after the read. */
@@ -117,49 +99,26 @@ export async function projectGitReviewContributionApplicability(
   try {
     const initialMovement = movement(selector, await input.observeEndpoints());
     if (initialMovement !== null) return initialMovement;
-    if (selector.priorHead === selector.currentHead) {
+    if (selector.priorHead === selector.currentHead
+      && selector.priorBase === selector.currentBase) {
       return classifyReviewContributionApplicability(selector, null);
     }
-    const mergeBaseArgs = ["merge-base", "--all", selector.priorHead, selector.currentBase];
-    let mergeBaseResult;
-    try {
-      mergeBaseResult = await input.exec(mergeBaseArgs, { objectAccess: "local-only" });
-    } catch (error) {
-      const rejected = normalizeGitRejection(error, { command: "git", args: mergeBaseArgs });
-      if (rejected.kind === "nonzero-exit" && rejected.exitCode === 1 && rejected.stdout === "") {
-        return unavailable(selector, "merge-base-missing", "No prior-review-to-current merge base is available.");
-      }
-      throw rejected;
-    }
-    const mergeBases = decodeLines(mergeBaseResult.stdout);
-    if (mergeBases.length === 0) {
-      return unavailable(selector, "merge-base-missing", "No prior-review-to-current merge base is available.");
-    }
-    if (mergeBases.length > 1) {
-      return unavailable(selector, "merge-base-ambiguous", "Multiple prior-review-to-current merge bases exist.");
-    }
-    const mergeBase = ObjectIdSchema.parse(mergeBases[0]);
-    const [beforeBase, beforeMember, afterBase, afterMember] = await Promise.all([
-      coordinate(input.exec, mergeBase),
-      coordinate(input.exec, selector.priorHead),
-      coordinate(input.exec, selector.currentBase),
-      coordinate(input.exec, selector.currentHead),
-    ]);
-    const endpoints = DeliveryContributionEndpointsSchema.parse({
-      before: { predecessor: beforeBase, member: beforeMember },
-      after: { predecessor: afterBase, member: afterMember },
+    // A fixed head can expose a different contribution after its diff base moves.
+    // Compare the reviewed base to the current base instead of substituting their
+    // merge base, which would erase the original reviewed contribution.
+    const beforeBaseHead = await comparisonBase(selector, input.exec);
+    if (typeof beforeBaseHead !== "string") return beforeBaseHead;
+    const facts = await proveContributionFacts(input.exec, {
+      beforeBase: beforeBaseHead,
+      beforeMember: selector.priorHead,
+      afterBase: selector.currentBase,
+      afterMember: selector.currentHead,
     });
-    const proof = await proveGitDeliveryContribution({ exec: input.exec, ...endpoints });
     const finalMovement = movement(selector, await input.observeEndpoints());
     if (finalMovement !== null) return finalMovement;
-    return classifyReviewContributionApplicability(selector, { endpoints, proof });
+    return classifyReviewContributionApplicability(selector, facts);
   } catch (error) {
-    return failure(
-      selector,
-      error instanceof z.ZodError || error instanceof MalformedGitEvidenceError
-        ? "malformed-evidence"
-        : "git-failure",
-      error instanceof Error ? error.message : String(error),
-    );
+    const { reason, detail } = contributionReadFailure(error);
+    return failure(selector, reason, detail);
   }
 }

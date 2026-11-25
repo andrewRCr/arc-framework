@@ -1,6 +1,6 @@
 /** Read-only composition of config, target validation, Git metrics, and chunking policy. */
 
-import type { RawGitExec } from "../../../lib/change-facts.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import { resolveChangeStats } from "../../../lib/change-stats.js";
 import type { ReaderResult } from "../../../lib/config/status-reader.js";
 import { validateReviewTarget } from "../core/gate-contract-v2.js";

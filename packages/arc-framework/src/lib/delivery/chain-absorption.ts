@@ -1,6 +1,6 @@
 /** Append-only content absorption for a refreshed delivery predecessor. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
 import type { DeliveryTerminalRemedy } from "./retirement.js";
 import { supportsMergeTreeWriteTree } from "../git/merge-tree-capability.js";
 import { normalizeGitRejection } from "../git/process-error.js";

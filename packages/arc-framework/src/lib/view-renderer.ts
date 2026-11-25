@@ -5,6 +5,7 @@
 import type { GitExec } from "./git/index.js";
 import { resolveGitConfigOverride } from "./config/resolve-override.js";
 import { displayWidth } from "./markdown/display-width.js";
+import { assertNever } from "./kernel/index.js";
 
 const FENCE_START_RE = /^\s{0,3}(?<marker>`{3,}|~{3,})/u;
 const HEADING_RE = /^\s{0,3}#{1,6}(?:\s|$)/u;
@@ -105,7 +106,9 @@ function pagerProcessInput(input: {
   anchor?: ViewPagerAnchor;
   terminalWidth?: number;
 }, environment: NodeJS.ProcessEnv): PagerProcessInput {
-  const baseEnvironment = { ...environment, LESS: "FRX" };
+  // No less `-X`: without the alternate screen, terminals scroll their own history on the mouse wheel, not the pager.
+  // `-K`: an interrupt also ends this process and any renderer above less, so less must quit and restore the screen.
+  const baseEnvironment = { ...environment, LESS: "FRK" };
   switch (input.renderer) {
     case "glow":
       return {
@@ -115,8 +118,8 @@ function pagerProcessInput(input: {
         env: {
           ...baseEnvironment,
           LESS: input.anchor === undefined
-            ? "FRX"
-            : `FRX +/###.*${escapeLessSearch(input.anchor.id)}`,
+            ? "FRK"
+            : `FRK +/###.*${escapeLessSearch(input.anchor.id)}`,
         },
       };
     case "bat":
@@ -134,8 +137,8 @@ function pagerProcessInput(input: {
         env: {
           ...baseEnvironment,
           BAT_PAGER: input.anchor === undefined
-            ? "less -RFX"
-            : `less -RFX +${input.anchor.line}`,
+            ? "less -RFK"
+            : `less -RFK +${input.anchor.line}`,
         },
       };
     case "plain":
@@ -144,16 +147,14 @@ function pagerProcessInput(input: {
         args: [
           "-R",
           "-F",
-          "-X",
+          "-K",
           ...(input.anchor === undefined ? [] : [`+${input.anchor.line}`]),
         ],
         input: input.content,
         env: baseEnvironment,
       };
-    default: {
-      const _exhaustive: never = input.renderer;
-      return _exhaustive;
-    }
+    default:
+      return assertNever(input.renderer);
   }
 }
 

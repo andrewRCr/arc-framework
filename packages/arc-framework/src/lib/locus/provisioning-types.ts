@@ -6,6 +6,7 @@ import type {
   LinkedWorktreeCreationResult,
 } from "../git/linked-worktree.js";
 import type { WorktreeMarker } from "../git/worktree-marker.js";
+import type { ProjectionRemovalSlots, SpawnLock } from "../git/worktree-removal.js";
 import type { RegisteredWorktreeScanResult } from "../git/worktree-roster.js";
 import type { LocusAllocationPlan } from "./allocator.js";
 import type { ProvisioningAuthority } from "./provisioning-authority.js";
@@ -51,6 +52,8 @@ export interface ProvisionTransientLocusDependencies {
   removeMarker(worktreePath: string, expectedBytes: Buffer): Promise<
     { kind: "removed" } | { kind: "generation-mismatch" }
   >;
+  /** Prove that an existing pending Errand checkout can safely repeat setup. */
+  canResumePendingErrandCheckout?(worktreePath: string, expectedHead: string): Promise<boolean>;
   setupWorktree(worktreePath: string, primaryPath: string): Promise<void>;
   withOperationLock<Value>(cwd: string, operation: () => Promise<Value>): Promise<Value>;
   revalidateTarget(options: {
@@ -65,11 +68,15 @@ export interface ProvisionTransientLocusDependencies {
   rollbackPrimary(checkoutPath: string, receipt: PrimaryCheckoutReceipt): Promise<
     { kind: "rolled-back" } | { kind: "generation-mismatch" }
   >;
+  /** Observe personal-data preservation before compensation clears ownership or removes a checkout. */
+  checkRollback: ProjectionRemovalSlots["check"];
   rollbackSpawned(
     receipt: LinkedWorktreeCreationReceipt,
     rosterHead: string,
     primaryWorktreePath: string,
   ): Promise<{ kind: "rolled-back" } | { kind: "generation-mismatch" }>;
+  /** Lock a spawned checkout once nothing can roll its spawn back, leaving a lock another tool set first. */
+  lockSpawnedCheckout(worktreePath: string): Promise<SpawnLock>;
 }
 
 export type ProvisioningRefusalReason =
@@ -84,8 +91,13 @@ export type ProvisioningRefusalReason =
 
 export type ProvisioningEvidence =
   | { readonly kind: "identity-only" }
-  | { readonly kind: "pending-marker"; readonly checkoutPath: string; readonly markerBytes: Buffer }
-  | { readonly kind: "marker-residue"; readonly checkoutPath: string; readonly markerBytes: Buffer | null };
+  | { readonly kind: "pending-marker"; readonly checkoutPath: string; readonly markerBytes: Buffer; readonly detail?: string }
+  /**
+   * What provisioning left that rollback cannot undo. Without marker bytes, `malformedMarker` says the marker there
+   * could not be parsed; otherwise provisioning retains the checkout itself.
+   */
+  | { readonly kind: "marker-residue"; readonly checkoutPath: string; readonly markerBytes: Buffer | null;
+    readonly malformedMarker?: true; readonly detail?: string };
 
 export interface TransientProvisioningReceipt {
   readonly disposition: "applied" | "idempotent";
@@ -99,6 +111,8 @@ export interface TransientProvisioningReceipt {
   };
   readonly worktree: { readonly path: string; readonly created: boolean; readonly head: string };
   readonly marker: { readonly state: "ready"; readonly bytes: Buffer };
+  /** The lock a spawned checkout carries; absent for the primary, which is never locked. */
+  readonly lock?: SpawnLock;
 }
 
 export type ProvisionTransientLocusResult =

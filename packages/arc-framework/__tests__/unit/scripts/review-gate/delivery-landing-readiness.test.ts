@@ -1,3 +1,4 @@
+import { withReviewNextPassContext } from "../../../fixtures/review-next-pass.js";
 /** Delivery landing admission from exact-target review observations. */
 
 import { describe, expect, it } from "vitest";
@@ -11,6 +12,7 @@ import {
   "../../../../src/scripts/review-gate/delivery-landing-readiness.js";
 import { resolveReviewPolicy } from
   "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { nativeListingRefusal } from "../../../fixtures/native-refusal.js";
 import { composeDeliveryReviewObligation, RoutedReviewObligationSchema, type ReviewStatusObservation,
   type ReviewStatusPort } from
   "../../../../src/scripts/review-gate/status.js";
@@ -56,6 +58,7 @@ function observation(
           detail: "The exact member review is discharged.",
           progress: {
             completedPasses: 1,
+            completePasses: 1,
             passCeiling: 2,
             attempts: [],
           },
@@ -87,7 +90,7 @@ function deliveryObligation(secondDischarged: boolean) {
   }));
   const second = targets[1];
   if (second === undefined) throw new Error("missing second member");
-  const requestAdmission = secondDischarged ? undefined : resolveReviewPolicy({
+  const requestAdmission = secondDischarged ? undefined : resolveReviewPolicy(withReviewNextPassContext({
     schemaVersion: 1,
     target: { repository: second.repository, pullRequest: second.pullRequest, headSha: second.headSha },
     lane: "standard",
@@ -103,7 +106,7 @@ function deliveryObligation(secondDischarged: boolean) {
     maxPasses: 2,
     completedPasses: 0,
     attempts: [],
-  });
+  }));
   return composeDeliveryReviewObligation({
     targets,
     discharges: [{
@@ -111,6 +114,7 @@ function deliveryObligation(secondDischarged: boolean) {
       detail: "member one discharged",
       nextSource: null,
       completedPasses: 1,
+      completePasses: 1,
       passCeiling: 2,
       attemptHistory: [],
     }, {
@@ -119,6 +123,7 @@ function deliveryObligation(secondDischarged: boolean) {
       nextSource: secondDischarged ? null : "codex-pr",
       requestAdmission,
       completedPasses: 0,
+      completePasses: 0,
       passCeiling: 2,
       attemptHistory: [],
     }],
@@ -229,5 +234,25 @@ describe("delivery landing review readiness", () => {
     await expect(assessDeliveryLandingReviewReadiness(target, {
       observe: async () => { throw new Error("unavailable"); },
     })).resolves.toEqual({ status: "refused", reason: "status-unavailable" });
+  });
+
+  it("raises a native refusal of the member status read whole, and admits the member once it reads", async () => {
+    const refusal = nativeListingRefusal();
+    let repaired = false;
+    const status: ReviewStatusPort = { observe: async () => { if (!repaired) throw refusal; return observation(); } };
+    await expect(assessDeliveryLandingReviewReadiness(target, status)).rejects.toBe(refusal);
+    repaired = true;
+    await expect(assessDeliveryLandingReviewReadiness(target, status)).resolves.toEqual({ status: "ready" });
+  });
+
+  it("raises a native refusal of the shared delivery status read whole, and admits the member once it reads", async () => {
+    const refusal = nativeListingRefusal();
+    let repaired = false;
+    const shared: ReviewStatusPort = { observe: async () => { if (!repaired) throw refusal; return observation(); } };
+    const readiness = () => createDeliveryLandingSetReviewReadiness(target, shared,
+      (_member, routedObligation) => port(observation({ routedObligation })));
+    await expect(readiness()(target)).rejects.toBe(refusal);
+    repaired = true;
+    await expect(readiness()(target)).resolves.toEqual({ status: "ready" });
   });
 });

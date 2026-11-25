@@ -1,21 +1,25 @@
 /** Typed integration checkpoint reduction over canonical boundary evidence. */
 
 import { z } from "zod";
+import { RecordVersionSchema } from "../../lib/store/identity.js";
+import { describeCheckpointReconciliation } from "./checkpoint-reconciliation-detail.js";
 
-import type { BaseDriftResult, BaseMovement } from "../../lib/git/base-drift-types.js";
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
+import { CanonicalDigestSchema, WorkUnitStateSchema } from "../../lib/kernel/schema/vocabulary.js";
+import { ArcPlacementTierSchema } from "../../lib/layout/index.js";
+import { BaseDriftResultSchema, type BaseDriftResult, type BaseMovement } from "../../lib/git/base-drift-types.js";
 import {
   GitMergeFeasibilitySchema,
   type GitMergeFeasibility,
 } from "../../lib/git/merge-feasibility.js";
 import type { CandidateCurrentnessProjection } from "../../lib/work-unit/candidate-attestation.js";
 import {
-  CandidateApplicabilityDecisionResultSchema,
   CandidateApplicabilityResultSchema,
   type CandidateApplicabilityDecisionResult,
   type CandidateApplicabilityResult,
 } from "../../lib/work-unit/candidate-applicability.js";
 import {
-  CandidateApplicabilityResolutionSelectorSchema,
+  CandidateApplicabilityDecisionSelectionSchema,
   type CandidateApplicabilityResolutionSelector,
 } from "../../lib/work-unit/candidate-applicability-resolution.js";
 import { CandidateSubjectUncollectableError } from "../../lib/work-unit/git-candidate-subject.js";
@@ -28,14 +32,18 @@ import {
 import { RequiredCheckStatusSchema } from "../review-gate/status.js";
 import {
   ChangeRequestMergeObservationSchema,
+  hostAdmissionRefusalCorrection,
   type ChangeRequestMergeObservation,
 } from "../review-gate/change-request.js";
 import {
-  RunConvergenceVerificationActionSchema,
+  NO_HOSTED_REVIEW_RESERVATION_DETAIL,
+  PublishedRunConvergenceVerificationActionSchema,
   createRunConvergenceVerificationAction,
+  type PostAttestContinuation,
 } from "../review-gate/policy/integration-boundary-locus.js";
 import {
   CanonicalSettlementPlanSchema,
+  describeSettlementPlan,
   settlementDispositionIds,
   type CanonicalSettlementPlan,
 } from "./settlement-plan.js";
@@ -55,9 +63,8 @@ import {
   type SpineRemedy,
 } from "./spine-refusal.js";
 
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const DetailSchema = z.string().trim().min(1).max(4_096);
 
 export const IntegrationCheckpointRequestSchema = z.strictObject({
@@ -74,8 +81,8 @@ export const IntegrationLifecycleSummarySchema = z.strictObject({
     "nonexistent", "provisional", "planned", "planning", "active", "integrating", "parked", "shipped",
   ]),
   position: z.strictObject({
-    phase: z.enum(["Planning", "Active", "Integrating", "Shipped"]),
-    location: z.enum(["provisional", "planned", "active", "completed"]),
+    phase: WorkUnitStateSchema,
+    location: ArcPlacementTierSchema,
   }).nullable(),
   artifactFacts: z.array(z.strictObject({
     code: z.string().min(1),
@@ -115,9 +122,13 @@ export type CheckpointMovementObservation = z.infer<typeof CheckpointMovementObs
  */
 export type DeliveryClassifierCommand = "rerun-checkpoint" | "reconcile-base" | "rebaseline" | "merge-unrelated";
 
+export type CheckpointReconciliationRule =
+  | "ambiguous-merge-base" | "regenerable-conflict" | "base-currentness-required" | "overlapping";
+
 export type CheckpointMovementPlan =
   | { state: "proceed" }
-  | { state: "reconcile"; nextAction: "reconcile-base" | "reconcile-regenerable" }
+  | { state: "reconcile"; nextAction: "reconcile-base"; rule: Exclude<CheckpointReconciliationRule, "regenerable-conflict"> }
+  | { state: "reconcile"; nextAction: "reconcile-regenerable"; rule: "regenerable-conflict" }
   | {
       state: "blocked";
       reason: "unsafe-reconcile" | "host-pending" | "host-refused" | "conflict" | "base-unrelated";
@@ -142,11 +153,25 @@ export function checkpointMovementCause(
 }
 
 /**
+ * Whether the host admits the exact head while only its test merge lags the base.
+ *
+ * The host's test merge covers the exact head on an earlier base, so what lags is its own conflict reading at the
+ * current base, and the exact-pair Git feasibility read beside it answers that question for the current base. The
+ * host may not recompute until a later change-request event, so waiting for it can stall indefinitely.
+ */
+function testMergeLagsOnlyTheBase(admission: ChangeRequestMergeObservation): boolean {
+  return admission.state === "unresolved" && admission.condition === "stale-base-test-merge";
+}
+
+/**
  * The readings every mutating reconciliation is held to, whatever the movement between the pair came to.
  *
  * The merge that collapses two best ancestors to one is an ordinary merge: it conflicts, and it is admitted
  * or refused, on the same terms as the reconciliation an overlapping base gets. Reading them in one place
  * ahead of any reconcile is what keeps a history that proves no overlap from buying a route past them.
+ * A test merge that lags only the base bars neither a reconciliation nor a disjoint merge of a head Git merges
+ * cleanly. A host refusal that a local repair can clear permits only that reconciliation; final admission is read
+ * again afterwards.
  *
  * @param observation - The parsed movement observation, whose coordinates the caller has already agreed.
  * @returns The refusal the readings require, or `null` when none of them stops this pair.
@@ -158,6 +183,11 @@ function mutatingReconciliationBar(observation: CheckpointMovementObservation): 
   if (observation.feasibility.state === "substantive-conflict") {
     return { state: "blocked", reason: "conflict", paths: observation.feasibility.paths };
   }
+  if (observation.movement !== "unknown" && (
+    testMergeLagsOnlyTheBase(observation.admission)
+    || (observation.admission.state === "refused" && observation.admission.condition === "not-mergeable"
+      && observation.feasibility.state === "regenerable-conflict")
+  )) return null;
   if (observation.admission.state === "unresolved") {
     return { state: "blocked", reason: "host-pending", detail: observation.admission.detail };
   }
@@ -200,21 +230,23 @@ export function composeCheckpointMovementPlan(input: {
     // The pair has no provable overlap to reconcile against, so the merge is the whole remedy — and it meets
     // the evidence bar every other mutating reconciliation meets before it is allowed to run.
     return observation.integrationEvidenceComplete
-      ? { state: "reconcile", nextAction: "reconcile-base" }
+      ? { state: "reconcile", nextAction: "reconcile-base", rule: "ambiguous-merge-base" }
       : {
           state: "blocked",
           reason: "unsafe-reconcile",
           detail: "A mutating reconciliation requires complete integration evidence.",
         };
   }
-  const reconcileAction = observation.feasibility.state === "regenerable-conflict"
-    ? "reconcile-regenerable"
-    : observation.admission.state === "base-currentness-required" || observation.movement === "overlapping"
-      ? "reconcile-base"
-      : null;
-  if (reconcileAction === null) return { state: "proceed" };
+  const reconcilePlan = observation.feasibility.state === "regenerable-conflict"
+    ? { state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" } as const
+    : observation.admission.state === "base-currentness-required"
+      ? { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" } as const
+      : observation.movement === "overlapping"
+        ? { state: "reconcile", nextAction: "reconcile-base", rule: "overlapping" } as const
+        : null;
+  if (reconcilePlan === null) return { state: "proceed" };
   return observation.integrationEvidenceComplete
-    ? { state: "reconcile", nextAction: reconcileAction }
+    ? reconcilePlan
     : {
         state: "blocked",
         reason: "unsafe-reconcile",
@@ -332,9 +364,7 @@ const CheckpointBlockedBaseShape = {
 };
 
 const CandidateApplicabilityCheckpointPayloadSchema = z.union([
-  CandidateApplicabilityDecisionResultSchema.extend({
-    resolutionSelector: CandidateApplicabilityResolutionSelectorSchema,
-  }),
+  CandidateApplicabilityDecisionSelectionSchema,
   CandidateApplicabilityResultSchema,
 ]);
 
@@ -456,13 +486,13 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
   z.strictObject({
     ...CheckpointBlockedBaseShape,
     reason: z.literal("drift-unavailable"),
-    payload: z.strictObject({ drift: z.custom<BaseDriftResult>() }),
+    payload: z.strictObject({ drift: BaseDriftResultSchema }),
   }),
   z.strictObject({
     ...CheckpointBlockedBaseShape,
     reason: z.literal("unsafe-reconcile"),
     payload: z.strictObject({
-      drift: z.custom<BaseDriftResult>(),
+      drift: BaseDriftResultSchema,
       observation: CheckpointMovementObservationSchema,
       detail: z.string().min(1).optional(),
     }),
@@ -471,7 +501,7 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     ...CheckpointBlockedBaseShape,
     reason: z.literal("base-unrelated"),
     payload: z.strictObject({
-      drift: z.custom<BaseDriftResult>(),
+      drift: BaseDriftResultSchema,
       observation: CheckpointMovementObservationSchema,
       detail: z.string().min(1).optional(),
     }),
@@ -514,7 +544,7 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     state: z.literal("blocked"),
     nextAction: z.literal("run-convergence-verification"),
     reason: z.literal("candidate-convergence-pending"),
-    action: RunConvergenceVerificationActionSchema,
+    action: PublishedRunConvergenceVerificationActionSchema,
     payload: z.strictObject({
       candidate: z.custom<Extract<CandidateCurrentnessProjection, { status: "current" }>>(),
     }),
@@ -629,6 +659,24 @@ const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => 
  */
 export function checkpointRemedy(reason: CheckpointRemedyReason, workUnit: string): SpineRemedy {
   return CHECKPOINT_REMEDIES[reason](workUnit);
+}
+
+/**
+ * Key a host refusal's remedy on its typed condition, so a stable condition names the correction it needs.
+ *
+ * @param workUnit - The refused work unit, interpolated into the checkpoint rerun.
+ * @param admission - The host admission observation that refused.
+ * @returns The condition's correction ahead of a checkpoint rerun, or the generic host-refusal remedy.
+ */
+export function checkpointHostRefusedRemedy(workUnit: string, admission: ChangeRequestMergeObservation): SpineRemedy {
+  const correction = hostAdmissionRefusalCorrection(admission);
+  return correction === null
+    ? checkpointRemedy("host-refused", workUnit)
+    : spineRemedy(
+        "Host admission must permit the exact change request and coordinates.",
+        `${correction}, then re-run the checkpoint`,
+        checkpointResumeArgv(workUnit),
+      );
 }
 
 /**
@@ -751,7 +799,7 @@ export const IntegrationCheckpointResultSchema = z.union([
     reason: z.enum(["base-reconcile-required", "regenerable-reconcile-required"]),
     remedy: SpineRemedySchema,
     payload: z.strictObject({
-      drift: z.custom<BaseDriftResult>(),
+      drift: BaseDriftResultSchema,
       observation: CheckpointMovementObservationSchema,
       candidateHead: ObjectIdSchema,
     }),
@@ -785,8 +833,8 @@ export const IntegrationCheckpointResultSchema = z.union([
     reason: z.literal("candidate-record-moved"),
     remedy: SpineRemedySchema,
     payload: z.strictObject({
-      expectedRecordVersion: DigestSchema,
-      observedRecordVersion: DigestSchema.nullable(),
+      expectedRecordVersion: RecordVersionSchema,
+      observedRecordVersion: RecordVersionSchema.nullable(),
     }),
   }),
   CandidatePublicationCheckpointResultSchema,
@@ -906,6 +954,8 @@ export type DeliveryDriftClassificationResult =
     });
 
 export interface IntegrationCheckpointDependencies {
+  /** Boundary format selected by the invocation backend. */
+  readonly boundarySchemaVersion: 1 | 2;
   readDrift(workUnit: string): Promise<BaseDriftResult>;
   classifyDeliveryDrift(workUnit: string, drift: BaseDriftResult): Promise<DeliveryDriftClassificationResult>;
   readMovementObservation(workUnit: string, drift: BaseDriftResult): Promise<{
@@ -1074,8 +1124,20 @@ function deliveryTerminalBlockedResult(
  * @param dependencies - Exact repository, lifecycle, review, and persistence boundaries.
  * @returns A ready, reconcile, or blocked result with its typed next action.
  */
+function checkpointPostAttestContinuation(workUnit: string, reviewedHead: string): PostAttestContinuation {
+  return {
+    reviewedHead,
+    nextAction: {
+      kind: "continue-pre-publication-review",
+      command: `arc review pre-publication ${workUnit}`,
+      interactionText: "Resume pre-publication review after Candidate convergence verification.",
+    },
+    projectionDisposition: "keep-staged-until-publication",
+  };
+}
+
 export async function checkpointIntegration(
-  input: IntegrationCheckpointRequest,
+  input: z.input<typeof IntegrationCheckpointRequestSchema>,
   dependencies: IntegrationCheckpointDependencies,
 ): Promise<IntegrationCheckpointResult> {
   const request = IntegrationCheckpointRequestSchema.parse(input);
@@ -1084,7 +1146,16 @@ export async function checkpointIntegration(
     mode: "integrate-checkpoint" as const,
     workUnit: request.workUnit,
   };
-  const drift = await dependencies.readDrift(request.workUnit);
+  const driftResult = BaseDriftResultSchema.safeParse(await dependencies.readDrift(request.workUnit));
+  if (!driftResult.success) {
+    const issue = driftResult.error.issues[0];
+    const field = issue?.path.map(String).join(".") || "drift";
+    return checkpointOperationRefusal(
+      request.workUnit,
+      `Invalid base drift field ${field}: ${issue?.message ?? "unknown validation failure"}.`,
+    );
+  }
+  const drift = driftResult.data;
   const coordinates = checkpointCoordinates(drift);
   if ((drift.verdict !== "clean" && drift.verdict !== "reconcile") || drift.baseOid === null) {
     return IntegrationCheckpointResultSchema.parse({
@@ -1214,7 +1285,9 @@ export async function checkpointIntegration(
       coordinates,
       remedy: movementPlan.reason === "base-unrelated"
         ? checkpointUnrelatedBaseRemedy(drift.baseOid)
-        : checkpointRemedy(movementPlan.reason, request.workUnit),
+        : movementPlan.reason === "host-refused"
+          ? checkpointHostRefusedRemedy(request.workUnit, observation.admission)
+          : checkpointRemedy(movementPlan.reason, request.workUnit),
     };
     if (movementPlan.reason === "host-pending" || movementPlan.reason === "host-refused") {
       return IntegrationCheckpointResultSchema.parse({
@@ -1283,7 +1356,12 @@ export async function checkpointIntegration(
         reason: "candidate-convergence-pending",
         detail: `Candidate convergence verification remains pending at ${candidate.convergenceScope} scope.`,
         coordinates,
-        action: createRunConvergenceVerificationAction(request.workUnit, candidate.convergenceScope),
+        action: createRunConvergenceVerificationAction(
+          request.workUnit,
+          candidate.convergenceScope,
+          checkpointPostAttestContinuation(request.workUnit, candidate.recognizedRevision),
+          dependencies.boundarySchemaVersion,
+        ),
         payload: { candidate },
       });
     }
@@ -1306,9 +1384,7 @@ export async function checkpointIntegration(
       reason: movementPlan.nextAction === "reconcile-regenerable"
         ? "regenerable-reconcile-required"
         : "base-reconcile-required",
-      detail: movementPlan.nextAction === "reconcile-regenerable"
-        ? "Exact evidence authorizes the determinate regenerable base reconciliation."
-        : "Exact evidence authorizes an ordinary base reconciliation.",
+      detail: describeCheckpointReconciliation(movementPlan.rule),
       coordinates,
       remedy: spineRemedy(
         "The base reconcile must preserve the checkpoint's exact observed base and Candidate head.",
@@ -1372,7 +1448,12 @@ export async function checkpointIntegration(
       reason: "candidate-convergence-pending",
       detail: `Candidate convergence verification remains pending at ${candidate.convergenceScope} scope.`,
       coordinates,
-      action: createRunConvergenceVerificationAction(request.workUnit, candidate.convergenceScope),
+      action: createRunConvergenceVerificationAction(
+        request.workUnit,
+        candidate.convergenceScope,
+        checkpointPostAttestContinuation(request.workUnit, candidate.recognizedRevision),
+        dependencies.boundarySchemaVersion,
+      ),
       payload: { candidate },
     });
   }
@@ -1409,7 +1490,8 @@ export async function checkpointIntegration(
           ],
           recommendedActionText: shippedDelivery
             ? "Refresh the recognized shipped delivery boundary, then rerun checkpoint."
-            : "Refresh the recognized Candidate boundary, settle ordinary pre-publication review, then rerun checkpoint.",
+            : "Refresh the recognized Candidate boundary, then commit a publication it keeps or settle ordinary "
+              + "pre-publication review, and rerun checkpoint.",
         },
       });
     }
@@ -1569,8 +1651,9 @@ export async function checkpointIntegration(
         coordinates,
         remedy: checkpointRemedy("composition-unavailable", request.workUnit),
         payload: {
-          expectedRecordVersion: handleResult.expectedRecordVersion,
-          observedRecordVersion: handleResult.observedRecordVersion,
+          expectedRecordVersion: RecordVersionSchema.parse(handleResult.expectedRecordVersion),
+          observedRecordVersion: handleResult.observedRecordVersion === null
+            ? null : RecordVersionSchema.parse(handleResult.observedRecordVersion),
         },
       });
     }
@@ -1584,14 +1667,14 @@ export async function checkpointIntegration(
       observedBase: observation.admission.base,
       method: mergeMethod.method,
       candidateTailReference: composition.candidateTailDiff.reference,
-      reviewLanding: hostedReview?.detail ?? "Local carrier `local-attestation`.",
+      reviewLanding: hostedReview?.detail ?? NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: [
         {
           kind: "base-drift",
           label: "Base drift",
           clean: observation.movement === "disjoint"
             && observation.feasibility.state === "clean"
-            && observation.admission.state === "mergeable",
+            && (observation.admission.state === "mergeable" || testMergeLagsOnlyTheBase(observation.admission)),
           evidence: `Movement is ${observation.movement}; Git feasibility is ${observation.feasibility.state}; `
             + `host admission is ${observation.admission.state}.`,
         },
@@ -1635,9 +1718,7 @@ export async function checkpointIntegration(
           kind: "settlement",
           label: "Settlement",
           clean: settledDispositions.length === 0,
-          evidence: settledDispositions.length === 0
-            ? "No approved dispositions require settlement."
-            : `${settledDispositions.length} approved disposition set(s) require settlement.`,
+          evidence: describeSettlementPlan(settlementPlan),
         },
         {
           kind: "checkpoint",

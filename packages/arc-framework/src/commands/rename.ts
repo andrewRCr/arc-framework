@@ -1,16 +1,21 @@
 /** Production command adapter for the work-unit rename verb. */
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
+import type { Store } from "../lib/store/contract.js";
+
 
 import { mkdir, readFile, readdir, rmdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { expandActiveInFlight } from "./active.js";
-import { canonicalDigest } from "../lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../lib/kernel/canonical/canonical-json.js";
 import type { UserIOContext } from "./user.js";
 import { runUserRenameWorkspace } from "./user.js";
 import { listArcFiles } from "../lib/fs.js";
 import { getCurrentBranch, type GitExec } from "../lib/git/exec.js";
-import type { WorktreeSubject } from "../lib/git/worktree-marker.js";
+import { readWorktreeMarker, type WorktreeSubject } from "../lib/git/worktree-marker.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
@@ -70,15 +75,22 @@ import {
   type RunRenameResult,
 } from "../lib/work-unit/verbs/rename.js";
 import { reconcileRoadmap } from "../lib/work-unit/side-effects/readiness-regen.js";
-import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
-import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
+import { readCandidateRecord } from "../lib/store/kinds/review/candidate/access.js";
+import { readSubmissionBoundary } from "../lib/store/kinds/review/integration-boundary/access.js";
+import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import { storeRenameAdapters } from "./rename-store.js";
+import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
 
 /** Production dependencies resolved by the CLI handler. */
 export interface RenameCommandContext {
+  /** Optional operational store injected by the lifecycle caller. */
+  store?: Store;
+  projectId?: () => Promise<string>;
+  locusPorts?: LocusPorts;
   cwd: string;
   identity: string;
   baseBranch: string;
-  io: UserIOContext & { execInput: NonNullable<UserIOContext["execInput"]> };
+  io: UserIOContext;
   retirement: RenameRetirementContext;
   transitionWriter: TerminalTransitionRecordWriter;
   onPreparedAdvisories?(advisories: readonly string[]): Promise<void>;
@@ -89,18 +101,33 @@ export async function runRenameCommand(
   command: RenameCommandContext,
   params: { sourceSlug: string; targetSlug: string },
 ): Promise<RunRenameResult> {
+  if (command.store !== undefined && usesOffBranchState(command.store)) return runRename({
+    store: command.store, cwd: command.cwd, exec: command.io.exec, baseBranch: command.baseBranch,
+    projectId: command.projectId, locusPorts: command.locusPorts, onPreparedAdvisories: (advisories) => command.onPreparedAdvisories?.(advisories) ?? Promise.resolve(),
+    ...storeRenameAdapters(command),
+  }, params);
+  if (command.io.execInput === undefined) return { status: "rejected", reason: "remote rename expansion requires stdin-capable Git I/O" };
+  return runInRepoRenameCommand({ ...command, io: { ...command.io, execInput: command.io.execInput } }, params);
+}
+async function runInRepoRenameCommand(
+  command: RenameCommandContext & { io: UserIOContext & { execInput: NonNullable<UserIOContext["execInput"]> } },
+  params: { sourceSlug: string; targetSlug: string },
+): Promise<RunRenameResult> {
   let referencePlan: RenameReferencePlan | null = null;
   const lifecycleFs = nodeLifecycleFs();
   const referenceFs = nodeReferenceFs(command.cwd);
   const exec = command.io.exec;
+  const store = command.store ?? createStore(createDefaultStorePorts({ checkoutRoot: command.cwd, exec }));
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity: command.identity });
   const ctx: RunRenameContext = {
+    ...(command.store === undefined ? {} : { store: command.store }),
     retirement: command.retirement,
     transitionWriter: command.transitionWriter,
     onPrepared: async (plan) => {
       if (!plan.resuming) {
         const [candidate, boundary] = await Promise.all([
-          readCandidateRecord(command.cwd, plan.sourceSlug),
-          readSubmissionBoundary(command.cwd, plan.sourceSlug),
+          readCandidateRecord(command.cwd, plan.sourceSlug, { store: command.store, exec }),
+          readSubmissionBoundary(command.cwd, plan.sourceSlug, { store: command.store, exec }),
         ]);
         if (candidate !== null || boundary !== null) {
           throw new Error("A work unit with Candidate publication state cannot be renamed.");
@@ -310,7 +337,11 @@ export async function runRenameCommand(
     },
     resolveWorktreeMove: async (plan) => {
       if (plan.newBranch === null) return { status: "in-place" };
+      const paths = await resolveWorktreePathsByBranch(exec);
+      const holdingPath = paths.get(plan.newBranch);
+      const marker = holdingPath === undefined ? null : await readWorktreeMarker(holdingPath);
       return resolveRenameWorktreeMove(exec, {
+        ...(marker?.kind === "present" ? { marker: marker.marker } : {}),
         branch: plan.newBranch,
         oldSlug: plan.sourceSlug,
         newSlug: plan.targetSlug,
@@ -346,7 +377,7 @@ export async function runRenameCommand(
               move: {
                 apply: async () => {
                   worktree = await reconcileWorkUnitWorktree({
-                    exec,
+                    exec, store, projectionRemovalSlots,
                     chdir: (path) => {
                       process.chdir(path);
                     },
@@ -360,7 +391,7 @@ export async function runRenameCommand(
                 },
                 rollback: async () => {
                   await reconcileWorkUnitWorktree({
-                    exec,
+                    exec, store, projectionRemovalSlots,
                     chdir: (path) => {
                       process.chdir(path);
                     },

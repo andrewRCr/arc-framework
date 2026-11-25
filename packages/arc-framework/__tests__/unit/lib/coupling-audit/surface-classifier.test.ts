@@ -10,6 +10,11 @@ describe("classifySurface", () => {
     ["packages/arc-framework/templates/user/SESSION-NOTES.md", "template"],
     ["packages/arc-framework/arc/reference/templates/arc/template-adr.md", "template"],
     ["packages/arc-framework/src/lib/classification.ts", "code"],
+    ["packages/arc-framework/bin/arc.js", "code"],
+    ["packages/arc-framework/examples/check-runner/local-process.mjs", "code"],
+    ["packages/arc-framework/examples/check-runner/README.md", "prose"],
+    ["packages/arc-framework/eslint/architecture-imports.ts", "code"],
+    ["packages/arc-framework/eslint/architecture-config.ts", "code"],
     ["packages/arc-framework/arc/system/.internal/githooks/pre-commit", "code"],
     ["packages/arc-framework/arc/system/.internal/githooks/README.md", "prose"],
     ["scripts/check-package-sync.sh", "code"],
@@ -17,6 +22,7 @@ describe("classifySurface", () => {
     ["AGENTS.md", "prose"],
     ["packages/arc-framework/init-recipe.json", "config"],
     ["packages/arc-framework/vitest.config.ts", "config"],
+    ["packages/arc-framework/build-compiler.config.ts", "config"],
     [".github/CODEOWNERS", "config"],
   ] as const)("classifies %s as %s", (path, expected) => {
     expect(classifySurface(path)).toBe(expected);

@@ -4,8 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   composeCheckpointInterlockSurface,
+  CheckpointInterlockSurfaceSchema,
   type CheckpointMachineSignal,
 } from "../../../../src/scripts/integration/interlock-surface.js";
+import { NO_HOSTED_REVIEW_RESERVATION_DETAIL } from
+  "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const oid = (character: string): string => character.repeat(40);
 
@@ -24,6 +27,18 @@ function signals(): CheckpointMachineSignal[] {
 }
 
 describe("checkpoint interlock surface", () => {
+  it("rejects the obsolete report field while preserving the complete machine surface", () => {
+    const surface = composeCheckpointInterlockSurface({
+      approvedHead: oid("a"), repository: "owner/repo", pullRequest: 42,
+      baseRef: "main", observedBase: oid("b"), method: "merge",
+      candidateTailReference: `${oid("b")}..${oid("a")}`,
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL, signals: signals(),
+    });
+    expect(CheckpointInterlockSurfaceSchema.safeParse({
+      ...surface, extensionReport: { label: "Extension report", content: null },
+    }).success).toBe(false);
+  });
+
   it("renders a fully clean decision surface without expanding all nine facts", () => {
     const result = composeCheckpointInterlockSurface({
       approvedHead: oid("a"),
@@ -33,7 +48,7 @@ describe("checkpoint interlock surface", () => {
       observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
-      reviewLanding: "Local carrier `local-attestation`.",
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: signals(),
     });
 
@@ -45,7 +60,7 @@ describe("checkpoint interlock surface", () => {
     expect(result.machineEvidence.text).not.toMatch(/base OID (?:is|was) pinned/iu);
     expect(result.machineEvidence.text).toContain("Machine evidence: 9 checks clean.");
     expect(result.machineEvidence.text).not.toContain("Authoritative drift is clean.");
-    expect(result.extensionReport).toEqual({ label: "Extension report", content: null });
+    expect(result).not.toHaveProperty("extensionReport");
   });
 
   it("names the candidate tail so the approver can self-serve the diff", () => {
@@ -57,7 +72,7 @@ describe("checkpoint interlock surface", () => {
       observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
-      reviewLanding: "Local carrier `local-attestation`.",
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: signals(),
     });
     const evidence = signals();
@@ -70,7 +85,7 @@ describe("checkpoint interlock surface", () => {
       observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
-      reviewLanding: "Local carrier `local-attestation`.",
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: evidence,
     });
 
@@ -79,9 +94,9 @@ describe("checkpoint interlock surface", () => {
     }
   });
 
-  it("names only the carrier or hosted source where review landed", () => {
+  it("names only the hosted source, or that none was reserved, where review landed", () => {
     for (const reviewLanding of [
-      "Local carrier `local-attestation`.",
+      NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       "Hosted source `coderabbit-pr`.",
     ]) {
       const result = composeCheckpointInterlockSurface({
@@ -118,7 +133,7 @@ describe("checkpoint interlock surface", () => {
       observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
-      reviewLanding: "Local carrier `local-attestation`.",
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: evidence,
     });
 

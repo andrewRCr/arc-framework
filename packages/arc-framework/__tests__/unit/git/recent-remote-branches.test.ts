@@ -5,6 +5,7 @@ import {
   runRecentRemoteBranches,
 } from "../../../src/lib/git/recent-remote-branches.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 const NOW = Date.UTC(2026, 4, 25); // 2026-05-25
 const DAY = 86_400;
@@ -51,8 +52,8 @@ describe("runRecentRemoteBranches", () => {
   });
 
   it("returns an empty list when the read fails (recency is a soft signal)", async () => {
-    const exec: GitExec = vi.fn(async () => {
-      throw new Error("for-each-ref failed");
+    const exec: GitExec = vi.fn(async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "for-each-ref failed" });
     });
 
     const result = await runRecentRemoteBranches({ exec, withinDays: 30, now: NOW });
@@ -73,13 +74,12 @@ describe("analyzeRecentRemoteBranchesSnapshot", () => {
   it("sorts locally available advertised tips by their commit dates", async () => {
     const newerOid = "a".repeat(40);
     const olderOid = "b".repeat(40);
-    const exec: GitExec = vi.fn(async (_command, args, options): Promise<ExecResult> => {
-      if (options?.objectAccess !== "local-only") throw new Error("object access was not local-only");
-      if (args[0] !== "show") throw new Error(`unexpected git invocation: ${args.join(" ")}`);
-      if (args.at(-1) === newerOid) return { stdout: String(NOW_S - DAY), stderr: "" };
-      if (args.at(-1) === olderOid) return { stdout: String(NOW_S - 2 * DAY), stderr: "" };
-      throw new Error(`unexpected oid: ${String(args.at(-1))}`);
-    });
+    const { exec, calls } = scriptGitExec([
+      { match: { predicate: (args) => args[0] === "show" && args.at(-1) === newerOid },
+        responses: [{ stdout: String(NOW_S - DAY), stderr: "" }] },
+      { match: { predicate: (args) => args[0] === "show" && args.at(-1) === olderOid },
+        responses: [{ stdout: String(NOW_S - 2 * DAY), stderr: "" }] },
+    ]);
 
     const result = await analyzeRecentRemoteBranchesSnapshot({
       exec,
@@ -92,18 +92,18 @@ describe("analyzeRecentRemoteBranchesSnapshot", () => {
     });
 
     expect(result).toEqual({ branches: ["feat/newer", "feat/older"], pendingBranchCount: 0 });
+    expect(calls).toHaveLength(2);
+    expect(calls.every(({ options }) => options?.objectAccess === "local-only")).toBe(true);
   });
 
   it("applies exclusions before availability inspection and counts only eligible missing objects", async () => {
     const localOid = "a".repeat(40);
     const pendingOid = "b".repeat(40);
     const excludedOid = "c".repeat(40);
-    const exec: GitExec = vi.fn(async (_command, args): Promise<ExecResult> => {
-      if (args[0] !== "show" || args.at(-1) !== localOid) {
-        throw new Error(`unexpected git invocation: ${args.join(" ")}`);
-      }
-      return { stdout: String(NOW_S - DAY), stderr: "" };
-    });
+    const { exec } = scriptGitExec([{
+      match: { predicate: (args) => args[0] === "show" && args.at(-1) === localOid },
+      responses: [{ stdout: String(NOW_S - DAY), stderr: "" }],
+    }]);
 
     const result = await analyzeRecentRemoteBranchesSnapshot({
       exec,
@@ -139,7 +139,9 @@ describe("analyzeRecentRemoteBranchesSnapshot", () => {
     },
     {
       name: "local execution failure",
-      exec: vi.fn(async (): Promise<ExecResult> => { throw new Error("date read failed"); }) as GitExec,
+      exec: vi.fn(async (command, args): Promise<ExecResult> => {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "date read failed" });
+      }) as GitExec,
       message: "date read failed",
     },
   ])("propagates $name", async ({ exec, message }) => {

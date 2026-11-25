@@ -53,7 +53,7 @@ export type DeliveryHostMergeResult =
   | { readonly status: "submitted" }
   | {
       readonly status: "refused";
-      readonly reason: "queued" | "malformed" | "unavailable" | "native-stack-required";
+      readonly reason: "queued" | "malformed" | "unavailable" | "native-stack-required" | "conflict";
       readonly provider?: DeliveryHostProviderFailure;
     };
 

@@ -46,7 +46,7 @@ export function registerPlanningGroomingCommandSchemas(registry: KernelRegistry)
   registry.register(ReviewPlanningGroomingResolveRequestSchema, {
     id: REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID,
     version: 1,
-    migrationPosture: "strict-current",
+    migrationPosture: "strict-current", authored: "request",
   });
   return registry;
 }

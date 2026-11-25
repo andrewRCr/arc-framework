@@ -113,6 +113,10 @@ function boundaries(state: DeliveryStateV1) {
         predecessor: state.target!.coordinates!,
         member: mergeResult,
       })),
+      readMemberBase: vi.fn(async () => ({
+        head: member.coordinates!.base,
+        tree: state.target!.coordinates!.tree,
+      })),
       proveLandedContribution: vi.fn(async () => ({ status: "accepted" as const, proof: "tree-equality" as const })),
     },
   };
@@ -750,6 +754,11 @@ describe("delivery landing", () => {
         provider: { kind: "http", status: 422, exitCode: 1 },
       },
     });
+
+    await expect(applyRefusal(({ deps }) => ({
+      host: { ...deps.host, mergeRequest: async () => ({ status: "refused", reason: "conflict" }) },
+    }))).resolves.toMatchObject({ cause: { stage: "merge-submission", reason: "conflict",
+      recommendedActionText: expect.stringMatching(/arc delivery reconcile.*arc delivery refresh plan/su) } });
   });
 
   it("reobserves after lock release and never adopts target movement without the matching merge", async () => {

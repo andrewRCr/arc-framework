@@ -1,6 +1,10 @@
 /** Unit tests for repository-wide admission of subprocess-heavy local test tiers. */
 
 import { describe, expect, it, vi } from "vitest";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 import {
   isLocalHeavyTestTier,
@@ -9,17 +13,12 @@ import {
   withLocalHeavyTestAdmission,
 } from "../../src/lib/local-test-admission.js";
 
-function gitResult(args: string[]): { stdout: string; stderr: string } {
-  if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
-    return { stdout: "/repo/worktree-a\n", stderr: "" };
-  }
-  if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
-    return { stdout: "/repo/.git\n", stderr: "" };
-  }
-  if (args[0] === "branch" && args[1] === "--show-current") {
-    return { stdout: "feat/widget\n", stderr: "" };
-  }
-  throw new Error(`Unexpected git invocation: ${args.join(" ")}`);
+function admissionGit() {
+  return scriptGitExec([
+    { match: ["rev-parse", "--show-toplevel"], responses: [{ stdout: "/repo/worktree-a\n", stderr: "" }] },
+    { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: "/repo/.git\n", stderr: "" }] },
+    { match: ["branch", "--show-current"], responses: [{ stdout: "feat/widget\n", stderr: "" }] },
+  ]).exec;
 }
 
 describe("resolveProcessVisibilityScope", () => {
@@ -58,6 +57,47 @@ describe("isLocalHeavyTestTier", () => {
 });
 
 describe("withLocalHeavyTestAdmission", () => {
+  it("renders a focused holder's diagnostic label without adding a broad tier command", async () => {
+    const lines: string[] = [];
+    const result = await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "focused" }, async () => "complete",
+      { git: admissionGit(), mkdir: async () => {}, resolveProcessScope: async () => "pid:[test]",
+        acquireLock: async (_path, options) => {
+          options?.onWait?.({ holder: { pid: 41, token: "holder", acquiredAt: 0,
+            metadata: options.metadata }, waitedMs: 0 });
+          return { path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" };
+        },
+        releaseLock: async () => {}, writeLine: (line) => lines.push(line),
+      },
+    );
+    expect(result.result).toBe("complete");
+    expect(lines[0]).toContain("queued behind focused tests (PID 41");
+    expect(lines[1]).toContain("starting focused tests");
+    expect(isLocalHeavyTestTier("focused")).toBe(false);
+  });
+
+  it("enters the shared slot after a delete-pending lock directory clears", async () => {
+    let mkdirAttempts = 0;
+    const result = await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "portability" },
+      async () => "complete",
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" })),
+        git: admissionGit(),
+        mkdir: async () => {
+          mkdirAttempts += 1;
+          if (mkdirAttempts < 3) throw Object.assign(new Error("delete pending"), { code: "EPERM" });
+        },
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        resolveProcessScope: async () => "pid:[test]",
+      },
+    );
+
+    expect(result).toEqual({ result: "complete" });
+    expect(mkdirAttempts).toBe(3);
+  });
+
   it("queues behind the shared holder with useful diagnostics, then releases after the run", async () => {
     const lines: string[] = [];
     let clock = Date.parse("2026-09-08T20:00:00.000Z");
@@ -99,7 +139,7 @@ describe("withLocalHeavyTestAdmission", () => {
       action,
       {
         acquireLock,
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -112,7 +152,7 @@ describe("withLocalHeavyTestAdmission", () => {
 
     expect(result).toEqual({ result: "complete", waitMs: 65_000 });
     expect(acquireLock).toHaveBeenCalledWith(
-      "/repo/.git/arc/test-suite/.local-heavy-tests.lock",
+      join("/repo/.git", "arc", "test-suite", ".local-heavy-tests.lock"),
       expect.objectContaining({
         leaseDurationMs: 120_000,
         maxWaitMs: Number.POSITIVE_INFINITY,
@@ -133,7 +173,7 @@ describe("withLocalHeavyTestAdmission", () => {
     expect(lines[0]).toContain("/repo/worktree-b");
     expect(lines[0]).toContain("This is normal; no action is needed.");
     expect(lines[1]).toContain("Still queued after 1m");
-    expect(lines[2]).toContain("slot acquired after waiting");
+    expect(lines[2]).toBe("Local heavy-test slot acquired after waiting 1m 5s; starting integration tests.");
     expect(releaseLock).toHaveBeenCalledWith({
       path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock",
       pid: 42,
@@ -162,7 +202,7 @@ describe("withLocalHeavyTestAdmission", () => {
       },
       {
         acquireLock: vi.fn(async () => handle),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         registerExitCleanup,
@@ -199,7 +239,7 @@ describe("withLocalHeavyTestAdmission", () => {
       },
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         releaseLock: vi.fn(async () => {}),
@@ -257,7 +297,7 @@ describe("withLocalHeavyTestAdmission", () => {
       },
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -291,7 +331,7 @@ describe("withLocalHeavyTestAdmission", () => {
       },
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -343,7 +383,7 @@ describe("withLocalHeavyTestAdmission", () => {
             leaseUntil: 300_000,
           };
         }),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -386,7 +426,7 @@ describe("withLocalHeavyTestAdmission", () => {
           token: "ours",
           leaseUntil: 120_000,
         })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -435,13 +475,124 @@ describe("withLocalHeavyTestAdmission", () => {
       async () => "complete",
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         releaseLock: vi.fn(async () => {}),
         resolveProcessScope: async () => "pid:[test]",
       },
     )).resolves.toEqual({ result: "complete" });
+  });
+
+  it("adds its wait to the check notice the environment names, after queueing", async () => {
+    let clock = 0;
+    const appendNotice = vi.fn(async () => {});
+    const admitted = withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: { ARC_CHECK_NOTICE: "/tmp/check/notice" }, tier: "e2e" },
+      async () => "complete",
+      {
+        acquireLock: vi.fn(async (_path, options) => {
+          options?.onWait?.({ holder: "unreadable", waitedMs: 0 });
+          clock = 493_000;
+          return { path: "/repo/.git/lock", pid: 42, token: "ours" };
+        }),
+        appendNotice,
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        resolveProcessScope: async () => "pid:[test]",
+        writeLine: () => {},
+      },
+    );
+
+    await expect(admitted).resolves.toEqual({ result: "complete", waitMs: 493_000 });
+    expect(appendNotice).toHaveBeenCalledExactlyOnceWith("/tmp/check/notice", "waited 8m 13s for the heavy-test slot");
+  });
+
+  it("keeps its wait a separate line after a runner line written without a newline", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "arc-admission-notice-"));
+    try {
+      const notice = join(directory, "notice");
+      await writeFile(notice, "ran locally");
+      let clock = 0;
+      await withLocalHeavyTestAdmission(
+        { cwd: "/repo/worktree-a", env: { ARC_CHECK_NOTICE: notice }, tier: "e2e" },
+        async () => "complete",
+        {
+          acquireLock: vi.fn(async (_path, options) => {
+            options?.onWait?.({ holder: "unreadable", waitedMs: 0 });
+            clock = 493_000;
+            return { path: "/repo/.git/lock", pid: 42, token: "ours" };
+          }),
+          git: admissionGit(),
+          mkdir: vi.fn(async () => undefined),
+          now: () => clock,
+          pid: 42,
+          releaseLock: vi.fn(async () => {}),
+          resolveProcessScope: async () => "pid:[test]",
+          writeLine: () => {},
+        },
+      );
+      const lines = (await readFile(notice, "utf8")).split("\n").filter(line => line !== "");
+      expect(lines).toEqual(["ran locally", "waited 8m 13s for the heavy-test slot"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("adds no notice when the run never queued or no notice is named", async () => {
+    const appendNotice = vi.fn(async () => {});
+    const dependencies = {
+      appendNotice,
+      git: admissionGit(),
+      mkdir: vi.fn(async () => undefined),
+      pid: 42,
+      releaseLock: vi.fn(async () => {}),
+      resolveProcessScope: async () => "pid:[test]",
+      writeLine: () => {},
+    };
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: { ARC_CHECK_NOTICE: "/tmp/check/notice" }, tier: "e2e" },
+      async () => "complete",
+      { ...dependencies, acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })) },
+    );
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "e2e" },
+      async () => "complete",
+      {
+        ...dependencies,
+        git: admissionGit(),
+        acquireLock: vi.fn(async (_path, options) => {
+          options?.onWait?.({ holder: "unreadable", waitedMs: 0 });
+          return { path: "/repo/.git/lock", pid: 42, token: "ours" };
+        }),
+      },
+    );
+    expect(appendNotice).not.toHaveBeenCalled();
+  });
+
+  it("runs the tests when the check notice cannot be written", async () => {
+    const action = vi.fn(async () => "complete");
+    await expect(withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: { ARC_CHECK_NOTICE: "/missing/notice" }, tier: "e2e" },
+      action,
+      {
+        acquireLock: vi.fn(async (_path, options) => {
+          options?.onWait?.({ holder: "unreadable", waitedMs: 0 });
+          return { path: "/repo/.git/lock", pid: 42, token: "ours" };
+        }),
+        appendNotice: vi.fn(async () => { throw new Error("ENOENT"); }),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        resolveProcessScope: async () => "pid:[test]",
+        writeLine: () => {},
+      },
+    )).resolves.toMatchObject({ result: "complete" });
+    expect(action).toHaveBeenCalledOnce();
   });
 
   it("releases the slot when the test runner fails", async () => {
@@ -453,7 +604,7 @@ describe("withLocalHeavyTestAdmission", () => {
       async () => Promise.reject(failure),
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         releaseLock,
@@ -475,7 +626,7 @@ describe("withLocalHeavyTestAdmission", () => {
       async () => {},
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         registerExitCleanup: vi.fn(() => unregisterExitCleanup),
@@ -489,5 +640,29 @@ describe("withLocalHeavyTestAdmission", () => {
     finishRelease?.();
     await run;
     expect(unregisterExitCleanup).toHaveBeenCalledOnce();
+  });
+
+  it("retains a renewable lease while asynchronous release is pending", async () => {
+    let clock = 1_000;
+    let deadline = clock + 120_000;
+    let heartbeat: (() => void) | undefined;
+    let finishRelease: (() => void) | undefined;
+    const run = withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" }, async () => "complete",
+      {
+        acquireLock: async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours", leaseUntil: deadline }),
+        git: admissionGit(), mkdir: async () => {}, pid: 42, now: () => clock,
+        registerExitCleanup: () => () => {}, resolveProcessScope: async () => "pid:[test]",
+        releaseLock: async () => await new Promise<void>((resolve) => { finishRelease = resolve; }),
+        renewLock: async () => { deadline = clock + 120_000; return "renewed"; },
+        scheduleEvery: (callback) => { heartbeat = callback; return () => {}; },
+      },
+    );
+    await vi.waitFor(() => expect(finishRelease).toBeDefined());
+    clock += 60_000;
+    heartbeat?.();
+    await vi.waitFor(() => expect(deadline).toBe(clock + 120_000));
+    finishRelease?.();
+    await expect(run).resolves.toEqual({ result: "complete" });
   });
 });

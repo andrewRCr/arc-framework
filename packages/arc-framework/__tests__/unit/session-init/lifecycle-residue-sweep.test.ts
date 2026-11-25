@@ -4,6 +4,7 @@ import {
   projectRenameMoveRemedy,
   runLandedRetirementSweep,
 } from "../../../src/lib/session-init/lifecycle-residue-sweep.js";
+import { StaleWorktreeSweepResultSchema } from "../../../src/lib/session-init/stale-worktree-sweep-schema.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-availability.js";
 import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
@@ -18,6 +19,7 @@ const HEAD = "0123456789abcdef0123456789abcdef01234567";
 
 function registered(overrides: Partial<RegisteredWorktree> = {}): RegisteredWorktree {
   return {
+    folderPresent: true,
     path: "/wt/project.old-name",
     head: HEAD,
     branch: "feat/new-name",
@@ -31,7 +33,7 @@ function pendingMarker(
   overrides: { renameMovePending?: {
     oldSlug: string;
     newSlug: string;
-    branch: string;
+    branch: string | null;
     head: string;
     from: string;
     to: string;
@@ -108,42 +110,31 @@ function authorizedDecision() {
 }
 
 describe("projectRenameMoveRemedy", () => {
-  it("projects exact argv and display text for valid registered path lag", () => {
-    expect(projectRenameMoveRemedy(
-      registered(),
-      pendingMarker(),
-      [registered()],
-    )).toEqual({
-      oldSlug: "old-name",
-      newSlug: "new-name",
-      branch: "feat/new-name",
-      head: HEAD,
-      from: "/wt/project.old-name",
-      to: "/wt/project.new-name",
-      remedy: {
-        argv: ["git", "worktree", "move", "/wt/project.old-name", "/wt/project.new-name"],
-        text: "Move the registered worktree from \"/wt/project.old-name\" to \"/wt/project.new-name\".",
-      },
-    });
+  it.each(["feat/new-name", null])("projects doubled-force argv and a typed action for branch %s", (branch) => {
+    const worktree = registered({ branch, detached: branch === null });
+    const from = worktree.path, to = "/wt/project.new-name";
+    const marker = pendingMarker({ renameMovePending: {
+      oldSlug: "old-name", newSlug: "new-name", branch, head: HEAD, from, to,
+    } });
+    const result = projectRenameMoveRemedy(worktree, marker, [worktree]);
+    const remedy = { argv: ["git", "worktree", "move", "-f", "-f", from, to],
+      text: `Run git worktree move -f -f '${from}' '${to}' from outside the checkout.` };
+    expect(result).toEqual({ oldSlug: "old-name", newSlug: "new-name", branch, head: HEAD,
+      from, to, remedy, actions: [remedy] });
+    expect(StaleWorktreeSweepResultSchema.parse({ remoteEvidence: "not-applicable", worktrees: [],
+      missingFolders: [], renameMoves: [result], retirements: [], warnings: [] }).renameMoves).toEqual([result]);
   });
 
   it("keeps executable argv authoritative for paths containing shell metacharacters", () => {
     const from = "/wt/project old;touch-pwned";
-    const to = "/wt/project new$(touch-pwned)";
+    const to = "/wt/project new$(touch-pwned)'suffix";
     const worktree = registered({ path: from });
-    const marker = pendingMarker({
-      renameMovePending: {
-        oldSlug: "old-name",
-        newSlug: "new-name",
-        branch: "feat/new-name",
-        head: HEAD,
-        from,
-        to,
-      },
-    });
+    const marker = pendingMarker({ renameMovePending: {
+      oldSlug: "old-name", newSlug: "new-name", branch: "feat/new-name", head: HEAD, from, to,
+    } });
     expect(projectRenameMoveRemedy(worktree, marker, [worktree])?.remedy).toEqual({
-      argv: ["git", "worktree", "move", from, to],
-      text: `Move the registered worktree from ${JSON.stringify(from)} to ${JSON.stringify(to)}.`,
+      argv: ["git", "worktree", "move", "-f", "-f", from, to],
+      text: `Run git worktree move -f -f '${from}' '/wt/project new$(touch-pwned)'"'"'suffix' from outside the checkout.`,
     });
   });
 
@@ -168,9 +159,31 @@ describe("runLandedRetirementSweep", () => {
       exec,
       readBlob: async () => null,
       authorize: async () => authorizedDecision(),
-      isClean: async () => true,
+      checkRemoval: async () => ({ kind: "removable" as const }),
     };
   }
+
+  it("offers no teardown for an anchored retirement", async () => {
+    const owned = ownedMarker();
+    if (owned.kind !== "present") throw new Error("Missing marker");
+    const result = await runLandedRetirementSweep({ ...options(), markers: new Map([["/wt/retired",
+      { kind: "present" as const, marker: { ...owned.marker, spawnedByArc: false } }]]) });
+    expect(result.retirements).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it.each(["unobservable", "locked"] as const)("reports %s without offering teardown", async (reason) => {
+    const result = await runLandedRetirementSweep({ ...options(), checkRemoval: async () => reason === "locked"
+      ? { kind: "refused", reason, path: "/wt/retired", lockReason: "owner", folderPresent: true }
+      : { kind: "refused", reason, detail: "status failed" } });
+    expect(result.retirements).toEqual([{ status: "blocked", worktreePath: "/wt/retired",
+      subject: { slug: "retired", branch: "feat/retired" }, reason }]);
+  });
+
+  it("omits authorized residue whose folder has disappeared", async () => {
+    const result = await runLandedRetirementSweep({ ...options(), checkRemoval: async () => ({ kind: "missing" }) });
+    expect(result.retirements).toEqual([]);
+  });
 
   it("offers ordinary teardown directly from structural abandon authority", async () => {
     const result = await runLandedRetirementSweep(options());
@@ -192,6 +205,7 @@ describe("runLandedRetirementSweep", () => {
         argv: ["arc", "teardown", "retired"],
         text: "arc teardown retired",
       },
+      actions: [{ argv: ["arc", "teardown", "retired"], text: "arc teardown retired" }],
     }]);
     expect(result.retirements[0]).not.toHaveProperty("lifecycle.authority");
   });
@@ -289,7 +303,7 @@ describe("runLandedRetirementSweep", () => {
   );
 
   it("keeps dirty structurally authorized residue blocked", async () => {
-    const result = await runLandedRetirementSweep({ ...options(), isClean: async () => false });
+    const result = await runLandedRetirementSweep({ ...options(), checkRemoval: async () => ({ kind: "refused" as const, reason: "dirty" as const, paths: ["changed"] }) });
 
     expect(result.retirements).toEqual([{
       status: "blocked",

@@ -7,6 +7,8 @@
  * and `--dry-run`.
  */
 
+import { makeInteractionContext } from "../helpers/interaction-context.js";
+import { AuditEntrySchema } from "../../src/lib/release/schema.js";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,17 +16,23 @@ import { join } from "node:path";
 import { describe, it, expect, vi, beforeAll, beforeEach, type Mock } from "vitest";
 
 import { UserFacingError } from "../../src/lib/errors.js";
+import { storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 import type {
   WorktreeMaterializingInspectionResult,
   WorktreeSyncState,
 } from "../../src/lib/git/worktree-sync.js";
-import type { AuditEntry } from "../../src/lib/release/types.js";
+import type { AuditEntry } from "../../src/lib/release/schema.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
+import { createStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
+
+const inRepoStore = createStore(createDefaultStorePorts({ checkoutRoot: "/project" }));
 
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();
-const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+const mockLog = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
 const mockNote = vi.fn();
 const mockConfirm = vi.fn();
 const mockIsCancel = vi.fn(() => false) as Mock<(value: unknown) => boolean>;
@@ -71,6 +79,12 @@ vi.mock("../../src/commands/user.js", async () => {
   };
 });
 
+const mockStoreImported = vi.hoisted(() => vi.fn<() => Promise<boolean>>());
+vi.mock("../../src/lib/store/store-imported.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../src/lib/store/store-imported.js")>(),
+  storeImported: () => mockStoreImported(),
+}));
+
 const mockReconcileErrandPush = vi.fn();
 vi.mock("../../src/lib/errand/index.js", () => ({
   reconcileErrandPush: (...args: unknown[]) => mockReconcileErrandPush(...args),
@@ -83,7 +97,8 @@ vi.mock("../../src/lib/config/resolved-settings.js", () => ({
 
 const mockRunWorktreeSyncStatus = vi.fn();
 const mockRunMaterializingWorktreeInspection = vi.fn();
-vi.mock("../../src/lib/git/worktree-sync.js", () => ({
+vi.mock("../../src/lib/git/worktree-sync.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../src/lib/git/worktree-sync.js")>(),
   runMaterializingWorktreeInspection: (opts: unknown) => mockRunMaterializingWorktreeInspection(opts),
   runWorktreeSyncStatus: (opts: unknown) => mockRunWorktreeSyncStatus(opts),
   DEFAULT_FETCH_TIMEOUT_MS: 3000,
@@ -105,25 +120,15 @@ vi.mock("../../src/lib/user-sync/branch-bounded-notes-export.js", () => ({
 }));
 
 const mockResolveUserIdentity = vi.fn();
-const mockIsNonInteractive = vi.fn(() => false);
-vi.mock("../../src/lib/command-input/interaction-context.js", () => ({
-  resolveProcessInteractionContext: (input: { yes: string; machineReadable: boolean }) => {
-    const forbidden = mockIsNonInteractive() || input.machineReadable || input.yes !== "absent";
-    return {
-      interaction: forbidden ? "forbidden" : "allowed",
-      terminal: mockIsNonInteractive() ? "non-interactive" : "interactive",
-      confirmation: input.yes === "authority" ? "accept" : "ask",
-      subprocess: {
-        terminalPrompts: forbidden ? "forbidden" : "allowed",
-        presenters: forbidden ? "forbidden" : "allowed",
-        ambientStdin: forbidden ? "closed" : "inherit",
-      },
-    };
-  },
-}));
+let nonInteractive = false;
+function makeTestContext(signals: Parameters<typeof makeInteractionContext>[0] = {}) {
+  return makeInteractionContext({
+    promptInputIsTTY: !nonInteractive, promptOutputIsTTY: !nonInteractive, ...signals,
+  });
+}
+
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
-  isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   ARC_PROJECT_ROOT_ERROR:
     "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
 }));
@@ -143,6 +148,7 @@ const mockGitExec = vi.fn();
 const mockGitExecInput = vi.fn();
 let includeExecInput = false;
 vi.mock("../../src/lib/io-context.js", () => ({
+  createGitExec: () => mockGitExec,
   createUserIOContext: () => ({
     exec: mockGitExec,
     readFile: vi.fn(),
@@ -164,6 +170,12 @@ vi.mock("../../src/lib/release/audit-log.js", async () => {
 const mockResolveActiveWu = vi.fn();
 vi.mock("../../src/lib/release/wu-resolution.js", () => ({
   resolveActiveWu: (opts: unknown) => mockResolveActiveWu(opts),
+}));
+
+const mockReadPushGateRefusal = vi.fn();
+vi.mock("../../src/lib/checks/push-gate-record.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/lib/checks/push-gate-record.js")>()),
+  readCheckoutPushGateRefusal: async (input: unknown) => (await mockReadPushGateRefusal(input)) ?? null,
 }));
 
 const { handleSync } = await import("../../src/handlers/sync.js");
@@ -255,7 +267,7 @@ function resetResolvedState(): void {
 function resetMockDefaults() {
   mockAccess.mockRejectedValue(new Error("path absent"));
   mockIsCancel.mockReturnValue(false);
-  mockIsNonInteractive.mockReturnValue(false);
+  nonInteractive = false;
   mockResolveArcRoot.mockReturnValue("/repo");
   mockSpinner.mockImplementation(() => ({ start: vi.fn(), stop: vi.fn() }));
   mockBuildSaveSummary.mockReturnValue("save summary");
@@ -283,11 +295,31 @@ function resetMockDefaults() {
   });
 }
 
+/** The identifier the sync handed its push, read back from the one push gate lookup it made. */
+function readPushGateId(): string {
+  expect(mockReadPushGateRefusal).toHaveBeenCalledTimes(1);
+  const [input] = mockReadPushGateRefusal.mock.calls[0] as [{ pushGateId: string }];
+  expect(input.pushGateId).toMatch(/^[0-9a-f]{32}$/u);
+  return input.pushGateId;
+}
+
 function pushedBranchInvocations(): string[][] {
   const calls = mockGitExec.mock.calls;
   return calls
     .map((call) => call[1] as unknown)
     .filter((args): args is string[] => Array.isArray(args) && args[0] === "push");
+}
+
+/** Use the shared Git script for worktree, output, and audit-I/O consumers. */
+function installWorktreeGitScript() {
+  const scripted = scriptGitExec([
+    { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "main", stderr: "" }] },
+    { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["push"] }, responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["diff"] }, responses: [{ stdout: "", stderr: "" }] },
+  ]);
+  mockGitExec.mockImplementation(scripted.exec);
+  return scripted;
 }
 
 /**
@@ -308,7 +340,8 @@ async function captureSyncJson(
   let written: string | undefined;
 
   try {
-    await handleSync({ json: true, ...opts }, cap.output);
+    await handleSync({ json: true, ...opts }, cap.output,
+      makeTestContext({ machineReadable: true, yes: opts.yes === true ? "authority" : "absent" }), inRepoStore);
     written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
   } finally {
     stdoutWrite.mockRestore();
@@ -329,7 +362,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   it("uses the explicit materializing reader without an automatic-sync policy", async () => {
     setWorktree("clean");
 
-    await handleSync({ dryRun: true });
+    await handleSync({ dryRun: true }, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: mockGitExec, cwd: "/repo" });
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
@@ -338,7 +371,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   it("stops before sync mutation when worktree materialization fails", async () => {
     mockRunMaterializingWorktreeInspection.mockRejectedValue(new Error("cannot lock tracking ref"));
 
-    await expect(handleSync()).rejects.toThrow("cannot lock tracking ref");
+    await expect(handleSync({}, undefined, makeTestContext(), inRepoStore)).rejects.toThrow("cannot lock tracking ref");
 
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();
@@ -362,7 +395,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       exitCode: 0,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunPairedPush).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).toHaveBeenCalledWith(expect.objectContaining({
@@ -453,7 +486,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       partialPushMarkerRecorded: markerRecorded,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockLog.warn).toHaveBeenCalledWith(expectedWarning);
     if (!markerRecorded) {
@@ -484,7 +517,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       partialPushMarkerRecorded: true,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
     expect(mockLog.warn).toHaveBeenCalledWith(message);
     expect(mockLog.warn).toHaveBeenCalledWith(
       "Partial publish recorded; publication remains deferred until this safety condition is resolved.",
@@ -584,7 +617,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setWorktree("local-ahead", 2);
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).not.toHaveBeenCalled();
@@ -600,18 +633,85 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it("push_interlock: on-sync + notes_push: manual + clean worktree → worktree push fires; notes save only", async () => {
+    const { calls } = installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("manual");
     setWorktree("clean");
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
-    expect(pushedBranchInvocations()).toEqual([["push", "origin", "main"]]);
+    expect(calls.filter(({ args }) => args[0] === "push").map(({ args }) => args))
+      .toEqual([["push", "origin", "main"]]);
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("names the push gate's failing checks, log, and retry when the gate refuses a worktree push", async () => {
+    mockGitExec.mockImplementation(scriptGitExec([
+      { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "main", stderr: "" }] },
+      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "", stderr: "" }] },
+      { match: { prefix: ["push"] }, responses: [{ failure: { exitCode: 1, stderr: "error: failed to push some refs" } }] },
+      { match: { prefix: ["diff"] }, responses: [{ stdout: "", stderr: "" }] },
+    ]).exec);
+    setConfig("on-sync");
+    setNotesPolicy("manual");
+    setWorktree("clean");
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+    const gate = { checks: [{ id: "lint:md:underwrap", outcome: "failed", logPath: "/repo/.git/arc-checks/underwrap.log",
+      remedy: "arc check run lint:md:underwrap --range abc1234" }] };
+    mockReadPushGateRefusal.mockResolvedValue(gate);
+
+    const outcome = await captureSyncJson();
+
+    const pushGateId = readPushGateId();
+    expect(mockReadPushGateRefusal).toHaveBeenCalledWith(expect.objectContaining({ cwd: "/repo", pushGateId }));
+    const push = mockGitExec.mock.calls.find(call => Array.isArray(call[1]) && call[1][0] === "push");
+    expect(push?.[2]).toEqual(expect.objectContaining({ pushGateId }));
+    expect(outcome.worktree).toEqual({ action: "push", result: "failed", detail: "push gate refused: lint:md:underwrap failed",
+      gate });
+    expect(capturedStderr.join("\n")).toContain("Retry: arc check run lint:md:underwrap --range abc1234");
+    expect(capturedStderr.join("\n")).toContain("log: /repo/.git/arc-checks/underwrap.log");
+  });
+
+  it("names the push gate's refusal in the paired JSON envelope", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: { status: "success", result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] } },
+      worktree: { status: "failed", error: new Error("git push: nonzero-exit (exit 1): error: failed to push some refs") },
+      notes: { status: "skipped", reason: "preceding-leg-failed" },
+      conditions: [],
+      exitCode: 1,
+    });
+    mockReadPushGateRefusal.mockResolvedValue({ error: "arc dev build is stale", checks: [] });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockRunPairedPush).toHaveBeenCalledWith(expect.objectContaining({ pushGateId: readPushGateId() }));
+    expect(outcome.worktree).toEqual({ action: "push", result: "failed",
+      detail: "push gate could not run: arc dev build is stale", gate: { error: "arc dev build is stale", checks: [] } });
+  });
+
+  it("keeps Git's message when the gate recorded no refusal for the failed push", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: { status: "success", result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] } },
+      worktree: { status: "failed", error: new Error("git push: nonzero-exit (exit 1): ! [rejected] main (fetch first)") },
+      notes: { status: "skipped", reason: "preceding-leg-failed" },
+      conditions: [],
+      exitCode: 1,
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(outcome.worktree).toEqual({ action: "push", result: "failed",
+      detail: "git push: nonzero-exit (exit 1): ! [rejected] main (fetch first)" });
   });
 
   it("both manual → save only; no pushes; unpushed state surfaced in output", async () => {
@@ -620,7 +720,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setWorktree("local-ahead", 3);
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).not.toHaveBeenCalled();
@@ -635,6 +735,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it("keeps errand reconcile successful when marker cleanup fails", async () => {
+    installWorktreeGitScript();
     includeExecInput = true;
     setConfig("manual");
     setNotesPolicy("manual");
@@ -655,6 +756,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it("names errand collisions and their real recovery when no marker can be recorded", async () => {
+    installWorktreeGitScript();
     includeExecInput = true;
     setConfig("manual");
     setNotesPolicy("manual");
@@ -681,7 +783,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockConfirm).toHaveBeenCalledTimes(1);
@@ -841,7 +943,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     const warnings = mockLog.warn.mock.calls.map((c) => String(c[0] ?? ""));
     expect(warnings.some((line) =>
@@ -910,7 +1012,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -933,7 +1035,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -957,7 +1059,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     });
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
@@ -967,6 +1069,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it("interlockState envelope reports configured sync_interlock verbatim", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync", "manual");
     setNotesPolicy("on-sync");
     setWorktree("clean");
@@ -990,11 +1093,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     });
   });
 
-  it("interlockState reports the resolved notesPush after non-interactive degradation", async () => {
+  it("interlockState retains the configured prompt policy when authority is unavailable", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
-    mockIsNonInteractive.mockReturnValue(true);
+    nonInteractive = true;
     mockRunUserSave.mockResolvedValue({
       identity: "andrew",
       commit: "abc1234",
@@ -1006,7 +1109,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
 
     expect(outcome.interlockState).toEqual({
       pushInterlock: { value: "manual", source: "default" },
-      notesPush: { value: "manual", source: "default" },
+      notesPush: { value: "prompt", source: "default" },
       syncInterlock: { value: "on-handoff", source: "default" },
     });
   });
@@ -1016,7 +1119,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setNotesPolicy("on-sync");
     setWorktree("local-ahead", 2);
 
-    await handleSync({ dryRun: true });
+    await handleSync({ dryRun: true }, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();
@@ -1144,6 +1247,7 @@ describe("--json stdout-purity contract", () => {
   });
 
   it("emits exactly one JSON object on stdout — no Clack call leaks through", async () => {
+    installWorktreeGitScript();
     setConfig("manual");
     setNotesPolicy("manual");
     setWorktree("clean");
@@ -1159,7 +1263,7 @@ describe("--json stdout-purity contract", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true });
+      await handleSync({ json: true }, undefined, makeTestContext({ machineReadable: true }), inRepoStore);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1178,7 +1282,7 @@ describe("--json stdout-purity contract", () => {
     expect(mockSpinner).not.toHaveBeenCalled();
   });
 
-  it("--json + notes_push: prompt → degrades to manual; never invokes confirm", async () => {
+  it("--json refuses a notes push without authority after preserving the local save", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1193,12 +1297,16 @@ describe("--json stdout-purity contract", () => {
     const stderrText = capturedStderr.join("");
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(outcome.cell).toBe("save-only");
-    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "manual" } });
-    expect(stderrText).toMatch(/JSON output mode.+degrading "prompt"/);
+    expect(outcome.cell).toBe("notes-prompt");
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "prompt" } });
+    expect(outcome.notes).toMatchObject({ action: "save", result: "blocked", detail: "notes-push-authority-required" });
+    expect(stderrText).toContain("Notes saved locally; re-run with --yes to authorize the push.");
+    expect(outcome.exitCode).toBe(1);
+    expect(process.exitCode).toBe(1);
   });
 
   it("non-JSON path keeps Clack output as-is (regression guard for routing flag)", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("clean");
@@ -1213,7 +1321,7 @@ describe("--json stdout-purity contract", () => {
       exitCode: 0,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockIntro).toHaveBeenCalledWith("arc sync");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
@@ -1229,7 +1337,7 @@ describe("--yes wiring", () => {
     process.exitCode = undefined;
   });
 
-  it("--yes degrades notes_push: prompt → on-sync; never invokes confirm", async () => {
+  it("--yes answers the configured notes prompt through authority without terminal input", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1245,11 +1353,11 @@ describe("--yes wiring", () => {
 
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
-    expect(outcome.cell).toBe("notes-only");
-    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "on-sync" } });
+    expect(outcome.cell).toBe("notes-prompt");
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "prompt" } });
   });
 
-  it("--yes wins over JSON-mode prompt-degradation gate (on-sync > manual)", async () => {
+  it("JSON-mode notes prompt accepts explicit authority while retaining configuration", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1263,8 +1371,8 @@ describe("--yes wiring", () => {
 
     const outcome = await captureSyncJson({ yes: true });
 
-    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "on-sync" } });
-    expect(outcome.cell).toBe("notes-only");
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "prompt" } });
+    expect(outcome.cell).toBe("notes-prompt");
   });
 
   it("paired notes adapter delegates to the branch-bounded pusher and maps its outcome", async () => {
@@ -1300,13 +1408,13 @@ describe("--yes wiring", () => {
     });
     mockPushBranchBoundedNotesExport.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync({ yes: true });
+    await handleSync({ yes: true }, undefined, makeTestContext({ yes: "authority" }), inRepoStore);
 
     expect(mockPushBranchBoundedNotesExport).toHaveBeenCalledTimes(1);
     expect(capturedNotesContext).toEqual({ status: "success" });
   });
 
-  it("--dry-run --json --yes → preview reflects degraded policy (notes-only, save+push)", async () => {
+  it("--dry-run --json --yes preview retains the configured notes prompt", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1317,8 +1425,8 @@ describe("--yes wiring", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toMatchObject({
       mode: "dry-run",
-      cell: "notes-only",
-      interlockState: { notesPush: { value: "on-sync" } },
+      cell: "notes-prompt",
+      interlockState: { notesPush: { value: "prompt" } },
       notes: { action: "push", result: "skipped", detail: "dry-run" },
     });
   });
@@ -1351,7 +1459,7 @@ describe("error-path envelope coverage", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true }, cap.output);
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), inRepoStore);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1375,7 +1483,7 @@ describe("error-path envelope coverage", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     try {
-      await handleSync();
+      await handleSync({}, undefined, makeTestContext(), inRepoStore);
     } finally {
       stdoutWrite.mockRestore();
     }
@@ -1397,7 +1505,7 @@ describe("error-path envelope coverage", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true }, cap.output);
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), inRepoStore);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1414,6 +1522,27 @@ describe("error-path envelope coverage", () => {
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
   });
 
+  it("store-imported + --json → refuses before any leg, carrying the refusal in the envelope", async () => {
+    mockStoreImported.mockResolvedValueOnce(true);
+
+    const cap = makeCapturingSyncOutput();
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    let writes: string[];
+    try {
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), inRepoStore);
+      writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
+    } finally {
+      stdoutWrite.mockRestore();
+    }
+
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(writes[0] ?? "")).toEqual({ cell: "none", reason: "store-imported", refusal: storeImportedRefusal() });
+    expect(cap.stderr.join("")).toContain("store.imported");
+    expect(process.exitCode).toBe(1);
+    expect(mockResolveAllSettings).not.toHaveBeenCalled();
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+  });
+
   it("no-arc-project + non-JSON → routes diagnostic via clack log; no envelope on stdout", async () => {
     mockResolveArcRoot.mockReturnValueOnce(null);
 
@@ -1421,7 +1550,7 @@ describe("error-path envelope coverage", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     try {
-      await handleSync();
+      await handleSync({}, undefined, makeTestContext(), inRepoStore);
     } finally {
       stdoutWrite.mockRestore();
     }
@@ -1439,6 +1568,7 @@ describe("audit-log integration", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    installWorktreeGitScript();
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
@@ -1455,7 +1585,7 @@ describe("audit-log integration", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     const call = mockAppendAuditEntry.mock.calls[0]?.[0] as {
@@ -1508,15 +1638,13 @@ describe("audit-log integration", () => {
         warnings: [],
       });
       if (branch === null) {
-        mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
-          if (Array.isArray(args) && args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
-            return { stdout: "HEAD", stderr: "" };
-          }
-          return { stdout: "", stderr: "" };
-        });
+        mockGitExec.mockImplementation(scriptGitExec([
+          { match: { prefix: ["rev-parse", "--abbrev-ref"] }, responses: [{ stdout: "HEAD", stderr: "" }] },
+          { match: { prefix: [] }, responses: [{ stdout: "", stderr: "" }] },
+        ]).exec);
       }
 
-      await handleSync();
+      await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
       expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
       const call = mockAppendAuditEntry.mock.calls[0]?.[0] as {
@@ -1552,7 +1680,7 @@ describe("audit-log integration", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     const call = mockAppendAuditEntry.mock.calls[0]?.[0] as {
@@ -1589,7 +1717,7 @@ describe("audit-log integration", () => {
       }),
     );
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1599,7 +1727,7 @@ describe("audit-log integration", () => {
   it("no-arc-project path skips the audit write", async () => {
     mockResolveArcRoot.mockReturnValueOnce(null);
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1611,7 +1739,7 @@ describe("audit-log integration", () => {
     setNotesPolicy("on-sync");
     setWorktree("clean");
 
-    await handleSync({ dryRun: true });
+    await handleSync({ dryRun: true }, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1625,6 +1753,7 @@ describe("audit-log integration", () => {
   // mask the wrapped sync's outcome.
 
   it("audit-write I/O failure does not change exitCode (success cell)", async () => {
+    installWorktreeGitScript();
     setConfig("manual");
     setNotesPolicy("manual");
     setWorktree("clean");
@@ -1639,13 +1768,14 @@ describe("audit-log integration", () => {
       error: new Error("EACCES: permission denied"),
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     expect(process.exitCode).toBeUndefined();
   });
 
   it("audit-write I/O failure does not change exitCode (refused cell)", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("diverged", 1, 2);
@@ -1660,7 +1790,7 @@ describe("audit-log integration", () => {
       error: new Error("ENOSPC: no space left on device"),
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     // Sync's refused-cell exit code (1) survives the audit-write failure.
@@ -1690,15 +1820,16 @@ describe("audit-log integration > schema round-trip", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    installWorktreeGitScript();
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
   });
 
   async function captureEntry(): Promise<AuditEntry> {
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
-    return mockAppendAuditEntry.mock.calls[0]?.[0].entry as AuditEntry;
+    return AuditEntrySchema.parse(mockAppendAuditEntry.mock.calls[0]?.[0].entry);
   }
 
   async function roundTrip(entry: AuditEntry): Promise<AuditEntry> {
@@ -1710,7 +1841,7 @@ describe("audit-log integration > schema round-trip", () => {
       const content = await readFile(path, "utf-8");
       const lines = content.split("\n").filter((line) => line.length > 0);
       expect(lines).toHaveLength(1);
-      return JSON.parse(lines[0] ?? "") as AuditEntry;
+      return AuditEntrySchema.parse(JSON.parse(lines[0] ?? ""));
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
@@ -1775,6 +1906,7 @@ describe("audit-log integration > success cells", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    installWorktreeGitScript();
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
@@ -1800,7 +1932,7 @@ describe("audit-log integration > success cells", () => {
       exitCode: 0,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       command: "sync",
@@ -1831,7 +1963,7 @@ describe("audit-log integration > success cells", () => {
       exitCode: 0,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       outcome: {
@@ -1844,6 +1976,7 @@ describe("audit-log integration > success cells", () => {
   });
 
   it("worktree-only success entry: worktree=push:success, notes=save:success", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("manual");
     setWorktree("clean");
@@ -1854,7 +1987,7 @@ describe("audit-log integration > success cells", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       command: "sync",
@@ -1887,7 +2020,7 @@ describe("audit-log integration > success cells", () => {
     });
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       decision: "proceeded",
@@ -1913,7 +2046,7 @@ describe("audit-log integration > success cells", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       decision: "proceeded",
@@ -1942,7 +2075,7 @@ describe("audit-log integration > success cells", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       decision: "proceeded",
@@ -1973,7 +2106,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("manual");
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "ff-pull",
       fastForwarded: true,
@@ -1981,18 +2114,14 @@ describe("handleSync inbound fast-forward leg", () => {
       behind: 3,
     });
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
-    mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
-      if (Array.isArray(args)) {
-        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "main", stderr: "" };
-        if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: "oldsha", stderr: "" };
-        if (args[0] === "diff" && args[1] === "--name-only") {
-          return { stdout: "src/a.ts\nsrc/b.ts\n", stderr: "" };
-        }
-      }
-      return { stdout: "", stderr: "" };
-    });
+    mockGitExec.mockImplementation(scriptGitExec([
+      { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "main", stderr: "" }] },
+      { match: ["rev-parse", "HEAD"], responses: [{ stdout: "oldsha", stderr: "" }] },
+      { match: { prefix: ["diff", "--name-only"] }, responses: [{ stdout: "src/a.ts\nsrc/b.ts\n", stderr: "" }] },
+      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "", stderr: "" }] },
+    ]).exec);
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockExecuteInboundPull).toHaveBeenCalledTimes(1);
     expect(mockExecuteInboundPull).toHaveBeenCalledWith(expect.objectContaining({
@@ -2008,10 +2137,11 @@ describe("handleSync inbound fast-forward leg", () => {
   });
 
   it("TTY + remote-ahead + clean + on-sync notes → notes push the same run after the ff-pull", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 2, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "ff-pull",
       fastForwarded: true,
@@ -2038,7 +2168,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(true);
+    nonInteractive = true;
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
     const outcome = await captureSyncJson();
@@ -2054,11 +2184,12 @@ describe("handleSync inbound fast-forward leg", () => {
   });
 
   it("non-TTY + remote-ahead + sync.auto_pull true → inbound-ff-pull fires", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("manual");
     setAutoPull(true);
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(true);
+    nonInteractive = true;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "ff-pull",
       fastForwarded: true,
@@ -2086,7 +2217,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "refuse",
       fastForwarded: false,
@@ -2111,7 +2242,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("diverged", 1, 2, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
     const outcome = await captureSyncJson();
@@ -2128,7 +2259,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "block",
       fastForwarded: false,

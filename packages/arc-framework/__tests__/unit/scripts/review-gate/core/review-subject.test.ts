@@ -26,7 +26,11 @@ const member = {
 };
 
 function lookup(result: DeliveryMemberLookupResult) {
-  return { resolveMemberByHead: async () => result };
+  return {
+    resolveMemberByHead: async () => result,
+    resolveMemberByRef: async () => result,
+    resolveMemberByVehicle: async () => result,
+  };
 }
 
 describe("review subject resolution", () => {
@@ -62,7 +66,7 @@ describe("review subject resolution", () => {
   });
 
   it("resolves a bound delivery head to its owning work unit", async () => {
-    await expect(resolveReviewSubject({
+    await expect(resolveReviewSubject({ cwd: "/project",
       headRef: "delivery/plan-1/member-1",
       headSha: HEAD,
       memberLookup: lookup({ status: "resolved", member }),
@@ -70,7 +74,7 @@ describe("review subject resolution", () => {
   });
 
   it("keeps an authoritatively unbound head distinct", async () => {
-    await expect(resolveReviewSubject({
+    await expect(resolveReviewSubject({ cwd: "/project",
       headRef: "delivery/plan-1/member-1",
       headSha: HEAD,
       memberLookup: lookup({ status: "unbound" }),
@@ -78,7 +82,7 @@ describe("review subject resolution", () => {
   });
 
   it("keeps an unavailable delivery read distinct", async () => {
-    await expect(resolveReviewSubject({
+    await expect(resolveReviewSubject({ cwd: "/project",
       headRef: "delivery/plan-1/member-1",
       headSha: HEAD,
       memberLookup: lookup({ status: "unavailable" }),
@@ -86,7 +90,7 @@ describe("review subject resolution", () => {
   });
 
   it("preserves ordinary work-unit branch resolution", async () => {
-    await expect(resolveReviewSubject({
+    await expect(resolveReviewSubject({ cwd: "/project",
       headRef: "feat/example",
       headSha: HEAD,
       memberLookup: lookup({ status: "unavailable" }),

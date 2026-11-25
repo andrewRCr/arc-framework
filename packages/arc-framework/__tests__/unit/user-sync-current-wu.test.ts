@@ -27,7 +27,17 @@ afterEach(async () => {
 async function writeMeta(name: string): Promise<void> {
   await writeFile(
     join(activeDir, `meta-${name}.md`),
-    ["# Metadata: Sample", "", "- **State:** Active", "- **Branch:** feat/sample", ""].join("\n"),
+    [
+      "# Metadata: Sample",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active | — | feat/sample | — | — |",
+      "",
+      "",
+      "---",
+      "",
+    ].join("\n"),
   );
 }
 
@@ -51,6 +61,12 @@ describe("resolveCurrentWuName", () => {
     const result = await resolveCurrentWuName(root, exec);
 
     expect(result).toBe("errand-thing");
+  });
+
+  it("falls back to the branch slug when active work-unit ownership is ambiguous", async () => {
+    await writeMeta("first");
+    await writeMeta("second");
+    expect(await resolveCurrentWuName(root, branchExec("feat/branch-owner"))).toBe("branch-owner");
   });
 
   it("returns undefined when no meta resolves and the branch carries no WU slug", async () => {

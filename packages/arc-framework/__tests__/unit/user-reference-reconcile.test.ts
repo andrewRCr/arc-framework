@@ -441,3 +441,55 @@ describe("planUserReferenceReconcile", () => {
     expect(wrote).toBe(false);
   });
 });
+
+
+describe("user-reference session repair actions", () => {
+  it.each([undefined, false])("preserves the legacy pending recommendation with off-branch state %s", stateOffBranch => {
+    expect(projectUserReferenceSessionResult({ status: "ready", ref: "main", remoteEvidence: "exact",
+      transitions: [{ subject: "origin", outcome: { kind: "rename", targetSlug: "successor" } }],
+    }, { userInbox: { path: "USER-INBOX.md", content: inbox }, stateOffBranch }).recommendedPromptText)
+      .toBe("Managed USER-INBOX references can be reconciled from authoritative rename evidence.");
+  });
+
+  it.each([undefined, false])("preserves the legacy advisory recommendation with off-branch state %s", stateOffBranch => {
+    const result = projectUserReferenceSessionResult({ status: "ready", ref: "main", remoteEvidence: "exact",
+      transitions: [{ subject: "origin", outcome: { kind: "decompose" } }],
+    }, { userInbox: { path: "USER-INBOX.md", content: inbox }, stateOffBranch });
+    expect(result.recommendedPromptText).toBe(`User-reference reconcile found ${result.plan?.advisories.length} advisory reference(s).`);
+  });
+
+  it("offers inspection and application for pending rewrites, and inspection for advisory references", () => {
+    const pending = projectUserReferenceSessionResult({
+      status: "ready", ref: "main", remoteEvidence: "exact",
+      transitions: [{ subject: "origin", outcome: { kind: "rename", targetSlug: "successor" } }],
+    }, { userInbox: { path: "USER-INBOX.md", content: inbox } });
+    expect(pending).toMatchObject({ actions: [
+      { text: "arc user reconcile-references --json", argv: ["arc", "user", "reconcile-references", "--json"] },
+      { text: "arc user reconcile-references --apply --json",
+        argv: ["arc", "user", "reconcile-references", "--apply", "--json"] },
+    ] });
+    const advisory = projectUserReferenceSessionResult({
+      status: "ready", ref: "main", remoteEvidence: "exact",
+      transitions: [{ subject: "origin", outcome: { kind: "decompose" } }],
+    }, { userInbox: { path: "USER-INBOX.md", content: inbox } });
+    expect(advisory).toMatchObject({ actions: [
+      { text: "arc user reconcile-references --json", argv: ["arc", "user", "reconcile-references", "--json"] },
+    ] });
+  });
+
+  it("carries the authority diagnostic as text and omits actions when authority was deliberately unnecessary", () => {
+    const surfaces = { userInbox: { path: "USER-INBOX.md", content: "" } };
+    const unreachable = projectUserReferenceSessionResult({
+      status: "unavailable", ref: "origin/main", remoteEvidence: "unreachable", failureReason: "network",
+    }, surfaces);
+    expect(unreachable).toMatchObject({ actions: [{ text: unreachable.recommendedPromptText }] });
+    const conflict = projectUserReferenceSessionResult({
+      status: "conflict", ref: "main", remoteEvidence: "exact", reason: "ambiguous-history",
+    }, surfaces);
+    expect(conflict).toMatchObject({ actions: [{ text: conflict.recommendedPromptText }] });
+    const quiet = projectUserReferenceSessionResult({
+      status: "unavailable", ref: "main", remoteEvidence: "not-applicable", reason: "remote-not-required",
+    }, surfaces);
+    expect(quiet).not.toHaveProperty("actions");
+  });
+});

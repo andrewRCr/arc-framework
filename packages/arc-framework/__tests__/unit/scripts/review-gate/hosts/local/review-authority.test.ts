@@ -8,6 +8,7 @@ import type {
 import {
   resolveLocalReviewAuthority,
 } from "../../../../../../src/scripts/review-gate/hosts/local/review-authority.js";
+import { ReviewVehicleUnresolvedError } from "../../../../../../src/lib/store/kinds/review/errors.js";
 
 const MEMBER_HEAD = "c".repeat(40);
 const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
@@ -29,6 +30,8 @@ const binding = (overrides: Partial<DeliveryMemberBinding> = {}): DeliveryMember
 
 const lookupOf = (result: DeliveryMemberLookupResult): DeliveryMemberLookup => ({
   resolveMemberByHead: vi.fn(async () => result),
+  resolveMemberByRef: vi.fn(async () => result),
+  resolveMemberByVehicle: vi.fn(async () => result),
 });
 
 const workUnitContext = () => ({
@@ -118,7 +121,7 @@ describe("local review actor authority", () => {
       await expect(resolveLocalReviewAuthority(
         { evaluatorIdentity: "fresh-reviewer" },
         { readLiveContext: async () => context, resolveRuntimeBinding: runtimeBinding },
-      )).rejects.toThrow(/vehicle-unresolved/u);
+      )).rejects.toThrow(ReviewVehicleUnresolvedError);
     }
   });
 
@@ -148,7 +151,13 @@ describe("local review actor authority", () => {
         runtimeIdentity: "arc-cli/0.1.0",
         attestationMechanism: "local-attestation",
       },
-      member: { base: "b".repeat(40), head: MEMBER_HEAD },
+      member: {
+        planId: "stack-1",
+        workUnitId: "review-surface-binding",
+        deliverableId: DELIVERABLE_ID,
+        base: "b".repeat(40),
+        head: MEMBER_HEAD,
+      },
     });
     expect(memberLookup.resolveMemberByHead).toHaveBeenCalledWith(MEMBER_HEAD);
   });
@@ -197,7 +206,7 @@ describe("local review actor authority", () => {
       },
     );
     await expect(attempt).rejects.toThrow(/delivery-member-requires-work-unit/u);
-    await expect(attempt).rejects.not.toThrow(/vehicle-unresolved/u);
+    await expect(attempt).rejects.not.toMatchObject({ reason: "vehicle-unresolved" });
   });
 
   it("refuses the plan's final member", async () => {

@@ -2,7 +2,14 @@
 
 ## Status
 
-{Proposed | Accepted | Deprecated | Superseded by ADR-XXX}
+Proposed
+
+<!-- Valid states:
+- Proposed: while the delivering change is unmerged.
+- Accepted (YYYY-MM-DD): set in that change before it merges, dated the day of the flip; the record locks at merge.
+- Deprecated: the decision is no longer valid and has no replacement.
+- Superseded by ADR-XXX: a new ADR replaces the decision.
+-->
 
 ## Context
 
@@ -19,8 +26,7 @@ If applicable, mention alternatives that were considered:
 
 ## Decision
 
-State the decision in full sentences, with active voice.
-"We will ..."
+State the decision in full sentences, with active voice. "We will ..."
 
 Be specific about:
 

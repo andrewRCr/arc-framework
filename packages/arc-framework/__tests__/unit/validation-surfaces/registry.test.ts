@@ -89,11 +89,11 @@ describe("validation-surfaces schema registry", () => {
   });
 
   it("keeps default publication kernel-only and composed projection opt-in", () => {
-    const defaultBytes = serializeKernelSchemaBundle(projectKernelSchemas());
+    const defaultBytes = serializeKernelSchemaBundle(projectKernelSchemas("output"));
     const registry = createValidationSurfacesRegistry();
-    const composed = projectKernelSchemas(registry);
+    const composed = projectKernelSchemas("output", registry);
 
-    expect(serializeKernelSchemaBundle(projectKernelSchemas())).toBe(defaultBytes);
+    expect(serializeKernelSchemaBundle(projectKernelSchemas("output"))).toBe(defaultBytes);
     expect(Object.keys(JSON.parse(defaultBytes).schemas as object)).toEqual([
       "priority",
       "remote-evidence",
@@ -102,15 +102,15 @@ describe("validation-surfaces schema registry", () => {
       "work-class",
       "work-unit-state",
     ]);
-    expect(Object.keys(composed.schemas)).toEqual(registry.ids());
+    expect(Object.keys(composed.schemas)).toEqual([...registry.ids(), "__shared"]);
     expect(composed.schemas[VALIDATION_SURFACE_SCHEMA_IDS.metaRecord]?.properties?.state).toEqual({
-      $ref: "work-unit-state.schema.json",
+      $ref: "urn:arc:schema:work-unit-state",
     });
   });
 
   it("projects deterministic composed bytes with closed resolvable identities", () => {
-    const first = projectKernelSchemas(createValidationSurfacesRegistry());
-    const second = projectKernelSchemas(createValidationSurfacesRegistry());
+    const first = projectKernelSchemas("output", createValidationSurfacesRegistry());
+    const second = projectKernelSchemas("output", createValidationSurfacesRegistry());
     const ids = Object.keys(first.schemas);
 
     expect(serializeKernelSchemaBundle(second)).toBe(serializeKernelSchemaBundle(first));
@@ -125,14 +125,15 @@ describe("validation-surfaces schema registry", () => {
       "slug",
       "work-class",
       "work-unit-state",
+      "__shared",
     ]);
-    for (const id of ids) expect(first.schemas[id]?.$id).toBe(`${id}.schema.json`);
+    for (const id of ids) expect(first.schemas[id]?.$id).toBe(`urn:arc:schema:${id}`);
 
     const references = [...serializeKernelSchemaBundle(first).matchAll(/"\$ref": "([^"]+)"/gu)]
       .map((match) => match[1]);
     expect(references.length).toBeGreaterThan(0);
     for (const reference of references) {
-      expect(ids.map((id) => `${id}.schema.json`)).toContain(reference);
+      expect(ids.map((id) => `urn:arc:schema:${id}`)).toContain(reference?.split("#")[0]);
     }
   });
 });

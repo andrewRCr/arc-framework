@@ -56,6 +56,12 @@ function requiresNativeStackMerge(error: unknown): boolean {
     && /(?:merge-async|asynchronous merge|stack merge)/iu.test(detail);
 }
 
+function isMergeConflict(error: unknown): boolean {
+  if (!(error instanceof HostedProcessError)) return false;
+  const detail = `${error.message}\n${error.stderr}\n${error.stdout}`;
+  return /\bis not mergeable:\s*the merge commit cannot be cleanly created\b/iu.test(detail);
+}
+
 function deliveryHostProviderFailure(error: unknown): DeliveryHostProviderFailure {
   if (error instanceof HostedProcessError) {
     return error.httpStatus === null
@@ -407,6 +413,8 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
     } catch (error) {
       return requiresNativeStackMerge(error)
         ? { status: "refused", reason: "native-stack-required" }
+        : isMergeConflict(error)
+          ? { status: "refused", reason: "conflict" }
         : { status: "refused", reason: "unavailable", provider: deliveryHostProviderFailure(error) };
     }
   }

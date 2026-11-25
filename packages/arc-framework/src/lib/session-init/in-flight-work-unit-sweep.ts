@@ -20,7 +20,7 @@
  * @module
  */
 
-import type { WorktreeRosterEntry } from "../git/worktree-roster.js";
+import { isInFlightWorkUnitRosterEntry, type WorktreeRosterEntry } from "../git/worktree-roster.js";
 import type { RemoteFailureReason } from "../kernel/index.js";
 import { composeMergeabilityGuidance } from "./recommended-action.js";
 
@@ -202,12 +202,15 @@ export function enumerateOwnedIntegratingWorkUnits(
 
   const workUnits: OwnedIntegratingWorkUnit[] = [];
   for (const entry of roster) {
+    if (!isInFlightWorkUnitRosterEntry(entry)) continue;
     if (entry.state !== "Integrating") continue;
-    if (entry.metaFilePath === undefined) continue;
+    if (entry.branch === undefined) continue;
+    const name = entry.workUnit ?? (entry.metaFilePath === undefined ? undefined : workUnitNameFromMetaPath(entry.metaFilePath));
+    if (name === undefined) continue;
     if (identity !== null && entry.identity !== undefined && entry.identity !== identity) continue;
 
     workUnits.push({
-      name: workUnitNameFromMetaPath(entry.metaFilePath),
+      name,
       branch: entry.branch,
       committerDate: committerDates.get(entry.branch) ?? null,
     });

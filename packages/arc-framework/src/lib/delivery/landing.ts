@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalDigest } from "../kernel/index.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryHostPort } from "./host.js";
 import {
   acceptDeliveryOperationResult,
@@ -267,7 +267,7 @@ export const DeliveryRecoveryResultV1Schema = z.union([
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     verification: z.strictObject({
       memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).length(1).readonly(),
-      tier1Required: z.literal(true),
+      commitGateRequired: z.literal(true),
     }),
   }),
   z.strictObject({
@@ -370,6 +370,7 @@ export interface DeliveryLandingObservationPort {
     readonly predecessor: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
     readonly member: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
   } | null>;
+  readMemberBase(head: string): Promise<DeliveryContributionEndpoints["before"]["predecessor"] | null>;
   proveLandedContribution(input: DeliveryContributionEndpoints): Promise<DeliveryContributionProofResult>;
 }
 
@@ -434,8 +435,9 @@ export const DeliveryLandingRefusalCauseSchema = z.discriminatedUnion("stage", [
   z.strictObject({ stage: z.literal("merge-policy-revalidation"), reason: z.literal("policy-unavailable") }),
   z.strictObject({
     stage: z.literal("merge-submission"),
-    reason: z.enum(["queued", "malformed", "unavailable"]),
+    reason: z.enum(["queued", "malformed", "unavailable", "conflict"]),
     provider: DeliveryHostProviderFailureSchema.optional(),
+    recommendedActionText: z.string().min(1).optional(),
   }),
   z.strictObject({
     stage: z.literal("merged-result-reconciliation"),
@@ -477,7 +479,7 @@ export type DeliveryRecoveryObservationRefusal =
   | {
       readonly status: "refused";
       readonly reason: "native-effect-partial";
-      readonly affectedDeliverableIds: readonly string[];
+      readonly affectedDeliverableIds: readonly CanonicalDigest[];
     };
 
 export interface DeliveryRecoveryObservationPort {
@@ -736,6 +738,18 @@ export async function applyDeliveryLanding(input: {
   const submitted = await input.host.mergeRequest(operation.effect);
   if (submitted.status !== "submitted") {
     if (submitted.reason !== "native-stack-required") {
+      if (submitted.reason === "conflict") {
+        return landingRefused({
+          stage: "merge-submission",
+          reason: "conflict",
+          recommendedActionText:
+            "Run `arc delivery reconcile` to settle the retained landing reservation. Only after it proves "
+            + "no merge applied and clears the reservation, run `arc delivery refresh plan` for the current "
+            + "delivery position. Follow its exact `arc delivery refresh execute` route when available, "
+            + "or restack externally and run "
+            + "`arc delivery refresh adopt` after resolving conflicts. This build adopts only a clean restack.",
+        });
+      }
       return landingRefused({
         stage: "merge-submission",
         reason: submitted.reason,
@@ -806,8 +820,12 @@ export async function applyDeliveryLanding(input: {
   if (landed === null) {
     return landingRefused({ stage: "merged-result-reconciliation", reason: "landing-observation-unavailable" });
   }
+  const memberBase = await input.observation.readMemberBase(memberCoordinates.base);
+  if (memberBase === null || memberBase.head !== memberCoordinates.base) {
+    return landingRefused({ stage: "merged-result-reconciliation", reason: "landing-observation-unavailable" });
+  }
   const proof = await input.observation.proveLandedContribution({
-    before: { predecessor: beforeTarget, member: memberCoordinates },
+    before: { predecessor: memberBase, member: memberCoordinates },
     after: landed,
   });
   if (proof.status !== "accepted") return proof;
@@ -1076,7 +1094,7 @@ export async function reconcileDeliveryExecution(input: {
           selectedDeliverableId: selectedChangeDeliverableId,
           verification: {
             memberDeliverableIds: [selectedChangeDeliverableId],
-            tier1Required: true,
+            commitGateRequired: true,
           },
         }
       : observed.continuation === undefined

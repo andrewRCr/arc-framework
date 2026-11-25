@@ -194,7 +194,7 @@ function snapshotFromState(
 }
 
 function followsPlanOrder(plan: DeliveryPlanV1, deliverableIds: readonly string[]): boolean {
-  const positions = new Map(plan.members.map((member, index) => [member.deliverableId, index]));
+  const positions = new Map<string, number>(plan.members.map((member, index) => [member.deliverableId, index]));
   let previous = -1;
   for (const deliverableId of deliverableIds) {
     const position = positions.get(deliverableId);

@@ -13,7 +13,7 @@ import {
   ROADMAP_MERGE_ATTRIBUTE,
   ROADMAP_MERGE_DRIVER_COMMAND,
 } from "../../../src/lib/setup.js";
-import { CLI_PATH } from "../../helpers/cli-spawn.js";
+import { CLI_BUNDLE_PATH } from "../../helpers/cli-spawn.js";
 
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 const packageRoot = join(testDir, "..", "..", "..");
@@ -24,9 +24,11 @@ describe("ROADMAP conflict remedy script", () => {
   it("does not execute merely because the packaged CLI imports its module", () => {
     const cwd = mkdtempSync(join(tmpdir(), "arc-roadmap-bundle-import-"));
     try {
-      const result = spawnSync(process.execPath, [CLI_PATH, "--help"], {
+      // Run the bundle itself, so the process entry is the file every bundled module reports as its own.
+      const result = spawnSync(process.execPath, [CLI_BUNDLE_PATH, "--help"], {
         cwd,
         encoding: "utf8",
+        env: { ...process.env, FORCE_COLOR: undefined },
       });
 
       expect(result.status).toBe(0);
@@ -43,6 +45,7 @@ describe("ROADMAP conflict remedy script", () => {
       const result = spawnSync(process.execPath, scriptArguments, {
         cwd,
         encoding: "utf8",
+        env: { ...process.env, FORCE_COLOR: undefined },
       });
 
       expect(result.status).toBe(1);
@@ -98,6 +101,7 @@ describe("ROADMAP conflict remedy script", () => {
       const remedy = spawnSync(process.execPath, scriptArguments, {
         cwd,
         encoding: "utf8",
+        env: { ...process.env, FORCE_COLOR: undefined },
       });
       expect(remedy.status).toBe(0);
       expect(remedy.stdout).toContain("Auto-remedied ROADMAP-only conflict");

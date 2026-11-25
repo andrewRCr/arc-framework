@@ -1,6 +1,9 @@
 /** Exact recovery projection for forward correction substages inside public integration. */
 
+import { posix } from "node:path";
+
 import type { Probe } from "../../commands/status/types.js";
+import { resolveArcPath } from "../layout/index.js";
 import type { CompactionSeed } from "../compaction-seed/schema.js";
 import { auditLoadSetManifest } from "../load-set/audit.js";
 import type { LoadSetManifest } from "../load-set/types.js";
@@ -18,9 +21,10 @@ import {
 } from "../task-list/scanner.js";
 import type { RecoveryLocusFrame } from "./locus-context.js";
 
-const PROCESS_WORKFLOW = ".arc/system/workflows/arc/process-task-loop.md";
-const VERIFY_WORKFLOW = ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md";
-const INTEGRATE_WORKFLOW = ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md";
+const WORKFLOW_ROOT = resolveArcPath({ kind: "procedure-root", family: "workflows" });
+const PROCESS_WORKFLOW = posix.join(WORKFLOW_ROOT, "arc/process-task-loop.md");
+const VERIFY_WORKFLOW = posix.join(WORKFLOW_ROOT, "arc/work-unit-lifecycle/verify-work-unit.md");
+const INTEGRATE_WORKFLOW = posix.join(WORKFLOW_ROOT, "arc/work-unit-lifecycle/integrate-work-unit.md");
 
 /** Closed integration-correction progressions admitted by recovery. */
 export type IntegrationCorrectionTransition =

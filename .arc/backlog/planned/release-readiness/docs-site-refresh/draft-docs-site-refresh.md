@@ -117,9 +117,9 @@ PRD-graduation when the rebrand sequencing converges.
 - Sweep branding in the ported content: apply the three-tier naming architecture (ARC / ARCd / ARCd Framework)
   from `plan-arcd-rebrand.md` § Content sweep discipline. The rebrand WU excepts `docs/` from its own sweep
   because `docs/` is deleted here; the port is the only sweep those files receive.
-- Rebuild the navigation sidebar from scratch in Starlight's config format
-  (`apps/docs/astro.config.mjs` → `starlight({ sidebar: [...] })`). Reference the existing `mkdocs.yml` `nav`
-  tree for content ordering, but a manual rebuild is cleaner than mechanical YAML transformation.
+- Rebuild the navigation sidebar from scratch in Starlight's config format (`apps/docs/astro.config.mjs` →
+  `starlight({ sidebar: [...] })`). Reference the existing `mkdocs.yml` `nav` tree for content ordering, but a manual
+  rebuild is cleaner than mechanical YAML transformation.
 - Verify internal links post-port. All relative `[link](./other-page.md)` references resolve under Starlight's
   routing conventions; update as needed.
 - Configure Starlight's `logo` option to reference the ARCd logo SVG from its new home (see Layer 5).

@@ -73,7 +73,7 @@ describe("deriveRestateCandidates", () => {
       [DIFF_KEY]: { stdout: "", stderr: "" },
     });
 
-    const result = await deriveRestateCandidates({ exec, sessionNotes });
+    const result = await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes });
 
     expect(result.commitsSinceHandoff).toEqual([
       { hash: "abc1234", subject: "docs(arc): first" },
@@ -89,7 +89,7 @@ describe("deriveRestateCandidates", () => {
       [DIFF_KEY]: { stdout: "", stderr: "" },
     });
 
-    const result = await deriveRestateCandidates({ exec, sessionNotes });
+    const result = await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes });
 
     expect(result.commitsSinceHandoff).toEqual([]);
     expect(result.tasksClosedSinceHandoff).toEqual([]);
@@ -120,7 +120,7 @@ describe("deriveRestateCandidates", () => {
       [DIFF_KEY]: { stdout: "", stderr: "" },
     });
 
-    const result = await deriveRestateCandidates({ exec, sessionNotes });
+    const result = await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes });
 
     expect(result.tasksClosedSinceHandoff).toEqual(["4.2", "4.2.a", "4.2.R"]);
   });
@@ -148,7 +148,7 @@ describe("deriveRestateCandidates", () => {
       [DIFF_KEY]: { stdout: "", stderr: "" },
     });
 
-    const result = await deriveRestateCandidates({ exec, sessionNotes });
+    const result = await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes });
 
     expect(result.tasksClosedSinceHandoff).toEqual([
       "4.2-4.5",
@@ -173,7 +173,7 @@ describe("deriveRestateCandidates", () => {
       [DIFF_KEY]: { stdout: diffStdout, stderr: "" },
     });
 
-    const result = await deriveRestateCandidates({ exec, sessionNotes });
+    const result = await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes });
 
     expect(result.noteFileChangesSinceHandoff).toEqual([
       ".arc/active/technical/notes-user-sync-ux.md",
@@ -184,7 +184,7 @@ describe("deriveRestateCandidates", () => {
   it("returns empty arrays + baseline-unknown when SESSION-NOTES is absent", async () => {
     const { exec, calls } = buildExec({});
 
-    const result = await deriveRestateCandidates({ exec, sessionNotes: null });
+    const result = await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null });
 
     expect(result).toEqual({
       commitsSinceHandoff: [],
@@ -199,7 +199,7 @@ describe("deriveRestateCandidates", () => {
     const sessionNotes = "# Session Notes\n\nNo handoff metadata yet.\n";
     const { exec, calls } = buildExec({});
 
-    const result = await deriveRestateCandidates({ exec, sessionNotes });
+    const result = await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes });
 
     expect(result).toEqual({
       commitsSinceHandoff: [],
@@ -217,7 +217,7 @@ describe("deriveRestateCandidates", () => {
       [DIFF_KEY]: { stdout: "", stderr: "" },
     });
 
-    const result = await deriveRestateCandidates({ exec, sessionNotes });
+    const result = await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes });
 
     expect(result).toEqual({
       commitsSinceHandoff: [],

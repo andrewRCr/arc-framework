@@ -1,18 +1,15 @@
 # Strategy Document Index
 
-**Purpose:** Quick reference to codified strategy guidance. Consult relevant strategies before implementing
-work in their domains.
-
 ## ARC Framework Strategies
 
-These ship with the framework and cover development methodology applicable to any project.
 Strategies marked **(arc-in-git)** are only present when arc-in-git Project Management mode is active
 (`pm.mode: arc-in-git`); those marked **(team mode)** only when `team.mode: true` — both in `arc-config.yml`.
 
 - `arc/strategy-adr-methodology.md`
-    - Consult when: writing an ADR, deciding whether a decision warrants one
+    - ALWAYS load before writing, amending, or accepting an ADR; `assess-draft-readiness` carries the planning-close
+      test of which decisions warrant one.
 - `arc/strategy-configurability-architecture.md`
-    - Consult when: working on config, extensions, or methods infrastructure
+    - Consult when: working on config or methods infrastructure
 - `arc/strategy-planning-module.md` **(arc-in-git)** - What arc-in-git installs, routing/promotion, scaling
   boundaries
     - Consult when: working with backlog structure, routing deferred work, evaluating PM mode fit
@@ -27,9 +24,9 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - ALWAYS load when the planning workflow in hand does not settle it — which spec form fits, how layered specs
       compose, where the pipeline's stage boundaries fall; the `resolve-planning-depth` method and the
       `draft-design` / `create-spec` workflows cover routine depth resolution and authoring.
-- `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
-    - Consult when: escalating a gate failure, or identifying a non-obvious integration checkpoint — routine
-      per-task and per-unit gate runs are covered by the `quality-gate-commands` method
+- `arc/strategy-quality-gates.md`
+    - ALWAYS load before choosing a check's deadline or deciding whether related tests can hold the push gate;
+      do not infer coverage from an import graph alone. Verb help and remedies cover routine selection and execution.
 - `arc/strategy-session-operations.md`
     - ALWAYS load before placing new guidance content in a loading tier, or authoring an interlock, recovery, or
       handoff step — the tier classification criteria and loading mechanisms have no leaner surface;
@@ -44,7 +41,7 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - Companion: `template-tasks.md` for skeletons; `generate-tasks.md` § Finalize the task list for the pre-save
       checklist
 - `arc/strategy-workflow-authoring.md`
-    - ALWAYS load before authoring or editing a workflow file — frontmatter, method or extension declarations,
+    - ALWAYS load before authoring or editing a workflow file — frontmatter, method declarations,
       interlock markers, routing class tags; do not copy the shape from an existing workflow.
 - `arc/strategy-team-coordination.md` **(team mode)**
     - ALWAYS load before assigning or transferring work-unit ownership across developers, or setting
@@ -64,6 +61,10 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - ALWAYS load when a sync question outruns the always-loaded rule — the file inventory and dependency map,
       template-counterpart handling, what each safeguard actually checks; `DEV-RULES.PROJECT` § Package-Project
       Sync covers the routine edit-flow and never-copy rules.
+- `project/strategy-review-projection.md` - **Transitional.**
+    - ALWAYS load before projecting a work unit's review chunks as stacked draft pull requests, or when a
+      `review-projection/` branch or pull request needs publishing or closing; the script's header carries only
+      its command syntax.
 - `project/strategy-self-hosting-delivery-recovery.md`
     - ALWAYS load when this repository's self-delivery changes the delivery machinery executing its own bound stack
       and terminal ancestry adoption refuses `top-moved`; never apply its anchored composition to an ordinary ARC
@@ -74,9 +75,10 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
 - `project/strategy-user-notes-concurrency.md`
     - Consult when: adding or modifying any mutator of shared user-notes state — canonical notes ref,
       identity-global disk, `.sync-state.json`, partial-push markers, sync-state refs, temp refs, or notes locks
-- `project/strategy-storage-evolution.md` - **In-development.**
-    - Consult when: authoring or iterating plans / PRDs that affect WU-artifact storage, multi-user / multi-machine
-      concerns, external-tool integration boundaries, WU/branch coupling, or new configuration axes
+- `project/strategy-storage-evolution.md` - **In-development.** Direction decided in ADR-035
+    - Consult when: authoring or iterating plans / PRDs that affect where operational or planning state lives, how it
+      syncs or is read, concurrent writers, external-tool integration boundaries, WU/branch coupling or history
+      assumptions, or new configuration axes
 - `project/strategy-knowledge-evolution.md` - **In-development.**
     - Consult when: authoring or iterating plans / PRDs that place or relocate agent-facing guidance content, grow
       always-loaded context, add trigger / index / description surfaces, name new doc families, or add loading /

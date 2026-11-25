@@ -1,8 +1,10 @@
 /** Evidence-delta normalization from existing producer boundaries. */
 
+import type { GitMergeFeasibility } from "../git/merge-feasibility.js";
+import { compareByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
+import { assertNever } from "../kernel/index.js";
 import {
   BoundedEvidenceResidualSchema,
-  compareEvidencePaths,
   EvidenceDeltaProducerSchema,
   EvidenceDeltaSchema,
   integrationCoordinatesEqual,
@@ -13,6 +15,7 @@ import {
   type HostMergeAdmission,
   type IntegrationCoordinate,
   type NormalizedHostAdmission,
+  type SubstantiveMerge,
 } from "./schema.js";
 
 const NOT_APPLICABLE_OVERLAP = {
@@ -28,7 +31,7 @@ const NOT_APPLICABLE_HOST = {
 } as const;
 
 function canonicalPaths(paths: readonly string[]): string[] {
-  return [...new Set(paths)].sort(compareEvidencePaths);
+  return [...new Set(paths)].sort(compareByCanonicalBytes);
 }
 
 function boundedResidual(paths: readonly string[]): string[] | null {
@@ -95,6 +98,29 @@ function normalizeHostAdmission(
   };
 }
 
+/**
+ * Read whether the observed base and head merge without a conflict a review would have to judge.
+ *
+ * A merge read at other coordinates says nothing about these, so it reduces to the same answer as no read.
+ */
+function normalizeSubstantiveMerge(
+  input: GitMergeFeasibility | undefined,
+  expected: IntegrationCoordinate,
+): SubstantiveMerge {
+  if (input === undefined || input.base !== expected.base || input.head !== expected.head) return "unobserved";
+  switch (input.state) {
+    case "clean":
+    case "regenerable-conflict":
+      return "clean";
+    case "substantive-conflict":
+      return "conflicted";
+    case "unavailable":
+      return "unobserved";
+    default:
+      return assertNever(input);
+  }
+}
+
 function deltaPaths(delta: { added: string[]; removed: string[]; changed: string[] }): string[] {
   return canonicalPaths([...delta.added, ...delta.removed, ...delta.changed]);
 }
@@ -136,6 +162,10 @@ export function composeEvidenceDelta(input: EvidenceDeltaProducer): EvidenceDelt
         residual: overlap.kind === "overlapping"
           ? boundedResidual(overlap.substantivePaths)
           : null,
+        substantiveMerge: normalizeSubstantiveMerge(
+          producer.observation.merge,
+          producer.observation.coordinates,
+        ),
       });
     }
     case "base-merge": {
@@ -199,8 +229,4 @@ export function composeEvidenceDelta(input: EvidenceDeltaProducer): EvidenceDelt
     default:
       return assertNever(producer);
   }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled evidence-delta producer: ${JSON.stringify(value)}`);
 }

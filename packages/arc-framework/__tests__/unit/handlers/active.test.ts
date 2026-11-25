@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   runExpansion: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock("../../../src/commands/active.js", () => ({
 }));
 vi.mock("../../../src/lib/io-context.js", () => ({
   createGitExec: () => mocks.exec,
-  gitExecInput: mocks.execInput,
+  createGitExecInput: () => mocks.execInput,
 }));
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: async () => ({ settings: { "branch.base": "main", "team.mode": "false" } }),
@@ -25,7 +25,6 @@ vi.mock("../../../src/lib/work-unit/lifecycle-resolver.js", () => ({
 }));
 vi.mock("../../../src/handlers/shared.js", () => ({
   requireArcProjectRoot: () => "/repo",
-  resolveIdentityWithPrompt: async () => "andrew",
 }));
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
@@ -34,8 +33,17 @@ vi.mock("@clack/prompts", () => ({
   log: { warn: vi.fn() },
 }));
 
-import { formatActiveInFlightLine, handleActiveInFlight } from "../../../src/handlers/active.js";
+import { formatActiveInFlightLine, formatActiveRosterLine, handleActiveInFlight } from "../../../src/handlers/active.js";
 import type { InFlightWorkUnit } from "../../../src/lib/git/in-flight-derivation.js";
+import { WorktreeRosterEntrySchema } from "../../../src/lib/git/worktree-roster.js";
+
+it("names a branchless work unit in the human roster and retains the branched label and row", () => {
+  const row = WorktreeRosterEntrySchema.parse({ worktreePath: "/repo.planning", workUnit: "planning-unit", identity: "andrew", state: "Planning" });
+  const json = JSON.stringify(row);
+  expect(formatActiveRosterLine(row)).toBe("planning-unit  (Planning)  /repo.planning");
+  expect(formatActiveRosterLine({ ...row, branch: "plan/planning-unit" })).toBe("plan/planning-unit  (Planning)  /repo.planning");
+  expect(JSON.stringify(row)).toBe(json);
+});
 
 function workUnit(overrides: Partial<InFlightWorkUnit> = {}): InFlightWorkUnit {
   return {
@@ -50,6 +58,10 @@ function workUnit(overrides: Partial<InFlightWorkUnit> = {}): InFlightWorkUnit {
 }
 
 describe("formatActiveInFlightLine", () => {
+  it("reports an indeterminate Errand location as unknown", () => {
+    expect(formatActiveInFlightLine({ kind: "errand", slug: "held", branch: "chore/held", remoteOnly: false,
+      marks: ["degraded", "indeterminate"] })).toBe("chore/held  (errand)  location unknown");
+  });
   it("renders an unoccupied local branch as having no worktree", () => {
     expect(formatActiveInFlightLine(workUnit())).toBe(
       "feat/local-unoccupied  (Active)  no worktree",
@@ -65,6 +77,10 @@ describe("formatActiveInFlightLine", () => {
 });
 
 describe("handleActiveInFlight", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.exec.mockResolvedValue({ stdout: "andrew\0" });
+  });
   it("selects explicit expansion for a live command request", async () => {
     const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     mocks.runExpansion.mockResolvedValue({

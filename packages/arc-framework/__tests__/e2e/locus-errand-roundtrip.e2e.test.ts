@@ -17,6 +17,7 @@ import {
   runArc,
   runArcAnchoredSequence,
 } from "./helpers.js";
+import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -120,7 +121,6 @@ describe("ordinary Errand promotion", () => {
         { args: ["errand", "leave", slug, "--state", "awaiting-merge", "--json"], reuseResolvedCwd: true },
         { command: ["git", "branch", "-D", errandBranch], cwd: repository },
         { command: ["git", "update-ref", "-d", "refs/arc/user/test-user/errands"], cwd: repository },
-        { args: ["errand", "materialize", slug, "--json"], cwd: repository },
       ], repository, {
         timeout: 90_000,
         anchorShellPath: harness.executable,
@@ -131,11 +131,17 @@ describe("ordinary Errand promotion", () => {
       });
 
       expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
-      const [opened, left, materialized] = sequence.results as [
-        Record<string, unknown>,
+      const [opened, left] = sequence.results as [
         Record<string, unknown>,
         Record<string, unknown>,
       ];
+      await resetEditorDocumentsProvisioning(repository);
+      const materialization = await runArcAnchoredSequence([["errand", "materialize", slug, "--json"]], repository, {
+        timeout: 90_000, anchorShellPath: harness.executable,
+        env: { PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}`, ARC_TEST_BRANCH: errandBranch },
+      });
+      expect(materialization.exitCode, materialization.stderr || materialization.stdout).toBe(0);
+      const materialized = materialization.results[0] as Record<string, unknown>;
       expect(opened).toMatchObject({ outcome: "applied", operation: "errand-open" });
       expect(left).toMatchObject({
         outcome: "applied",
@@ -162,6 +168,7 @@ describe("ordinary Errand promotion", () => {
         allocation: { checkoutPath: string };
         identity: { claimId: string };
       };
+      await assertEditorDocumentsProvisioned(result.allocation.checkoutPath);
       expect(await readMaterializedMarker(result.allocation.checkoutPath)).toMatchObject({
         spawnedByArc: true,
         createdFor: { kind: "errand", slug, claimId: result.identity.claimId },

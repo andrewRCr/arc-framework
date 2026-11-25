@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
-import { digestBytes } from "../../../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
@@ -32,12 +32,14 @@ interface Harness {
   ctx: StubContext;
   writes: { path: string; content: string }[];
   mkdirs: string[];
+  staged: string[];
 }
 
 /** Build a `runStub` context of spies over an empty index + an in-memory fs. */
 function buildHarness(): Harness {
   const writes: Harness["writes"] = [];
   const mkdirs: string[] = [];
+  const staged: string[] = [];
 
   const sideEffects: ExecuteTransitionContext["sideEffects"] = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user"] satisfies SideEffectId[]) {
@@ -55,6 +57,9 @@ function buildHarness(): Harness {
     writeCurrentWorkflowField: async () => {},
     writeDesignField: async () => {},
     writeSoftFields: async () => {},
+    stageMeta: async (path) => {
+      staged.push(path);
+    },
     sideEffects,
   };
 
@@ -67,7 +72,7 @@ function buildHarness(): Harness {
     },
   };
 
-  return { ctx: { executor, fs }, writes, mkdirs };
+  return { ctx: { executor, fs }, writes, mkdirs, staged };
 }
 
 const BASE: StubParams = {
@@ -75,6 +80,7 @@ const BASE: StubParams = {
   commitment: "planned",
   priority: "P1",
   owner: "andrew",
+  cls: "Light",
 };
 
 describe("runStub — commitment enforcement", () => {
@@ -105,7 +111,7 @@ describe("runStub — priority enforcement", () => {
 
 describe("runStub — scaffolds the selected tier", () => {
   it("scaffolds the planned-tier meta under backlog/ when both are supplied", async () => {
-    const { ctx, writes, mkdirs } = buildHarness();
+    const { ctx, writes, mkdirs, staged } = buildHarness();
 
     const result = await runStub(ctx, { ...BASE, commitment: "planned", priority: "P1" });
 
@@ -125,6 +131,7 @@ describe("runStub — scaffolds the selected tier", () => {
     expect(writes[0]!.content).toContain("# Metadata: foo");
     expect(writes[0]!.content).toContain("Planning");
     expect(writes[0]!.content).toContain("P1");
+    expect(staged).toEqual([result.metaPath]);
   });
 
   it("preserves accepted display sentinels at the semantic renderer boundary", async () => {
@@ -169,7 +176,7 @@ describe("runStub — scaffolds the selected tier", () => {
   it("routes a provisional commitment to the provisional tier (edge disambiguation)", async () => {
     const { ctx, writes } = buildHarness();
 
-    const result = await runStub(ctx, { ...BASE, commitment: "provisional", priority: "P2" });
+    const result = await runStub(ctx, { ...BASE, commitment: "provisional", priority: "P2", cls: undefined });
 
     expect(result.status).toBe("scaffolded");
     if (result.status !== "scaffolded") return;
@@ -280,22 +287,48 @@ describe("runStub — initial Class", () => {
     expect(writes[0]!.content).not.toContain("[TBD]");
   });
 
-  it("normalizes a lowercase Class value to the codified form", async () => {
+  it("refuses a lowercase Class as the command does and accepts its canonical spelling", async () => {
     const { ctx, writes } = buildHarness();
-
-    const result = await runStub(ctx, { ...BASE, cls: "heavy" });
-
-    expect(result.status).toBe("scaffolded");
+    expect(await runStub(ctx, { ...BASE, cls: "heavy" })).toMatchObject({ status: "rejected" });
+    expect(writes).toEqual([]);
+    expect(await runStub(ctx, { ...BASE, cls: "Heavy" })).toMatchObject({ status: "scaffolded" });
     expect(writes[0]!.content).toContain("`Heavy`");
   });
 
-  it("defaults to the [TBD] sentinel when no Class is supplied", async () => {
+  it("keeps the [TBD] sentinel for a provisional stub without Class", async () => {
     const { ctx, writes } = buildHarness();
 
-    const result = await runStub(ctx, { ...BASE });
+    const result = await runStub(ctx, { ...BASE, commitment: "provisional", cls: undefined });
 
     expect(result.status).toBe("scaffolded");
     expect(writes[0]!.content).toContain("[TBD]");
+  });
+
+  it.each(["", "  \t "])("refuses an explicitly blank provisional Class %j and accepts omission", async cls => {
+    const { ctx, writes, mkdirs, staged } = buildHarness();
+    const params = { ...BASE, commitment: "provisional" as const };
+    expect(await runStub(ctx, { ...params, cls })).toMatchObject({ status: "rejected" });
+    expect({ writes, mkdirs, staged }).toEqual({ writes: [], mkdirs: [], staged: [] });
+
+    expect(await runStub(ctx, { ...params, cls: undefined })).toMatchObject({ status: "scaffolded" });
+    expect(parseMetaRecord(writes[0]!.content).workClass).toBe("TBD");
+    expect(staged).toEqual([".arc/backlog/provisional/foo/meta-foo.md"]);
+  });
+
+  it.each([undefined, "", "  \t "])("refuses unresolved planned Class %j and succeeds after repair", async cls => {
+    const { ctx, writes, mkdirs, staged } = buildHarness();
+    const refused = await runStub(ctx, { ...BASE, cls });
+
+    expect(refused.status).toBe("rejected");
+    if (refused.status !== "rejected") return;
+    expect(refused.reason).toContain("--class");
+    expect(refused.reason).toContain("--commitment provisional");
+    expect({ writes, mkdirs, staged }).toEqual({ writes: [], mkdirs: [], staged: [] });
+
+    const repaired = await runStub(ctx, { ...BASE, cls: "Light" });
+    expect(repaired.status).toBe("scaffolded");
+    expect(parseMetaRecord(writes[0]!.content).workClass).toBe("Light");
+    expect(staged).toEqual([".arc/backlog/planned/foo/meta-foo.md"]);
   });
 
   it("rejects an unresolvable Class value without scaffolding", async () => {

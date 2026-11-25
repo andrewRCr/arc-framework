@@ -1,37 +1,31 @@
 # Documentation Surface Routing: External Research on Content Discipline
 
 This research synthesizes idiomatic conventions for content discipline across
-documentation surfaces: commit messages, task-tracker closing notes, PR
-descriptions, and session notes. The goal is to map established external
-practice so design decisions can build on proven patterns, not discover them in
-isolation.
+documentation surfaces: commit messages, task-tracker closing notes, PR descriptions, and session notes. The goal is to
+map established external practice so design decisions can build on proven patterns, not discover them in isolation.
 
 ## 1. Commit-Body Conventions for Content Depth
 
 **Subject-line standards are almost universally settled.** The "50/72 rule"—
 introduced in Tim Pope's influential 2008 post and codified in Conventional
-Commits—prescribes a 50-character soft limit for subject lines and 72
-characters per line for body text. This derives from email formatting
-conventions (80-char terminal width with 4-char left padding and right-padding
-centering) and prioritizes readability across tools: terminal log viewers,
-GitHub web UI, email clients, and git blame contexts [1][2][3][4].
+Commits—prescribes a 50-character soft limit for subject lines and 72 characters per line for body text. This derives
+from email formatting conventions (80-char terminal width with 4-char left padding and right-padding centering) and
+prioritizes readability across tools: terminal log viewers, GitHub web UI, email clients, and git blame contexts
+[1][2][3][4].
 
 **Body content, however, is underspecified.** Conventional Commits states the
-body is "free-form" and "MAY consist of any number of newline separated
-paragraphs" with no mandated format [5]. Tim Pope's canonical post emphasizes
-_purpose_ over _length_: the body should explain **why** a change was made, not
-**what** (the diff shows that), and it should be "sensible by itself" without
-reference to the subject [1]. Linux kernel guidance similarly specifies
-structure ("one-line summary, blank line, then body") but leaves body content
-open-ended, expecting "several paragraphs" as appropriate to context [6]. Rust
-and Kubernetes communities adopt this flexibility, neither prescribing body
-length caps [7][8].
+body is "free-form" and "MAY consist of any number of newline separated paragraphs" with no mandated format [5]. Tim
+Pope's canonical post emphasizes _purpose_ over _length_: the body should explain **why** a change was made, not
+**what** (the diff shows that), and it should be "sensible by itself" without reference to the subject [1]. Linux kernel
+guidance similarly specifies structure ("one-line summary, blank line, then body") but leaves body content open-ended,
+expecting "several paragraphs" as appropriate to context [6]. Rust and Kubernetes communities adopt this flexibility,
+neither prescribing body length caps [7][8].
 
 **Practical linting standards do enforce body line length.** Commitlint (the
 reference implementation for Conventional Commits validation) defaults to a
 100-character maximum per body line—significantly longer than the 72-character
-_suggestion_ for readability [9]. This 100-char limit is treated as a soft
-enforcement; projects adjust it for long URLs or other content [9].
+_suggestion_ for readability [9]. This 100-char limit is treated as a soft enforcement; projects adjust it for long URLs
+or other content [9].
 
 **No named anti-pattern exists for "verbose commit bodies" across mainstream
 OSS guides.** However, two adjacent findings are relevant:
@@ -42,13 +36,11 @@ OSS guides.** However, two adjacent findings are relevant:
 
 2. **A recent concern in agentic-coding practice** (2025–2026): AI-generated
    commits tend to repeat diff-level information ("what") rather than encode
-   decision context ("why"). A 2026 paper, "Lore: Repurposing Git Commit
-   Messages as a Structured Knowledge Protocol for AI Coding Agents," flags this
-   as a "knowledge destruction problem"—when agents generate commits, they
-   forfeit an opportunity to encode reasoning that downstream agents would
-   benefit from [11]. Some tools (git-commit-agent) offer a `--detail-level
-   brief` flag to control verbosity, suggesting industry recognition that
-   agent-generated bodies can be excessive [11].
+   decision context ("why"). A 2026 paper, "Lore: Repurposing Git Commit Messages as a Structured Knowledge Protocol for
+   AI Coding Agents," flags this as a "knowledge destruction problem"—when agents generate commits, they forfeit an
+   opportunity to encode reasoning that downstream agents would benefit from [11]. Some tools (git-commit-agent) offer a
+   `--detail-level brief` flag to control verbosity, suggesting industry recognition that agent-generated bodies can be
+   excessive [11].
 
 **Consensus:** Body content should be _purposeful and self-contained_—explaining
 why the change was necessary and what tradeoffs were made—but there is no
@@ -60,79 +52,65 @@ Length should serve purpose, not vice versa.
 ## 2. Task-Tracker Reference Patterns in Commit Bodies
 
 **Issue references belong in the body or footer, not the subject.** GitHub's
-de facto standard (reflected in both Kubernetes and Conventional Commits
-guidance) places issue references—"Fixes #123," "Closes #456," "Resolves
-\#789"—at the end of the commit message, in the footer section, to keep the
-subject scannable [2][8][12]. GitHub's platform automatically closes issues when
-commits with these keywords are merged [2].
+de facto standard (reflected in both Kubernetes and Conventional Commits guidance) places issue references—"Fixes #123,"
+"Closes #456," "Resolves \#789"—at the end of the commit message, in the footer section, to keep the subject scannable
+[2][8][12]. GitHub's platform automatically closes issues when commits with these keywords are merged [2].
 
 **However, a philosophical tradeoff exists: can the commit stand alone, or does
 it require the issue tracker?** The HackerNoon essay "On Git Commit Messages and
 Issue Trackers" identifies this tension: developers who lead with issue IDs
-"tend to be lazy about what to write in the summary, because they are
-psychologically prone to the fact that who's going to read the message, will
-check the ticket itself for more details" [13]. This is treated as an
-_anti-pattern_—commit messages should be **self-contained**, readable without
-opening the issue tracker [13]. The recommended approach: describe the change and
-rationale _first_, _then_ add issue references in the footer [13].
+"tend to be lazy about what to write in the summary, because they are psychologically prone to the fact that who's going
+to read the message, will check the ticket itself for more details" [13]. This is treated as an _anti-pattern_—commit
+messages should be **self-contained**, readable without opening the issue tracker [13]. The recommended approach:
+describe the change and rationale _first_, _then_ add issue references in the footer [13].
 
-**Restatement of issue content inside the commit body is not a recognized
-anti-pattern**, but it is treated as _redundant_. The GitHub discussion "Make
-default commit message the PR description or include it" acknowledges that PR
-descriptions often contain contextual discussion that "would be ideal to include
-in the commit message so when viewing commits in things like a git blame view,
-all the context is right there" [14]. This framing treats content migration or
-duplication as a _practical problem_ (context gets lost), not a disciplinary
-violation.
+**Restatement of issue content inside the commit body is not a recognized anti-pattern**, but it is treated as
+_redundant_. The GitHub discussion "Make default commit message the PR description or include it" acknowledges that PR
+descriptions often contain contextual discussion that "would be ideal to include in the commit message so when viewing
+commits in things like a git blame view, all the context is right there" [14]. This framing treats content migration or
+duplication as a _practical problem_ (context gets lost), not a disciplinary violation.
 
 ---
 
 ## 3. Body-vs-Tracker Duplication as a Named Anti-Pattern
 
-**No widely-recognized anti-pattern named "duplication between commit and
-tracker" exists in mainstream OSS guides or engineering handbooks.** The closest
-related findings:
+**No widely-recognized anti-pattern named "duplication between commit and tracker" exists in mainstream OSS guides or
+engineering handbooks.** The closest related findings:
 
 1. **Issue-ID-first is flagged as lazy.** Leading with "ABC-123" rather than a
    semantic summary encourages developers to delegate context-setting to the
    issue tracker instead of writing commit messages that stand alone [13].
 
 2. **Knowledge loss in agentic workflows is flagged as a problem.** The 2026
-   paper "Lore" argues that when agentic tools generate commits from diffs
-   alone, without encoding the human's decision rationale, downstream agents
-   lack the context needed to understand _why_ a change was made [11]. This is
-   framed as a "knowledge destruction problem," not duplication per se.
+   paper "Lore" argues that when agentic tools generate commits from diffs alone, without encoding the human's decision
+   rationale, downstream agents lack the context needed to understand _why_ a change was made [11]. This is framed as a
+   "knowledge destruction problem," not duplication per se.
 
-3. **Cross-surface content alignment is treated as a _practical design
-   question_, not a violation.** GitHub's 2022 feature—allowing PR descriptions
-   to auto-populate from commit messages—suggests that some overlap is expected
-   and even desirable, but that avoiding _loss_ of context across surfaces
-   matters more than avoiding _restatement_ [15].
+3. **Cross-surface content alignment is treated as a _practical design question_, not a violation.** GitHub's 2022
+   feature—allowing PR descriptions to auto-populate from commit messages—suggests that some overlap is expected and
+   even desirable, but that avoiding _loss_ of context across surfaces matters more than avoiding _restatement_ [15].
 
 **No linting rules enforce uniqueness between commit bodies and issue tracker
 content.** Tools like commitlint focus on format (line length, footer structure)
-and semantic categories (type prefix), not on deduplication or content
-uniqueness [9].
+and semantic categories (type prefix), not on deduplication or content uniqueness [9].
 
 ---
 
 ## 4. 2024–2026 Agentic-Coding-Tool Conventions
 
 **Agentic IDEs (Cursor, Cline, Windsurf, Claude Code) do not yet prescribe body
-discipline explicitly.** Available documentation focuses on subject-line
-structure (Conventional Commits format) and readability rules (72-char lines)
-[3][16]. Cursor recommends subjects of 50–72 characters and states "Header is
+discipline explicitly.** Available documentation focuses on subject-line structure (Conventional Commits format) and
+readability rules (72-char lines) [3][16]. Cursor recommends subjects of 50–72 characters and states "Header is
 required, Body and Footer are optional," suggesting flexibility [3].
 
 **Cline supports project-specific customization via `.clinerules`.** Markdown-
-based configuration files allow teams to specify commit-style preferences,
-including body format, within a repository [17].
+based configuration files allow teams to specify commit-style preferences, including body format, within a repository
+[17].
 
 **Body verbosity is an acknowledged failure mode in agentic commits.** Multiple
 tools (git-commit-agent, others) recognize that AI-generated bodies tend to
-repeat diff-level information ("what") and offer `--detail-level` flags or
-similar to control length [11]. The recent paper "Lore" argues this is a
-critical gap: agents should encode _decision context_, not summarize diffs [11].
+repeat diff-level information ("what") and offer `--detail-level` flags or similar to control length [11]. The recent
+paper "Lore" argues this is a critical gap: agents should encode _decision context_, not summarize diffs [11].
 
 **Claude Code documentation** emphasizes reproducible work ("run X, change Y,
 commit with message Z") but does not specify commit-message body conventions in
@@ -193,22 +171,17 @@ notes should all explain **why** and **what** (high-level), not **how** (diff-
 level). This is consistent across Tim Pope, Linux kernel docs, Conventional
 Commits, and agentic-tool guidance [1][2][5][6][11].
 
-**2. Body length is purposeful, not arbitrary.** The 72-char readability
-guideline is solid, and 100-char linting limits are common, but neither
-prescribes overall message length. Length should reflect complexity; a one-line
-fix may not need a body, and a complex refactor may warrant several paragraphs
-[1][7][8].
+**2. Body length is purposeful, not arbitrary.** The 72-char readability guideline is solid, and 100-char linting limits
+are common, but neither prescribes overall message length. Length should reflect complexity; a one-line fix may not need
+a body, and a complex refactor may warrant several paragraphs [1][7][8].
 
-**3. Duplication is not a named anti-pattern; loss of context is.** No OSS
-guide warns against restatement of issue content in commits. Instead, guides
-warn against _dependency_ on external trackers and emphasize _self-containment_
-(the commit should be readable standalone). The GitHub feature that allows PR
-descriptions to populate from commits suggests some overlap is expected [13][14]
-[15].
+**3. Duplication is not a named anti-pattern; loss of context is.** No OSS guide warns against restatement of issue
+content in commits. Instead, guides warn against _dependency_ on external trackers and emphasize _self-containment_ (the
+commit should be readable standalone). The GitHub feature that allows PR descriptions to populate from commits suggests
+some overlap is expected [13][14] [15].
 
-**4. References (issue IDs, RFC numbers, ADR links) belong in footers, not
-subjects.** This is nearly universal across Conventional Commits, Kubernetes,
-GitHub, and Rust guidance [2][7][8][12].
+**4. References (issue IDs, RFC numbers, ADR links) belong in footers, not subjects.** This is nearly universal across
+Conventional Commits, Kubernetes, GitHub, and Rust guidance [2][7][8][12].
 
 **5. Task-tracker closing notes lack uniform convention.** GitHub prescribes
 explicit summaries; others vary. No standard shape for "task outcome comment"

@@ -1,6 +1,7 @@
 /** Git and GitHub adapters for exact-head change-request resolution. */
 
 import type { GitExec } from "../../../../lib/git/exec.js";
+import { isGitProcessError } from "../../../../lib/git/process-error.js";
 import {
   ChangeRequestCandidateSchema,
   type ChangeRequestResolutionPort,
@@ -51,5 +52,18 @@ export function createGhChangeRequestResolutionPort(
       "pr", "list", "--repo", repository, "--state", "all", "--search", headSha,
       "--limit", "100", "--json", "number,url,state,baseRefName,headRefName,headRefOid",
     ], { cwd })).stdout),
+    isAncestor: async (ancestor, descendant) => {
+      try {
+        for (const oid of [ancestor, descendant]) {
+          await exec("git", ["rev-parse", "--verify", "--quiet", "--end-of-options", `${oid}^{commit}`],
+            { cwd, objectAccess: "local-only" });
+        }
+        await exec("git", ["merge-base", "--is-ancestor", ancestor, descendant], { cwd, objectAccess: "local-only" });
+        return true;
+      } catch (error) {
+        if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return false;
+        throw error;
+      }
+    },
   };
 }

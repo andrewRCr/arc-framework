@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   observeDeliveryReviewFixCandidateGate,
   prepareDeliveryReviewFixCandidateGate,
@@ -17,20 +18,20 @@ function gateExec(input: {
   readonly dirty?: boolean;
   readonly attached?: boolean;
 } = {}): GitExec {
-  return async (_command, args) => {
-    if (args[0] === "worktree") {
-      const binding = input.attached ? "branch refs/heads/member" : "detached";
-      return { stdout: `worktree ${gatePath}\0HEAD ${beforeHead}\0${binding}\0\0` };
-    }
-    if (args[0] === "status") return { stdout: input.dirty ? "?? untracked.txt\0" : "" };
-    if (args[0] === "rev-parse" && args.includes("--git-path")) {
-      return { stdout: `/repo/.git/${args.at(-1) ?? "unknown"}\n` };
-    }
-    if (args[0] === "rev-parse" && args.includes("--verify")) return { stdout: `${beforeHead}\n` };
-    if (args[0] === "rev-list") return { stdout: `${beforeHead}\n` };
-    if (args[0] === "rev-parse" && args[1] === `${beforeHead}^{tree}`) return { stdout: `${beforeTree}\n` };
-    throw new Error(`unexpected git operation: ${args.join(" ")}`);
-  };
+  const binding = input.attached ? "branch refs/heads/member" : "detached";
+  return scriptGitExec([
+    { match: ["worktree", "list", "--porcelain", "-z"],
+      responses: [{ stdout: `worktree ${gatePath}\0HEAD ${beforeHead}\0${binding}\0\0` }] },
+    { match: ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+      responses: [{ stdout: input.dirty ? "?? untracked.txt\0" : "" }] },
+    { match: { prefix: ["rev-parse", "--path-format=absolute", "--git-path"] },
+      responses: [({ args }) => ({ stdout: `/repo/.git/${args.at(-1) ?? "unknown"}\n` })] },
+    { match: ["rev-parse", "--verify", "HEAD^{commit}"],
+      responses: [{ stdout: `${beforeHead}\n` }] },
+    { match: ["rev-list", "--parents", "-n", "1", beforeHead],
+      responses: [{ stdout: `${beforeHead}\n` }] },
+    { match: ["rev-parse", `${beforeHead}^{tree}`], responses: [{ stdout: `${beforeTree}\n` }] },
+  ]).exec;
 }
 
 describe("prepareDeliveryReviewFixCandidateGate", () => {

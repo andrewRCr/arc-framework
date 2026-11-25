@@ -1,0 +1,1567 @@
+# Spec (`detailed` · `RFC`): storage-ref-hardening
+
+- **Origin:** [internal] — routed from the ref backend's standard review, its fix checks, and defects found while
+  fixing them (2026-10-29).
+
+- **Purpose:** Make the ref backend safe to cut over to. Every defect that the import, the cutover rehearsal, or
+  ordinary operation after the flip reaches ends in a typed refusal or outcome whose remedy can clear it, instead of a
+  raw exception, a Git lock left behind, an unbounded retry, or a remedy that cannot repair the fault.
+
+---
+
+## Introduction / Context
+
+The ref backend (`lib/store/ref/`) keeps ARC's operational and planning state in Git refs under `refs/arc/*`. Each work
+item and cohort has one live ref (`refs/arc/work/<uid>`, `refs/arc/cohort/<uid>`). An ended item's history is kept
+under `refs/arc/history/*`. Archived folders live in quarterly archive refs, and project and personal state have
+refs of their own. In the **default layout** those refs live in the code repository. In the **separate layout** they
+live in a bare repository at `<common-dir>/arc/store` (`writeRefRepository`, `lib/store/ref/repository.ts`). The
+backend exchanges state with remotes through `pull` and `push`, fetching into tracking refs under
+`refs/arc-remotes/<remote>/`. The import (`arc store migrate --import`) fills it once from today's tracked files and
+Git notes.
+
+Ordinary commands compose the in-repo backend today (`createStore`, `lib/store/create.ts`). `createRefStore` has no
+caller outside tests, so only `arc store migrate`, `arc store remote`, and `arc store conflict` reach this code
+(`runStoreMigrate`, `runStoreRemote`, `runStoreConflict`). When this repository's state flips onto the ref backend,
+every store call reaches it. The backend's review left findings in code the flip exercises, and this specification
+fixes them before the flip.
+
+### What the flip exercises
+
+The flip exercises three things:
+
+- the import, run first as a trial (`--trial`) and then for real;
+- the cutover rehearsal on this repository's real state;
+- ordinary operation after the flip in the default layout: `read`, `list`, `lookup`, `write`, `batch`, `history`,
+  `changes`, `version`, `pull`, and `push`.
+
+Moving state between remotes, the separate layout's own paths, and test, race, and benchmark tooling are outside it
+(§ Non-Goals). An item stays in scope when the import, the rehearsal, or post-flip operation reaches it. A path
+reached only by a move between remotes also stays when a kept fix changes what that path receives (§ 4).
+
+### Terms
+
+- **Refusal class.** Every `StoreRefusal` (`lib/store/refusal.ts`) is `recoverable` or `terminal`. Callers branch on
+  the class: a recoverable refusal invites a retry once its remedy is applied. A terminal one is a fault to repair.
+  `state-unresolvable` is recoverable and carries `historyRefs`, the history refs a pull could fetch to supply what is
+  missing, possibly none. `namespace-corrupt` is terminal. `lock-held` is recoverable and names its `lock`.
+- **Sync deadline.** One `pull` or `push`, with every pull nested in it, runs under one deadline of
+  `REF_SYNC_DEADLINE_MS` (120 seconds) (`withRefSyncDeadline`, `lib/store/ref/sync-deadline.ts`). `bindDeadline` binds
+  it to the context: each Git call (`exec`, `execInput`, `rawExec`) carries the deadline's abort signal, and each lock
+  wait is cut to the time remaining.
+- **Ref transaction.** `updateRefTransaction` (`lib/git/ref-transaction.ts`) applies a set of expected-value ref
+  changes in one `git update-ref --stdin` process: `start`, the changes, `prepare`, and `commit`. If Git fails and the
+  refs are read back changed, it returns `lost-race`. If Git fails with every ref still at its expected value, it
+  rethrows Git's error.
+- **Git ref locks.** While a transaction holds a ref, Git keeps a lock file for it: `<ref>.lock` and
+  `packed-refs.lock` in the files format, `reftable/tables.list.lock` in the reftable format. Git removes them on
+  ordinary exit and on catchable signals only.
+- **Advisory locks.** The store's own locks are files under `<common-dir>/arc/locks/`, taken through the context's
+  `lock` port (`createRefLockFactory`, `lib/store/default-ports.ts`, over `acquireAdvisoryLock`,
+  `lib/advisory-lock.ts`). Two matter here:
+    - **The layout lock** (`layout`) is clone-wide, and writes and pull merges wait up to `DEFAULT_MAX_WAIT_MS`
+      (10 seconds) for it.
+    - **The keeper lease** (`refs/arc/tmp/seen/<remote>`) is per remote. Keepers are refs under
+      `refs/arc/tmp/seen/<remote>/` that hold the last verified tracking heads across a pruning fetch
+      (`withRefFetchKeepers`, `lib/store/ref/fetch-seen.ts`).
+- **The move lock.** The lock a move of state between remotes holds. Before this change it was the only lock the
+  store's rules let span a network call.
+
+## Goals
+
+1. A read that refuses or reports on a missing Git object says that it is missing and how to restore or fetch it. It
+   does not report the object as unparseable state with a forward-repair remedy. A misplaced archive folder is
+   reported as a placement fault with a remedy that names its placement, not as missing metadata (§ 1).
+2. A live listing applies an as-of listing's owner scope and the absence rule of the in-repo tracked and personal
+   listings (§ 2).
+3. Every pull consumer surfaces a designation question, and a history-retry path stops on one rather than failing
+   with a bare refusal (§ 3).
+4. Transport failures become per-remote failed outcomes or typed refusals, never escaping exceptions (§ 4).
+5. The sync deadline never kills a ref transaction it has launched. A Git ref lock left behind is reported as
+   `lock-held`, with its path, its age, and a remedy that can clear it, at every site that runs a ref transaction,
+   except the designation check's temporary candidate refs: clearing them before a check gives one remote's failed
+   outcome carrying that condition and remedy, and removing them after it reports nothing (§ 5).
+6. No path waits for the keeper lease while holding the layout lock on a post-flip operation. The keeper lease is
+   stated as the one other lock held across a network call, bounded by the sync deadline (§ 6).
+7. A lost compare-and-swap on a history destination retries within a bound, like any other lost ref (§ 7).
+8. The remaining lock, sync, withdrawal, and decomposition defects end in typed outcomes (§ 8–§ 10).
+9. The import is reviewed before the rehearsal, and every finding that an import of this repository's state can reach
+   is fixed (§ 11).
+10. Existing Store methods, refusal codes/classes, pull-notice kinds, publish-failure kinds, and outer result schemas
+    remain unchanged except the selector kind/reference vocabulary, repair command schemas, and additive native response
+    capability in § 9.1 (A4).
+
+## Non-Goals
+
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+
+This work does not:
+
+- **change moving state between remotes, or the separate layout's own paths.** Each of these keeps today's behavior:
+    - the copy, delete, follow, departure, and withdrawal push loops restart without bound on an unverified lost-race
+      classification (`settleMigrationPush`, `lib/store/ref/migrate-remote-copy.ts`, and the counterless loops in
+      `migrate-remote-copy.ts`, `migrate-remote-delete.ts`, `follow-copy.ts`, `follow-delete.ts`, `leave-source.ts`,
+      and `leave-recorded-withdraw.ts`);
+    - five paths hold the layout lock while waiting for the keeper lease. They are the same-layout arm of a remote
+      switch (`prepareTarget`, reached from `migrate-remote-switch.ts` and `source-switch.ts`), the layout move
+      (`moveRefLayoutAsSwitch`, `migrate-layout.ts`), the switch undo (`undoSwitch`, `migrate-switch-undo.ts`), and
+      `arc store remote`'s backing setting (`applyBackingSetting`, `remote-backing.ts`). The backing setting refuses
+      before the lease in the default layout;
+    - a declined automatic designation repeats `move-unfinished` for pull and loses it for push
+      (`designation-first.ts`; `push.ts`);
+    - first placement treats an ambiguous designation as the separate layout (`writeRefRepository`, `repository.ts`;
+      `designatedStoreLayout`, `layout-designation.ts`).
+- **fix tests whose only defect is the test**, such as the captured-base mutation tests that never assert the mutation
+  fired (`__tests__/integration/store-ref-import-captured-bases.test.ts`).
+- **reduce Git processes per call, share results across calls, or drop a `readSyncRefs` capture inside a sync
+  call,** except § 9's withdrawal conflict placements, which place conflicts from the tips their operation captured
+  instead of a fresh listing.
+- **change how `readBatchObjects` (`lib/store/ref/batch-read.ts`) answers a `missing` query.** Today every `missing`
+  answer becomes `null` (`:111`). A check that repeats the answer only when the store directory has gone may land there
+  before or after this change. Either way, ordinary `missing` answers reach the classification in § 1, and this change
+  leaves that check as it is.
+- **add a type check for an object a ref or tree entry points at.** A ref or a tree entry can point at an object
+  whose type its place does not hold. Only a writer other than ARC creates one, and every state ref in this repository
+  points at a commit. No site gains a check or a row for one: it takes the row of the read that meets it. § 1.2's
+  metadata read gives a present object that is not parseable metadata **Unparseable**, whatever its type. A site that
+  reaches one through `corruptRef`'s missing-objects arm takes **Missing** with that arm (§ 1.4). A blob tip in
+  `readRefTrees`, whose `<tip>^{tree}` query answers `missing`, is one such case, and a wrong-typed merge endpoint
+  (`sync-merge.ts:74`) another. A site that reads one as present today, as `readRefTrees` does a tree or an
+  annotated-tag tip, keeps doing so.
+- **end a Git process gracefully, reclaim a lock a canceled call held, remove any lock automatically, or disable
+  Git hooks.**
+- **fix an import finding that an import of this repository's state cannot reach.** § 11.1 records such a finding
+  here by amendment, without fixing it.
+- **review the import's read-only transform modules in full.** A trial run surfaces their faults (§ 11.1).
+
+Amended 2026-10-31 — The import's recognition of same-project native state is unchanged
+(`inspectImportDestination`, `lib/store/ref/import/occupied.ts`). A matching project identity can be mistaken for this
+import's own landing, including when a native writer occupies the destination before landing. This repository's
+one-time import starts with an empty store while ordinary commands still use the in-repo backend, and the cutover
+quiesces writers before importing. Preexisting native state or native writes racing that import cannot be reached by
+an import of this repository's state. — Import review F1; approved scope disposition.
+
+Amended 2026-11-03 — A4: this work does not reconcile competing approval branches when selecting any root would exclude
+a node with `performance` or `settlement` present, including an empty settlement. The repair reports that policy
+boundary without changing evidence or promising retry; selecting a root cannot undo performed work or settlement.
+
+Amended 2026-11-04 — A7 permits unavailable observations only after a rowless completed acquisition failure: the
+existing `readSyncRefs` capture is still attempted under the keeper lease, and a completed failure of that capture
+produces no observation. Retain the failed acquisition's keeper basis or publication gathering for retry. This adds
+no successful-path process, discovery or cross-call cache.
+
+## Proposed Design
+
+Paths are under `packages/arc-framework/src/` unless they start with `__tests__/` (under `packages/arc-framework/`).
+Line numbers are as of `90b6de349`.
+
+§ 1–§ 4 change refusal kinds, remedies, or result shapes that callers branch on or that drive automatic retries. They
+are built and reviewed first, and later work that builds on the ref backend reads them. § 11's import review runs as an
+early phase, since its findings size the rest of the plan. § 5–§ 10 follow. The work lands as one change (§ 13).
+
+### 1. One fault classification for missing, unparseable, and misplaced objects
+
+#### 1.1 The classification
+
+Every read classifies a fault by what is wrong with the object, not by where the read happened:
+
+| Fault                                                                                                                                            | Point read or write                                                                                           | Listing diagnostic               | Pull: ref held             | Push: ref excluded        | Remedy                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------- | ------------------------- | ---------------------------------------------- |
+| **Missing:** an object of the ref — its tip commit, its root or a nested tree, or a metadata or record blob — is absent from the object database | recoverable `state-unresolvable`; `historyRefs` names a history ref only for an item with no live ref (§ 1.6) | `unreadable`                     | `namespace-corrupt` notice | `refused` publish failure | restore or fetch the object                    |
+| **Unparseable:** the object is present and does not parse                                                                                        | terminal `namespace-corrupt`                                                                                  | `unreadable`                     | `namespace-corrupt` notice | `refused` publish failure | forward repair, as today                       |
+| **No metadata:** a readable tree that holds records has no metadata entry                                                                        | terminal `namespace-corrupt`                                                                                  | `unreadable`                     | `namespace-corrupt` notice | `refused` publish failure | forward repair, as today                       |
+| **Misplaced:** an archive folder's placement disagrees with its archive (§ 1.5)                                                                  | terminal `namespace-corrupt`, with a placement condition                                                      | `malformed`, `rule: "placement"` | `namespace-corrupt` notice | `refused` publish failure | the folder's placement, per § 1.5              |
+| **Local transport fault:** a local ref's tip object or a commit a fetch reads is missing, or a transport target cannot be resolved               | per-remote `failed` outcome, failure `refused`                                                                | —                                | —                          | —                         | restore the object, or repair the remote's URL |
+
+Every cell names an existing code, kind, or field. `ListingDiagnosticSchema` (`lib/store/read.ts:47-54`) already
+admits `rule: "placement"` on `malformed`. `PullNoticeSchema` (`lib/store/sync.ts:42-50`) already holds the
+`namespace-corrupt` notice kind. `PublishFailureSchema` (`lib/store/refusal.ts:39-44`) and the per-remote pull failure
+(`sync.ts:54`) already hold the `refused` code. A held or excluded ref keeps its notice kind or failure code and
+carries its row's condition and remedy.
+
+A forward repair cannot change an ancestor. So an **Unparseable** or **No metadata** object read from a history commit
+or a saved state takes the historical remedy instead of the forward repair: `historicalMetadataFailure`'s, or
+`unparsedMetadata`'s with `saved` set (`metadata.ts:52-62`). A history commit is any commit other than the current tip
+of the ref it is read from. That is today's remedy at the history reads § 1.9 lists, and every site the search finds
+(§ 1.4) follows it. A read that looks for an item's end among its commits (§ 1.9's candidate ends) reads each as a
+history commit, the tip included, since a forward commit cannot change the end. Among the sites the rule decides:
+
+- Three pull reads parse metadata at a merge base. The two merges read three sides each: `groupSides`
+  (`sync-tree.ts:106-110`) and `mergeArchiveTree` (`sync-archive.ts:22-33`). The withdrawal reads its common ancestor
+  (`sync-withdraw-prepare.ts:62-78`), which `inverseMetadata` (`sync-withdraw-inverse.ts:126`), `entryDocument`
+  (`sync-withdraw-entries.ts:43-47`), and `sameWithdrawRecord` (`sync-withdraw-inverse.ts:109`) parse. Each merge base
+  is a history commit and takes the historical remedy, and so do the withdrawal journal's `before` and `after`
+  snapshots, which are saved states. The tips take the forward repair: each merge's `local` and `incoming` sides, as
+  today, and the withdrawal's current and published ones.
+- The withdrawal's metadata parser, `withdrawRecordMetadata` (`sync-withdraw-records.ts:55-60`), takes no side today
+  and gives every side the historical remedy (`:58`). Only the entry-byte decode, `decodeEntryBytes`
+  (`sync-withdraw-entries.ts:111-121`), splits by side. The parser takes the side of the snapshot it reads, and its
+  callers pass it: `entryDocument` (`:102`), `sameWithdrawRecord` (`sync-withdraw-records.ts:63-69`), and
+  `selectedWithdrawFormat` (`:72-76`).
+- `mergeArchiveTree` today decodes all three sides unsaved (`archive-read.ts:67-68`). It decodes its base with `saved`
+  set, so every diagnostic it builds there takes its saved remedy, a Misplaced folder's included (§ 1.5).
+- `sync-history.ts:39` reads a history ref's own tip, so it keeps the forward repair.
+- `retiredHistoryHome`'s fallback (`retired-history.ts:56`) refuses only when no revision of the history ref yields a
+  slug, its tip included, and a forward metadata commit at that tip clears the refusal. So its **Unparseable** and **No
+  metadata** refusal takes the forward repair, where it takes `historicalMetadataFailure` today.
+
+`refRecordAbsence` (`lib/store/ref/record-absence.ts`) already reports a missing record blob as the first row does.
+Point reads already give a missing record blob the restore remedy (`read.ts:350-353`, `record-absence.ts:14-17`,
+`write-views.ts:167-169`).
+
+#### 1.2 The metadata read keeps the fact
+
+`parseRefMetadata` (`lib/store/ref/metadata.ts:28`) returns null for a missing object and for an unparseable one
+alike, which erases what the classification needs. A metadata read gains a discriminated result, either missing (no
+object), unparseable (present and not parseable, whatever its type), or parsed. `parseRefMetadata` stays as the
+null-returning form for sites that tolerate both (§ 1.9).
+
+`readRefTrees` (`lib/store/ref/batch-read.ts:148-166`) drops a ref whose tip object is missing and a ref whose nested
+tree is missing alike, and keeps doing so: both are **Missing**, with one remedy.
+
+#### 1.3 Point reads by `tip:path`
+
+`git cat-file --batch` answers `missing` alike for a path absent from the tree and for a blob absent from the object
+database. So a read addressed as `<tip>:<path>` cannot tell the **Missing** row from the **No metadata** row by its
+answer alone. Each site that refuses or reports on a `missing` metadata or record answer reads the containing tree
+only after that answer, as `refRecordAbsence` already does. It classifies a present entry as **Missing** and an
+absent entry by the site's own rule. A present object costs no extra read. Sites that tolerate a `missing` answer
+keep their fallback.
+
+`readBatchObjects` (`batch-read.ts:49-80`) answers a `missing` query with an explicit `null` under its key (`:111`).
+The `<rev>:<path>` reads § 1.4's search found under `lib/store/ref/` at `90b6de349`, `import/` included, by what each
+does with that answer; § 1.9 covers the metadata reads by object ID:
+
+**Refuses or reports — classifies by § 1.1.**
+
+| Site                                                                                      | Reads                                     | On `missing` today                                                                                                                                                                                                                                                  | After this change                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `readBoundRecord` (`read.ts:55`, handled `:65-70`)                                        | the item's metadata                       | reads the tree; `holdsNoRecord` gives `not-found`; otherwise `corruptRef(ref, !entries)`, a forward repair when the tree is readable                                                                                                                                | an entry present is **Missing**; absent from a tree holding records is **No metadata**                                                                                                                                                                                                                                                                                                                                                      |
+| `readUidRefRecord` (`read-uid.ts:20-21`; `unreadableUidTip`, `:61-64`)                    | the item's metadata, by its UID ref       | as `readBoundRecord`                                                                                                                                                                                                                                                | as `readBoundRecord`                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `readLineageOwners` (`lineage-resolution.ts:22-25`)                                       | the registry's metadata                   | holds the tree (`:17`) but never looks up the entry; terminal `namespace-corrupt` with a forward repair, or the historical remedy on a saved read (`:25`)                                                                                                           | looks up the entry in the tree it holds: present is **Missing**; absent is **No metadata**. A missing registry tree (`:18`) is **Missing** (§ 1.4). **Unparseable** and **No metadata** take the historical remedy on a saved read, which the change window asks for (`changes-ends.ts:75`, `changes-scope.ts:91`), and the forward repair otherwise                                                                                        |
+| `readLiveRefOwners` (`live-owners.ts:23-39`)                                              | each live work and cohort ref's metadata  | holds the tree (`:25`) but never looks up the entry; `corruptRef(ref, !entries, saved)` (`:39`), a forward repair when the tree is readable, or the historical remedy on a saved read                                                                               | as `readLineageOwners`, the saved read included                                                                                                                                                                                                                                                                                                                                                                                             |
+| `currentEndCandidates` (`sync-withdraw-sibling-ends.ts:81-84`)                            | metadata at history commits               | throws `UnavailableWithdrawJournal` for a missing and an undecodable object alike, and `heldWithdrawal` gives both the restore remedy                                                                                                                               | its candidates' metadata is classified where `readItemEndCandidates` reads it (§ 1.9). This re-read reads the same blobs, so two inputs reach its throw: metadata with no slug, which the history namespace rejects (`metadata.ts:34`) and `:49`'s read admits, is **Unparseable** with the historical remedy (§ 1.1); an empty-tree end of the folder's end batch, whose path is absent, keeps today's hold by the absent-entry rule above |
+| `observeTerminalEndedTwice` (`sync-terminal-ended-twice.ts:27-31`)                        | the registry's lineage record per owner   | a `namespace-corrupt` notice saying the registry is unavailable, for an absent path and a missing blob alike                                                                                                                                                        | reads the registry tree: present is **Missing**; absent skips the owner, as an unparseable or unmatched record does                                                                                                                                                                                                                                                                                                                         |
+| `retiredHistoryHome`'s fallback (`retired-history.ts:46-56`)                              | metadata entries across the ref's history | a present entry whose blob is missing counts as corrupt where its tree holds records, giving terminal `namespace-corrupt` with `historicalMetadataFailure`, and as record-free where it holds none; with no record in any revision the fallback answers `not-found` | a missing blob takes `unavailableRefHistory`, as a missing tree already does (`:47`)                                                                                                                                                                                                                                                                                                                                                        |
+| `projectOwnerFromEntries` (`project-identity.ts:59-73`), through `projectIdentityQueries` | the registry's `identity.json`            | reads the tree: no entry is a project owner with no UID; a missing blob or companion tree is terminal `namespace-corrupt` with a restore condition                                                                                                                  | a missing blob or companion tree is **Missing**; the no-entry case is unchanged                                                                                                                                                                                                                                                                                                                                                             |
+| `readOpenConflicts` (`read.ts:56-57`; `conflicts-read.ts:22-29`)                          | the conflicts directory                   | reads the parent tree; absent is no conflicts; otherwise `state-unresolvable` with the restore remedy                                                                                                                                                               | unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `refRecordAbsence` (`read.ts:54`; `read-uid.ts:29`)                                       | the record blob                           | reads the tree: present is `state-unresolvable` with the restore remedy; absent is `not-found`; a missing tree (`record-absence.ts:13`) is terminal `namespace-corrupt`                                                                                             | a missing tree is **Missing** (§ 1.4); otherwise unchanged                                                                                                                                                                                                                                                                                                                                                                                  |
+
+`heldWithdrawal` (`sync-withdraw-commit.ts:95-99`) gives every `UnavailableWithdrawJournal` the remedy of
+`corruptRef(error.ref, true)`. A throw that names an object fault carries that fault's row instead, and
+`heldWithdrawal` takes the notice's remedy from it:
+
+- **Missing** for an absent object or tree: every throw that says one is unavailable, among them
+  `sync-withdraw-preserved-lineage.ts:73`;
+- **Unparseable** for a present object that does not decode (`sync-withdraw-preserved-lineage.ts:76,78`);
+- the rethrown diagnostic's own fault at `sync-withdraw-sibling-ends.ts:52` (§ 1.9), or, for a diagnostic with no
+  § 1.1 fault, its own condition and remedy.
+
+`sync-withdraw-sibling-ends.ts:66` and `sync-withdraw-preserved-lineage.ts:39,52` fold several cases into one throw.
+They read their objects by ID, so each tells an absent object (**Missing**) from one that does not decode
+(**Unparseable**), and `sync-withdraw-preserved-lineage.ts:52` also tells a non-empty registry tree with no metadata
+entry (**No metadata**). A record that decodes but disagrees with what the withdrawal needs, naming another
+`origin.uid`, keeps today's condition, with the restore remedy the helper's **Missing** row gives, which is today's
+text. So does every throw that names no object fault: an absent history coordinate (`sync-withdraw-sibling-ends.ts:29`),
+no candidate that witnesses the end (`:79`), and a conflict coordinate that `RecordReferenceSchema` rejects
+(`sync-withdraw-preserved-lineage.ts:66`).
+
+`projectOwnerFromEntries` serves every project-identity read:
+
+- `read.ts:58-59`, `history.ts:43`, `changes.ts:60`, `changes-scope.ts:39`, and `write-manifest.ts:40-42`;
+- `bindProjectMutations` (`project-identity.ts:91`) and `projectIdFromTip` (`designation-project.ts:72`);
+- the migration and follow reads, `migrate-registry.ts:14,30`, `migrate-remote-copy.ts:343`,
+  `follow-candidates.ts:116`, `follow-copy.ts:62`, and `follow.ts:130`, which throw the refusal inside a
+  `MigrationRefusal`.
+
+**Tolerates — keeps its fallback.**
+
+- `readHistoryPaths` (`history-paths.ts:10-13`) falls back to the parent commit, then to the owner's name.
+- `retiredHistoryHome` (`retired-history.ts:34-38`) skips a revision whose metadata is missing.
+- `readScopedPointTree` (`view-state.ts:55`) returns no tree. Its consumers classify the result: the write views
+  (§ 1.6) and the saved-state snapshot (§ 1.8).
+- `publishedTerminalLineage` (`sync-ended-twice.ts:48-50`) answers false.
+- `readUidRefRecord`'s pinned metadata (`read-uid.ts:29`) restarts when the tip moved between its two reads.
+- `readMoveReport` (`migrate-record.ts:86`) returns no report.
+- `firstPointerTime` (`import/parked-source.ts:82-87`) stops at the last parked time it found.
+- `projectListingBinding` (`project-identity.ts:143-148`, from `read.ts:166-168`) lists with an owner that has no UID
+  and an `unreadable` diagnostic, which the **Missing** row already prescribes.
+
+**Unchanged, outside the flip.** `readForwardingRecord` (`forwarding-record.ts:25-26`) and `readMoveRecord`
+(`migrate-record.ts:74`) refuse `move-record-malformed` for a missing and a malformed record alike. Each record exists
+only after a move between remotes (§ Non-Goals). `readRequiredNote` (`import/personal-recent-notes.ts:71`) reads a path
+that `diff-tree --diff-filter=AM` found at the same commit, and reports any failure as an unreadable note for that
+person.
+
+#### 1.4 One fault helper
+
+One helper maps a fault to its refusal, listing diagnostic, and remedy. It composes the existing pieces rather than
+adding a kind:
+
+- `corruptRef` (`namespace-health.ts:9-14`);
+- `recordDiagnostic` (`content-read.ts:29-36`);
+- `unreadableRef` (`read.ts:274-278`);
+- `unavailableRefHistory` and `isUnavailableGraphFailure` (`history-graph.ts`);
+- `missingChangeState` (`changes-graph.ts:88-93`);
+- `metadataFailure`, `historicalMetadataFailure`, and `unparsedMetadata` (`metadata.ts`).
+
+Every site that refuses, reports, or holds on a fault calls it, however it reads the object (by `tip:path` or by object
+ID) and however it builds the result: through `corruptRef`, from a capture's diagnostic, or directly. A search finds
+those sites, and the search binds. It runs under `lib/store/ref/`, `import/` included, and takes both where an object
+is read and how a fault is reported:
+
+- **Reads:** every call of `readBatchObjects`, `readRefTrees`, or `parseRefMetadata`, and every direct `cat-file` or
+  `show`.
+- **Reports:** every call of `corruptRef`; every construction of a `namespace-corrupt` or `state-unresolvable` refusal
+  or notice, an `UnavailableWithdrawJournal`, or a `RefSyncLabelError`; and every use of the `unreadable` diagnostic
+  kind.
+
+A hit inside a function that only builds one of these results brings in that function's callers. A graph walk passes
+its unavailable refusal to `readHistoricalGraph` as an argument, so the report terms find it. Each site the search
+finds that refuses, reports, or holds on a missing object takes the **Missing** row through the helper. Task
+generation runs the search and sweeps what it finds; the sweep, not any list in this spec, is the inventory. § 1.3,
+§ 1.6, and § 1.9 record sites it found and classified at `90b6de349`, for orientation. So the next read written
+against the metadata read cannot repeat the defect.
+
+Its missing arm replaces `corruptRef`'s missing-objects arm. Today `corruptRef(ref, true)`, and `corruptRef(ref,
+!entries)` when the tree read finds nothing, report a missing tip or tree as terminal `namespace-corrupt` whose remedy
+says to restore or fetch the objects and retry. About forty sites across reads, writes, sync, and history do so, among
+them `archivedViewRead`'s unavailable archive tree (`write-views.ts:244`), `refRecordAbsence`'s missing tree
+(`record-absence.ts:13`), and `readLineageOwners`' missing registry tree (`lineage-resolution.ts:18`). Each returns
+the **Missing** row through the helper instead, and `corruptRef` keeps only its unparseable arm. Sites that build the
+same refusal without `corruptRef` call the helper too. Among them are `planRefRetirements`' unavailable registry tree
+(`write-retirement.ts:35-36`); `registryTreeUnavailable` (`project-identity.ts:46-49`), which
+`projectOwnerFromObjects` (`:52-55`) and `viewProjectOwner` (`write-views.ts:200`) reach; and `readableSyncReference`'s
+missing record blob (`sync-records.ts:219-223`), held by the pull merge with a remedy that offers a forward repair.
+Builders that already give the **Missing** row's code, class, and remedy call the helper as well and keep them. Among
+them are the point reads § 1.1 names (`read.ts:350-353`, `record-absence.ts:14-17`, `write-views.ts:167-169`),
+`claimPayloadRefusal` (`lookup-claims.ts:66-69`), `checkRecord` (`write-checks.ts:48-50`), `unavailableHistory`
+(`history-snapshots.ts:91-95`), and the conflicts read (`conflicts-read.ts:113-114`). A saved manifest
+(`readRefManifest`, `manifest-read.ts:8-22`) is no object of a ref, so the `state-unresolvable` refusals for an
+unavailable one (`snapshot-read.ts:45`, `changes.ts:36`), and for an anchor naming a state version no manifest here
+resolves (`write-anchors.ts:42-46`), are outside § 1.1 and keep their text. Every reader of the
+codes and fields this moves is in § 1.8.
+
+#### 1.5 Placement faults
+
+`folderPlacement` (`lib/store/ref/archive-read.ts:174-184`) returns null for four conditions.
+`decodeArchiveFolderControls` (`:97-112`) calls it only after `folderOwnerMismatch` (`:106-107`), whose folder-name
+pattern already requires a cohort's closeout letter (`:126`). So a cohort folder with no closeout letter is a
+`key-mismatch` with a rename remedy today, and stays one. The decoder reports each of the other three as the
+`unreadable` metadata diagnostic. Its remedy, `metadataFailure` (`metadata.ts:45-49`), is a forward metadata repair
+that cannot fix any of them. Each becomes a `malformed` diagnostic with `rule: "placement"`, keyed `${ref}:${root}`,
+with its own condition and remedy. The **current** remedy repairs forward in a new commit. The **saved** remedy keeps
+`historicalMetadataFailure`'s text, since a forward repair cannot change an ancestor. A saved state and a history
+commit (§ 1.1), the archive merge's base among them, take the saved remedy.
+
+| Condition (`folderPlacement`)                                                  | Condition text                                                                                                 | Current remedy                                                                                                                                                                             |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The stored placement is not `completed`                                        | `The archive folder <key> holds metadata whose placement is <kind or "absent">, not completed.`                | `Record the folder's completed placement for quarter <archive quarter> in its metadata in a new commit, or, if the item has not ended, remove the folder from the archive; then retry.`    |
+| The stored quarter differs from the archive's quarter                          | `The archive folder <key> is in quarter <archive quarter>, but its metadata records quarter <stored quarter>.` | `Move the folder to the archive for quarter <stored quarter>, or correct its metadata's quarter to <archive quarter>, whichever matches when the item ended, in a new commit; then retry.` |
+| The folder name has no valid sequence (`ArchiveSequenceSchema`) before its `_` | `The archive folder <key> has no valid sequence prefix.`                                                       | `Rename the folder to <sequence>_<slug>/ (a cohort's <sequence><a or b>_cohort-<slug>/), restoring its assigned sequence and preserving its quarter, in a new commit; then retry.`         |
+
+Only a digit prefix that `ArchiveSequenceSchema` rejects, such as `1_` or `00_`, reaches the sequence condition; any
+other folder name fails `folderOwnerMismatch` first. A record-role work item (`work-item/record`) carries no sequence,
+so only the first two conditions apply to it, as today. Every reader that captures archived folders reaches these
+through `captureArchivedFolders` (`ended-owners.ts:34`): `list`, archived `read`, `lookup`, `write`, `changes`, `pull`,
+and `push`.
+
+#### 1.6 Site fixes
+
+- **Archived record keys.** An archived record diagnostic prefixes only the key, its remedy names the folder-relative
+  path, and neither names the archive (`archive-view.ts:19`, `read.ts:192`). The remedy comes from
+  `recordDiagnostic(entry.path)` over the root-stripped path that `projectRefTreeEntry` gives (`archive-read.ts:93`).
+  The key becomes `${ref}:${root}${path}`, and the remedy names that full key. Callers recover the ref with
+  `key.split(":")[0]` and keep working. The prefix is applied at these sites, not inside `decodeCapturedRef`, which
+  would break the `key === path` matches at `read.ts:349` and `write-views.ts:224`.
+- **Missing metadata read as unparseable.** Every metadata read that refuses, reports, or holds on a null
+  `parseRefMetadata` result treats a missing object as unparseable metadata, mostly with a forward-repair remedy;
+  lookup and live-owner capture are among them (`lookup-trees.ts:70-72`, `live-owners.ts:34,39`). § 1.4's search
+  finds them, and § 1.9 records those it found at `90b6de349`, by path or by object ID. Each takes § 1.2's metadata
+  read and classifies by § 1.1.
+- **Unavailable blob in a current listing.** `recordDiagnostic` (`content-read.ts:29-36`) gives the restore remedy
+  only for saved state. A current listing's unavailable record blob takes the restore remedy too.
+- **History refs for a missing nested tree.** `unavailableSnapshot` (`snapshot-read.ts:61-66`) maps every
+  unavailable work or cohort ref to its history ref. So the automatic history pulls in `operational-sync.ts`
+  (`historyRefs()`) and `readStateHistory` (`lib/handoff/state-history.ts`) fetch nothing useful for a live item whose
+  tip is present and a nested tree is missing. `historyRefs` names an item's history ref only when the clone's current
+  state holds no live ref for that item, so that its retained history is where the object can be found. For a live
+  item it is empty, and the remedy says to restore or fetch the object. The rule applies to every **Missing**
+  refusal, `unavailableSnapshot`'s listing refusal (`snapshot-read.ts:52`) among them.
+- **Name-restricted changes.** A manifest tip this clone lacks is refused as terminal `namespace-corrupt`:
+  `changes-scope.ts:24-26` resolves through `resolveRefName` to `corruptRef(ref, true, saved)`
+  (`lookup-trees.ts:66`). The lineage-restricted path (`changes-scope.ts:85-95`) does the same, and `:25` falls back
+  to the interval's earlier side only on `not-found`. Both return recoverable `state-unresolvable`, as the
+  unrestricted path already does (`missingChangeState`), with `historyRefs` by the rule above.
+- **A missing local object.** Git's post-fetch connectivity check walks every ref and every worktree's `HEAD`. So a
+  fetch exits 1 naming the ref, with no porcelain rows, when any of them has no local object, whether or not the fetch
+  brings new objects. That includes a state ref under a `--negotiation-tip` pattern (`refFetchNegotiation`,
+  `fetch-target.ts:30-39`), a code branch, a `refs/arc/tmp/*` ref, and a linked worktree's detached `HEAD`. Before it
+  transfers anything, the fetch reads local history, marking recent commits of every local ref complete and negotiating
+  over the refs under those patterns, and prints `Could not read <oid>` for each missing commit it reaches, in any local
+  ref, but carries on. Later steps that read the same history can fail the fetch with no porcelain rows. Two are
+  observed on Git 2.55.0: the forced-update check `refFetchArgs` asks for (`--show-forced-updates`) exits 128, naming
+  the commit (`could not parse commit <oid>`), when it reads a missing commit in the history a ref is updated from; and
+  the connectivity check exits 1 (`did not send all necessary objects`) when the remote's new history builds on a
+  missing local commit, with or without that flag. A missing commit no failing step reads, such as one in a ref whose
+  history the fetch neither updates from nor builds new history on, or one under a fetch with nothing new to bring, does
+  not fail the fetch. A missing tree or blob under a tip can nevertheless fail thin-pack unpacking without naming an
+  object ID (A6). Such an unnamed loss, with all local tips present, remains outside the commit-only detector and keeps
+  the existing unreachable outcome and connectivity remedy; this is a known residual, not proof that the remote caused
+  the failure. The helper below depends on none of these steps: for a commit, it needs only a completed failure with no
+  porcelain rows whose stderr names a commit its walk confirms. `parseFetchPorcelain` (`lib/git/fetch.ts:29-30`) reports
+  each of these failures as `unreachable`, and `failedRemotePull` (`pull.ts:186-192`) attaches the remote-connectivity
+  remedy `refSyncTransportRemedy`. `migrate-remote-fetch.ts:60-69` and `designation-project.ts:115-121` parse the same
+  way. The migration fetch (`fetchMigrationRemote`) stays in scope because the import's transient publication calls it
+  (`import/transient-publication.ts:39-42`). `classifyRemoteFailure` (`lib/git/remote-ref-reader.ts:164-179`) reads only
+  stderr text, so detection is by state. After a fetch ends in a completed Git failure (`isCompletedGitFailure`) with no
+  porcelain rows, one helper checks the local tip objects once: every ref (`for-each-ref` with no pattern) and every
+  worktree's `HEAD` (`worktree list --porcelain`), into `cat-file --batch-check`. A worktree on an unborn branch lists
+  its `HEAD` as the null object ID, which `cat-file` answers `missing`; the helper skips that row, since an unborn
+  branch has no tip object to lose. A missing tip object takes the **Local transport fault** row, naming its ref. When
+  every tip is present, the helper takes the object IDs the failure names, by the match `isUnavailableGraphFailure`
+  (`history-graph.ts:20-27`) makes, and confirms them by one commit walk over every ref and every worktree's `HEAD`
+  (`rev-list --missing=print --all`, without `--objects`), which reads commits as the fetch does, through any
+  commit-graph, and lists each commit local history references that it cannot read. A named commit the walk lists takes
+  the **Local transport fault** row, naming the commit; its condition keeps the fetch's stderr. A remote that cannot
+  send an object fails the fetch naming that object too (`remote: fatal: unable to read <oid>`), and it is absent here
+  only because it was never sent: no local history references it, so the walk does not list it, and the failure keeps
+  today's classification and condition text, as does any other, a failed walk's included. When such a failure meets a
+  clone that also lacks a commit the fetch read, in any local ref and at any depth it read, the stderr names both, and
+  the local loss is reported first. The walk confirms it is a real loss in local history, whether or not a read of it is
+  what failed this fetch, and the stderr its condition keeps shows the remote's own failure, which a retry after the
+  restore reports as today. The helper serves all three sites and runs only after such a failure. Git's message text
+  only supplies object IDs for the walk to confirm; it never classifies a failure by itself. A fetch the sync deadline
+  killed is a canceled failure, not a completed one, so it never reaches the helper.
+
+A7 extends the failed-walk fallback to completed failures of every existing diagnostic probe in
+`localFetchObjectFailure`: an inconclusive probe preserves the original fetch failure. Cancellation, signal, spawn and
+untyped errors keep propagating through their existing boundaries.
+
+#### 1.7 Sync reach
+
+A pull reaches the classification through `checkSyncRefTip` (`sync-tip.ts`), which calls `checkRefTip`, and through
+`heldMerge` (`sync-merge.ts`), which holds a ref with a `namespace-corrupt` notice for any refusal. A ref held for a
+missing object carries the **Missing** row's condition and remedy, so its notice says to restore or fetch the object.
+A push reaches it through `excludeBrokenPushRefs` (`push-exclusion.ts`). That function runs `checkSyncRefTip` on every
+changed ref and excludes the families a refusal touches with a `refused` publish failure, which stays terminal and
+carries its row's condition and remedy.
+
+#### 1.8 Readers whose behavior changes
+
+A missing object moves from terminal `namespace-corrupt` to recoverable `state-unresolvable`. A local transport fault
+moves a per-remote failure from `unreachable` to `refused`, and so moves the operational pull status from
+`unreachable` to `incomplete` through `transportOnly` (`operational-sync-bindings.ts:44-46`). No helper in `src/`
+branches on refusal class generically, and `RefusalCode` has no importer there.
+
+**Readers that branch on what changes.** Every reader in `src/` that branches on a changed code, notice kind, failure
+code, pull status, or refusal class:
+
+| Reader                                                                                                                                                                                                                                                                                                     | Branches on                                                        | Today                                                                                                                                               | After this change                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `snapshotView`'s point read (`snapshot-read.ts:54-58`)                                                                                                                                                                                                                                                     | `namespace-corrupt` on a ref whose tree was unavailable at capture | converts it to `state-unresolvable` (`unavailableSnapshot`, `:61-66`), naming the history ref of any work or cohort ref                             | every producer returns **Missing** for an unavailable tip or tree itself, `archivedViewRead`'s archive tree among them (§ 1.4). The wrapper adds the snapshot's `stateVersion` to any `state-unresolvable` from the saved view that has none and keeps the producer's `historyRefs`; it converts no code |
+| `readStateHistory` (`lib/handoff/state-history.ts:23-28`)                                                                                                                                                                                                                                                  | `state-unresolvable`                                               | pulls non-empty `historyRefs`, then retries once; with none, retries once without a pull; any other code throws `StateHistoryRefusal` with no retry | a missing object now takes the retry: one more read, and a pull only for an item with no live ref (§ 1.6)                                                                                                                                                                                                |
+| `resolveRecoveryStateBasis` (`lib/recover/state-basis.ts:29-34`)                                                                                                                                                                                                                                           | `state-unresolvable` inside `StateHistoryRefusal`                  | rebuilds the seed at the current version                                                                                                            | a missing object in the seed's change window now rebuilds the seed, where it threw. Recovery reloads from state it can read rather than trusting a window it cannot (Owner, 2026-10-30)                                                                                                                  |
+| `runStoreRename` (`lib/work-unit/verbs/rename-store.ts:39-41`)                                                                                                                                                                                                                                             | `state-unresolvable` with non-empty `historyRefs`                  | pulls them through `pullHistoryForRetry` and retries once                                                                                           | a missing object with no history to pull returns its refusal unchanged                                                                                                                                                                                                                                   |
+| `conflictHistory` (`conflict-command.ts:51-52`)                                                                                                                                                                                                                                                            | `historyRefs` present and non-empty                                | as `runStoreRename`                                                                                                                                 | as `runStoreRename`                                                                                                                                                                                                                                                                                      |
+| `historyRefs` (`lib/store/operational-sync.ts:44-48`)                                                                                                                                                                                                                                                      | `state-unresolvable`                                               | returns its `historyRefs`                                                                                                                           | returns the classification's narrower `historyRefs`                                                                                                                                                                                                                                                      |
+| `followCleanupFailure` (`follow-delete.ts:50-54`)                                                                                                                                                                                                                                                          | a wrapped `namespace-corrupt` or `command-line-capacity`           | rethrows those; wraps any other as recoverable `move-unfinished` with a remote-repair remedy                                                        | rethrows a wrapped `state-unresolvable` too, so a missing local object keeps its restore remedy and the move record stays for a resume. Its re-copy path still meets `namespace-corrupt` notices, unchanged                                                                                              |
+| `adoptionFailure` (`pull.ts:126-131`)                                                                                                                                                                                                                                                                      | refusal class                                                      | recoverable refuses the whole pull; terminal reports the read source failed and continues                                                           | a missing project identity blob or registry tree refuses the whole pull with the restore remedy. Only a store whose remotes are all read sources reaches it (`adoptSourceProjectIdentity`, `adopt-source-project.ts:14`)                                                                                 |
+| `commitWithdrawEnd` (`sync-withdraw-commit.ts:53-56`)                                                                                                                                                                                                                                                      | a `namespace` field                                                | names the refusal's namespace, else the end's history ref; holds the same refs either way                                                           | unchanged holds; a missing object names the end's history ref                                                                                                                                                                                                                                            |
+| `listingFault` (`project-identity.ts:151`)                                                                                                                                                                                                                                                                 | `record-malformed` against any other                               | any other is an `unreadable` diagnostic                                                                                                             | unchanged; `unreadable` is what the **Missing** row prescribes                                                                                                                                                                                                                                           |
+| `queryDisposition` (`lib/work-unit/store-reconcile-context.ts:54-55`)                                                                                                                                                                                                                                      | `ambiguous-match` against any other                                | any other is a `namespace-corrupt` disposition                                                                                                      | unchanged; a missing object reached it as `namespace-corrupt` already                                                                                                                                                                                                                                    |
+| `appendArchiveHolds` (`sync-corrupt.ts:129-140`), `withdrawEndBatches` (`sync-pull-lifecycle.ts:133-135`), `publishRefAttempt` (`push.ts:106-109`), `excludeBrokenPushRefs` (`push-exclusion.ts:21-24`), `prepareRefCopy` (`migrate-copy.ts:41-43`), and `pullRemote`'s withholding (`pull.ts:97,147-162`) | notice kind `namespace-corrupt`                                    | hold, exclude, or abort the ref                                                                                                                     | unchanged; the notice kind stays (§ 1.7)                                                                                                                                                                                                                                                                 |
+| `projectPull` (`operational-sync-bindings.ts:41-46`)                                                                                                                                                                                                                                                       | every failure `unreachable`                                        | status `unreachable`                                                                                                                                | a local transport fault gives `incomplete`. Its readers, `consumePull`, `pullSummary` (`store-user-pull.ts:24-26`), and `pullStoreStatus`, treat the two statuses alike, so only the label changes                                                                                                       |
+| `timedOutPull` (`pull.ts:72,194-196`) and `publishRefAttempt` (`push.ts:100-102`)                                                                                                                                                                                                                          | `unreachable` with `cause: "timeout"`                              | skip the remaining remotes; publish nothing                                                                                                         | unchanged; a local transport fault is not a timeout                                                                                                                                                                                                                                                      |
+| `readMigrationRemote` (`migration-read.ts:11`), `destinationAnswers` (`leave-recorded.ts:70`), `judgeRefFollow` (`follow-candidates.ts:61-63`), and `settleHistoricalCopy` (`migrate-copy-account.ts:38`)                                                                                                  | a wrapped `unreachable`                                            | treat the remote as unread                                                                                                                          | a local transport fault arrives as `refused` with the restore remedy, and each passes it on as it passes every code but `unreachable`                                                                                                                                                                    |
+
+Readers that branch on a failure's role or on any failure, not on a code, are unchanged:
+
+- `consumePull` and `pullHistoryForRetry` (`pull-consumption.ts`);
+- archive's publication hold and failure (`archive-store.ts:132-150`);
+- the import's publication (`import/finish.ts`);
+- the catch-alls in `withdrawRecordedSource` (`leave-recorded-withdraw.ts:14-18`) and `deleteRemoteSource`
+  (`migrate-remote-delete.ts:48-51`).
+
+#### 1.9 Every metadata read, and the diagnostics that carry a fault
+
+At `90b6de349`, § 1.4's search finds 35 `parseRefMetadata` call sites under `lib/store/ref/`. By what each does with a
+null result:
+
+**Classified in § 1.3**, as `<tip>:<path>` reads: `read.ts:65`, `read-uid.ts:24`, `lineage-resolution.ts:24`,
+`live-owners.ts:34`, `sync-withdraw-sibling-ends.ts:82`, and `retired-history.ts:37`.
+
+**Refuses, reports, or holds — takes § 1.2's metadata read and classifies by § 1.1:**
+
+| Site                                                          | On null today                                                                                                                                                                                                                   | Reached from                                                                                                                                                                   |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `captureHistoricalNamespaces` (`historical-namespace.ts:20`)  | counts a revision whose metadata entry is present as `corrupt` where its tree holds records, which its callers refuse as terminal `namespace-corrupt` with `historicalMetadataFailure`, and as `recordFree` where it holds none | `readHistorySnapshots` (`history-snapshots.ts:38`), `changeNamespaceFacts` (`changes-graph.ts:82`), the sync label walk (`sync-label.ts:78`), and `retiredHistoryHome` (§ 1.3) |
+| `stateMetadata` (`history-snapshots.ts:87`)                   | terminal, `historicalMetadataFailure`                                                                                                                                                                                           | `historicalState` (`:64-65`)                                                                                                                                                   |
+| `changeWindowReferences` (`changes-records.ts:41`)            | terminal, `historicalMetadataFailure`                                                                                                                                                                                           | `changes`                                                                                                                                                                      |
+| `lineageEndOwners` (`changes-ends.ts:158`)                    | terminal, `historicalMetadataFailure`                                                                                                                                                                                           | `changes`                                                                                                                                                                      |
+| `versionAt` (`sync-label.ts:91`)                              | `RefSyncLabelError` with the historical remedy (`sync-label.ts:26`)                                                                                                                                                             | pull merges                                                                                                                                                                    |
+| `sync-history.ts:39`                                          | `corruptRef(ref)`, a forward repair                                                                                                                                                                                             | pull's history merge                                                                                                                                                           |
+| `metadataAt`, through `sideMetadata` (`sync-tree.ts:149,170`) | `corruptRef(ref, !entries)`, a forward repair when the tree is present                                                                                                                                                          | `groupSides` (`:109-110`)                                                                                                                                                      |
+| `withdrawRecordMetadata` (`sync-withdraw-records.ts:57`)      | `RefSyncLabelError` with the historical remedy, from `corruptRef(ref, false, true)` (`:58`)                                                                                                                                     | withdrawal: `entryDocument`, `sameWithdrawRecord`, and `selectedWithdrawFormat`, each passing its side (§ 1.1)                                                                 |
+| `sync-withdraw-inverse.ts:154`                                | `RefSyncLabelError` with the historical remedy                                                                                                                                                                                  | withdrawal                                                                                                                                                                     |
+| `sync-withdraw-inverse.ts:166`                                | a raw `Error`, which rejects the pull                                                                                                                                                                                           | withdrawal                                                                                                                                                                     |
+| `sync-withdraw-lineage.ts:25`                                 | a raw `Error`, which rejects the pull                                                                                                                                                                                           | withdrawal                                                                                                                                                                     |
+| `registryMetadata` (`sync-withdraw-preserved-lineage.ts:51`)  | `UnavailableWithdrawJournal`, held by `heldWithdrawal` (§ 1.3)                                                                                                                                                                  | withdrawal                                                                                                                                                                     |
+| `viewRefMetadata` (`view-state.ts:98`)                        | `corruptRef(ref, !entries, saved)` from its callers (`write-views.ts:88,188`), a forward repair when the tree is present, or the historical remedy on a saved state                                                             | `write-views.ts:85`, `missingViewMetadata` (`write-views.ts:151,184-188`), and `cohort-coordinates.ts:26`                                                                      |
+| `capturedGroupMetadata` (`write-build.ts:275`)                | a forward-repair refusal                                                                                                                                                                                                        | writes (`write-build.ts:257-262`)                                                                                                                                              |
+| `capturedMetadata` (`read.ts:262`)                            | a forward-repair listing diagnostic, or the historical remedy on a saved state (`read.ts:271`)                                                                                                                                  | `list` (`read.ts:259-271`)                                                                                                                                                     |
+| `lookup-trees.ts:71`                                          | `corruptRef(ref, false, saved)`                                                                                                                                                                                                 | `lookup`                                                                                                                                                                       |
+| `namespace-health.ts:24`                                      | `corruptRef(ref, false, saved)`                                                                                                                                                                                                 | tip checks                                                                                                                                                                     |
+| `write-archive.ts:149`                                        | `record-malformed`, `rule: "store.archive-controls"`, from `archiveOutputControlRefusal` (`archive-refresh.ts:79-89`)                                                                                                           | archive writes                                                                                                                                                                 |
+| `decodeArchiveFolder` (`archive-read.ts:90`)                  | the `unreadable` diagnostic with `unparsedMetadata` (`:102-103`)                                                                                                                                                                | every archived-folder capture, below                                                                                                                                           |
+
+`captureHistoricalNamespaces` reports a present metadata entry whose blob is missing as its own fact, a record-free
+revision's included. The history reads, the change window, and the pull label walk need no metadata for a revision whose
+tree holds no record, since their answer there is no record (`history-snapshots.ts:64`, `sync-label.ts:93`): they refuse
+that fact **Missing** only where the tree holds records, and keep treating a record-free revision as record-free, as
+today. `retiredHistoryHome`'s fallback refuses it **Missing** either way, since its revision scan skipped a missing blob
+that may hold the slug (§ 1.3).
+
+**Filters candidate ends — `readItemEndCandidates` (`sync-lifecycle-log.ts:49`).** It reads the metadata of every
+commit in the item's history (`:30-43`). Under `kind: "all"` it keeps a commit as an end only when that metadata parses
+and names the commit's batch; under `"retirement"` it consults no metadata and keeps only empty-tree ends. So today a
+missing or undecodable blob drops its commit. When that commit is the folder's end, `currentEndCandidates`
+(`sync-withdraw-sibling-ends.ts:72-79`) finds no candidate, then takes the published-folder exemption (`:78`) or holds
+the ref saying the end cannot be witnessed (`:79`).
+
+Under `kind: "all"` alone, it takes § 1.2's metadata read and also returns the commits whose blob is missing or
+undecodable, or whose non-empty tree has no metadata entry, each with its batch, as facts with no policy.
+`currentEndCandidates` holds the ref only when one of them carries the folder's end batch, and before `:78`: that commit
+is the end in local history, which `:78`'s exemption for another machine's end rules out. A missing blob holds as
+**Missing** with the restore remedy, and an undecodable one as **Unparseable** with the historical remedy (§ 1.1). A
+fault at any other batch is no end, as today, and `unavailable` keeps only missing trees, so `:73` is unchanged. A
+commit of the folder's end batch whose non-empty tree has no metadata entry holds the same way, as **No metadata** with
+the historical remedy. At any other batch, such a commit is still no end.
+
+Every reader that passes `"retirement"` sees no change, among them `observeOwnerEnds`
+(`sync-terminal-ended-twice.ts:47-48`) and `currentEndCandidates`' folder-less arm (`:72`). `readItemEndBatches`
+(`sync-lifecycle-log.ts:15-17`) discards the new sets, so `resolvePendingRefEnds` (`sync-lifecycle.ts:65`), the other
+`kind: "all"` reader, is unchanged.
+
+**Tolerates both — keeps `parseRefMetadata`:** `sync-ended-conflicts.ts:21`, the foreign-metadata probe (`read.ts:265`),
+the scoped point read that falls back to the full tree (`view-state.ts:55`), `sync-withdraw-records.ts:34`,
+`history-paths.ts:12`, `push-families.ts:61`, `sync-withdraw-targets.ts:32,33,50`, and `sync-tree.ts:149`'s
+control-source read (`:111`).
+
+**Diagnostics that carry a fault.** A capture diagnostic carries its § 1.1 fault beside its condition and remedy. The
+fault stays internal: `ListingDiagnosticSchema` is unchanged, and a listing still shows **Missing** and
+**Unparseable** as `unreadable`, each with its own remedy. Every site that turns a diagnostic into a refusal or notice
+takes that fault's row through the helper. At `90b6de349` the search finds these among them:
+
+- `readArchivedRecord` (`read.ts:326-328`);
+- `readArchivedFolder` (`read.ts:350-353`), whose `unreadable` record diagnostic only a missing blob raises
+  (`read.ts:244,249`), already the **Missing** row;
+- `archivedViewRead` (`write-views.ts:246-248`);
+- `resolveArchivedReferences` (`archive-resolution.ts:30-32`);
+- `checkArchiveTip` (`sync-tip.ts:25-28`);
+- `incomingArchiveNotices` (`sync-corrupt.ts:119-123`);
+- `appendArchivedLookupTrees` (`lookup-trees.ts:90-93`);
+- `collectArchivedParents` (`cohort-coordinates.ts:63-65`);
+- the archived owners of a change window (`changes-ends.ts:127-129`);
+- the archive merge's folder capture (`sync-archive.ts:31-33`);
+- the history merge's quarter read (`readSyncHistoryQuarters`, `sync-history.ts:84-86`), through
+  `firstOwnedArchiveDiagnostic`;
+- the sibling capture's rethrow (`sync-withdraw-sibling-ends.ts:52`), through `heldWithdrawal` (§ 1.3).
+
+So a missing folder metadata blob refuses as recoverable `state-unresolvable` on a point read or write, and a pull holds
+its ref with the restore remedy. A Misplaced diagnostic keeps terminal `namespace-corrupt` with its placement remedy,
+and an Unparseable or No metadata one keeps today's terminal refusal. Its remedy is the historical one on a saved
+capture (`archive-read.ts:102`) or a history commit (§ 1.1), such as the archive merge's base, and the forward repair
+otherwise. A diagnostic with no § 1.1 fault keeps its own condition and remedy, the saved one at the archive merge's
+base (§ 1.1), and its converters keep today's terminal refusal: ambiguous owner metadata, a `key-mismatch`, an entry
+outside an owner folder, or a malformed owner UID (`archive-read.ts:114-149`).
+
+### 2. Listing scope
+
+Today a live listing applies a different scope and absence rule than an as-of listing and the in-repo backend:
+
+- Live listings select every ref in the family and every archive ref, whatever `input.owner` is (`read.ts:161-162`),
+  and `decodeCapturedRef` (`:216-236`) passes every diagnostic through.
+- As-of listings narrow by owner (`snapshot-read.ts:77,79`), and the in-repo listing skips other owners
+  (`in-repo/list.ts:50`).
+- An owner-only listing that finds nothing returns an empty `complete` here (`readableRefListing`, `read.ts:199-203`)
+  and `absent` in-repo.
+
+Since `acquireLifecycleRecords` (`lib/work-unit/prepared-lifecycle-write.ts:12-23`) refuses on any diagnostic, one
+unreadable unrelated work ref blocks every lifecycle write through it. Live listings take the as-of path's owner
+scope for records and diagnostics alike, and the absence rule of the in-repo tracked and personal listings
+(`in-repo/list.ts:92`, `in-repo/personal.ts:81`): no records and no diagnostics is `absent`, whether or not the listing
+names a kind. The absence rule applies on the live path (`listBoundRecords`);
+`readableRefListing` keeps its kind-scoped rule for as-of and write-check listings. The write-check views
+(`write-views.ts:96-118`) and as-of archived diagnostics (`archive-view.ts:14`) take the same owner scope.
+
+### 3. Pull-result consumption
+
+`consumePull` (`lib/store/pull-consumption.ts:15`) proceeds on a top-level `designation-needed` without rendering it.
+`pullHistoryForRetry` (`:48-54`) reads only `pulls`, never `states`, so after a designation-needed pull a retry fails
+with a bare `state-unresolvable`. The design:
+
+- `consumePull` renders a designation question (`pullDesignation`, `:30-34`) as a notice for every consumer, with its
+  remedy and command.
+- The retry paths, `pullHistoryForRetry` and `readStateHistory`, stop on a designation question with its remedy, as
+  `readStateHistory` already does. `pullHistoryForRetry` keeps its boolean result: on a designation question it writes
+  the question and its remedy as a notice and returns false, so its caller returns the refusal it holds.
+- Every pull consumer outside the store's sync internals moves onto `consumePull` with `pullDesignation`, through
+  `pullSelectedStore` (`operational-sync-bindings.ts:12-17`). The consumers not on the helper today:
+    - `rename-store.ts:41` and `conflict-command.ts:52`, through `pullHistoryForRetry`;
+    - `store-user-pull.ts:59`;
+    - `pullStoreStatus` (`handlers/status/store-locus.ts:22-29`).
+- Sites that derive their own pull policy take the helper's designation handling too: `import/finish.ts:31-39`, and
+  archive's publication hold (`archivePublicationHold`, `lib/work-unit/verbs/archive-store.ts:144-150`). Each holds a
+  push result rather than a pull, so each finds a designation question through `pullDesignation` over `projectPull`
+  (`operational-sync-bindings.ts:27`), exported, over that result's `pulls` and `states`, and stops on it with the
+  helper's rendering. Each keeps its own handling of failed pulls and other states, whose typed refusals and
+  structured notices the helper's rendered stop would lose.
+- The helper's own callers that omit `pullDesignation` read local state past an unasked question:
+  `errand/store-runtime.ts:73`, `errand/promote-store-runtime.ts:22`, and `handlers/errand-entry-storage.ts:26`. They
+  receive the rendered notice from `consumePull`.
+
+### 4. Transport failures
+
+Transport failures escape as raw exceptions. `checkedPushTarget` (`push.ts:220-226`) calls `refPushTarget`
+(`fetch-target.ts:42-48`), and `refFetchTarget` (`fetch-target.ts:10-17`) throws through `fetch.ts:60` and
+`pull.ts:33-43,118-121`, discarding the per-remote outcomes and notices already gathered. Both also throw through
+`refFetchRewriteRemedy` (`fetch-remedy.ts:11`), which builds a `history-diverged` notice's remedy (`fetch-check.ts:48`,
+`fetch-seen.ts:112`). A remote with no effective URL makes them and `readComparisonSource` throw a plain `Error`
+(`fetch-target.ts:15,46`, `comparison-witness.ts:69`), which a call site cannot tell from a Git process failure; each
+throws `EffectiveTransportError` instead. `captureComparisonWitness` (`comparison-witness.ts:21-30`) lets
+`EffectiveTransportError` escape where finalization (`:40-44`) maps it. So follow's resume (`follow.ts:86`) and cleanup
+(`follow-delete.ts:24,78`) throw instead of returning `move-unfinished`. `push.ts:194` and `follow-candidates.ts:38`
+are unmapped too.
+
+Each becomes a per-remote failed outcome with failure `refused` and the remote-URL repair remedy, or, where no
+per-remote outcome exists, a typed refusal. Typing happens at these call sites. The lookup functions beneath them
+(`repositoryConfig`, `configOutput`, `readRemoteTransports`, `readNamedTransport`, `resolveLiteral`,
+`refFetchNeedsCompleteness`) keep throwing on failure, so a caching wrapper over them caches no failure value. The
+follow sites stay in scope although only moves between remotes reach them: typing failures in
+`captureComparisonWitness`, which push admission needs, changes what they receive.
+
+After a rowless completed Git fetch failure, including a failed completeness refetch, retain that acquisition's keeper
+basis or import publication gathering for retry (A7). `fetchRefPatterns` still attempts its existing tracking/keeper
+capture under the keeper lease. If that capture also ends in a completed Git failure, the observation is unavailable;
+it is never an empty or coherent snapshot. `pullRemote` then uses the ordinary transport remedy without asserting that
+forwarding is absent. An unavailable observation authorizes no reconciliation, history capture or source retirement.
+The existing local-object diagnostic is inconclusive if any of its Git probes ends in a completed failure; preserve
+the original fetch classification and stderr. Positively established local loss retains its existing priority.
+`runMigrationFetch` carries this completed-acquisition provenance through its typed refusal so publication cleanup can
+retain the gathering without changing the refusal's classification. Cancellation, signal, spawn and untyped errors,
+and incomplete-fetch refusal cleanup, retain their existing policies. No new discovery or successful-path Git process
+is permitted.
+
+### 5. Ref transactions under the sync deadline
+
+`bindDeadline` (`sync-deadline.ts:46-62`) puts the deadline's signal on every Git call. When the deadline fires,
+`bindGitProcessCancellation` (`lib/git/process-cancellation.ts`) ends the process tree with `SIGKILL` on POSIX and
+`taskkill /T /F` on Windows. A transaction killed after `prepare` leaves its Git ref lock behind, and every later
+transaction that needs that lock fails until someone removes the file by hand.
+
+Only the keeper and tracking transactions refuse `lock-held` today: `rethrowRefFetchKeeperLock`
+(`fetch-keeper-lock.ts:17-31`) and `RefPushTrackingLockError` (`push-tracking.ts:13-18`). Several transactions throw
+a raw `GitProcessError` instead, because `updateRefTransaction` rethrows and `refBatchFailure` (`write.ts:73-79`)
+rethrows anything but an advisory-lock wait. They are writes, merges, withdrawals, the import's landing, and the
+version token. The version token is the transaction that every live `list` and every `version` runs to save the
+captured manifest (`saveCapturedManifest`, `manifest.ts`).
+
+#### 5.1 A launched transaction finishes
+
+- `GitExecOptions` (`lib/git/exec.ts:22`) gains `uninterruptible?: true`, and `GitExecInput`'s options admit it. It
+  tells a deadline-bound wrapper that it may refuse to launch the call but must not cancel it once launched.
+- `bindDeadline` honors it on `execInput`. If the deadline's signal has aborted at launch, the call refuses with the
+  canceled `GitProcessError` the port raises for an aborted call, as any other call does, so every deadline arm that
+  checks the signal (`pull.ts:136`, `push.ts:78`) still matches. Expiry here is the signal, which `sleep.bound`
+  aborts (`sync-deadline.ts:28-29`), never the clock-based end alone. Otherwise it calls the given port without the
+  deadline's signal. A signal the caller supplied itself still applies.
+- `updateRefTransaction` sets the option on its `update-ref --stdin` call alone. Its read-back
+  (`readTransactionTips`) and version probe keep the signal.
+- No check follows the call. A transaction that commits after the deadline stays committed and reports its result.
+  The deadline stops the operation at its next Git process or lock, or at an existing check between attempts
+  (`refSyncDeadlineExpired`, `push.ts:70`).
+- Git's own lock wait bounds the transaction: five seconds per lock from `gitRefLockArgs`
+  (`ref-transaction.ts:30-32`), and `core.packedRefsTimeout` for `packed-refs`.
+- The call still goes through the bound context's ports.
+
+#### 5.2 A held Git ref lock is classified at every transaction
+
+One store-level wrapper around `updateRefTransaction` serves every transaction in `lib/store/ref/`. When a
+transaction ends in a completed Git failure with every ref still at its expected value, the wrapper `lstat`s each
+candidate lock file in the bound repository, through `context.fs`. A failure the deadline canceled, the read-back's
+included, stays a canceled error. The repository is `context.repository.gitDir ?? commonDir`: in the default layout
+`gitDir` is null and shared refs lock in the common directory. The candidates are each ref's `<ref>.lock`,
+`reftable/tables.list.lock`, and `packed-refs.lock` when the transaction deletes a ref, since Git takes that lock in
+the files format only to delete one.
+
+- **A lock found** throws one typed lock error carrying its path and its age, read from `mtimeMs`.
+  `StoreFileAccess.lstat` (`lib/store/ports.ts:37`) adds `mtimeMs` to its result type. The default port passes
+  Node's `fs.lstat` result through already, so only test fakes gain the field.
+- **No lock found:** the failure rethrows as today.
+- `rethrowRefFetchKeeperLock` becomes this classification. It also gains the `packed-refs.lock` case it lacks today
+  (`:20`).
+- `RefPushTrackingLockError` keeps the receiver's accepted refs and takes the wrapper's lock.
+
+These sites map the new error to `lock-held`. The first three already map an advisory-lock wait; `list` and `version`
+map none today and gain the mapping:
+
+- `refBatchFailure`, for writes;
+- `pullRefStore` and `pushRefStore`, for merges, withdrawals, keepers, and tracking;
+- `withMigrationLock` (`commands.ts:195`), for the import;
+- `listBoundRecords` (`read.ts`), for `list`;
+- `refReadOperations` (`backend.ts`), for `version`, which wraps `refStateVersion`'s bare result.
+
+`list` and `version` both save the version token, and the token keeps the manifest that `asOf` reads depend on, so a
+lock on it refuses rather than passing silently. A site that already turns a failed transaction into its own result
+keeps that result's shape and takes the lock's condition and remedy: `clearProjectCheck` (`designation-project.ts`)
+still reports one remote's failed outcome. Removing a check's candidate refs once it ends (the `finally` in
+`checkRefDesignationProject`) still discards its failure, since that cleanup cannot replace the check's result; the next
+check's `clearProjectCheck` clears a ref it leaves, or reports the lock. The wrapper changes an outcome only where
+today's raw error escapes.
+
+#### 5.3 What a Git ref lock refusal says
+
+A `lock-held` refusal for a Git ref lock names the lock file and its age, and the store never removes the file.
+
+- **Stale.** A lock older than `REF_SYNC_DEADLINE_MS` is almost certainly stale. Its remedy says to remove the file
+  once no Git process is running in that repository.
+- **Held.** A younger lock is probably held by another Git process. Its remedy says to retry first.
+
+This matches the pull notice `tracking-update-failed` (`fetch-check.ts:43-45`), which fetch raises when Git could not
+update a tracking ref whose history does not diverge. Its remedy already says to pull again, then stop the holder or
+remove its stale lock. The notice gains the same evidence: `rejectedFetchNotice` (`fetch-check.ts:35-47`) `lstat`s the
+tracking ref's candidate lock files as § 5.2's wrapper does, and names the lock it finds with its age and § 5.3's stale
+or held remedy. Neither surface can tell a stale lock from a held one, and only removal clears a stale one.
+
+#### 5.4 The Windows bursts
+
+The Windows separate-layout publishing burst in `__tests__/integration/store-ref-bursts.test.ts` runs unskipped. A
+deadline can still kill a fetch while it updates its own tracking refs, in either layout (§ 5.5). A hosted Windows run
+failed the default-layout burst that way: one writer raised 13 `tracking-update-failed` notices, then its push ended
+`unreachable` at the deadline, with its lock state uncaptured. So on Windows both layouts' publishing bursts check the
+recovery as well. A clone whose publication refuses on a stranded lock passes when, after every writer has exited,
+removing the lock its refusal names and pushing again converges it. Every other clone converges directly. That
+recovery cannot tell a § 5.1 failure from the residual: a transaction killed after launch also strands a lock its next
+refusal names, in the separate layout the same `tables.list.lock`, and removing it converges the clone. So § 5.1's own
+deadline-kill case runs on Windows too (SC 8).
+
+#### 5.5 Residuals
+
+The store does not disable Git hooks, so a hung `reference-transaction` hook can hold an uninterruptible transaction
+past the deadline. A fetch must stay abortable, so a deadline that kills a fetch while it updates its own tracking
+refs can still leave a lock behind. The next transaction that needs that lock reports it with § 5.3's remedy,
+wherever § 5.2 maps the lock error. The next fetch reports it as `tracking-update-failed`, naming the lock (§ 5.3), and
+a push excludes the ref rather than retrying it to the deadline (§ 9).
+
+### 6. The keeper lease across a fetch
+
+`withRefFetchKeepers` (`fetch-seen.ts:23-25`) takes the keeper lease, waiting up to `REF_SYNC_DEADLINE_MS`.
+`fetchRefPatterns` (`fetch.ts`) holds it across the basis capture, the network fetch, and the keeper release. Every
+checkout of a clone shares one remote's keepers. A pull releases those whose tracking ref survived its fetch, so a
+sibling's basis, fetch, and release must not interleave with it.
+
+The lease also serializes:
+
+- backing remote repoints (`repointBackingRemote`, `configureBackingRemote`, `backing-configuration.ts`), called under
+  it from `remote-backing.ts`, `source-switch.ts`, `migrate-remote-switch.ts`, and `migrate-switch-undo.ts`;
+- source switches and their undo (`source-switch.ts`, `migrate-remote-switch.ts`, `migrate-switch-undo.ts`);
+- the release of ended keepers (`releaseCapturedKeepers`, `fetch-seen-ended.ts`);
+- push admission's comparison witness (`captureComparisonWitness`, `withComparisonWitness`, `comparison-witness.ts`).
+
+#### 6.1 The span rule
+
+The store's lock rules gain one exception. The move lock spans a network call, and the keeper lease is the one other
+lock that does: it is held across that remote's fetch, bounded by the sync deadline. A sibling that outwaits its own
+remaining deadline ends with `RefSyncDeadlineError` and `refSyncDeadlineRemedy`'s retry remedy. The storage contract's
+concurrency rules govern how stored surfaces take concurrent writes, not lock spans, so they do not change.
+
+#### 6.2 No wait for the lease under the layout lock
+
+Push admission and push tracking take the comparison scope (`withComparisonScope`, `comparison-witness.ts:51-58`).
+Today it takes the layout lock and then waits for the lease up to the sync deadline. With the lease held across a
+fetch, a push overlapping another checkout's pull on the same remote would hold the layout lock for that fetch. Every
+write and pull merge waits 10 seconds for the layout lock (`commitRefStep`, `DEFAULT_MAX_WAIT_MS`), so each would
+refuse `lock-held`. The design:
+
+1. Under the layout lock, the comparison scope takes the lease with a zero wait, which means exactly one attempt.
+2. If another holds the lease, the scope releases the layout lock, waits for the lease alone, releases it, and tries
+   again from step 1.
+3. The operation itself always runs under both locks, so a transport or designation lookup still reads fresh under
+   the lease that guards its writers.
+4. **Bound.** The retry is bounded by the remaining sync deadline, whose expiry ends a push with its existing timeout
+   refusal. A caller with no sync deadline is bounded by `REF_SYNC_DEADLINE_MS` from its first attempt, the total that
+   one lease wait allows today. Follow's comparison scopes (`follow-delete.ts`, `follow-candidates.ts`) are such
+   callers. Their expiry throws the lease's `AdvisoryLockTimeoutError`, which `withMigrationLock` maps to `lock-held`.
+
+#### 6.3 A zero wait means one attempt
+
+- **First attempt before the deadline test.** `acquireAdvisoryLock` (`lib/advisory-lock.ts:193-223`) tests its
+  deadline before its first attempt, so a zero wait never acquires. It changes to attempt once first. No lock request
+  asks for a zero wait today: the store's `withRefLocks` callers pass `REF_SYNC_DEADLINE_MS` or the default, its direct
+  `context.lock` calls pass none, and the waits outside the store are positive or unbounded.
+- **Expiry refuses before the port.** Today `bindDeadline` passes a zero wait to the port only once its deadline has
+  expired. It changes to refuse there before calling the port, whatever wait was asked, once `refSyncDeadlineExpired`
+  (`sync-deadline.ts:41-44`) holds — the deadline's signal aborted or its end reached — with `RefSyncDeadlineError`
+  naming the lock's ref. Only the port knows the lock's file. Every existing request keeps today's result at expiry,
+  its condition naming the ref rather than the file.
+- **Release keeps the default wait.** `createRefLockFactory` gives a release its acquisition's wait today. A single
+  try at a busy `.break` lock would throw a release-phase timeout that push does not map, so a lock taken with a zero
+  wait releases under `DEFAULT_MAX_WAIT_MS`.
+
+### 7. A lost history-destination compare-and-swap retries
+
+A batch write reads the current tips, checks that each history destination is an ancestor of its live tip, builds the
+commits, and publishes them in one ref transaction. A lost transaction retries from the tip read.
+`publishRefBatchChanges` (`write-publication.ts:9-17`) handles one exception differently. A history destination found
+off its expected value is refused as terminal `namespace-corrupt` through `historyDestinationFailure`
+(`write-history.ts:27-30`), with a repair remedy. Every ARC writer of a history ref holds that ref's lock or the layout
+lock, and the write holds both. So only a writer outside the lock protocol reaches this point:
+
+- a hand-run `update-ref`;
+- a fetch or push into `refs/arc/history/*`;
+- an advisory lock wrongly judged abandoned.
+
+The design:
+
+- **Retry like any other lost ref.** A lost history destination retries from the tip read, like any other lost ref.
+  The ancestry check (`checkRefHistoryDestinations`, `write-build.ts:79`) still refuses a destination that is not an
+  ancestor, with its repair remedy.
+- **A bound on consecutive history losses.** The retry loop in `commitLockedRefBatch` (`write.ts:145-153`) has no
+  bound today, and ordinary contention drives it too: a changed admission basis (`refAdmissionBasisChanged`,
+  `write-admission.ts:8-13`) and any other lost ref return `"retry"`. So the bound counts only consecutive attempts
+  that lose a history destination. An attempt loses one when a history destination it writes has moved off its
+  expected value since the attempt read its tips. Either the admission check finds the move, since it compares history
+  refs too and runs first (`write-build.ts:86`), or the transaction does; the admission check reports which refs
+  changed and the values it read for them, so the attempt can tell. The third consecutive such attempt refuses with
+  `historyDestinationFailure`. An attempt that loses no history destination resets the count and retries as today; a
+  re-detection (below) is not such an attempt.
+- **The count survives a re-resolution, and each move counts once.** When a history destination appears or
+  disappears between attempts, `commitLockedRefBatch` returns `null` (`ownerLocationsChanged`,
+  `write.ts:149,156-161`), and `executeRefBatch` resolves the batch again (`write.ts:117-124`). The count carries
+  across the re-resolution, so a writer that deletes and recreates a destination meets the same bound. The count keeps
+  each history destination at the value the last attempt saw: its tip read, the value the admission check read where
+  it found that destination moved, or the lost race's `actual` (`ref-transaction.ts:14-16`) where its transaction lost
+  on that destination. An attempt or a re-resolution counts a loss only when a destination differs from that value.
+  The checks at `write.ts:149` that send an attempt back to re-resolution compare with the resolution's tips, so they
+  find again a move an earlier attempt already counted, whether its admission check or its transaction found it; that
+  re-detection neither counts nor resets the count.
+- **Why three.** Three matches the store's other bounded retries of a lost race (`PERSONAL_WRITE_ATTEMPTS`,
+  `lib/store/personal-mutation.ts`; `TORN_LISTING_ATTEMPTS`, `lib/git/ref-listing.ts`). One outside writer that moves a
+  destination forward once is absorbed. A writer that moves it on every attempt is a fault to repair.
+- **The test.** `__tests__/integration/store-ref-history-destination.test.ts` pins the terminal refusal with an
+  ancestor racer. It is rewritten for the retry, and gains a case that exhausts the bound.
+
+### 8. Other lock defects
+
+- **`packed-refs.lock` in the keeper path.** `rethrowRefFetchKeeperLock` observes only `reftable/tables.list.lock` and
+  `<ref>.lock` (`fetch-keeper-lock.ts:20`). A files-format deletion lock therefore escapes pull and push tracking as a
+  raw exception. § 5.2's wrapper covers it, and a files-format case pins it.
+- **Registry anchor lock prediction.** `registryAnchorLockRefs` and `mayEnd` (`write-manifest.ts:20-28`) cover removes
+  and completed puts. `planRefRetirements` (`write-retirement.ts:29-55`, called at `write-build.ts:76`) also retires
+  a targeted live work ref when the registry holds its owner's lineage transition record and the batch leaves it no
+  primary. Another owner's resolves can start that retirement alone. `write.ts:141` takes only the predicted locks,
+  and `retirementLockRefs` (`write-retirement.ts:21-23`) adds history refs, not the registry. Compare-and-swap still
+  protects the registry, so the cost is a broken lock invariant and retries, not lost data.
+    - `registryAnchorLockRefs` predicts this retirement. It takes the registry lock when a targeted live work ref's
+      owner has a lineage transition record in the registry tree at the batch's resolved tips, or the batch creates
+      one.
+    - It reads that tree only when some target is a live work ref, through `readRefTrees`, whose write evidence
+      `planRefRetirements` then reuses.
+    - `commitLockedRefBatch` re-reads the tips it plans from once the locks are taken (`write.ts:148`), and the
+      registry anchor's expected value comes from that re-read, so a lineage record that lands between resolution and
+      the re-read meets no compare-and-swap. When the prediction over the re-read tips needs the registry lock the
+      batch does not hold, the attempt returns to re-resolution, which takes it. A lineage record that appears after
+      the re-read meets the admission check and retries.
+    - Writes to work items with no lineage record take no registry lock.
+
+### 9. Sync, push, and withdrawal
+
+- **Withdrawal journal metadata.** Non-JSON metadata on a withdrawal journal ref escapes as an untyped exception that
+  rejects pull and push. `inverseMetadata` (`sync-withdraw-inverse.ts:74-86`) calls `JSON.parse` directly, and
+  `commitWithdrawEnd` (`sync-withdraw-commit.ts:28-62`) catches only `UnavailableWithdrawJournal` and
+  `RefSyncLabelError`. It parses through § 1.2's metadata read, and holds the ref with a `namespace-corrupt` notice
+  carrying the **Unparseable** or **Missing** row. Of its five inputs (`sync-withdraw-inverse.ts:126`), an
+  **Unparseable** one takes the historical remedy in the journal's `before` and `after` snapshots and the common
+  ancestor, and the forward repair in the current and published sides (§ 1.1).
+- **Withdrawal conflict placements.** `conflictValue` (`sync-withdraw-entries.ts:84-95`) passes a fresh live listing,
+  `readSyncRefs(context, "refs/arc/")`, at `:92` to `completeSyncPlacements`. That function's other callers
+  (`sync-tree.ts:75-76`, `sync-label.ts:58`) pass tip sets their operation captured. The withdrawal passes the tip sets
+  it captured, threaded from `inverseEntryDocument` (`:34`) through `mergeDocumentStage` to `conflictValue`, and
+  reads no fresh listing there.
+- **Completed copies after withdrawal (A1).** After all original contributions have been inverted, the withdrawal
+  refreshes each surviving eligible completed folder of an affected history group from that group's final entries and
+  metadata, including newly retained conflicts and undone entry changes. `prepareWithdrawEnd` composes the refresh
+  before publication, using `refreshArchivedFolder` to preserve the folder's independent end batch and quarter.
+  Compatible current coordinates stay unchanged (A5). When the inverse restores another primary role, select a uniquely
+  witnessed original coordinate from the already materialized journal for the same quarter, owner, and independent end.
+  With no such witness, use `planCompletedRoleReplacements`' existing same-quarter allocation: a record takes its UID
+  root, and a meta takes the next available sequence. Distinct witnessed original coordinates are ambiguous and refuse;
+  an occupied original destination or collapsed independent ends also refuses, preserving all state and naming a forward
+  repair followed by retry. Never overwrite an occupant or move the end to another quarter. Select final inverse
+  metadata for every survivor before planning all role replacements together on cloned composed quarter maps;
+  reservation placeholders never enter published trees. Reuse the captured journal and object acquisitions, with no
+  fresh listing, redundant discovery, or extra publication transaction. It never recreates a folder removed for the
+  withdrawn end. Every refreshed quarter belongs to the operation's captured, locked, expected-value transaction; the
+  existing atomic publication admits all inverse groups and refreshed copies together. No fresh live listing supplies
+  the refresh or its conflict placements.
+- **A stranded tracking lock in the push loop.** `publishRefAttempt` (`push.ts:106-108`) refuses on
+  `history-diverged` and seeds exclusion from `namespace-corrupt` and `end-pending`, but ignores
+  `tracking-update-failed`. With a stranded tracking lock, the push's lease holds the stale tracking tip and loses on
+  every attempt. The loop retries it as a lost race until the deadline, then reports `unreachable` with cause `timeout`
+  and a retry remedy that cannot clear the lock (`push.ts:70-84`). `excludeBrokenPushRefs` (`push-exclusion.ts:21`)
+  seeds exclusion from `tracking-update-failed` as well, so the push publishes the rest and reports the excluded ref's
+  `refused` failure with the notice's condition and remedy.
+- **A lock-failed tracking row read by Git's marking.** Once the push excludes on `tracking-update-failed`, a
+  spurious notice refuses a ref that could publish. `markUncommittedUpdates` checks a failed fetch's rows against the
+  tracking refs only when Git printed them as applied (`fetch-check.ts:55`), and Git's marking of a lock-failed row
+  varies. Probed: it prints `!` at 2.50.0 in both ref formats and at 2.55.0 in the files format. It prints the row as
+  applied at 2.51.0 to 2.53.0 in both formats and at 2.55.0 in reftable. So where Git prints `!`, a ref a sibling's
+  fetch already advanced past the fetched tip still raises the notice. `markUncommittedUpdates` also checks a `!` row
+  when its tracking ref has moved off the row's old value. A tracking ref that holds the fetched tip, itself or a
+  descendant, makes the row applied, as `trackingContainsFetchedTip` (`:63-70`) already does for an applied row. A
+  rejected rewrite leaves the tracking ref at its old value, so it keeps its refusal. That includes the ancestry
+  suite's rewrite to an ancestor (`store-ref-ancestry.test.ts:39`), whose unchanged tracking tip contains the fetched
+  one.
+- **One rejected ref holding back the rest.** Git 2.51.0 to 2.52.0 leave every other ref of a fetch un-updated when
+  one is rejected as non-fast-forward, in both ref formats; 2.50.0 and 2.53.0 update them. Each such ref would raise
+  `tracking-update-failed` and be excluded. The exclusion therefore expects Git 2.53.0 or later (§ 13).
+- **Seedless pending ends.** A pending end that the pull withholds without an end-pending seed makes push emit a
+  schema-invalid failed publish with an empty condition and remedy. `excludeBrokenPushRefs` (`push-exclusion.ts:19-47`)
+  seeds exclusion from `listing.pending`, and builds refusals from notices and tip checks, never for a ref that seed
+  alone excludes. A seedless end arises at `sync-pull-lifecycle.ts:76`, where the end's live or history ref is blocked
+  or withheld and a notice already names that ref or its counterpart; through `uniqueNotices` (`pull.ts:203-207`), which
+  drops `end-pending` beside `history-diverged` or `tracking-update-failed`; and at `sync-pull-lifecycle.ts:98-101`,
+  which drops `end-pending` for an item the pull reports `ended-twice`, a notice keyed by its item rather than a ref
+  (`sync-ended-twice.ts:36-38`). Exclusion builds a refusal for every excluded ref. A ref the seed alone excludes takes
+  the condition and remedy of the pull notice `uniqueNotices` kept that names it or its counterpart, or of an
+  `ended-twice` notice whose item's UID the ref carries; with no such notice, it takes the end-pending condition and
+  remedy (`sync-pull-lifecycle.ts:86-88`) naming its history ref.
+- **Quarter provenance on a restore.** `quarterCommitReference` (`quarter-provenance.ts:10-28`) throws an internal
+  error at `:26` when `folderHoldsRecord` (`:30-35`) matches neither snapshot. This happens when a reopen or quarter
+  move restores a removed completed primary in a single-put batch, reachable from `write-reopen.ts:67`,
+  `write-completed.ts:160`, and `write-archive.ts:122`. It attributes the quarter change to the restoring mutation.
+  This is traced, not yet run, so its test reproduces it first.
+
+#### 9.1 Approval-root selection (A4)
+
+Add a stable root-selection record and one explicit native-store repair command. Keep every approved response, its
+links, approval, performance, and settlement bytes unchanged. Selection determines the branch used for future composed
+reads and native response authority; it does not claim that independent approvals originally formed one succession or
+undo any effects.
+
+Selection uses this policy: an excluded branch must contain neither `performance` nor `settlement`, including an
+empty-but-present settlement. The selected branch may contain either. Validate every node in each branch, not only its
+root. If no root satisfies that condition, the command reports a non-retryable policy block and changes nothing. In
+particular, multiple performed/settled branches remain blocked. This repair does not provide their reconciliation and
+must not be reported as repairing that case.
+
+The command must distinguish this unsupported policy case from a stale preview or repairable store refusal; it must not
+advise blind retry. Existing composed-read refusals remain intact until a valid selection exists. Verification
+demonstrates refusal, explicit selection, successful continuation, and concurrent-selector recovery.
+
+##### Stored representation
+
+Add `review/evidence-root-selection`, a machine record in the existing review family and owner work-item ref. It has no
+projection or in-repo home. Register a parser and cross-record check alongside the review registrations. Use
+whole-record `single-writer` merging and ordinary expected-version writes; add no lock, ref, or merge algorithm.
+
+Its key is a canonical digest of a domain separator, exact owner UID, and producer ID. Choice, root inventory, recording
+time, and decider are not key inputs. The existing keyed approval read already selects by producer ID; its outcome
+binding is immutable in the selector value and may never be rebound to another result.
+
+The value contains:
+
+- `schemaVersion: 1`;
+- `producerId`, `outcomeKey`, and `resultDigest`;
+- `roots`: the sorted, unique disposition-set IDs of every root for that producer, at least two;
+- `selectedRoot`: one member of `roots`;
+- explicit `decidedBy`, `decidedAt`, and a nonempty `reason`.
+
+The record reference supplies the exact owner generation; admission checks the key and all content against it. Require
+non-null `decidedBy` using `ReviewIdentifierSchema` and an offset ISO datetime `decidedAt`, using the existing review
+attribution vocabulary. Apply obtains `decidedAt` from its clock port; it does not infer the decider from the running
+agent. Retain normal store actor provenance. Add no new identity or permission system. Ordinary evidence and outcome
+records are not rewritten. Selector updates are version-bound; store history retains prior choices and attribution.
+Ordinary removal is denied.
+
+##### Complete lineage validation
+
+Factor shared validation from the existing evidence history and succession checks. Inventory all evidence for the
+producer, require a complete conflict-free listing, and validate each record and its outcome/result/binding context.
+Partition it into complete linear reciprocal branches, each with exactly one root. Reject cycles, missing links, nodes
+outside those complete branches, crossed branches, duplicate keys, unavailable outcomes, or inconsistent contexts. The
+selector repairs only competing individually valid branches; it never waives another broken invariant.
+
+A selector is effective only when its exact root set and immutable result binding match that inventory, its chosen root
+exists, and every excluded node satisfies the excluded-branch policy. Validate that condition on reads and writes. A new
+root, an absent root, or late offline performance/settlement on an excluded branch invalidates it.
+
+##### Snapshot-consistent composed reads
+
+Preserve the evidence listing's existing `asOf` internally through the typed fact-access helper. `listRefRecords`
+already emits that captured manifest, including for an absent listing. Native composition requires that anchor; never
+fall back to independent current-state reads when it is unavailable.
+
+For `readDispositionRecord(producerId)`, read the stable selector at the same `asOf`, regardless of whether the
+inventory currently contains zero, one, or several roots. Read the outcome at that snapshot too. Return `null` only when
+both evidence and selector are absent. A selector whose evidence disappeared must refuse, rather than silently restoring
+authority to a formerly excluded branch or pretending the producer has no approval.
+
+For `listDispositionRecords()`, obtain one selector-kind listing at the evidence snapshot. Compose the union of producer
+IDs present in evidence and selectors. This detects orphan selectors as well as competing roots. Keep existing
+review-port methods and the composed-result schema unchanged. Add the native response capability below; snapshot
+retention remains internal.
+
+Without a selector, one complete root retains its existing behavior and multiple roots refuse with the new repair route.
+With a valid selector, compose only its selected branch through the existing disposition composer. Raw fact reads and
+listings continue to retain every branch. A malformed or conflicted selector refuses with exact record and conflict
+identities. A conflicted selector names the repair command's preview route. An unparseable selector or an irreparably
+inconsistent immutable binding instead names restoration of the exact selector content before preview; the command does
+not reconstruct missing approval history or rebind an existing selector to another outcome.
+
+##### Native response authority from the same snapshot
+
+Use one private selection loader and validator for composed disposition reads and native authority readers.
+`NativeReviewInFlightStateStore.evidence` currently reads raw `evidence.list`, and `composeOutcomeLane` sends those
+records to `orderReviewEvidenceLineage` and `reviewOutcomeIsSettled`. `StoredReviewResultReader.readHostedResult` also
+derives settlement from raw evidence. Selection must reach those consumers, not only the disposition adapter.
+
+Add an owner-bound `responses` capability to `NativeReviewFactPorts` and `StoredReviewFamilyPorts`, constructed by
+`bindReviewFamilyPorts` from its existing Store and exact owner. Carry it through native reader/writer input types,
+including `NativeReviewApprovalInput`, every composition site, and native fixtures. It exposes only:
+
+- `read(producerId, purpose)`, where `purpose` is explicitly `"authority"` or `"producer-result"`;
+- `list()`, an owner response-authority snapshot.
+
+A successful keyed read returns the uniquely matched immutable `StoredReviewFact<ReviewOutcome>`. Its authority is
+explicitly `"loaded"` with the selected branch's ordered `StoredReviewFact<ReviewEvidence>[]`, or `"not-requested"` with
+no evidence array. Use overloads or equivalent static narrowing: an authority-purpose caller can receive only loaded
+authority. A loaded empty array means the producer exists without an approved response; not-requested never means that.
+A missing producer is a distinct result, preserving existing caller-specific missing-producer handling. Incomplete,
+malformed, or conflicted required facts instead carry their existing typed store refusal.
+
+An authority-purpose read always validates the complete producer evidence and selector inventory, even when its outcome
+is absent. Evidence or a selector without its bound outcome must refuse; do not return missing-producer early. A
+producer-result read may return missing-producer normally, and may return not-requested only for an immutable
+local/frontline result whose projection uses no response authority. A hosted result that derives settlement loads and
+validates selected authority. Keep the existing immutable-result validation and project/owner checks.
+
+The native keyed loader retains the outcome listing's manifest internally. It reads evidence and the targeted selector
+at that manifest and validates that the outcome, result binding, and selected branch agree. Native list returns all
+owner outcomes and selection-validated evidence from one manifest; validate the union of producer IDs from outcomes,
+evidence, and selectors, including orphan selectors. Both methods return validated snapshots rather than partial
+authority. No public snapshot token, additional capture, or invocation-wide cache is introduced.
+
+Existing composed disposition methods keep their evidence-first anchor and point outcome reads; the private loader
+accepts that already captured context internally. Native readers keep their outcome-first anchor. Reuse the selection
+implementation without forcing composed point reads to enumerate all outcomes. `asOf` never crosses the native
+capability boundary. Related facts are read at that anchor, never independently refreshed or loaded twice merely to
+recover a snapshot that a typed helper dropped.
+
+Route both `NativeReviewInFlightStateStore.readOperation` and `readOperationSnapshot` through one `responses.list()` per
+read, supplying both arrays from that view to lane composition and pass/settlement derivation. Replace the hosted result
+reader's independent listings with the keyed producer-result read. It must not first list outcomes again. Immutable-only
+local/frontline result reads retain their outcome-only behavior. Outcome-only execution checks that do not derive
+response authority, such as `publishOperation`'s ended-producer check, keep that narrower access.
+
+Any native reader treating an approval as current authority must validate membership in the selected branch and retain
+its existing current-tail, producer, subject, performance, and approval checks. This covers conditional-pass
+capture/admission and performed-fix judgment, hosted-disposition binding, response performance, and settlement
+continuation, including authority-bearing replay or return paths. In particular, `publishNativeConditionalPass`,
+`readNativeApprovedFixPassJudgment`, and `bindNativeHostedDisposition` cannot authorize raw keyed evidence simply
+because its successor is null. Reuse the snapshot's outcome and stored evidence/version for validation and prepared
+advances rather than adding a redundant result lookup. Existing locked write checks still validate fresh admission.
+
+Raw `evidence.read/list` retain all branches for diagnosis, history, and physical mutation preparation. An excluded
+record's allowed exact fact replay grants no current-response authority. A pure settlement or pass-count function
+receives only selected evidence from native callers; it must never inspect a discarded branch alongside the chosen one.
+`mappingTerminusPassCount` consumes only legacy import inputs with no selector source and keeps those inputs.
+
+Cover the distinguishing case in both layouts: select an unperformed pending-fix local/frontline branch over an eligible
+approved no-fix branch. Normal operation reads and snapshots succeed but remain unsettled; excluded approval cannot
+grant continuation or conditional authority. Perform the selected fix and show normal continuation succeeds. Move live
+refs between dependent reads: the result must remain wholly from the original manifest, including any
+selection-invalidating late fact or conflicted selector present at that manifest.
+
+##### Preview and explicit apply
+
+Add the JSON command `arc store repair-review-roots [file | -]`, with `--schema`. Use one versioned request family with
+`schemaVersion: 1` and `operation: "preview" | "apply"`. Preview supplies `workItem` (an exact `{ type: "work-item",
+name, uid }` handle) and `producerId`. Apply supplies those same fields plus `basis`, `selectedRoot`, non-null
+`decidedBy`, and nonempty `reason`; it supplies no replacement evidence. The command opens the authoritative ref store
+directly, as the existing store commands do; it must not depend on `createStore` selecting refs, a projected review
+file, an active session, or a successful composed approval read. This seam therefore works before and after cutover,
+including from a checkout that does not hold the work item.
+
+Preview is read-only. It returns the exact owner/result coordinate, every complete root and branch, performance and
+settlement flags, the present selector and all its conflict alternatives, eligible choices, and a basis packet. The
+packet retains the snapshot `asOf` and binds the exact owner/producer, each evidence reference/version, the root set,
+selector reference/version-or-absence and conflict-reference set, and outcome reference/version, conflict set, and
+immutable result binding from one snapshot. Reuse `RecordObservationSchema` for record versions and conflict sets
+instead of inventing another observation model. Canonicalize inventories before comparing them. The anchor governs
+consistent reads; fresh admission compares the named records and complete producer inventory, not equality of the
+whole-store anchor. Unrelated owners changing does not alone stale this request. A preview is not permission to apply
+against changed evidence. Missing/malformed evidence or conflicts in evidence remain actionable existing store refusals;
+preview does not invent empty histories.
+
+Apply requires that basis, the explicitly selected root, decider, and reason. Re-read and compare the basis, then issue
+a version-bound selector put with read observations for all evidence and the outcome. Its kind check rechecks the
+complete current inventory, root set, binding, and policy inside `checkRefWrites` under the existing owner-ref admission
+lock/CAS. The selector check requires the matching complete evidence/outcome observations even for a direct Store batch,
+so an alternate local writer cannot omit the basis protection. Advisory sync checks validate the resulting selector and
+inventory without requiring a local preview or observations: `observeSyncChecks` supplies `observations: []` and must
+not emit a missing-preview warning for an otherwise valid remote selection. That complete-inventory check is required:
+per-record observations alone cannot detect a newly created root. A stale or raced basis returns an existing refusal and
+a fresh-preview route; never choose again or broaden the root set automatically. Apply changes no approval or outcome
+content.
+
+Use existing store refusals for store failures and malformed/stale requests. The new command envelope separately reports
+preview-ready, applied, not-needed, or policy-blocked, with policy-blocked explicitly non-retryable here. A refusal's
+existing remedy text supplies the complete preview request and command form; no refusal fields or codes are added. A
+successful apply returns the selector reference/version, selected root, and retained root inventory. A later retry needs
+a fresh basis; no durable authorization or global repair journal is introduced.
+
+##### Selector conflicts and continuing review
+
+Opposite choices share one path and must create an ordinary whole-record conflict; never merge fields into a new choice.
+Identical full records may converge. Different attribution may conservatively conflict even for the same root. Do not
+introduce special merging to erase that distinction.
+
+The same preview command reads the raw conflicted selector and every alternative at one snapshot. A new apply may choose
+any currently eligible root and must name the complete current selector conflict set in `resolves`. Admission permits
+resolving the selector's own conflicts while requiring conflict-free evidence, a valid proposed choice, and all basis
+checks. A partial/stale conflict set refuses without deleting anything. This executable route ships with selection;
+generic “resolve conflicts” text alone does not establish recovery.
+
+Keep existing evidence monotonicity checks. A valid selection lets the selected branch continue through the normal
+monotonic operations, including successor, policy-projection, performance, candidate-response binding, and settlement.
+The root-uniqueness check recognizes that valid selection for selected advances and excluded exact replays; it still
+rejects creating another root, including in a batch that proposes a larger selector inventory. Excluded branches permit
+exact replay only; any other advance refuses and names the selected branch or fresh-selection route. Creating another
+root remains inadmissible in an ordinary write. Sync continues to retain remote facts and report broken rules, so late
+offline activity is preserved and invalidates unsafe selection instead of being discarded. Multiple performed branches
+remain the explicit boundary.
+
+##### Compatibility and process cost
+
+The selector kind and its nested `RecordReference` vocabulary, repair command schemas, and additive native `responses`
+capability and typed snapshots are the only compatibility additions. Existing Store methods and outer result shapes,
+refusal codes/classes, notice kinds, publish-failure kinds, and their discriminants remain unchanged (A4).
+
+Only the response-selection reads below may exceed their prior process cost, including ordinary zero/one-root cases
+(A4). The limits are per logical response read, not per record in an aggregate:
+
+- Existing keyed disposition composition retains its one evidence listing and point outcome read, adding at most one
+  targeted selector point read. Existing aggregate composition adds at most one selector-kind listing and keeps its
+  existing outcome access scope; do not replace its point reads with an unrelated owner-wide outcome listing.
+- Native owner authority retains one outcome listing and one evidence listing, adding at most one selector-kind listing.
+  Lane reads obtain both arrays from this view instead of reloading them independently.
+- Native keyed authority is bounded by one owner-scoped outcome listing, one owner-scoped evidence listing, and one
+  targeted selector point read. This explicitly permits the complete inventories absent from a formerly raw-key
+  authority path. Reuse returned facts and versions rather than retaining the old raw/result reads beside the new view.
+- A keyed hosted producer-result read retains its outcome and evidence listings, adding at most one targeted selector
+  read. An immutable-only local/frontline producer-result read retains its one outcome listing and adds no evidence or
+  selector read.
+
+These are Store-call and scope bounds, not claims of one extra Git process. All dependent reads use the first listing's
+existing `asOf`; no extra Store version or fresh tip capture is permitted. Preserve A2's separate quarter-write
+exception. Add no family-wide enumeration or Store API to conceal the cost. Measure actual native child-process deltas
+for these reader classes, original absence/single-root controls, and selected continuations in both layouts, and publish
+the command counts before closing the revision. Existing paths outside these explicit response-authority changes retain
+their process budget.
+
+### 10. Decomposition names a verbatim companion by its stored name
+
+`copyCoordinates` (`lib/decompose/scaffold-copy.ts`) names copied companions with `companionStoredName`
+(`lib/store/companion-name.ts`), the same formatter that `expandStoredPath` uses. A slug-safe companion key keeps its
+conventional artifact name; a verbatim path stays as written. `reportDecomposeAdditive` (`lib/decompose/additive-report.ts`)
+returns that stored name in each copy's `basename`, so an optional copied companion's report names its actual record.
+The native case uses a nested notes companion allocated through a fresh preflight map (A3).
+
+`scaffoldMember` (`lib/decompose/member-scaffold.ts`) also consumes those coordinates for Design, but successful
+verbatim Design entries are outside this correction. `checkMetaDesignEntry` (`lib/store/kinds/meta/reference-rules.ts`)
+continues to admit only the new member's own conventional draft/spec names or paired-spec names backed by canonical
+`spec-prd` / `spec-rfc` companions. `decomposePlanningProfile` (`lib/decompose/source-profile.ts`) retains its conventional
+origin profiles. Existing draft, single-spec, and paired-spec scaffolds keep their names and admission; neither rule
+is broadened to make a verbatim Design entry publish (A3).
+
+### 11. The import
+
+The import runs once, at the cutover, over this repository's real history, so a defect there lands in that history.
+`arc store migrate --import [--trial]` reaches `importTrackedState` (`import/entry.ts:21`) through `runRefMigrate`
+(`commands.ts:29-32`). Its stages:
+
+1. **Destination check** (`inspectImportDestination`).
+2. **Transform**, `readImportSource` through `qualifyImportCodeLinks`, which blocks on any refusal or notice
+   (`entry.ts:38`). A record that fails its kind's parser refuses the whole import (`reportImportAdmission`). Review
+   candidates, integration boundaries, and task lists import verbatim. A Candidate whose supersession chain is broken
+   still imports verbatim as evidence: `inspectCandidateChain` (`import/review.ts:9-21`) reports it in `brokenChains`,
+   which the blocking check does not read. Derived task captures are skipped with a notice that never blocks. § 11.2's
+   personal-link and unreadable-annotated-commit notices never block either: like the skipped-capture notices, they join
+   the report after the blocking check, as does the identity-mint notice (`entry.ts:40`). Every transient notice
+   blocks except one reporting an Errand origin entry changed since adoption (`import/transient.ts:118`). A trial
+   returns `status: "ok"` either way and carries no blocked marker, so a trial was blocked when its `refused` is
+   non-empty or it holds any notice other than an Errand origin that changed, a skipped derived capture, the identity
+   mint, a personal link, or an unreadable annotated commit.
+3. **Landing** (`landImport`, `entry.ts:54`).
+4. **Publication with transient cleanup** (`publishImport`, `finish.ts:11`).
+
+A trial runs the transform and builds the import commits (`buildImportCommits`). It writes its private gathering refs,
+then deletes them under the layout lock (`landImportRefs`, `import/land.ts:10-33`). It never lands the state refs,
+keeps transients, publishes, or cleans up transient sources (`landImport`, `entry.ts:54-64`).
+
+#### 11.1 The import review
+
+One standard review pass and a fix check, scheduled as an early phase so its findings size the rest of the plan:
+
+- **Scope.** Two parts:
+    - the stages that write history and cannot be undone: landing (`landImport`, `buildImportCommits`,
+      `landImportRefs`) and publication with transient cleanup (`publishImport`, `retireImportLocals`,
+      `retireImportRemote`, `retireOriginRefs`, `dropKeptTips`);
+    - the transform's admission rules: what refuses, what imports verbatim, and what is skipped with a notice.
+- **Evidence.** A `--trial` import of this repository's real state, run in a disposable copy that carries every ref
+  of this repository (state refs, `refs/notes/arc/user/*`, `refs/arc/user/*`, and local branches) and reads the
+  personal directory of every registered checkout. A file copy of the primary checkout with its Git directory does
+  both: it reads the linked worktrees in place and writes only its own refs. A plain clone carries none of these, so
+  its trial never reaches the personal or transient stages. The destination landing, publication, and transient
+  cleanup, which a trial never runs, are reviewed from source.
+- **The review mapping.** A clean trial needs the review family's import mapping bound to `arc store migrate`
+  (`RefStorePorts.reviewMapping`, `lib/store/ports.ts:92`). Until it is, `mapImportReview` reports every review-gate
+  source but the identity file as an unmapped source (`import/review-mapping.ts:18`, `import/review-gate.ts:21-27`), a
+  notice that blocks, so this repository's review evidence alone blocks every trial. The review's evidence therefore
+  also includes a trial over a copy whose review-gate sources other than the identity file are set aside, so the
+  commit build and gathering refs run over the rest of the state. The clean trial runs once the mapping is bound, with
+  no review in flight, since the bound mapping correctly blocks on one.
+- **Stop rule.** Every finding that an import of this repository's state can reach is fixed. A finding it cannot
+  reach is recorded in § Non-Goals by amendment, without a fix, since the import serves this repository alone. No
+  import finding is deferred to later work.
+
+The rehearsal on real state remains the gate. A full pass over all 33 modules (2,216 lines under
+`lib/store/ref/import/`) was not taken, since the transform's read-only modules surface their faults in a trial run.
+
+#### 11.2 Known import defects
+
+- **A body-less execute-bound capture.** An execute-bound mark that is its capture's last line stays in the imported
+  inbox while the capture is also queued. The pattern at `import/pending-entries.ts:33` requires a newline after the
+  mark, and `splitEntryList` (`lib/store/concurrency/entries.ts:36-37`) moves trailing newlines into the separator. The
+  pattern accepts a mark at the end of its entry, and a body-less capture case pins it.
+- **Personal symlinks.** Personal symlinks are skipped silently, and a symlinked file that notes saving saves refuses
+  with a remedy that cannot clear it. `walk` (`import/personal-disk.ts:68-69`) skips a link with no notice, and so does
+  `readImportPersonalDisk`'s loop over each checkout's `.arc/user/` (`:46`) for a linked identity directory, while
+  `readUserDir` (`lib/io-context.ts:601-623`) follows either. So `comparePersonalFile` (`import/personal.ts:51-64`)
+  blocks on a `snapshot-only` file with an `arc user load` remedy. That remedy replaces a directly linked file with a
+  regular one, and cannot clear a file reached through a linked directory. A linked file never saved is dropped with no
+  notice. Where the notes snapshot holds a path through a link, a linked identity directory included, the import follows
+  that link to its target, as notes saving does, so the disk and notes copies compare as for any other file. It skips
+  every other link, and every link whose target cannot be read, so a linked tree that notes never saved, such as another
+  checkout's `node_modules`, is never imported. It reports each link it follows or skips with a notice that does not
+  block (§ 11).
+- **Unreadable annotated commits.** Compacted-note ordering refuses a whole identity when any retained note's
+  annotated commit is unreadable. `committedAt` (`import/personal-notes.ts:57-61`) throws inside the sort at `:27-29`,
+  and `personal.ts:24` turns that into a blocking notice that drops the person's records. Unreadable commits sort last,
+  by object ID, with a notice that does not block (§ 11).
+- **A lost transient-source delete lease.** A lost default-layout transient-source delete lease is reported as a change
+  to the import's private gathering refs. `landImportRefs` (`import/land.ts:20-33`) returns false alike for a layout
+  mismatch or present state refs (`:25`) and for a lost landing transaction (`:32`), whose changes include the
+  `importTransientDeletes` expectations. `landingRace` (`entry.ts:73-80`) first runs the destination check, which
+  refuses present state refs or publishes this import's own earlier landing (`import/occupied.ts:11-35`), so a layout
+  mismatch and a lost transaction reach its notice that the private refs changed. `landImportRefs` returns its cause: a
+  layout mismatch, present state refs, or the refs its transaction lost. `landingRace` keeps the destination check
+  first; when that check neither refuses nor publishes, a lost transient-source lease is reported as its own recoverable
+  condition, and any other cause keeps the notice.
+- **An orphaned publication journal.** A rebuild with no transient tips orphans the earlier attempt's import
+  publication journal permanently. The journal is written only when tips exist (`entry.ts:61`). `retireImportLocals`
+  and `retireImportRemote` (`transient-cleanup.ts:36,53-54`) return early with no kept tips, so `dropKeptTips`
+  (`:94-102`), the journal's only deleter, never runs. A stale journal is dropped when no kept tips remain.
+- **A flattened publisher refusal.** Source retirement flattens a refusal thrown inside publisher verification into an
+  origin cleanup failure. `retireImportRemote` (`transient-cleanup.ts:52-71`) carries a `{condition, remedy}` that
+  `retireOriginRefs` returns through, but catches a `MigrationRefusal` thrown beneath it by `fetchMigrationRemote` or
+  `captureMoveRemote` (`:64-71`), and the one its no-publisher arm meets reading origin (`:55-61`), and rewraps each.
+  So `cleanupRefused` (`:131-134`) reports it as recoverable `move-unfinished` with its own remedy, losing a terminal
+  class. Each catch carries the thrown refusal's class, condition, and remedy, with a retry that reruns
+  `arc store migrate --import`. An unreachable origin listing (`originTips`, `:123-127`) refuses with the remedy the
+  no-publisher arm's catch gives today: restore access to origin, then rerun.
+- **A quadratic path check.** `checkRefBatchPaths` (`path-admission.ts:69-81`) runs `checkRefPathCollision` for each
+  record against every record on the batch (`:51-58`), so its cost grows with the square of the batch. Measured over
+  distinct personal documents, it takes 0.5 s at 500 records and 32.9 s at 4,000. The import reaches it before its
+  blocking check (`import/build.ts:26`), and every batch write does too (`write.ts:56,138`). It groups the records by
+  ref and runs `findRefNamespaceCollision` once per ref over that ref's paths. That pass is already linear
+  (`findRefPathCollision`, `:22-39`). The grouping skips a repeat of one reference at one path, and the refusal names
+  a colliding pair in today's wording; which pair it names may differ from today's when collisions interleave. A
+  batch write then also passes `storedPathCollision` (`write-build.ts:183-198`), which this change leaves as it is.
+  A collision case pins the refusal. A case of 20,000 distinct personal paths, which the pairwise check cannot finish
+  within the test's timeout, pins the cost.
+- **A Git checkout inside personal state.** `walk` (`import/personal-disk.ts:64-74`) descends into every directory under
+  `.arc/user/<identity>/`, so a Git checkout there imports as personal documents and refuses file by file. A trial of
+  this repository's state took 17,793 records and 88 refusals from three registered worktrees then under one such
+  directory; they have since moved out. The walk, a followed link's target included, does not enter a directory that
+  holds a `.git` entry, file or directory. The import reports it once, naming the path, with a notice that blocks, as
+  its other personal-state faults do (`personal.ts:24`). The remedy is to move the checkout outside personal state
+  (`git worktree move` for a registered worktree) or remove it.
+
+### 12. Contracts any wrapper of the context's ports keeps
+
+A layer may wrap a `RefBackendContext`'s ports, for instance to scope Git access to one operation. This design relies
+on four properties of any such wrapper. Its tests pin each through `bindDeadline` over the default ports:
+
+- **Locks go through the port.** Every lock and lease, the keeper lease among them, is taken through the context's
+  `lock` port. A lease taken any other way escapes the wrapper's freshness bound.
+- **Executor options pass through.** `execInput` passes every option the wrapper does not own to the underlying port,
+  `uninterruptible` (§ 5.1) included. `bindDeadline` owns only `signal`.
+- **`lstat` results pass through.** `fs.lstat`'s result reaches the caller whole, `mtimeMs` (§ 5.2) included.
+- **Lock waits are never raised.** A wrapper passes `lock`'s `waitMs` through or lowers it, and passes zero as zero
+  (§ 6.2–§ 6.3). `bindDeadline` lowers it to the deadline's remaining time. Dropped, the port's 10-second default would
+  hold the layout lock while the scope waits for the lease.
+
+Transport and designation lookups read fresh under whatever lease guards their writers (§ 6.2, step 3). Wrappers
+call through the ports of the context they were given, as `bindDeadline` does.
+
+### 13. Boundary
+
+This change builds on the landed ref backend. It also expects ARC's Git floor to be 2.53.0 or later, refused up front
+below it, by the cutover. Until then the ref backend is reached only through hidden `arc store` commands
+(§ Cross-cutting Considerations). § 9 gives the reason. At `90b6de349` the floor reads 2.47 wherever it is set or
+stated, among them `engines.git` (`packages/arc-framework/package.json:40`), its test
+(`__tests__/unit/git/capability-contract.test.ts:13`), the version check (`lib/git/version-floor.ts:49-51`), both CI
+floor jobs (`.github/workflows/ci.yml:981,1075`), the QUICK-REFERENCE template and its copy, and `CONTRIBUTING.md`. The
+version check runs today only to explain a failure (`version-floor.ts:40-52`), so it refuses nothing up front. The raise
+is made outside this change. The cutover of this repository's state waits on this change.
+
+The boundary read keeps the change whole (`stays one WU`, Owner, 2026-10-30). The planning evidence crossed the size
+mark that returns the boundary to the Owner: the nine defect groups forecast a task list near or over six phases. The
+other marks are far off: about 1,900 changed lines are forecast before the import review's own findings, some 40% of
+them source. The Owner's reason is that one review can hold the whole change set: two to three thousand lines in
+independent groups, reviewed in chunks with code reachable from shipped commands first.
+
+Task generation then crossed the task list's mark of about 1,000 lines (2026-10-31): the list reached about 1,080
+lines over seven substantive phases. The growth is detail the source checks added to work already counted, most of it
+§ 1's site sweep, not new scope. The change-set forecast stays far below its mark of about 10,000 lines: some 2,500 to
+3,500 once § 1's site changes and their tests are counted. The Owner kept the change whole (`stays one WU`, Owner,
+2026-10-31) for the same reason: one review reads the change set, not the task list, and that change set still splits
+into independent chunks.
+
+The alternative was a separate change for § 1–§ 4 that lands first. It was not taken. A cut before the flip runs by a
+manual decomposition procedure with Owner direction at each workaround. Its benefit depends on later ref-backend work
+waiting on § 1–§ 4 before this change can land whole, and none was ready to start (2026-10-30). Re-raise the cut at a
+later planning boundary if work that builds on § 1–§ 4 becomes ready to start while this change's remaining work is
+more than about a week out.
+
+## Alternatives & Rationale
+
+- **One classification against per-site fixes (§ 1).** Fixing each site's remedy text in place leaves the metadata
+  read erasing the fact, so the next read written against it repeats the defect. The classification adds no
+  refusal kind, schema, or recovery path. It composes the existing pieces (§ 1.4), and each row traces to a routed
+  defect.
+- **A tree read after a `missing` answer against a new primitive (§ 1.3).** The path-absent and blob-absent cases are
+  indistinguishable from `cat-file`'s answer. `refRecordAbsence` already settles them by reading the tree, and does so
+  only after a `missing` answer, so a present object costs nothing.
+- **Detecting a missing local object after a fetch (§ 1.6).** Classifying a fetch's failure by its stderr would add a
+  fourth place where Git's message text decides an outcome, beside a receiver without atomic pushes, a server's per-ref
+  refusal line, and a remote failure's cause. The helper reads that text only for object IDs, and local state decides.
+  Checking the tips before every fetch would cost processes on every pull. Checking state once after a rowless completed
+  failure costs nothing on success. Checking only the negotiation patterns would miss every other ref the connectivity
+  check walks. Confirming a named object by a local read alone, as `isUnavailableGraphFailure` does for a graph walk,
+  whose object IDs all name local objects, would take an object a corrupt remote could not send, absent here because it
+  never arrived, for a local loss. A commit walk alone, without the named IDs, would also blame a missing commit the
+  failed fetch never read. So the walk confirms the named commits, and runs only after a failure whose tips are all
+  present names one. The fetch names a missing commit it reads without failing, in any local ref, so a remote-side
+  failure beside such a loss reports the loss first, a two-step diagnosis the stderr in its condition keeps visible.
+  Taking object IDs only from a failing step's own message would avoid that, but would let Git's message text decide
+  which commit failed the fetch, and the connectivity check's failure on a rewind names its commit only in the
+  `Could not read` lines every read prints. Classifying only a missing tip would avoid it too, but would report the
+  common case, a lost ancestor alone, as an unreachable remote with a connectivity remedy. Walking only the store's refs
+  would spare a code branch's loss but still report a deeper loss in a store ref first, at the cost of scoping rules
+  over which refs each fetch reads.
+- **Graceful abort of a ref transaction (§ 5).** Sending `SIGTERM`, or `abort` on the transaction's stdin, needs
+  catchable termination. Node has none for a Windows child, where cancellation is `taskkill /F`, and the stranded-lock
+  failure was observed on Windows. Not taken.
+- **Reclaiming a lock the canceled call held (§ 5).** This is unsafe while cancellation can report descendants
+  unconfirmed. Under Git for Windows' launcher the lock holder is a descendant. Not taken.
+- **Removing a stale Git lock automatically (§ 5.3).** The store cannot tell a stale lock from one a live Git process
+  holds. Removing a held lock would let two writers commit one ref. Not taken.
+- **Closing the fetch's tracking-update residual (§ 5.5).** A fetch could write no tracking refs, landing its objects
+  under a namespace of its own invocation, and apply the tracking updates, pruning, and fast-forward checks in one
+  transaction the deadline cannot cancel (§ 5.1). That moves Git's fetch semantics into the store, across the tracking
+  check (`fetch-check.ts`), the keeper basis (`fetch-seen.ts`), the completeness refetch, and § 1.6's local object
+  check. The residual already ends in a named lock with a removal remedy (§ 5.3). Not taken.
+- **Per-operation keepers (§ 6).** These would let no lease span the fetch, but they would ripple through every
+  operation the lease serializes. A new lease would also be needed to bound transport reads against backing repoints.
+  Not taken.
+- **Taking the lease before the layout lock (§ 6.2).** The source switches take the layout lock and then the lease,
+  so reversing the order risks a deadlock between them. Not taken.
+- **A bounded lease wait under the layout lock (§ 6.2).** This still holds the layout lock for its bound, racing
+  writers' own 10-second wait. Not taken.
+- **A try-acquire option on the lock port (§ 6.3).** This widens a port that wrappers must forward. Making a zero wait
+  mean one attempt changes no port contract. Not taken.
+- **Keeping the history-destination refusal terminal (§ 7).** The write algorithm retries every other lost ref from
+  the tip read, and its ancestry check already refuses a destination that is truly wrong. A terminal refusal on the
+  first loss reports an outside writer's one-time move as corruption. Not taken.
+- **Taking the registry lock whenever a targeted work ref could retire (§ 8).** Every write to a live work item would
+  then serialize on the registry lock. Predicting the retirement from the lineage record keeps that lock off ordinary
+  writes, and a lineage record that races the prediction sends the attempt back to re-resolution, which takes the lock
+  (§ 8). Not taken.
+- **Splitting § 1–§ 4 into their own change (§ 13).** Not taken; § 13 records why.
+- **Reviewing all 33 import modules (§ 11.1).** Not taken. A trial run surfaces the read-only transform's faults,
+  and the review concentrates on the stages that write history and cannot be undone.
+
+## Cross-cutting Considerations
+
+- **Testing.** Every item has a case that fails before its fix and passes after it, wherever an input reaches the
+  behavior it changes. An arm no input reaches, a change only the type checks or the documentation show, and a property
+  case that already holds today are exempt where their task names them.
+    - Each refusal or failed outcome at a material boundary whose remedy can clear it, recoverable or terminal, also has
+      a case that carries out its remedy and then succeeds, which `DEV-RULES.PROJECT` § Engineering Standards requires
+      of a recoverable refusal: a missing object's restore-or-fetch remedy through the public store calls and the
+      designation check (§ 1.1), the pull's local transport fault (§ 1.6), a stale Git ref lock (§ 5.3), and the
+      import's lost transient-source lease (§ 11.2). The Windows bursts already remove a stranded lock and push again
+      (§ 5.4).
+    - Each case runs in a `store-ref-*` suite the store check's reach selects, or in a unit test the push gate runs. A
+      new runtime read joins the reach declaration (`__tests__/reach/store-suites.json`) or the check stops.
+    - § 5.4's Windows bursts run in a dispatched portability pair, and § 5.1's deadline-kill case runs on Windows in
+      the same pair, a `reference-transaction` hook holding its transaction at `prepared` until the deadline fires.
+    - § 7's test is rewritten.
+    - § 9's quarter-provenance case reproduces the throw before its fix.
+    - § 9's lock-failed row check is pinned by a case that hands `checkRefFetchUpdates` a failed fetch's `!` rows
+      directly, since whether Git prints the row `!` depends on its version and ref format. A row whose tracking ref
+      moved to a descendant raises no notice, and a rewrite to an ancestor stays `history-diverged`.
+    - § 12's four properties are pinned against the default ports.
+- **Performance (A2, A4).** The response-authority reads in § 9.1 may add only that section's explicitly bounded
+  selector lookups and newly required inventories, with actual native process deltas measured before closure.
+  Other success paths start no extra Git process except § 9's completed-copy repair: each otherwise-unwritten
+  completed-quarter ref whose composed tree must change may add the existing writer's one `mktree --batch` and one
+  `commit-tree` process per attempt. The repair reuses captured evidence, starts no additional listing or redundant
+  discovery process, and publishes all affected refs in the withdrawal's existing atomic compare-and-swap transaction.
+  Unaffected success paths retain their process budget:
+    - § 1.3 reads a tree only after a `missing` answer;
+    - § 1.6's local object check runs only after a completed failure with no porcelain rows;
+    - § 5.2's wrapper `lstat`s only after a failed transaction with no lost race;
+    - § 8's registry prediction reads the registry tree only when `planRefRetirements` would, and reuses that read.
+  § 6.2 can repeat a lease attempt under contention, bounded by the deadline. § 2 narrows live listings and so reads
+  no more than today.
+- **Locks and safety.** No path removes a lock automatically (§ 5.3). An uninterruptible transaction stays bounded by
+  Git's own lock wait (§ 5.1). § 6.2 keeps every operation under both locks it held before.
+- **Compatibility (A4).** ARC is pre-public-release, and ordinary commands still select the in-repo backend through
+  `createStore` before the flip. § 9.1 adds its selector kind/reference vocabulary, explicit ref-store repair command
+  schemas, and native response capability. Existing Store methods, outer result shapes, refusal codes/classes, notice
+  kinds, publish-failure kinds, and discriminants remain unchanged. The other outcomes that move are listed in § 1.8:
+  a missing object from terminal to recoverable, and a local object or transport failure from `unreachable` to
+  `incomplete`.
+- **User-facing impact.** Remedies change wording: restore or fetch instead of forward repair, a placement remedy,
+  and a lock file's path and age with a removal remedy. A designation question now appears in every pull consumer's
+  output (§ 3).
+
+## Success Criteria
+
+1. Every item in § 1–§ 11 has a test that fails before its fix and passes after it, wherever an input reaches the
+   behavior it changes, run by a quality-gate check: a `store-ref-*` suite the store check's reach selects, or a unit
+   test the push gate runs. An arm no input reaches, a change only the type checks or the documentation show, and a
+   property case that already holds today are exempt where their task names them. Each refusal or failed outcome at a
+   material boundary that Cross-cutting › Testing names also has a case that carries out its remedy and then succeeds.
+2. No refusal, listing diagnostic, or notice gives a missing object a forward-repair or historical-metadata remedy,
+   and no point read or write refuses on one as terminal. No read reports a misplaced archive folder as missing
+   metadata: each § 1.5 condition yields a `malformed` diagnostic with `rule: "placement"` and its remedy.
+3. Every site § 1.4's search finds that refuses, reports, or holds on a missing object of a ref (§ 1.1's **Missing**
+   row) classifies it by § 1.1. No refusal or listing diagnostic reports a missing tip, tree, or metadata blob as
+   `namespace-corrupt`: `corruptRef` has no missing-objects arm, no refusal, diagnostic, or notice for such an object is
+   built outside § 1.4's helper, and a saved read of an ended item whose archive tree is unavailable returns
+   `state-unresolvable`. A pull still holds such a ref with a `namespace-corrupt` notice (§ 1.7). Every reader in
+   § 1.8's inventory behaves as that table states.
+4. `StoreRefusalSchema`, `ListingDiagnosticSchema`, `PullNoticeSchema`, `PublishFailureSchema`, and the result
+   schemas are unchanged.
+5. A live listing scoped to one owner, or to a whole family, returns `absent` when it finds no records and no
+   diagnostics. An unreadable ref of another owner does not appear in an owner-scoped listing.
+6. A pull that raises a designation question shows it in every consumer listed in § 3. `pullHistoryForRetry` and
+   `readStateHistory` stop on it with its remedy.
+7. No transport failure in § 4 escapes as an exception. Each yields a per-remote failed outcome or a typed refusal,
+   and follow's resume and cleanup return `move-unfinished`.
+8. A ref transaction past `prepare` when the deadline fires commits or fails on Git's own terms, and leaves no lock. The
+   case runs on Linux and in a dispatched Windows portability pair, where a `reference-transaction` hook holds the
+   transaction at `prepared` until the deadline fires. A held Git ref lock at any § 5.2 site refuses `lock-held` naming
+   the lock's path and age, with the stale or held remedy by age, except at the designation check's temporary candidate
+   refs, where clearing them before a check gives one remote's failed outcome carrying that condition and remedy and
+   removing them after it reports nothing (§ 5.2).
+9. The Windows publishing bursts run unskipped in both layouts and pass in a dispatched portability pair: every clone
+   converges, directly or after the stranded lock its refusal names is removed and it pushes again (§ 5.4).
+10. A push that overlaps another checkout's pull on the same remote does not make concurrent writes or pull merges
+    refuse `lock-held` on the layout lock. A zero-wait advisory lock request acquires a free lock in one attempt.
+11. A history destination moved once by an outside writer is absorbed by the retry. One moved on three consecutive
+    attempts refuses with the repair remedy, whether the admission check, the transaction, or a re-resolution finds
+    each move.
+12. Every import review finding that an import of this repository's state can reach is fixed, and any it cannot reach
+    is recorded in § Non-Goals. With the review family's import mapping bound (§ 11.1), a `--trial` import of this
+    repository's state, run in a disposable copy as § 11.1 describes, returns a report with no refused record, whose
+    every notice is of a kind that does not block: an Errand origin that changed, a skipped derived capture, the
+    identity-mint notice, a personal link, or an unreadable annotated commit.
+13. § 12's four port properties hold for the default ports, each pinned by a test.
+14. After withdrawal, current reads of surviving completed copies expose the final history group's retained conflicts
+    and undone entry changes, preserving each folder's independent end and placement without recreating a withdrawn
+    folder. All refreshed copies publish atomically with the inverse from captured, locked bases (A1).
+
+15. Completed-copy refresh adds only one batched tree write and one commit write per otherwise-unwritten changed
+    quarter per attempt, without an additional listing, redundant discovery, or publication transaction. Unchanged
+    quarters and unaffected success paths retain their process budget (A2).
+
+16. Decomposition's optional-copy reports name each verbatim companion's actual stored path in both ref layouts.
+    Conventional draft, single-spec, and paired-spec Design names and new-member Design admission remain unchanged (A3).
+
+17. In both native layouts, independently approved competing roots with an eligible explicit choice can be selected and
+    read through the real command, preserving all evidence bytes and normal selected-branch continuation. Stale basis,
+    additional/missing roots, orphan selectors, evidence conflicts, and excluded performance/settlement refuse safely;
+    opposite selector choices have an executable conflict-resolution path. Native operation reads/snapshots, hosted
+    settled-result projection, settlement/pass derivation, and approval-based authorization use only selected authority
+    from one snapshot. Selecting pending-fix over an eligible no-fix branch remains unsettled until the selected fix is
+    performed; excluded approval cannot grant continuation. Snapshot interleavings never mix outcome, evidence, or
+    selector facts from different captures.
+18. A4 adds only the selector record kind/reference vocabulary, new repair command schemas, and the additive native
+    response-snapshot capability. Existing Store methods and refusal/result/notice/publish-failure envelope shapes and
+    discriminants otherwise remain unchanged. This supersedes criterion 4 only to that extent.
+19. Response-selection reads obey the per-reader Store-call and access-scope bounds in § 9.1, retaining narrow composed
+    outcome access and unchanged immutable-only producer reads. New inventories on formerly raw-key authority paths are
+    confined to the stated outcome/evidence listings and targeted selector lookup. Native Git-process deltas are
+    measured in both layouts, with no added version capture, duplicate outcome listing, or unrelated-family enumeration;
+    A2's exception and all paths outside the explicit response-authority changes retain their process budget.
+
+20. Withdrawal restores role-compatible completed coordinates in both layouts (A5): compatible coordinates remain,
+    a unique captured original coordinate for the same quarter, owner and end is restored, and only an absent original
+    permits existing same-quarter allocation. Ambiguous witnesses, occupied original destinations, and collapsed ends
+    refuse without partial publication and have a verified forward-repair/retry route. Independent end identity,
+    quarter, withdrawn-folder removal, captured atomic publication, and criterion 15's process bounds remain intact.
+    This supersedes criterion 14 only where a restored primary role requires a different completed coordinate.
+21. The fetch description discloses the retained unnamed missing-blob thin-pack failure and the detector's actual
+    bounds (A6). With all tips present and no stderr-named commit confirmed missing in local history, the existing
+    transport classification and remedy remain unchanged; the retained native witness establishes that residual.
+
+22. A rowless completed fetch failure, including a failed completeness refetch, survives cleanup, ref capture and
+    inconclusive local-object diagnostics in both layouts (A7), preserving its classification and stderr and confirmed
+    local-loss priority. The existing capture is attempted under the keeper lease; unavailable observations grant no
+    state authority or assertion of absent forwarding. Native pull/import cases retain earlier results/notices, pending
+    state and source leases, and succeed after exact repair. Failure controls retain their existing propagation and
+    cleanup, with no added discovery or successful-path Git processes.
+
+## Open Questions
+
+None. Module and helper names inside `lib/store/ref/` for § 1.2's metadata result, § 1.4's helper, and § 5.2's
+wrapper are implementation detail.
+
+## Amendments
+
+- **A1** — 2026-11-02 — spec-depth: refresh surviving completed copies after withdrawal. _Supersedes:_ none.
+  _Trigger:_ 7.2 must-stop. _Work:_ 7.2.R. _Revalidated:_ 7.2.
+- **A2** — 2026-11-02 — design: permit required quarter writes. _Supersedes:_ Cross-cutting › Performance ¶1.
+  _Trigger:_ 7.2 must-stop. _Work:_ 7.R. _Revalidated:_ 7.R.
+
+- **A3** — 2026-11-02 — design: retain conventional Design admission; fix reachable companion reports.
+  _Supersedes:_ § 10 ¶1. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ 7.5.R.
+
+- **A4** — 2026-11-03 — design: select roots. _Supersedes:_ Goals ¶10, Cross-cutting ¶2/4, SC 4.
+  _Trigger:_ 8.1 must-stop. _Work:_ 7.R2. _Revalidated:_ 7.R2.f.
+
+- **A5** — 2026-11-04 — design: restore withdrawal coordinates. _Supersedes:_ § 9 A1 ¶1; SC 14.
+  _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A6** — 2026-11-04 — design: correct the fetch-failure premise. _Supersedes:_ § 1.6 fetch premise.
+  _Trigger:_ F3 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A7** — 2026-11-04 — design: retain failed acquisitions. _Supersedes:_ § Non-Goals ¶3.
+  _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+---

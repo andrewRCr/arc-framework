@@ -8,6 +8,7 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { basename } from "node:path";
@@ -15,7 +16,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import type { GitExec } from "../lib/git/exec.js";
-import { environmentForGitCwd } from "../lib/git/process-executor.js";
+import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import {
   applyRoadmapConflictAutoRemedy,
@@ -47,7 +48,7 @@ const rawGitExec: GitExec = async (cmd, args, options) => {
     env,
     signal: options?.signal,
     encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
     timeout: 30_000,
   });
   return { stdout, stderr };
@@ -101,6 +102,6 @@ export async function runRoadmapConflictAutoRemedyCommand(): Promise<void> {
 const modulePath = fileURLToPath(import.meta.url);
 // Preserve the source-script fallback without treating the importing bundle (`dist/cli.js`) as
 // this module's entrypoint. Bundlers rewrite import.meta.url for every bundled source module.
-if (basename(modulePath).startsWith("remedy-roadmap-conflict.") && modulePath === process.argv[1]) {
+if (basename(modulePath).startsWith("remedy-roadmap-conflict.") && await isMainModule(import.meta, process.argv[1])) {
   void runRoadmapConflictAutoRemedyCommand();
 }

@@ -1,3 +1,7 @@
+import type { Store } from "../../lib/store/contract.js";
+import type { PersonalIdentitySetupOptions } from "../../lib/personal-identity-setup.js";
+import type { z } from "zod";
+import { UserSessionInitStatusResultSchema } from "./session-init-schema.js";
 import { isRefusalCondition } from "../../lib/git/index.js";
 import type { NotesPushRetryConfig, NotesPushRetryOffer } from "./notes-push-retry.js";
 import type {
@@ -62,11 +66,13 @@ export interface UserSaveOptions {
    * it from active-meta / branch before serializing per-WU SESSION-NOTES.
    */
   currentWuName?: string;
+  /** Complete notes-lock scope supplied by a composing caller. */
+  withNotesLock?: <T>(operation: () => Promise<T>) => Promise<T>;
 }
 
 /** Error specific to user save operations. */
 export class UserSaveError extends Error {
-  constructor(message: string) {
+  constructor(message: string, readonly reason?: "no-eligible-files") {
     super(message);
     this.name = "UserSaveError";
   }
@@ -175,7 +181,7 @@ export interface NearestUserNoteRef {
 }
 
 /** Options for the add operation. */
-export interface UserAddOptions {
+export interface UserAddOptions extends PersonalIdentitySetupOptions {
   cwd: string;
   io: UserIOContext;
   identity: string;
@@ -202,6 +208,7 @@ export interface UserCloseOptions {
 
 /** Options for dropping a slug-matched `USER-INBOX` entry. */
 export interface UserInboxRemoveOptions {
+  store?: Store;
   cwd: string;
   io: UserIOContext;
   identity: string;
@@ -283,7 +290,7 @@ export type UserPushResult =
   | { kind: "pushed" }
   | { kind: "noop" }
   | { kind: "no-local-notes" }
-  | { kind: "no-remote" }
+  | { kind: "no-remote"; error?: Error }
   | { kind: "refused"; reason: BranchBoundedNotesExportRefusalReason; message: string };
 
 /** Reason a paired-push leg was skipped without firing. */
@@ -449,6 +456,8 @@ export interface RunPairedPushOptions {
    * `pushInterlock` and current state. Default `false`.
    */
   setUpstream?: boolean;
+  /** Identifies the worktree leg's push to its `pre-push` hook, which records a refusal under it. */
+  pushGateId?: string;
   /**
    * Notes-leg pusher delegate. Production wires the branch-bounded export
    * adapter; tests inject a stub.
@@ -481,6 +490,8 @@ export interface RunPairedPushOptions {
 
 /** Options for the fetch operation. */
 export interface UserFetchOptions {
+  /** Checkout whose notes ref the fetch updates. */
+  cwd: string;
   io: UserIOContext;
   /** Identity whose notes to fetch (may differ from caller's identity for cross-user pull). */
   identity: string;
@@ -785,59 +796,7 @@ export interface UserSessionNotesDriftSurface {
   register: "expected" | "caution";
 }
 
-export interface UserSessionInitStatusResult {
-  identity: string;
-  state: UserSessionInitState;
-  /**
-   * Raw notes-ref topology, parallel to the action-dispatch `state` field.
-   * `state` collapses `same` and `local-ahead` to `clean` because both mean
-   * "no pull needed" — the action enum encodes pull-direction dispatch, not
-   * raw state. Consumers that need to distinguish the collapsed cases
-   * (e.g., surfacing local-ahead notes informationally) check `refState`
-   * within the `clean` arm. Omitted when remote sync is disabled
-   * (`state === "disabled"`); present on every other arm.
-   */
-  refState?: UserSyncRefState;
-  /** Content relation carried for divergence or recognized local-ahead branch-export residue. */
-  contentRelation?: NoteSetRelation;
-  /** Coherence detail preserved without expanding the five-state session-init surface. */
-  coherenceState?: UserSyncCoherenceState;
-  summary: string;
-  detailLines: string[];
-  actionHint: string | null;
-  shouldPromptToPull: boolean;
-  /**
-   * Freshness of the newest local user note relative to current HEAD. Present
-   * on remote-enabled session probes so workflows can distinguish "refs
-   * match" from "current-HEAD note exists" without overloading `state`.
-   */
-  localNoteFreshness?: UserSessionLocalNoteFreshness;
-  /**
-   * Optional qualifier carrying cross-channel context (e.g., the worktree
-   * sync state limits what the notes-clean verdict really means). Omitted
-   * when not applicable; do not write `null`.
-   */
-  qualifier?: UserSessionInitQualifier;
-  /**
-   * Cross-machine resume hint for the `clean` arm: when `refState === "same"`,
-   * `true` means the on-disk user files lag behind the latest local note (a
-   * fresh note arrived via a worktree pull but was never materialized) and
-   * `arc user load` would surface that content non-destructively; `false`
-   * means the disk already matches the latest note. Omitted on the
-   * `local-ahead` arm (no cross-machine gap) and on every non-clean spine
-   * state. Workflow consumers use a truthy check
-   * (`if (user.value.loadNeeded)`) so absent and explicit-false collapse
-   * symmetrically.
-   */
-  loadNeeded?: boolean;
-  /**
-   * Raw clean-arm notes/disk divergence signal (D3). Present only when
-   * `refState === "same"` and the disk diverges from the note; the orchestrator
-   * resolves it against the active WU name into `loadNeeded` and any
-   * `notesDriftSurface`. Omitted when there is no divergence or off the clean arm.
-   */
-  notesDrift?: UserSessionNotesDrift;
-}
+export type UserSessionInitStatusResult = z.infer<typeof UserSessionInitStatusResultSchema>;
 
 export interface UserSessionInitStatusOptions {
   cwd: string;

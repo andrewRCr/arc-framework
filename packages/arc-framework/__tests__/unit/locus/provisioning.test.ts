@@ -1,6 +1,7 @@
 /** Marker-owned transient checkout provisioning and exact rollback. */
 
-import { describe, expect, it } from "vitest";
+import { passingProjectionRemovalSlots } from "../../../src/lib/git/worktree-removal.js";
+import { describe, expect, it, afterEach } from "vitest";
 
 import {
   provisionTransientLocus,
@@ -8,7 +9,13 @@ import {
   type ProvisionTransientLocusOptions,
 } from "../../../src/lib/locus/provisioning.js";
 import type { LocusAllocationPlan } from "../../../src/lib/locus/allocator.js";
+import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/identity.js";
+import { openOrdinaryErrandWithDisposition, type OpenOrdinaryErrandOptions } from "../../../src/lib/errand/open.js";
+import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
+
+import { beginProjectionCommand, projectionProcessState } from "../../../src/lib/store/projection/process-state.js";
+afterEach(() => { beginProjectionCommand(); });
 
 const CLAIM_ID = "a".repeat(32);
 const BRANCH = "chore/demo";
@@ -63,6 +70,7 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
   const events: string[] = [];
   let marker: Awaited<ReturnType<ProvisionTransientLocusDependencies["readMarker"]>> = { kind: "absent" };
   let creationCount = 0;
+  let worktreePresent = false;
   const dependencies: ProvisionTransientLocusDependencies = {
     withOperationLock: async (_cwd, operation) => {
       events.push("lock");
@@ -75,6 +83,7 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
     createLinkedWorktree: async () => {
       events.push("create-worktree");
       creationCount += 1;
+      if (creationCount === 1) worktreePresent = true;
       return creationCount === 1
         ? {
             kind: "created",
@@ -93,6 +102,7 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
       return {
         ok: true,
         worktrees: [{
+          folderPresent: true,
           path: WORKTREE_PATH,
           head: HEAD,
           branch: BRANCH,
@@ -144,16 +154,107 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
       };
     },
     rollbackPrimary: async () => ({ kind: "rolled-back" }),
+    checkRollback: passingProjectionRemovalSlots.check,
     rollbackSpawned: async () => {
       events.push("rollback-worktree");
+      worktreePresent = false;
       return { kind: "rolled-back" };
+    },
+    lockSpawnedCheckout: async () => {
+      events.push("lock-checkout");
+      return { kind: "locked" };
     },
     ...overrides,
   };
-  return { dependencies, events, marker: () => marker };
+  return { dependencies, events, marker: () => marker, hasWorktree: () => worktreePresent };
 }
 
 describe("provisionTransientLocus", () => {
+  it.each(["spawn", "primary"] as const)("materializes a ready %s before completing provisioning", async allocation => {
+    const test = harness();
+    let observed: WorktreeMarker | null = null;
+    projectionProcessState().materializeSpawn = async path => {
+      const marker = await test.dependencies.readMarker(path);
+      if (marker.kind === "present") observed = marker.marker;
+    };
+    const result = await provisionTransientLocus(options(test.dependencies, { proposal: allocation === "spawn" ? spawnedProposal : primaryProposal }));
+    expect(result).toMatchObject({ kind: "provisioned" });
+    expect(observed).toMatchObject({ provisioning: "ready", createdFor: { kind: "errand", slug: "demo" } });
+  });
+
+  it("keeps retained checkout evidence on an existing Errand claim through failure and repaired replay", async () => {
+    let denied = true;
+    let record: OrdinaryErrandRecord | null = null;
+    const test = harness({ lockSpawnedCheckout: async () => denied
+      ? { kind: "failed", detail: "lock denied" } : { kind: "locked" } });
+    const row: Awaited<ReturnType<OpenOrdinaryErrandOptions["dependencies"]["readFrame"]>>["roster"][number] = {
+      kind: "free-primary", subject: null,
+      checkout: { folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
+      markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null,
+      lifecycleLocation: null, diagnostics: [],
+    };
+    const request: OpenOrdinaryErrandOptions = {
+      slug: "demo", intent: "repair output", protection: "full", base: "main",
+      isolation: "require-isolation", createdAt: "2026-07-20T00:00:00.000Z",
+      identityName: "andrew", locationTemplate: "../{name}", repo: "arc-framework",
+      dependencies: {
+        mintClaimId: () => CLAIM_ID,
+        readFrame: async () => ({ roster: [row], entering: { kind: "selected", row },
+          primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+          identityDiscovery: { kind: "complete", identities: [], diagnostics: [] }, active: null }),
+        readIdentity: async () => ({ kind: "ready", record }),
+        recoverOpen: async () => ({ kind: "ready", expectedBranchHead: HEAD }),
+        claim: async (value) => { record = value; return { kind: "applied", record: value }; },
+        rollbackClaim: async () => { throw new Error("A retained checkout must keep its claim"); },
+        provision: (input) => provisionTransientLocus({ ...input, dependencies: test.dependencies }),
+      },
+    };
+    const first = await openOrdinaryErrandWithDisposition(request);
+    expect(first).toMatchObject({ result: { outcome: "error", error: { code: "locus.errand-open.provision" } },
+      rollbackDisposition: "retained-or-unknown" });
+    const originalClaim = record;
+    const marker = test.marker();
+    expect(marker).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
+    const retry = await openOrdinaryErrandWithDisposition(request);
+    expect(retry).toMatchObject({ result: { outcome: "error", error: { code: "locus.errand-open.provision" } },
+      rollbackDisposition: "retained-or-unknown" });
+    expect(record).toEqual(originalClaim);
+    expect(test.marker()).toEqual(marker);
+    expect(test.hasWorktree()).toBe(true);
+    denied = false;
+    expect(await openOrdinaryErrandWithDisposition(request)).toMatchObject({ result: { outcome: "idempotent",
+      allocation: { kind: "spawned", checkoutPath: WORKTREE_PATH } }, rollbackDisposition: "not-required" });
+    expect(record).toEqual(originalClaim);
+    expect(test.marker()).toEqual(marker);
+  });
+
+  it.each(["returned", "thrown"])("retains a ready checkout after a %s lock failure and permits repaired replay", async (failure) => {
+    let denied = true;
+    const test = harness({ lockSpawnedCheckout: async () => {
+      if (denied) {
+        if (failure === "thrown") throw new Error("lock denied");
+        return { kind: "failed", detail: "lock denied" };
+      }
+      return { kind: "locked" };
+    } });
+    const result = await provisionTransientLocus(options(test.dependencies));
+    expect(result).toMatchObject({ kind: "error", evidence: { kind: "marker-residue", checkoutPath: WORKTREE_PATH } });
+    if (result.kind !== "error") return;
+    const marker = test.marker();
+    expect(marker).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
+    if (marker.kind !== "present") throw new Error("Missing retained ready marker");
+    expect(result.evidence).toEqual({ kind: "marker-residue", checkoutPath: WORKTREE_PATH, markerBytes: marker.bytes });
+    expect(result.error.message).toContain("lock denied");
+    expect(result.error.message).toContain("git worktree lock --reason");
+    expect(test.hasWorktree()).toBe(true);
+    denied = false;
+    expect(await provisionTransientLocus(options(test.dependencies))).toMatchObject({
+      kind: "provisioned", receipt: { disposition: "idempotent", lock: { kind: "locked" } },
+    });
+    expect(test.marker()).toEqual(marker);
+    expect(test.hasWorktree()).toBe(true);
+  });
+
   it("publishes a spawned checkout through its ready marker without durable record state", async () => {
     const test = harness();
 
@@ -177,6 +278,7 @@ describe("provisionTransientLocus", () => {
       "create-marker",
       "setup-worktree",
       "replace-marker",
+      "lock-checkout",
       "unlock",
     ]);
   });
@@ -193,6 +295,51 @@ describe("provisionTransientLocus", () => {
     expect(test.marker()).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
   });
 
+  it("preserves borrowed pending bytes when repeated setup fails and permits a later retry", async () => {
+    let value: WorktreeMarker | null = {
+      spawnedByArc: true, provisioning: "pending", spawningIdentity: "andrew",
+      createdAt: "2026-07-20T00:00:00.000Z",
+      createdFor: { kind: "errand", slug: "demo", claimId: CLAIM_ID },
+    };
+    let bytes = Buffer.from(JSON.stringify(value));
+    const pendingBytes = Buffer.from(bytes);
+    let setupFails = true;
+    let setupCompletions = 0;
+    const test = harness({
+      createLinkedWorktree: async () => ({ kind: "refused", reason: "path-collision", worktreePath: WORKTREE_PATH }),
+      readMarker: async () => value === null ? { kind: "absent" } : { kind: "present", marker: value, bytes },
+      canResumePendingErrandCheckout: async () => true,
+      removeMarker: async (_path, expected) => {
+        if (!expected.equals(bytes)) return { kind: "generation-mismatch" };
+        value = null;
+        bytes = Buffer.alloc(0);
+        return { kind: "removed" };
+      },
+      setupWorktree: async () => {
+        if (setupFails) throw new Error("setup failed again");
+        setupCompletions += 1;
+      },
+      replaceMarker: async (_path, expected, replacement) => {
+        if (!expected.equals(bytes)) return { kind: "generation-mismatch" };
+        value = replacement;
+        bytes = Buffer.from(JSON.stringify(value));
+        return { kind: "replaced", bytes };
+      },
+    });
+    const request = options(test.dependencies, { expectedBranchHead: HEAD });
+    const failed = await provisionTransientLocus(request);
+    expect(failed).toMatchObject({ kind: "error" });
+    expect(bytes).toEqual(pendingBytes);
+    expect(value).toMatchObject({ provisioning: "pending" });
+    expect(setupCompletions).toBe(0);
+    setupFails = false;
+    expect(await provisionTransientLocus(request)).toMatchObject({
+      kind: "provisioned", receipt: { disposition: "applied", marker: { state: "ready" } },
+    });
+    expect(value).toMatchObject({ provisioning: "ready" });
+    expect(setupCompletions).toBe(1);
+  });
+
   it("rolls back its pending marker and created worktree when setup fails", async () => {
     const test = harness({
       setupWorktree: async () => {
@@ -207,6 +354,46 @@ describe("provisionTransientLocus", () => {
     expect(test.events).toContain("remove-marker");
     expect(test.events).toContain("rollback-worktree");
     expect(test.marker()).toEqual({ kind: "absent" });
+  });
+
+  it.each([
+    ["refused", "Recover the retained personal file"],
+    ["unobservable", "Personal observation failed"],
+    ["throw", "Cannot observe personal files: Personal observation failed. Repair the read and retry."],
+  ] as const)("retains a pending setup's checkout over a %s compensation check", async (failure, detail) => {
+    const test = harness({
+      setupWorktree: async () => { throw new Error("Setup failed"); },
+      checkRollback: async () => {
+        if (failure === "throw") throw new Error("Personal observation failed");
+        return failure === "unobservable" ? { kind: "unobservable", detail: "Personal observation failed" }
+          : { kind: "would-refuse", remedy: { text: "Recover the retained personal file" } };
+      },
+    });
+    const result = await provisionTransientLocus(options(test.dependencies));
+    expect(result).toMatchObject({ kind: "error", evidence: { kind: "pending-marker", detail } });
+    expect(test.hasWorktree()).toBe(true);
+    expect(test.marker()).toMatchObject({ kind: "present", marker: { provisioning: "pending" } });
+  });
+
+  it("retains a refused spawn's markerless checkout over a refused compensation check and provisions it after repair", async () => {
+    let blocked = true;
+    const test = harness({
+      revalidateTarget: async () => blocked ? { kind: "refused", reason: "topology-unknown" } : { kind: "ready" },
+      checkRollback: async (...args) => blocked ? { kind: "would-refuse", remedy: { text: "Recover the retained personal file" } }
+        : passingProjectionRemovalSlots.check(...args),
+    });
+    const refusedResult = await provisionTransientLocus(options(test.dependencies));
+    expect(refusedResult).toEqual({ kind: "refused", reason: "topology-unknown", evidence: { kind: "marker-residue",
+      checkoutPath: WORKTREE_PATH, markerBytes: null, detail: "Recover the retained personal file" } });
+    expect(test.hasWorktree()).toBe(true);
+    expect(test.marker()).toEqual({ kind: "absent" });
+    expect(test.events).not.toContain("rollback-worktree");
+    blocked = false;
+    expect(await provisionTransientLocus(options(test.dependencies))).toMatchObject({
+      kind: "provisioned", receipt: { allocation: "spawned", checkoutPath: WORKTREE_PATH, marker: { state: "ready" } },
+    });
+    expect(test.marker()).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
+    expect(test.hasWorktree()).toBe(true);
   });
 
   it("refuses and rolls back when a retained spawned branch changed head", async () => {
@@ -254,7 +441,7 @@ describe("provisionTransientLocus", () => {
     const test = harness({
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/repo", head: HEAD, branch: "main", detached: false, primary: true }],
+        worktrees: [{ folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true }],
       }),
     });
 
@@ -266,6 +453,34 @@ describe("provisionTransientLocus", () => {
     });
     expect(test.events[0]).toBe("lock");
     expect(test.events.at(-1)).toBe("unlock");
+  });
+
+  it("names a primary's malformed marker as such on its refusal", async () => {
+    const test = harness({ readMarker: async () => ({ kind: "malformed", message: "Unexpected token" }) });
+
+    const result = await provisionTransientLocus(options(test.dependencies, { proposal: primaryProposal }));
+
+    expect(result).toEqual({ kind: "refused", reason: "marker-conflict",
+      evidence: { kind: "marker-residue", checkoutPath: "/repo", markerBytes: null, malformedMarker: true } });
+  });
+
+  it.each([
+    ["a spawn's present marker", "spawn", false],
+    ["a spawn's raced marker", "spawn", true],
+    ["a primary's raced marker", "primary", true],
+  ] as const)("names %s that cannot be parsed as malformed on its refusal", async (_label, allocation, raced) => {
+    let reads = 0;
+    const test = harness({
+      readMarker: async () => raced && reads++ === 0 ? { kind: "absent" } : { kind: "malformed", message: "Unexpected token" },
+      createMarker: async () => ({ kind: "exists" }),
+      ...(allocation === "primary" ? { scanWorktrees: async () => ({ ok: true,
+        worktrees: [{ folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true }] }) } : {}),
+    });
+
+    const result = await provisionTransientLocus(options(test.dependencies, allocation === "primary" ? { proposal: primaryProposal } : {}));
+
+    expect(result).toMatchObject({ kind: "refused", reason: "marker-conflict", evidence: { kind: "marker-residue",
+      checkoutPath: allocation === "primary" ? "/repo" : WORKTREE_PATH, markerBytes: null, malformedMarker: true } });
   });
 
   it("removes its primary marker when checkout mutation fails", async () => {
@@ -280,4 +495,16 @@ describe("provisionTransientLocus", () => {
     expect(result).toMatchObject({ kind: "error", evidence: { kind: "identity-only" } });
     expect(test.marker()).toEqual({ kind: "absent" });
   });
+});
+
+it("provisions a partial Errand with the qualified entry's observed version", async () => {
+  const test = harness();
+  const result = await provisionTransientLocus(options(test.dependencies, {
+    protection: "partial", identity: null,
+    proposal: { ...primaryProposal, subject: { kind: "errand", key: "demo", claimId: null } },
+    authority: { kind: "partial-errand", key: "demo", originEntry: "personal:abcd1234", originEntryVersion: "v1:0123456789abcdef" },
+  }));
+  expect(result.kind).toBe("provisioned");
+  expect(test.marker()).toMatchObject({ kind: "present", marker: { originEntry: "personal:abcd1234",
+    originEntryVersion: "v1:0123456789abcdef" } });
 });

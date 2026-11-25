@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { GhDeliveryHostPort } from "../../../../../src/scripts/delivery/hosts/github.js";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import type { DeliveryNativeStackInput } from "../../../../../src/lib/delivery/native-stack.js";
 import { HostedProcessError } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
 import type { HostedProcessRunner } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
@@ -12,7 +13,7 @@ const mergePolicy = {
   stackPosition: "intermediate" as const,
   method: "merge" as const,
   allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
-  policyFingerprint: `sha256:${"a".repeat(64)}`,
+  policyFingerprint: CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`),
 };
 
 function pull(overrides: Record<string, unknown> = {}) {
@@ -46,8 +47,8 @@ describe("GhDeliveryHostPort", () => {
   const nativeInput: DeliveryNativeStackInput = {
     repository,
     members: [
-      { deliverableId: `sha256:${"1".repeat(64)}`, changeRequestId: "401", headRef: "delivery/example/first", headSha, baseRef: "main" },
-      { deliverableId: `sha256:${"2".repeat(64)}`, changeRequestId: "402", headRef: "delivery/example/second", headSha: "b".repeat(40), baseRef: "delivery/example/first" },
+      { deliverableId: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`), changeRequestId: "401", headRef: "delivery/example/first", headSha, baseRef: "main" },
+      { deliverableId: CanonicalDigestSchema.parse(`sha256:${"2".repeat(64)}`), changeRequestId: "402", headRef: "delivery/example/second", headSha: "b".repeat(40), baseRef: "delivery/example/first" },
     ],
   };
 
@@ -451,6 +452,30 @@ describe("GhDeliveryHostPort", () => {
         status: "refused",
         reason: "unavailable",
         provider: { kind: "http", status: 422, exitCode: 1 },
+      });
+
+    const conflict: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the merge commit cannot be cleanly created.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(conflict).mergeRequest(effect))
+      .resolves.toEqual({ status: "refused", reason: "conflict" });
+
+    const branchPolicy: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the base branch policy prohibits the merge.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(branchPolicy).mergeRequest(effect))
+      .resolves.toEqual({
+        status: "refused",
+        reason: "unavailable",
+        provider: { kind: "command-failed", exitCode: 1 },
       });
 
     const commandFailure: HostedProcessRunner = { run: async () => {

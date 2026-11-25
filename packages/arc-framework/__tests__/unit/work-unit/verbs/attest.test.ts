@@ -1,8 +1,9 @@
 /** Unit coverage for Candidate attestation and converged re-attestation. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   CandidateManagedRecordV1Schema,
   createCandidateReviewResponseEvidence,
@@ -18,6 +19,8 @@ import {
 import { projectCandidateReviewBoundary } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { projectDurableCandidateTarget } from "../../../helpers/candidate.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { setMetaBulletFields } from "../../../../src/lib/active/meta-reader.js";
 
 const REVISION = "a".repeat(40);
 const CHANGED_REVISION = "b".repeat(40);
@@ -43,12 +46,14 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
   let publicationCount = 0;
   let currentTarget = { revision: REVISION, subject: subject() };
   const context: AttestContext = {
+    boundarySchemaVersion: 1,
     actor: "andrew",
     now: () => "2026-08-12T14:00:00.000Z",
     verificationEvidenceRef: (name) => `tasks-${name}.md#verification`,
     readRecord: async () => ({ record: storedRecord, version: recordVersion }),
     currentTarget: async () => currentTarget,
     effectiveTarget: (name, record) => projectDurableCandidateTarget({ cwd: "/repo", name, record }),
+    inspectReRootReviewAuthority: async () => null,
     publish: async (input) => {
       publicationCount += 1;
       storedRecord = input.record;
@@ -107,6 +112,62 @@ async function pendingHarness(approvedVerification: "focused" | "full") {
 }
 
 describe("runAttest", () => {
+  it.each(["absent", "insufficient", "reused"] as const)(
+    "requests merge verification for native full convergence when evidence is %s", async mode => {
+      const { fixture, response } = await pendingHarness("full");
+      const context = { ...fixture.context, boundarySchemaVersion: 2 as const };
+      const params = { name: "example", lifecycle: "Active" as const,
+        scope: mode === "insufficient" ? "focused" as const : "full" as const,
+        ...(mode === "reused" ? { verificationEvidenceRef: response.verificationEvidenceRefs[0] } : {}) };
+      const refused = await runAttest(context, params);
+      expect(refused).toMatchObject({ status: "refused",
+        reason: mode === "absent" ? "verification-evidence-required"
+          : mode === "insufficient" ? "verification-scope-insufficient" : "verification-evidence-reused",
+        requiredScope: "full", nextAction: { kind: "run-verification", scope: "full", verificationKind: "merge",
+          attestArgv: ["arc", "attest", "example", "--scope", "full", "--verification-evidence-ref",
+            "{verificationEvidenceRef}", "--json"] } });
+      expect(fixture.state().publicationCount).toBe(1);
+      expect(await runAttest(context, { name: "example", lifecycle: "Active", scope: "full",
+        verificationEvidenceRef: "verification://fresh-native-convergence" })).toMatchObject({
+        status: "attested", operation: "convergence", scope: "full" });
+      expect(fixture.state().publicationCount).toBe(2);
+    });
+
+  it.each([REVISION, "backend:candidate/7"])("keeps the live predecessor current at record version %s", async (version) => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const predecessorId = fixture.state().storedRecord?.attestation.candidateId;
+    if (predecessorId === undefined) throw new Error("missing predecessor Candidate");
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
+    const refused = await runAttest({
+      ...fixture.context,
+      inspectReRootReviewAuthority: async () => ({
+        lane: "standard", attemptId: "pending-review", outcome: "pending",
+        reviewHeadSha: CHANGED_REVISION, recordRevision: version,
+      }),
+    }, { name: "example", lifecycle: "Active", newRoot: true });
+    expect(refused).toMatchObject({
+      status: "refused", reason: "re-root-live-review", candidateId: predecessorId,
+      lane: "standard", attemptId: "pending-review", outcome: "pending",
+      reviewHeadSha: CHANGED_REVISION, recordRevision: version,
+      nextAction: {
+        kind: "recover-owning-branch-review",
+        reviewHeadSha: CHANGED_REVISION, candidateRecordRevision: version,
+        reviewArgv: ["arc", "review", "pre-publication", "example"],
+      },
+    });
+    if (refused.status !== "refused" || refused.reason !== "re-root-live-review") {
+      throw new Error("expected live predecessor review refusal");
+    }
+    expect(refused.recommendedActionText).toContain("same owning branch and checkout");
+    expect(refused.recommendedActionText).toContain("merge the preserved changed ref back (never rebase)");
+    expect(refused.recommendedActionText).toContain("approval for branch restoration");
+    expect(fixture.state().storedRecord?.attestation.candidateId).toBe(predecessorId);
+    expect(fixture.state().publicationCount).toBe(1);
+    expect((await runAttest(fixture.context, {
+      name: "example", lifecycle: "Active", newRoot: true,
+    })).status).toBe("attested");
+  });
   it("rejects an unfilled convergence evidence placeholder before publication", async () => {
     const { fixture } = await pendingHarness("full");
     const publicationCount = fixture.state().publicationCount;
@@ -487,14 +548,14 @@ describe("runAttest", () => {
       throw new Error("expected a scoped refusal");
     }
 
-    expect(AttestResultSchema.safeParse({
+    assertSchemaRefuses(AttestResultSchema, {
       ...result,
       nextAction: {
         ...result.nextAction,
         verificationKind: "tier-3",
         attestArgv: ["arc", "attest", "example", "--scope", "full", "--json"],
       },
-    }).success).toBe(false);
+    });
   });
 
   it("refuses focused evidence against pending full convergence", async () => {
@@ -856,6 +917,12 @@ describe("runAttest", () => {
 
   it("preserves terminal workflow orientation when a shipped subject is re-rooted", async () => {
     const fixture = harness();
+    let content = makeMetaFixture("example", { nextAction: "Continue." });
+    const publish = fixture.context.publish;
+    fixture.context.publish = async (input) => {
+      content = setMetaBulletFields(content, { "Next Action": input.nextAction });
+      return publish(input);
+    };
     await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
     fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("archive-cadence") });
 
@@ -869,5 +936,19 @@ describe("runAttest", () => {
       projectedCurrentWorkflow: "[none]",
       projectedNextAction: "[none]",
     });
+    expect(content).toContain("- **Next Action:** —\n");
   });
+});
+
+it.each(["root", "re-root", "convergence"] as const)("accepts merge verification for a published %s refusal", async operation => {
+  const h = operation === "convergence" ? (await pendingHarness("full")).fixture : harness();
+  if (operation === "re-root") {
+    await runAttest(h.context, { name: "example", lifecycle: "Active" });
+    h.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
+  }
+  const result = await runAttest(h.context, { name: "example", lifecycle: "Active", scope: "focused" });
+  if (result.status !== "refused" || !("requiredScope" in result)) throw new Error("Expected full verification refusal");
+  expect(result.requiredScope).toBe("full");
+  expect(AttestResultSchema.parse({ ...result, nextAction: { ...result.nextAction, verificationKind: "merge" } }))
+    .toMatchObject({ nextAction: { verificationKind: "merge" } });
 });

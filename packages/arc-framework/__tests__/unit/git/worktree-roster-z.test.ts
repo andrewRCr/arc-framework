@@ -1,8 +1,10 @@
-/** Exact NUL-delimited worktree-roster parsing coverage. */
+/** Exact NUL-delimited worktree-roster parsing and registered topology spelling coverage. */
 
 import { describe, expect, it } from "vitest";
 
+import type { GitExec } from "../../../src/lib/git/exec.js";
 import { parseGitWorktreePorcelainZ } from "../../../src/lib/git/worktree-porcelain.js";
+import { scanRegisteredWorktrees } from "../../../src/lib/git/worktree-roster.js";
 
 function stanza(path: string, ...fields: string[]): string {
   return `${[`worktree ${path}`, ...fields].join("\0")}\0\0`;
@@ -47,5 +49,18 @@ describe("worktree porcelain -z parser", () => {
     expect(() => parseGitWorktreePorcelainZ(
       `worktree /repo\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0`,
     )).toThrow(/truncated NUL-delimited output/u);
+  });
+});
+
+describe("registered topology spelling", () => {
+  it("reports Git's Windows paths in the platform's spelling", async () => {
+    const stdout = stanza("C:/repo", `HEAD ${"a".repeat(40)}`, "branch refs/heads/main")
+      + stanza("C:/repo.errand", `HEAD ${"b".repeat(40)}`, "detached");
+    const exec: GitExec = async () => ({ stdout, stderr: "" });
+    const present = async (): Promise<void> => undefined;
+    const windows = await scanRegisteredWorktrees(exec, present, "win32");
+    const linux = await scanRegisteredWorktrees(exec, present, "linux");
+    expect(windows.ok && windows.worktrees.map((entry) => entry.path)).toEqual(["C:\\repo", "C:\\repo.errand"]);
+    expect(linux.ok && linux.worktrees.map((entry) => entry.path)).toEqual(["C:/repo", "C:/repo.errand"]);
   });
 });

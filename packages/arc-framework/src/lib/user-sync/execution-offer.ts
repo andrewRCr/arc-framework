@@ -1,5 +1,6 @@
 /** Execute-bound queue selection for startup and sibling continuation. */
 
+import type { QueueOfferProblem } from "../inbox/offer.js";
 import { listExecuteBoundInboxEntries } from "./inbox-writer.js";
 
 export type ExecutionNextOffer = {
@@ -9,8 +10,8 @@ export type ExecutionNextOffer = {
 } | null;
 
 export type ExecutionOfferResolution =
-  | { readonly kind: "resolved"; readonly nextOffer: ExecutionNextOffer }
-  | { readonly kind: "refused"; readonly reason: string };
+  | { readonly kind: "resolved"; readonly nextOffer: ExecutionNextOffer; readonly leftOut?: QueueOfferProblem[]; readonly skipped?: QueueOfferProblem[] }
+  | { readonly kind: "refused"; readonly reason: string; readonly remedy?: string };
 
 export type ExecutionStartupOfferResolution = ExecutionOfferResolution;
 

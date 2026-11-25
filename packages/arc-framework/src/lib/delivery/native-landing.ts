@@ -41,7 +41,7 @@ import {
   type DeliveryProviderRefreshConflict,
   type DeliveryTerminalConflictPreparation,
 } from "./suffix-reconciliation.js";
-import { canonicalDigest, canonicalize } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
 import { DELIVERY_CHAIN_ABSORPTION_REMEDIES } from "./chain-absorption.js";
 import type { DeliveryTerminalRemedy } from "./retirement.js";
@@ -1216,7 +1216,7 @@ export async function releaseNativeDeliveryLanding(input: {
 
 /** One native suffix member movement paired with the predecessors its caller already resolved. */
 export interface DeliveryNativeSuffixMovement {
-  readonly deliverableId: string;
+  readonly deliverableId: CanonicalDigest;
   readonly before: DeliveryMemberCoordinatesV1;
   readonly after: DeliveryMemberCoordinatesV1;
   readonly beforePredecessor: DeliveryContributionCoordinate;
@@ -1239,7 +1239,9 @@ export async function collectNativeDeliverySuffixConflicts(
   | { readonly status: "assessed"; readonly conflicts: readonly DeliveryProviderRefreshConflict[] }
   | DeliveryContributionRefusal
 > {
-  const resolved = new Map(movements.map((movement) => [movement.deliverableId, movement]));
+  const resolved = new Map<string, DeliveryNativeSuffixMovement>(
+    movements.map((movement) => [movement.deliverableId, movement]),
+  );
   return collectDeliveryProviderRefreshConflicts(
     movements.map(({ deliverableId, before, after }) => ({
       deliverableId,

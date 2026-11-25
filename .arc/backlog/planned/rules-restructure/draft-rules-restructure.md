@@ -106,6 +106,34 @@
   bullet as the worked mixed-class example. Settle the authoritative surface among the rules preamble,
   workflow-authoring conventions, and configurability strategy rather than relying on precedent.
 
+### `[ ]` **Remove extension declarations from candidate domain-rule trigger models**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: rules-restructure`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Scope; § Alternatives — Extension declaration; § Unknowns and Assumptions — Loading surface.
+
+- _Observation:_ The candidate auto-load model declares a domain on an extension and dispatches it at
+  session-init/workflow fire points. Retirement removes this declaration and activation surface.
+
+- _Approach:_ Re-evaluate trigger alternatives against the current domain-rules probe and surviving method/CLI
+  interfaces, without designing an extension migration or reintroducing .actions.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
+### `[ ]` **Weigh moving `DEV-RULES.PROJECT`'s code-execution block behind a code-touching trigger**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Scope, "Design the wiring mechanism — how domain rules auto-load when relevant work is in scope".
+
+- _Observation:_ after the queued condense, about 800 words of `DEV-RULES.PROJECT` serve only code-touching sessions.
+  Three things block a move: this repository's copy lacks the template's domain-rules paragraph, which
+  `spec-session-init-agenda.md` § 11 names the only always-loaded trigger for `domainRules` files; its
+  check-integrity lines must stay loaded; and in execution sessions the trigger fires every time, so the move saves
+  only planning and PM sessions.
+
+- _Captured during:_ the always-loaded audit, a `reviewer` pass for `project-manager.ARC` (2026-11-12; Owner-approved).
+
 ---
 
 ## Problem / Motivation

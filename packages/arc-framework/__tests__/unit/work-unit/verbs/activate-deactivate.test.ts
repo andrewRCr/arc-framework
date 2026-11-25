@@ -10,6 +10,14 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
+import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { buildLifecycleIndex } from "../../../../src/lib/work-unit/lifecycle-index.js";
+import {
+  applyPreparedCurrentWuReconcile,
+  prepareCurrentWuReconcile,
+  type CurrentWuReconcileContext,
+} from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 
 import type {
   ExecuteTransitionContext,
@@ -34,33 +42,37 @@ interface MetaSpec {
   slug: string;
   state: string;
   branch?: string;
+  dependsOn?: string[];
+  blockers?: string;
 }
 
 /** Build an injectable index fs over a fixed set of `active/` metas. */
-function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
+function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs & { files: Map<string, string> } {
   const activeDir = `${CWD}/.arc/active`;
   const entries: DirEntry[] = [];
   const files = new Map<string, string>();
 
   for (const meta of metas) {
     const filename = `meta-${meta.slug}.md`;
-    entries.push({ name: filename, isDirectory: () => false });
+    entries.push({ name: filename, isDirectory: () => false, isFile: () => true });
     files.set(
       `${activeDir}/${filename}`,
       `# Metadata: ${meta.slug}\n\n` +
         `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
         `|-----------|-----------|------------|-----------|--------------|\n` +
         `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "feat/foo"}\` | \`Novel\` | \`P1\` |\n\n` +
-        `- **Last Completed:** [none]\n- **Next Task:** Task 1.1 — do.\n- **Blockers:** [none]\n\n` +
+        `- **Depends On:** ${meta.dependsOn?.map((name) => `\`${name}\``).join(", ") || "[none]"}\n` +
+        `- **Last Completed:** [none]\n- **Next Task:** Task 1.1 — do.\n- **Blockers:** ${meta.blockers ?? "[none]"}\n\n` +
         `- **Next Action:** continue.\n\n---\n`,
     );
   }
 
   return {
+    files,
     readdir: (path) =>
-      path === activeDir ? Promise.resolve(entries) : Promise.reject(new Error(`ENOENT: ${path}`)),
+      fixturePath(path) === activeDir ? Promise.resolve(entries) : Promise.reject(new Error(`ENOENT: ${path}`)),
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
     },
   };
@@ -71,6 +83,7 @@ interface Harness {
   calls: string[];
   softFields: string[];
   currentWorkflow: string[];
+  files: Map<string, string>;
 }
 
 function buildCtx(metas: MetaSpec[]): Harness {
@@ -110,9 +123,10 @@ function buildCtx(metas: MetaSpec[]): Harness {
     },
     edits: [],
   };
+  const indexFs = buildIndexFs(metas);
   const ctx = {
     cwd: CWD,
-    indexFs: buildIndexFs(metas),
+    indexFs,
     setPhase: async (params) => {
       calls.push(`setPhase:${params.phase}`);
       // The result is unused by the executor; return a valid sentinel phase.
@@ -147,7 +161,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
     sideEffects,
   } satisfies ExecuteTransitionContext & CurrentWuReconcileHost;
 
-  return { ctx, calls, softFields, currentWorkflow };
+  return { ctx, calls, softFields, currentWorkflow, files: indexFs.files };
 }
 
 const ACTIVE: MetaSpec = { slug: "foo", state: "Active", branch: "feat/foo" };
@@ -157,9 +171,53 @@ describe("runActivate — raise a planning WU to Active", () => {
   const params: ActivateParams = {
     name: "foo",
     toBranch: "feat/foo",
+    baseBranch: "main",
     nextTask: "Task 1.1 — first task.",
     nextAction: "Begin Task 1.1.",
   };
+
+  it("reports Blockers mentioning a discharged dependency without rewriting the text", async () => {
+    const blockers = "`done` must land first (`Depends On`).";
+    const { ctx, files } = buildCtx([
+      { ...PLANNING, dependsOn: ["done"], blockers },
+      { slug: "done", state: "Integrating", branch: "feat/done" },
+    ]);
+    const reconcile: CurrentWuReconcileContext = {
+      index: await buildLifecycleIndex({ cwd: CWD, fs: ctx.indexFs }),
+      queryDisposition: async () => { throw new Error("No retired dependency is present"); },
+      readFile: (path) => ctx.indexFs.readFile(`${CWD}/${path}`),
+      writeFile: async (path, content) => { files.set(`${CWD}/${path}`, content); },
+      stagePaths: async () => {},
+      captureIndexState: async () => ({ indexFile: "/index", commit: async () => {}, rollback: async () => {} }),
+    };
+    ctx.currentWuReconcile = {
+      prepare: (op) => prepareCurrentWuReconcile(reconcile, op),
+      apply: (prepared) => applyPreparedCurrentWuReconcile(reconcile, prepared),
+    };
+
+    const result = await runActivate(ctx, params);
+
+    expect(result.status).toBe("activated");
+    if (result.status !== "activated") return;
+    expect(result.reconcile.prepared.plan.dependency.discharged).toEqual(["done"]);
+    expect(result.report).toEqual(expect.arrayContaining([
+      expect.stringContaining("Blockers mentions discharged dependencies: `done`."),
+      expect.stringContaining("Clear or restate"),
+    ]));
+    expect(parseMetaRecord(await ctx.indexFs.readFile(`${CWD}/${result.metaPath}`)))
+      .toMatchObject({ dependsOn: [], blockers });
+  });
+
+  it("refuses a base-naming meta before reconciliation or mutation", async () => {
+    const { ctx, calls } = buildCtx([{ slug: "foo", state: "Planning", branch: "main" }]);
+    const result = await runActivate(ctx, params);
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toContain("git switch -c feat/foo");
+    expect(result.reason).toContain("Branch");
+    expect(result.reason).toContain("arc activate");
+    expect(calls).toEqual([]);
+  });
 
   it("rotates plan/ onto the working branch, sets Active, and writes the orientation inputs", async () => {
     const { ctx, calls, softFields } = buildCtx([PLANNING]);
@@ -241,12 +299,12 @@ describe("runActivate — raise a planning WU to Active", () => {
     expect(calls.some((call) => call.startsWith("setPhase:") || call.startsWith("branch:"))).toBe(false);
   });
 
-  it("clears Current Workflow to [none] as State: Active takes over", async () => {
+  it("names process-task-loop in Current Workflow as State: Active takes over", async () => {
     const { ctx, currentWorkflow } = buildCtx([PLANNING]);
 
     await runActivate(ctx, params);
 
-    expect(currentWorkflow).toEqual(["[none]"]);
+    expect(currentWorkflow).toEqual(["process-task-loop"]);
   });
 
   it("rejects activating a WU that is not a planning WU on its branch", async () => {
@@ -302,7 +360,7 @@ describe("runDeactivate — the narrow undo", () => {
     expect(softFields).toContain("Next Action");
   });
 
-  it("does not touch Current Workflow (the activate clear is one-directional)", async () => {
+  it("does not touch Current Workflow (the activate write is one-directional)", async () => {
     const { ctx, currentWorkflow } = buildCtx([ACTIVE]);
 
     await runDeactivate(ctx, BASE);

@@ -621,11 +621,11 @@ Reference-style link at line 139 is correct.
 **[MW-L02]** `02_define-project.md` line 139 · Link to `03_configure-external-integration.md`
 — file does not exist. Dead end for `pm.mode: external` adopters.
 
-**[MW-L03]** `AGENT-BRIEFING.CONTRIBUTOR.md` line 65 · Link points to
-`session-init.template.md` instead of `session-init.md`.
+**[MW-L03]** `AGENT-BRIEFING.CONTRIBUTOR.md` line 65 · Link points to `session-init.template.md` instead of
+`session-init.md`.
 
-**[MW-L04]** `session-init.md` line 27 · Hardcoded repo path
-`/home/andrew/dev/arc-agentic-dev-framework` in the environment verification example.
+**[MW-L04]** `session-init.md` line 27 · Hardcoded repo path `/home/andrew/dev/arc-agentic-dev-framework` in the
+environment verification example.
 
 ---
 

@@ -16,7 +16,7 @@ const CandidateIdentitySchema = z.strictObject({
   candidateId: ReviewCanonicalDigestSchema,
 });
 
-/** Public binding projected by pre-publication review and replayed into a Frontline run. */
+/** Public binding projected by pre-publication review and replayed into a frontline run. */
 export const FrontlineResponseBindingSchema = z.strictObject({
   candidate: CandidateIdentitySchema.extend({ head: GitObjectIdSchema }),
   deliveryMember: DeliveryReviewMemberVehicleSchema,

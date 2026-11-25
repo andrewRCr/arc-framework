@@ -1,38 +1,14 @@
 /**
- * Cold-start spec-input parser.
- *
- * A cold-start scaffolds a meta into an existing worktree from whatever the
- * operator points at. This classifies that raw input, making only two *closed*
- * meta-field assignments and passing everything else through for the agent to
- * read and assess interactively:
- *
- * - an ARC spec artifact (`draft-*` / `spec-*`) → the meta `Design` field;
- * - an issue reference (`#42`, `owner/repo#42`, an `…/issues/…` URL) → the meta
- *   `Origin` field — the one unambiguous trigger shape.
- *
- * Anything else is pass-through and touches no meta field: a `document` (a file
- * path or URL the agent should read — including a prefixless `whatever.md` or a
- * non-spec ARC artifact like `tasks-*`) or a free-text `description`. The
- * trigger-vs-spec distinction for those is the operator's intent, which the
- * `arc-session` skill resolves — not something to guess from syntax. `Origin`
- * and `Design` stay closed and narrow by design.
- *
- * Outcomes are discriminated and no-throw (the `lib/user-sync/parser.ts` house
- * pattern); only empty input fails. Successful variants cross the strict
- * runtime schema before return.
- *
+ * Cold-start seed classification. Issue references set Origin; documents and
+ * descriptions pass through for the agent to read during planning. Empty input
+ * is the only parse failure; successful variants cross a strict runtime schema.
  * @module
  */
 
 import { z } from "zod";
 
-/**
- * A classified spec input. The two closed kinds each carry exactly one meta
- * field; the two pass-through kinds carry the raw input for the agent and set
- * no field. The `kind` discriminant makes that narrowness type-level.
- */
+/** A seed classification and its sole closed field assignment, Origin. */
 export const ParsedSpecInputSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("arc-spec"), design: z.string().min(1) }),
   z.strictObject({ kind: z.literal("issue"), origin: z.string().min(1) }),
   z.strictObject({ kind: z.literal("document"), document: z.string().min(1) }),
   z.strictObject({ kind: z.literal("description"), description: z.string().min(1) }),
@@ -52,8 +28,6 @@ export type SpecInputParse =
 const ISSUE_SHORTHAND = /^(#\d+|[\w.-]+\/[\w.-]+#\d+)$/;
 /** An http(s) URL — used only to scope the `/issues/` issue-URL check. */
 const HTTP_URL = /^https?:\/\//i;
-/** ARC spec artifacts, matched on basename: `draft-…md` / `spec-…md`. */
-const ARC_SPEC = /^(draft|spec)-.+\.md$/;
 /** A single token with no whitespace — a pointer is one of these plus a separator or extension. */
 const SINGLE_TOKEN = /^\S+$/;
 const HAS_EXTENSION = /\.[A-Za-z0-9]{1,8}$/;
@@ -67,7 +41,7 @@ function success(value: ParsedSpecInput): SpecInputParse {
  *
  * Checked in precedence order so the specific wins over the general: issue
  * references first (an issue URL is also a pointer; `owner/repo#n` also holds a
- * separator), then ARC spec artifacts, then pointer-shaped documents, then free
+ * separator), then pointer-shaped documents, then free
  * text. Only empty input fails — a malformed pointer is still a `document` the
  * agent reads and reports on.
  *
@@ -89,12 +63,6 @@ export function parseSpecInput(raw: string): SpecInputParse {
 
   // Pointer-shaped tokens: a separator or a file extension and no whitespace.
   if (SINGLE_TOKEN.test(input) && (input.includes("/") || HAS_EXTENSION.test(input))) {
-    const basename = input.split("/").pop() ?? input;
-    if (ARC_SPEC.test(basename)) {
-      return success({ kind: "arc-spec", design: input });
-    }
-    // Any other pointer (a non-ARC file, a non-issue URL, a non-spec ARC
-    // artifact) is the agent's to read — not a guessed Origin/Design.
     return success({ kind: "document", document: input });
   }
 

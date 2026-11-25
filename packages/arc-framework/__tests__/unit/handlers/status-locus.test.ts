@@ -8,6 +8,7 @@ type SessionPathTreatmentRow = SessionPathTreatmentFrame["roster"][number];
 function workUnitRow(name: string, path: string): SessionPathTreatmentRow {
   return {
     checkout: {
+      folderPresent: true,
       path,
       head: "a".repeat(40),
       branch: `feat/${name}`,

@@ -1,5 +1,6 @@
 /** Marker-origin settlement for identity-free partial Errands. */
 
+import type { ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec } from "../git/exec.js";
 import { pinRemoteBaseHead } from "./identity-claims.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
@@ -10,6 +11,7 @@ import {
   type ErrandTerminalSubject,
 } from "./terminal-authority.js";
 import {
+  checkPrimaryProjectionRelease,
   createTerminalOccupancyIO,
   settleTerminalOccupancy,
 } from "./terminal-occupancy.js";
@@ -31,6 +33,7 @@ export type PartialErrandInboxSettlement =
   | { readonly kind: "error"; readonly message: string };
 
 export interface SettlePartialErrandRuntimeOptions {
+  readonly projectionRemovalSlots?: ProjectionRemovalSlots;
   readonly slug: string;
   readonly action: "close" | "abandon";
   readonly base: string;
@@ -40,6 +43,7 @@ export interface SettlePartialErrandRuntimeOptions {
   readonly onAuthority?: (authority: ErrandTerminalAuthority) => void;
   readonly settleInbox: (binding: {
     readonly originEntry: string | null;
+    readonly originEntryVersion?: string;
     readonly parentCheckoutPath: string | null;
   }) => Promise<PartialErrandInboxSettlement>;
 }
@@ -87,15 +91,33 @@ export async function settlePartialErrandAtRuntime(
       pinned.kind === "refused" ? pinned.reason : pinned.message,
     );
   }
-  if (authority.row.checkout.branch !== options.base || authority.row.checkout.head !== pinned.head) {
+  if (authority.row.checkout.branch !== options.base) {
     return refusal(
       operation,
       "preservation-unproven",
-      "Partial Errand checkout is off the configured base or not at its freshly pushed head.",
+      `Return to the configured base '${options.base}' without discarding the partial Errand's work, `
+        + `then retry arc errand ${options.action} ${options.slug}.`,
     );
   }
+  if (authority.row.checkout.head !== pinned.head) {
+    return refusal(
+      operation,
+      "preservation-unproven",
+      `Partial Errand HEAD does not match origin/${options.base}. Resolve any Git divergence normally, `
+        + `then push ${options.base} to origin/${options.base} through the normal gates and retry `
+        + `arc errand ${options.action} ${options.slug}. For a gate failure reproduced on base, use a passing `
+        + "project-supported environment where available. If that cannot clear the gate, ask the Owner "
+        + "to approve a prerequisite repair in this checkout "
+        + "as a separate commit. Retain the Errand and capture until the gated push succeeds.",
+    );
+  }
+  // The primary's projection release refuses a held edit; check it before the capture settles, the first write.
+  const release = await checkPrimaryProjectionRelease(options.exec, authority.checkoutPath, options.projectionRemovalSlots);
+  if (release !== null) return refusal(operation, "preservation-unproven", release);
   const inbox = await options.settleInbox({
     originEntry: authority.row.origin?.entry ?? null,
+    ...(authority.row.origin !== null && "version" in authority.row.origin
+      ? { originEntryVersion: authority.row.origin.version } : {}),
     parentCheckoutPath: authority.parentCheckoutPath,
   });
   if (inbox.kind === "refused") return refusal(operation, "identity-conflict", inbox.reason);
@@ -103,6 +125,7 @@ export async function settlePartialErrandAtRuntime(
   const primaryCheckoutPath = primaryPath(frame);
   if (primaryCheckoutPath === null) return refusal(operation, "checkout-missing", "Primary checkout is unavailable.");
   const settled = await settleTerminalOccupancy({
+    projectionRemovalSlots: options.projectionRemovalSlots,
     authority,
     primaryCheckoutPath,
     io: createTerminalOccupancyIO(options.exec),

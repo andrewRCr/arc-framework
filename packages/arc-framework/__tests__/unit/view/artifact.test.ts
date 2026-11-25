@@ -1,6 +1,7 @@
 /** Unit tests for semantic `arc view` artifact resolution. */
 
 import { describe, expect, it, vi } from "vitest";
+import { join } from "node:path";
 
 import {
   resolveViewArtifact,
@@ -8,6 +9,8 @@ import {
 } from "../../../src/lib/view-artifact.js";
 import type { ResolvedViewTarget } from "../../../src/lib/view/types.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
+import { resolveActiveCohortDocPath } from "../../../src/lib/session-init/cohort-doc.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
 const CWD = "/repo";
 
@@ -51,6 +54,69 @@ async function resolve(
 }
 
 describe("resolveViewArtifact", () => {
+  it.each(["checkout", "ref"] as const)("reads cohort metadata from the %s and keeps companion documents local", async (sourceKind) => {
+    const selectedMeta = makeMetaFixture("feature", { cohort: "shared" });
+    const baseMeta = makeMetaFixture("feature", { cohort: "wrong" });
+    const target: ResolvedViewTarget = {
+      ...TARGET, artifactSource: sourceKind === "checkout"
+        ? { kind: "checkout", cwd: "/sibling" } : { kind: "ref", ref: "refs/heads/feat/feature" },
+    };
+    const dependencies = deps({
+      resolveExplicitTarget: async () => target,
+      readFile: async (path) => path === join("/sibling", TARGET.metaPath) ? selectedMeta : baseMeta,
+      readAtRef: async () => ({ mode: "100644", bytes: new TextEncoder().encode(selectedMeta) }),
+      resolveCohort: async (input) => resolveActiveCohortDocPath({
+        cwd: input.cwd, activeMetaPath: input.activeMetaPath,
+        fs: { readFile: async () => input.metaContent ?? baseMeta, pathExists: async () => true },
+      }),
+      resolveSessionNotes: async ({ cwd, identity, workUnitName }) => ({
+        status: "resolved", path: join(cwd, ".arc", "user", identity, workUnitName, "SESSION-NOTES.md"),
+      }),
+    });
+    await expect(resolve("cohort", dependencies, { forSlug: "feature" })).resolves.toMatchObject({
+      status: "resolved", path: join(CWD, ".arc", "backlog", "planned", "shared", "cohort-shared.md"),
+    });
+    await expect(resolve("session-notes", dependencies, { forSlug: "feature" })).resolves.toMatchObject({
+      status: "resolved", path: join(CWD, ".arc", "user", "andrew", "feature", "SESSION-NOTES.md"),
+    });
+  });
+
+  it.each(["meta", "tasks", "spec", "draft", "notes"] as const)("reads %s from the selected ref", async (kind) => {
+    const ref = "refs/heads/feat/feature";
+    const path = `.arc/active/${kind}-feature.md`;
+    const target: ResolvedViewTarget = { ...TARGET, artifactSource: { kind: "ref", ref } };
+    const result = await resolve(kind, deps({
+      resolveExplicitTarget: async () => target,
+      pathExists: async () => false,
+      readAtRef: async (selectedRef, selectedPath) => selectedRef === ref && selectedPath === path
+        ? { mode: "100644", bytes: new TextEncoder().encode("# Selected ref copy\n") } : null,
+    }), { forSlug: "feature" });
+    expect(result).toEqual({
+      status: "resolved", kind, content: "# Selected ref copy\n", ref, displayLabel: `${ref}:${path}`, workUnit: "feature",
+    });
+  });
+
+  it("uses the same fallback order at the selected ref", async () => {
+    const ref = "refs/heads/feat/feature";
+    const target: ResolvedViewTarget = { ...TARGET, artifactSource: { kind: "ref", ref } };
+    await expect(resolve(undefined, deps({
+      resolveExplicitTarget: async () => target,
+      pathExists: async () => false,
+      readAtRef: async (_ref, path) => path === ".arc/active/draft-feature.md"
+        ? { mode: "100644", bytes: new TextEncoder().encode("# Draft at ref\n") } : null,
+    }), { forSlug: "feature" })).resolves.toMatchObject({
+      status: "resolved", kind: "draft", content: "# Draft at ref\n", ref,
+    });
+  });
+
+  it.each(["meta", "tasks", "spec", "draft", "notes"] as const)("uses the selected checkout for %s", async (kind) => {
+    const checkout = join("/sibling", "checkout");
+    const target: ResolvedViewTarget = { ...TARGET, artifactSource: { kind: "checkout", cwd: checkout } };
+    await expect(resolve(kind, deps({ resolveExplicitTarget: async () => target }), { forSlug: "feature" })).resolves.toEqual({
+      status: "resolved", kind, path: join(checkout, ".arc", "active", `${kind}-feature.md`), workUnit: "feature",
+    });
+  });
+
   it("resolves meta and a valid task-list pointer from the neutral target", async () => {
     await expect(resolve("meta")).resolves.toEqual({
       status: "resolved",
@@ -233,6 +299,17 @@ describe("resolveViewArtifact", () => {
     });
   });
 
+  it.each([true, false])("resolves a decomposed native inbox root with existence %s", async (exists) => {
+    const cwd = "/repo/cafe\u0301";
+    const path = join(cwd, ".arc", "backlog", "ATOMIC-INBOX.md");
+    const dependencies = deps({ pathExists: async (candidate) => exists && candidate === path });
+
+    await expect(resolveViewArtifact({ cwd, kind: "inbox", project: true, identity: null }, dependencies))
+      .resolves.toEqual(exists
+        ? { status: "resolved", kind: "inbox", path, workUnit: null }
+        : { status: "absent", kind: "inbox" });
+  });
+
   it("reports unknown kind, WU-context, identity, and session-note errors", async () => {
     await expect(resolve("bogus")).resolves.toMatchObject({ status: "error", kind: "bogus" });
     await expect(resolve("tasks", deps({
@@ -253,4 +330,15 @@ describe("resolveViewArtifact", () => {
       message: "SESSION-NOTES directory is ambiguous.",
     });
   });
+});
+
+it("keeps the missing-identity refusal for in-repo session notes", async () => {
+  expect(await resolve("session-notes", deps({ stateOffBranch: false }), { identity: null }))
+    .toEqual({ status: "error", kind: "session-notes", message: "No ARC identity is configured for this identity-scoped artifact." });
+});
+
+it("keeps in-repo resolution independent of the optional store artifact reader", async () => {
+  const result = await resolve("meta", deps({ stateOffBranch: false,
+    readStoreArtifact: async () => { throw new Error("In-repo view attempted a store record read"); } }));
+  expect(result).toEqual({ status: "resolved", kind: "meta", path: join(CWD, TARGET.metaPath), workUnit: "feature" });
 });

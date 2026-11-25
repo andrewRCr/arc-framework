@@ -21,7 +21,7 @@
 import { dirname } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
-import { resolveUserSurfaceResolver } from "../user-surfaces.js";
+import { IDENTITY_STATUS_FILENAME, resolveUserSurfaceResolver } from "../user-surfaces.js";
 import { SlugSchema } from "../kernel/index.js";
 
 import { loadReadyMineSlice } from "./ready-mine-source.js";
@@ -77,7 +77,7 @@ export async function assembleStatusUserView(
   const statusUserPath = identity === null
     ? null
     : (await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec }))
-      .identityGlobalPath("STATUS.USER.md");
+      .identityGlobalPath(IDENTITY_STATUS_FILENAME);
 
   const view = await runStatusUserView({
     exec,

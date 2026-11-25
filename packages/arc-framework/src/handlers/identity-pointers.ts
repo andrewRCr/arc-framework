@@ -1,8 +1,8 @@
-/** Configured identity and role pointers shared by composite status handlers. */
+/** Resolved identity and role pointers shared by composite status handlers. */
 
 import {
   gitConfigGet,
-  readConfiguredIdentity,
+  resolveIdentity,
   type GitExec,
 } from "../lib/git/index.js";
 
@@ -14,24 +14,25 @@ export function normalizeGitConfigValue(value: string | undefined): string | nul
 }
 
 /**
- * Read the configured identity and role pointers used by composite status handlers.
+ * Read the resolved identity and configured role pointers used by composite status handlers.
  *
  * Invalid configured identities remain actionable failures. Other identity-read
  * failures collapse to absence so the composite status envelope can report them.
+ * Failed role reads likewise remain unresolved in this diagnostic view.
  *
  * @param exec - Injectable Git executor
- * @returns Configured identity and normalized role pointers
+ * @returns Resolved identity and normalized role pointers
  */
 export async function readIdentityPointers(exec: GitExec): Promise<{
   identity: string | null;
   role: string | null;
 }> {
   const [identity, roleRaw] = await Promise.all([
-    readConfiguredIdentity(exec).catch((error: unknown) => {
+    resolveIdentity({ exec }).catch((error: unknown) => {
       if (error instanceof Error && "code" in error && error.code === "identity.invalid") throw error;
       return null;
     }),
-    gitConfigGet(exec, "arc.role"),
+    gitConfigGet(exec, "arc.role").catch(() => undefined),
   ]);
   return {
     identity,

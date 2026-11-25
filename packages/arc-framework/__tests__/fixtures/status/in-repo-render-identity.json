@@ -1,0 +1,299 @@
+{
+  "composer": {
+    "markdown": "# Roadmap\n\n> **Generated from meta files — re-render at ceremony boundaries.**\n\nThis view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a\nunit is Ready once the units it depends on have shipped, and Blocked units are banded by how many\nunsatisfied dependency hops separate them from a startable root. Within each tier, rows are ordered by\nPriority (P1 → P2 → P3), then cohort, then canonical name. Cohort renders as the leaf segment; the full\npath lives in each meta's Cohort field. Cohort membership is a logical grouping, not a scheduling constraint.\n\n---\n\n## In Flight\n\n| State    | Work unit | Priority | Owner  | Depends on | Cohort |\n| -------- | --------- | -------- | ------ | ---------- | ------ |\n| `Active` | flight    | P1       | andrew | —          | cohort |\n\n## Ready\n\n| Work unit | Priority | Owner | Depends on | Cohort |\n| --------- | -------- | ----- | ---------- | ------ |\n| ready     | P2       | —     | —          | —      |\n\n## Blocked\n\n### Depth 1\n\n| Work unit   | Priority | Owner | Depends on | Cohort |\n| ----------- | -------- | ----- | ---------- | ------ |\n| blocked-one | P3       | —     | missing    | —      |\n\n### Depth 2\n\n| Work unit   | Priority | Owner | Depends on  | Cohort |\n| ----------- | -------- | ----- | ----------- | ------ |\n| blocked-two | P3       | —     | blocked-one | —      |\n\n## Parked\n\n| Work unit      | Priority | Owner | Depends on | Cohort |\n| -------------- | -------- | ----- | ---------- | ------ |\n| parked-planned | P3       | —     | —          | —      |\n| parked-pointer | P3       | —     | —          | —      |\n\n---\n\n_Pre-commitment thinking that hasn't been sequenced yet lives in `backlog/provisional/`._",
+    "warnings": [
+      {
+        "code": "oracle-degraded",
+        "rendered": "In-flight inputs were indeterminate during derivation; rendering project view from a degraded snapshot."
+      },
+      {
+        "code": "dangling-dependency",
+        "workUnit": "blocked-one",
+        "dependency": "missing",
+        "rendered": "`blocked-one` depends on missing work unit `missing`; treating the edge as blocked."
+      },
+      {
+        "code": "stale-location-unshipped",
+        "workUnit": "flight",
+        "rendered": "Meta `meta-flight.md` at `main` points to `feat/flight`; dropped stale location. Work unit `flight` has not shipped; treating the view as degraded."
+      }
+    ],
+    "facts": [
+      {
+        "slug": "blocked-one",
+        "purpose": null,
+        "owner": null,
+        "state": "planned",
+        "position": {
+          "phase": "Planning",
+          "location": "planned"
+        },
+        "horizonAdvisory": "`blocked-one` is planned at P3; an entry routed here waits for it. Raise its priority or send a separable part now?",
+        "dependencySatisfaction": "unsatisfied",
+        "readiness": "blocked",
+        "unsatisfiedDependencies": [
+          "missing"
+        ]
+      },
+      {
+        "slug": "blocked-two",
+        "purpose": null,
+        "owner": null,
+        "state": "planned",
+        "position": {
+          "phase": "Planning",
+          "location": "planned"
+        },
+        "horizonAdvisory": "`blocked-two` is planned at P3; an entry routed here waits for it. Raise its priority or send a separable part now?",
+        "dependencySatisfaction": "unsatisfied",
+        "readiness": "blocked",
+        "unsatisfiedDependencies": [
+          "blocked-one"
+        ]
+      },
+      {
+        "slug": "flight",
+        "purpose": null,
+        "owner": "andrew",
+        "state": "active",
+        "position": {
+          "phase": "Active",
+          "location": "active"
+        },
+        "horizonAdvisory": null,
+        "dependencySatisfaction": "satisfied",
+        "readiness": "ready",
+        "unsatisfiedDependencies": []
+      },
+      {
+        "slug": "parked-planned",
+        "purpose": null,
+        "owner": null,
+        "state": "parked",
+        "position": {
+          "phase": "Active",
+          "location": "planned"
+        },
+        "horizonAdvisory": "`parked-planned` is parked (P3); an entry routed here waits for its resumption. Resume it or send a separable part now?",
+        "dependencySatisfaction": "satisfied",
+        "readiness": "ready",
+        "unsatisfiedDependencies": []
+      },
+      {
+        "slug": "parked-pointer",
+        "purpose": null,
+        "owner": null,
+        "state": "parked",
+        "position": {
+          "phase": "Active",
+          "location": "planned"
+        },
+        "horizonAdvisory": "`parked-pointer` is parked (P3); an entry routed here waits for its resumption. Resume it or send a separable part now?",
+        "dependencySatisfaction": "satisfied",
+        "readiness": "ready",
+        "unsatisfiedDependencies": []
+      },
+      {
+        "slug": "ready",
+        "purpose": null,
+        "owner": null,
+        "state": "planned",
+        "position": {
+          "phase": "Planning",
+          "location": "planned"
+        },
+        "horizonAdvisory": null,
+        "dependencySatisfaction": "satisfied",
+        "readiness": "ready",
+        "unsatisfiedDependencies": []
+      }
+    ]
+  },
+  "stagedView": {
+    "result": {
+      "markdown": "# Roadmap: Project Status\n\n> **Generated from meta files — re-render at ceremony boundaries.**\n> Source scope: tree + local refs. Live view: `arc status --project`.\n\nThis view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a\nunit is Ready once the units it depends on have shipped, and Blocked units are banded by how many\nunsatisfied dependency hops separate them from a startable root. Within each tier, rows are ordered by\nPriority (P1 → P2 → P3), then cohort, then canonical name. Cohort renders as the leaf segment; the full\npath lives in each meta's Cohort field. Cohort membership is a logical grouping, not a scheduling constraint.\n\n---\n\n## In Flight\n\n| State    | Work unit | Priority | Owner  | Depends on | Cohort |\n| -------- | --------- | -------- | ------ | ---------- | ------ |\n| `Active` | flight    | P1       | andrew | —          | cohort |\n\n## Ready\n\n| Work unit | Priority | Owner  | Depends on | Cohort |\n| --------- | -------- | ------ | ---------- | ------ |\n| ready     | P2       | andrew | —          | —      |\n\n## Blocked\n\n### Depth 1\n\n| Work unit   | Priority | Owner  | Depends on | Cohort |\n| ----------- | -------- | ------ | ---------- | ------ |\n| blocked-one | P3       | andrew | missing    | —      |\n\n### Depth 2\n\n| Work unit   | Priority | Owner  | Depends on  | Cohort |\n| ----------- | -------- | ------ | ----------- | ------ |\n| blocked-two | P3       | andrew | blocked-one | —      |\n\n## Parked\n\n| Work unit | Priority | Owner  | Depends on | Cohort |\n| --------- | -------- | ------ | ---------- | ------ |\n| parked    | P3       | andrew | —          | —      |\n\n---\n\n_Pre-commitment thinking that hasn't been sequenced yet lives in `backlog/provisional/`._",
+      "warnings": [
+        {
+          "code": "dangling-dependency",
+          "workUnit": "blocked-one",
+          "dependency": "missing",
+          "rendered": "`blocked-one` depends on missing work unit `missing`; treating the edge as blocked."
+        }
+      ],
+      "facts": [
+        {
+          "slug": "blocked-one",
+          "purpose": null,
+          "owner": "andrew",
+          "state": "planned",
+          "position": {
+            "phase": "Planning",
+            "location": "planned"
+          },
+          "horizonAdvisory": "`blocked-one` is planned at P3; an entry routed here waits for it. Raise its priority or send a separable part now?",
+          "dependencySatisfaction": "unsatisfied",
+          "readiness": "blocked",
+          "unsatisfiedDependencies": [
+            "missing"
+          ]
+        },
+        {
+          "slug": "blocked-two",
+          "purpose": null,
+          "owner": "andrew",
+          "state": "planned",
+          "position": {
+            "phase": "Planning",
+            "location": "planned"
+          },
+          "horizonAdvisory": "`blocked-two` is planned at P3; an entry routed here waits for it. Raise its priority or send a separable part now?",
+          "dependencySatisfaction": "unsatisfied",
+          "readiness": "blocked",
+          "unsatisfiedDependencies": [
+            "blocked-one"
+          ]
+        },
+        {
+          "slug": "flight",
+          "purpose": null,
+          "owner": "andrew",
+          "state": "active",
+          "position": {
+            "phase": "Active",
+            "location": "active"
+          },
+          "horizonAdvisory": null,
+          "dependencySatisfaction": "satisfied",
+          "readiness": "ready",
+          "unsatisfiedDependencies": []
+        },
+        {
+          "slug": "parked",
+          "purpose": null,
+          "owner": "andrew",
+          "state": "parked",
+          "position": {
+            "phase": "Active",
+            "location": "planned"
+          },
+          "horizonAdvisory": "`parked` is parked (P3); an entry routed here waits for its resumption. Resume it or send a separable part now?",
+          "dependencySatisfaction": "satisfied",
+          "readiness": "ready",
+          "unsatisfiedDependencies": []
+        },
+        {
+          "slug": "ready",
+          "purpose": null,
+          "owner": "andrew",
+          "state": "planned",
+          "position": {
+            "phase": "Planning",
+            "location": "planned"
+          },
+          "horizonAdvisory": null,
+          "dependencySatisfaction": "satisfied",
+          "readiness": "ready",
+          "unsatisfiedDependencies": []
+        }
+      ]
+    },
+    "indeterminate": false
+  },
+  "stagedRender": {
+    "content": "# Roadmap: Project Status\n\n> **Generated from meta files — re-render at ceremony boundaries.**\n> Source scope: tree + local refs. Live view: `arc status --project`.\n\nThis view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a\nunit is Ready once the units it depends on have shipped, and Blocked units are banded by how many\nunsatisfied dependency hops separate them from a startable root. Within each tier, rows are ordered by\nPriority (P1 → P2 → P3), then cohort, then canonical name. Cohort renders as the leaf segment; the full\npath lives in each meta's Cohort field. Cohort membership is a logical grouping, not a scheduling constraint.\n\n---\n\n## In Flight\n\n| State    | Work unit | Priority | Owner  | Depends on | Cohort |\n| -------- | --------- | -------- | ------ | ---------- | ------ |\n| `Active` | flight    | P1       | andrew | —          | cohort |\n\n## Ready\n\n| Work unit | Priority | Owner  | Depends on | Cohort |\n| --------- | -------- | ------ | ---------- | ------ |\n| ready     | P2       | andrew | —          | —      |\n\n## Blocked\n\n### Depth 1\n\n| Work unit   | Priority | Owner  | Depends on | Cohort |\n| ----------- | -------- | ------ | ---------- | ------ |\n| blocked-one | P3       | andrew | missing    | —      |\n\n### Depth 2\n\n| Work unit   | Priority | Owner  | Depends on  | Cohort |\n| ----------- | -------- | ------ | ----------- | ------ |\n| blocked-two | P3       | andrew | blocked-one | —      |\n\n## Parked\n\n| Work unit | Priority | Owner  | Depends on | Cohort |\n| --------- | -------- | ------ | ---------- | ------ |\n| parked    | P3       | andrew | —          | —      |\n\n---\n\n_Pre-commitment thinking that hasn't been sequenced yet lives in `backlog/provisional/`._\n",
+    "indeterminate": false
+  },
+  "tracked": {
+    "markdown": "# Roadmap: Project Status\n\n> **Generated from meta files — re-render at ceremony boundaries.**\n> Source scope: tree + local refs. Live view: `arc status --project`.\n\nThis view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a\nunit is Ready once the units it depends on have shipped, and Blocked units are banded by how many\nunsatisfied dependency hops separate them from a startable root. Within each tier, rows are ordered by\nPriority (P1 → P2 → P3), then cohort, then canonical name. Cohort renders as the leaf segment; the full\npath lives in each meta's Cohort field. Cohort membership is a logical grouping, not a scheduling constraint.\n\n---\n\n## In Flight\n\n| State    | Work unit | Priority | Owner  | Depends on | Cohort |\n| -------- | --------- | -------- | ------ | ---------- | ------ |\n| `Active` | flight    | P1       | andrew | —          | cohort |\n\n## Ready\n\n| Work unit | Priority | Owner  | Depends on | Cohort |\n| --------- | -------- | ------ | ---------- | ------ |\n| ready     | P2       | andrew | —          | —      |\n\n## Blocked\n\n### Depth 1\n\n| Work unit   | Priority | Owner  | Depends on | Cohort |\n| ----------- | -------- | ------ | ---------- | ------ |\n| blocked-one | P3       | andrew | missing    | —      |\n\n### Depth 2\n\n| Work unit   | Priority | Owner  | Depends on  | Cohort |\n| ----------- | -------- | ------ | ----------- | ------ |\n| blocked-two | P3       | andrew | blocked-one | —      |\n\n## Parked\n\n| Work unit | Priority | Owner  | Depends on | Cohort |\n| --------- | -------- | ------ | ---------- | ------ |\n| parked    | P3       | andrew | —          | —      |\n\n---\n\n_Pre-commitment thinking that hasn't been sequenced yet lives in `backlog/provisional/`._",
+    "warnings": [
+      {
+        "code": "dangling-dependency",
+        "workUnit": "blocked-one",
+        "dependency": "missing",
+        "rendered": "`blocked-one` depends on missing work unit `missing`; treating the edge as blocked."
+      }
+    ],
+    "facts": [
+      {
+        "slug": "blocked-one",
+        "purpose": null,
+        "owner": "andrew",
+        "state": "planned",
+        "position": {
+          "phase": "Planning",
+          "location": "planned"
+        },
+        "horizonAdvisory": "`blocked-one` is planned at P3; an entry routed here waits for it. Raise its priority or send a separable part now?",
+        "dependencySatisfaction": "unsatisfied",
+        "readiness": "blocked",
+        "unsatisfiedDependencies": [
+          "missing"
+        ]
+      },
+      {
+        "slug": "blocked-two",
+        "purpose": null,
+        "owner": "andrew",
+        "state": "planned",
+        "position": {
+          "phase": "Planning",
+          "location": "planned"
+        },
+        "horizonAdvisory": "`blocked-two` is planned at P3; an entry routed here waits for it. Raise its priority or send a separable part now?",
+        "dependencySatisfaction": "unsatisfied",
+        "readiness": "blocked",
+        "unsatisfiedDependencies": [
+          "blocked-one"
+        ]
+      },
+      {
+        "slug": "flight",
+        "purpose": null,
+        "owner": "andrew",
+        "state": "active",
+        "position": {
+          "phase": "Active",
+          "location": "active"
+        },
+        "horizonAdvisory": null,
+        "dependencySatisfaction": "satisfied",
+        "readiness": "ready",
+        "unsatisfiedDependencies": []
+      },
+      {
+        "slug": "parked",
+        "purpose": null,
+        "owner": "andrew",
+        "state": "parked",
+        "position": {
+          "phase": "Active",
+          "location": "planned"
+        },
+        "horizonAdvisory": "`parked` is parked (P3); an entry routed here waits for its resumption. Resume it or send a separable part now?",
+        "dependencySatisfaction": "satisfied",
+        "readiness": "ready",
+        "unsatisfiedDependencies": []
+      },
+      {
+        "slug": "ready",
+        "purpose": null,
+        "owner": "andrew",
+        "state": "planned",
+        "position": {
+          "phase": "Planning",
+          "location": "planned"
+        },
+        "horizonAdvisory": null,
+        "dependencySatisfaction": "satisfied",
+        "readiness": "ready",
+        "unsatisfiedDependencies": []
+      }
+    ]
+  },
+  "decomposition": "# Roadmap: Project Status\n\n> **Generated from meta files — re-render at ceremony boundaries.**\n> Source scope: tree + local refs. Live view: `arc status --project`.\n\nThis view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a\nunit is Ready once the units it depends on have shipped, and Blocked units are banded by how many\nunsatisfied dependency hops separate them from a startable root. Within each tier, rows are ordered by\nPriority (P1 → P2 → P3), then cohort, then canonical name. Cohort renders as the leaf segment; the full\npath lives in each meta's Cohort field. Cohort membership is a logical grouping, not a scheduling constraint.\n\n---\n\n## In Flight\n\n| State    | Work unit | Priority | Owner  | Depends on | Cohort |\n| -------- | --------- | -------- | ------ | ---------- | ------ |\n| `Active` | flight    | P1       | andrew | —          | cohort |\n\n## Ready\n\n| Work unit | Priority | Owner  | Depends on | Cohort |\n| --------- | -------- | ------ | ---------- | ------ |\n| ready     | P2       | andrew | —          | —      |\n\n## Blocked\n\n### Depth 1\n\n| Work unit   | Priority | Owner  | Depends on | Cohort |\n| ----------- | -------- | ------ | ---------- | ------ |\n| blocked-one | P3       | andrew | missing    | —      |\n\n### Depth 2\n\n| Work unit   | Priority | Owner  | Depends on  | Cohort |\n| ----------- | -------- | ------ | ----------- | ------ |\n| blocked-two | P3       | andrew | blocked-one | —      |\n\n## Parked\n\n| Work unit | Priority | Owner  | Depends on | Cohort |\n| --------- | -------- | ------ | ---------- | ------ |\n| parked    | P3       | andrew | —          | —      |\n\n---\n\n_Pre-commitment thinking that hasn't been sequenced yet lives in `backlog/provisional/`._\n",
+  "user": {
+    "output": "## In Flight\n\n| Work unit | State  | Class | Priority | Depends on | Cohort |\n| --------- | ------ | ----- | -------- | ---------- | ------ |\n| flight    | Active | Heavy | P1       | —          | cohort |\n\n## Ready\n\n| Work unit | Class | Priority | Cohort |\n| --------- | ----- | -------- | ------ |\n| ready     | Light | P2       | cohort |",
+    "source": "rendered",
+    "warnings": []
+  }
+}

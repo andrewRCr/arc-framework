@@ -1,6 +1,8 @@
 /** Review-only resolution from an exact target to its owning work unit. */
 
-import { branchToWorkUnitSlug } from "../../../lib/work-unit/completed-index.js";
+import { readReviewWorkUnitByRef, type ReviewWorkUnitLookup } from "../../../lib/store/review-work-unit.js";
+import type { OwnerIdentity } from "../../../lib/store/identity.js";
+import { branchToWorkUnitSlug } from "../../../lib/work-unit/work-unit-slug.js";
 import type {
   DeliveryMemberBinding,
   DeliveryMemberLookup,
@@ -8,7 +10,8 @@ import type {
 
 /** Closed ownership answer for one exact review target. */
 export type ReviewSubjectResolution =
-  | { readonly status: "resolved"; readonly workUnitId: string; readonly member: DeliveryMemberBinding | null }
+  | { readonly status: "resolved"; readonly workUnitId: string; readonly member: DeliveryMemberBinding | null;
+      readonly workItem?: OwnerIdentity }
   | { readonly status: "unbound" }
   | { readonly status: "unavailable" };
 
@@ -36,15 +39,21 @@ export function resolveReviewHeadRef(
  * @param input - Exact branch/head coordinates and the delivery reverse lookup
  * @returns Ordinary or delivery ownership, an authoritative miss, or an unavailable read
  */
-export async function resolveReviewSubject(input: {
+export async function resolveReviewSubject(input: Partial<Omit<ReviewWorkUnitLookup, "cwd">> & {
+  readonly cwd: string;
   readonly headRef: string;
   readonly headSha: string;
   readonly memberLookup: DeliveryMemberLookup;
 }): Promise<ReviewSubjectResolution> {
-  const ordinary = branchToWorkUnitSlug(input.headRef);
+  const native = input.store?.capabilities.stateOffBranch === true;
+  const linked = native && input.store !== undefined
+    ? await readReviewWorkUnitByRef({ cwd: input.cwd, store: input.store, projectId: input.projectId }, input.headRef) : null;
+  if (linked !== null) return { status: "resolved", workUnitId: linked.name, member: null,
+    workItem: linked.record.reference.owner };
+  const ordinary = native ? null : branchToWorkUnitSlug(input.headRef);
   if (ordinary !== null) return { status: "resolved", workUnitId: ordinary, member: null };
   try {
-    const delivery = await input.memberLookup.resolveMemberByHead(input.headSha);
+    const delivery = await input.memberLookup.resolveMemberByRef(input.headRef, input.headSha);
     if (delivery.status !== "resolved") return delivery;
     return {
       status: "resolved",

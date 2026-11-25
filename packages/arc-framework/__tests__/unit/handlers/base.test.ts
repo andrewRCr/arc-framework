@@ -1,6 +1,7 @@
 /** Local base command typed adapter behavior. */
 
 import { describe, expect, it, vi } from "vitest";
+import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
 
 import { handleBaseMerge } from "../../../src/handlers/base.js";
 import { BaseMergeResultSchema } from "../../../src/scripts/base/merge.js";
@@ -49,7 +50,7 @@ describe("base merge handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(BaseMergeResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(BaseMergeResultSchema, result);
     expect(result).toMatchObject({
       state: "blocked",
       reason: "invalid-input",
@@ -77,7 +78,7 @@ describe("base merge handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(BaseMergeResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(BaseMergeResultSchema, result);
     expect(result).toMatchObject({
       state: "blocked",
       reason: "operational-failure",

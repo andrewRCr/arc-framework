@@ -10,13 +10,15 @@ import {
   recordDeliveryReviewFixCandidateVerification,
   type DeliveryReviewFixPublicationDependencies,
 } from "../../../src/lib/delivery/review-fix.js";
-import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../../src/lib/kernel/index.js";
 import { compareDeliveryLifecycleContribution } from "../../../src/lib/delivery/lifecycle-contribution.js";
 import type { DeliveryNativeStackObservation } from "../../../src/lib/delivery/native-stack.js";
+import type { DeliveryPositionFactsV1 } from "../../../src/lib/delivery/position.js";
 import type { DeliveryRevisionedRecord } from "../../../src/lib/delivery/ports.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
+import { responsePolicyRequestFixture } from "../../fixtures/review-response-policy.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -29,7 +31,7 @@ import {
   projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { ApprovedDispositionRecordSchema } from
+import { ApprovedDispositionRecordSchema, currentApprovedDispositionNode } from
   "../../../src/scripts/review-gate/core/advisory-records.js";
 import {
   approveDispositionState,
@@ -41,7 +43,10 @@ import { createFixAuthorization } from
 import { createReviewTarget } from
   "../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
-function positionFacts(state: DeliveryStateV1, landedDeliverableIds: string[] = []) {
+function positionFacts(
+  state: DeliveryStateV1,
+  landedDeliverableIds: DeliveryPositionFactsV1["landedDeliverableIds"] = [],
+): DeliveryPositionFactsV1 {
   return { target: state.target, members: state.members, landedDeliverableIds };
 }
 
@@ -141,17 +146,21 @@ describe("delivery review-fix routing", () => {
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: oldTarget.targetId,
+        producerId: "operation-member-fix",
+        resultDigest: canonicalDigest({ result: "operation-member-fix" }),
         policyVersion: canonicalDigest({ policy: "review" }),
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
         proposedBy: "agent-1",
+        proposedVerification: "full",
         findings: [{
           findingId: "finding-1",
           sourceIdentity: "codex-pr",
           locus: "src/example.ts:1",
           sourceVerification: "verified",
           verificationRefs: ["review:finding-1"],
-          severity: "major",
+          reportedSeverity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           gating: "blocking",
           rationale: "The source confirms the issue.",
@@ -179,11 +188,22 @@ describe("delivery review-fix routing", () => {
       source: {
         kind: "hosted",
         attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+        hostedResultId: canonicalDigest({ result: "operation-member-fix" }),
       },
-      approvedDisposition,
-      fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: oldTarget.headSha,
+          sourceId: "codex-pr",
+          reviewOperationId: "operation-member-fix",
+        }),
+        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     });
     const input = {
       record,
@@ -191,8 +211,8 @@ describe("delivery review-fix routing", () => {
       hostedTarget: { repository: "owner/repo", pullRequest: 42, headSha: oldTarget.headSha },
       currentHead: "5".repeat(40),
       currentTree: "6".repeat(40),
-      applicability: "focused" as const,
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      applicability: "full" as const,
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       verifiedAt: "2026-08-31T13:00:00Z",
     };
     const recorded = advanceDeliveryReviewFixResponse(input);
@@ -200,14 +220,12 @@ describe("delivery review-fix routing", () => {
       status: "recorded",
       newTarget: { headSha: input.currentHead, headTree: input.currentTree },
       hostedFixTarget: { headSha: input.currentHead },
-      record: {
-        deliveryMemberFixResponse: {
-          applicability: "focused",
-          fixConsumption: { verificationRefs: input.verificationEvidenceRefs },
-        },
-      },
     });
     if (recorded.status !== "recorded") throw new Error("fix response must record");
+    expect(currentApprovedDispositionNode(recorded.record).deliveryMemberFixResponse).toMatchObject({
+      applicability: "full",
+      fixConsumption: { verificationRefs: input.verificationEvidenceRefs },
+    });
     expect(advanceDeliveryReviewFixResponse({
       ...input,
       record: recorded.record,
@@ -218,6 +236,15 @@ describe("delivery review-fix routing", () => {
       record: recorded.record,
       verificationEvidenceRefs: ["criteria://different"],
     })).toEqual({ status: "refused", reason: "review-fix-response-replay-mismatch" });
+    expect(advanceDeliveryReviewFixResponse({
+      ...input,
+      applicability: "focused",
+    })).toEqual({ status: "refused", reason: "review-fix-verification-insufficient" });
+    expect(advanceDeliveryReviewFixResponse({
+      ...input,
+      record: recorded.record,
+      applicability: "focused",
+    })).toEqual({ status: "refused", reason: "review-fix-verification-insufficient" });
   });
 
   it("records and exactly replays one verified local delivery-member fix response", () => {
@@ -239,17 +266,21 @@ describe("delivery review-fix routing", () => {
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: oldTarget.targetId,
+        producerId: "local-operation-member-fix",
+        resultDigest: canonicalDigest({ result: "local-operation-member-fix" }),
         policyVersion: canonicalDigest({ policy: "review" }),
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
         proposedBy: "agent-1",
+        proposedVerification: "full",
         findings: [{
           findingId: "finding-1",
           sourceIdentity: "delegated-agent",
           locus: "src/example.ts:1",
           sourceVerification: "verified",
           verificationRefs: ["review:finding-1"],
-          severity: "major",
+          reportedSeverity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           gating: "blocking",
           rationale: "The source confirms the issue.",
@@ -279,10 +310,19 @@ describe("delivery review-fix routing", () => {
         receiptRef: "arc-review-source:v1:attested-local:local-operation-member-fix:receipt%2F1",
         localSourceRef: "git-common:review-gate/local/source.json",
       },
-      approvedDisposition,
-      fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: oldTarget.headSha,
+          reviewOperationId: "local-operation-member-fix",
+        }),
+        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     });
     const input = {
       record,
@@ -290,8 +330,8 @@ describe("delivery review-fix routing", () => {
       hostedTarget: null,
       currentHead: "5".repeat(40),
       currentTree: "6".repeat(40),
-      applicability: "focused" as const,
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      applicability: "full" as const,
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       verifiedAt: "2026-08-31T13:00:00Z",
     };
 
@@ -300,31 +340,29 @@ describe("delivery review-fix routing", () => {
       status: "recorded",
       newTarget: { headSha: input.currentHead, headTree: input.currentTree },
       hostedFixTarget: null,
-      record: {
-        deliveryMemberFixResponse: {
-          applicability: "focused",
-          hostedTarget: null,
-          hostedFixTarget: null,
-        },
-      },
     });
     if (recorded.status !== "recorded") throw new Error("fix response must record");
+    expect(currentApprovedDispositionNode(recorded.record).deliveryMemberFixResponse).toMatchObject({
+      applicability: "full",
+      hostedTarget: null,
+      hostedFixTarget: null,
+    });
     expect(advanceDeliveryReviewFixResponse({ ...input, record: recorded.record }))
       .toMatchObject({ status: "already-recorded", hostedFixTarget: null });
   });
 
-  it("carries the same Candidate boundary across the acknowledged state revision", () => {
+  it.each([1, 2] as const)("carries the same version %s Candidate boundary across the acknowledged state revision", (schemaVersion) => {
     const { plan, state } = fixture();
     const before = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision: 9 });
     if (before.status !== "projected") throw new Error("fixture continuation must project");
-    const candidateId = `sha256:${"a".repeat(64)}`;
-    const candidateSubjectDigest = `sha256:${"b".repeat(64)}`;
-    const previousCandidateSubjectDigest = `sha256:${"9".repeat(64)}`;
-    const sourceCandidateId = `sha256:${"c".repeat(64)}`;
+    const candidateId = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
+    const candidateSubjectDigest = CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`);
+    const previousCandidateSubjectDigest = CanonicalDigestSchema.parse(`sha256:${"9".repeat(64)}`);
+    const sourceCandidateId = CanonicalDigestSchema.parse(`sha256:${"c".repeat(64)}`);
     const reservation = {
       schemaVersion: 1 as const,
       semanticsVersion: "standard-review-reservation/v1" as const,
-      reservationId: `sha256:${"d".repeat(64)}`,
+      reservationId: CanonicalDigestSchema.parse(`sha256:${"d".repeat(64)}`),
       sources: ["codex-pr"],
       target: {
         kind: "delivery" as const,
@@ -336,19 +374,22 @@ describe("delivery review-fix routing", () => {
         obligation: "required" as const,
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: `sha256:${"e".repeat(64)}`,
+        rubricDigest: CanonicalDigestSchema.parse(`sha256:${"e".repeat(64)}`),
         retrigger: "full-final" as const,
         count: 1,
       },
     };
-    const publication = projectPublicationBoundary({
+    const publicationInput = {
       workUnit: plan.workUnitId,
       branch: "feat/example",
       candidateId: sourceCandidateId,
-      candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
+      candidateSubjectDigest: CanonicalDigestSchema.parse(`sha256:${"f".repeat(64)}`),
       reservation,
       changeRequest: null,
-    });
+    };
+    const publication = schemaVersion === 2
+      ? projectPublicationBoundary({ ...publicationInput, readinessBinding: null }, 2)
+      : projectPublicationBoundary(publicationInput, 1);
     const boundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId,
@@ -370,6 +411,7 @@ describe("delivery review-fix routing", () => {
       candidateId,
       stateRevision: 10,
       boundary: {
+        schemaVersion,
         candidateId,
         candidateSubjectDigest,
         locus: "delivery-status-required",
@@ -494,7 +536,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T13:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     });
 
     expect(result).toMatchObject({
@@ -527,7 +569,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T13:30:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toMatchObject({
       status: "already-recorded",
       nextAction: "renew-public-continuation",
@@ -548,7 +590,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toMatchObject({
       status: "already-recorded",
       nextAction: "renew-public-continuation",
@@ -560,7 +602,7 @@ describe("delivery review-fix routing", () => {
         candidateId: result.transition.candidateId,
         oldTarget: result.transition.oldTarget,
         newTarget: result.transition.newTarget,
-        authorityRef: `sha256:${"0".repeat(64)}`,
+        authorityRef: CanonicalDigestSchema.parse(`sha256:${"0".repeat(64)}`),
         verifiedBy: result.transition.verifiedBy,
         verifiedAt: result.transition.verifiedAt,
         applicability: result.transition.applicability,
@@ -583,7 +625,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toEqual({
       status: "refused",
       reason: "candidate-verification-replay-unproven",
@@ -603,7 +645,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toEqual({
       status: "refused",
       reason: "candidate-verification-replay-unproven",
@@ -617,7 +659,7 @@ describe("delivery review-fix routing", () => {
           candidateId: result.transition.candidateId,
           oldTarget: result.transition.newTarget,
           newTarget: result.transition.newTarget,
-          authorityRef: `sha256:${"0".repeat(64)}`,
+          authorityRef: CanonicalDigestSchema.parse(`sha256:${"0".repeat(64)}`),
           verifiedBy: result.transition.verifiedBy,
           verifiedAt: "2026-08-31T14:05:00.000Z",
           applicability: result.transition.applicability,
@@ -641,7 +683,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toEqual({
       status: "refused",
       reason: "candidate-verification-replay-unproven",
@@ -661,7 +703,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toEqual({
       status: "refused",
       reason: "candidate-verification-replay-unproven",
@@ -704,7 +746,7 @@ describe("delivery review-fix routing", () => {
       selectedDeliverableId,
       memberDeliverableIds,
       expectedStateRevision: 9,
-      continuationDigest: `sha256:${"0".repeat(64)}`,
+      continuationDigest: CanonicalDigestSchema.parse(`sha256:${"0".repeat(64)}`),
       stateStore,
     })).resolves.toEqual({ status: "refused", reason: "continuation-mismatch" });
     await expect(acknowledgeDeliveryReviewFixVerification({

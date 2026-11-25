@@ -1,7 +1,12 @@
 /** Recovery context derivation from the exact entering-checkout frame. */
 
-import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 
+import { describe, expect, it, onTestFinished } from "vitest";
+
+import { resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
@@ -31,7 +36,7 @@ const TASK_CURSOR = {
 function baseRow(overrides: Partial<DerivedCheckoutRow> = {}): DerivedCheckoutRow {
   return {
     kind: "free-primary",
-    checkout: { path: "/repo", head: "a".repeat(40), branch: "main", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "a".repeat(40), branch: "main", detached: false, primary: true },
     markerGeneration: null,
     parentCheckoutPath: null,
     origin: null,
@@ -48,6 +53,7 @@ function workUnit(path = "/repo-wu"): DerivedCheckoutRow {
   return baseRow({
     kind: "work-unit",
     checkout: {
+      folderPresent: true,
       path,
       head: "b".repeat(40),
       branch: "fix/demo",
@@ -81,6 +87,7 @@ function transient(options: {
   return baseRow({
     kind: "transient",
     checkout: {
+      folderPresent: true,
       path: "/repo-child",
       head: "c".repeat(40),
       branch: "errand/demo",
@@ -113,12 +120,40 @@ function frame(
   };
 }
 
-function derive(state: DerivedLocusFrame, activeExtensions: readonly string[] = []) {
+const PARENT_META = ".arc/active/meta-demo.md";
+const PARENT_TASKS = ".arc/active/tasks-demo.md";
+const PARENT_COHORT = ".arc/backlog/planned/demo-cohort/cohort-demo-cohort.md";
+const PARENT_NOTES = ".arc/user/andrew/demo/SESSION-NOTES.md";
+
+/** A parent work unit carrying the full execution load set its own session-init would read. */
+function executionParent(path: string, workingMemoryPath: string): DerivedCheckoutRow {
+  const row = workUnit(path);
+  return {
+    ...row,
+    context: {
+      ...row.context!,
+      metaPath: PARENT_META,
+      taskListPath: PARENT_TASKS,
+      cohortDocPath: PARENT_COHORT,
+      loadSet: resolveLoadSetManifest({
+        identity: "andrew",
+        workingMemoryPath,
+        activeWorkUnit: "demo",
+        metaPath: PARENT_META,
+        sessionType: "execution",
+        planningStage: null,
+        taskListPath: PARENT_TASKS,
+        cohortDocPath: PARENT_COHORT,
+      }),
+    },
+  } as DerivedCheckoutRow;
+}
+
+function derive(state: DerivedLocusFrame) {
   return deriveRecoveryLocusContext({
     state,
     identity: "andrew",
     workingMemoryPath: "/repo/.arc/user/andrew/WORKING-MEMORY.md",
-    activeExtensions,
   });
 }
 
@@ -155,6 +190,87 @@ describe("deriveRecoveryLocusContext", () => {
     expect(result.taskCursor).toBe(TASK_CURSOR);
   });
 
+  it("anchors the parent's own artifacts to its checkout and keeps shared context relative", () => {
+    const workingMemoryPath = "/repo/.arc/user/andrew/WORKING-MEMORY.md";
+    const parent = executionParent("/repo-wu", workingMemoryPath);
+    const result = derive(frame(transient(), [parent]));
+
+    const expected = parent.context!.loadSet.entries.map((entry) => [PARENT_META, PARENT_TASKS, PARENT_COHORT, PARENT_NOTES]
+      .includes(entry.path) ? { ...entry, path: `/repo-wu/${entry.path}` } : entry);
+    expect(expected.filter((entry, index) => entry !== parent.context!.loadSet.entries[index])).toHaveLength(4);
+    expect(result.loadSet.entries).toEqual([...expected, { path: RUN_ERRAND_WORKFLOW_PATH, readMode: { kind: "full" } }]);
+    expect(result.loadSet.entries).toContainEqual({ path: `/repo-wu/${PARENT_TASKS}`, readMode: { kind: "partial-strategic" } });
+    expect(result.loadSet.entries).toContainEqual({ path: workingMemoryPath, readMode: { kind: "full" } });
+  });
+
+  it("rehydrates every entry from the Errand checkout, and stops on a missing parent file rather than reading its copy", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-recovery-anchors-"));
+    onTestFinished(() => rm(root, { recursive: true, force: true }));
+    const parentPath = join(root, "parent"), child = join(root, "child");
+    const workingMemoryPath = join(root, "identity", "WORKING-MEMORY.md");
+    const parent = executionParent(parentPath, workingMemoryPath);
+    const put = async (path: string, content: string) => {
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, content);
+    };
+    const owned = [PARENT_META, PARENT_TASKS, PARENT_COHORT, PARENT_NOTES];
+    for (const path of owned) await put(join(parentPath, path), `parent ${path}`);
+    for (const entry of parent.context!.loadSet.entries) {
+      if (entry.path !== workingMemoryPath && !owned.includes(entry.path)) await put(join(child, entry.path), "shared");
+    }
+    await put(join(child, RUN_ERRAND_WORKFLOW_PATH), "shared");
+    await put(workingMemoryPath, "identity");
+    await put(join(child, PARENT_TASKS), "the Errand's own task list");
+    const errand = transient({ parentCheckoutPath: parentPath });
+    const entering = { ...errand, checkout: { ...errand.checkout, path: child } } as DerivedCheckoutRow;
+
+    const result = derive(frame(entering, [parent]));
+    const read = (path: string) => readFile(resolve(result.frame.checkoutPath, path), "utf8");
+
+    expect(result.frame).toMatchObject({ checkoutPath: child, parentCheckoutPath: parentPath });
+    await Promise.all(result.loadSet.entries.map((entry) => read(entry.path)));
+    const tasks = result.loadSet.entries.find((entry) => entry.readMode.kind === "partial-strategic")!;
+    await expect(read(tasks.path)).resolves.toBe(`parent ${PARENT_TASKS}`);
+
+    await rm(join(parentPath, PARENT_TASKS));
+    await expect(read(tasks.path)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it.each(["work unit", "warm Errand"])("omits a written Planning task-list cursor for a %s", (kind) => {
+    const row = workUnit();
+    const planning: DerivedCheckoutRow = {
+      ...row,
+      checkout: { ...row.checkout, branch: "plan/demo" },
+      context: {
+        ...row.context!,
+        branch: "plan/demo",
+        sessionType: "planning",
+        workflow: "planning",
+        stage: "generate-tasks",
+        loadSet: resolveLoadSetManifest({
+          identity: "andrew",
+          activeWorkUnit: "demo",
+          metaPath: ".arc/active/meta-demo.md",
+          sessionType: "planning",
+          planningStage: "generate-tasks",
+          taskListPath: ".arc/active/tasks-demo.md",
+          cohortDocPath: null,
+        }),
+      },
+    };
+    const state = kind === "work unit" ? frame(planning) : frame(transient(), [planning]);
+
+    const result = derive(state);
+
+    expect(result.frame).toMatchObject({
+      sessionType: "planning",
+      workflow: kind === "work unit" ? "generate-tasks" : "run-errand",
+    });
+    expect(result.taskCursor).toBeNull();
+    expect(result.loadSet.entries.some((entry) => entry.readMode.kind === "partial-strategic")).toBe(false);
+    expect(planning.context?.taskCursor).toBe(TASK_CURSOR);
+  });
+
   it("degrades a missing marker parent to base context without losing the parent fact", () => {
     const result = derive(frame(transient({ parentCheckoutPath: "/moved-parent" })));
 
@@ -172,7 +288,7 @@ describe("deriveRecoveryLocusContext", () => {
   it("ignores an arbitrary malformed sibling while recovering the entering work unit", () => {
     const malformed = baseRow({
       kind: "unresolved-checkout",
-      checkout: { path: "/repo-bad", head: "f".repeat(40), branch: null, detached: true, primary: false },
+      checkout: { folderPresent: true, path: "/repo-bad", head: "f".repeat(40), branch: null, detached: true, primary: false },
       diagnostics: [{ code: "marker-unreadable", message: "bad sibling" }],
     });
     expect(derive(frame(workUnit(), [malformed])).frame).toMatchObject({
@@ -224,6 +340,7 @@ describe("deriveRecoveryLocusContext", () => {
     const unresolved = baseRow({
       kind: "unresolved-checkout",
       checkout: {
+        folderPresent: true,
         path: "/repo-child",
         head: "c".repeat(40),
         branch: "errand/demo",

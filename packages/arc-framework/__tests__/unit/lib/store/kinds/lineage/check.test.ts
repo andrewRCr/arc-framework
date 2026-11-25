@@ -1,0 +1,144 @@
+import { storedCutMapFixture } from "../../../../../fixtures/stored-cut-map.js";
+/** Retirement admission observes the origin's proposed inbound entries. */
+import { expect, it } from "vitest";
+import { ArchiveQuarterSchema, ArchiveSequenceSchema } from "../../../../../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema } from "../../../../../../src/lib/store/index.js";
+import { createKindRegistry } from "../../../../../../src/lib/store/index.js";
+import { PRODUCTION_REGISTRATIONS } from "../../../../../../src/lib/store/kinds/registrations.js";
+import { checkLineageRecord } from "../../../../../../src/lib/store/kinds/lineage/check.js";
+import { writeLineageRecord, parseLineageRecord } from "../../../../../../src/lib/store/kinds/lineage/index.js";
+import type { WriteCheckInput } from "../../../../../../src/lib/store/write-check.js";
+import { META_RULE_UID } from "../../../../../helpers/store/meta-rule-input.js";
+import { cutMapFixture, rebindCutFixture } from "../../../../../fixtures/decompose-v4.js";
+import { writeCutMapRecord } from "../../../../../../src/lib/store/kinds/cut-map/index.js";
+import { SlugSchema } from "../../../../../../src/lib/kernel/index.js";
+import { ruleRecord, ruleView } from "../../../../../helpers/store/rule-view.js";
+const grammar = { shape: "heading" as const, sections: ["Entries"] };
+const held = "# Inbound\n\n## Entries\n\n### Concern\n\n- _Id:_ `11111111`\n\nConcern.\n";
+function input(body: string | null = held, kind: "abandon" | "decompose" | "rename" = "abandon", uid: string | null = META_RULE_UID): WriteCheckInput {
+  const bytes = writeLineageRecord({ schemaVersion: 2, origin: { name: OwnerIdentitySchema.parse({ type: "work-item", name: "example" }).name, ...(uid === null ? {} : { uid }) }, kind,
+    successors: kind === "abandon" ? [] : [{ name: OwnerIdentitySchema.parse({ type: "work-item", name: "successor" }).name }], incoming: [],
+    ...(kind === "decompose" ? { outgoing: [] } : {}) });
+  const record = ruleRecord("lineage/transition", "example", META_RULE_UID, bytes, parseLineageRecord(bytes));
+  const inbound = body === null ? [] : [ruleRecord("work-item/inbound", "example", META_RULE_UID, body)];
+  return { reference: record.reference, observations: [], writer: { kind: "verb", verb: kind }, before: ruleView(inbound), after: ruleView([record, ...inbound]),
+    next: { content: bytes, fields: record.fields } };
+}
+it.each(["abandon", "decompose", "rename"] as const)("refuses %s retirement with held entries under a declared grammar", async (kind) => {
+  expect(await checkLineageRecord(input(held, kind), grammar)).toMatchObject([{ rule: "lineage.inbound-held" }]);
+});
+it("refuses unavailable proposed inbound evidence", async () => {
+  const proposal = input();
+  proposal.after = { ...proposal.after, read: async () => ({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "work-item", condition: "Inbound unavailable.", remedy: { text: "Restore reader." } } }) };
+  expect(await checkLineageRecord(proposal, grammar)).toMatchObject([{ rule: "lineage.inbound-held", condition: "Inbound unavailable." }]);
+});
+it.each([null, "# Inbound\n\n## Entries\n"])("admits retirement with no held entries (%s)", async (body) => {
+  expect(await checkLineageRecord(input(body), grammar)).toEqual([]);
+});
+it("admits the batch that removes the last held entry", async () => {
+  const proposal = input(null); proposal.before = input().before;
+  expect(await checkLineageRecord(proposal, grammar)).toEqual([]);
+});
+it("admits retirement while the inbound kind declares no grammar", async () => {
+  expect(await checkLineageRecord(input())).toEqual([]);
+});
+it("checks a pre-import origin by its current name", async () => {
+  expect(await checkLineageRecord(input(held, "abandon", null), grammar)).toMatchObject([{ rule: "lineage.inbound-held" }]);
+});
+it("does not recheck held entries on an existing lineage version", async () => {
+  const proposal = input(); proposal.prior = proposal.next;
+  expect(await checkLineageRecord(proposal, grammar)).toEqual([]);
+});
+it("registers the lineage check with the production undeclared grammar", async () => {
+  const check = createKindRegistry(PRODUCTION_REGISTRATIONS)["lineage/transition"].check;
+  if (check === null) throw new Error("Lineage must register its check.");
+  expect(await check(input())).toEqual([]);
+});
+
+it("checks a terminal snapshot against the exact pre-transition links even without inbound grammar", async () => {
+  const proposal = input(null);
+  const branches = [{ repository: "repo", ref: "feat/example", linkedAs: "created" as const, excluded: [] }];
+  const terminal = { ...parseLineageRecord(proposal.next!.content), retiredBranches: branches };
+  proposal.next = { content: JSON.stringify(terminal), fields: terminal };
+  const primary = ruleRecord("work-item/meta", "example", META_RULE_UID);
+  primary.links = { branches: [{ ...branches[0]!, linkedAs: "adopted" }] };
+  proposal.before = ruleView([primary]);
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.retired-branches" }]);
+  primary.links = { branches };
+  expect(await checkLineageRecord(proposal)).toEqual([]);
+});
+it("refuses a terminal snapshot whose prior primary cannot be read", async () => {
+  const proposal = input(null);
+  const terminal = { ...parseLineageRecord(proposal.next!.content), retiredBranches: [] };
+  proposal.next = { content: JSON.stringify(terminal), fields: terminal };
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.retired-branches" }]);
+});
+
+it.each(["completed-match", "active-match", "completed-mismatch", "missing"] as const)(
+  "removes terminal lineage only while the archived primary keeps its branch authority: %s", async (mode) => {
+    const proposal = input(null);
+    const branches = [{ repository: "repo", ref: "feat/example", linkedAs: "created" as const, excluded: [] }];
+    const prior = { ...parseLineageRecord(proposal.next!.content), retiredBranches: branches };
+    proposal.prior = { content: JSON.stringify(prior), fields: prior }; proposal.next = undefined;
+    const primary = ruleRecord("work-item/meta", "example", META_RULE_UID, "", undefined,
+      mode === "active-match" ? { kind: "active" } : { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4"), sequence: ArchiveSequenceSchema.parse("01") });
+    primary.links = { branches: mode === "completed-mismatch" ? [{ ...branches[0]!, linkedAs: "adopted" }] : branches };
+    proposal.after = ruleView(mode === "missing" ? [] : [primary]);
+    const result = await checkLineageRecord(proposal);
+    if (mode === "completed-match") expect(result).toEqual([]);
+    else expect(result).toMatchObject([{ rule: "lineage.retired-branches" }]);
+  });
+
+function cutRecord(uid = META_RULE_UID) {
+  const value = cutMapFixture();
+  value.machine.origin = { slug: SlugSchema.parse("example"), uid };
+  rebindCutFixture(value);
+  return ruleRecord("work-item/cut-map", "example", uid, writeCutMapRecord(storedCutMapFixture(value)), value);
+}
+
+it("refuses abandonment from a map in before even when after is empty", async () => {
+  const proposal = input(null, "abandon", null);
+  proposal.before = ruleView([cutRecord()]); proposal.after = ruleView([]);
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.cut-in-flight", remedy: {
+    text: expect.stringContaining("arc decompose example --finish"),
+  } }]);
+  expect((await checkLineageRecord(proposal))[0]?.remedy.text).toContain("arc decompose example --discard");
+  proposal.before = ruleView([]);
+  expect(await checkLineageRecord(proposal)).toEqual([]);
+});
+it("retains an unavailable cut-map read's condition", async () => {
+  const proposal = input(null);
+  proposal.before = { ...proposal.before, read: async () => ({ status: "refused", refusal: {
+    code: "namespace-corrupt", class: "terminal", namespace: "work-item", condition: "Cut-map evidence unavailable.",
+    remedy: { text: "Restore the namespace." },
+  } }) };
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.cut-in-flight", condition: "Cut-map evidence unavailable." }]);
+});
+it("reports cut and retired-branch violations together", async () => {
+  const proposal = input(null);
+  const terminal = { ...parseLineageRecord(proposal.next!.content), retiredBranches: [] };
+  proposal.next = { content: JSON.stringify(terminal), fields: terminal };
+  proposal.before = ruleView([cutRecord()]);
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.retired-branches" }, { rule: "lineage.cut-in-flight" }]);
+});
+it("registers cut-in-flight admission in the production lineage check", async () => {
+  const proposal = input(null); proposal.before = ruleView([cutRecord()]);
+  const check = createKindRegistry(PRODUCTION_REGISTRATIONS)["lineage/transition"].check;
+  if (check === null) throw new Error("Lineage must register its check");
+  expect(await check(proposal)).toMatchObject([{ rule: "lineage.cut-in-flight" }]);
+});
+
+it.each(["decompose", "rename"] as const)("admits %s lineage while a cut map is in before", async kind => {
+  const proposal = input(null, kind); proposal.before = ruleView([cutRecord()]);
+  expect(await checkLineageRecord(proposal)).toEqual([]);
+});
+it("does not recheck an existing lineage version with a cut map in before", async () => {
+  const proposal = input(null); proposal.before = ruleView([cutRecord()]); proposal.prior = proposal.next;
+  expect(await checkLineageRecord(proposal)).toEqual([]);
+});
+
+it("uses the record owner's generation when lineage omits its UID", async () => {
+  const proposal = input(null, "abandon", null);
+  proposal.before = ruleView([cutRecord("00000000-0000-4000-8000-000000000002")]);
+  expect(await checkLineageRecord(proposal)).toEqual([]);
+});

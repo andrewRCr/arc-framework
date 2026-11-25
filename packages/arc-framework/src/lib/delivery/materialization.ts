@@ -108,7 +108,7 @@ export function resolveDeliveryMemberPresentations(
   readonly status: "refused";
   readonly reason: "presentation-mismatch";
 } {
-  const expected = new Set(plan.members.slice(0, -1).map((member) => member.deliverableId));
+  const expected = new Set<string>(plan.members.slice(0, -1).map((member) => member.deliverableId));
   const authoredByDeliverableId = new Map<string, DeliveryMemberReviewerPresentation>();
   for (const presentation of presentations) {
     if (!expected.has(presentation.deliverableId) || authoredByDeliverableId.has(presentation.deliverableId)) {

@@ -33,7 +33,7 @@ export interface DeliveryEligibilityMember extends DeliveryEligibilityCoordinate
   readonly ref: string;
 }
 
-/** Caller-reported Tier 2 outcome for one exact disposable member candidate. */
+/** Caller-reported push gate outcome for one exact disposable member candidate. */
 export interface DeliveryCandidateGateResult extends DeliveryEligibilityCoordinates {
   readonly deliverableId: string;
   readonly status: "passed" | "failed";
@@ -334,7 +334,7 @@ export async function prepareDeliveryEligibility(input: {
   | DeliveryEligibilityRefusal
 > {
   const validation = validateDeliveryPlanRecord(input.plan);
-  if (validation.status !== "valid" || input.plan.projection.kind !== "stack-to-main") {
+  if (validation.status !== "valid") {
     return { status: "refused", reason: "invalid-stack-plan" };
   }
   const memberOffset = input.memberOffset ?? 0;

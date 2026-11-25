@@ -125,6 +125,7 @@ export {
   runIdentityScopedWorktreeRoster,
   scanRegisteredWorktrees,
   filterRosterByIdentity,
+  isInFlightWorkUnitRosterEntry,
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
   type WorktreeRosterEntry,

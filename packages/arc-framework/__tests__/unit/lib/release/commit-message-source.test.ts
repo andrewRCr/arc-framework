@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   classifyCommitMessageInput,
+  commitOptionConsumesNext,
   rewriteCommitFileSource,
+  replaceCommitMessageSource,
+  reusesCommitMessage,
   rewriteCommitMessagesToFile,
 } from "../../../../src/lib/release/commit-message-source.js";
 
@@ -165,6 +168,31 @@ describe("message-affecting options", () => {
   });
 });
 
+describe("amend forms", () => {
+  it("assembles an amend's explicit message like any commit's", () => {
+    expect(classify(["--amend", "-m", "subject"])).toEqual({
+      kind: "assembled",
+      source: { kind: "messages", values: ["subject"] },
+    });
+  });
+
+  it("refuses an amend that would open the editor without a TTY and passes it with one", () => {
+    expect(classify(["--amend"])).toEqual({ kind: "refused", reason: "editor-required" });
+    expect(classify(["--amend"], { stdinIsTTY: true })).toMatchObject({ kind: "pass-through" });
+  });
+
+  it.each([
+    { args: ["--amend", "--no-edit"] },
+    { args: ["--no-edit", "--amend"] },
+  ])("recognizes editor-free reuse of HEAD's message in $args", ({ args }) => {
+    expect(classify(args)).toEqual({ kind: "reuse-head" });
+  });
+
+  it("still assembles an explicit message beside --no-edit", () => {
+    expect(classify(["-m", "subject", "--no-edit"])).toMatchObject({ kind: "assembled" });
+  });
+});
+
 describe("editor-bound and reuse forms", () => {
   it("refuses a source-free editor path without a TTY and passes it with one", () => {
     expect(classify([])).toEqual({ kind: "refused", reason: "editor-required" });
@@ -222,6 +250,53 @@ describe("file-source rewriting", () => {
   });
 });
 
+describe("replaceCommitMessageSource", () => {
+  it.each([
+    {
+      label: "messages, keeping every other argument",
+      args: ["--amend", "--reset-author", "-m", "subject", "-m", "body", "--", "file-a"],
+      expected: ["--amend", "--reset-author", "-F", "/retry", "--", "file-a"],
+    },
+    { label: "a separated file source", args: ["--amend", "-F", "message.txt"], expected: ["--amend", "-F", "/retry"] },
+    { label: "an attached clustered file source", args: ["-qFmessage.txt"], expected: ["-q", "-F", "/retry"] },
+    { label: "a long file source", args: ["--file=message.txt", "-a"], expected: ["-a", "-F", "/retry"] },
+    { label: "a retry of a retry", args: ["-F", "/retry"], expected: ["-F", "/retry"] },
+    {
+      label: "messages beside a long option whose operand reads like a message option",
+      args: ["--pathspec-from-file", "--message", "-m", "subject"],
+      expected: ["--pathspec-from-file", "--message", "-F", "/retry"],
+    },
+    { label: "a template", args: ["--template", "t.txt", "-a"], expected: ["-a", "-F", "/retry"] },
+    { label: "no source", args: ["--amend", "--no-edit"], expected: ["--amend", "--no-edit", "-F", "/retry"] },
+  ])("routes $label through the one file", ({ args, expected }) => {
+    expect(replaceCommitMessageSource(args, "/retry")).toEqual(expected);
+  });
+
+  it("leaves a reused message in place, since it also carries that commit's authorship", () => {
+    expect(replaceCommitMessageSource(["-C", "HEAD"], "/retry")).toEqual(["-C", "HEAD", "-F", "/retry"]);
+  });
+});
+
+describe("reusesCommitMessage", () => {
+  it.each([
+    [["-C", "HEAD"]],
+    [["-qcHEAD"]],
+    [["--reuse-message=HEAD"]],
+    [["--reedit-message", "HEAD", "--", "file-a"]],
+  ])("reports a reused message in %j", (args) => {
+    expect(reusesCommitMessage(args)).toBe(true);
+  });
+
+  it.each([
+    ["no reuse", ["-m", "subject"]],
+    ["a message operand", ["-m", "-C"]],
+    ["a long option's operand", ["--author", "-C"]],
+    ["a pathspec", ["-m", "subject", "--", "-C"]],
+  ])("reports none for %s", (_label, args) => {
+    expect(reusesCommitMessage(args)).toBe(false);
+  });
+});
+
 describe("commit-message rewriting to file", () => {
   it("strips a single -m <value> operand pair and appends -F <snapshot>", () => {
     expect(rewriteCommitMessagesToFile(["commit", "-m", "hi"], "/snap")).toEqual([
@@ -272,6 +347,16 @@ describe("commit-message rewriting to file", () => {
     ).toEqual(["commit", "--author", "name", "-F", "/snap", "--", "file.txt"]);
   });
 
+  it("keeps a long option's separate operand even when it reads like a message option", () => {
+    expect(rewriteCommitMessagesToFile(["commit", "--author", "-m", "-m", "subject"], "/snap")).toEqual([
+      "commit",
+      "--author",
+      "-m",
+      "-F",
+      "/snap",
+    ]);
+  });
+
   it("leaves an argv with no -m/--message operands unchanged apart from the appended -F", () => {
     expect(rewriteCommitMessagesToFile(["commit", "--author", "name", "-a"], "/snap")).toEqual([
       "commit",
@@ -281,5 +366,21 @@ describe("commit-message rewriting to file", () => {
       "-F",
       "/snap",
     ]);
+  });
+});
+
+describe("abbreviated long-option operands", () => {
+  it.each([
+    "--mess", "--fil", "--auth", "--dat", "--pathspec-from-f", "--clea",
+    "--trai", "--reuse-m", "--reedit-m", "--templ", "--fix", "--squ",
+  ])("consumes the required operand after %s", (option) => {
+    expect(commitOptionConsumesNext(option, "--no-verif")).toBe(true);
+  });
+
+  it.each([
+    "--all", "--s", "--f", "--p", "--no-v", "--untracked-f", "--made-up", "--",
+    "--pathspec-from-f=paths",
+  ])("does not consume an extra operand after %s", (option) => {
+    expect(commitOptionConsumesNext(option, "--no-verif")).toBe(false);
   });
 });

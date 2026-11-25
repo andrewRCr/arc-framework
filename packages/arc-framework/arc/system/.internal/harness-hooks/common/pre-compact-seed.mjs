@@ -12,7 +12,12 @@ import {
 
 // Read the PreCompact payload's `session_id` (drains stdin in the same call) so the
 // marker is scoped to a key the later reader hooks share — see codex-recovery-marker.
-const { sessionId, raw } = readHookInput();
+const { sessionId, agentId, raw } = readHookInput();
+
+// A subagent's own compaction carries its parent's session_id: seeding or arming
+// here would overwrite the parent's seed and mark the parent's session pending.
+if (agentId !== null) process.exit(0);
+
 const hookCwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 const staleBuildCommand = process.env.ARC_HOOK_STALE_BUILD_COMMAND?.trim() || "";
@@ -137,7 +142,9 @@ function expectedSeedPath(envelope) {
 }
 
 // Resolve the ARC root the way the `arc` CLI's resolveArcRoot does: walk up from
-// the hook's base dir to the nearest ancestor containing `.arc/`. The seed is
+// the hook's base dir to the nearest ancestor whose `.arc/` marks a project
+// (machine configuration alone, `.arc/config.yml` without `.arc/system/`, does
+// not). The seed is
 // written under that root (the emitter resolves it identically), which is not
 // necessarily the raw base dir when the hook runs from a subdirectory or a linked
 // worktree — so matching this walk-up keeps expectedSeedPath equal to the emitter's
@@ -146,7 +153,8 @@ function expectedSeedPath(envelope) {
 function arcRoot(startDir) {
   let dir = resolve(startDir);
   for (;;) {
-    if (existsSync(join(dir, ".arc"))) return dir;
+    const marker = join(dir, ".arc");
+    if (existsSync(marker) && (!existsSync(join(marker, "config.yml")) || existsSync(join(marker, "system")))) return dir;
     const parent = dirname(dir);
     if (parent === dir) return resolve(startDir);
     dir = parent;

@@ -30,7 +30,7 @@ import {
   beginNativeDeliverySubmission,
   reserveDeliveryOperation,
 } from "../../src/lib/delivery/operation.js";
-import type { DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
+import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { deliveryFourMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { git } from "../e2e/helpers.js";
@@ -379,11 +379,12 @@ async function writeFakeHost(repository: string, input: {
  * @param fixture - The arranged stack whose state file is advanced in place.
  */
 export async function seedSubmittedBottomLanding(fixture: NativeSuffixStackFixture): Promise<void> {
-  const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+  const rawEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
     readonly planId: string;
     readonly revision: number;
-    readonly value: DeliveryStateV1;
+    readonly value: unknown;
   };
+  const envelope = { ...rawEnvelope, value: DeliveryStateV1Schema.parse(rawEnvelope.value) };
   const bottom = envelope.value.members[0]!;
   const snapshot = { target: envelope.value.target, members: [bottom] };
   const reserved = reserveDeliveryOperation({ revision: envelope.revision, value: envelope.value }, fixture.plan, {

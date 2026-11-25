@@ -1,7 +1,8 @@
-/** Host-neutral read from an exact head to the delivery member it is bound to. */
+/** Host-neutral reads from exact delivery coordinates to their authoritative member binding. */
 
 import type { DeliveryPlanV1, DeliveryStateV1 } from "../../../lib/delivery/schema.js";
 import type { DeliveryRenameEvidenceAuthority } from "../../../lib/delivery/plan-resolution.js";
+import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 
 /** One delivery member authoritatively bound to the requested head. */
 export interface DeliveryMemberBinding {
@@ -45,7 +46,17 @@ export type DeliveryMemberLookupResult =
  * thrown error, so no caller inherits the store's failure vocabulary.
  */
 export interface DeliveryMemberLookup {
+  /** Resolve a unique member from its head when head identity is sufficient. */
   resolveMemberByHead(headObjectId: string): Promise<DeliveryMemberLookupResult>;
+  /** Resolve a member from its retained ref and observed head. */
+  resolveMemberByRef(
+    headRef: string,
+    headObjectId: string,
+  ): Promise<DeliveryMemberLookupResult>;
+  /** Resolve a member from its stable plan identity and admitted head. */
+  resolveMemberByVehicle(
+    vehicle: DeliveryReviewMemberVehicle,
+  ): Promise<DeliveryMemberLookupResult>;
 }
 
 /** The member identity a deliverable-keyed lookup is asked about. */

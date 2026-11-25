@@ -23,7 +23,7 @@ function composition() {
       headRef: "feat/example",
       headSha: oid("a"),
     },
-    lifecycleVersion: oid("a"),
+    lifecycleVersion: "meta-example:v1",
     settlementPlan: composeCanonicalSettlementPlan([]),
     mergeMethod: {
       schemaVersion: 1 as const,
@@ -98,4 +98,15 @@ describe("integration checkpoint composition store", () => {
     await expect(readIntegrationCheckpointComposition("/workspace", "example", first, fs))
       .rejects.toThrow("does not match its handle");
   });
+});
+
+it("includes native ownership in the checkpoint digest and refuses a changed UID", async () => {
+  const fs = memoryFs(), nativeOwnership = { projectId: "123e4567-e89b-42d3-a456-426614174099",
+    workItemUid: "123e4567-e89b-42d3-a456-426614174001" };
+  const handle = await persistIntegrationCheckpointComposition("/workspace", { ...composition(), nativeOwnership },
+    { fs, randomId: () => "019ff875-9ec9-7ce0-b108-93b0732d69a2" });
+  expect(await readIntegrationCheckpointComposition("/workspace", "example", handle, fs)).toMatchObject({ nativeOwnership });
+  const [path, content] = [...fs.files.entries()][0]!;
+  fs.files.set(path, content.replace(nativeOwnership.workItemUid, "123e4567-e89b-42d3-a456-426614174002"));
+  await expect(readIntegrationCheckpointComposition("/workspace", "example", handle, fs)).rejects.toThrow("does not match its handle");
 });

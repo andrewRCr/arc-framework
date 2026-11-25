@@ -22,7 +22,8 @@ export type ArcConfigFieldPolicy =
       | "branch"
       | "worktree-template"
       | "harness-directories"
-      | "shell-command";
+      | "shell-command"
+      | "repository-url";
   };
 
 /** One catalog entry for a project-level `arc-config.yml` field. */
@@ -55,7 +56,7 @@ export const HarnessDirectorySchema = z.string()
   .regex(/^(?!(?:\.{1,2}|\.git|\.arc)$)[^/\\]+$/iu);
 
 const HarnessDirectoryListSourceSchema = z.string();
-const STRICT_META_REF_PATTERN_DEFAULT = "PRD " + "R[0-9]+|\\b[RB][0-9]+\\b|"
+const STRICT_META_REF_PATTERN_DEFAULT = "PRD " + "R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\\b|"
   + String.fromCodePoint(0xa7) + " ";
 
 function enumField<const Key extends string, const Values extends readonly [string, ...string[]]>(
@@ -218,6 +219,14 @@ export const ARC_CONFIG_FIELDS = [
     "unset",
     "harness-directories",
   ),
+  // Catalog validation is lossless so its output agrees with the string-record intersection; pointer I/O trims.
+  stringField(
+    "storage.backing_repository",
+    z.union([z.literal(""), z.string().regex(/\S/u)]),
+    "",
+    "unset",
+    "repository-url",
+  ),
   enumField("commit.format", ["conventional", "custom", "any"], "conventional"),
   enumField(
     "commit.context_footer",
@@ -257,7 +266,7 @@ export const ARC_CONFIG_FIELDS = [
     "hooks.meta_ref_patterns",
     PatternSourceSchema,
     "[Tt]ask [0-9]+\\.[0-9]+|[Pp]hase [0-9]+|\\.arc/|"
-      + "(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
+      + "(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
     "unset",
     "pattern",
   ),
@@ -283,6 +292,8 @@ export const ARC_CONFIG_FIELDS = [
   positiveSafeIntegerField("review.hosted_await_timeout_seconds", "120", 1, 30 * 60),
   positiveSafeIntegerField("review.hosted_await_initial_poll_interval_seconds", "15", 1, 60),
   positiveSafeIntegerField("review.hosted_await_attention_after_minutes", "15", 1),
+  positiveSafeIntegerField("review.checks_await_timeout_seconds", "300", 1, 30 * 60),
+  positiveSafeIntegerField("review.checks_await_initial_poll_interval_seconds", "5", 1, 60),
   unsignedSafeIntegerField("changeset.advisory_threshold_lines", "0"),
   unsignedSafeIntegerField("changeset.advisory_threshold_files", "0"),
   enumField("pm.mode", ["none", "arc-in-git", "external"], "none"),
@@ -295,7 +306,12 @@ export const ARC_CONFIG_FIELDS = [
   enumField("user.notes_push", ["manual", "prompt", "on-sync"], "on-sync"),
   booleanField("sync.auto_pull", "false"),
   enumField("archive.cadence", ["with-integration", "manual"], "with-integration"),
+  enumField("storage.track_design_docs", ["none", "specs"], "specs"),
+  enumField("layout.active", ["nested", "flat"], "nested"),
   positiveSafeIntegerField("inbox.remind_after_days", "1", 1),
+  positiveSafeIntegerField("inbound.retriage_after_entries", "10", 1),
+  positiveSafeIntegerField("inbound.retriage_after_days", "30", 1),
+  positiveSafeIntegerField("pause.review_after_days", "14", 1),
   positiveSafeIntegerField("integration.stale_after_days", "2", 1),
 ] as const satisfies readonly ArcConfigFieldDescriptor[];
 
@@ -372,7 +388,13 @@ const AuthorableConfigRecordSchema = z.record(
 export const ArcConfigSchema = z.intersection(
   AuthorableConfigRecordSchema,
   z.looseObject(knownConfigShape).partial(),
-);
+).superRefine((value, context) => {
+  // Key constraints remain conjunctive even when another object accepts an unrecognized key.
+  const result = AuthorableConfigRecordSchema.safeParse(value);
+  if (!result.success) for (const issue of result.error.issues) {
+    context.addIssue({ code: "custom", path: issue.path, message: issue.message });
+  }
+});
 
 /** Project keys surfaced to agents rather than consumed only by hooks. */
 export type AgentConsumableConfigKey = Exclude<ArcConfigKey, `hooks.${string}`>;

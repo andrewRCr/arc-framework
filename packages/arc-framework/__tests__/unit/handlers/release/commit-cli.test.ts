@@ -1,9 +1,16 @@
 /** Failure-path coverage for the real wrapped Git subprocess adapter. */
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createSpawnGit, stripNoWrap } from "../../../../src/handlers/release/commit-cli.js";
+import { createRemoteRefsContainingHead, createSpawnGit, stripNoWrap, stripReleaseCommitOptions } from "../../../../src/handlers/release/commit-cli.js";
+import { createGitExec } from "../../../../src/lib/io-context.js";
 import { isGitProcessError } from "../../../../src/lib/git/process-error.js";
+import { cleanupTempDir, createTempRepo } from "../../../helpers/integration.js";
+
+const execFileAsync = promisify(execFile);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -46,6 +53,45 @@ describe("createSpawnGit", () => {
   });
 });
 
+describe("createRemoteRefsContainingHead", () => {
+  let repository = "";
+
+  afterEach(async () => {
+    if (repository !== "") await cleanupTempDir(repository);
+    repository = "";
+  });
+
+  async function git(args: string[]): Promise<void> {
+    await execFileAsync("git", args, { cwd: repository });
+  }
+
+  it("reads an unborn HEAD as on no remote-tracking ref", async () => {
+    repository = await createTempRepo("arc-release-amend-refs-");
+
+    await expect(createRemoteRefsContainingHead(createGitExec())({ cwd: repository })).resolves.toEqual([]);
+  });
+
+  it("names each remote-tracking ref holding HEAD, skipping symbolic refs, and none past them", async () => {
+    repository = await createTempRepo("arc-release-amend-refs-");
+    await git(["commit", "--allow-empty", "-m", "one"]);
+    await git(["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    await git(["update-ref", "refs/remotes/upstream/topic", "HEAD"]);
+    await git(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+    const list = createRemoteRefsContainingHead(createGitExec());
+
+    await expect(list({ cwd: repository })).resolves.toEqual(["origin/main", "upstream/topic"]);
+
+    await git(["commit", "--allow-empty", "-m", "two"]);
+    await expect(list({ cwd: repository })).resolves.toEqual([]);
+  });
+
+  it("propagates a Git failure other than an unborn HEAD", async () => {
+    await expect(createRemoteRefsContainingHead(createGitExec())({
+      cwd: "/arc-path-that-does-not-exist",
+    })).rejects.toSatisfy(isGitProcessError);
+  });
+});
+
 describe("stripNoWrap", () => {
   it("strips only the wrapper's leading escape hatch", () => {
     expect(stripNoWrap(["--no-wrap", "-m", "subject"])).toEqual({
@@ -60,5 +106,17 @@ describe("stripNoWrap", () => {
     ["--", "--no-wrap"],
   ])("preserves --no-wrap when it is a Git operand in %j", (...args) => {
     expect(stripNoWrap(args)).toEqual({ argv: args, wrap: true });
+  });
+});
+
+describe("leading task close arguments", () => {
+  it.each([
+    [["--close=1.1,1.2", "--no-wrap", "-m", "subject"], ["1.1", "1.2"]],
+    [["--no-wrap", "--close", "-m", "subject"], []],
+  ])("strips leading wrapper options in %j", (args, close) => {
+    expect(stripReleaseCommitOptions(args)).toEqual({ argv: ["-m", "subject"], wrap: false, close });
+  });
+  it("leaves --close after Git's first operand untouched", () => {
+    expect(stripReleaseCommitOptions(["-m", "--close=1.1"])).toEqual({ argv: ["-m", "--close=1.1"], wrap: true });
   });
 });

@@ -11,7 +11,7 @@
  */
 
 import { realpath } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 /** Filesystem boundary used to resolve one existing path to its physical spelling. */
 export type RealpathFn = (path: string) => Promise<string>;
@@ -80,5 +80,22 @@ export async function localPathContains(
     canonicalLocalPath(candidate, resolveRealpath),
   ]);
   const rel = relative(rootIdentity, candidateIdentity);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+/**
+ * Spell a path Git reported the way the host's own path APIs spell it.
+ *
+ * Git for Windows reports paths with forward slashes (`C:/repo`) in its worktree list and `rev-parse` output, while
+ * Node's path functions and filesystem calls return backslashes (`C:\repo`), so an exact comparison between the two
+ * never matches. On Windows a drive or UNC path takes backslashes; every other spelling, and every path on other
+ * platforms, is returned unchanged. Unlike {@link canonicalLocalPath}, this touches no filesystem.
+ *
+ * @param path - A path exactly as Git reported it
+ * @param platform - The platform whose spelling to produce
+ * @returns The path in the platform's native spelling
+ */
+export function nativeGitPath(path: string, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== "win32" || !/^(?:[A-Za-z]:\/|\/\/)/u.test(path)) return path;
+  return path.replaceAll("/", "\\");
 }

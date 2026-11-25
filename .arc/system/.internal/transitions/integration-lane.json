@@ -1,1 +1,1 @@
-{"edges":[],"kind":"rename","origin":"integration-lane","schemaVersion":1,"successors":["evidence-applicability"]}
+{"incoming":[],"kind":"rename","origin":{"name":"integration-lane"},"schemaVersion":2,"successors":[{"name":"evidence-applicability"}]}

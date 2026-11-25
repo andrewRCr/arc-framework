@@ -1,6 +1,15 @@
 /** Shared registration for delivery-position handler checks and its retained real-CLI smoke. */
 
+import { makeInteractionContext } from "./interaction-context.js";
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
+import { makeMetaFixture } from "./meta-fixture.js";
+import {
+  setMetaBranch,
+  setMetaBulletFields,
+  setMetaCandidate,
+  setMetaCurrentWorkflow,
+  setMetaState,
+} from "../../src/lib/active/meta-reader.js";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -16,7 +25,7 @@ import {
   type DeliveryExecutionCommand,
 } from "../../src/handlers/delivery-execution.js";
 import { handleInit } from "../../src/handlers/init.js";
-import { handleAttest } from "../../src/handlers/lifecycle.js";
+import { handleAttest } from "../../src/handlers/lifecycle-delivery-review.js";
 import { handleLocus } from "../../src/handlers/locus.js";
 import {
   handleReviewLocalAttest,
@@ -33,6 +42,7 @@ import {
 } from "../../src/lib/delivery/local-stores.js";
 import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
+import { DeliveryReviewMemberVehicleSchema } from "../../src/lib/delivery/review-vehicle.js";
 import { deriveDeliveryProviderRefreshSubject } from "../../src/lib/delivery/provider-refresh-observation.js";
 import { projectDeliveryPublicReviewContinuation } from
   "../../src/lib/delivery/public-review-continuation.js";
@@ -45,9 +55,10 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { createRawGitExec } from "../../src/lib/io-context.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   candidateReviewApplicabilitySelections,
+  CandidateManagedRecordV1Schema,
   createCandidateAttestation,
   createCandidateVerificationResponseEvidence,
   reduceCandidateDurableBaseline,
@@ -74,7 +85,7 @@ import {
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import type { DeliveryLocalReviewAdmission } from
   "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
-import { ApprovedDispositionRecordSchema } from
+import { ApprovedDispositionRecordSchema, currentApprovedDispositionNode } from
   "../../src/scripts/review-gate/core/advisory-records.js";
 import {
   approveDispositionState,
@@ -88,6 +99,8 @@ import {
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createLocalReviewAdmission } from
   "../../src/scripts/review-gate/core/local-operation.js";
+import { projectLocalReviewGuidance } from
+  "../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { createLocalReviewSource } from
   "../../src/scripts/review-gate/core/local-review-source.js";
 import type { LocalReviewState } from
@@ -100,17 +113,24 @@ import { resolveRepositoryIdentity } from
   "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
-import { HostedRequestHandleSchema } from
+import { createHostedAdmission, HostedRequestHandleSchema } from
   "../../src/scripts/review-gate/hosted/request.js";
 import { createIntegrationCheckpointDependencies } from
   "../../src/scripts/integration/checkpoint-composition.js";
 import {
   laneProgressOperationId,
-  recordHostedPendingRequest,
+  recordHostedRequestAdmission,
+  acknowledgeHostedRequest,
   recordLaneAttempt,
   settleHostedAttemptFinding,
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
+import {
+  createHostedTerminalAttemptFixture,
+  publishHostedTerminalProgressFixture,
+} from "../fixtures/hosted-review.js";
+import { HostedFindingSchema } from "../../src/scripts/review-gate/hosted/await.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runHandlerAt, type HandlerRunResult } from "../helpers/handler.js";
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
@@ -124,6 +144,98 @@ import {
 } from "../helpers/prepared-repository.js";
 
 const execFileAsync = promisify(execFile);
+function deliveryHostedTerminal(input: {
+  repositoryId: string;
+  target: Parameters<typeof createHostedAdmission>[0]["target"];
+  reviewTarget: Parameters<typeof createHostedAdmission>[0]["reviewTarget"];
+  requirement: Parameters<typeof createHostedAdmission>[0]["requirement"];
+  vehicle: Parameters<typeof createHostedAdmission>[0]["vehicle"];
+  outcome: "clean" | "findings";
+  logicalPass?: number;
+  findings?: readonly unknown[];
+  findingActions?: Parameters<typeof createHostedTerminalAttemptFixture>[0]["findingActions"];
+  dispositionSetId?: string;
+  settledFindingIds?: readonly string[];
+  actorIdentity?: string;
+}) {
+  if (input.vehicle?.kind !== "delivery-member") throw new Error("delivery vehicle required");
+  const admission = createHostedAdmission({
+    schemaVersion: 1,
+    repositoryId: input.repositoryId,
+    lineage: {
+      kind: "delivery-member",
+      planId: input.vehicle.planId,
+      deliverableId: input.vehicle.deliverableId,
+      workUnitId: input.vehicle.workUnitId,
+    },
+    logicalPass: input.logicalPass ?? 1,
+    sourceId: "codex-pr",
+    target: input.target,
+    requestedCoverage: "complete",
+    vehicle: input.vehicle,
+    reviewTarget: input.reviewTarget,
+    requirement: input.requirement,
+    actorIdentity: input.actorIdentity ?? "host-actor-1",
+  });
+  return createHostedTerminalAttemptFixture({
+    admission,
+    outcome: input.outcome,
+    findings: input.findings?.map((finding) => HostedFindingSchema.parse(finding)),
+    findingActions: input.findingActions,
+    dispositionSetId: input.dispositionSetId,
+    settledFindingIds: input.settledFindingIds,
+  });
+}
+
+function approvedDispositionRecord<T extends {
+  operationId: string;
+  approvedDisposition: ReturnType<typeof approveDispositionState>;
+  fixAuthorization: ReturnType<typeof createFixAuthorization> | null;
+  source:
+    | { kind: "hosted"; attemptRef: string; hostedResultId?: string }
+    | { kind: "attested-local"; receiptRef: string; localSourceRef: string };
+  errandFixResponse: null;
+  deliveryMemberFixResponse: null;
+}>(input: T) {
+  const {
+    approvedDisposition,
+    fixAuthorization,
+    errandFixResponse,
+    deliveryMemberFixResponse,
+    ...header
+  } = input;
+  const set = approvedDisposition.dispositionSet;
+  const source = header.source.kind === "hosted"
+    ? { ...header.source, hostedResultId: header.source.hostedResultId ?? set.resultDigest }
+    : header.source;
+  return ApprovedDispositionRecordSchema.parse({
+    ...header,
+    source,
+    currentDispositionSetId: set.dispositionSetId,
+    approvedDispositionLineage: [{
+      approvedDisposition,
+      responsePolicyRequest: responsePolicyRequestFixture({
+        headSha: fixAuthorization?.oldHeadSha ?? "a".repeat(40),
+        sourceId: source.kind === "hosted" ? "codex-pr" : "delegated-agent",
+        reviewOperationId: input.operationId,
+        standardReview: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: set.rubricVersion ?? "standard-review/v1",
+          rubricDigest: set.rubricDigest ?? canonicalDigest({ rubric: "standard" }),
+          retrigger: "full-final",
+          count: 1,
+        },
+      }),
+      fixAuthorization,
+      errandFixResponse,
+      deliveryMemberFixResponse,
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: null,
+    }],
+  });
+}
+
 const roots: string[] = [];
 const initializedShape = { kind: "remote-bearing", key: "delivery-position-initialized-v1" } as const;
 let initializedTemplate: PreparedRepositoryTemplate | undefined;
@@ -174,7 +286,8 @@ async function runArc(
   return runHandlerAt(cwd, async () => {
     const command = args.join(" ");
     if (command === "init --yes --name delivery-position") {
-      await handleInit({ yes: true, name: "delivery-position" });
+      await handleInit({ yes: true, name: "delivery-position" },
+        makeInteractionContext({ noInput: true, yes: "compatibility" }));
       return;
     }
     if (command === "status --session-init --json") {
@@ -313,7 +426,8 @@ type ActiveOperationScenario =
   | "selected-change-terminal-authoring-before"
   | "selected-change-terminal-authoring-applied";
 
-async function positionFixture(
+/** Produce an initialized repository with canonical delivery plan and execution state. */
+export async function positionFixture(
   activeOperation?: ActiveOperationScenario,
   options: { reviewChunkingThresholdLines?: number; memberTwoLineCount?: number } = {},
 ) {
@@ -863,20 +977,15 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "",
     ].join("\n"));
     const metaPath = join(activeDir, `meta-${workUnitId}.md`);
-    await writeFile(metaPath, [
-      `# Metadata: ${workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      `- **Task List:** tasks-${workUnitId}.md`,
-      "- **Candidate:** [none]",
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** Task 1.3 — Close member three",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Resume hosted review",
-      "",
-    ].join("\n"));
+    await writeFile(metaPath, makeMetaFixture(workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch,
+      taskList: `tasks-${workUnitId}.md`,
+      currentWorkflow: "integrate-work-unit",
+      lastCompleted: "Task 1.3 — Close member three",
+      nextAction: "Resume hosted review",
+    }));
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
 
@@ -904,10 +1013,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await writeCandidateRecord(fixture.repository, workUnitId, candidate, null);
     await writeFile(
       metaPath,
-      (await readFile(metaPath, "utf8")).replace(
-        "- **Candidate:** [none]",
-        `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      ),
+      setMetaCandidate(await readFile(metaPath, "utf8"), candidate.attestation.candidateId),
     );
     await writeSubmissionBoundary(fixture.repository, projectPublicationBoundary({
       workUnit: workUnitId,
@@ -935,7 +1041,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       changeRequest: { repository: "owner/repo", pullRequest: 42 },
-    }), null);
+    }, 1), null);
     await git(fixture.repository, [
       "add",
       ".arc/active",
@@ -969,6 +1075,9 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: oldTarget.targetId,
+        producerId: "hosted-review-1",
+        resultDigest: canonicalDigest({ result: "hosted-review-1" }),
+        proposedVerification: "full",
         policyVersion: canonicalDigest({ policy: "review" }),
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
@@ -979,7 +1088,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
           locus: "member-one.txt:1",
           sourceVerification: "verified",
           verificationRefs: ["review:finding-1"],
-          severity: "major",
+          reportedSeverity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           gating: "blocking",
           rationale: "The source confirms the issue.",
@@ -993,7 +1103,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const publisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), fixture.repository);
     const fixAuthorization = createFixAuthorization({ dispositionState: approvedDisposition, oldTarget });
     await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
-      ApprovedDispositionRecordSchema.parse({
+      approvedDispositionRecord({
         schemaVersion: 1,
         semanticsVersion: "review-advisory/v1",
         repositoryId: "repo-1",
@@ -1127,20 +1237,13 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "### `[x]` **2.1 Verify the work unit**",
       "",
     ].join("\n"));
-    await writeFile(metaPath, [
-      `# Metadata: ${workUnitId}`,
-      "",
-      "- **State:** Active",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      `- **Task List:** tasks-${workUnitId}.md`,
-      "- **Candidate:** [none]",
-      "- **Current Workflow:** [none]",
-      "- **Last Completed:** Task 2.1 — Verify the work unit",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Attest the Candidate",
-      "",
-    ].join("\n"));
+    await writeFile(metaPath, makeMetaFixture(workUnitId, {
+      owner: "test-user",
+      branch,
+      taskList: `tasks-${workUnitId}.md`,
+      lastCompleted: "Task 2.1 — Verify the work unit",
+      nextAction: "Attest the Candidate",
+    }));
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "active fixture"]);
 
@@ -1163,9 +1266,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const attestedMeta = await readFile(metaPath, "utf8");
     await writeFile(
       metaPath,
-      attestedMeta
-        .replace("- **State:** Active", "- **State:** Integrating")
-        .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+      setMetaCurrentWorkflow(setMetaState(attestedMeta, "Integrating"), "integrate-work-unit"),
     );
 
     const result = await runArc(["status", "--session-init", "--json"], fixture.repository, {
@@ -1225,6 +1326,9 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: oldTarget.targetId,
+        producerId: "hosted-review-1",
+        resultDigest: canonicalDigest({ result: "hosted-review-1" }),
+        proposedVerification: "full",
         policyVersion: canonicalDigest({ policy: "review" }),
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
@@ -1235,7 +1339,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
           locus: "member-one.txt:1",
           sourceVerification: "verified",
           verificationRefs: ["review:finding-response-loss"],
-          severity: "major",
+          reportedSeverity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           gating: "blocking",
           rationale: "The source confirms the issue.",
@@ -1261,56 +1366,57 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       initialAdmission: "checkpoint",
     });
     if (responseRequirement === null) throw new Error("response-loss requirement must derive");
-    await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
-      operationId: "lane-progress/response-loss",
-      updatedAt: "2026-08-31T12:00:00Z",
-      kind: "lane-progress",
-      lane: "standard",
-      repositoryId: "repo-1",
-      changeRequestId: "pull/401",
-      headSha: reviewedHead,
-      completedPasses: 1,
-      attempts: [{
-        attemptId: "operation-response-loss",
-        sourceId: "codex-pr",
-        outcome: "findings",
-        hosted: {
-          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-          requestedCoverage: "complete",
-          effectiveCoverage: "complete",
-          vehicle: {
-            kind: "delivery-member",
-            planId: fixture.plan.planId,
-            deliverableId: selectedDeliverableId,
-            workUnitId: fixture.plan.workUnitId,
-            head: reviewedHead,
-          },
-          reviewTarget: oldTarget,
-          requirement: responseRequirement,
-          actorIdentity: "host-actor-1",
-          findings: [{
-            findingId: "finding-response-loss",
-            origin: "review-thread",
-            commentId: "comment-response-loss",
-            threadId: "thread-response-loss",
-            settlement: "reply-and-resolve",
-            severity: "major",
-            locus: "member-one.txt:1",
-            url: "https://example.test/thread-response-loss",
-          }],
-          dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
-          settledFindingIds: [],
-        },
+    const hostedTerminal1 = deliveryHostedTerminal({
+      repositoryId: oldTarget.repositoryId,
+      target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+      reviewTarget: oldTarget,
+      requirement: responseRequirement,
+      vehicle: DeliveryReviewMemberVehicleSchema.parse({
+                kind: "delivery-member",
+                planId: fixture.plan.planId,
+                deliverableId: selectedDeliverableId,
+                workUnitId: fixture.plan.workUnitId,
+                head: reviewedHead,
+              }),
+      actorIdentity: "host-actor-1",
+      outcome: "findings",
+      findings: [{
+                findingId: "finding-response-loss",
+                sourceOrdinal: 1,
+                origin: "review-thread",
+                commentId: "comment-response-loss",
+                threadId: "thread-response-loss",
+                settlement: "reply-and-resolve",
+                severity: "major",
+                locus: "member-one.txt:1",
+                url: "https://example.test/thread-response-loss",
+              }],
+      dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      findingActions: [{
+        findingId: "finding-response-loss",
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
       }],
-    }, 0);
+      settledFindingIds: [],
+    });
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
+      operationId: "lane-progress/response-loss",
+      repositoryId: "repo-1",
+      lineage: hostedTerminal1.hosted.admission.lineage,
+      logicalPass: 1,
+      changeRequestId: `pull/${hostedTerminal1.hosted.target.pullRequest}`,
+      headSha: hostedTerminal1.hosted.target.headSha,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      terminal: hostedTerminal1,
+      now: "2026-08-31T12:00:00Z",
+    });
     const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-    const pendingResponseRecord = ApprovedDispositionRecordSchema.parse({
+    const pendingResponseRecord = approvedDispositionRecord({
         schemaVersion: 1,
         semanticsVersion: "review-advisory/v1",
         repositoryId: "repo-1",
-        operationId: "operation-response-loss",
+        operationId: hostedTerminal1.attemptId,
         candidate: null,
         errand: null,
         deliveryMember: {
@@ -1322,7 +1428,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
         source: {
           kind: "hosted",
-          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fresponse-loss:hosted%2F1",
+          attemptRef: bindReviewSourceReference({
+            kind: "hosted",
+            operationId: "lane-progress/response-loss",
+            durableRef: hostedTerminal1.attemptId,
+          }),
+          hostedResultId: CanonicalDigestSchema.parse(hostedTerminal1.hosted.sealedResult?.hostedResultId),
         },
         approvedDisposition,
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
@@ -1335,14 +1446,19 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         operationId: "operation-response-loss-historical",
         source: {
           kind: "hosted",
-          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fhistorical:hosted%2F1",
+          attemptRef: bindReviewSourceReference({
+            kind: "hosted",
+            operationId: "lane-progress/historical",
+            durableRef: hostedTerminal1.attemptId,
+          }),
+          hostedResultId: CanonicalDigestSchema.parse(hostedTerminal1.hosted.sealedResult?.hostedResultId),
         },
       },
       oldTarget,
       hostedTarget: { repository: "owner/repo", pullRequest: 400, headSha: oldTarget.headSha },
       currentHead: reviewedMember.coordinates.head,
       currentTree: reviewedMember.coordinates.tree,
-      applicability: "focused",
+      applicability: "full",
       verificationEvidenceRefs: ["verification://historical-member-fix"],
       verifiedAt: "2026-08-31T11:00:00Z",
     });
@@ -1352,7 +1468,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     expect((await dispositionStore.listDispositionRecords()).filter((record) => (
       record.deliveryMember?.planId === fixture.plan.planId
       && record.deliveryMember.deliverableId === selectedDeliverableId
-      && record.fixAuthorization !== null
+      && currentApprovedDispositionNode(record).fixAuthorization !== null
     ))).toHaveLength(2);
     const discardedSettlement = await runArcWithStdin(
       ["delivery", "refresh", "adopt", "-"],
@@ -1481,7 +1597,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       changeRequest: { repository: "owner/repo", pullRequest: 42 },
-    }), null);
+    }, 1), null);
     const taskListPath = join(fixture.repository, ".arc", "active", "tasks-delivery-plan-record.md");
     const taskList = [
       "# Task List: Delivery Plan Record",
@@ -1503,20 +1619,14 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ".arc",
       "active",
       `meta-${fixture.plan.workUnitId}.md`,
-    ), [
-      `# Metadata: ${fixture.plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${workUnitBranch}`,
-      "- **Task List:** `tasks-delivery-plan-record.md`",
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** [none]",
-      "- **Next Action:** [none]",
-      "",
-    ].join("\n"));
+    ), makeMetaFixture(fixture.plan.workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch: workUnitBranch,
+      taskList: "tasks-delivery-plan-record.md",
+      candidateId: candidate.attestation.candidateId,
+      currentWorkflow: "integrate-work-unit",
+    }));
     await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
     const installedHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
@@ -1564,7 +1674,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       selectedDeliverableId,
       verification: {
         memberDeliverableIds: [selectedDeliverableId],
-        tier1Required: true,
+        commitGateRequired: true,
       },
     });
 
@@ -1581,7 +1691,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       selectedDeliverableId,
       verification: {
         target: continuation.verification.target,
-        tier1Reuse: {
+        commitGateReuseCriteria: {
           kind: "exact-tree",
           targetTree: continuation.verification.target.tree,
           requiredResult: "passed",
@@ -1676,14 +1786,14 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const acknowledgementRequest = {
       ...reboundAcknowledgementInput,
       verification: {
-        applicability: "focused",
+        applicability: "full",
         target: reboundContinuation.verification.target,
-        tier1: {
+        commitGate: {
           outcome: "passed",
           provenance: "rerun",
           targetTree: reboundContinuation.verification.target.tree,
         },
-        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+        verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       },
     };
     const boundaryPath = join(
@@ -1833,20 +1943,16 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       lineageAttestations: [],
     };
     await writeCandidateRecord(fixture.repository, workUnitId, candidate, null);
-    await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
-      `# Metadata: ${workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      `- **Task List:** \`tasks-${workUnitId}.md\``,
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** 1.1",
-      "- **Next Action:** Finish the correction",
-      "",
-    ].join("\n"));
+    await writeFile(join(activeDir, `meta-${workUnitId}.md`), makeMetaFixture(workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch,
+      taskList: `tasks-${workUnitId}.md`,
+      candidateId: candidate.attestation.candidateId,
+      currentWorkflow: "integrate-work-unit",
+      nextTask: "1.1",
+      nextAction: "Finish the correction",
+    }));
     const reservation = {
       schemaVersion: 1 as const,
       semanticsVersion: "standard-review-reservation/v1" as const,
@@ -1874,7 +1980,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       candidateSubjectDigest: candidate.subject.subjectDigest,
       reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
-    }), null);
+    }, 1), null);
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install direct pending fixture"]);
     const correctionHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
@@ -1920,7 +2026,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         obligation: "required",
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: reservation.obligation.rubricDigest,
+        rubricDigest: CanonicalDigestSchema.parse(reservation.obligation.rubricDigest),
         retrigger: "full-final",
         count: 1,
       },
@@ -1941,6 +2047,10 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       requirement,
       authority,
       laneSourceId: "delegated-agent",
+      lineage: { kind: "delivery-member", planId: fixture.plan.planId, deliverableId: selectedDeliverableId, workUnitId },
+      logicalPass: 1,
+      retryGeneration: 0,
+      coverageAdmission: { requestedCoverage: "complete" },
       policyBindingDigest: canonicalDigest({ binding: "local" }),
       requestMechanism: "local-attestation",
     });
@@ -1964,6 +2074,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       workUnitId,
       head: oldTarget.headSha,
     };
+    const guidance = projectLocalReviewGuidance();
     const operation: LocalReviewState = {
       schemaVersion: 1,
       semanticsVersion: "review-operation/v1",
@@ -1975,20 +2086,28 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       targetId: oldTarget.targetId,
       requestId: admission.carrier.request.requestId,
       laneSourceId: admission.laneSourceId,
+      scopeMode: admission.scopeMode,
+      lineage: admission.lineage,
+      logicalPass: admission.logicalPass,
+      retryGeneration: admission.retryGeneration,
+      coverageAdmission: admission.coverageAdmission,
       deliveryAdmission: {
         schemaVersion: 1,
         sourceId: "delegated-agent",
+        requestedCoverage: "complete",
         target: { repository: "owner/repo", pullRequest: 403, headSha: oldTarget.headSha },
         vehicle: responseMember,
         pass: 1,
         statusTarget: { repository: "owner/repo", headRef: "member-3", headSha: oldTarget.headSha },
       },
       policyVersion: requirement.policyVersion,
-      policyBindingDigest: admission.policyBindingDigest,
+      policyBindingDigest: CanonicalDigestSchema.parse(admission.policyBindingDigest),
       attestationRuntimeKind: authority.attestationRuntimeKind,
       sourceRef: "source.json",
       sourceDigest: source.sourceDigest,
-      guidanceDigest: canonicalDigest({ guidance: "local" }),
+      guidance: guidance.projection,
+      guidanceDigest: CanonicalDigestSchema.parse(guidance.guidanceDigest),
+      reviewerInstructions: guidance.reviewerInstructions,
       target: oldTarget,
       requirement,
       request: admission.carrier.request,
@@ -2001,6 +2120,9 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await operationStore.publishOperation(operation, 0);
     await recordLaneAttempt(operationStore, {
       lane: "standard",
+      lineage: operation.lineage,
+      logicalPass: operation.logicalPass,
+      retryGeneration: operation.retryGeneration,
       repositoryId: oldTarget.repositoryId,
       changeRequestId: "pull/403",
       headSha: oldTarget.headSha,
@@ -2015,6 +2137,9 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: oldTarget.targetId,
+        producerId: "hosted-review-1",
+        resultDigest: canonicalDigest({ result: "hosted-review-1" }),
+        proposedVerification: "full",
         policyVersion: requirement.policyVersion,
         rubricVersion: requirement.rubricVersion,
         rubricDigest: requirement.rubricDigest,
@@ -2025,7 +2150,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
           locus: "member-three.txt:1",
           sourceVerification: "verified",
           verificationRefs: ["review:finding-direct-pending"],
-          severity: "major",
+          reportedSeverity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           gating: "blocking",
           rationale: "The source confirms the issue.",
@@ -2036,7 +2162,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       approvedBy: "maintainer-1",
       approvedAt: "2026-09-03T12:00:00.000Z",
     });
-    const baseRecord = ApprovedDispositionRecordSchema.parse({
+    const baseRecord = approvedDispositionRecord({
       schemaVersion: 1,
       semanticsVersion: "review-advisory/v1",
       repositoryId: oldTarget.repositoryId,
@@ -2064,8 +2190,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       hostedTarget: null,
       currentHead: correctionHead,
       currentTree: correctionTree,
-      applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-3", "gates://tier-1"],
+      applicability: "full",
+      verificationEvidenceRefs: ["criteria://member-3", "gates://commit"],
       verifiedAt: "2026-09-03T12:00:00.000Z",
     });
     if (advanced.status === "refused") throw new Error(advanced.reason);
@@ -2097,6 +2223,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     await expect(operationStore.readOperation(laneProgressOperationId({
       lane: "standard",
+      lineage: operation.lineage,
       repositoryId: oldTarget.repositoryId,
       headSha: oldTarget.headSha,
     }))).resolves.toMatchObject({
@@ -2276,41 +2403,35 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       if (requirement === null || !Number.isSafeInteger(pullRequest)) {
         throw new Error("settled teardown review requirement must derive");
       }
-      await reviewStore.publishOperation({
-        schemaVersion: 1,
-        semanticsVersion: "review-operation/v1",
-        operationId: `lane-progress/settled-teardown-${index + 1}`,
-        updatedAt: `2026-09-05T18:0${index}:00.000Z`,
-        kind: "lane-progress",
-        lane: "standard",
+      const hostedTerminal2 = deliveryHostedTerminal({
         repositoryId,
-        changeRequestId: `pull/${pullRequest}`,
-        headSha: member.coordinates.head,
-        completedPasses: 1,
-        attempts: [{
-          attemptId: `settled-teardown-${index + 1}`,
-          sourceId: "codex-pr",
-          outcome: "clean",
-          hosted: {
-            target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
-            requestedCoverage: "complete",
-            effectiveCoverage: "complete",
-            vehicle: {
-              kind: "delivery-member",
-              planId: fixture.plan.planId,
-              deliverableId: member.deliverableId,
-              workUnitId: fixture.plan.workUnitId,
-              head: member.coordinates.head,
-            },
-            reviewTarget,
-            requirement,
-            actorIdentity: "host-actor-1",
-            findings: [],
-            dispositionSetId: null,
-            settledFindingIds: [],
-          },
-        }],
-      }, 0);
+        target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
+        reviewTarget,
+        requirement,
+        vehicle: DeliveryReviewMemberVehicleSchema.parse({
+                    kind: "delivery-member",
+                    planId: fixture.plan.planId,
+                    deliverableId: member.deliverableId,
+                    workUnitId: fixture.plan.workUnitId,
+                    head: member.coordinates.head,
+                  }),
+        actorIdentity: "host-actor-1",
+        outcome: "clean",
+        findings: [],
+        settledFindingIds: [],
+      });
+      await publishHostedTerminalProgressFixture(reviewStore, {
+        operationId: `lane-progress/settled-teardown-${index + 1}`,
+        repositoryId,
+        lineage: hostedTerminal2.hosted.admission.lineage,
+        logicalPass: 1,
+        changeRequestId: `pull/${hostedTerminal2.hosted.target.pullRequest}`,
+        headSha: hostedTerminal2.hosted.target.headSha,
+        sourceId: "codex-pr",
+        outcome: "clean",
+        terminal: hostedTerminal2,
+        now: `2026-09-05T18:0${index}:00.000Z`,
+      });
     }
     const candidateTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
@@ -2357,27 +2478,19 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       })],
       lineageAttestations: [],
     };
-    await writeFile(join(activeDir, `meta-${fixture.plan.workUnitId}.md`), [
-      `# Metadata: ${fixture.plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      "- **Class:** Heavy",
-      "- **Priority:** P1",
-      "- **Origin:** [internal]",
-      `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** Task 1.1 — Close delivery",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Resume delivery closeout",
-      "",
-      "## Completion Notes",
-      "",
-      "Delivery verification and review are complete.",
-      "",
-    ].join("\n"));
+    await writeFile(join(activeDir, `meta-${fixture.plan.workUnitId}.md`),
+      `${makeMetaFixture(fixture.plan.workUnitId, {
+        owner: "test-user",
+        state: "Integrating",
+        branch,
+        workClass: "Heavy",
+        priority: "P1",
+        taskList: `tasks-${fixture.plan.workUnitId}.md`,
+        candidateId: candidate.attestation.candidateId,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 1.1 — Close delivery",
+        nextAction: "Resume delivery closeout",
+      })}\n## Completion Notes\n\nDelivery verification and review are complete.\n`);
     await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
     const reservation = {
       schemaVersion: 1 as const,
@@ -2406,7 +2519,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       candidateSubjectDigest: durableSubject.subjectDigest,
       reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
-    });
+    }, 1);
     const publicContinuation = projectDeliveryPublicReviewContinuation({
       plan: fixture.plan,
       state,
@@ -2454,11 +2567,13 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
     await mkdir(completedDir, { recursive: true });
     const activeMetaPath = join(activeDir, `meta-${fixture.plan.workUnitId}.md`);
-    const shippedMeta = (await readFile(activeMetaPath, "utf8"))
-      .replace("- **State:** Integrating", "- **State:** Shipped")
-      .replace(`- **Branch:** ${branch}`, "- **Branch:** [none]")
-      .replace("- **Current Workflow:** `integrate-work-unit`", "- **Current Workflow:** [none]")
-      .replace("- **Next Action:** Resume delivery closeout", "- **Next Action:** [none]");
+    const shippedMeta = setMetaBulletFields(
+      setMetaCurrentWorkflow(
+        setMetaBranch(setMetaState(await readFile(activeMetaPath, "utf8"), "Shipped"), "[none]"),
+        "[none]",
+      ),
+      { "Next Action": "[none]" },
+    );
     await writeFile(activeMetaPath, shippedMeta);
     await rename(
       activeMetaPath,
@@ -2986,6 +3101,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]).then((line) => line.split("\t")[0]));
   });
 
+  // About 85 s on a hosted runner shared with other E2E files, up to 110 s,
+  // most of it in thirteen review-fix continuations.
   it("drives a registered review correction through superseded verification to hosted review", async () => {
     const fixture = await positionFixture("registered-current", {
       reviewChunkingThresholdLines: 2,
@@ -3063,23 +3180,16 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ".arc",
       "active",
       `meta-${fixture.plan.workUnitId}.md`,
-    ), [
-      `# Metadata: ${fixture.plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      "- **Branch:** member-3",
-      "- **Class:** Heavy",
-      "- **Priority:** P1",
-      "- **Origin:** [internal]",
-      `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** [none]",
-      "- **Next Action:** [none]",
-      "",
-    ].join("\n"));
+    ), makeMetaFixture(fixture.plan.workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch: "member-3",
+      workClass: "Heavy",
+      priority: "P1",
+      taskList: `tasks-${fixture.plan.workUnitId}.md`,
+      candidateId: candidate.attestation.candidateId,
+      currentWorkflow: "integrate-work-unit",
+    }));
     await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
     await writeSubmissionBoundary(fixture.repository, projectPublicationBoundary({
       workUnit: fixture.plan.workUnitId,
@@ -3107,7 +3217,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
-    }), null);
+    }, 1), null);
     await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
     const oldTarget = createReviewTarget({
@@ -3126,6 +3236,9 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: oldTarget.targetId,
+        producerId: "hosted-review-1",
+        resultDigest: canonicalDigest({ result: "hosted-review-1" }),
+        proposedVerification: "full",
         policyVersion: canonicalDigest({ policy: "review" }),
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
@@ -3136,7 +3249,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
           locus: "member-one.txt:1",
           sourceVerification: "verified",
           verificationRefs: ["review:finding-published"],
-          severity: "major",
+          reportedSeverity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           gating: "blocking",
           rationale: "The source confirms the issue.",
@@ -3164,6 +3278,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     if (requirement === null) throw new Error("hosted review requirement must derive");
     const finding = {
       findingId: "finding-published",
+      sourceOrdinal: 1,
       origin: "review-thread" as const,
       commentId: "comment-published",
       threadId: "thread-published",
@@ -3172,47 +3287,47 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       locus: "member-one.txt:1",
       url: "https://example.test/thread-published",
     };
-    await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
-      operationId: "lane-progress/published",
-      updatedAt: "2026-08-31T12:00:00Z",
-      kind: "lane-progress",
-      lane: "standard",
-      repositoryId: "repo-1",
-      changeRequestId: "pull/401",
-      headSha: reviewedHead,
-      completedPasses: 1,
-      attempts: [{
-        attemptId: "operation-published-member-fix",
-        sourceId: "codex-pr",
-        outcome: "findings",
-        hosted: {
-          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-          requestedCoverage: "complete",
-          effectiveCoverage: "complete",
-          vehicle: {
-            kind: "delivery-member",
-            planId: fixture.plan.planId,
-            deliverableId: selectedDeliverableId,
-            workUnitId: fixture.plan.workUnitId,
-            head: reviewedHead,
-          },
-          reviewTarget: oldTarget,
-          requirement,
-          actorIdentity: "host-actor-1",
-          findings: [finding],
-          dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
-          settledFindingIds: [],
-        },
+    const hostedTerminal3 = deliveryHostedTerminal({
+      repositoryId: oldTarget.repositoryId,
+      target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+      reviewTarget: oldTarget,
+      requirement,
+      vehicle: DeliveryReviewMemberVehicleSchema.parse({
+                kind: "delivery-member",
+                planId: fixture.plan.planId,
+                deliverableId: selectedDeliverableId,
+                workUnitId: fixture.plan.workUnitId,
+                head: reviewedHead,
+              }),
+      actorIdentity: "host-actor-1",
+      outcome: "findings",
+      findings: [finding],
+      dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      findingActions: [{
+        findingId: finding.findingId,
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
       }],
-    }, 0);
+      settledFindingIds: [],
+    });
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
+      operationId: "lane-progress/published",
+      repositoryId: "repo-1",
+      lineage: hostedTerminal3.hosted.admission.lineage,
+      logicalPass: 1,
+      changeRequestId: `pull/${hostedTerminal3.hosted.target.pullRequest}`,
+      headSha: hostedTerminal3.hosted.target.headSha,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      terminal: hostedTerminal3,
+      now: "2026-08-31T12:00:00Z",
+    });
     await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
-      ApprovedDispositionRecordSchema.parse({
+      approvedDispositionRecord({
         schemaVersion: 1,
         semanticsVersion: "review-advisory/v1",
         repositoryId: "repo-1",
-        operationId: "operation-published-member-fix",
+        operationId: hostedTerminal3.attemptId,
         candidate: null,
         errand: null,
         deliveryMember: {
@@ -3273,7 +3388,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       command: "delivery review-fix continue",
       status: "verification-required",
       selectedDeliverableId,
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true },
       effectLog: [
         { kind: "dispatch", actionKind: "delivery-review-fix-authoring-rebind", resultStatus: "rebound" },
         { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
@@ -3318,7 +3433,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       command: "delivery review-fix continue",
       status: "verification-required",
       selectedDeliverableId,
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true },
       effectLog: [
         { kind: "dispatch", actionKind: "delivery-review-fix-authoring-rebind", resultStatus: "rebound" },
         { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
@@ -3363,15 +3478,15 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const acknowledgementRequest = {
       ...supersedingAcknowledgementInput,
       verification: {
-        applicability: "focused",
+        applicability: "full",
         target: supersedingVerificationStop.verification.target,
-        tier1: {
+        commitGate: {
           outcome: "passed",
           provenance: "exact-tree-reuse",
           targetTree: supersedingVerificationStop.verification.target.tree,
           coveredInputs: "unchanged",
         },
-        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+        verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       },
     } as const;
     const candidatePath = join(
@@ -3379,7 +3494,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
     );
     const pendingCandidateBytes = await readFile(candidatePath, "utf8");
-    const pendingCandidate = JSON.parse(pendingCandidateBytes) as CandidateManagedRecordV1;
+    const pendingCandidate = CandidateManagedRecordV1Schema.parse(JSON.parse(pendingCandidateBytes));
     const pendingBaseline = reduceCandidateDurableBaseline(pendingCandidate);
     const pendingCurrentTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
@@ -3395,8 +3510,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       authorityRef: supersedingAcknowledgementInput.continuationDigest,
       verifiedBy: "test-user",
       verifiedAt: "2026-09-03T13:55:00.000Z",
-      applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      applicability: "full",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       implementationChanged:
         pendingBaseline.target.subject.subjectDigest !== pendingCurrentTarget.subject.subjectDigest,
     });
@@ -3437,8 +3552,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       authorityRef: `sha256:${"0".repeat(64)}`,
       verifiedBy: "test-user",
       verifiedAt: "2026-09-03T13:57:00.000Z",
-      applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      applicability: "full",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       implementationChanged: false,
     });
     await writeFile(candidatePath, `${JSON.stringify({
@@ -3503,7 +3618,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]);
 
     const acknowledgedCandidateBytes = await readFile(candidatePath, "utf8");
-    const wrongAuthorityCandidate = JSON.parse(acknowledgedCandidateBytes) as CandidateManagedRecordV1;
+    const wrongAuthorityCandidate = CandidateManagedRecordV1Schema.parse(JSON.parse(acknowledgedCandidateBytes));
     const appendedVerification = wrongAuthorityCandidate.transitions.at(-1);
     if (appendedVerification?.transitionKind !== "verification-response") {
       throw new Error("expected appended verification response");
@@ -3558,9 +3673,9 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       reason: "candidate-verification-replay-unproven",
     });
 
-    const trailingWrongAuthorityCandidate = JSON.parse(
-      acknowledgedCandidateBytes,
-    ) as CandidateManagedRecordV1;
+    const trailingWrongAuthorityCandidate = CandidateManagedRecordV1Schema.parse(
+      JSON.parse(acknowledgedCandidateBytes),
+    );
     const retainedVerification = trailingWrongAuthorityCandidate.transitions.at(-1);
     if (retainedVerification?.transitionKind !== "verification-response") {
       throw new Error("expected retained verification response");
@@ -3670,7 +3785,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const reviewStatusHostCalls = (await readFile(reviewStatusHostLog, "utf8")).split("\n");
     expect(reviewStatusHostCalls).not.toContain("repo view --json nameWithOwner");
     expect(reviewStatusHostCalls).toContainEqual(expect.stringMatching(
-      /^pr checks \d+ --repo owner\/repo --required --json name,state,bucket$/u,
+      /^pr checks \d+ --repo owner\/repo --required --json name,state,bucket,link$/u,
     ));
 
     const repositoryId = await resolveRepositoryIdentity(publisher);
@@ -3685,7 +3800,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       headSha: oldTarget.headSha,
       headTree: oldTarget.headTree,
     });
-    const replayRubricDigest = canonicalDigest({ rubric: "standard" });
+    const replayRubricDigest = `sha256:${"f".repeat(64)}` as const;
     const replayRequirement = createReviewRequirement({
       target: replayOldTarget,
       projection: {
@@ -3700,11 +3815,32 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       initialAdmission: "checkpoint",
     });
     if (replayRequirement === null) throw new Error("response replay requirement must derive");
+    const replaySourceTerminal = deliveryHostedTerminal({
+      repositoryId: replayOldTarget.repositoryId,
+      target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+      reviewTarget: replayOldTarget,
+      requirement: replayRequirement,
+      vehicle: DeliveryReviewMemberVehicleSchema.parse({
+        kind: "delivery-member",
+        planId: fixture.plan.planId,
+        deliverableId: selectedDeliverableId,
+        workUnitId: fixture.plan.workUnitId,
+        head: reviewedHead,
+      }),
+      actorIdentity: "host-actor-1",
+      outcome: "findings",
+      findings: [finding],
+    });
+    const replayResultId = replaySourceTerminal.hosted.sealedResult?.hostedResultId;
+    if (replayResultId === undefined) throw new Error("replay hosted result must be sealed");
     const replayApprovedDisposition = approveDispositionState({
       proposed: proposeDispositionSet(createDispositionSet({
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: replayOldTarget.targetId,
+        producerId: replaySourceTerminal.attemptId,
+        resultDigest: replayResultId,
+        proposedVerification: "focused",
         policyVersion: replayRequirement.policyVersion,
         rubricVersion: replayRequirement.rubricVersion,
         rubricDigest: replayRequirement.rubricDigest,
@@ -3715,7 +3851,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
           locus: finding.locus,
           sourceVerification: "verified",
           verificationRefs: ["review:finding-published"],
-          severity: "major",
+          reportedSeverity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           gating: "blocking",
           rationale: "The source confirms the issue.",
@@ -3726,8 +3863,36 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       approvedBy: "test-user",
       approvedAt: "2026-08-31T12:10:00Z",
     });
-    const replayOperationId = "lane-progress/response-replay";
-    const replayAttemptId = "operation-response-replay";
+    const hostedTerminal4 = deliveryHostedTerminal({
+      repositoryId: replayOldTarget.repositoryId,
+      target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+      reviewTarget: replayOldTarget,
+      requirement: replayRequirement,
+      vehicle: DeliveryReviewMemberVehicleSchema.parse({
+                kind: "delivery-member",
+                planId: fixture.plan.planId,
+                deliverableId: selectedDeliverableId,
+                workUnitId: fixture.plan.workUnitId,
+                head: reviewedHead,
+              }),
+      actorIdentity: "host-actor-1",
+      outcome: "findings",
+      findings: [finding],
+      dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
+      findingActions: [{
+        findingId: finding.findingId,
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
+      settledFindingIds: [],
+    });
+    const replayOperationId = laneProgressOperationId({
+      lane: "standard",
+      repositoryId,
+      headSha: hostedTerminal4.hosted.target.headSha,
+      lineage: hostedTerminal4.hosted.admission.lineage,
+    });
+    const replayAttemptId = hostedTerminal4.attemptId;
     const replaySource = {
       kind: "hosted" as const,
       attemptRef: bindReviewSourceReference({
@@ -3735,6 +3900,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         operationId: replayOperationId,
         durableRef: replayAttemptId,
       }),
+      hostedResultId: hostedTerminal4.hosted.sealedResult?.hostedResultId ?? "",
     };
     const responseState = await fixture.states.read(fixture.plan.planId);
     if (responseState.status !== "ok" || responseState.value === null) {
@@ -3746,7 +3912,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     if (responseMember?.coordinates === null || responseMember?.coordinates === undefined) {
       throw new Error("response replay member coordinates must be readable");
     }
-    const replayPendingRecord = ApprovedDispositionRecordSchema.parse({
+    const replayPendingRecord = approvedDispositionRecord({
       schemaVersion: 1,
       semanticsVersion: "review-advisory/v1",
       repositoryId,
@@ -3781,41 +3947,18 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     if (replayResponse.status === "refused") throw new Error(replayResponse.reason);
     await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(replayResponse.record);
-    await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
       operationId: replayOperationId,
-      updatedAt: "2026-08-31T12:12:00Z",
-      kind: "lane-progress",
-      lane: "standard",
       repositoryId,
-      changeRequestId: "pull/401",
-      headSha: reviewedHead,
-      completedPasses: 1,
-      attempts: [{
-        attemptId: replayAttemptId,
-        sourceId: "codex-pr",
-        outcome: "findings",
-        hosted: {
-          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-          requestedCoverage: "complete",
-          effectiveCoverage: "complete",
-          vehicle: {
-            kind: "delivery-member",
-            planId: fixture.plan.planId,
-            deliverableId: selectedDeliverableId,
-            workUnitId: fixture.plan.workUnitId,
-            head: reviewedHead,
-          },
-          reviewTarget: replayOldTarget,
-          requirement: replayRequirement,
-          actorIdentity: "host-actor-1",
-          findings: [finding],
-          dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
-          settledFindingIds: [],
-        },
-      }],
-    }, 0);
+      lineage: hostedTerminal4.hosted.admission.lineage,
+      logicalPass: 1,
+      changeRequestId: `pull/${hostedTerminal4.hosted.target.pullRequest}`,
+      headSha: hostedTerminal4.hosted.target.headSha,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      terminal: hostedTerminal4,
+      now: "2026-08-31T12:12:00Z",
+    });
 
     const responseApplicability = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-"],
@@ -3866,7 +4009,10 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     expect(JSON.parse(replayedResponse.stdout), replayedResponse.stdout).toMatchObject({
       status: "hosted-settlement-required",
       nextAction: "review-hosted-settle",
-      responsePlan: { source: replaySource, findings: [{ findingId: finding.findingId }] },
+      responsePlan: {
+        source: { kind: "hosted", attemptRef: replaySource.attemptRef },
+        findings: [{ findingId: finding.findingId }],
+      },
       response: {
         state: "delivery-member-current",
         payload: {
@@ -3888,6 +4034,14 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       attemptId: replayAttemptId,
       dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
       findingId: finding.findingId,
+      disposition: "fix",
+      actorIdentity: "host-actor-1",
+      target: hostedTerminal4.hosted.target,
+      fixTarget: { ...hostedTerminal4.hosted.target, headSha: responseMember.coordinates.head },
+      commentId: finding.commentId,
+      threadId: finding.threadId,
+      replyDigest: canonicalDigest({ reply: "published member fix" }),
+      replyId: "reply-published-member-fix",
       now: "2026-08-31T12:14:00Z",
     });
     const continuedAfterResponseSettlement = await runArcWithStdin(
@@ -3901,10 +4055,10 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       `${continuedAfterResponseSettlement.stderr}\n${continuedAfterResponseSettlement.stdout}`,
     ).toBe(0);
     expect(JSON.parse(continuedAfterResponseSettlement.stdout), continuedAfterResponseSettlement.stdout)
-      .toMatchObject({
-        status: "review-status-required",
-        nextAction: "review-hosted-request",
-        effectLog: [],
+      .toMatchObject({ status: "review-status-required", nextAction: "select-coverage", effectLog: [],
+        reviewStatus: { coverageSelectionAction: { choices: [
+          { sourceId: "delegated-agent", coverage: "incremental" }, { sourceId: "delegated-agent", coverage: "complete" },
+        ] } },
       });
 
     const retainedTarget = createReviewTarget({
@@ -3933,43 +4087,42 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     if (retainedRequirement === null) throw new Error("retained review requirement must derive");
     const retainedAttemptIds = ["retained-first", "retained-second"];
+    const retainedProducerIds: string[] = [];
     for (const [index, retainedAttemptId] of retainedAttemptIds.entries()) {
-      await new LocalReviewOperationStateStore(publisher).publishOperation({
-        schemaVersion: 1,
-        semanticsVersion: "review-operation/v1",
+      const hostedTerminal5 = deliveryHostedTerminal({
+        repositoryId: retainedTarget.repositoryId,
+        logicalPass: index + 1,
+        target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+        reviewTarget: retainedTarget,
+        requirement: retainedRequirement,
+        vehicle: DeliveryReviewMemberVehicleSchema.parse({
+                    kind: "delivery-member",
+                    planId: fixture.plan.planId,
+                    deliverableId: selectedDeliverableId,
+                    workUnitId: fixture.plan.workUnitId,
+                    head: reviewedHead,
+                  }),
+        actorIdentity: `host-actor-retained-${index + 1}`,
+        outcome: "clean",
+        findings: [],
+        settledFindingIds: [],
+      });
+      retainedProducerIds.push(hostedTerminal5.attemptId);
+      await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
         operationId: `lane-progress/${retainedAttemptId}`,
-        updatedAt: `2026-08-31T12:${15 + index}:00Z`,
-        kind: "lane-progress",
-        lane: "standard",
         repositoryId,
-        changeRequestId: "pull/401",
-        headSha: reviewedHead,
-        completedPasses: 1,
-        attempts: [{
-          attemptId: `operation-${retainedAttemptId}`,
-          sourceId: "codex-pr",
-          outcome: "clean",
-          hosted: {
-            target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-            requestedCoverage: "complete",
-            effectiveCoverage: "complete",
-            vehicle: {
-              kind: "delivery-member",
-              planId: fixture.plan.planId,
-              deliverableId: selectedDeliverableId,
-              workUnitId: fixture.plan.workUnitId,
-              head: reviewedHead,
-            },
-            reviewTarget: retainedTarget,
-            requirement: retainedRequirement,
-            actorIdentity: "host-actor-1",
-            findings: [],
-            dispositionSetId: null,
-            settledFindingIds: [],
-          },
-        }],
-      }, 0);
+        lineage: hostedTerminal5.hosted.admission.lineage,
+        logicalPass: index + 1,
+        changeRequestId: `pull/${hostedTerminal5.hosted.target.pullRequest}`,
+        headSha: hostedTerminal5.hosted.target.headSha,
+        sourceId: "codex-pr",
+        outcome: "clean",
+        terminal: hostedTerminal5,
+        now: `2026-08-31T12:${15 + index}:00Z`,
+      });
     }
+    expect(new Set([replayAttemptId, ...retainedProducerIds]).size)
+      .toBe(retainedAttemptIds.length + 1);
 
     const resumedWithRetainedAttempts = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-"],
@@ -3981,35 +4134,32 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       resumedWithRetainedAttempts.exitCode,
       `${resumedWithRetainedAttempts.stderr}\n${resumedWithRetainedAttempts.stdout}`,
     ).toBe(0);
-    const aggregatedStop = JSON.parse(resumedWithRetainedAttempts.stdout) as {
+    const latestCoverageStop = JSON.parse(resumedWithRetainedAttempts.stdout) as {
       reviewStatus: {
         selectionAction: {
           kind: string;
-          projections: readonly { selector: { priorAttemptId: string } }[];
+          projection: { selector: { priorAttemptId: string } };
         };
       };
     };
-    expect(aggregatedStop, resumedWithRetainedAttempts.stdout).toMatchObject({
+    expect(latestCoverageStop, resumedWithRetainedAttempts.stdout).toMatchObject({
       command: "delivery review-fix continue",
       status: "review-status-required",
       nextAction: "resolve-review-applicability",
       reviewStatus: {
         selectionAction: {
-          kind: "review-applicability-selection-batch",
-          projections: [
-            { selector: { priorAttemptId: "operation-retained-first" } },
-            { selector: { priorAttemptId: "operation-retained-second" } },
-          ],
+          kind: "review-applicability-selection",
+          projection: { selector: { priorAttemptId: retainedProducerIds.at(-1) } },
         },
       },
     });
 
-    const resolvedBatch = await runArcWithStdin(
+    const resolvedCoverage = await runArcWithStdin(
       ["candidate", "applicability", "resolve", fixture.plan.workUnitId, "-"],
       fixture.repository,
       `${JSON.stringify({
-        kind: "review-applicability-selection-batch",
-        offer: aggregatedStop.reviewStatus.selectionAction,
+        kind: "review-applicability-selection",
+        offer: latestCoverageStop.reviewStatus.selectionAction,
         selection: {
           selectedBy: "maintainer-1",
           selectedAt: "2026-08-31T12:30:00Z",
@@ -4018,14 +4168,14 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       })}\n`,
       { env: fixture.env },
     );
-    expect(resolvedBatch.exitCode, `${resolvedBatch.stderr}\n${resolvedBatch.stdout}`).toBe(0);
-    expect(JSON.parse(resolvedBatch.stdout), resolvedBatch.stdout).toMatchObject({
+    expect(resolvedCoverage.exitCode, `${resolvedCoverage.stderr}\n${resolvedCoverage.stdout}`).toBe(0);
+    expect(JSON.parse(resolvedCoverage.stdout), resolvedCoverage.stdout).toMatchObject({
       mode: "review-applicability-resolve",
       state: "resolved",
       nextAction: "commit-selection",
       choice: "covered",
     });
-    const resolvedBatchEffect = JSON.parse(resolvedBatch.stdout) as {
+    const resolvedCoverageEffect = JSON.parse(resolvedCoverage.stdout) as {
       recordEffect: { path: string; digest: string };
     };
     const selectedCandidate = await readCandidateRecord(fixture.repository, fixture.plan.workUnitId);
@@ -4034,21 +4184,21 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ({ selector }) => selector.priorAttemptId,
     )).toEqual([
       replayAttemptId,
-      ...retainedAttemptIds.map((attemptId) => `operation-${attemptId}`),
+      retainedProducerIds.at(-1),
     ]);
 
-    const continuedAfterBatch = await runArcWithStdin(
+    const continuedAfterCoverage = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({
         repository: "owner/repo",
         remote: "origin",
-        recordEffects: [resolvedBatchEffect.recordEffect],
+        recordEffects: [resolvedCoverageEffect.recordEffect],
       })}\n`,
       { env: fixture.env },
     );
-    expect(continuedAfterBatch.exitCode, `${continuedAfterBatch.stderr}\n${continuedAfterBatch.stdout}`).toBe(0);
-    const afterBatch = JSON.parse(continuedAfterBatch.stdout) as {
+    expect(continuedAfterCoverage.exitCode, `${continuedAfterCoverage.stderr}\n${continuedAfterCoverage.stdout}`).toBe(0);
+    const afterCoverage = JSON.parse(continuedAfterCoverage.stdout) as {
       status: string;
       nextAction: string;
       reviewStatus: {
@@ -4056,7 +4206,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       };
       effectLog: readonly { kind: string; actionKind?: string; recordClass?: string }[];
     };
-    expect(afterBatch).toMatchObject({
+    expect(afterCoverage).toMatchObject({
       status: "review-status-required",
       nextAction: "review-local-prepare",
       reviewStatus: {
@@ -4072,12 +4222,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
       ],
     });
-    expect(afterBatch.effectLog.filter(({ kind }) => kind === "commit")).toEqual([
+    expect(afterCoverage.effectLog.filter(({ kind }) => kind === "commit")).toEqual([
       expect.objectContaining({ kind: "commit", recordClass: "review-applicability-selection" }),
     ]);
-    expect(afterBatch.effectLog.filter(({ kind }) => kind === "push")).toHaveLength(1);
+    expect(afterCoverage.effectLog.filter(({ kind }) => kind === "push")).toHaveLength(1);
 
-    const localAdmission = afterBatch.reviewStatus.action;
+    const localAdmission = afterCoverage.reviewStatus.action;
     expect(localAdmission.scopeSelection?.target).toEqual(localAdmission.target);
     const preparedLocal = await runArcWithStdin(
       ["review", "local", "prepare", "-"],
@@ -4115,6 +4265,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const persistedLocal = await new LocalReviewOperationStateStore(publisher)
       .readOperation(localPreparation.payload.operationId);
     expect(persistedLocal.state).toMatchObject({ deliveryAdmission: localAdmission });
+    const localOperation = persistedLocal.state;
+    if (localOperation?.kind !== "local-review") throw new Error("local review operation is unavailable");
 
     // Observe the same admission once a correction is staged on the top branch, then restore the tree so the
     // rest of this chain runs against the state it expects.
@@ -4137,22 +4289,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       })}\n`,
       { env: fixture.env },
     );
-    // The exit code is read after the hold. It is part of the result being held, so asserting it first would
-    // kill a run that reached the awaited result before the hold could say it was spent.
-    expectPinnedObservation(JSON.parse(stagedPrepare.stdout), {
-      behavior: "A correction staged in the operator's index is not part of the member's reviewed contribution, "
-        + "so preparing that member's local review should still admit it rather than fail on an admission the "
-        + "driver minted moments earlier.",
-      observed: {
-        mode: "review-local-prepare",
-        error: {
-          code: "unexpected-failure",
-          message: "Local delivery-member review no longer has exact driver admission.",
-        },
-      },
-      target: { state: "ready" },
+    expect(stagedPrepare.exitCode, `${stagedPrepare.stderr}\n${stagedPrepare.stdout}`).toBe(0);
+    expect(JSON.parse(stagedPrepare.stdout)).toMatchObject({
+      state: "ready",
+      nextAction: "launch-review",
+      payload: { operationId: localPreparation.payload.operationId },
     });
-    expect(stagedPrepare.exitCode, `${stagedPrepare.stderr}\n${stagedPrepare.stdout}`).toBe(1);
     await git(fixture.repository, ["rm", "--cached", "-f", "top-correction.txt"]);
     await unlink(join(fixture.repository, "top-correction.txt"));
     const afterUnstage = await runArcWithStdin(
@@ -4176,7 +4318,6 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     // re-deriving anything — the operator just has to know that is what it wants, which the failure never says.
     expect(afterUnstage.exitCode, `${afterUnstage.stderr}\n${afterUnstage.stdout}`).toBe(0);
     expect(JSON.parse(afterUnstage.stdout)).toMatchObject({ state: "ready", nextAction: "launch-review" });
-
 
     const resumedLocal = await runArcWithStdin(
       ["review", "local", "resume", "-"],
@@ -4202,8 +4343,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
           targetId: localPreparation.payload.target.targetId,
           headSha: localPreparation.payload.target.headSha,
           headTree: localPreparation.payload.target.headTree,
-          rubricVersion: localPreparation.payload.reviewerPayload.guidance.rubricVersion,
-          rubricDigest: localPreparation.payload.reviewerPayload.guidance.rubricDigest,
+          rubricVersion: localOperation.requirement.rubricVersion,
+          rubricDigest: localOperation.requirement.rubricDigest,
           sourceDigest: localPreparation.payload.reviewerPayload.sourceDigest,
           guidanceDigest: localPreparation.payload.reviewerPayload.guidanceDigest,
           evaluatorIdentity: localPreparation.payload.request.evaluatorIdentity,
@@ -4294,6 +4435,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       initialAdmission: "checkpoint",
     });
     if (requestedRequirement === null) throw new Error("pending hosted requirement must derive");
+    const requestedVehicle = DeliveryReviewMemberVehicleSchema.parse(requestedAction.vehicle);
     const pendingHandle = HostedRequestHandleSchema.parse({
       schemaVersion: 1 as const,
       provider: requestedAction.provider,
@@ -4306,17 +4448,50 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         url: "https://example.test/pending-correction-request",
         createdAt: "2026-08-31T12:45:00.000Z",
       },
-      vehicle: requestedAction.vehicle,
+      vehicle: requestedVehicle,
+      admission: createHostedAdmission({
+        schemaVersion: 1,
+        repositoryId,
+        lineage: {
+          kind: "delivery-member",
+          planId: requestedVehicle.planId,
+          deliverableId: requestedVehicle.deliverableId,
+          workUnitId: requestedVehicle.workUnitId,
+        },
+        logicalPass: 1,
+        sourceId: requestedAction.provider,
+        target: requestedAction.target,
+        requestedCoverage: requestedAction.coverage,
+        vehicle: requestedVehicle,
+        reviewTarget: requestedReviewTarget,
+        requirement: requestedRequirement,
+        actorIdentity: "host-actor-1",
+      }),
     });
-    await recordHostedPendingRequest(new LocalReviewOperationStateStore(publisher), {
+    const pendingStore = new LocalReviewOperationStateStore(publisher);
+    const pendingAdmission = await recordHostedRequestAdmission(pendingStore, {
       repositoryId,
-      handle: pendingHandle,
+      lineage: pendingHandle.admission.lineage,
+      request: {
+        schemaVersion: 1,
+        target: pendingHandle.target,
+        provider: pendingHandle.provider,
+        coverage: pendingHandle.requestedCoverage,
+        vehicle: pendingHandle.vehicle,
+      },
+      progressVehicle: pendingHandle.vehicle,
       reviewTarget: requestedReviewTarget,
       requirement: requestedRequirement,
       actorIdentity: "host-actor-1",
+      authorizeCapacity: async () => undefined,
       now: "2026-08-31T12:45:00.000Z",
     });
-
+    if (pendingAdmission.state !== "admitted") throw new Error("pending hosted request must admit");
+    await acknowledgeHostedRequest(pendingStore, {
+      admission: pendingAdmission.admission,
+      handle: pendingHandle,
+      now: "2026-08-31T12:45:01.000Z",
+    });
     for (let replay = 0; replay < 2; replay += 1) {
       const awaiting = await runArcWithStdin(
         ["delivery", "review-fix", "continue", "-"],
@@ -4334,7 +4509,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         effectLog: [],
       });
     }
-  }, 120_000);
+  }, 240_000);
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {
     const fixture = await positionFixture();
@@ -4512,15 +4687,18 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
 
     expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
-    const adopted = JSON.parse(result.stdout) as {
-      readonly state: { readonly value: DeliveryStateV1 };
+    const rawAdopted = JSON.parse(result.stdout) as {
+      readonly state: { readonly value: unknown };
+    };
+    const adopted = {
+      ...rawAdopted, state: { ...rawAdopted.state, value: DeliveryStateV1Schema.parse(rawAdopted.state.value) },
     };
     expect(adopted).toMatchObject({
       command: "delivery refresh adopt",
       status: "applied",
       selectedDeliverableId,
       nextAction: "verify-review-fix",
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true },
       acknowledgementInput: {
         planId: fixture.plan.planId,
         selectedDeliverableId,
@@ -4665,7 +4843,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       selectedDeliverableId,
       verification: {
         memberDeliverableIds: [selectedDeliverableId],
-        tier1Required: true,
+        commitGateRequired: true,
       },
     });
     const state = await fixture.states.read(fixture.plan.planId);
@@ -4802,20 +4980,15 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         "### `[x]` **1.1 Close member one**",
         "",
       ].join("\n"));
-      await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
-        `# Metadata: ${workUnitId}`,
-        "",
-        "- **State:** Integrating",
-        "- **Owner:** test-user",
-        `- **Branch:** ${branch}`,
-        `- **Task List:** tasks-${workUnitId}.md`,
-        "- **Candidate:** [none]",
-        "- **Current Workflow:** `integrate-work-unit`",
-        "- **Last Completed:** Task 1.1 — Close member one",
-        "- **Next Task:** [none]",
-        "- **Next Action:** Resume hosted review",
-        "",
-      ].join("\n"));
+      await writeFile(join(activeDir, `meta-${workUnitId}.md`), makeMetaFixture(workUnitId, {
+        owner: "test-user",
+        state: "Integrating",
+        branch,
+        taskList: `tasks-${workUnitId}.md`,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 1.1 — Close member one",
+        nextAction: "Resume hosted review",
+      }));
       await git(fixture.repository, ["add", "-A"]);
       await git(fixture.repository, ["commit", "--no-verify", "-m", "orientation fixture"]);
       return await runArc(["status", "--session-init", "--json"], fixture.repository, {

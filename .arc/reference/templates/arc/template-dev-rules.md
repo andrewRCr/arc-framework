@@ -18,7 +18,7 @@ and the `arc status --session-init --json` probe, not convention):**
 Worked example: file `DEV-RULES.FRONTEND.md` with `domain: frontend`. The fragment
 `FRONTEND` passes the uppercase check; `frontend` passes the lowercase check;
 `"FRONTEND".toLowerCase() === "frontend"` satisfies the match. Non-matching pairs fail the
-pre-commit hook; malformed frontmatter surfaces in `domainRules.warnings` at session-init.
+pre-commit hook; session initialization emits malformed-frontmatter diagnostics as advisory `note` steps.
 
 Reserved filenames `DEV-RULES.ARC.md` and `DEV-RULES.PROJECT.md` carry no frontmatter and
 are skipped by the probe — this template does not apply to them.

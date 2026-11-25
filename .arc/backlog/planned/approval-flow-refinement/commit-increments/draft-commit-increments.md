@@ -33,7 +33,8 @@
 
 ### `[ ]` **Coordinate vocabulary + decoupling with the new sibling `unit-scoped-review`**
 
-- _Coordination (cross-member, 2026-06-15):_ `unit-scoped-review` joined the cohort — it widens the _review_
+- _Routed from:_ cross-member cohort coordination, 2026-06-15.
+- _Coordination:_ `unit-scoped-review` joined the cohort — it widens the _review_
   increment to whole-WU scope (the limit of a leaf/phase/WU axis) and carries a hard `Depends On` to this WU.
 - _Vocabulary:_ it introduces "review increment = whole WU." The term reconsideration above must settle jointly
   with it — keep the rename cascade whole; don't land a canonical term here that the WU-scope case then bends.
@@ -98,6 +99,26 @@
 
 - _Captured during:_ `delivery-post-landing-conflict-recovery` planning, 2026-09-17.
 
+### `[ ]` **Plan the increment ratchet against the storage contract's task close verb**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `commit-increments`
+
+- _Observation:_ `spec-storage-contract.md` D16 adds one close verb that, from the storage flip, owns task completion:
+  it marks a set of tasks complete — one, a parent, a phase, or several phases — and captures that increment's commits
+  (`HEAD` or named commits) into their task records, running after the commit it never makes. Write-back refuses a
+  hand tick. Nothing in the capture assumes one task per commit or per increment, so a raised review-increment floor
+  composes with it. The flip rewords the review-increment invariant only to say a persist is a save, not a commit;
+  the broader loosening into a tunable default stays this work unit's and `unit-scoped-review`'s
+  (`approval-flow-refinement`). `draft-commit-increments.md` does not yet name this dependency.
+
+- _Approach:_ at the next planning pass, design the ratchet's task-close step through the close verb rather than
+  hand-ticking, and confirm the per-task default, the project and user floors, and the conversational override each
+  close one increment's tasks in a single call.
+
+- _Captured during:_ `storage-contract` create-spec, 2026-09-30.
+
 ## Problem / Motivation
 
 ARC's task-execution model conflates two distinct boundaries — _where the agent stops to ask_
@@ -130,7 +151,7 @@ nor a clean commit boundary, with no good cross-machine resume path.
 
 **Why now.** The friction is small per occurrence but systemic — it nudges users away from
 deferred review, which is a legitimate and necessary mode of operation. The fix is methodology-
-internal and composes cleanly with adjacent work ([plan-interlock-release-wrappers][plan-irw],
+internal and composes cleanly with adjacent work (plan-interlock-release-wrappers,
 `plan-coord-probe.md`). Better to land the conceptual model before more workflows
 or methods accrete dependencies on the current conflation.
 
@@ -212,7 +233,7 @@ batch; bundling signals fire transparently when warranted; review at return beco
 inspection rather than approval gate; user requests changes via follow-up commits or amend on
 the still-unpushed branch.
 
-**Forward compat with [plan-interlock-release-wrappers][plan-irw].** Wrappers enforce interlock
+**Forward compat with plan-interlock-release-wrappers.** Wrappers enforce interlock
 state at the CLI boundary; commit increments are still leaves with judgment-bundling overlay.
 The wrapper sees a `commit_interlock` state authorizing release; whether that release is
 per-leaf or bundled is upstream of the wrapper's concern. Clean composition.
@@ -291,11 +312,11 @@ The vocabulary + method shape is what makes those extensions composable.
 **Parallel structural concept — first-class approval-provenance state (captured for evaluation, not adopted):**
 
 Today the agent reconstructs "what approval surface authorized this fire?" at every commit site —
-walking back through recent prompts, class-tag context, and interlock-mode config. A structurally
-cleaner shape carries approval-provenance as first-class session state:
-`currentApprovalProvenance: { source: "task" | "workflow" | "incidental-prompt" | null, scope, timestamp }`.
-Approval gates populate it; fire sites consume it. The fire-site decision collapses to "is provenance
-fresh and in-scope? fire (route per `releaseOptedIn`) : prompt to establish provenance."
+walking back through recent prompts, class-tag context, and interlock-mode config. A
+structurally cleaner shape carries approval-provenance as first-class session state:
+`currentApprovalProvenance: { source: "task" | "workflow" | "incidental-prompt" | null, scope, timestamp }`. Approval
+gates populate it; fire sites consume it. The fire-site decision collapses to "is provenance fresh and in-scope? fire
+(route per `releaseOptedIn`) : prompt to establish provenance."
 
 Composes with this plan because:
 
@@ -317,7 +338,7 @@ reshape on its own — could ship independently as a separate WU or fold in if s
 - Leaf-default commit boundaries are handoff-clean _in practice_ under plan-coord-probe — i.e.,
   the next machine's session-init can resume cleanly when the previous session committed at a
   leaf and pushed. Validate against plan-coord-probe's session-init contract once that lands.
-- The interlock-validation library shape from [plan-interlock-release-wrappers][plan-irw] reads
+- The interlock-validation library shape from plan-interlock-release-wrappers reads
   commit-increment state cleanly without adapter friction. If the wrapper's interlock-state
   contract grows a "bundling-in-flight" axis, that's the wrapper's concern, not this plan's.
 - Existing `commit_interlock: on-task-approval` users do not experience the deferred-review
@@ -355,12 +376,11 @@ each ripple is small. Not atomic because the design decisions warrant a plan doc
 ### Dependencies
 
 - **No upstream blocker.** Concept is independent of in-flight work. Can land any time.
-- **Soft sequencing preference.** Land before [plan-interlock-release-wrappers][plan-irw] —
+- **Soft sequencing preference.** Land before plan-interlock-release-wrappers —
   the wrapper's interlock-validation library is cleaner if the commit-increment vocabulary is
   established. Not strict.
-- **Soft sequencing preference.** Land before `plan-coord-probe.md` —
-  cross-machine resume contract benefits from the handoff-clean leaf-default being
-  established methodology, not retrofit.
+- **Soft sequencing preference.** Land before `plan-coord-probe.md` — cross-machine resume contract benefits from the
+  handoff-clean leaf-default being established methodology, not retrofit.
 
 ### Provenance
 
@@ -372,5 +392,3 @@ bundling. Captured as plan doc directly (no inbox graduation step) given the des
 the conversation.
 
 ---
-
-[plan-irw]: ../../../../reference/strategies/arc/strategy-interlock-release-wrappers.md

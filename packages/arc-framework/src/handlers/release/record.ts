@@ -33,7 +33,7 @@ import {
   resolveIdentity,
   type GitExec,
 } from "../../lib/git/index.js";
-import { createUserIOContext, gitExec } from "../../lib/io-context.js";
+import { createGitExec, createUserIOContext, gitExec } from "../../lib/io-context.js";
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 import { resolveArcRoot } from "../../lib/paths.js";
@@ -93,12 +93,13 @@ export async function runReleaseOptIn(
 }
 
 /**
- * Commander adapter for `arc release opt-in`. Resolves the real `gitExec`
+ * Commander adapter for `arc release opt-in`. Binds Git execution to the
+ * invocation's subprocess policy
  * and delegates; surfaces non-zero orchestrator results via
  * `process.exitCode`.
  */
-export async function handleReleaseOptIn(): Promise<void> {
-  const result = await runReleaseOptIn({ exec: gitExec });
+export async function handleReleaseOptIn(context?: InteractionContext): Promise<void> {
+  const result = await runReleaseOptIn({ exec: createGitExec(context?.subprocess) });
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
   }
@@ -138,12 +139,13 @@ export async function runReleaseOptOut(
 }
 
 /**
- * Commander adapter for `arc release opt-out`. Resolves the real `gitExec`
+ * Commander adapter for `arc release opt-out`. Binds Git execution to the
+ * invocation's subprocess policy
  * and delegates; surfaces non-zero orchestrator results via
  * `process.exitCode`.
  */
-export async function handleReleaseOptOut(): Promise<void> {
-  const result = await runReleaseOptOut({ exec: gitExec });
+export async function handleReleaseOptOut(context?: InteractionContext): Promise<void> {
+  const result = await runReleaseOptOut({ exec: createGitExec(context?.subprocess) });
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
   }

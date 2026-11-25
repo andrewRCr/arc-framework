@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
+import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { teardownLandedDeliveryMember } from "../../../src/lib/delivery/teardown.js";
 import {
   deliveryPlanFixture,
@@ -28,7 +29,7 @@ function fixture() {
 describe("landed delivery teardown", () => {
   it("reserves and deletes exact residue while retaining the member bindings", async () => {
     const { plan, state, facts, first, request } = fixture();
-    const writes: typeof state[] = [];
+    const writes: DeliveryStateV1[] = [];
     let localPresent = true;
     let remotePresent = true;
     const result = await teardownLandedDeliveryMember({
@@ -44,7 +45,7 @@ describe("landed delivery teardown", () => {
         return { status: "deleted" };
       },
       stateStore: { publish: async (_id, value, revision) => {
-        writes.push(value as typeof state);
+        writes.push(DeliveryStateV1Schema.parse(value));
         return { status: "ok", value: { revision: revision + 1, value } };
       } },
     });
@@ -69,7 +70,7 @@ describe("landed delivery teardown", () => {
       requested: snapshot,
     });
     if (reserved.status !== "reserved") throw new Error("fixture must reserve teardown");
-    const writes: typeof state[] = [];
+    const writes: DeliveryStateV1[] = [];
     let localPresent = true;
     let remotePresent = true;
     const result = await teardownLandedDeliveryMember({
@@ -89,7 +90,7 @@ describe("landed delivery teardown", () => {
         return { status: "deleted" };
       },
       stateStore: { publish: async (_id, value, revision) => {
-        writes.push(value as typeof state);
+        writes.push(DeliveryStateV1Schema.parse(value));
         return { status: "ok", value: { revision: revision + 1, value } };
       } },
     });
@@ -321,7 +322,7 @@ describe("landed delivery teardown", () => {
   it("retains the persisted reservation when deletion or post-delete request proof is unavailable", async () => {
     const { plan, state, facts, first, request } = fixture();
     let reads = 0;
-    const published: typeof state[] = [];
+    const published: DeliveryStateV1[] = [];
     const result = await teardownLandedDeliveryMember({
       plan, current: { revision: 4, value: state }, facts, deliverableId: first.deliverableId,
       repository: "owner/repo", protectedTargetRef: "refs/heads/main",
@@ -331,7 +332,7 @@ describe("landed delivery teardown", () => {
       deleteLocalRef: async () => ({ status: "adopted" }),
       deleteRemoteRef: async () => ({ status: "adopted" }),
       stateStore: { publish: async (_id, value, revision) => {
-        published.push(value as typeof state);
+        published.push(DeliveryStateV1Schema.parse(value));
         return { status: "ok", value: { revision: revision + 1, value } };
       } },
     });

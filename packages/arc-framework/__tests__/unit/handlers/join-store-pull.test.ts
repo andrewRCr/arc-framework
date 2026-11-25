@@ -1,0 +1,98 @@
+/** Join's designation UI obeys invocation capability and executes the chosen literal argv. */
+import { expect, it, vi } from "vitest";
+import { pullJoinStore } from "../../../src/handlers/join.js";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
+import { PullResultSchema } from "../../../src/lib/store/sync.js";
+import { SlugSchema } from "../../../src/lib/kernel/index.js";
+import { resolveInteractionContext } from "../../../src/lib/command-input/interaction-context.js";
+import type { PromptRenderer } from "../../../src/lib/command-input/prompter.js";
+
+function context(interactive: boolean) {
+  return resolveInteractionContext({ noInput: !interactive, machineReadable: false, ci: false,
+    promptInputIsTTY: interactive, promptOutputIsTTY: interactive, yes: "absent" });
+}
+const designation = { status: "designation-needed" as const, remote: "upstream", choices: ["state", "code"],
+  remedy: { text: "arc store remote upstream state", argv: ["arc", "store", "remote", "upstream", "state"] } };
+it("reports designation without selecting or executing in a non-interactive join", async () => {
+  const lines: string[] = [];
+  const output = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { lines.push(String(chunk)); return true; });
+  try {
+    const result = await pullJoinStore({ cwd: "/project", exec: async () => { throw new Error("Unbound Git"); }, identity: SlugSchema.parse("alice"), context: context(false) }, {
+      openStore: () => createLifecycleHarness().store, sync: () => createStoreSyncPort({ pull: async () => designation }),
+      execute: async () => { throw new Error("Guessed a designation"); },
+    });
+    expect(result).toMatchObject({ status: "designation-needed", actions: [designation.remedy] });
+    expect(lines.join("").split("arc store remote upstream state")).toHaveLength(2);
+  } finally { output.mockRestore(); }
+});
+it("runs the explicit alternate answer while marking the remedy as the recommended option", async () => {
+  const remoteRoles = new Map<string, string>();
+  const renderer: PromptRenderer = {
+    confirm: async () => ({ kind: "cancelled" }), text: async () => ({ kind: "cancelled" }), multiselect: async () => ({ kind: "cancelled" }),
+    select: async (_context, question) => {
+      expect(question.initialValue).toBe("state");
+      expect(question.options.find(option => option.value === "state")?.hint).toBe("arc store remote upstream state");
+      return { kind: "answered", value: question.options[1]!.value };
+    },
+  };
+  await pullJoinStore({ cwd: "/project", exec: async () => { throw new Error("Unbound Git"); }, identity: SlugSchema.parse("alice"), context: context(true) }, {
+    openStore: () => createLifecycleHarness().store, sync: () => createStoreSyncPort({ pull: async () => designation }), renderer,
+    execute: async ([command, family, verb, remote, role]) => {
+      if (command !== "arc" || family !== "store" || verb !== "remote" || remote === undefined || role === undefined) throw new Error("Invalid designation command");
+      remoteRoles.set(remote, role);
+      return { status: "ok" };
+    },
+  });
+  expect(remoteRoles.get("upstream")).toBe("code");
+});
+
+it("allows an explicit designation when the selected store supplies a human remedy without argv", async () => {
+  const h = createLifecycleHarness();
+  h.store.pull = async () => ({ status: "ok", result: { states: [{ status: "designation-needed", remote: "upstream",
+    choices: ["push", "read", "off"], remedy: { text: "Choose the upstream role." } }], pulls: [] } });
+  const roles = new Map<string, string>();
+  const renderer: PromptRenderer = { confirm: async () => ({ kind: "cancelled" }), text: async () => ({ kind: "cancelled" }),
+    multiselect: async () => ({ kind: "cancelled" }), select: async (_context, question) => ({ kind: "answered", value: question.options[1]!.value }) };
+  const result = await pullJoinStore({ cwd: "/project", exec: async () => { throw new Error("Unbound Git"); },
+    identity: SlugSchema.parse("alice"), context: context(true) }, { openStore: () => h.store, renderer,
+    execute: async ([command, family, verb, remote, role]) => {
+      if (command !== "arc" || family !== "store" || verb !== "remote" || remote === undefined || role === undefined) throw new Error("Invalid designation command");
+      roles.set(remote, role);
+      return { status: "ok" };
+    } });
+  expect(result).toMatchObject({ status: "designation-needed", summary: expect.stringContaining("Choose the upstream role.") });
+  expect(roles.get("upstream")).toBe("read");
+});
+
+it("asks for a designation the pull raised beside a failed read source, and reports both without input", async () => {
+  const h = createLifecycleHarness();
+  h.store.pull = async () => ({ status: "ok", result: PullResultSchema.parse({ states: [{ status: "designation-needed", remote: "fork",
+    choices: ["push", "read", "off"], remedy: { text: "arc store remote fork read", argv: ["arc", "store", "remote", "fork", "read"] } }],
+    pulls: [{ status: "failed", remote: "upstream", role: "read", families: ["work-item"], notices: [], failure: { code: "unreachable",
+      class: "recoverable", cause: "network", condition: "Upstream is offline.", remedy: { text: "Reconnect." } } }] }) });
+  const roles = new Map<string, string>();
+  const renderer: PromptRenderer = { confirm: async () => ({ kind: "cancelled" }), text: async () => ({ kind: "cancelled" }),
+    multiselect: async () => ({ kind: "cancelled" }), select: async (_context, question) => {
+      expect(question.message).toBe("How should remote fork serve store state?");
+      expect(question.initialValue).toBe("read");
+      return { kind: "answered", value: question.options.find(option => option.value === "off")!.value };
+    } };
+  const execute = async ([command, family, verb, remote, role]: readonly string[]) => {
+    if (command !== "arc" || family !== "store" || verb !== "remote" || remote === undefined || role === undefined) throw new Error("Invalid designation command");
+    roles.set(remote, role);
+    return { status: "ok" as const };
+  };
+  const join = (interactive: boolean) => pullJoinStore({ cwd: "/project", exec: async () => { throw new Error("Unbound Git"); },
+    identity: SlugSchema.parse("alice"), context: context(interactive) }, { openStore: () => h.store, renderer, execute });
+  const lines: string[] = [];
+  const output = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { lines.push(String(chunk)); return true; });
+  try {
+    expect(await join(false)).toMatchObject({ status: "incomplete", summary: expect.stringContaining("Upstream is offline.") });
+  } finally { output.mockRestore(); }
+  expect(lines.join("").split("arc store remote fork read")).toHaveLength(2);
+  expect(lines.join("")).toContain("Read source upstream was not pulled: Upstream is offline. Reconnect.");
+  expect(roles.size).toBe(0);
+  await join(true);
+  expect(roles.get("fork")).toBe("off");
+});

@@ -1,9 +1,11 @@
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
 /** Strict top-level and conditional-presence coverage for session-init envelopes. */
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { assertSessionInitProbeResult, SessionInitProbeResultSchema } from "../../../src/commands/status/schema.js";
 
@@ -15,7 +17,8 @@ function fixture(name: string): Record<string, unknown> {
   const value = JSON.parse(producerCompatible) as Record<string, unknown>;
   const derivedRow = {
     kind: "free-primary",
-    checkout: { path: "/redacted/primary", primary: true },
+    checkout: { folderPresent: true, path: "/redacted/primary", primary: true, head: "a".repeat(40), branch: "main", detached: false },
+    markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, lifecycleLocation: null,
     subject: null,
     context: null,
     diagnostics: [],
@@ -106,12 +109,11 @@ function clone(value: Record<string, unknown>): Record<string, unknown> {
 }
 
 function expectInvalid(value: Record<string, unknown>): void {
-  expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+  assertSchemaRefuses(SessionInitProbeResultSchema, value);
 }
 
 function expectValid(value: Record<string, unknown>): void {
-  const parsed = SessionInitProbeResultSchema.safeParse(value);
-  expect(parsed.success ? null : parsed.error.message).toBeNull();
+  assertSchemaAccepts(SessionInitProbeResultSchema, value);
 }
 
 function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -134,6 +136,26 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
   expect(() => assertSessionInitProbeResult(value)).toThrow(`session-init-envelope: ${expectedPath}:`);
 }
 
+describe("Store user slot diagnostics", () => {
+  it.each([
+    ["text", 42, "user.value.remedy.text:"],
+    ["argv", [42], "user.value.remedy.argv.0:"],
+  ] as const)("retains the actual nested pull remedy %s defect", (field, replacement, path) => {
+    const value = fixture("orient");
+    value.user = { ok: true, value: { status: "designation-needed", remote: "origin", choices: ["shared"], summary: "Choose a role.",
+      remedy: { text: "Designate the remote.", argv: ["arc", "remote", "designate"], [field]: replacement } } };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+    expect(() => assertSessionInitProbeResult(value)).toThrow(path);
+  });
+
+  it.each([null, { status: "pulled", summary: "Store state pulled." }])("continues to admit the new Store value %j", (user) => {
+    const value = fixture("orient");
+    value.user = { ok: true, value: user };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    expect(() => assertSessionInitProbeResult(value)).not.toThrow();
+  });
+});
+
 function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, unknown> {
   return {
     schemaVersion: 1,
@@ -154,6 +176,57 @@ function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, 
 }
 
 describe("session-init envelope schema", () => {
+  it("rejects the obsolete top-level extension probe slot", () => {
+    assertSchemaRefuses(SessionInitProbeResultSchema, {
+      ...fixture("orient"),
+      extensions: { ok: true, value: { mode: "session-init", active: [], warnings: [] } },
+    });
+  });
+
+  it.each(["baseBranchSync", "retiredSubdirs"] as const)(
+    "names an undeclared %s key and accepts retry after removal",
+    (slot) => {
+      const value = fixture("orient");
+      expectValid(value);
+      setPath(value, [slot, "value", "unexpectedKey"], true);
+      const before = JSON.stringify(value);
+      expect(() => assertSessionInitProbeResult(value)).toThrow('Unrecognized key: "unexpectedKey"');
+      expect(JSON.stringify(value)).toBe(before);
+      const probeValue = (value[slot] as { value: Record<string, unknown> }).value;
+      delete probeValue.unexpectedKey;
+      expect(() => assertSessionInitProbeResult(value)).not.toThrow();
+      expectValid(value);
+    },
+  );
+
+  it.each([
+    [["baseBranchSync", "value", "checkout", "primary"], "yes", "baseBranchSync.value.checkout.primary"],
+    [["retiredSubdirs", "value", "candidates"], [42], "retiredSubdirs.value.candidates.0"],
+  ] as const)("preserves a nested slot issue path %s and accepts repaired input", (path, replacement, issuePath) => {
+    const value = fixture("orient");
+    const repaired = clone(value);
+    setPath(value, path, replacement);
+    expect(() => assertSessionInitProbeResult(value)).toThrow(issuePath);
+    expect(() => assertSessionInitProbeResult(repaired)).not.toThrow();
+    expectValid(repaired);
+  });
+
+  it("refuses undeclared base-distance fields while retaining a valid composed value", () => {
+    const value = fixture("orient");
+    expectValid(value);
+    setPath(value, ["baseDistance", "value", "extraEvidence"], true);
+    expect(() => assertSessionInitProbeResult(value))
+      .toThrow('session-init-envelope: baseDistance.value: Unrecognized key: "extraEvidence"');
+  });
+
+  it("refuses undeclared fields inside the emitted roster and names the field", () => {
+    const value = fixture("orient");
+    expectValid(value);
+    setPath(value, ["roster", "value", "entries", 0, "extraEvidence"], true);
+    expect(() => assertSessionInitProbeResult(value))
+      .toThrow('session-init-envelope: roster.value.entries.0: Unrecognized key: "extraEvidence"');
+  });
+
   it("accepts completed-work-unit integration recovery without a live publication boundary", () => {
     const value = owningWorkUnitFixture();
     setPath(value, ["active", "value", "sessionType"], "integration");
@@ -320,7 +393,7 @@ describe("session-init envelope schema", () => {
       recommendedCommand: null,
       recommendedPromptText: "Base evidence is pending.",
     });
-    expect(SessionInitProbeResultSchema.safeParse(pending).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, pending);
 
     const unreachable = clone(pending);
     setPath(unreachable, ["userReferenceReconcile", "value", "status"], "unavailable");
@@ -355,12 +428,11 @@ describe("session-init envelope schema", () => {
     });
     expectInvalid(emptyPendingPlan);
 
-    // One edit makes the plan legitimately pending-shaped — the rule reads only
-    // `edits.length`, never element contents — so this payload is valid except for the
-    // command. The positive control proves that, and therefore that the rejection below
-    // is the command contract rather than a second defect in the same fixture.
+    // A complete pending edit supplies the positive control for the command contract.
     const realApplyCommand = clone(emptyPendingPlan);
-    setPath(realApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{}]);
+    setPath(realApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{
+      path: "/tmp/USER-INBOX.md", content: "Updated target", replacements: [{ subject: "old", targetSlug: "new" }],
+    }]);
     expectValid(realApplyCommand);
 
     const fakeApplyCommand = clone(realApplyCommand);
@@ -495,7 +567,6 @@ describe("session-init envelope schema", () => {
       "baseBranchSync.value.recommendedAction",
     ],
     ["dirty state", "orient", ["dirty", "value", "state"], "unknown", "dirty.value.state"],
-    ["extensions mode", "orient", ["extensions", "value", "mode"], "unknown", "extensions.value.mode"],
     ["config mode", "orient", ["config", "value", "mode"], "unknown", "config.value.mode"],
     ["active mode", "orient", ["active", "value", "mode"], "unknown", "active.value.mode"],
     ["active layout", "orient", ["active", "value", "layout"], "unknown", "active.value.layout"],
@@ -610,7 +681,7 @@ describe("session-init envelope schema", () => {
       "orient",
       ["retiredSubdirs", "value", "candidates"],
       ["invalid name"],
-      "retiredSubdirs.value",
+      "retiredSubdirs.value.candidates.0",
     ],
     [
       "partial-push-marker-surface",
@@ -727,7 +798,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "unknown" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "removable" },
       },
       "sweep.value.worktrees.0.subject.kind",
@@ -747,7 +818,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "work-unit" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "unknown" },
       },
       "sweep.value.worktrees.0.decision.action",
@@ -757,7 +828,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "work-unit" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "blocked", reason: "unknown" },
       },
       "sweep.value.worktrees.0.decision.reason",
@@ -767,14 +838,18 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "work-unit" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "outside", reason: "unknown" },
       },
       "sweep.value.worktrees.0.decision.reason",
     ],
   ] as const)("rejects the stale-worktree routing field: %s", (_label, report, expectedPath) => {
     const value = fixture("orient");
-    setPath(value, ["sweep", "value", "worktrees"], [report]);
+    const complete = report.kind === "husk"
+      ? { worktreePath: "/tmp/alpha", branch: null, stampedBranch: "feat/alpha", completedWorkUnit: "alpha",
+          ...report, subject: { name: "alpha", ...report.subject }, stamp: { ...fixtureHuskProof, ...report.stamp } }
+      : { worktreePath: "/tmp/alpha", branch: "feat/alpha", ...report };
+    setPath(value, ["sweep", "value", "worktrees"], [complete]);
     expectContractFailure(value, expectedPath);
   });
 
@@ -804,11 +879,13 @@ describe("session-init envelope schema", () => {
       from: "/wt/old",
       to: "/wt/new",
       remedy: {
-        argv: ["git", "worktree", "move", "/wt/old", "/wt/new"],
-        text: "git worktree move /wt/old /wt/new",
+        argv: ["git", "worktree", "move", "-f", "-f", "/wt/old", "/wt/new"],
+        text: "git worktree move -f -f /wt/old /wt/new",
       },
+      actions: [{ argv: ["git", "worktree", "move", "-f", "-f", "/wt/old", "/wt/new"],
+        text: "git worktree move -f -f /wt/old /wt/new" }],
     }]);
-    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, value);
 
     setPath(value, ["sweep", "value", "renameMoves", 0, "remedy", "argv", 0], "arc");
     expectContractFailure(value, "sweep.value.renameMoves.0.remedy.argv.0");
@@ -818,7 +895,7 @@ describe("session-init envelope schema", () => {
     [
       "errand classification",
       ["errandState", "value", "inFlight", "errands"],
-      [{ state: "unknown" }],
+      [{ slug: "alpha", branch: "chore/alpha", ageDays: 0, state: "unknown" }],
       "errandState.value.inFlight.errands.0.state",
     ],
     [
@@ -871,7 +948,6 @@ describe("session-init envelope schema", () => {
     "baseDistance",
     "baseBranchSync",
     "dirty",
-    "extensions",
     "config",
     "active",
     "domainRules",
@@ -902,6 +978,102 @@ describe("session-init envelope schema", () => {
         error: { kind: "runtime", message: "mixed" },
       },
     });
+  });
+
+  it("rejects undeclared dirty-state and current-husk fields at their envelope slots", () => {
+    const dirty = fixture("orient");
+    setPath(dirty, ["dirty", "value", "unexpected"], true);
+    expectContractFailure(dirty, "dirty.value");
+
+    const husk = fixture("current-husk");
+    setPath(husk, ["currentHusk", "value", "unexpected"], true);
+    expectContractFailure(husk, "currentHusk.value");
+  });
+
+  it.each([ "active", "domainRules"])(
+    "rejects an undeclared %s field at its envelope slot",
+    (slot) => {
+      const value = fixture("orient");
+      setPath(value, [slot, "value", "unexpected"], true);
+      expectContractFailure(value, `${slot}.value`);
+    },
+  );
+
+  it("rejects undeclared config fields", () => {
+    const extra = fixture("orient");
+    setPath(extra, ["config", "value", "unexpected"], true);
+    expectContractFailure(extra, "config.value");
+  });
+
+  it("names a misconfigured config setting at its envelope slot", () => {
+    const misconfigured = fixture("orient");
+    setPath(misconfigured, ["config", "value", "settings", "session.remote_sync"], "sometimes");
+    expectContractFailure(misconfigured, "config.value.settings.session.remote_sync");
+  });
+
+  it("rejects undeclared release-routing fields at its envelope slot", () => {
+    const value = fixture("orient");
+    setPath(value, ["releaseRouting", "value", "rationale", "unexpected"], true);
+    expectContractFailure(value, "releaseRouting.value.rationale");
+  });
+
+  it("accepts a diverged worktree with snapshot supersession evidence", () => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "Reset safely.",
+      identity: { kind: "linked", path: "/redacted/worktree" },
+      supersession: {
+        superseded: true, supersededCommits: ["a".repeat(40)], novelCommits: [], remoteEvidence: "exact",
+      },
+    });
+    expectValid(value);
+  });
+
+  it.each([
+    ["not-needed", { superseded: false, supersededCommits: [], novelCommits: [] }],
+    ["pending-fetch", {
+      superseded: false, supersededCommits: [], novelCommits: [], remoteEvidence: "pending-fetch",
+    }],
+    ["unreachable", {
+      superseded: false, supersededCommits: [], novelCommits: [],
+      remoteEvidence: "unreachable", failureReason: "network",
+    }],
+  ])("accepts a diverged worktree with %s supersession", (_arm, supersession) => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "",
+      identity: { kind: "linked", path: "/redacted/worktree" }, supersession,
+    });
+    expectValid(value);
+  });
+
+  it("refuses undeclared supersession fields and accepts the repaired snapshot", () => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "Reset safely.",
+      identity: { kind: "linked", path: "/redacted/worktree" },
+      supersession: {
+        superseded: true, supersededCommits: ["a".repeat(40)], novelCommits: [], remoteEvidence: "exact",
+      },
+    });
+    expectValid(value);
+    const repaired = clone(value);
+    setPath(value, ["worktree", "value", "supersession", "extraEvidence"], true);
+    expectContractFailure(value, "worktree.value.supersession");
+    expectValid(repaired);
+  });
+
+  it("rejects undeclared worktree and identity fields at their session-init slot", () => {
+    const worktree = fixture("orient");
+    setPath(worktree, ["worktree", "value", "unexpected"], true);
+    expectContractFailure(worktree, "worktree.value");
+
+    const identity = fixture("active-resume");
+    setPath(identity, ["worktree", "value", "identity", "unexpected"], true);
+    expectContractFailure(identity, "worktree.value.identity");
   });
 
   it("enforces roster, recovery, and primary sweep gates", () => {
@@ -944,7 +1116,7 @@ describe("session-init envelope schema", () => {
         error: { kind: "runtime", message: "degraded" },
       },
     };
-    expect(SessionInitProbeResultSchema.safeParse(failed).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, failed);
     expectInvalid({ ...fixture("orient"), currentHusk: failed.currentHusk });
   });
 
@@ -1009,7 +1181,7 @@ describe("session-init envelope schema", () => {
     const orient = fixture("orient");
     delete orient.compactionAdvisory;
     delete orient.inFlightComposition;
-    expect(SessionInitProbeResultSchema.safeParse(orient).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, orient);
 
     expectInvalid({
       ...fixture("identity-missing"),
@@ -1048,26 +1220,22 @@ describe("session-init envelope schema", () => {
   it("validates but never requires the invocation-only seed-write status", () => {
     const omitted = fixture("orient");
     delete omitted.compactionSeedWrite;
-    expect(SessionInitProbeResultSchema.safeParse(omitted).success).toBe(true);
-    expect(
-      SessionInitProbeResultSchema.safeParse({
-        ...omitted,
-        compactionSeedWrite: {
-          status: "skipped",
-          reason: "identity-missing",
-        },
-      }).success,
-    ).toBe(true);
-    expect(
-      SessionInitProbeResultSchema.safeParse({
-        ...omitted,
-        compactionSeedWrite: {
-          status: "failed",
-          reason: "seed-invalid",
-          message: "invalid",
-        },
-      }).success,
-    ).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, omitted);
+    assertSchemaAccepts(SessionInitProbeResultSchema, {
+      ...omitted,
+      compactionSeedWrite: {
+        status: "skipped",
+        reason: "identity-missing",
+      },
+    });
+    assertSchemaAccepts(SessionInitProbeResultSchema, {
+      ...omitted,
+      compactionSeedWrite: {
+        status: "failed",
+        reason: "seed-invalid",
+        message: "invalid",
+      },
+    });
     expectInvalid({
       ...fixture("orient"),
       compactionSeedWrite: { status: "written", path: "" },

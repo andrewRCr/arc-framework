@@ -9,32 +9,37 @@ import { resolvePrimaryWorktreePath } from "./worktree-roster.js";
 export interface LinkedWorktreeCreationContext {
   exec: GitExec;
   pathExists(path: string): Promise<boolean>;
+  /** Lifecycle-only stale registration repair; locus provisioning supplies none. */
+  clearMissingRegistration?: (request: { targetPath: string; branch?: string }) => Promise<void>;
 }
 
-export interface LinkedWorktreeCreationOptions {
+interface LinkedWorktreeCreationPlacement {
   locationTemplate: string;
   primaryWorktreePath?: string;
   repo: string;
   placementName: string;
-  branch: string;
-  createBranch: boolean;
   base: string;
 }
-
-export interface LinkedWorktreeCreationReceipt {
+export type LinkedWorktreeCreationOptions = LinkedWorktreeCreationPlacement & (
+  | { detached: true; branch?: never; createBranch?: false }
+  | { detached?: false; branch: string; createBranch: boolean }
+);
+interface LinkedWorktreeCreationProof {
   readonly worktreePath: string;
-  readonly branch: string;
   readonly worktreeCreated: true;
-  readonly branchCreated: boolean;
   readonly base: string | null;
 }
+export type LinkedWorktreeCreationReceipt = LinkedWorktreeCreationProof & (
+  | { readonly branch: string; readonly branchCreated: boolean; readonly detached?: false }
+  | { readonly branch: null; readonly branchCreated: false; readonly detached: true }
+);
 
 export type LinkedWorktreeCreationResult =
   | { readonly kind: "created"; readonly receipt: LinkedWorktreeCreationReceipt }
   | { readonly kind: "refused"; readonly reason: "path-collision"; readonly worktreePath: string }
   | {
       readonly kind: "error";
-      readonly reason: "primary-unavailable" | "git-worktree-add-failed";
+      readonly reason: "primary-unavailable" | "git-worktree-add-failed" | "stale-registration-refused";
       readonly error: Error;
     };
 
@@ -47,7 +52,7 @@ export async function createLinkedWorktree(
     template: options.locationTemplate,
     repo: options.repo,
     name: options.placementName,
-    branch: options.branch,
+    branch: options.branch ?? options.placementName,
   });
   let worktreePath = templatedPath;
   if (!isAbsolute(templatedPath)) {
@@ -64,9 +69,12 @@ export async function createLinkedWorktree(
   if (await context.pathExists(worktreePath)) {
     return { kind: "refused", reason: "path-collision", worktreePath };
   }
-  const args = options.createBranch
-    ? ["worktree", "add", worktreePath, "-b", options.branch, options.base]
-    : ["worktree", "add", worktreePath, options.branch];
+  try {
+    await context.clearMissingRegistration?.({ targetPath: worktreePath, ...(options.branch === undefined ? {} : { branch: options.branch }) });
+  } catch (error) {
+    return { kind: "error", reason: "stale-registration-refused", error: error instanceof Error ? error : new Error(String(error)) };
+  }
+  const args = worktreeAddArguments(options, worktreePath);
   try {
     await context.exec("git", args);
   } catch (error) {
@@ -76,14 +84,14 @@ export async function createLinkedWorktree(
       error: error instanceof Error ? error : new Error(String(error)),
     };
   }
-  return {
-    kind: "created",
-    receipt: {
-      worktreePath,
-      branch: options.branch,
-      worktreeCreated: true,
-      branchCreated: options.createBranch,
-      base: options.createBranch ? options.base : null,
-    },
-  };
+  const proof = { worktreePath, worktreeCreated: true as const, base: options.detached || options.createBranch ? options.base : null };
+  const receipt: LinkedWorktreeCreationReceipt = options.detached
+    ? { ...proof, branch: null, branchCreated: false, detached: true }
+    : { ...proof, branch: options.branch, branchCreated: options.createBranch };
+  return { kind: "created", receipt };
+}
+
+function worktreeAddArguments(options: LinkedWorktreeCreationOptions, path: string): string[] {
+  if (options.detached) return ["worktree", "add", "--detach", path, options.base];
+  return options.createBranch ? ["worktree", "add", path, "-b", options.branch, options.base] : ["worktree", "add", path, options.branch];
 }

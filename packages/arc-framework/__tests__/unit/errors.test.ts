@@ -3,10 +3,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  ArcError, UserFacingError, formatError, formatUnexpectedError,
-  type ArcErrorCode,
-} from "../../src/lib/errors.js";
+import { UserFacingError, formatError, formatUnexpectedError } from "../../src/lib/errors.js";
+import { ArcError, type ArcErrorCode } from "../../src/lib/kernel/errors.js";
 
 describe("ArcError", () => {
   it("extends Error with a code property", () => {

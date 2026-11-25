@@ -1,6 +1,7 @@
 /** `gh api` implementation of the hosted-review GitHub boundary. */
 
 import { execa } from "execa";
+import { setTimeout as delay } from "node:timers/promises";
 
 import type {
   HostedGitHubCheckRun,
@@ -12,6 +13,7 @@ import type {
   HostedGitHubWriteResult,
 } from "./github.js";
 import { HostedGitHubReadError } from "./github.js";
+import type { HostedDismissalReview, HostedReviewDismissalPort, HostedReviewDismissalWrite } from "./dismiss.js";
 import type { HostedArtifact, HostedTarget } from "./request.js";
 import type { HostedSettlementReply } from "./settle.js";
 
@@ -49,6 +51,35 @@ function parseHttpStatus(detail: string): number | null {
   return match?.[1] === undefined ? null : Number(match[1]);
 }
 
+function processFailure(error: unknown, signal?: AbortSignal): never {
+  signal?.throwIfAborted();
+  if (error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name)) throw error;
+  if (error instanceof HostedProcessError) throw error;
+  const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
+  if (record.timedOut === true) throw new DOMException("The hosted process timed out.", "TimeoutError");
+  const stdout = typeof record.stdout === "string" ? record.stdout : "";
+  const stderr = typeof record.stderr === "string" ? record.stderr : "";
+  const message = error instanceof Error ? error.message : String(error);
+  throw new HostedProcessError(
+    message, stderr,
+    typeof record.exitCode === "number" ? record.exitCode : null,
+    parseHttpStatus(`${message}\n${stderr}`), stdout,
+  );
+}
+
+function checkProcessResult(result: {
+  isCanceled: boolean; timedOut: boolean; failed: boolean;
+  exitCode?: number; stdout: string; stderr: string;
+}, signal?: AbortSignal): void {
+  signal?.throwIfAborted();
+  if (result.isCanceled) throw new DOMException("The operation was aborted.", "AbortError");
+  if (result.timedOut) throw new DOMException("The hosted process timed out.", "TimeoutError");
+  const status = parseHttpStatus(result.stderr);
+  if (result.failed && status !== null && status >= 500) {
+    throw new HostedProcessError("GitHub CLI failed", result.stderr, result.exitCode ?? null, status, result.stdout);
+  }
+}
+
 /** Production `gh` runner with captured output and abort propagation. */
 export const hostedGhRunner: HostedProcessRunner = {
   run: async (args, options) => {
@@ -59,36 +90,62 @@ export const hostedGhRunner: HostedProcessRunner = {
         reject: options?.allowFailure !== true,
         ...(options?.signal === undefined ? {} : { cancelSignal: options.signal }),
       });
-      if (options?.signal?.aborted === true || result.isCanceled) {
-        const reason = options?.signal?.reason as unknown;
-        throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
-      }
-      if (result.timedOut) {
-        throw new DOMException("The hosted process timed out.", "TimeoutError");
-      }
+      checkProcessResult(result, options?.signal);
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
-      if (options?.signal?.aborted === true) {
-        const reason = options.signal.reason as unknown;
-        throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
-      }
-      if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
-        throw error;
-      }
-      const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
-      const stdout = typeof record.stdout === "string" ? record.stdout : "";
-      const stderr = typeof record.stderr === "string" ? record.stderr : "";
-      const message = error instanceof Error ? error.message : String(error);
-      throw new HostedProcessError(
-        message,
-        stderr,
-        typeof record.exitCode === "number" ? record.exitCode : null,
-        parseHttpStatus(`${message}\n${stderr}`),
-        stdout,
-      );
+      return processFailure(error, options?.signal);
     }
   },
 };
+
+function ghReadFailure(error: unknown, call: string): HostedProcessError {
+  const failure = error instanceof HostedProcessError ? error : new HostedProcessError(String(error), "");
+  const status = failure.httpStatus ?? parseHttpStatus(`${failure.message}\n${failure.stderr}`);
+  return new HostedProcessError(
+    `${call} failed${status === null ? "" : ` (HTTP ${status})`}: ${failure.message}`,
+    failure.stderr, failure.exitCode, status, failure.stdout,
+  );
+}
+
+async function pauseBeforeRetry(signal?: AbortSignal): Promise<void> {
+  try {
+    await delay(250, undefined, signal === undefined ? undefined : { signal });
+  } catch (error) {
+    signal?.throwIfAborted();
+    throw error;
+  }
+}
+
+/**
+ * Retry one confirmed GitHub read once after a short, abortable pause on HTTP 5xx.
+ * Callers own read semantics: `gh api` fields imply POST, and mutations must use the single-attempt runner.
+ * The call label names the operation without logging request bodies or headers.
+ */
+export async function runGhRead(
+  runner: HostedProcessRunner,
+  call: string,
+  args: string[],
+  options?: { signal?: AbortSignal; allowFailure?: boolean },
+): Promise<{ stdout: string; stderr: string }> {
+  let retried = false;
+  for (;;) {
+    options?.signal?.throwIfAborted();
+    try {
+      return await runner.run(args, options);
+    } catch (error) {
+      options?.signal?.throwIfAborted();
+      if (error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name)) throw error;
+      const failure = ghReadFailure(error, call);
+      if (retried || !isServerFailure(failure)) throw failure;
+      retried = true;
+      await pauseBeforeRetry(options?.signal);
+    }
+  }
+}
+
+function isServerFailure(failure: HostedProcessError): boolean {
+  return failure.httpStatus !== null && failure.httpStatus >= 500 && failure.httpStatus < 600;
+}
 
 function record(value: unknown, path: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -113,7 +170,16 @@ function integerString(value: unknown, path: string): string {
 
 function parse(text: string, path: string): unknown {
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(text, (key: string, value: unknown, context?: { source: string }) => {
+      if ((key === "id" || key === "in_reply_to_id")
+        && typeof value === "number" && !Number.isSafeInteger(value)) {
+        // Numeric primitives retain their original JSON token in the Node 24+ reviver context.
+        const source = context?.source;
+        if (source === undefined) throw new Error("JSON identity token is unavailable");
+        return source;
+      }
+      return value;
+    }) as unknown;
   } catch {
     throw new HostedGitHubReadError("terminal-failure", `${path}: malformed JSON`);
   }
@@ -188,7 +254,7 @@ function issueComment(value: unknown, path: string): HostedGitHubIssueComment {
 }
 
 /** Developer-authenticated GitHub reads and mutations for hosted review. */
-export class GhHostedReviewPort implements HostedGitHubPort {
+export class GhHostedReviewPort implements HostedGitHubPort, HostedReviewDismissalPort {
   private readonly runner: HostedProcessRunner;
 
   constructor(runner: HostedProcessRunner) {
@@ -197,7 +263,8 @@ export class GhHostedReviewPort implements HostedGitHubPort {
 
   private async read(args: string[], options?: { signal?: AbortSignal }): Promise<string> {
     try {
-      return (await this.runner.run(["api", ...args], options)).stdout;
+      const call = args[0] === "graphql" ? "GraphQL hosted-review query" : `GET ${args[0] ?? "unknown"}`;
+      return (await runGhRead(this.runner, call, ["api", ...args], options)).stdout;
     } catch (error) {
       return readFailure(error);
     }
@@ -349,7 +416,7 @@ export class GhHostedReviewPort implements HostedGitHubPort {
   }
 
   async readThreads(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubThread[]> {
-    const commentFields = "id databaseId body url path line originalLine commit{oid} "
+    const commentFields = "id fullDatabaseId body url path line originalLine commit{oid} "
       + "pullRequestReview{id} replyTo{pullRequestReview{id}} "
       + "author{... on User{databaseId} ... on Bot{databaseId}}";
     const query = `query($owner:String!,$repo:String!,$number:Int!,$threadCursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$threadCursor){nodes{id isResolved comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}`;
@@ -427,7 +494,7 @@ export class GhHostedReviewPort implements HostedGitHubPort {
             ? null
             : record(item.author, `${path}.author`);
           return {
-            id: integerString(item.databaseId, `${path}.databaseId`),
+            id: integerString(item.fullDatabaseId, `${path}.fullDatabaseId`),
             reviewId: string(record(item.pullRequestReview, `${path}.pullRequestReview`).id, `${path}.reviewId`),
             replyToReviewId: item.replyTo === null
               ? null
@@ -513,6 +580,59 @@ export class GhHostedReviewPort implements HostedGitHubPort {
         : { kind: "ambiguous" as const };
     } catch {
       return { kind: "ambiguous" as const };
+    }
+  }
+
+  async readReview(target: HostedTarget, reviewId: number): Promise<HostedDismissalReview | null> {
+    let stdout: string;
+    try {
+      const path = apiPath(target, `pulls/${target.pullRequest}/reviews/${reviewId}`);
+      stdout = (await runGhRead(this.runner, `GET ${path}`, ["api", path]))
+        .stdout;
+    } catch (error) {
+      if (error instanceof HostedProcessError && error.httpStatus === 404) return null;
+      return readFailure(error);
+    }
+    const review = record(parse(stdout, "review"), "review");
+    const state = string(review.state, "review.state");
+    const states: Record<string, HostedDismissalReview["state"]> = {
+      APPROVED: "approved",
+      CHANGES_REQUESTED: "changes-requested",
+      COMMENTED: "commented",
+      DISMISSED: "dismissed",
+      PENDING: "pending",
+    };
+    const mapped = states[state];
+    if (mapped === undefined) throw new HostedGitHubReadError("terminal-failure", `review.state: unsupported ${state}`);
+    return {
+      state: mapped,
+      actorIdentity: integerString(record(review.user, "review.user").id, "review.user.id"),
+      commitSha: typeof review.commit_id === "string" && review.commit_id.length > 0 ? review.commit_id : null,
+    };
+  }
+
+  async dismissReview(
+    target: HostedTarget,
+    reviewId: number,
+    message: string,
+  ): Promise<HostedReviewDismissalWrite> {
+    try {
+      const output = await this.runner.run([
+        "api",
+        apiPath(target, `pulls/${target.pullRequest}/reviews/${reviewId}/dismissals`),
+        "--method", "PUT",
+        "--raw-field", `message=${message}`,
+        "--raw-field", "event=DISMISS",
+      ]);
+      return record(parse(output.stdout, "dismissal"), "dismissal").state === "DISMISSED"
+        ? { kind: "dismissed" }
+        : { kind: "ambiguous" };
+    } catch (error) {
+      const status = error instanceof HostedProcessError ? error.httpStatus : null;
+      if (error instanceof HostedProcessError && status !== null && status >= 400 && status < 500 && status !== 429) {
+        return { kind: "refused", reason: `${error.message}\n${error.stderr}`.trim() };
+      }
+      return { kind: "ambiguous" };
     }
   }
 }

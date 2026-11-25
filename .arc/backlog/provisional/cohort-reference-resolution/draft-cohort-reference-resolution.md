@@ -7,6 +7,37 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Let a completed cohort's name be reused once membership tells cohort generations apart**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ Design Question 3: canonical cohort identity over name matches.
+
+- _Observation:_ contract D2 makes every owner's name, cohorts included, "reusable once its record completes"
+  (`spec-storage-contract.md` D2), but decomposition, the only path that creates a cohort, refuses a completed cohort's
+  name for a new one (`checkNamespaceName`, `lib/decompose/check-names.ts`), and `cohort-identity-verbs`' cohort rename
+  refuses any slug the lookup resolves, ended holders included. The refusals protect correctness: membership names its
+  cohort by path and readers match it as text (`lib/decompose/removal-cohorts.ts`, `lib/store/kinds/cohort/rules.ts`,
+  the placement in `lib/store/lifecycle-write.ts`, `lib/work-unit/lifecycle-membership.ts`), so a completed cohort's
+  members would read as members of a cohort reusing its name. Nothing needs cohort-name reuse today.
+
+- _Approach:_ membership names its cohort by identity, as contract D2's machine records reference each other by UID, or
+  its readers tell cohort generations apart; then cohort-name admission relaxes to live holders, as
+  `lifecycle-slug-selection` D5's shared check admits work-item names.
+
+- _Related:_ `work-item-relations` records cohort relations as typed data. If membership becomes one of its relations,
+  the identity binding belongs with that decision (its buffer's "Decide whether typed relations bind their endpoint by
+  UID").
+
+- _Captured during:_ `lifecycle-slug-selection` draft-design, 2026-10-22.
+
+---
+
 ## Problem
 
 `arc wu reconcile` derives narrative subjects from authenticated work-unit retirement history. When the same slug

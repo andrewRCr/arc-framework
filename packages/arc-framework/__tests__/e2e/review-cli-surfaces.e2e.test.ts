@@ -8,6 +8,11 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 
+import { createProductionSchemaRegistry } from "../../src/production-schema-registry.js";
+import { projectKernelSchemaClosure } from "../../src/lib/kernel/schema/generate.js";
+import type { KernelJSONSchemaBundle } from "../../src/lib/kernel/index.js";
+import { resolveSchemaReference } from "../helpers/schema-reference.js";
+import { adversarialPassFixture } from "../fixtures/review-adversarial-pass.js";
 import { runCli } from "../helpers/run-cli.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -37,6 +42,22 @@ describe("packaged review CLI surfaces", () => {
     await rm(fixtureRoot, { recursive: true, force: true });
   });
 
+  it("reports adversarial recording's pre-flip remedy and repairs malformed request input", async () => {
+    const command = ["review", "adversarial", "record", invalidInputPath];
+    const malformed = await runCli(command, { cwd: fixtureRoot });
+    expect(malformed.exitCode).toBe(1);
+    expect(JSON.parse(malformed.stdout)).toMatchObject({ mode: "review-adversarial-record",
+      error: { code: "invalid-input", message: expect.stringContaining("--schema") } });
+    const { artifacts, codeHead, ...header } = adversarialPassFixture();
+    void artifacts; void codeHead;
+    await writeFile(invalidInputPath, JSON.stringify({ ...header, workUnit: "example" }));
+    const repaired = await runCli(command, { cwd: fixtureRoot });
+    expect(repaired.exitCode).toBe(1);
+    expect(repaired.stderr).toBe("");
+    expect(JSON.parse(repaired.stdout)).toMatchObject({ mode: "review-adversarial-record", error: { code: "unsupported" },
+      remedy: { text: expect.stringContaining("ADVERSARIAL-PASSES.md") } });
+  });
+
   it("exposes every public review verb through packaged help", async () => {
     const [reviewHelp, hostedHelp] = await Promise.all([
       runCli(["review", "--help"], { cwd: fixtureRoot }),
@@ -48,6 +69,7 @@ describe("packaged review CLI surfaces", () => {
     expect(reviewHelp.stdout).toContain("planning-lane");
     expect(reviewHelp.stdout).toContain("planning-grooming");
     expect(reviewHelp.stdout).toContain("change-request");
+    expect(reviewHelp.stdout).toContain("changeset");
     expect(reviewHelp.stdout).toContain("merge-method");
     expect(reviewHelp.stdout).toContain("checks");
     expect(reviewHelp.stdout).toMatch(/^\s+resolve(?:\s|\[)/mu);
@@ -57,105 +79,45 @@ describe("packaged review CLI surfaces", () => {
     expect(hostedHelp.stdout).toContain("request");
     expect(hostedHelp.stdout).toContain("await");
     expect(hostedHelp.stdout).toContain("settle");
+    expect(hostedHelp.stdout).toContain("dismiss");
+  });
+
+  it("names the full SHAs planning-lane needs in its help and its refusal", async () => {
+    const [help, refusal] = await Promise.all([
+      runCli(["review", "planning-lane", "--help"], { cwd: fixtureRoot }),
+      runCli(["review", "planning-lane", "origin/main", "b".repeat(40)], { cwd: fixtureRoot }),
+    ]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toMatch(/^\s+base\s+Full base commit SHA, 40 or 64 hex characters$/mu);
+    expect(help.stdout).toMatch(/^\s+head\s+Full head commit SHA, the same width as base$/mu);
+    expect(refusal.exitCode).toBe(64);
+    expect(refusal.stderr).toContain("git rev-parse <ref>");
   });
 
   it.each([
-    [
-      ["review", "chunking", "resolve"],
-      "review-chunking-resolve-request.schema.json",
-      ["review-chunking-resolve-request"],
-    ],
-    [
-      ["review", "planning-grooming", "resolve"],
-      "review-planning-grooming-resolve-request.schema.json",
-      ["review-planning-grooming-resolve-request"],
-    ],
-    [
-      ["review", "frontline", "run"],
-      "review-frontline-run-request.schema.json",
-      [
-        "review-assurance-input",
-        "review-frontline-resolve-envelope",
-        "review-frontline-run-request",
-        "review-method-activity",
-        "review-routing-decision",
-        "review-routing-facts",
-        "slug",
-      ],
-    ],
-    [
-      ["review", "resolve"],
-      "review-resolve-request.schema.json",
-      ["review-resolve-request", "standard-review-obligation-projection"],
-    ],
-    [
-      ["review", "hosted", "await"],
-      "review-hosted-await-request.schema.json",
-      ["review-hosted-await-request", "slug", "standard-review-obligation-projection"],
-    ],
-    [
-      ["review", "reduce"],
-      "review-reduce-request.schema.json",
-      ["review-reduce-request"],
-    ],
-    [
-      ["review", "respond"],
-      "review-respond-request.schema.json",
-      [
-        "approved-disposition-set",
-        "disposition-approval",
-        "disposition-report-item",
-        "disposition-set",
-        "finding-disposition",
-        "review-respond-request",
-        "review-severity",
-        "review-target",
-      ],
-    ],
-    [
-      ["review", "hosted", "request"],
-      "review-hosted-request-request.schema.json",
-      ["review-hosted-request-request", "slug", "standard-review-obligation-projection"],
-    ],
-    [
-      ["review", "readiness"],
-      "review-readiness-request.schema.json",
-      ["review-readiness-request"],
-    ],
-    [
-      ["review", "frontline", "resolve"],
-      "review-frontline-resolve-request.schema.json",
-      ["review-frontline-resolve-request"],
-    ],
-    [
-      ["review", "hosted", "settle"],
-      "review-hosted-settle-request.schema.json",
-      ["review-hosted-settle-request"],
-    ],
-    [
-      ["review", "local", "prepare"],
-      "review-local-prepare-request.schema.json",
-      ["review-local-prepare-request", "slug"],
-    ],
-    [
-      ["review", "local", "attest"],
-      "review-local-attest-request.schema.json",
-      ["normalized-review-finding", "review-local-attest-request", "review-severity"],
-    ],
-    [
-      ["review", "local", "resume"],
-      "review-local-resume-request.schema.json",
-      ["review-local-resume-request"],
-    ],
-    [
-      ["review", "terminus", "accept"],
-      "review-terminus-accept-request.schema.json",
-      ["review-terminus-accept-request", "slug"],
-    ],
-  ] as const)("emits a dependency-complete public request schema at %s", async (
+    [["review", "changeset", "resolve"], "urn:arc:schema:review-chunking-resolve-request"],
+    [["review", "planning-grooming", "resolve"], "urn:arc:schema:review-planning-grooming-resolve-request"],
+    [["review", "frontline", "run"], "urn:arc:schema:review-frontline-run-request"],
+    [["review", "resolve"], "urn:arc:schema:review-resolve-request"],
+    [["review", "hosted", "await"], "urn:arc:schema:review-hosted-await-request"],
+    [["review", "reduce"], "urn:arc:schema:review-reduce-request"],
+    [["review", "respond"], "urn:arc:schema:review-respond-request"],
+    [["review", "hosted", "request"], "urn:arc:schema:review-hosted-request-request"],
+    [["review", "lane", "read"], "urn:arc:schema:review-lane-read-request"],
+    [["review", "adversarial", "record"], "urn:arc:schema:review-adversarial-record-request"],
+    [["review", "readiness"], "urn:arc:schema:review-readiness-request"],
+    [["review", "frontline", "resolve"], "urn:arc:schema:review-frontline-resolve-request"],
+    [["review", "hosted", "settle"], "urn:arc:schema:review-hosted-settle-request"],
+    [["review", "hosted", "dismiss"], "urn:arc:schema:review-hosted-dismiss-request"],
+    [["review", "local", "prepare"], "urn:arc:schema:review-local-prepare-request"],
+    [["review", "local", "attest"], "urn:arc:schema:review-local-attest-request"],
+    [["review", "local", "cancel"], "urn:arc:schema:review-local-cancel-request"],
+    [["review", "local", "resume"], "urn:arc:schema:review-local-resume-request"],
+    [["review", "terminus", "accept"], "urn:arc:schema:review-terminus-accept-request"],
+  ] as const)("emits one self-contained public request schema at %s", async (
     command,
     rootId,
-    expectedSchemaIds,
   ) => {
     const outsideProject = await mkdtemp(join(tmpdir(), "arc-review-schema-"));
     const [result, help] = await Promise.all([
@@ -165,17 +127,44 @@ describe("packaged review CLI surfaces", () => {
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(help.stdout).toContain("--schema");
+    expect(help.stdout).not.toMatch(/^\s+--json\s/mu);
     const output = JSON.parse(result.stdout) as {
       rootId: string;
       schemas: Record<string, AnySchema>;
     };
     expect(output.rootId).toBe(rootId);
-    // The production bundle contains a pre-existing empty-tuple projection Ajv rejects as a
-    // metaschema defect; compilation still proves every public-root ref resolves in the bundle.
-    const validator = new Ajv2020({ strict: false, validateSchema: false });
+    const schemaId = rootId.replace("urn:arc:schema:", "");
+    expect(output.schemas[schemaId]).toEqual(projectKernelSchemaClosure(createProductionSchemaRegistry(), schemaId));
+    if (rootId === "urn:arc:schema:review-frontline-resolve-request") {
+      const publicRequest = output.schemas["review-frontline-resolve-request"] as {
+        properties: Record<string, AnySchema>;
+        required: string[];
+      };
+      expect(publicRequest.required).toContain("target");
+      expect(publicRequest.properties).not.toHaveProperty("pass");
+      expect(publicRequest.properties).not.toHaveProperty("maxPasses");
+      const target = resolveSchemaReference(
+        output as KernelJSONSchemaBundle, publicRequest.properties.target,
+        output.schemas["review-frontline-resolve-request"] as KernelJSONSchemaBundle["schemas"][string],
+      );
+      expect(target).toMatchObject({
+        type: "object",
+        required: ["kind", "baseRef", "diffBaseSha", "headSha"],
+      });
+      expect(target.properties)
+        .not.toHaveProperty("repositoryId");
+    }
+    if (rootId === "urn:arc:schema:review-adversarial-record-request") {
+      const { artifacts, codeHead, ...header } = adversarialPassFixture();
+      void artifacts; void codeHead;
+      const validate = new Ajv2020({ strict: true, validateFormats: false }).compile(output.schemas[schemaId]!);
+      expect(validate({ ...header, workUnit: "example" }), JSON.stringify(validate.errors)).toBe(true);
+      expect(validate({ ...header, workUnit: "example", artifacts: { draft: "forged-version" } })).toBe(false);
+    }
+    const validator = new Ajv2020({ strict: true, validateFormats: false });
     for (const schema of Object.values(output.schemas)) validator.addSchema(schema);
     expect(validator.getSchema(rootId)).toBeDefined();
-    expect(Object.keys(output.schemas)).toEqual(expectedSchemaIds);
+    expect(Object.keys(output.schemas)).toEqual([rootId.replace("urn:arc:schema:", "")]);
   });
 
   it("documents schema discovery at a request boundary reached only by hand", async () => {
@@ -202,14 +191,51 @@ describe("packaged review CLI surfaces", () => {
     expect(help.stdout).toContain("surfaceAuthority");
   });
 
+  it.each([
+    { name: "review resolve", command: ["review", "resolve"] },
+    { name: "review hosted await", command: ["review", "hosted", "await"] },
+  ])("explains unsupported --json at $name", async ({ command }) => {
+    const result = await runCli([...command, invalidInputPath, "--json"], { cwd: fixtureRoot });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("--json");
+    expect(result.stderr).toContain("JSON request file");
+    expect(result.stderr).toContain("'-' for stdin");
+    expect(result.stderr).toContain("JSON output is automatic");
+  });
+
+  it.each([
+    { name: "review change-request resolve", command: ["review", "change-request", "resolve"],
+      args: ["--head-ref", "feat/example", "--head-sha", "a".repeat(40)] },
+    { name: "review status", command: ["review", "status"], args: [] },
+    { name: "review merge-method resolve", command: ["review", "merge-method", "resolve"], args: [] },
+    { name: "review checks await", command: ["review", "checks", "await"], args: [] },
+    { name: "review pre-publication", command: ["review", "pre-publication"], args: ["example"] },
+  ])("explains automatic JSON output at $name", async ({ name, command, args }) => {
+    const [result, help] = await Promise.all([
+      runCli([...command, ...args, "--json"], { cwd: fixtureRoot }),
+      runCli([...command, "--help"], { cwd: fixtureRoot }),
+    ]);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain(name);
+    expect(result.stderr).toContain("JSON output is automatic");
+    expect(result.stderr).toContain(`${name} --help`);
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("as JSON");
+    expect(help.stdout).not.toMatch(/^\s+--json\s/mu);
+  });
+
   it("rejects combining schema discovery with a request source", async () => {
     const result = await runCli([
-      "review", "chunking", "resolve", invalidInputPath, "--schema",
+      "review", "changeset", "resolve", invalidInputPath, "--schema",
     ], { cwd: fixtureRoot });
 
     expect(result.exitCode).not.toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      rootId: "review-chunking-resolve-request.schema.json",
+      rootId: "urn:arc:schema:review-chunking-resolve-request",
       schemas: {},
     });
   });

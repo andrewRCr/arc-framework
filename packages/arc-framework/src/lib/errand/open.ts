@@ -1,5 +1,7 @@
 /** Ordinary v3 Errand open composition. */
 
+import { z } from "zod";
+
 import {
   planLocusAllocation,
   type LocusAllocationPlanningRefusalReason,
@@ -12,6 +14,7 @@ import type {
 } from "../locus/provisioning.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import { SlugSchema } from "../kernel/index.js";
+import { MAX_LOCUS_OPAQUE_CHARS } from "../locus/schema/limits.js";
 import {
   createErrandOperationResult,
   type ErrandOperationResult,
@@ -27,8 +30,14 @@ import type {
   PauseHeadEvidence,
 } from "./identity-transitions.js";
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
-import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
+import { DEFAULT_ERRAND_BRANCH_TYPE, type ErrandBranchType } from "./branch-type.js";
+import type { SpawnLock } from "../git/worktree-removal.js";
+
+/** Accepted slug format and retry guidance shared by core and CLI input refusals. */
+export const ERRAND_SLUG_INPUT_REMEDY = "Choose a valid, non-empty slug of lowercase alphanumeric segments joined by hyphens "
+  + "and retry `arc errand open`.";
 
 type ClaimResult =
   | { kind: "applied" | "idempotent"; record: OrdinaryErrandRecord }
@@ -56,6 +65,8 @@ export type OpenRollbackDisposition = "not-required" | "complete" | "retained-or
 export interface OpenOrdinaryErrandExecution {
   readonly result: ErrandOperationResult;
   readonly rollbackDisposition: OpenRollbackDisposition;
+  /** The lock the checkout it spawned carries; absent when it opened in the primary or spawned none. */
+  readonly spawnLock?: { readonly checkoutPath: string; readonly lock: SpawnLock };
 }
 
 /** Injected authority and local-provisioning boundaries for ordinary Errand open. */
@@ -83,8 +94,10 @@ export interface OpenOrdinaryErrandDependencies {
 /** Complete ordinary Errand open request, independent of CLI rendering. */
 export interface OpenOrdinaryErrandOptions {
   slug: string;
+  /** Select a new branch's nature; omission on re-entry preserves the recorded branch. */
+  type?: ErrandBranchType;
   intent?: string;
-  inbox?: InspectedInboxEntry | null;
+  inbox?: ErrandInboxOrigin | null;
   protection: "full" | "partial";
   base: string;
   createdAt: string;
@@ -101,9 +114,11 @@ export async function openOrdinaryErrand(
   options: OpenOrdinaryErrandOptions,
 ): Promise<ErrandOperationResult> {
   const requestedSlug = options.slug.trim();
-  if (requestedSlug === "") return openRefusal("identity-conflict", "Errand slug must be non-empty.");
+  if (requestedSlug === "") return openRefusal("identity-conflict", `Errand slug must be non-empty. ${ERRAND_SLUG_INPUT_REMEDY}`);
   const parsedSlug = SlugSchema.safeParse(requestedSlug);
-  if (!parsedSlug.success) return openRefusal("identity-conflict", "Errand slug must be valid.");
+  if (!parsedSlug.success) {
+    return openRefusal("identity-conflict", `Errand slug must be valid. ${z.prettifyError(parsedSlug.error)}\n${ERRAND_SLUG_INPUT_REMEDY}`);
+  }
   const slug = parsedSlug.data;
   const originEntry = options.inbox?.title.trim() || null;
   const originEntrySourceDigest = originEntry === null ? null : options.inbox?.sourceDigest ?? null;
@@ -117,7 +132,7 @@ export async function openOrdinaryErrand(
   const parent = warmWorkUnitParent(frame);
   if (parent.kind === "refused") return openRefusal(parent.reason, parent.message);
 
-  const branch = options.protection === "full" ? `chore/${slug}` : null;
+  const branch = options.protection === "full" ? `${options.type ?? DEFAULT_ERRAND_BRANCH_TYPE}/${slug}` : null;
   let record: OrdinaryErrandRecord | null = null;
   let previousRecord: OrdinaryErrandRecord | null = null;
   let expectedBranchHead: string | null = null;
@@ -142,6 +157,7 @@ export async function openOrdinaryErrand(
         options.intent,
         originEntry,
         originEntrySourceDigest,
+        options.type,
       );
       if (continuity !== null) return openRefusal("identity-conflict", continuity);
       if (existing.state === "open") {
@@ -204,13 +220,18 @@ export async function openOrdinaryErrand(
         branch,
         origin: originEntry === null ? "description" : "inbox",
         originEntry,
-        ...(originEntrySourceDigest === null ? {} : { originEntrySourceDigest }),
+        ...(originEntry === null ? {} : { originEntrySourceDigest }),
         state: "open",
         savedHead: null,
         changeRequest: null,
       });
       if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand") {
-        return openRefusal("identity-conflict", "The Errand identity request is invalid.");
+        const condition = parsed.success ? "An ordinary Errand identity is required." : z.prettifyError(parsed.error);
+        const remedy = slug.startsWith("groom-")
+          ? "Choose another slug and retry `arc errand open`; the groom-* namespace "
+            + "has no Errand opener under full protection."
+          : "Correct the reported input fields and retry `arc errand open`; choose another slug if its derived branch is invalid.";
+        return openRefusal("identity-conflict", `The Errand identity request is invalid.\n${condition}\n${remedy}`);
       }
       record = parsed.data;
       let claimed: ClaimResult;
@@ -251,11 +272,12 @@ export async function openOrdinaryErrand(
         authority: {
           kind: "partial-errand" as const,
           key: slug,
-          originEntry,
-          originEntrySourceDigest,
+          ...(options.inbox !== null && options.inbox !== undefined && "version" in options.inbox && options.inbox.version !== undefined
+            ? { originEntry: options.inbox.title, originEntryVersion: options.inbox.version }
+            : { originEntry, originEntrySourceDigest }),
         },
       } : {}),
-      branch,
+      branch: record?.branch ?? branch,
       expectedBranchHead,
       base: options.base,
       locationTemplate: options.locationTemplate,
@@ -372,20 +394,45 @@ function validateResumeContinuity(
   record: OrdinaryErrandRecord,
   intent: string | undefined,
   originEntry: string | null,
-  originEntrySourceDigest: InspectedInboxEntry["sourceDigest"] | null,
+  originEntrySourceDigest: ErrandInboxOrigin["sourceDigest"] | null,
+  type: ErrandBranchType | undefined,
 ): string | null {
+  if (type !== undefined && record.branch !== `${type}/${record.slug}`) {
+    return resumeContinuityRefusal("Resume cannot change the Errand branch type. Recorded branch: ", record.branch,
+      ". Rerun without --type to resume with the recorded branch.");
+  }
   const requestedIntent = intent?.trim();
   if (requestedIntent !== undefined && requestedIntent !== "" && requestedIntent !== record.intent) {
-    return "Resume cannot change the Errand intent.";
+    return resumeContinuityRefusal(
+      "Resume cannot change the Errand intent. Recorded intent: ", record.intent,
+      originEntry === null ? ". Rerun without --intent to resume with the recorded intent."
+        : ". Rerun without --intent and any inbox selector (--from-inbox, --inbox-title-file, or --inbox-entry-file)"
+          + " to resume with the recorded intent and origin.",
+    );
   }
   if (originEntry !== null && (
     record.origin !== "inbox"
     || record.originEntry !== originEntry
     || record.originEntrySourceDigest !== originEntrySourceDigest
   )) {
-    return "Resume cannot change the originating inbox entry.";
+    return resumeContinuityRefusal(
+      "Resume cannot change the originating inbox entry. Recorded inbox entry: ",
+      record.origin === "inbox" ? record.originEntry : null,
+      ". Rerun without --from-inbox, --inbox-title-file, or --inbox-entry-file to resume with the recorded origin.",
+    );
   }
   return null;
+}
+
+function resumeContinuityRefusal(prefix: string, recordedValue: string | null, remedy: string): string {
+  if (recordedValue === null) return `${prefix}none (description-origin Errand)${remedy}`;
+  const context = JSON.stringify(recordedValue);
+  const budget = MAX_LOCUS_OPAQUE_CHARS - prefix.length - remedy.length;
+  if (context.length <= budget) return `${prefix}${context}${remedy}`;
+  const marker = " (truncated)";
+  // JSON escaping uses at most six characters per UTF-16 code unit, plus the enclosing quotes.
+  const previewLength = Math.floor((budget - marker.length - 2) / 6);
+  return `${prefix}${JSON.stringify(recordedValue.slice(0, previewLength))}${marker}${remedy}`;
 }
 
 async function rollbackAfterRefusal(
@@ -449,9 +496,10 @@ async function rollbackIdentity(
 ): Promise<
   { kind: "rolled-back" } | { kind: "retained"; residue: string } | { kind: "failed"; message: string }
 > {
-  if (record === null || claimKind !== "applied") return { kind: "rolled-back" };
-  const residue = durableResidue(evidence);
+  if (record === null) return { kind: "rolled-back" };
+  const residue = durableResidue(evidence, record.branch);
   if (residue !== null) return { kind: "retained", residue };
+  if (claimKind !== "applied") return { kind: "rolled-back" };
   const rollbackResume = options.dependencies.rollbackResume;
   try {
     let result: { kind: "rolled-back" | "generation-mismatch" };
@@ -471,12 +519,17 @@ async function rollbackIdentity(
   }
 }
 
-/** Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. */
-function durableResidue(evidence: ProvisioningEvidence | null): string | null {
+/**
+ * Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. A marker that could not be
+ * parsed is named as such, its checkout never having held the branch; residue with neither names the retained checkout.
+ */
+function durableResidue(evidence: ProvisioningEvidence | null, branch: string): string | null {
   if (evidence === null) return "an unestablished local provisioning state";
   if (evidence.kind === "identity-only") return null;
-  if (evidence.kind === "pending-marker") return `a worktree marker at ${evidence.checkoutPath}`;
-  return `a worktree marker at ${evidence.checkoutPath}`;
+  const retained = evidence.markerBytes !== null ? `a worktree marker at ${evidence.checkoutPath}`
+    : evidence.kind === "marker-residue" && evidence.malformedMarker === true ? `a malformed worktree marker at ${evidence.checkoutPath}`
+      : `the checkout ${evidence.checkoutPath} for branch ${branch}`;
+  return `${retained}${evidence.detail === undefined ? "" : `; ${evidence.detail}`}`;
 }
 
 function provisioningReason(reason: ProvisioningRefusalReason): LocusAllocationPlanningRefusalReason {

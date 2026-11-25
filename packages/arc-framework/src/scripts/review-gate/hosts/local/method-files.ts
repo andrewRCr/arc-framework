@@ -3,6 +3,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { resolveArcPath } from "../../../../lib/layout/index.js";
 import type { ReviewMethodFilePort } from "../../policy/activity.js";
 import {
   bindReviewRubricMethodLookup,
@@ -15,9 +16,10 @@ export function createLocalReviewMethodFilePort(input: {
   readFile?: (path: string) => string;
 }): ReviewMethodFilePort {
   const readFile = input.readFile ?? ((path: string) => readFileSync(path, "utf8"));
+  const directory = join(input.cwd, resolveArcPath({ kind: "procedure-root", family: "methods" }));
   return {
     readMethodFile(name): unknown {
-      return readFile(join(input.cwd, ".arc", "system", "methods", `${name}.md`));
+      return readFile(join(directory, `${name}.md`));
     },
   };
 }
@@ -28,7 +30,7 @@ export function createLocalReviewRubricBindingPort(input: {
   readDirectory?: (path: string) => readonly string[];
   readFile?: (path: string) => string;
 }): ReviewRubricBindingPort {
-  const directory = join(input.cwd, ".arc", "system", "methods");
+  const directory = join(input.cwd, resolveArcPath({ kind: "procedure-root", family: "methods" }));
   const readDirectory = input.readDirectory ?? ((path: string) => readdirSync(path));
   const readFile = input.readFile ?? ((path: string) => readFileSync(path, "utf8"));
   return bindReviewRubricMethodLookup({

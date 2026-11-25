@@ -10,9 +10,17 @@ import type {
 } from "../../../src/lib/errand/change-request-lifecycle.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
 function record(state: "open" | "paused" | "awaiting-merge"): OrdinaryErrandRecord {
   const head = "a".repeat(40);
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "discard",
     claimId: "c".repeat(32),
@@ -34,7 +42,7 @@ function record(state: "open" | "paused" | "awaiting-merge"): OrdinaryErrandReco
       headRef: "chore/discard",
       headSha: head,
     } : null,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function lifecycle(value: OrdinaryErrandRecord, kind: ChangeRequestLifecycleTruth): ChangeRequestLifecycleEvidence {

@@ -23,7 +23,7 @@ import { createRawGitExec } from "../../src/lib/io-context.js";
 import {
   TRANSITION_RECORD_NAMESPACE,
 } from "../../src/lib/work-unit/transition-record-store.js";
-import type { TransitionRecord } from "../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -91,14 +91,14 @@ function state(input: {
   });
 }
 
-function renameTransition(subject: string, targetSlug: string): TransitionRecord {
-  return {
-    schemaVersion: 1,
-    origin: subject,
+function renameTransition(subject: string, targetSlug: string): LineageRecord {
+  return LineageRecordSchema.parse({
+    schemaVersion: 2,
+    origin: { name: subject },
     kind: "rename",
-    successors: [targetSlug],
-    edges: [],
-  };
+    successors: [{ name: targetSlug }],
+    incoming: [],
+  });
 }
 
 describe("delivery records from an artifact-free linked worktree", () => {
@@ -146,11 +146,11 @@ describe("delivery records from an artifact-free linked worktree", () => {
     if (result.status === "refused") throw new Error(`plan publication refused: ${result.reason}`);
   }
 
-  async function publishTransitions(records: readonly TransitionRecord[], message: string): Promise<void> {
+  async function publishTransitions(records: readonly LineageRecord[], message: string): Promise<void> {
     const directory = join(primary, TRANSITION_RECORD_NAMESPACE);
     await mkdir(directory, { recursive: true });
     for (const [index, record] of records.entries()) {
-      await writeFile(join(directory, `${record.origin}-${index}.json`), canonicalize(record), "utf8");
+      await writeFile(join(directory, `${record.origin.name}-${index}.json`), canonicalize(record), "utf8");
     }
     await execFileAsync("git", ["add", "--", TRANSITION_RECORD_NAMESPACE], { cwd: primary });
     await makeCommit(primary, message);

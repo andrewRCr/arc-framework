@@ -1,19 +1,26 @@
 /**
- * Neither reference material nor emitted corrective actions may promise a command the CLI does not
- * register.
+ * Reference material and live corrective actions name registered commands.
  *
  * Every side is derived — documented invocations from the quick-reference copies, emitted
  * invocations from the source literals commands hand back to their caller, live paths from the
- * Commander source scan — so removing a command surfaces here without anyone maintaining a list.
+ * Commander source scan.
  */
 
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 import ts from "typescript";
 
 import { loadRepositoryCommandInputSnapshot } from "../../src/lib/command-input/repository-inventory.js";
+import { createStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
+import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
+import { guidanceMarkdownFiles } from "../helpers/guidance-markdown.js";
+import { ReviewCommandModeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
+import { reviewRequestRetryArgv } from "../../src/scripts/review-gate/runtime/project-identity-remedy.js";
+
+const REPOSITORY_SCAN_TIMEOUT_MS = 30_000;
 
 const root = resolve(import.meta.dirname, "../../../..");
 const sourceRoot = resolve(root, "packages/arc-framework/src");
@@ -88,14 +95,6 @@ function emittedInvocations(sourceText: string): DocumentedInvocation[] {
   return invocations;
 }
 
-/** Guidance trees whose `arc …` blocks an operator is told to run verbatim. */
-const GUIDANCE_ROOTS = [
-  { label: "project", path: resolve(root, ".arc/system/workflows") },
-  { label: "project", path: resolve(root, ".arc/reference") },
-  { label: "package", path: resolve(root, "packages/arc-framework/arc/system/workflows") },
-  { label: "package", path: resolve(root, "packages/arc-framework/arc/reference") },
-] as const;
-
 /** One executable invocation a guidance document publishes, with the options it passes. */
 interface GuidanceInvocation extends DocumentedInvocation {
   readonly options: readonly string[];
@@ -146,18 +145,32 @@ function guidanceInvocations(content: string): GuidanceInvocation[] {
 }
 
 /** Resolve a documented invocation to the registered command it names. */
-function resolveCommandPath(words: readonly string[], registered: ReadonlySet<string>): string | null {
+function resolveCommandPath(
+  words: readonly string[],
+  registered: ReadonlySet<string>,
+  operandCommands: ReadonlySet<string> = new Set(),
+): string | null {
   const path = words.join(" ");
-  return registered.has(path) ? path : null;
+  if (registered.has(path)) return path;
+  for (let length = words.length - 1; length > 0; length -= 1) {
+    const prefix = words.slice(0, length).join(" ");
+    if (registered.has(prefix) && operandCommands.has(prefix)) return prefix;
+  }
+  return null;
 }
 
 describe("documented command surface", () => {
   let registered!: ReadonlySet<string>;
+  let operandCommands!: ReadonlySet<string>;
   let declaresJson!: ReadonlySet<string>;
   let sourceFiles!: Readonly<Record<string, string>>;
+  let operands!: ReadonlyMap<string, readonly { name: string; required: boolean }[]>;
 
   beforeAll(async () => {
     const snapshot = await loadRepositoryCommandInputSnapshot(sourceRoot);
+    operands = new Map(snapshot.source.commands.map((command) => [command.path, command.operands]));
+    operandCommands = new Set(snapshot.source.commands.filter((command) => command.operands.length > 0)
+      .map((command) => command.path));
     sourceFiles = snapshot.sourceFiles;
     const paths = new Set<string>();
     for (const command of snapshot.source.commands) {
@@ -174,20 +187,20 @@ describe("documented command surface", () => {
     declaresJson = new Set(snapshot.source.commands
       .filter((command) => command.options.some((option) => option.flags.split(/[ ,|]+/u).includes("--json")))
       .map((command) => command.path));
-  });
+  }, REPOSITORY_SCAN_TIMEOUT_MS);
 
   it.each(REFERENCES)("publishes only registered commands in the $label quick reference", async ({ path }) => {
     const invocations = documentedInvocations(await readFile(path, "utf8"));
     expect(invocations.length).toBeGreaterThan(0);
 
     const unregistered = invocations
-      .filter((invocation) => resolveCommandPath(invocation.words, registered) === null)
+      .filter((invocation) => resolveCommandPath(invocation.words, registered, operandCommands) === null)
       .map((invocation) => invocation.line);
 
     expect(unregistered).toEqual([]);
   });
 
-  it("registers every command the source emits as a corrective action", () => {
+  it("registers emitted corrective commands", () => {
     const emitted = Object.entries(sourceFiles)
       .flatMap(([file, text]) => emittedInvocations(text).map((invocation) => ({ file, invocation })));
     // The scan is derived, so an over-tight filter would pass by finding nothing. The Candidate
@@ -196,10 +209,29 @@ describe("documented command surface", () => {
       .toEqual(expect.arrayContaining(["arc review pre-publication", "arc publish", "arc attest"]));
 
     const unregistered = emitted
-      .filter(({ invocation }) => resolveCommandPath(invocation.words, registered) === null)
+      .filter(({ invocation }) => resolveCommandPath(invocation.words, registered, operandCommands) === null)
       .map(({ file, invocation }) => `${file}: ${invocation.line}`);
 
     expect(unregistered).toEqual([]);
+  });
+
+  it.each(ReviewCommandModeSchema.options)("retries %s through a registered command taking its request", (mode) => {
+    const argv = reviewRequestRetryArgv(mode);
+    if (argv === undefined) {
+      expect(mode, "Only pre-publication takes its work unit rather than a request.").toBe("review-pre-publication");
+      return;
+    }
+    expect(argv.slice(0, 2)).toEqual(["arc", "review"]);
+    expect(argv.at(-1)).toBe("-");
+    expect(operands.get(argv.slice(1, -1).join(" "))?.map(({ name, required }) => ({ name, required })))
+      .toEqual([{ name: "input", required: false }]);
+  });
+
+  it("registers remote designation while the default operational backend stays in-repo", async () => {
+    expect(registered.has("store remote")).toBe(true);
+    const store = createStore(createDefaultStorePorts({ checkoutRoot: root }));
+    expect(store.capabilities.stateOffBranch, "A live operational backend must register every corrective command.").toBe(false);
+    expect(await createStoreSyncPort().pull()).toEqual({ status: "no-remote" });
   });
 
   it("reads the command path out of an interpolated emitted literal", () => {
@@ -228,16 +260,24 @@ describe("documented command surface", () => {
     expect(resolveCommandPath(documented?.words ?? [], new Set(["errand", "errand open"]))).toBe("errand open");
   });
 
-  it("passes `--json` only to commands that declare it, across every guidance tree", async () => {
-    const documents = await Promise.all(GUIDANCE_ROOTS.map(async ({ path }) => {
-      const entries = await readdir(path, { recursive: true });
-      const markdown = entries.filter((entry) => entry.endsWith(".md"));
-      return Promise.all(markdown.map(async (entry) => {
-        const file = resolve(path, entry);
-        return { file, invocations: guidanceInvocations(await readFile(file, "utf8")) };
-      }));
-    }));
-    const scanned = documents.flat();
+  it("accepts named operands in examples only when the registered command declares operands", () => {
+    const paths = new Set(["start", "view", "review", "review resolve"]);
+    const operands = new Set(["start", "view", "review resolve"]);
+    expect(resolveCommandPath(["start", "my-work"], paths, operands)).toBe("start");
+    expect(resolveCommandPath(["view", "tasks"], paths, operands)).toBe("view");
+    expect(resolveCommandPath(["review", "resolve", "request"], paths, operands)).toBe("review resolve");
+    expect(resolveCommandPath(["review", "missing"], paths, operands)).toBeNull();
+    expect(resolveCommandPath(["missing", "my-work"], paths, operands)).toBeNull();
+  });
+
+  it("passes `--json` only to commands that declare it, across all guidance", async () => {
+    expect(declaresJson.has("review status")).toBe(false);
+    expect(declaresJson.has("review resolve")).toBe(false);
+    expect(declaresJson.has("status")).toBe(true);
+
+    const scanned = await Promise.all((await guidanceMarkdownFiles(root)).map(async (file) => (
+      { file, invocations: guidanceInvocations(await readFile(file, "utf8")) }
+    )));
 
     // The scan is derived, so an over-tight filter would pass by finding nothing. A command that
     // genuinely keeps the flag is the fixed point that proves the scan still sees `--json`.

@@ -8,7 +8,10 @@
  * leg + guard is asserted without a real worktree.
  */
 
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../helpers/fixture-path.js";
 import { normalize } from "node:path";
 
 import type { ExecuteTransitionContext, SideEffectHandler } from "../../../src/lib/work-unit/lifecycle-executor.js";
@@ -94,7 +97,7 @@ interface MetaSpec {
 
 /** Build an injectable index fs over a fixed set of metas (mirrors the park/resume harness). */
 function buildIndexFs(metas: MetaSpec[], root = CWD): LifecycleIndexFs {
-  const normalizedRoot = normalize(root);
+  const normalizedRoot = fixturePath(normalize(root));
   const dirs = new Map<string, DirEntry[]>();
   const files = new Map<string, string>();
 
@@ -109,7 +112,7 @@ function buildIndexFs(metas: MetaSpec[], root = CWD): LifecycleIndexFs {
   const addChildDir = (parent: string, name: string): void => {
     const entries = ensureDir(parent);
     if (!entries.some((e) => e.name === name && e.isDirectory())) {
-      entries.push({ name, isDirectory: () => true });
+      entries.push({ name, isDirectory: () => true, isFile: () => false });
     }
   };
 
@@ -123,7 +126,7 @@ function buildIndexFs(metas: MetaSpec[], root = CWD): LifecycleIndexFs {
       dirAbs = parent;
     }
     const filename = `meta-${meta.slug}.md`;
-    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
+    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false, isFile: () => true });
     files.set(
       `${dirAbs}/${filename}`,
       `# Metadata: ${meta.slug}\n\n` +
@@ -139,11 +142,11 @@ function buildIndexFs(metas: MetaSpec[], root = CWD): LifecycleIndexFs {
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       return entries === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
     },
   };
@@ -209,6 +212,11 @@ function buildCtx(
 
   const makeCtx = (cwd: string): ExecuteTransitionContext => ({
     cwd,
+    exec: scriptGitExec([
+      { match: ["worktree", "list", "--porcelain", "-z"], responses: [{ stdout:
+        worktreePorcelainZ(`worktree /repo/../wt\nHEAD ${"a".repeat(40)}\nbranch refs/heads/plan/widget\n`) }] },
+      { match: { prefix: ["worktree", "lock"] }, responses: [{ stdout: "" }] },
+    ]).exec,
     withCwd: (nextCwd) => makeCtx(nextCwd),
     indexFs: buildIndexFs(metas, cwd),
     setPhase: async () => ({ phase: "Planning" }),
@@ -224,7 +232,7 @@ function buildCtx(
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       return op.mutation === "spawn"
-        ? { mutation: "spawn", worktreePath: op.inPlace ? cwd : "/repo/../wt", branch: op.branch }
+        ? { mutation: "spawn", worktreePath: op.inPlace ? cwd : "/repo/../wt", branch: op.branch ?? null }
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
     },
     atomicGraduate: async (graduation) => {

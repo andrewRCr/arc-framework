@@ -7,11 +7,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 const mockRunActiveInFlight = vi.fn();
 const mockGitExec = vi.fn();
 const mockWithLockedUserInbox = vi.fn();
-const mockResolveIdentityWithPrompt = vi.fn();
 const mockStdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
 vi.mock("@clack/prompts", () => ({
@@ -60,7 +60,6 @@ vi.mock("../../../src/lib/work-unit/lifecycle-resolver.js", () => ({
 
 vi.mock("../../../src/handlers/shared.js", () => ({
   requireArcProjectRoot: () => "/repo",
-  resolveIdentityWithPrompt: (...args: unknown[]) => mockResolveIdentityWithPrompt(...args),
 }));
 
 const { handleErrandCheck, handleErrandNext } = await import("../../../src/handlers/errand.js");
@@ -69,7 +68,6 @@ describe("handleErrandCheck", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockStdoutWrite.mockImplementation(() => true);
-    mockResolveIdentityWithPrompt.mockResolvedValue("andrew");
     mockRunActiveInFlight.mockResolvedValue({
       entries: [
         {
@@ -91,25 +89,21 @@ describe("handleErrandCheck", () => {
           + "- _Disposition:_ `execute-bound`\n",
       },
     });
-    mockGitExec.mockImplementation(async (_cmd: string, args: string[]) => {
-      if (args.join(" ") === "rev-parse --show-toplevel") return { stdout: "/repo\n", stderr: "" };
-      if (args.join(" ") === "rev-parse --verify origin/main") {
-        return { stdout: `${"a".repeat(40)}\n`, stderr: "" };
-      }
-      if (args.join(" ") === "rev-parse --verify main") {
-        return { stdout: `${"c".repeat(40)}\n`, stderr: "" };
-      }
-      if (args.join(" ") === "rev-parse --verify feat/other") {
-        return { stdout: `${"b".repeat(40)}\n`, stderr: "" };
-      }
-      if (args[0] === "diff" && args[1] === `${"a".repeat(40)}...${"b".repeat(40)}`) {
-        return { stdout: "", stderr: "" };
-      }
-      if (args[0] === "diff" && args[1] === `${"c".repeat(40)}...${"b".repeat(40)}`) {
-        return { stdout: ".arc/active/meta-other.md\n", stderr: "" };
-      }
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    });
+    const { exec } = scriptGitExec([
+      { match: ["config", "--null", "--get", "arc.identity"], responses: [{ stdout: "andrew\0" }] },
+      { match: ["rev-parse", "--show-toplevel"], responses: [{ stdout: "/repo\n", stderr: "" }] },
+      { match: ["rev-parse", "--verify", "origin/main"],
+        responses: [{ stdout: `${"a".repeat(40)}\n`, stderr: "" }] },
+      { match: ["rev-parse", "--verify", "main"],
+        responses: [{ stdout: `${"c".repeat(40)}\n`, stderr: "" }] },
+      { match: ["rev-parse", "--verify", "feat/other"],
+        responses: [{ stdout: `${"b".repeat(40)}\n`, stderr: "" }] },
+      { match: { prefix: ["diff", `${"a".repeat(40)}...${"b".repeat(40)}`] },
+        responses: [{ stdout: "", stderr: "" }] },
+      { match: { prefix: ["diff", `${"c".repeat(40)}...${"b".repeat(40)}`] },
+        responses: [{ stdout: ".arc/active/meta-other.md\n", stderr: "" }] },
+    ]);
+    mockGitExec.mockImplementation(exec);
   });
 
   afterEach(() => {
@@ -159,7 +153,7 @@ describe("handleErrandCheck", () => {
   });
 
   it("keeps identity probe failures inside the typed refusal boundary", async () => {
-    mockResolveIdentityWithPrompt.mockRejectedValueOnce(new Error("identity configuration is unreadable"));
+    mockGitExec.mockRejectedValueOnce(new Error("identity configuration is unreadable"));
 
     await handleErrandNext({ json: true });
 

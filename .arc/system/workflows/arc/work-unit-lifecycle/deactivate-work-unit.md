@@ -4,8 +4,6 @@ audience: collaborative (human and agent)
 arc:
   methods:
     - branch-format
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Deactivate Work Unit
@@ -20,10 +18,10 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 
 ## Case Matrix
 
-|                        | No task work executed                       | Some task work executed           |
-| ---------------------- | ------------------------------------------- | --------------------------------- |
-| **Not merged to base** | **Case A** — this workflow (or A-delete)    | **Case B** — see § Case B below   |
-| **Merged to base**     | **Case C** — see § Case C below             | **Case D** → integrate or clean   |
+|                        | No task work executed                    | Some task work executed         |
+| ---------------------- | ---------------------------------------- | ------------------------------- |
+| **Not merged to base** | **Case A** — this workflow (or A-delete) | **Case B** — see § Case B below |
+| **Merged to base**     | **Case C** — see § Case C below          | **Case D** → integrate or clean |
 
 **Case A** has two variants — the user chooses; surface the variant decision when invoking the workflow:
 
@@ -85,11 +83,6 @@ Context: meta-{name}.md (deactivation)
 
 The local branch rename back landed in Step 2 (executor-owned); only the remote legs remain.
 
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-  (established at session init), load and execute its `.actions` before the `workflowPush` push.
-  Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses.
-  Otherwise, skip.
-
 ```bash
 git push -u origin plan/{name}              # workflowPush
 git push origin --delete {type}/{name}      # raw — destructive flag stays literal
@@ -125,6 +118,9 @@ prints the impact plan and refuses without it; the slug is required (`abandon` n
 The branch and worktree are **not** torn down here — that physical reap is the out-of-band `arc teardown --force`
 in Step 4. (Firing the teardown in-verb tripped the clean guard on the verb's own staged removal and, in-place,
 targeted the un-removable primary worktree.) `arc abandon` stages but does not commit.
+
+When several retirements share a checkout, commit each completed transition before invoking the next one. Direct
+retirement requires an empty index; commit unrelated staged changes or clear them from the index before retrying.
 
 ### 3) Commit the abandonment
 
@@ -218,11 +214,12 @@ protection) — but no task work has run, so the activation is the only thing to
 locally since it lives on base. No dedicated workflow ships for this; reverse it with a deactivation PR:
 
 1. Branch from base.
-2. Reverse the activation's meta-file edits — the inverse of [`activate-work-unit.md`][activate] Step 4:
+2. Reverse the activation's meta-file edits — the inverse of [`activate-work-unit.md`][activate] Step 3:
    `**State:** Active → Planning`, `**Branch:**` back to `plan/{name}`, and the Next Action back to a planning
    pointer.
-3. Open the PR, note the deactivation in its description, and merge once approved. If the activation also renamed
-   the live branch, rename it back per the Case A branch-rename routing above.
+3. Run `arc check increment` before committing the reversed meta fields for the deactivation PR. Open the PR, note
+   the deactivation in its description, and merge once approved. If the activation also renamed the live branch,
+   rename it back per the Case A branch-rename routing above.
 
 ---
 

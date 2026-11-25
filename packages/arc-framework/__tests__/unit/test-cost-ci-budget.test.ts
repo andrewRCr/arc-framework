@@ -41,6 +41,9 @@ describe("CI test-cost budget reporting", () => {
     expect(report.summary).toContain("[!WARNING]");
     expect(report.summary).toContain("integration");
     expect(report.summary).toContain("75 ms over");
+    expect(report.annotation).toBe("::warning title=Test budget::integration is 75 ms over its 1.00 s CI-job budget (900 ms baseline; 1.07 s observed). Advisory only; the job result is unchanged.");
+    expect(report.summary).toContain("900 ms baseline");
+    expect(report.summary).toContain("1.00 s CI-job budget");
   });
 
   it("emits no warning when a job is within budget", () => {
@@ -55,6 +58,14 @@ describe("CI test-cost budget reporting", () => {
 
     expect(report.standing.status).toBe("within");
     expect(report.summary).toBeUndefined();
+    expect(report.annotation).toBeUndefined();
+  });
+
+  it("returns an over-budget report without throwing", () => {
+    expect(() => createCiTestBudgetReport(record, {
+      tier: "integration", projectSet: "integration", workerSizing: "1", ciJob: "integration",
+      startedAtMs: 2_000, completedAtMs: 3_075,
+    })).not.toThrow();
   });
 
   it("warns when the CI worker sizing has no measured budget", () => {

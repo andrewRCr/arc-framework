@@ -20,7 +20,7 @@ import {
   removeInboxEntry,
   removeInspectedInboxEntry,
   requireLiveInboxTitle,
-} from "../../src/lib/user-sync/index.js";
+} from "../../src/lib/user-sync/inbox-writer.js";
 
 /** A realistic inbox: two `## Errand` entries, one `## Work Unit` entry, a trailing tombstone. */
 const INBOX = `# User Inbox

@@ -30,12 +30,20 @@
  * @module
  */
 
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import type { StoreRefusal, Remedy } from "../../store/refusal.js";
+import type { TeardownContext } from "./teardown.js";
+import { runStoreAbandon } from "./abandon-store.js";
+import { checkRetiringCheckout, describeRemovalRefusal, type WorktreeRemovalOptions } from "../../git/worktree-removal.js";
+import type { WorktreeMarkerReadResult } from "../../git/worktree-marker.js";
+
 import { basename, join, posix } from "node:path";
 
-import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
-import { canonicalDigest } from "../../canonical/canonical-json.js";
+import { parseMetaRecord } from "../../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../../active/meta-schema.js";
+import { canonicalDigest } from "../../kernel/canonical/canonical-json.js";
 import type { PatchOperation } from "../../canonical/content-digest.js";
-import { validateManagedPath, type ManagedPath } from "../../canonical/managed-path.js";
+import { validateManagedPath, type ManagedPath } from "../../kernel/canonical/managed-path.js";
 import { resolveArcPath } from "../../layout/index.js";
 import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";
@@ -59,7 +67,7 @@ import {
 } from "../retirement-lifecycle-result.js";
 import { createProspectiveTransitionOverlay } from "../transition-overlay.js";
 import type { TerminalTransitionRecordWriter } from "../terminal-transition-record-writer.js";
-import type { TransitionRecord } from "../transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../store/kinds/lineage/index.js";
 import { resolveTransitionRecordRelativePath } from "../transition-record-store.js";
 import { validFromStates } from "./dispatch.js";
 
@@ -78,12 +86,17 @@ export interface AbandonFs {
  * `scaffoldOrRemove` runner, which the verb builds) plus the artifact-removal fs.
  */
 export interface AbandonContext {
+  /** Store cleanup binds the same backend and configured physical boundaries. */
+  storeTeardown?: TeardownContext;
+  baseBranch?: string;
   executor: Omit<ExecuteTransitionContext, "scaffoldOrRemove">;
   fs: AbandonFs;
   retirement: AbandonRetirementContext;
   transitionWriter: TerminalTransitionRecordWriter;
   /** Remote-aware lifecycle truth; omitted only by tree-compatible library callers. */
   composed?: ComposedLifecycleIndexResult;
+  /** Checkout safety boundaries, required on started retirement paths. */
+  removal?: Omit<WorktreeRemovalOptions, "checkoutPath" | "disposition"> & { readMarker?: (path: string) => Promise<WorktreeMarkerReadResult> };
 }
 
 /** Source evidence captured before an abandon removes its artifact group. */
@@ -136,9 +149,10 @@ export interface AbandonParams {
 
 /** The outcome of an `abandon` attempt — a rejection, or the completed teardown. */
 export type AbandonResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }
   | {
       status: "abandoned";
+      notices?: string[];
       outcome: TransitionOutcome;
       lifecycle: RetirementLifecycleResult;
     };
@@ -148,7 +162,7 @@ const STARTED: ReadonlySet<LifecycleState> = new Set(["planning", "active"]);
 
 /** Parked state retains a branch but has no registered worktree. */
 const PARKED: ReadonlySet<LifecycleState> = new Set(["parked"]);
-const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });
+
 
 /** The destructive-cascade impact preview for an `abandon` — its legality and the cascade lines. */
 export interface AbandonPlan {
@@ -203,6 +217,7 @@ export function planAbandon(state: LifecycleState, branch: string | null, name: 
  * @returns A rejection or the completed teardown outcome.
  */
 export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Promise<AbandonResult> {
+  if (usesOffBranchState(ctx.executor.store)) return runStoreAbandon(ctx, params);
   const { name, confirmed } = params;
   const { executor, fs, retirement } = ctx;
 
@@ -259,7 +274,7 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
         ? meta?.branch ?? null
         : null,
       ...(PARKED.has(state) && meta?.branch !== null && meta?.branch !== undefined
-        ? { retirementSource: { branch: meta.branch, sourceDir: ACTIVE_DIR } }
+        ? { retirementSource: { branch: meta.branch, sourceDir: resolveArcPath({ kind: "placement-root", tier: "active" }) } }
         : {}),
     });
   } catch (err) {
@@ -272,8 +287,16 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
   if (snapshot.status === "refused") {
     return {
       status: "rejected",
-      reason: `Cannot record abandon evidence: ${describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
+      reason: `Cannot record abandon evidence: ${snapshot.diagnostic ?? describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
     };
+  }
+
+  if (STARTED.has(state)) {
+    if (ctx.removal === undefined) return { status: "rejected", reason: "checkout removal check is not wired." };
+    const boundary = ctx.removal;
+    const removal = await checkRetiringCheckout({ ...boundary, checkoutPath: executor.cwd,
+      exec: (command, args, options) => boundary.exec(command, args, { cwd: executor.cwd, ...options }) });
+    if (removal.kind === "refused") return { status: "rejected", reason: describeRemovalRefusal(removal) };
   }
 
   const workspaceHandler = executor.sideEffects?.["user-workspace"];
@@ -303,13 +326,13 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
-  const transitionRecord: TransitionRecord = {
-    schemaVersion: 1,
-    origin: name,
+  const transitionRecord: LineageRecord = LineageRecordSchema.parse({
+    schemaVersion: 2,
+    origin: { name },
     kind: "abandon",
     successors: [],
-    edges: [],
-  };
+    incoming: [],
+  });
   const transitionRecorded = await ctx.transitionWriter.record(transitionRecord);
   if (transitionRecorded.status !== "recorded") {
     const rollback = await retirement.rollbackRefusedCommit(source);

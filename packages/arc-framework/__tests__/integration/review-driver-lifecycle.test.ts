@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { codeReviewSection } from "../helpers/code-review-section.js";
+
 const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
@@ -11,6 +14,17 @@ const integrateWorkflow = "system/workflows/arc/work-unit-lifecycle/integrate-wo
 const prepareWorkflow = "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
 const errandWorkflow = "system/workflows/arc/supplemental/run-errand.md";
 const workflows = [integrateWorkflow, errandWorkflow];
+
+async function sharedReviewSection(workflow: string, heading: string): Promise<string> {
+  const fragment = heading.toLowerCase().replaceAll(" ", "-");
+  const path = "system/methods/code-review.md";
+  const [packaged, project] = await Promise.all([
+    readFile(resolve(packageArc, path), "utf8"),
+    readFile(resolve(projectArc, path), "utf8"),
+  ]);
+  expect(project).toBe(packaged);
+  return codeReviewSection(workflow, fragment, packaged);
+}
 
 describe("lifecycle review driver", () => {
   it.each(workflows)("projects the same typed driver through %s", async (path) => {
@@ -22,13 +36,14 @@ describe("lifecycle review driver", () => {
     for (const command of [
       "arc review resolve -",
       "arc review hosted request -",
-      "arc review hosted await -",
-      "arc review hosted settle -",
     ]) expect(packaged).toContain(command);
+    const hosted = await sharedReviewSection(packaged, "Hosted await and settlement");
+    expect(hosted).toContain("arc review hosted await -");
+    expect(hosted).toContain("arc review hosted settle -");
     if (path === integrateWorkflow) {
-      expect(packaged).toContain("arc review chunking resolve -");
+      expect(packaged).toContain("arc review changeset resolve -");
     } else {
-      expect(packaged).not.toContain("arc review chunking resolve -");
+      expect(packaged).not.toContain("arc review changeset resolve -");
       expect(packaged).toContain("Errand atomicity fixes each role's");
     }
     expect(packaged).toContain("review applicability");
@@ -36,16 +51,20 @@ describe("lifecycle review driver", () => {
     expect(packaged).toContain("judgmentRequired: true");
     expect(packaged).toContain("supplemental | fresh");
     expect(packaged).not.toContain("agent-selected supplemental review");
-    expect(packaged).toContain("`settlement: reply-and-resolve`");
-    expect(packaged).toContain("`settlement: not-applicable`");
-    expect(packaged).toContain("originating `target`");
-    expect(packaged).toContain("changed `fixTarget`");
-    expect(packaged).toContain("`coverage: incremental`");
-    expect(packaged).toContain("`effectiveCoverage: complete`");
+    expect(hosted).toContain("`reply-and-resolve`");
+    expect(hosted).toContain("A `not-applicable` finding appears in neither phase");
+    expect(hosted).toContain("originating `target`");
+    expect(hosted).toContain("changed `fixTarget`");
+    if (path === errandWorkflow) {
+      expect(packaged).toContain("`coverage: complete`; fix checks and delta checks run locally");
+      expect(await sharedReviewSection(packaged, "Coverage selection")).toContain("`coverageAdmission`");
+    } else {
+      const convergence = await sharedReviewSection(packaged, "Convergence");
+      expect(convergence).toContain("Fix and delta");
+      expect(convergence).toContain("checks run locally");
+    }
     expect(packaged).not.toContain("`Coverage`");
-    expect(packaged).toMatch(
-      /never invoke `hosted settle`, post a reply or\s+compensating\s+summary\s+comment/u,
-    );
+    expect(hosted).toContain("no hosted settle, reply, resolution, or compensating summary");
     expect(packaged).not.toContain("project review coordinator");
     expect(packaged).not.toContain("coordinate-pr-review");
   });
@@ -59,16 +78,16 @@ describe("lifecycle review driver", () => {
     expect(workflow).toContain("arc review status --target '{targetRef}'");
     expect(workflow.indexOf("arc review status --target '{targetRef}'"))
       .toBeLessThan(workflow.indexOf("arc review hosted request -"));
-    expect(workflow).toContain("checkpoint now owns Candidate applicability, ordinary publication settlement");
+    expect(workflow).toMatch(softWrappedProse("checkpoint now owns Candidate applicability, ordinary publication settlement"));
     expect(workflow).toMatch(/delivery\s+rebind, review status, and final readiness/u);
     expect(workflow).toContain("arc merge lock resolve -");
     expect(workflow).toContain("arc integrate checkpoint {name}");
     expect(workflow).toContain("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
     expect(workflow).toContain("Approve (or redirect)?");
     expect(workflow).toMatch(
-      /not an instruction to invoke merge this turn while those checks are pending/iu,
+      /not\s*(?:>\s*)?an instruction to invoke merge this turn while those checks are pending/iu,
     );
-    expect(preparation).toMatch(/runtime-owned bindings/i);
+    expect(await sharedReviewSection(preparation, "Local operation")).toMatch(/runtime-owned bindings/i);
     expect(workflow).toContain("no-action record-only");
     expect(workflow).not.toContain("`Coverage`");
     expect(workflow).not.toContain("arc review readiness -");
@@ -81,7 +100,7 @@ describe("lifecycle review driver", () => {
 
     expect(workflow).toContain("integrationBoundary.nextAction.command");
     expect(workflow).toContain("`resolve-delivery-status`");
-    expect(workflow).toContain("selects the first outstanding retained member");
+    expect(workflow).toMatch(softWrappedProse("selects the first outstanding retained member"));
   });
 
   it("keeps attention suppression with the owner of each judgment", async () => {
@@ -89,6 +108,7 @@ describe("lifecycle review driver", () => {
       readFile(resolve(packageArc, prepareWorkflow), "utf8"),
       readFile(resolve(packageArc, errandWorkflow), "utf8"),
     ]);
+    const chunkGate = await sharedReviewSection(workUnit, "Chunk gate");
     for (const pair of [
       "disabled / none",
       "below-threshold / continue-review",
@@ -97,35 +117,44 @@ describe("lifecycle review driver", () => {
       "consider-chunks / select-review-scope",
       "delivery-bound / continue-review",
     ]) {
-      expect(workUnit).toContain(pair);
+      expect(chunkGate).toContain(pair);
       expect(errand).not.toContain(pair);
     }
-    expect(workUnit).toContain("selected `assess-boundary-fit` outcome and its evidence basis");
-    expect(workUnit).toContain("semantically unchanged");
-    expect(workUnit).toContain("material deltas");
-    expect(workUnit).toContain("render `recommendedActionText` verbatim");
-    expect(workUnit).toContain("never also offer chunked review");
+    expect(chunkGate).toContain("semantically unchanged");
+    expect(chunkGate).toMatch(softWrappedProse("render `recommendedActionText` verbatim"));
+    expect(chunkGate).toContain("uses the bound plan without also offering chunks");
     expect(errand).toMatch(/chunk selection is not an\s+Errand review action/u);
-    expect(errand).toContain("Bind the opened target's `scopeSelection` directly to whole-target");
+    expect(errand).toMatch(softWrappedProse("Bind the opened target's `scopeSelection` directly to whole-target"));
   });
 
-  it("carries a content-gated local-review attestation instead of a composed record", async () => {
-    const path = "reference/templates/arc/work-unit/template-pull-request.md";
+  it("shares an overridable change-focused policy with binding title constraints", async () => {
+    const errand = await readFile(resolve(packageArc, errandWorkflow), "utf8");
+    expect(errand).toContain("    - pull-request-format");
+    const path = "system/methods/pull-request-format.md";
     const [packaged, project] = await Promise.all([
       readFile(resolve(packageArc, path), "utf8"),
       readFile(resolve(projectArc, path), "utf8"),
     ]);
     expect(project).toBe(packaged);
-    expect(packaged).toContain("**Local review:** {carrier identity}");
-    expect(packaged).toContain("**Local review — content-gated.**");
-    expect(packaged).toContain("Omit the field entirely when no local review ran");
-    expect(packaged).not.toContain("## Review");
-    expect(packaged).not.toContain("**Hosted PR:**");
-    expect(packaged).not.toContain("**Triage:**");
-    expect(packaged).not.toContain("**Coverage:**");
-    expect(packaged).toContain("## Delivery-Member Variant");
-    expect(packaged).toContain("Do not add a `Delivery` field");
-    expect(packaged).toContain("Design is content-gated for delivery members");
-    expect(packaged).toContain("{type}({work-unit-slug}): [{position}/{total}] {member title}");
+    const contract = packaged.slice(packaged.indexOf("> - **Contract:**"), packaged.indexOf("## pull-request-format.override"));
+    expect(contract).toContain("squash");
+    expect(contract).toContain("valid commit subject");
+    expect(contract).toContain("multi-member delivery");
+    for (const type of ["feat", "fix", "chore", "docs", "refactor", "test", "perf", "revert"]) {
+      expect(contract).toContain(`\`${type}\``);
+    }
+    const headings = ["## Summary", "## Changes", "## Notes for Reviewers", "## Test Plan", "## Out of Scope"];
+    const block = packaged.match(/```markdown\n([\s\S]*?)```/u)?.[1] ?? "";
+    expect(block.match(/^## .+$/gmu)).toEqual(headings);
+    expect(block.match(/Omit/gu)).toHaveLength(4);
+    expect(packaged).toMatch(softWrappedProse("A credible alternative existed and the rationale is not visible in the diff"));
+    expect(packaged).toMatch(softWrappedProse("Errands list every qualifying decision"));
+    expect(packaged).toContain("commit-pinned permalink");
+    expect(packaged).toContain("spec-{name}-prd.md");
+    expect(packaged).toContain("spec-{name}-rfc.md");
+    expect(packaged).toContain("inherited defaults");
+    expect(packaged).toContain("undisclosed vulnerability");
+    expect(packaged).toContain("No process, provenance, or review metadata");
+    expect(packaged).toMatch(softWrappedProse("Do not supply a design reference"));
   });
 });

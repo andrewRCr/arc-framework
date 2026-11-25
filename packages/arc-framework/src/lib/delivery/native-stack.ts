@@ -55,7 +55,7 @@ export function deriveDeliveryNativeRegistrationInput(input: {
     return { status: "refused", reason: "invalid-input" };
   }
   const coherence = validateDeliveryStateAgainstPlan(input.state, input.plan);
-  if (coherence.status !== "valid" || input.plan.projection.kind !== "stack-to-main") {
+  if (coherence.status !== "valid") {
     return { status: "refused", reason: "state-mismatch" };
   }
   const target = deriveDeliveryNativeTarget(coherence.state);

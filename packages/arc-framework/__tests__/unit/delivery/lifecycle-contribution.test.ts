@@ -11,6 +11,14 @@ import {
 } from "../../../src/lib/delivery/lifecycle-contribution.js";
 
 describe("CurrentDeliveryLifecycleContributionPathSource", () => {
+  it("keeps native records and export copies outside the Git lifecycle group without a projected directory", async () => {
+    const source = new CurrentDeliveryLifecycleContributionPathSource({ stateOffBranch: true,
+      readDirectory: async () => { throw new Error("No lifecycle directory is projected"); },
+      readArtifactsAtRef: async () => { throw new Error("Native state has no tracked lifecycle artifacts"); } });
+    await expect(source.resolve({ workUnitId: "example", activeMetaPath: validateManagedPath(".arc/active/meta-example.md"),
+      protectedBaseRef: "refs/heads/main", topRef: "refs/heads/feat/example" })).resolves.toEqual({ paths: [] });
+  });
+
   it("resolves the complete lifecycle group including machine-owned Candidate records", async () => {
     const source = new CurrentDeliveryLifecycleContributionPathSource({
       readDirectory: async () => [

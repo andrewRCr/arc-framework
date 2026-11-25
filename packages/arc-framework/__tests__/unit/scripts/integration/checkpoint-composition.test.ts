@@ -1,22 +1,45 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { GitExec } from "../../../../src/lib/git/exec.js";
+import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
 
 import {
   checkpointBaseIsAccepted,
   createCheckpointCandidateContext,
+  createIntegrationCheckpointDependencies,
+  readSingletonCheckpointDischarge,
 } from "../../../../src/scripts/integration/checkpoint-composition.js";
 
+import { readCandidateRecordVersioned, readCandidateRecordVersion, writeCandidateRecord } from
+  "../../../../src/lib/store/kinds/review/candidate/access.js";
+import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
+import { candidateFixture } from "../../../helpers/store/tracked-write-fixture.js";
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+
 const oid = (character: string): string => character.repeat(40);
+const RECORD_VERSION = CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`);
 
 describe("integration checkpoint composition", () => {
+  it("retains the supplied store's Candidate refusal and resumes after repair", async () => {
+    const h = createLifecycleHarness();
+    const meta = await h.seedMeta("example");
+    const input = { cwd: "/unavailable", exec: scriptGitExec([]).exec, store: h.store, workItem: meta.reference.owner };
+    h.store.state.corrupt = true;
+    await expect(createIntegrationCheckpointDependencies(input).readCandidate("example", oid("a")))
+      .rejects.toThrow(/structurally corrupt.*Rebuild the namespace index/isu);
+    h.store.state.corrupt = false;
+    await expect(createIntegrationCheckpointDependencies(input).readCandidate("example", oid("a"))).resolves.toBeNull();
+  });
+
   it("shares one managed Candidate record across classification and downstream projection", async () => {
     let reads = 0;
     const record = { attestation: { candidateId: "candidate" } } as never;
     const context = createCheckpointCandidateContext({
       readRecord: async () => {
         reads += 1;
-        return { record, version: "version-1" };
+        return { record, version: RECORD_VERSION };
       },
-      readVersion: async () => "version-1",
+      readVersion: async () => RECORD_VERSION,
       project: async ({ baseRevision }) => ({
         effective: {
           state: "unavailable",
@@ -31,7 +54,7 @@ describe("integration checkpoint composition", () => {
     const managed = await context.readRecord("example");
     const effective = await context.readEffective("example", oid("a"));
 
-    expect(managed.version).toBe("version-1");
+    expect(managed.version).toBe(RECORD_VERSION);
     expect(effective?.recordVersion).toBe(managed.version);
     expect(reads).toBe(1);
   });
@@ -41,9 +64,9 @@ describe("integration checkpoint composition", () => {
     const context = createCheckpointCandidateContext({
       readRecord: async () => ({
         record: { attestation: { candidateId: "candidate" } } as never,
-        version: "version-1",
+        version: RECORD_VERSION,
       }),
-      readVersion: async () => "version-1",
+      readVersion: async () => RECORD_VERSION,
       project: async ({ baseRevision }) => {
         projectedBases.push(baseRevision);
         return {
@@ -66,6 +89,27 @@ describe("integration checkpoint composition", () => {
     expect(projectedBases).toEqual([oid("a"), oid("b")]);
   });
 
+  it("compares opaque Candidate versions from the supplied store without digest coercion", async () => {
+    const h = createLifecycleHarness();
+    const { owner } = (await h.seedMeta("example")).reference;
+    const options = { store: h.store, owner };
+    const record = candidateFixture();
+    await writeCandidateRecord("/unavailable", "example", record, null, options);
+    const context = createCheckpointCandidateContext({
+      readRecord: (workUnit) => readCandidateRecordVersioned("/unavailable", workUnit, options),
+      readVersion: (workUnit) => readCandidateRecordVersion("/unavailable", workUnit, options),
+      project: async () => { throw new Error("Target projection is unused during version comparison"); },
+    });
+    const expected = (await context.readRecord("example")).version;
+    expect(expected).not.toMatch(/^sha256:/u);
+    await expect(context.assertRecordVersion("example")).resolves.toEqual({ status: "unchanged", recordVersion: expected });
+    await writeCandidateRecord("/unavailable", "example", record, expected, options);
+    const observed = await readCandidateRecordVersion("/unavailable", "example", options);
+    expect(observed).not.toBe(expected);
+    await expect(context.assertRecordVersion("example")).resolves.toEqual({ status: "moved",
+      expectedRecordVersion: expected, observedRecordVersion: observed });
+  });
+
   it("accepts the configured base and a validated delivery-member predecessor", () => {
     expect(checkpointBaseIsAccepted({
       candidateBaseRef: "main",
@@ -85,5 +129,39 @@ describe("integration checkpoint composition", () => {
       configuredBaseRef: "main",
       acceptableDeliveryBaseRefs: ["delivery/example/member-1"],
     })).toBe(false);
+  });
+
+  it("reads a post-fix singleton review from the target's observed diff base", async () => {
+    const reviewedBase = oid("2");
+    const currentBase = oid("3");
+    const head = oid("4");
+    const exec: GitExec = vi.fn(async (_cmd, args) => {
+      expect(args).toEqual(["merge-base", "--all", head, currentBase]);
+      return { stdout: `${reviewedBase}\n` };
+    });
+    const readDischarge = vi.fn(async () => ({
+      discharged: false,
+      detail: "Earlier review requires applicability.",
+      nextSource: null,
+    }));
+
+    await expect(readSingletonCheckpointDischarge({
+      cwd: "/repo",
+      exec,
+      baseBranch: "main",
+      baseRevision: currentBase,
+      approvedHead: head,
+      discharge: {
+        reservation: {} as never,
+        approvedHead: head,
+        changeRequest: { repository: "owner/repository", pullRequest: 41 },
+        candidate: { attestation: { baseRevision: oid("1") } } as never,
+      },
+      readDischarge,
+    })).resolves.toMatchObject({ discharged: false });
+    expect(readDischarge).toHaveBeenCalledWith(expect.objectContaining({
+      baseRevision: reviewedBase,
+      approvedHead: head,
+    }));
   });
 });

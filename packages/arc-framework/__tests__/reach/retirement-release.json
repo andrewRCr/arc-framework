@@ -1,0 +1,25 @@
+{
+  "name": "retirement release integration",
+  "package": "packages/arc-framework",
+  "check": { "id": "test:retirement-release", "declaration": ".arc/system/arc-checks.yml" },
+  "ask": "ARC_RETIREMENT_RELEASE_CHECK",
+  "suites": ["packages/arc-framework/__tests__/integration/retirement-store-release.test.ts"],
+  "locating": [
+    {
+      "module": "packages/arc-framework/src/lib/paths.ts",
+      "finds": [
+        "packages/arc-framework/package.json",
+        "packages/arc-framework/arc/**",
+        "packages/arc-framework/templates/**",
+        "packages/arc-framework/init-recipe.json",
+        "packages/arc-framework/changelog/versions.json"
+      ]
+    },
+    { "module": "packages/arc-framework/src/lib/version.ts", "finds": ["packages/arc-framework/package.json"] }
+  ],
+  "selection": [
+    "scripts/run-reach-check.mjs",
+    "packages/arc-framework/src/lib/vitest-reach.ts",
+    "packages/arc-framework/src/lib/reach-check.ts"
+  ]
+}

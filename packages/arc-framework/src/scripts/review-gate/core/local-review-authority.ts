@@ -22,6 +22,9 @@ export interface LocalReviewAuthority {
 export interface LocalReviewMemberCoordinates {
   readonly base: string;
   readonly head: string;
+  readonly planId: string;
+  readonly workUnitId: string;
+  readonly deliverableId: string;
 }
 
 /** One resolved authority, plus member coordinates when a member was named. */

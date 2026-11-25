@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   deriveDeliveryResolutionWorkspacePath,
   deriveDeliveryResidueLocators,
@@ -280,9 +281,12 @@ describe("delivery gate checkout", () => {
   const head = "7".repeat(40);
 
   it("ignores another checkout that only shares the expected head", async () => {
-    const exec: GitExec = async (_command, args) => args[0] === "worktree"
-      ? { stdout: `worktree /repo\0HEAD ${head}\0branch refs/heads/main\0\0worktree /tmp/other\0HEAD ${head}\0detached\0\0` }
-      : { stdout: "" };
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["worktree"] }, responses: [{
+        stdout: `worktree /repo\0HEAD ${head}\0branch refs/heads/main\0\0worktree /tmp/other\0HEAD ${head}\0detached\0\0`,
+      }] },
+      { match: { prefix: [] }, responses: [{ stdout: "" }] },
+    ]);
     await expect(observeDeliveryGateCheckout({
       exec, path, pathExists: async () => false,
     })).resolves.toEqual({ status: "absent" });

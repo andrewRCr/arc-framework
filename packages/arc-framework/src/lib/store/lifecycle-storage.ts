@@ -1,0 +1,141 @@
+/** Immutable lifecycle filesystem projection over the public storage contract. */
+import { storeRemedyText } from "./native-refusal.js";
+import type { z } from "zod";
+import { WorkUnitReadPlacementSchema } from "./placement.js";
+import { isAbsolute, relative, resolve, sep } from "node:path";
+import { ArcError } from "../kernel/errors.js";
+import { SlugSchema } from "../kernel/schema/slug.js";
+import { identifyWorkUnitArtifactPath, resolveArcPath, type WorkUnitArtifactKind, type WorkUnitPlacement } from "../layout/index.js";
+import type { ProjectViewFs, ProjectViewDirEntry } from "../status/project-view.js";
+import type { Store } from "./contract.js";
+import { RecordReferenceSchema, type RecordVersion, type StateVersion } from "./identity.js";
+import { listLifecycleIndex, type LifecycleEntry, type LifecycleIndexOutcome } from "./lifecycle-index.js";
+import type { StoreResult } from "./refusal.js";
+import { resolveCheckoutLayoutContext } from "./checkout-layout.js";
+
+/** One lifecycle version and its record-backed filesystem projection. */
+export interface StoreLifecycleSnapshot {
+  version: StateVersion;
+  fs: ProjectViewFs;
+  /** The selected meta record's version at this snapshot, or absence from its inventory. */
+  metaVersion(workUnit: string): RecordVersion | null;
+}
+/** Lifecycle storage accepted structurally by checkpoint and merge composition. */
+export interface StoreLifecycleStorage { readSnapshot(): Promise<StoreLifecycleSnapshot> }
+/** Bind lifecycle snapshots to a logical store without observing it during construction.
+ * @param input - Contract and checkout root used to interpret incoming paths.
+ * @returns Snapshot storage whose reads remain bound to one immutable state version.
+ */
+export function createStoreLifecycleStorage(input: { store: Store; checkoutRoot: string }): StoreLifecycleStorage {
+  return { readSnapshot: async () => {
+    const version = unwrap(input.store, await input.store.version());
+    const listing = unwrap(input.store, await listLifecycleIndex(input.store, { asOf: version }));
+    requireCompleteInventory(input.store, listing);
+    const entries = listing.status === "complete" ? listing.index.entries() : [];
+    const metaVersions = new Map<string, RecordVersion>(entries.map((entry) => [entry.reference.owner.name, entry.version]));
+    return { version, fs: snapshotFs(input, version, entries), metaVersion: (workUnit) => metaVersions.get(workUnit) ?? null };
+  } };
+}
+/** Refuse a write-driving inventory unless every lifecycle record was observed. */
+export function requireCompleteInventory(store: Pick<Store, "capabilities">, listing: LifecycleIndexOutcome): void {
+  if (listing.status === "unreadable") throw new ArcError(`${listing.condition} ${storeRemedyText(store, listing.remedy)}`, "store.lifecycle-unreadable");
+  if (listing.status !== "complete" || (!listing.missed && listing.diagnostics.length === 0)) return;
+  const diagnostics = listing.diagnostics.filter((item) => store.capabilities.stateOffBranch
+    || item.kind !== "malformed" || item.rule !== "placement");
+  // A missed signal without any diagnostic has no established omission basis.
+  if (diagnostics.length === 0 && listing.diagnostics.length > 0) return;
+  const evidence = diagnostics.map((item) => `${item.condition} ${storeRemedyText(store, item.remedy)}`).join("; ")
+    || "Lifecycle inventory reports missed records. Repair the missed lifecycle records, then retry the snapshot.";
+  throw new ArcError(evidence, "store.lifecycle-incomplete", { cause: diagnostics });
+}
+function unwrap<T>(store: Pick<Store, "capabilities">, value: StoreResult<T>): T {
+  if (value.status === "ok") return value.result;
+  throw new ArcError(`${value.refusal.condition} ${storeRemedyText(store, value.refusal.remedy)}`, "store.lifecycle-refused", { cause: value.refusal });
+}
+function missing(path: string): Error {
+  return Object.assign(new Error(`Lifecycle record path is absent: ${path}`), { code: "ENOENT" });
+}
+function repositoryPath(root: string, path: string): string {
+  const absolute = isAbsolute(path) ? resolve(path) : resolve(root, path);
+  return relative(resolve(root), absolute).split(sep).join("/");
+}
+/** Project an artifact from its logical work-unit identity and read placement. */
+export async function workItemArtifactPath(checkoutRoot: string, slug: string, artifact: WorkUnitArtifactKind,
+  readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): Promise<string> {
+  return workItemArtifactPathAt(slug, artifact, await workItemLayoutPlacement(checkoutRoot, slug, readPlacement, cohort));
+}
+/** Project already-resolved physical coordinates without observing a checkout. */
+export function workItemArtifactPathAt(slug: string, artifact: WorkUnitArtifactKind, placement: WorkUnitPlacement): string {
+  return resolveArcPath({ kind: "work-unit-artifact", artifact, slug: SlugSchema.parse(slug), placement });
+}
+/** Project the in-repo lifecycle tree without consulting checkout configuration or claims. */
+export function flatWorkItemArtifactPath(slug: string, artifact: WorkUnitArtifactKind,
+  readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): string {
+  return workItemArtifactPathAt(slug, artifact, flatWorkItemLayoutPlacement(readPlacement, cohort));
+}
+/** Adapt logical placement through the checkout's selected backend, claim and project layout. */
+export async function workItemLayoutPlacement(checkoutRoot: string, slug: string,
+  readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): Promise<WorkUnitPlacement> {
+  const placement = flatWorkItemLayoutPlacement(readPlacement, cohort);
+  if (placement.kind !== "active") return placement;
+  const context = await resolveCheckoutLayoutContext(checkoutRoot);
+  if (context === undefined) return placement;
+  const location = context.claim === slug ? { kind: "own" as const, claim: context.claim, layoutActive: context.layoutActive }
+    : { kind: "another" as const };
+  return { kind: "active", scope: { kind: "project", location } };
+}
+function flatWorkItemLayoutPlacement(readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): WorkUnitPlacement {
+  const selected = WorkUnitReadPlacementSchema.parse(readPlacement);
+  return selected.kind === "active"
+    ? { kind: "active", scope: { kind: "project" } }
+    : selected.kind === "backlog"
+      ? { ...selected, cohort: (cohort ?? "").split("/").filter(Boolean).map((part) => SlugSchema.parse(part)) }
+      : selected;
+}
+
+/** Project a diagnostic path for a lifecycle record without reading through that path. */
+export async function lifecycleArtifactPath(checkoutRoot: string, entry: LifecycleEntry, artifact: WorkUnitArtifactKind): Promise<string> {
+  return workItemArtifactPath(checkoutRoot, entry.reference.owner.name, artifact,
+    WorkUnitReadPlacementSchema.parse(entry.placement), entry.fields.cohort);
+}
+const artifactKinds = { meta: "work-item/meta", draft: "work-item/draft", spec: "work-item/spec", tasks: "work-item/task-list", notes: "work-item/notes" } as const;
+function snapshotFs(input: { store: Store; checkoutRoot: string }, version: StateVersion, entries: readonly LifecycleEntry[]): ProjectViewFs {
+  const pathFor = (entry: LifecycleEntry, artifact: WorkUnitArtifactKind): string => flatWorkItemArtifactPath(
+    entry.reference.owner.name, artifact, WorkUnitReadPlacementSchema.parse(entry.placement), entry.fields.cohort);
+  const directories = projectedDirectories(entries.map((entry) => pathFor(entry, "meta")));
+  return {
+    readdir: (path) => {
+      const directory = directories.get(repositoryPath(input.checkoutRoot, path));
+      if (directory === undefined) return Promise.reject(missing(path));
+      return Promise.resolve([...directory.values()].sort((left, right) => left.name.localeCompare(right.name)));
+    },
+    readFile: async (path) => {
+      const projected = repositoryPath(input.checkoutRoot, path);
+      const identified = identifyWorkUnitArtifactPath(projected);
+      if (identified === null) throw missing(path);
+      const matches = entries.filter(entry => pathFor(entry, identified.artifact) === projected);
+      const entry = matches.length === 1 ? matches[0] : undefined;
+      if (entry === undefined) throw missing(path);
+      const reference = RecordReferenceSchema.parse({ kind: artifactKinds[identified.artifact], owner: entry.reference.owner });
+      const read = await input.store.read({ reference, asOf: version });
+      if (read.status === "refused" && read.refusal.code === "not-found") throw missing(path);
+      // The existing lifecycle tree reader exposes GitExec's trimmed stdout to its consumers.
+      return unwrap(input.store, read).content.trimEnd();
+    },
+  };
+}
+function projectedDirectories(paths: string[]): Map<string, Map<string, ProjectViewDirEntry>> {
+  const directories = new Map<string, Map<string, ProjectViewDirEntry>>();
+  for (const path of paths) {
+    const segments = path.split("/");
+    let parent = "";
+    for (const [index, name] of segments.entries()) {
+      const isFile = index === segments.length - 1;
+      const directory = directories.get(parent) ?? new Map<string, ProjectViewDirEntry>();
+      directory.set(name, { name, isFile: () => isFile, isDirectory: () => !isFile });
+      directories.set(parent, directory);
+      parent = parent === "" ? name : `${parent}/${name}`;
+    }
+  }
+  return directories;
+}

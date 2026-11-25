@@ -17,6 +17,7 @@ import {
   MERGE_REFUSAL_REASONS,
   mergeRemedy,
 } from "../../../../src/scripts/integration/merge.js";
+import { MergeLockTransitionRequestSchema } from "../../../../src/scripts/review-gate/merge-lock.js";
 import { SpineRemedySchema, spineRemedy } from "../../../../src/scripts/integration/spine-refusal.js";
 import {
   REVIEW_PRE_PUBLICATION_REFUSAL_CODES,
@@ -29,7 +30,7 @@ describe("spine refusal remedies", () => {
   it("derives its reason coverage from the refusal schemas", () => {
     expect(CHECKPOINT_BLOCKED_REASONS).toHaveLength(14);
     expect(MERGE_REFUSAL_REASONS).toHaveLength(16);
-    expect(REVIEW_PRE_PUBLICATION_REFUSAL_CODES).toHaveLength(4);
+    expect(REVIEW_PRE_PUBLICATION_REFUSAL_CODES).toHaveLength(11);
     expect(new Set(CHECKPOINT_BLOCKED_REASONS).size).toBe(CHECKPOINT_BLOCKED_REASONS.length);
     expect(new Set(MERGE_REFUSAL_REASONS).size).toBe(MERGE_REFUSAL_REASONS.length);
     expect(new Set(REVIEW_PRE_PUBLICATION_REFUSAL_CODES).size)
@@ -85,12 +86,12 @@ describe("spine refusal remedies", () => {
       const remedy = SpineRemedySchema.parse(mergeRemedy(
         reason,
         "example",
-        reason === "relock-failed" ? {
+        reason === "relock-failed" ? MergeLockTransitionRequestSchema.parse({
             schemaVersion: 1,
             treeRoot: "/candidate",
             target: { repository: "owner/repo", pullRequest: 42, headSha: "a".repeat(40) },
             vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
-          }
+          })
           : undefined,
         reason === "host-pending" || reason === "merge-outcome-unknown"
           ? `checkpoint-v1:${"c".repeat(40)}:sha256:${"e".repeat(64)}`
@@ -133,7 +134,15 @@ describe("spine refusal remedies", () => {
   });
 
   it("interpolates the refused work unit into slug-bearing commands", () => {
-    expect(createRunConvergenceVerificationAction("example", "full").attestArgv)
+    expect(createRunConvergenceVerificationAction("example", "full", {
+      reviewedHead: "a".repeat(40),
+      nextAction: {
+        kind: "continue-pre-publication-review",
+        command: "arc review pre-publication example",
+        interactionText: "Resume pre-publication review.",
+      },
+      projectionDisposition: "keep-staged-until-publication",
+    }).attestArgv)
       .toEqual([
         "arc", "attest", "example", "--scope", "full",
         "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",

@@ -8,6 +8,23 @@ import {
 import { importedModuleSpecifiers } from "../../../src/lib/command-input/source-scanner.js";
 
 describe("command-input source scanner", () => {
+  it("records only constant machine-mode policies on wrapped actions", () => {
+    const result = scanCommanderSource({
+      file: "src/cli.ts",
+      sourceText: `
+        const program = new Command();
+        program.command("arrow").action(withInteractionContext({ machineReadable: () => true }, async () => {}));
+        program.command("literal").action(withInteractionContext({ machineReadable: true }, async () => {}));
+        program.command("predicate").action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async () => {}));
+        program.command("absent").action(withInteractionContext({}, async () => {}));
+        program.command("bare").action(async () => {});
+      `,
+    });
+    expect(result.commands.map(({ path, action }) => [path, action?.constantMachineMode])).toEqual([
+      ["arrow", true], ["literal", true], ["predicate", false], ["absent", false], ["bare", false],
+    ]);
+  });
+
   it("discovers literal static and dynamic relative imports", () => {
     expect(importedModuleSpecifiers(`
       import "./static.js";
@@ -98,6 +115,29 @@ describe("command-input source scanner", () => {
     });
   });
 
+  it("excludes rejected JSON flags while retaining supported hidden options", () => {
+    const result = scanCommanderSource({
+      file: "src/cli.ts",
+      sourceText: `
+        const program = new Command();
+        const review = program.command("review");
+        review.command("request")
+          .addOption(new Option("--json").hideHelp())
+          .hook("preAction", rejectUnsupportedReviewJson);
+        review.command("output")
+          .addOption(new Option("--json").hideHelp())
+          .on("option:json", rejectUnsupportedReviewOutputJson);
+        review.command("supported")
+          .addOption(new Option("--json").hideHelp());
+      `,
+    });
+
+    expect(result.commands.find((command) => command.path === "review request")?.options).toEqual([]);
+    expect(result.commands.find((command) => command.path === "review output")?.options).toEqual([]);
+    expect(result.commands.find((command) => command.path === "review supported")?.options)
+      .toMatchObject([{ flags: "--json" }]);
+  });
+
   it("distinguishes a mandatory value from explicit option presence when a default supplies it", async () => {
     const result = scanCommanderSource({
       file: "src/cli.ts",
@@ -122,18 +162,31 @@ describe("command-input source scanner", () => {
     expect(parsed.opts()).toEqual({ target: "main", mode: "safe" });
   });
 
-  it("discovers prompt/helper, explicit stdin, and interaction-capable process sites", () => {
-    const result = scanInteractionSource({
-      file: "src/handlers/example.ts",
-      sourceText: `
+  it("ignores undeclared Clack and output-helper calls in every module", () => {
+    for (const file of ["handlers/example.ts", "lib/command-input/prompt-renderer.ts"]) {
+      const result = scanInteractionSource({ file, sourceText: `
         import * as p from "@clack/prompts";
+        await p.text({ message: "Name" });
+        await ctx.output.confirm({ message: "Proceed?" });
+      ` });
+      expect(result.sites).toEqual([]);
+    }
+  });
+
+  it("discovers declared prompts, explicit stdin, and interaction-capable process sites", () => {
+    const result = scanInteractionSource({
+      file: "handlers/example.ts",
+      sourceText: `
+        import { declarePromptSite } from "../lib/command-input/declaration.js";
+        import { prompt } from "../lib/command-input/prompter.js";
+        export const nameSite = declarePromptSite("name", "text", { file: "handlers/example.ts", symbol: "nameSite" }, { acquisition: "optional", schemaOwnership: "none", cancellation: "stop", automation: { noInput: "require-explicit", acceptedSyntax: ["--value"] }, mutationBoundary: "wait", subprocess: "none" });
+        export const toolsSite = declarePromptSite("tools", "multiselect", { file: "handlers/example.ts", symbol: "toolsSite" }, { acquisition: "optional", schemaOwnership: "none", cancellation: "stop", automation: { noInput: "require-explicit", acceptedSyntax: ["--value"] }, mutationBoundary: "wait", subprocess: "none" });
         import { execa } from "execa";
         import { spawn } from "node:child_process";
         import { promisify } from "node:util";
         const spawnAsync = promisify(spawn);
-        const value = await p.text({ message: "Name" });
-        const tools = await p.autocompleteMultiselect({ message: "Tools", options: [] });
-        const accepted = await ctx.output.confirm({ message: "Proceed?" });
+        const value = await prompt(nameSite, ctx, { message: "Name" });
+        const tools = await prompt(toolsSite, ctx, { message: "Tools", options: [] });
         const automated = process.env.CI === "true" || !process.stdin.isTTY;
         for await (const chunk of process.stdin) consume(chunk);
         await execa("git", ["push"], { stdin: "inherit" });
@@ -145,7 +198,6 @@ describe("command-input source scanner", () => {
     expect(result.sites.map((site) => site.kind)).toEqual([
       "prompt",
       "prompt",
-      "prompt-helper",
       "environment-policy",
       "environment-policy",
       "explicit-stdin",
@@ -154,9 +206,8 @@ describe("command-input source scanner", () => {
       "subprocess",
     ]);
     expect(result.sites.map((site) => site.callee)).toEqual([
-      "p.text",
-      "p.autocompleteMultiselect",
-      "ctx.output.confirm",
+      "prompt",
+      "prompt",
       "process.env.CI",
       "process.stdin",
       "process.stdin",

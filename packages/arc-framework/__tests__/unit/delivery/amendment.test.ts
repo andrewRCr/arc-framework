@@ -230,7 +230,7 @@ describe("classifyDeliveryPlanAmendment", () => {
     });
   });
 
-  it("routes member and projection changes by current bound and landed position", () => {
+  it("routes member changes by current bound and landed position", () => {
     const current = constructPlan(null);
     const [firstId, secondId, thirdId] = current.members.map((member) => member.deliverableId) as [
       CanonicalDigest,
@@ -298,29 +298,6 @@ describe("classifyDeliveryPlanAmendment", () => {
       reason: "landed-member-changed",
     });
 
-    const retiredAuthoring = structuredClone(authoringInput()) as unknown as DeliveryPlanAuthoringInputV1;
-    (retiredAuthoring as unknown as { projection: { kind: string } }).projection = {
-      kind: "wu-integration-target",
-    };
-    for (const member of retiredAuthoring.members as unknown as Array<{
-      mainlineLandability: string;
-    }>) member.mainlineLandability = "integration-only";
-    const retiredCurrent = constructPlan(null, retiredAuthoring);
-    const projected = successor(retiredCurrent, () => undefined);
-    expect(classify({ current: retiredCurrent, proposed: projected })).toEqual({ status: "accepted" });
-    expect(classify({ current: retiredCurrent, proposed: projected, bound: [secondId] })).toEqual({
-      status: "replacement-required",
-      affectedDeliverableIds: [secondId],
-    });
-    expect(classify({
-      current: retiredCurrent,
-      proposed: projected,
-      bound: [firstId],
-      landed: [firstId],
-    })).toEqual({
-      status: "refused",
-      reason: "landed-projection-changed",
-    });
   });
 
   it("preserves landed-side seam obligations while allowing proportionate suffix replacement", () => {

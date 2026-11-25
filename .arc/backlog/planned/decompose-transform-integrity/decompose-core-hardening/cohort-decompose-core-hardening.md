@@ -6,10 +6,8 @@
 **Parent:** `decompose-transform-integrity`
 
 **Purpose:** Close the post-ship safety, operability, performance, and authoring gaps exposed when the v3
-decomposition transform met real work-unit cuts. Two members harden the shipped core contract: the
-conservation/authoring spine (safety, expressiveness, and refusal quality as one deliverable with separable arms)
-and a measure-first cost stub. They remain separate because content-safety work and cost work land and verify
-independently.
+decomposition transform met real work-unit cuts. Keep content-safety work and cost work independently deliverable,
+with each member's shipped contribution or recorded retirement defining the properties this cohort must demonstrate.
 
 ---
 
@@ -23,11 +21,10 @@ convenient path.
 
 ```text
 decompose-transform-integrity (shipped core)
-├── decompose-conservation-coverage ──── conservation boundary + cut-map expressiveness + refusal remedies
-└── decompose-scaling ────────────────── measure first; bound or retire each half on the numbers
+└── decompose-conservation-coverage ──── conservation boundary + cut-map expressiveness + refusal remedies
 ```
 
-Both members are independently deliverable and carry no dependency edges. The set was consolidated at the
+The independent safety and cost scopes carry no dependency edges. The set was consolidated at the
 2026-08-11 residuals consolidation, after `decompose-transition-record` shipped and removed the finalization
 pipeline the former hold was waiting on (see § Retired and merged members). Safety and operability arms land
 before performance work when they touch the same core surface; further dependency edges belong in member metas if
@@ -60,6 +57,8 @@ first actual cuts. Rehearsals may operate on copies when a destructive transitio
   real domain instance; these members supply decomposition's field evidence.
 - `roadmap-tooling` owns branch-carried projection and render-stamp architecture. Finalization diagnostics should
   consume its decisions rather than creating a decomposition-only projection rule.
+- `storage-cutover` owns representative rehearsal evidence and closeout against the unchanged criteria below.
+  Retiring the cost member does not close this subcohort or its parent.
 
 ### Closeout criteria
 
@@ -85,17 +84,6 @@ longer duplicates git's own record; size the member against that role rather tha
 refusal-baseline arm proceeds independently; the explicit-disposal-record alternative would carry an authored
 disposition in the transition record, which is unsealed, so coordinate with that landed schema before adopting it.
 
-### `decompose-scaling`
-
-_Exposes:_ measured and bounded subprocess, concurrency, and hydration cost across the command's read-only
-preflight and terminal execute halves.
-
-_Consumes:_ core preflight integrity, pinned-ref reread, canonical ordering, Git pathspec semantics, and atomic
-execute/rollback behavior.
-
-Measurement precedes design: the execute-half numbers predate the lean transition-record cutover, and that half may
-retire on fresh evidence. Bounding lands only behind byte-identical, order-identical outcomes.
-
 ## Retired and merged members
 
 Recorded dispositions per the closeout criteria, applied at the 2026-08-11 residuals consolidation:
@@ -110,5 +98,11 @@ Recorded dispositions per the closeout criteria, applied at the 2026-08-11 resid
 - **`decompose-finalization-scaling`** and **`decompose-preflight-scaling`** — merged into `decompose-scaling`.
   One measurement harness and one Git-subprocess-fan-out concern across two halves of the same command; the
   execute half's recorded numbers are stale against the lean record and re-measure before any design.
+
+**2026-10-16 retirement disposition:** `decompose-scaling` is abandoned before starting. Its Git-subprocess,
+concurrency, and hydration costs belong to machinery deleted at the storage cutover; bounding that machinery's cost
+is out of scope under this retirement. Store record-read performance belongs to `seam-decomposition`, whose contract
+requires flat cost. Per-lookup locator parsing/canonicalization and per-boundary prefix re-encoding costs remain
+unobserved at current scale; this retirement neither optimizes them nor claims they are bounded.
 
 ---

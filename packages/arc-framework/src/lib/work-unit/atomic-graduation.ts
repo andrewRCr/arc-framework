@@ -4,15 +4,19 @@
  * @module
  */
 
+import { removeWorktreeMarkerGeneration } from "../git/worktree-marker.js";
+import { removeDisposableSpawn } from "./spawned-worktree-claim.js";
+import type { ReconcileWorkUnitWorktreeResult } from "./mutators/reconcile-work-unit-worktree.js";
 import { join, posix } from "node:path";
 
-import { digestBytes } from "../canonical/canonical-json.js";
+import { digestBytes } from "../kernel/canonical/canonical-json.js";
 import {
   captureGitIndexState,
   type GitExec,
   type GitIndexTransaction,
 } from "../git/exec.js";
 import { parseGitWorktreePorcelain } from "../git/worktree-porcelain.js";
+import { localPathsEqual } from "../local-path-identity.js";
 import type {
   GraduationStoredArtifact,
   ValidatedGraduationTransaction,
@@ -82,6 +86,18 @@ async function optionalBytes(fs: AtomicGraduationFs, path: string): Promise<Uint
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+}
+
+/**
+ * Whether Git lists a worktree at `path`. Git spells a checkout its own way (forward slashes on Windows, a resolved
+ * temporary root on macOS), so each listed path is compared by local identity, never as a string.
+ */
+async function worktreeRegistered(deps: AtomicGraduationDependencies, path: string): Promise<boolean> {
+  const { stdout } = await deps.exec("git", ["worktree", "list", "--porcelain"], { cwd: deps.cwd });
+  for (const entry of parseGitWorktreePorcelain(stdout)) {
+    if (await localPathsEqual(entry.path, path)) return true;
+  }
+  return false;
 }
 
 async function pathExists(fs: AtomicGraduationFs, path: string): Promise<boolean> {
@@ -202,9 +218,8 @@ async function verifyInitialOccupation(
   }
   if (transaction.occupation.mode === "spawned") {
     const worktree = transaction.occupation.worktree;
-    const { stdout } = await deps.exec("git", ["worktree", "list", "--porcelain"], { cwd: deps.cwd });
-    const registered = parseGitWorktreePorcelain(stdout).some(({ path }) => path === worktree.path);
-    if (worktree.kind !== "absent" || registered || await pathExists(deps.fs, worktree.path)) {
+    if (worktree.kind !== "absent" || await worktreeRegistered(deps, worktree.path)
+      || await pathExists(deps.fs, worktree.path)) {
       throw new Error(`Graduation worktree destination is no longer absent: ${worktree.path}.`);
     }
     return;
@@ -218,7 +233,7 @@ async function verifyInitialOccupation(
   ]);
   if (head.trim() !== worktree.head
     || (branch.trim() || null) !== worktree.branch
-    || top.trim() !== worktree.path
+    || !await localPathsEqual(top.trim(), worktree.path)
     || await indexTree(deps.exec, deps.cwd) !== transaction.occupation.indexTree) {
     throw new Error("In-place graduation occupation or index preimage changed.");
   }
@@ -299,9 +314,7 @@ async function rollbackOccupation(
 ): Promise<void> {
   const operation = transaction.occupation.operation;
   if (operation.kind === "spawned") {
-    const { stdout } = await deps.exec("git", ["worktree", "list", "--porcelain"], { cwd: deps.cwd });
-    const registered = parseGitWorktreePorcelain(stdout).some(({ path }) => path === operation.worktreePath);
-    if (registered) {
+    if (await worktreeRegistered(deps, operation.worktreePath)) {
       try {
         await deps.exec("git", ["worktree", "remove", "--force", operation.worktreePath], { cwd: deps.cwd });
       } catch (error) {
@@ -371,9 +384,7 @@ async function verifyRollback(
     } else {
       const worktree = transaction.occupation.worktree;
       if (worktree.kind !== "absent") throw new Error("spawned worktree preimage is invalid");
-      const { stdout } = await deps.exec("git", ["worktree", "list", "--porcelain"], { cwd: deps.cwd });
-      if (parseGitWorktreePorcelain(stdout).some(({ path }) => path === worktree.path)
-        || await pathExists(deps.fs, worktree.path)) {
+      if (await worktreeRegistered(deps, worktree.path) || await pathExists(deps.fs, worktree.path)) {
         throw new Error("spawned worktree remains");
       }
     }
@@ -472,4 +483,57 @@ export async function atomicGraduate(
       },
     };
   }
+}
+
+/** Physical occupation of a store-held stub, with no Git artifact certificate or planning branch. */
+export interface StoreGraduationOccupation {
+  worktreePath: string;
+  postCreateNotice?: string;
+  rollback: () => Promise<void>;
+}
+/** Occupy before the store batch and retain an exact, generation-bound rollback for a refusal. */
+export async function occupyStoreGraduation(options: {
+  cwd: string;
+  exec: GitExec;
+  inPlace: boolean;
+  occupy: () => Promise<ReconcileWorkUnitWorktreeResult>;
+  removeMarker?: typeof removeWorktreeMarkerGeneration;
+  /** Transfer compensation to the enclosing sequence before post-occupation validation. */
+  onOccupied?: (receipt: StoreGraduationOccupation) => void;
+}): Promise<StoreGraduationOccupation> {
+  const before = options.inPlace ? await graduationCheckoutCoordinate(options.exec, options.cwd) : undefined;
+  const result = await options.occupy();
+  if (result.mutation !== "spawn") throw new Error("store graduation occupation returned no checkout");
+  const rollback = async (): Promise<void> => {
+    if (!options.inPlace) {
+      await removeDisposableSpawn({ exec: (command, args, controls) => options.exec(command, args, { cwd: options.cwd, ...controls }),
+        path: result.worktreePath, markerGeneration: result.markerGeneration, coordinate: result.spawnCoordinate });
+      return;
+    }
+    if (result.markerGeneration !== undefined) {
+      const removed = await (options.removeMarker ?? removeWorktreeMarkerGeneration)(result.worktreePath, result.markerGeneration);
+      if (removed.kind !== "removed") throw new Error("anchored graduation rollback lost its marker generation");
+    }
+    const after = await graduationCheckoutCoordinate(options.exec, options.cwd);
+    if (after !== before) throw new Error("in-place graduation HEAD or branch changed during rollback; preserve the checkout and inspect its commits");
+  };
+  const receipt = { worktreePath: result.worktreePath, rollback,
+    ...(result.postCreateNotice === undefined ? {} : { postCreateNotice: result.postCreateNotice }) };
+  options.onOccupied?.(receipt);
+  if (options.inPlace) {
+    const after = await graduationCheckoutCoordinate(options.exec, options.cwd);
+    if (after !== before) {
+      if (options.onOccupied === undefined) await rollback();
+      throw new Error("in-place graduation must leave HEAD and branch unchanged");
+    }
+  }
+  return receipt;
+}
+
+async function graduationCheckoutCoordinate(exec: GitExec, cwd: string): Promise<string> {
+  const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
+  let branch: string | null;
+  try { branch = (await exec("git", ["symbolic-ref", "--quiet", "HEAD"], { cwd })).stdout.trim(); }
+  catch (error) { if (error instanceof Error && "exitCode" in error && error.exitCode === 1) branch = null; else throw error; }
+  return JSON.stringify([head, branch]);
 }

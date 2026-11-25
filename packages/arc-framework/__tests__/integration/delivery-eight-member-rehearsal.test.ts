@@ -16,7 +16,7 @@ import {
   assessDeliveryTerminalTop,
   rebindDeliveryTerminalCoordinates,
 } from "../../src/lib/delivery/terminal-integration.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { canonicalDigest, type CanonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -32,7 +32,7 @@ const oid = (character: string): string => character.repeat(40);
 
 function positionFacts(
   state: DeliveryStateV1,
-  landedDeliverableIds: readonly string[],
+  landedDeliverableIds: readonly CanonicalDigest[],
 ): DeliveryPositionFactsV1 {
   return {
     target: state.target,
@@ -187,12 +187,14 @@ describe("eight-member delivery integration rehearsal", () => {
         severity: "major" as const,
         locus: "src/example.ts:1",
         evidenceUrlOrId: "https://example.test/retained-finding",
+        sourceOrdinal: 1,
       }],
     };
     const outstanding = composeDeliveryReviewObligation({
       targets,
       discharges: targets.map((_, index) => ({
         completedPasses: 0,
+        completePasses: 0,
         passCeiling: 2,
         attemptHistory: [],
         ...(index === 0
@@ -231,6 +233,7 @@ describe("eight-member delivery integration rehearsal", () => {
         detail: "Hosted source is settled.",
         nextSource: null,
         completedPasses: 1,
+        completePasses: 1,
         passCeiling: 2,
         attemptHistory: [],
       })),

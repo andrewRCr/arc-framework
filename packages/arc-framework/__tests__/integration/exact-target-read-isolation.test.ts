@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
 import { handleWuReconcile } from "../../src/handlers/reconcile.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import type { CanonicalDigest } from "../../src/lib/kernel/index.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import {
   createCandidateAttestation,
@@ -46,7 +47,7 @@ async function git(cwd: string, args: readonly string[]): Promise<string> {
 }
 
 /** One valid managed Candidate record, built through its producer rather than hand-shaped. */
-function candidateRecord(attestedBy = IDENTITY): { candidateId: string; text: string } {
+function candidateRecord(attestedBy = IDENTITY): { candidateId: CanonicalDigest; text: string } {
   const subject = createCandidateSubjectSnapshot([
     { path: "src/example.ts", digest: `sha256:${"a".repeat(64)}`, mode: "100644", treatment: "reviewable" },
   ]);
@@ -77,8 +78,8 @@ function candidateRecord(attestedBy = IDENTITY): { candidateId: string; text: st
  * The record stays canonical in every other respect, so the only thing a reader can refuse it for is the
  * enum — which is the shape a checkout built from a different revision actually produces.
  */
-function withUnrecognizedTreatment(record: { candidateId: string; text: string }): {
-  candidateId: string;
+function withUnrecognizedTreatment(record: { candidateId: CanonicalDigest; text: string }): {
+  candidateId: CanonicalDigest;
   text: string;
 } {
   const parsed = JSON.parse(record.text) as { subject: { entries: { treatment: string }[] } };
@@ -95,7 +96,7 @@ function withUnrecognizedTreatment(record: { candidateId: string; text: string }
  * read and the probe reports a resolved sibling whatever the record says.
  */
 async function siblingCarrying(input: {
-  readonly record: { candidateId: string; text: string };
+  readonly record: { candidateId: CanonicalDigest; text: string };
   readonly owner?: string;
 }): Promise<WorktreeSiblings> {
   const harness = await setupWorktreeSiblings({ siblingBranch: BRANCH });
@@ -182,20 +183,40 @@ describe("a sibling under this checkout's own reconcile ceremony", () => {
     await mkdir(transitions, { recursive: true });
     await writeFile(
       join(harness.primary, ".arc", "active", "meta-dependent.md"),
-      "# Metadata: dependent\n\n- **State:** Active\n- **Owner:** test-user\n"
-        + "- **Branch:** `main`\n- **Depends On:** `origin`\n",
+      [
+        "# Metadata: dependent",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Active | test-user | `main` | — | — |",
+        "",
+        "- **Depends On:** `origin`",
+        "",
+        "---",
+        "",
+      ].join("\n"),
     );
     await writeFile(
       join(planned, "meta-successor.md"),
-      "# Metadata: successor\n\n- **State:** Planning\n- **Owner:** test-user\n"
-        + "- **Branch:** [none]\n- **Depends On:** [none]\n",
+      [
+        "# Metadata: successor",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Planning | test-user | [none] | — | — |",
+        "",
+        "- **Depends On:** [none]",
+        "",
+        "---",
+        "",
+      ].join("\n"),
     );
     await writeFile(join(transitions, "origin.json"), `${JSON.stringify({
-      schemaVersion: 1,
-      origin: "origin",
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "rename",
-      successors: ["successor"],
-      edges: [],
+      successors: [{ name: "successor" }],
+      incoming: [],
     })}\n`);
     await git(harness.primary, ["add", "--all"]);
     await git(harness.primary, ["commit", "-m", "fixture"]);

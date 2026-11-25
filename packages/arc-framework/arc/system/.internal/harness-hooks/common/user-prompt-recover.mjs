@@ -4,7 +4,9 @@ import {
   readHookInput,
 } from "./codex-recovery-marker.mjs";
 
-const { sessionId } = readHookInput();
+const { sessionId, agentId } = readHookInput();
+// A subagent carries its parent's session_id; it never claims the parent's injection.
+if (agentId !== null) process.exit(0);
 const { root, claimed } = claimPendingInjection(sessionId);
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 

@@ -1,6 +1,7 @@
 /** Public and internal request contracts for an exact-target frontline run. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import {
@@ -18,6 +19,7 @@ const frontlineRunFields = {
   schemaVersion: z.literal(1),
   resolution: FrontlineResolveEnvelopeSchema,
   timeoutMs: z.number().int().positive().max(2_147_483_647).optional(),
+  retryOfOperationId: CanonicalDigestSchema.optional(),
 } as const;
 
 /** Public request: callers supply exact Git coordinates, never repository-local identities. */
@@ -60,7 +62,7 @@ export function registerFrontlineRunCommandSchemas(registry: KernelRegistry): Ke
   registry.register(FrontlineRunRequestSchema, {
     id: REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
     version: 1,
-    migrationPosture: "strict-current",
+    migrationPosture: "strict-current", authored: "request",
   });
   return registry;
 }

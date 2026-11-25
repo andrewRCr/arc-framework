@@ -28,6 +28,7 @@ export async function runUserInboxRemove(options: UserInboxRemoveOptions): Promi
     io: options.io,
     identity: options.identity,
     title: options.slug,
+    store: options.store,
   });
   return {
     removed: result.removed,

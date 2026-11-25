@@ -1,14 +1,15 @@
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   analyzeSupersessionSnapshot,
   detectSupersession,
+  emptySupersessionResult,
+  SupersessionResultSchema,
+  SupersessionSnapshotAnalysisResultSchema,
 } from "../../../src/lib/git/supersession.js";
-import type {
-  ExecResult,
-  GitExec,
-  GitExecOptions,
-} from "../../../src/lib/git/index.js";
+import type { ExecResult, GitExecOptions } from "../../../src/lib/git/index.js";
+import { makeGitProcessError, scriptGitExec, type GitExecCall } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -16,23 +17,17 @@ type ResponseFn = (
 ) => ExecResult | Promise<ExecResult>;
 
 /**
- * Build a GitExec mock keyed off the first argument. Returns `{ exec, calls }`
- * so tests can assert recorded invocations.
+ * Script each Git verb and retain the fake's invocation recorder.
  */
 function buildExec(
   responses: Record<string, ExecResult | ResponseFn>,
-): { exec: GitExec; calls: Array<{ cmd: string; args: string[] }> } {
-  const calls: Array<{ cmd: string; args: string[] }> = [];
-  const exec: GitExec = async (cmd, args, options) => {
-    calls.push({ cmd, args });
-    const key = args[0] ?? "";
-    const entry = responses[key];
-    if (entry === undefined) {
-      throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
-    }
-    return typeof entry === "function" ? entry(args, options) : entry;
-  };
-  return { exec, calls };
+): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec(Object.entries(responses).map(([verb, entry]) => ({
+    match: { predicate: (args: readonly string[]) => args[0] === verb },
+    responses: [typeof entry === "function"
+      ? ({ args, options }: GitExecCall) => entry(args, options)
+      : entry],
+  })));
 }
 
 describe("detectSupersession", () => {
@@ -52,6 +47,7 @@ describe("detectSupersession", () => {
     const result = await detectSupersession({ exec, branch: "feat/x" });
 
     expect(result.superseded).toBe(true);
+    assertSchemaAccepts(SupersessionResultSchema, result);
     expect(result.supersededCommits).toEqual([
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -116,8 +112,9 @@ describe("detectSupersession", () => {
 
   it("propagates a cherry execution failure", async () => {
     const { exec } = buildExec({
-      cherry: () => {
-        throw new Error("fatal: bad revision 'origin/feat/x'");
+      cherry: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: bad revision 'origin/feat/x'" });
       },
     });
 
@@ -152,6 +149,10 @@ describe("analyzeSupersessionSnapshot", () => {
       novelCommits: [],
       remoteEvidence: "exact",
     });
+    assertSchemaAccepts(SupersessionSnapshotAnalysisResultSchema, result);
+    assertSchemaRefuses(SupersessionSnapshotAnalysisResultSchema, {
+      ...result, unexpected: true,
+    });
   });
 
   it("refuses a supersession verdict when local history is shallow", async () => {
@@ -184,6 +185,10 @@ describe("analyzeSupersessionSnapshot", () => {
       supersededCommits: [],
       novelCommits: [],
       remoteEvidence: "pending-fetch",
+    });
+    assertSchemaAccepts(SupersessionSnapshotAnalysisResultSchema, result);
+    assertSchemaRefuses(SupersessionSnapshotAnalysisResultSchema, {
+      ...result, superseded: true,
     });
   });
 
@@ -224,6 +229,7 @@ describe("analyzeSupersessionSnapshot", () => {
       remoteEvidence: "unreachable",
       failureReason: "network",
     });
+    assertSchemaAccepts(SupersessionSnapshotAnalysisResultSchema, result);
   });
 
   it("preserves exact branch absence from a complete snapshot", async () => {
@@ -243,6 +249,7 @@ describe("analyzeSupersessionSnapshot", () => {
       novelCommits: [],
       remoteEvidence: "exact",
     });
+    assertSchemaAccepts(SupersessionSnapshotAnalysisResultSchema, result);
   });
 
   it("refuses analysis when advertised commit availability is unavailable", async () => {
@@ -289,8 +296,9 @@ describe("analyzeSupersessionSnapshot", () => {
   it("propagates a local cherry execution failure", async () => {
     const advertisedOid = "1111111111111111111111111111111111111111";
     const { exec } = buildExec({
-      cherry: () => {
-        throw new Error("local graph read failed");
+      cherry: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "local graph read failed" });
       },
     });
 
@@ -301,5 +309,13 @@ describe("analyzeSupersessionSnapshot", () => {
       objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
       history: { kind: "complete" },
     })).rejects.toThrow("local graph read failed");
+  });
+});
+
+describe("emptySupersessionResult", () => {
+  it("parses the not-needed result emitted by the session probe", () => {
+    const result = emptySupersessionResult();
+    assertSchemaAccepts(SupersessionResultSchema, result);
+    expect(() => SupersessionResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
   });
 });

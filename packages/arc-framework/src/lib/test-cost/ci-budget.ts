@@ -19,6 +19,7 @@ export interface CiTestBudgetInput {
 export interface CiTestBudgetReport {
   readonly standing: TestCostBudgetStanding;
   readonly summary?: string;
+  readonly annotation?: string;
 }
 
 /**
@@ -63,15 +64,19 @@ export function createCiTestBudgetReport(
     };
   }
   if (standing.status === "within") return { standing };
+  const message = `${input.ciJob} is ${formatMilliseconds(standing.overageMs)} over its `
+    + `${formatMilliseconds(standing.budgetMs)} CI-job budget `
+    + `(${formatMilliseconds(standing.baselineMs)} baseline; ${formatMilliseconds(standing.actualMs)} observed). `
+    + "Advisory only; the job result is unchanged.";
+  const escapedMessage = message.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
   return {
     standing,
+    annotation: `::warning title=Test budget::${escapedMessage}`,
     summary: [
       "### Test budget",
       "",
       "> [!WARNING]",
-      `> \`${input.ciJob}\` is ${formatMilliseconds(standing.overageMs)} over its `
-        + `${formatMilliseconds(standing.budgetMs)} CI-job budget `
-        + `(${formatMilliseconds(standing.actualMs)} observed). Advisory only; the job result is unchanged.`,
+      `> ${message}`,
       "",
     ].join("\n"),
   };

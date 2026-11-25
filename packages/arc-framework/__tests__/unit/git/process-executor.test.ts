@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { execaMock } = vi.hoisted(() => ({ execaMock: vi.fn() }));
+const { execaMock, gitExecutableMock } = vi.hoisted(() => ({ execaMock: vi.fn(), gitExecutableMock: vi.fn() }));
 
 vi.mock("execa", () => ({ execa: execaMock }));
+vi.mock("../../../src/lib/git/executable.mjs", () => ({ gitExecutable: gitExecutableMock }));
 
 import {
   createExecaGitExec,
@@ -12,10 +13,136 @@ import {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  gitExecutableMock.mockReturnValue("git");
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
+describe("captured command output", () => {
+  it("cancels an active byte-preserving process through its supplied cancellation boundary", async () => {
+    const controller = new AbortController();
+    let running!: () => void;
+    const started = new Promise<void>(resolve => { running = resolve; });
+    const kill = vi.fn();
+    execaMock.mockImplementation((_command, _args, options: { cancelSignal?: AbortSignal }) => Object.assign(new Promise((resolve, reject) => {
+      running();
+      if (options.cancelSignal === undefined) { resolve({ stdout: Buffer.from("uncancelled"), stderr: Buffer.alloc(0) }); return; }
+      options.cancelSignal.addEventListener("abort", () => {
+        reject(Object.assign(new Error("The operation was canceled"), { isCanceled: true, name: "AbortError" }));
+      }, { once: true });
+    }), { pid: undefined, kill }));
+    const pending = createExecaRawGitExec()(["--version"], { signal: controller.signal });
+    await started;
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ kind: "canceled", isCanceled: true });
+    expect(kill).toHaveBeenCalledWith("SIGKILL");
+  });
+
+  it("preserves stdout whitespace when the caller requests exact output", async () => {
+    execaMock.mockResolvedValue({ stdout: "command\\ \t\n", stderr: "" });
+    await expect(createExecaGitExec()("git", ["var", "GIT_EDITOR"], { preserveOutput: true }))
+      .resolves.toEqual({ stdout: "command\\ \t\n", stderr: "" });
+    await expect(createExecaGitExec()("git", ["var", "GIT_EDITOR"]))
+      .resolves.toEqual({ stdout: "command\\", stderr: "" });
+  });
+});
+
+it("feeds owned input while preserving exact output and diagnostics under closed ambient stdin", async () => {
+  execaMock.mockImplementation(async (_command, _args, options) => ({
+    stdout: options.input ?? "No owned input reached the child", stderr: "Retained diagnostic\n",
+  }));
+  const input = "refs/arc/history/work/example*:refs/arc-remotes/origin/history/work/example*\n";
+  await expect(createExecaGitExec()("git", ["fetch", "--stdin", "origin"], { input, preserveOutput: true,
+    interaction: { terminalPrompts: "forbidden", presenters: "forbidden", ambientStdin: "closed" } }))
+    .resolves.toEqual({ stdout: input, stderr: "Retained diagnostic\n" });
+});
+
+it("guards the final Windows argv including repository and executor prefixes", async () => {
+  vi.stubGlobal("process", { ...process, platform: "win32" });
+  execaMock.mockResolvedValue({ stdout: "Child started", stderr: "" });
+  const args = ["--git-dir=C:/" + "x".repeat(32_738), "push"];
+  await expect(createExecaGitExec()("git", args, { checkNativeWindowsArgv: true }))
+    .resolves.toEqual({ stdout: "Child started", stderr: "" });
+  await expect(createExecaGitExec()("git", args, { checkNativeWindowsArgv: true, objectAccess: "local-only" }))
+    .rejects.toMatchObject({ kind: "command-line-capacity", stdout: "", stderr: "", commandLine: { limit: 32_767 } });
+});
+
+describe("the Git executable", () => {
+  const binary = "C:\\Program Files\\Git\\mingw64\\bin\\git.exe";
+
+  it("starts what the resolver names for each executor's environment", async () => {
+    gitExecutableMock.mockReturnValue(binary);
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("git", ["status"]);
+    await createExecaRawGitExec("/repo")(["status"]);
+    await createExecaGitExecInput()(["hash-object", "--stdin"], "bytes");
+
+    expect(execaMock.mock.calls.map(([command]) => command)).toEqual([binary, binary, binary]);
+    expect(gitExecutableMock.mock.calls[0]).toEqual([undefined]);
+    expect(gitExecutableMock.mock.calls[1]?.[0]).toMatchObject({ GIT_TERMINAL_PROMPT: "0" });
+  });
+
+  it("starts any other command by its own name", async () => {
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("gh", ["--version"]);
+
+    expect(execaMock).toHaveBeenCalledWith("gh", ["--version"], expect.anything());
+    expect(gitExecutableMock).not.toHaveBeenCalled();
+  });
+
+  it("sizes the Windows argv guard by the executable it starts, refusing as git", async () => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+    gitExecutableMock.mockReturnValue(binary);
+    const args = ["--git-dir=C:/" + "x".repeat(32_738), "push"];
+
+    await expect(createExecaGitExec()("git", args, { checkNativeWindowsArgv: true }))
+      .rejects.toMatchObject({ kind: "command-line-capacity", command: "git" });
+    expect(execaMock).not.toHaveBeenCalled();
+  });
+});
+
+it("preserves already-aborted cancellation ahead of Windows capacity", async () => {
+  vi.stubGlobal("process", { ...process, platform: "win32" });
+  const controller = new AbortController(); controller.abort();
+  await expect(createExecaGitExec()("git", ["push", "x".repeat(40_000)], {
+    checkNativeWindowsArgv: true, signal: controller.signal,
+  })).rejects.toMatchObject({ kind: "canceled" });
+});
+
+describe("push gate identifier", () => {
+  const pushGateId = "0123456789abcdef0123456789abcdef";
+
+  it("hands a push's identifier to Git's hooks alongside the inherited environment", async () => {
+    vi.stubEnv("ARC_TEST_INHERITED", "kept");
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("git", ["push", "origin", "main"], { pushGateId });
+
+    expect(execaMock.mock.calls[0]?.[2]).toMatchObject({ extendEnv: false,
+      env: { ARC_PUSH_GATE_ID: pushGateId, ARC_TEST_INHERITED: "kept" } });
+  });
+
+  it("keeps the identifier when the call also forbids terminal prompts", async () => {
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("git", ["push", "origin", "main"], { cwd: "/repo", pushGateId,
+      interaction: { terminalPrompts: "forbidden", presenters: "forbidden", ambientStdin: "closed" } });
+
+    expect(execaMock.mock.calls[0]?.[2]?.env).toMatchObject({ ARC_PUSH_GATE_ID: pushGateId, GIT_TERMINAL_PROMPT: "0" });
+  });
+
+  it("names no push when the caller supplies no identifier", async () => {
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("git", ["push", "origin", "main"]);
+
+    expect(execaMock.mock.calls[0]?.[2]).toMatchObject({ env: undefined, extendEnv: true });
+  });
 });
 
 describe("local-only object access", () => {

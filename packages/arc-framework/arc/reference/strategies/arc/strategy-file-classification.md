@@ -25,12 +25,12 @@ Local modifications are overwritten; customization uses the override surfaces be
 **If you need to customize:** Framework files shouldn't be edited directly — changes are
 overwritten on every update. See [Configurability Architecture][config-arch] §
 [Which mechanism do I use?][config-arch-which] for the right customization surface (config
-settings, method overrides, extensions, or Configurable files).
+settings, method overrides or Configurable files).
 
 ### Configurable
 
 Framework structure combined with project-specific content. Contains both ARC methodology
-(sections, rules, processing guidance) and user content (project stack, quality gate commands,
+(sections, rules, processing guidance) and user content (project stack, quality standards,
 custom sections). Clean section-level separation in most files.
 
 **Examples:** DEV-RULES.PROJECT, AGENT-BRIEF.PROJECT, QUICK-REFERENCE, STRATEGY-INDEX.
@@ -83,17 +83,17 @@ you what kind."
 
 ### Prefix patterns
 
-| Prefix      | What It Is               | Created By       | Example                           |
-|-------------|--------------------------|------------------|-----------------------------------|
-| `meta-`     | Work-unit pointer        | Agent            | `meta-api-modernization.md`       |
-| `spec-`     | Work unit spec           | User/agent       | `spec-authentication.md`          |
-| `tasks-`    | Task list                | User/agent       | `tasks-api-modernization.md`      |
-| `draft-`    | Work draft (pre-spec)    | User/agent       | `draft-api-migration.md`          |
-| `notes-`    | Work unit notes          | Agent            | `notes-api-modernization.md`      |
-| `strategy-` | Strategy document        | Framework / user | `strategy-work-organization.md`   |
-| `research-` | Research document        | User/agent       | `research-context-loading.md`     |
-| `adr-`      | Architecture Decision    | User/agent       | `adr-001-define-core-identity.md` |
-| `template-` | Copy-ready template      | Framework / user | `template-spec-detailed-prd.md`   |
+| Prefix      | What It Is            | Created By       | Example                           |
+| ----------- | --------------------- | ---------------- | --------------------------------- |
+| `meta-`     | Work-unit pointer     | Agent            | `meta-api-modernization.md`       |
+| `spec-`     | Work unit spec        | User/agent       | `spec-authentication.md`          |
+| `tasks-`    | Task list             | User/agent       | `tasks-api-modernization.md`      |
+| `draft-`    | Work draft (pre-spec) | User/agent       | `draft-api-migration.md`          |
+| `notes-`    | Work unit notes       | Agent            | `notes-api-modernization.md`      |
+| `strategy-` | Strategy document     | Framework / user | `strategy-work-organization.md`   |
+| `research-` | Research document     | User/agent       | `research-context-loading.md`     |
+| `adr-`      | Architecture Decision | User/agent       | `adr-001-define-core-identity.md` |
+| `template-` | Copy-ready template   | Framework / user | `template-spec-detailed-prd.md`   |
 
 Work unit artifacts (`meta-`, `draft-`, `spec-`, `tasks-`, `notes-`) share a slug
 across files — the slug is the work unit's identity. `meta-authentication.md`,
@@ -155,8 +155,8 @@ when authoring or editing a template:
 - **`{slot}` — author-substitution slot.** A single-brace span the author replaces when copying
   the template. Short name slots use a kebab token (`{work-name}`, `{project-name}`,
   `{domain-title}`, `{title}`); longer slots carry the authoring instruction as prose inside the
-  braces (`{One-paragraph statement of scope …}`) or an enum of choices
-  (`{Proposed | Accepted | Deprecated}`). This is the dominant convention — prefer it for any
+  braces (`{One-paragraph statement of scope …}`) or an enum of choices (`{Proposed
+  | Accepted | Deprecated}`). This is the dominant convention — prefer it for any
   value the author fills in.
 - **`{{TOKEN}}` — render-engine token.** A double-brace mustache token the CLI substitutes
   programmatically at `arc init` / `arc user open` time (e.g. `{{short-hash}}`). Not
@@ -218,7 +218,7 @@ governs which top-level directory a file belongs in.
 ### `system/` vs. `reference/`
 
 - **`system/` holds prescriptive / operational machinery** — content the methodology _runs_: workflows,
-  methods, extensions, githooks, development rules (`system/rules/`), and configuration (`arc-config.yml`).
+  methods, githooks, development rules (`system/rules/`), and configuration (`arc-config.yml`).
   This content governs behavior or is consumed by the process to do work.
 - **`reference/` holds consultative look-up material** — content you _consult_ to orient or decide: agent
   briefs (`reference/briefs/`), strategies, ADRs, PROJECT-PRD, TECHNICAL-OVERVIEW, QUICK-REFERENCE, and
@@ -238,7 +238,7 @@ _shape_ does.
 Within `system/`, content splits again by ownership:
 
 - **User-facing customization surfaces** sit at the top level of `system/` — `arc-config.yml`,
-  `extensions/`, `methods/`, `rules/`, `workflows/`. These are the surfaces teams override and extend.
+  `methods/`, `rules/`, `workflows/`. These are the surfaces teams override and extend.
 - **Framework-internal machinery** belongs under the hidden `system/.internal/` directory — CLI-managed
   state (`manifest.json`), githooks, scripts, and skill sources. The dotfile signals "framework-managed;
   don't edit."

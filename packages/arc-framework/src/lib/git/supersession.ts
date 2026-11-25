@@ -20,40 +20,44 @@
  * @module
  */
 
+import { z } from "zod";
+import { RemoteFailureReasonSchema } from "../kernel/index.js";
+
+/** Full local patch-equivalence result. */
+export const SupersessionResultSchema = z.strictObject({
+  superseded: z.boolean(),
+  supersededCommits: z.array(z.string()),
+  novelCommits: z.array(z.string()),
+});
+
+const UnavailableSupersessionSchema = z.strictObject({
+  superseded: z.literal(false),
+  supersededCommits: z.tuple([]),
+  novelCommits: z.tuple([]),
+});
+
+/** Strict snapshot arms; unavailable evidence carries no classified commits. */
+export const SupersessionSnapshotAnalysisResultSchema = z.discriminatedUnion("remoteEvidence", [
+  z.strictObject({ ...SupersessionResultSchema.shape, remoteEvidence: z.literal("exact") }),
+  z.strictObject({ ...UnavailableSupersessionSchema.shape, remoteEvidence: z.literal("pending-fetch") }),
+  z.strictObject({
+    ...UnavailableSupersessionSchema.shape,
+    remoteEvidence: z.literal("unreachable"),
+    failureReason: RemoteFailureReasonSchema,
+  }),
+]);
+
 import type { GitExec } from "./exec.js";
 import type { HistoryCompletenessResult } from "./history-completeness.js";
-import type { RemoteFailureReason } from "../kernel/index.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
 import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
 
-export interface SupersessionResult {
-  /**
-   * True when there is at least one local-ahead commit AND every one of them is
-   * patch-equal to a remote-side equivalent — the reset-is-lossless case. False
-   * on genuine divergence, partial overlap (some novel local commits remain),
-   * or an empty local-ahead set.
-   */
-  superseded: boolean;
-  /** Local-ahead commits with a patch-equal remote equivalent (cherry `-`). */
-  supersededCommits: string[];
-  /** Local-ahead commits with no patch-equal remote equivalent (cherry `+`) — genuinely novel. */
-  novelCommits: string[];
-}
+export type SupersessionResult = z.infer<typeof SupersessionResultSchema>;
 
 /** Supersession classified against immutable advertised remote evidence. */
-type UnavailableSupersessionResult = {
-  superseded: false;
-  supersededCommits: [];
-  novelCommits: [];
-};
+type UnavailableSupersessionResult = z.infer<typeof UnavailableSupersessionSchema>;
 
-export type SupersessionSnapshotAnalysisResult =
-  | (SupersessionResult & { remoteEvidence: "exact" })
-  | (UnavailableSupersessionResult & { remoteEvidence: "pending-fetch" })
-  | (UnavailableSupersessionResult & {
-    remoteEvidence: "unreachable";
-    failureReason: RemoteFailureReason;
-  });
+export type SupersessionSnapshotAnalysisResult = z.infer<typeof SupersessionSnapshotAnalysisResultSchema>;
 
 export interface DetectSupersessionOptions {
   exec: GitExec;
@@ -82,21 +86,21 @@ export async function analyzeSupersessionSnapshot(
 ): Promise<SupersessionSnapshotAnalysisResult> {
   if (options.snapshot.kind === "unreachable") {
     return {
-      ...notSuperseded(),
+      ...emptySupersessionResult(),
       remoteEvidence: "unreachable",
       failureReason: options.snapshot.failureReason,
     };
   }
   const advertisedOid = options.snapshot.tips[options.branch];
   if (advertisedOid === undefined) {
-    return { ...notSuperseded(), remoteEvidence: "exact" };
+    return { ...emptySupersessionResult(), remoteEvidence: "exact" };
   }
   if (options.objectAvailability.kind !== "complete") {
     throw new Error("Advertised commit availability could not be inspected.");
   }
   const advertisedCommitIsLocal = options.objectAvailability.commits[advertisedOid];
   if (advertisedCommitIsLocal === false) {
-    return { ...notSuperseded(), remoteEvidence: "pending-fetch" };
+    return { ...emptySupersessionResult(), remoteEvidence: "pending-fetch" };
   }
   if (advertisedCommitIsLocal === undefined) {
     throw new Error("The advertised branch commit has no local availability fact.");
@@ -112,7 +116,8 @@ export async function analyzeSupersessionSnapshot(
   return { ...parseSupersession(stdout), remoteEvidence: "exact" };
 }
 
-function notSuperseded(): UnavailableSupersessionResult {
+/** Neutral result when no remote supersession read is needed. */
+export function emptySupersessionResult(): UnavailableSupersessionResult {
   return { superseded: false, supersededCommits: [], novelCommits: [] };
 }
 

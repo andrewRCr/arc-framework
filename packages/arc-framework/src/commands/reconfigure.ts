@@ -10,6 +10,7 @@
 
 import { join } from "node:path";
 
+import { bootstrapRetiredChecks, type CheckBootstrapReport } from "../lib/checks/bootstrap.js";
 import type { IOContext } from "./init.js";
 import {
   buildConfigMap,
@@ -22,8 +23,12 @@ import {
   readManifest,
   buildChangePlan,
   applyChangePlan,
+  resolveMissingBaselines,
+  missingBaselineError,
+  refuseUnsafePlanWrites,
+  writeManifest,
 } from "../lib/manifest/index.js";
-import { writeArcGitignoreBlock, ensureDir } from "../lib/template/index.js";
+import { preflightIgnoreFiles, writeArcIgnoreBlocks, ensureDir } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
@@ -89,6 +94,8 @@ export interface DryRunResult {
 
 /** Result from a successful reconfigure run. */
 export interface ReconfigureResult {
+  /** Preserved commands from retired check surfaces. */
+  checkBootstrap: CheckBootstrapReport | null;
   /** Files cleanly updated with re-rendered content. */
   updated: number;
   /** Conflicted file paths requiring manual resolution. */
@@ -183,6 +190,20 @@ export async function runReconfigure(
   } catch {
     // Missing pristine store — proceed with empty
   }
+  const renderCtx = { templateDir, tokens, config, configKeyOverrides };
+  // Refuse before any preview, prompt, or write over a symbolic link on a path it writes, over uncommitted changes to
+  // the files it writes, or over files already at the paths it adds, then where merging a customized file with no
+  // baseline would drop its upstream changes
+  const initialPlan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
+  await refuseUnsafePlanWrites({
+    plan: initialPlan, cwd, arcDir, manifestPath, renderCtx, exec: io.exec, readFile: io.readFile,
+    command: "reconfigure",
+  });
+  const missing = await resolveMissingBaselines(initialPlan, manifest, arcDir, { readFile: io.readFile }, renderCtx);
+  if (missing.edits.length > 0) {
+    throw missingBaselineError(missing.edits, "reconfigure");
+  }
+  Object.assign(pristineStore, missing.recovered);
 
   // Build change plan (pure computation — old manifest vs new file list)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
@@ -201,6 +222,10 @@ export async function runReconfigure(
     };
   }
 
+  await preflightIgnoreFiles(cwd, io.readFile, io);
+
+  const originalRemovals = [...plan.removals];
+
   // Resolve removals interactively if callback provided
   let keptByUser: string[] = [];
   if (plan.removals.length > 0 && options.resolveRemovals) {
@@ -209,7 +234,13 @@ export async function runReconfigure(
     // Replace plan removals with only the files to actually delete
     plan.removals = applied.toRemove;
     keptByUser = applied.toKeep.map((r) => r.outputPath);
+    // A file chosen for deletion may be one the plan would have kept, so check the chosen plan before any write
+    await refuseUnsafePlanWrites({
+      plan, cwd, arcDir, manifestPath, renderCtx, exec: io.exec, readFile: io.readFile, command: "reconfigure",
+    });
   }
+
+  const checkBootstrap = await bootstrapRetiredChecks(arcDir, originalRemovals, io);
 
   // Apply change plan (I/O)
   const mergeFn = createContentMergeFn(io.exec);
@@ -219,7 +250,7 @@ export async function runReconfigure(
     manifest,
     mergeFn,
     { readFile: io.readFile, writeFile: io.writeFile, mkdir: io.mkdir },
-    { templateDir, tokens, config, configKeyOverrides },
+    renderCtx,
   );
 
   // Regenerate skills
@@ -233,15 +264,7 @@ export async function runReconfigure(
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Write managed gitignore block
-  const gitignorePath = join(cwd, ".gitignore");
-  const gitignoreEntries = [
-    ".arc/system/.internal/pristine.json",
-    ".arc/system/.internal/worktree-marker.json",
-    ".arc/user/*/",
-    ...skillGitignoreEntries(skillResult.targetDirs),
-  ];
-  await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile, io);
 
   // Write updated manifest with NEW install_config and pristine store
   await ensureDir(internalDir, io.mkdir);
@@ -252,10 +275,11 @@ export async function runReconfigure(
     install_config: buildInstallConfig(newInstallConfig),
     files: applyResult.newManifestFiles,
   };
-  await atomicWriteJson(manifestPath, newManifest);
+  await writeManifest(manifestPath, newManifest);
   await atomicWriteJson(pristineStorePath, applyResult.newPristineStore);
 
   return {
+    checkBootstrap,
     updated: applyResult.updated,
     conflicts: applyResult.conflicts,
     pristineRebuilt: applyResult.pristineRebuilt,

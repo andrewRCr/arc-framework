@@ -5,6 +5,7 @@ import {
   canonicalDigest,
   canonicalize,
   sortByCanonicalBytes,
+  type CanonicalDigest,
 } from "../../../lib/kernel/index.js";
 import {
   GitObjectIdSchema,
@@ -58,7 +59,7 @@ export function computePolicyVersion(input: PolicyVersionInput): string {
  * @param input - Complete non-target semantics for one standard-review requirement.
  * @returns The canonical domain-separated policy digest.
  */
-export function computeReviewPolicyVersion(input: ReviewPolicyVersionInput): string {
+export function computeReviewPolicyVersion(input: ReviewPolicyVersionInput): CanonicalDigest {
   const uniqueSources = new Map(
     input.acceptableSources.map((source) => [canonicalize(source), source]),
   );

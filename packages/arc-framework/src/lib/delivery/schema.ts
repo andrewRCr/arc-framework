@@ -2,11 +2,11 @@
 
 import { z } from "zod";
 
-import { canonicalize, SlugSchema, type KernelRegistry } from "../kernel/index.js";
+import { canonicalize, CanonicalDigestSchema, SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { ParentTaskIdSchema } from "../task-list/scanner.js";
 
 /** Runtime authority for delivery-domain canonical digests. */
-export const DeliveryCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+export const DeliveryCanonicalDigestSchema = CanonicalDigestSchema;
 /** Minted stable identity for one delivery plan across all revisions. */
 export const DeliveryPlanIdSchema = z.string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu)
@@ -127,10 +127,7 @@ export const DeliveryPlanV1Schema = z.strictObject({
     parents: z.array(DeliveryTaskInventoryParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
-  projection: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("wu-integration-target") }),
-    z.strictObject({ kind: z.literal("stack-to-main") }),
-  ]),
+  projection: z.strictObject({ kind: z.literal("stack-to-main") }),
   members: z.array(DeliveryPlanMemberV1Schema).min(1),
   seams: z.array(DeliveryPlanSeamV1Schema),
   planDigest: DeliveryCanonicalDigestSchema,

@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   TransientIdentityRecordV3Schema,
-  readTransientIdentitySnapshot,
-  transactTransientIdentities,
   type ErrandRecordIO,
   type TransientIdentityRecord,
 } from "../../src/lib/errand/index.js";
+import { readTransientIdentitySnapshot } from "../../src/lib/errand/identity-snapshot.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import { writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import {
   addBareRemote,
   cleanupTempDir,
@@ -215,31 +216,38 @@ describe("identity transactions", () => {
     expect(invoked).toBe(false);
   });
 
-  it("re-enters idempotently after an ambiguous push that actually landed", async () => {
+  it("preserves an ambiguous push failure and re-enters idempotently on explicit retry", async () => {
     remoteDir = await addBareRemote(dir);
     const real = ioFor(dir);
     let ambiguous = true;
+    let original: Error | undefined;
     const exec: GitExec = async (command, args, options) => {
       const result = await real.exec(command, args, options);
       if (ambiguous && args[0] === "push" && args.at(-1)?.includes("refs/arc/user/andrew/errands") === true) {
         ambiguous = false;
-        throw new Error("connection reset after remote accepted the update");
+        original = makeGitProcessError({ command, args, exitCode: 128,
+          stderr: "connection reset after remote accepted the update" });
+        throw original;
       }
       return result;
     };
     const outcome = await addRecord({ ...real, exec }, "alpha", "origin");
 
-    expect(outcome).toMatchObject({ kind: "idempotent", value: "alpha" });
+    expect(outcome).toMatchObject({ kind: "error", stage: "push", error: original,
+      remoteFailure: { code: "unreachable", cause: "network" } });
     const snapshot = await readTransientIdentitySnapshot(real);
     if (snapshot.kind !== "complete") throw new Error("expected complete snapshot");
     expect(snapshot.records.has("alpha")).toBe(true);
+    await expect(addRecord(real, "alpha", "origin")).resolves.toMatchObject({ kind: "idempotent", value: "alpha" });
   });
 
   it("reports the repeated push failure that exhausts reconciliation", async () => {
     remoteDir = await addBareRemote(dir);
     const real = ioFor(dir);
     const exec: GitExec = async (command, args, options) => {
-      if (args[0] === "push") throw new Error("pre-receive hook declined");
+      if (args[0] === "push") {
+        throw makeGitProcessError({ command, args, exitCode: 1, stderr: "pre-receive hook declined" });
+      }
       return real.exec(command, args, options);
     };
 
@@ -256,7 +264,7 @@ describe("identity transactions", () => {
     const retrying: GitExec = async (command, args, options) => {
       if (args[0] === "update-ref" && args[1] === "refs/arc/user/andrew/errands" && failures > 0) {
         failures -= 1;
-        throw new Error("reference already exists");
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "reference already exists" });
       }
       return real.exec(command, args, options);
     };
@@ -264,7 +272,8 @@ describe("identity transactions", () => {
 
     const alwaysContended: GitExec = async (command, args, options) => {
       if (args[0] === "update-ref" && args[1] === "refs/arc/user/andrew/errands") {
-        throw new Error("is at current but expected stale");
+        throw makeGitProcessError({ command, args, exitCode: 128,
+          stderr: "is at current but expected stale" });
       }
       return real.exec(command, args, options);
     };
@@ -279,7 +288,7 @@ describe("identity transactions", () => {
     const real = ioFor(dir);
     const exec: GitExec = async (command, args, options) => {
       if (args[0] === "update-ref" && args[1] === "-d" && args[2]?.includes("__transaction__") === true) {
-        throw new Error("cannot clean temporary ref");
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "cannot clean temporary ref" });
       }
       return real.exec(command, args, options);
     };

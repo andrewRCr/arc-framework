@@ -26,6 +26,18 @@ describe("parseTestCostCli", () => {
     expect(() => parseTestCostCli(args)).toThrow();
   });
 
+  it("carries a named ref to measure", () => {
+    expect(parseTestCostCli([
+      "--condition", "tier-isolated",
+      "--project-set", "integration",
+      "--workers", "12",
+      "--ref", "origin/main",
+    ])).toEqual({
+      mode: { condition: "tier-isolated", projectSet: "integration", workerSizing: "12" },
+      ref: "origin/main",
+    });
+  });
+
   it("refuses an option token as the preceding option's value", () => {
     expect(() => parseTestCostCli([
       "--condition", "tier-isolated",

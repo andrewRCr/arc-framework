@@ -4,16 +4,21 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
+import { runPlanningBaseSync } from "./base-sync-planning.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import type { Store } from "../lib/store/contract.js";
 
 import {
   createCurrentBaseDriftAdapters,
   workUnitPathTreatmentContext,
 } from "../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { runBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
+import { runBaseDrift, unavailableBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
+import { isNativeTypedRefusal } from "../lib/store/native-refusal.js";
 import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
-import { syncLocalBase, type BaseSyncResult } from "../lib/git/base-sync.js";
+import { type BaseSyncResult } from "../lib/git/base-sync.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
@@ -227,7 +232,9 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
             const workUnit = row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
             treatmentContext = workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name);
           }
-        } catch {
+        } catch (error) {
+          // A native store's refusal of the locus read names its own repair rather than drifting without treatment.
+          if (isNativeTypedRefusal(error)) return unavailableBaseDrift("locus-unavailable", config.settings["branch.base"], error);
           treatmentContext = {};
         }
         return runBaseDrift({
@@ -292,13 +299,13 @@ function refusalMessage(result: Extract<BaseSyncResult, { status: "refused" }>):
 }
 
 /** Run `arc base sync`. */
-export async function handleBaseSync(opts: BaseSyncOptions, interaction?: InteractionContext): Promise<void> {
+export async function handleBaseSync(opts: BaseSyncOptions, interaction?: InteractionContext, store?: Store): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
   const { settings } = await readConfigSettings(cwd);
-  const result = await syncLocalBase({ exec, baseBranch: settings["branch.base"] });
+  const result = await runPlanningBaseSync({ cwd, exec, store: store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec })), baseBranch: settings["branch.base"] });
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -326,7 +333,7 @@ export async function handleBaseSync(opts: BaseSyncOptions, interaction?: Intera
     );
     process.exitCode = 1;
   } else {
-    p.log.error(refusalMessage(result));
+    p.log.error("remedy" in result ? result.remedy.text : refusalMessage(result));
     process.exitCode = 1;
   }
   p.outro("Done.");

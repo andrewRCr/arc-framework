@@ -1,7 +1,12 @@
 /** Production boundaries for the exact-checkpoint integration merge. */
 
+import { nativeCheckpointOwner, writeWorkUnitLandingCommit } from "./landing-link.js";
+import { readStoredLifecycleSummary } from "./lifecycle-record.js";
 import { z } from "zod";
 
+import { resolveNamedReviewWorkUnitInvocation } from "../review-gate/runtime/review-work-unit.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
+import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import {
   createCurrentBaseDriftAdapters,
@@ -83,6 +88,22 @@ const GitHubMergeConfirmationSchema = z.object({
   head: z.object({ ref: z.string().min(1), sha: z.string().min(1) }).loose(),
 }).loose();
 
+/**
+ * Explain why a final merge plan has no exact base movement, naming the drift read's own cause when it has one.
+ *
+ * @param drift - The final authoritative base drift.
+ * @param observedHeadSha - The refreshed host head the drift must have analyzed.
+ * @returns The refusal detail.
+ */
+export function finalBaseMovementUnavailableDetail(drift: BaseDriftResult, observedHeadSha: string): string {
+  if (typeof drift.headOid === "string" && drift.headOid !== observedHeadSha) {
+    return `The authoritative drift head ${drift.headOid} does not match the refreshed host head ${observedHeadSha}.`;
+  }
+  return drift.verdict === "unavailable"
+    ? `The final authoritative base movement could not be established: ${drift.detail}`
+    : "The final authoritative base movement could not be established.";
+}
+
 /** Bind final work-unit movement evidence to one refreshed host target. */
 export function composeIntegrationFinalPlan(input: {
   readonly drift: Pick<
@@ -128,14 +149,15 @@ function failureDetail(error: unknown): string {
 }
 
 /** Bind Git, GitHub, review, lifecycle, and checkpoint stores to the merge reducer. */
-export function createIntegrationMergeDependencies(input: {
-  cwd: string;
-  exec: GitExec;
+export function createIntegrationMergeDependencies(options: ReviewInvocationInput & {
   workUnit: string;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
   changeRequestPort?: ChangeRequestResolutionPort;
   hostedRunner?: HostedProcessRunner;
+  /** Whether a native merge confirms the merge commit its landing link records; false for a merge that records none. */
+  confirmMergeIdentity?: boolean;
 }): IntegrationMergeDependencies {
+  const input = { ...options, ...resolveReviewInvocation(options) };
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = () => {
     settingsPromise ??= readConfigSettings(input.cwd);
@@ -147,7 +169,9 @@ export function createIntegrationMergeDependencies(input: {
   const changeRequestPort = input.changeRequestPort
     ?? createGhChangeRequestResolutionPort(input.exec, input.cwd);
   const mergeObservationPort = createGhChangeRequestMergeObservationPort(runner);
-  const respondDependencies = createRespondDependencies(input);
+  // Settlement alone binds the review family, so a merge that settles no response needs no bound work item.
+  let respondDependencies: ReturnType<typeof createRespondDependencies> | undefined;
+  const respond = () => respondDependencies ??= createRespondDependencies(input);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
   const rootExec: GitExec = (command, args, options) => input.exec(command, args, {
     ...options,
@@ -156,6 +180,7 @@ export function createIntegrationMergeDependencies(input: {
   const lockPort = new GhMergeLockPort(
     runner,
     (request) => evaluateReviewReadiness(request, {
+      store: input.store,
       deliveryMemberLookup,
       readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
       fs: createGitTreeReadFs({
@@ -170,18 +195,10 @@ export function createIntegrationMergeDependencies(input: {
   const archiveCadence = async () => (await settings()).settings["archive.cadence"] === "manual"
     ? "manual" as const
     : "with-integration" as const;
-  const lifecycleStorage = input.lifecycleStorage ?? {
-    readSnapshot: async () => {
-      const head = (await input.exec("git", ["rev-parse", "HEAD"], {
-        cwd: input.cwd,
-        objectAccess: "local-only",
-      })).stdout.trim();
-      return {
-        version: head,
-        fs: createGitTreeReadFs({ cwd: input.cwd, revision: head, exec: input.exec }),
-      };
-    },
-  };
+  const lifecycleStorage = input.lifecycleStorage ?? createStoreLifecycleStorage({
+    store: input.store,
+    checkoutRoot: input.cwd,
+  });
 
   const currentTarget = async (): Promise<IntegrationMergeTarget> => {
     const branch = await getCurrentBranch(input.exec);
@@ -271,6 +288,18 @@ export function createIntegrationMergeDependencies(input: {
   });
 
   return {
+    ...(input.store.capabilities.stateOffBranch ? {
+      validateCheckpointOwnership: async checkpoint => {
+        const owner = await nativeCheckpointOwner(checkpoint, input.projectId);
+        const selected = await resolveNamedReviewWorkUnitInvocation(input, checkpoint.workUnit);
+        if (selected.workItem?.type !== "work-item" || owner.type !== "work-item" || selected.workItem.uid !== owner.uid) {
+          throw new Error("The selected work-item generation differs from the checkpoint. Recompose its checkpoint, then retry.");
+        }
+        input.workItem = selected.workItem;
+      },
+      writeLandingCommit: async (workUnit, sha, checkpoint) => writeWorkUnitLandingCommit({ store: input.store,
+        projectId: input.projectId, workUnit, owner: await nativeCheckpointOwner(checkpoint, input.projectId), sha }),
+    } : {}),
     readCheckpoint: async (workUnit, handle) => {
       const identity = await resolveIdentity({ exec: input.exec });
       if (identity === null) throw new Error("An ARC identity is required to read the integration checkpoint.");
@@ -285,11 +314,10 @@ export function createIntegrationMergeDependencies(input: {
       settleHosted: (request) => settleHostedFinding(request, { port: hostedPort }),
       settleReviewResponse: ({ request, fixTarget }) => respondToReviewCommand(
         fixTarget === null ? request : { ...request, settledFixTarget: fixTarget },
-        respondDependencies,
+        respond(),
       ),
       confirmCandidateResponse: (action) => confirmCandidateResponseAction({
-        cwd: input.cwd,
-        exec: input.exec,
+        ...input,
         workUnit: record.workUnit,
         approvedHead: record.approvedHead,
         action,
@@ -305,6 +333,11 @@ export function createIntegrationMergeDependencies(input: {
         }).then(({ stdout }) => stdout.trim()),
       ]);
       const snapshot = await lifecycleStorage.readSnapshot();
+      if (input.store.capabilities.stateOffBranch) {
+        const observed = await readStoredLifecycleSummary({ cwd: input.cwd, store: input.store, workUnit, owner: input.workItem,
+          archiveCadence: cadence, storageVersion: snapshot.version });
+        return { actualHead, lifecycleComplete: observed.summary.complete, lifecycleVersion: observed.recordVersion, target };
+      }
       const lifecycle = await readLifecycleSummary(
         input.cwd,
         workUnit,
@@ -315,7 +348,7 @@ export function createIntegrationMergeDependencies(input: {
       return {
         actualHead,
         lifecycleComplete: lifecycle.complete,
-        lifecycleVersion: lifecycle.storageVersion,
+        lifecycleVersion: snapshot.metaVersion(workUnit),
         target,
       };
     },
@@ -332,9 +365,15 @@ export function createIntegrationMergeDependencies(input: {
         },
         changeRequestPort,
       );
-      return resolved.state === "merged-at-head"
-        && resolved.targetRef.repository === target.repository
-        && resolved.candidate.number === target.pullRequest;
+      if (resolved.state !== "merged-at-head"
+        || resolved.targetRef.repository !== target.repository
+        || resolved.candidate.number !== target.pullRequest) return { merged: false, providerMergeId: null };
+      if (!input.store.capabilities.stateOffBranch || input.confirmMergeIdentity === false) return { merged: true, providerMergeId: null };
+      const confirmed = await confirmPinned(target);
+      if (confirmed.state === "merged") return { merged: true, providerMergeId: confirmed.providerMergeId };
+      // The landing-link fact reports why no merge commit was confirmed, not that the host reported none.
+      return { merged: true, providerMergeId: null, confirmationDetail: confirmed.state === "unmerged"
+        ? "Exact merged-state confirmation reported the change request unmerged." : confirmed.detail };
     },
     refreshTarget: async (target) => {
       const current = await liveTarget(target);
@@ -388,10 +427,7 @@ export function createIntegrationMergeDependencies(input: {
           status: "unavailable",
           target: observedTarget,
           baseOid: drift.baseOid,
-          detail: typeof drift.headOid === "string" && drift.headOid !== observedTarget.headSha
-            ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head `
-              + `${observedTarget.headSha}.`
-            : "The final authoritative base movement could not be established.",
+          detail: finalBaseMovementUnavailableDetail(drift, observedTarget.headSha),
         };
       }
       const coordinates = {

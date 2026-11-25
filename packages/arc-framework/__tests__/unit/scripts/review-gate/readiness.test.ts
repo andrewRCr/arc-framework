@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 
 import { renderMetaFile } from "../../../../src/lib/active/meta-reader.js";
 import { composeProjectReadinessView } from "../../../../src/lib/status/project-view.js";
@@ -230,8 +232,18 @@ describe("review repository schema", () => {
       headSha: SHA,
     };
 
-    expect(ReviewTargetSchema.safeParse({ ...target, repository: "../.." }).success).toBe(false);
-    expect(ReviewTargetSchema.safeParse({ ...target, repository: ".owner/repo" }).success).toBe(true);
+    assertSchemaRefuses(ReviewTargetSchema, { ...target, repository: "../.." });
+    assertSchemaAccepts(ReviewTargetSchema, { ...target, repository: ".owner/repo" });
+  });
+});
+
+describe("review vehicle schema", () => {
+  it("refuses a work-unit identity that is not a slug", () => {
+    assertSchemaRefuses(ReviewVehicleSchema, {
+      kind: "work-unit",
+      slug: "Demo_Unit",
+      archiveCadence: "manual",
+    });
   });
 });
 
@@ -804,14 +816,14 @@ describe("evaluateReviewReadiness with a delivery-member vehicle", () => {
     ["deliverable digest algorithm", memberVehicle({ deliverableId: `sha1:${"b".repeat(64)}` })],
     ["work-unit slug", memberVehicle({ workUnitSlug: "Demo_Unit" })],
   ])("rejects a malformed %s", (_field, vehicle) => {
-    expect(ReviewVehicleSchema.safeParse(vehicle).success).toBe(false);
+    assertSchemaRefuses(ReviewVehicleSchema, vehicle);
   });
 
   it.each([
     ["base", { ...memberVehicle(), base: "main" }],
     ["archive cadence", { ...memberVehicle(), archiveCadence: "manual" }],
   ])("rejects a member vehicle carrying a %s", (_field, vehicle) => {
-    expect(ReviewVehicleSchema.safeParse(vehicle).success).toBe(false);
+    assertSchemaRefuses(ReviewVehicleSchema, vehicle);
   });
 
   it("echoes the member vehicle unchanged in both the ready and the invalid payload", async () => {
@@ -1360,4 +1372,16 @@ describe("delivery-member evaluation without work-unit lifecycle readiness", () 
     expect(archivedResult.state).toBe("ready");
     expect(errandResult.state).toBe("ready");
   });
+});
+
+it.each(["errand", "delivery-member"] as const)("keeps %s readiness independent of the native lifecycle store", async kind => {
+  const h = createReviewHarness();
+  h.store.read = async () => { throw new Error("Unexpected lifecycle read"); };
+  h.store.list = async () => { throw new Error("Unexpected lifecycle listing"); };
+  const request = kind === "errand"
+    ? readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" })
+    : readinessRequest(memberVehicle());
+  expect((await evaluateReviewReadiness(request, {
+    fs: buildFs({}), store: h.store, deliveryMemberLookup: memberLookup(resolvedMember()),
+  })).state).toBe("ready");
 });

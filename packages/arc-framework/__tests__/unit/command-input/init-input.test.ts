@@ -2,10 +2,26 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   InitCommandInputSchema,
-  resolveInitCommandInput,
+  resolveInitCommandInput as resolveInitInput,
 } from "../../../src/commands/init-input.js";
 
-const context = (interaction: "allowed" | "forbidden") => ({ interaction }) as const;
+import { runInitPrompts } from "../../../src/prompts/init-prompts.js";
+import { resolveInteractionContext } from "../../../src/lib/command-input/interaction-context.js";
+
+const context = (interaction: "allowed" | "forbidden") => resolveInteractionContext({
+  noInput: interaction === "forbidden", machineReadable: false, ci: false,
+  promptInputIsTTY: true, promptOutputIsTTY: true, yes: "absent",
+});
+const resolveInitCommandInput = (input: Parameters<typeof resolveInitInput>[0]) => resolveInitInput({
+  ...input,
+  prompt: input.prompt ?? (async (supplied) => {
+    const answer = await runInitPrompts(input.cwd, context(input.context.interaction), {
+      name: supplied.projectName, tools: supplied.tools, pmMode: supplied.pmMode, teamMode: supplied.teamMode,
+    });
+    return answer === null ? null : { projectName: answer.project_name, tools: answer.tools,
+      pmMode: answer.pm_mode, teamMode: answer.team_mode };
+  }),
+});
 
 describe("init command input", () => {
   it("resolves equivalent supplied and prompted values through one schema", async () => {
@@ -70,6 +86,13 @@ describe("init command input", () => {
     });
   });
 
+  it("uses the prompt callback's acquired values even when interaction is forbidden", async () => {
+    expect(await resolveInitCommandInput({ options: {}, cwd: "/tmp/example", context: context("forbidden"),
+      prompt: async () => ({ projectName: "Acquired", tools: ["codex"], pmMode: "external", teamMode: true }),
+      resolveIdentity: async () => "andrew",
+    })).toMatchObject({ kind: "resolved", value: { projectName: "Acquired", tools: ["codex"], pmMode: "external", teamMode: true } });
+  });
+
   it("rejects fresh-only identity on reconfigure before prompt or identity acquisition", async () => {
     const prompt = vi.fn();
     const resolveIdentity = vi.fn();
@@ -79,7 +102,6 @@ describe("init command input", () => {
       context: context("allowed"),
       prompt,
       resolveIdentity,
-      current: { projectName: "Example", pmMode: "none", teamMode: false },
     });
     expect(result).toMatchObject({ kind: "invalid", issues: [{ path: ["identity"] }] });
     expect(prompt).not.toHaveBeenCalled();

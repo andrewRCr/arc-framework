@@ -1,6 +1,8 @@
 /** Integration checkpoint verdict behavior. */
 
 import { describe, expect, it } from "vitest";
+import { RecordVersionSchema } from "../../../../src/lib/store/identity.js";
+import { checkpointDependencies as dependencies } from "../../../helpers/integration-checkpoint.js";
 
 import {
   checkpointIntegration,
@@ -8,12 +10,18 @@ import {
   type DeliveryClassifierCommand,
   type IntegrationCheckpointDependencies,
 } from "../../../../src/scripts/integration/checkpoint.js";
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
+import { SlugSchema } from "../../../../src/lib/kernel/schema/slug.js";
 import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
 import { CandidateSubjectUncollectableError } from "../../../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";
-import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
+import {
+  composeCanonicalSettlementPlan,
+  composeHostedSettlementAction,
+} from "../../../../src/scripts/integration/settlement-plan.js";
 import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
+import { NO_HOSTED_REVIEW_RESERVATION_DETAIL } from
+  "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -75,106 +83,24 @@ const CLEAN_DRIFT = {
   register: null,
 };
 
-function dependencies(): IntegrationCheckpointDependencies {
-  return {
-    readDrift: async () => ({
-      mode: "authoritative",
-      verdict: "reconcile",
-      state: "diverged",
-      ahead: 2,
-      behind: 1,
-      base: "main",
-      baseOid: oid("b"),
-      headOid: oid("c"),
-      movement: "overlapping",
-      integrationEvidence: {
-        coverage: "complete",
-        scannedCommitCount: 1,
-        events: [],
-        unclassifiedCommitCount: 0,
-        truncated: false,
-        limitations: [],
-      },
-      overlap: { status: "available", substantivePaths: ["src/example.ts"], regenerablePaths: [] },
-      register: { kind: "attention", text: "Base moved." },
-    }),
-    readMovementObservation: async () => ({
-      feasibility: { state: "clean", base: oid("b"), head: oid("c") },
-      admission: {
-        state: "mergeable",
-        repository: "owner/repo",
-        changeRequest: 42,
-        baseRef: "main",
-        base: oid("b"),
-        head: oid("c"),
-      },
-    }),
-    classifyDeliveryDrift: async () => ({ status: "not-applicable" }),
-    readLifecycle: async () => ({
-      workUnit: "example",
-      storageVersion: oid("c"),
-      archiveCadence: "manual",
-      state: "integrating",
-      position: { phase: "Integrating", location: "active" },
-      artifactFacts: [],
-      complete: true,
-    }),
-    readCandidate: async () => ({
-      status: "current",
-      candidateId: digest("c"),
-      recognizedRevision: oid("c"),
-      implementationChanged: false,
-      convergenceVerification: "satisfied",
-      convergenceScope: null,
-    }),
-    composeCandidateApplicabilityResolutionSelector: async () => {
-      throw new Error("a current Candidate does not require an applicability selector");
-    },
-    readCandidatePublication: async () => ({ status: "current" as const }),
-    readDeliveryTerminalRemedy: async () => null,
-    composeDelivery: async () => ({ status: "not-applicable" }),
-    readShippedDeliveryPublicationCommit: async () => ({ status: "none" }),
-    resolveMergeMethod: async (_repository, stackPosition) => ({
-      schemaVersion: 1,
-      mode: "review-merge-method-resolve",
-      repository: "owner/repo",
-      stackPosition,
-      state: "validated",
-      nextAction: "use-method",
-      method: "merge",
-      allowedMethods: ["merge"],
-      policyFingerprint: digest("d"),
-    }),
-    composeReady: async ({ lifecycle }) => ({
-      approvedHead: oid("c"),
-      candidateTailDiff: {
-        fromRevision: oid("a"),
-        throughRevision: oid("c"),
-        reference: `${oid("a")}..${oid("c")}`,
-      },
-      requirementSummary: { conclusion: "satisfied", requirements: [] },
-      statusSummary: {
-        lifecycle,
-        changeRequest: {
-          repository: "owner/repo",
-          pullRequest: 42,
-          baseRef: "main",
-          headRef: "feat/example",
-          headSha: oid("c"),
-          state: "open",
-        },
-        requiredChecks: "green",
-      },
-    }),
-    composeSettlementPlan: async () => composeCanonicalSettlementPlan([]),
-    createHandle: async () => ({
-      status: "created",
-      handle: `checkpoint-v1:${oid("c")}:${digest("e")}`,
-    }),
-  };
-}
 
 describe("integration checkpoint", () => {
+  it("refuses a malformed drift through the operation result with a rerun remedy", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => ({
+      ...CLEAN_DRIFT,
+      overlap: { status: "available", substantivePaths: "invalid", regenerablePaths: [] },
+    }) as unknown as Awaited<ReturnType<IntegrationCheckpointDependencies["readDrift"]>>;
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: expect.stringContaining("overlap.substantivePaths"),
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
+      });
+  });
+
   it("returns the exact bounded Candidate applicability decision for authority selection", async () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
@@ -207,7 +133,7 @@ describe("integration checkpoint", () => {
     deps.readCandidate = async () => decision;
     const resolutionSelector = {
       schemaVersion: 1 as const,
-      expectedRecordVersion: digest("f"),
+      expectedRecordVersion: RecordVersionSchema.parse(digest("f")),
       candidateId: request.candidateId,
       priorTarget: request.baselineTarget,
       currentTarget: request.currentTarget,
@@ -336,6 +262,7 @@ describe("integration checkpoint", () => {
         state: "reconcile",
         nextAction: "reconcile-base",
         reason: "base-reconcile-required",
+        detail: expect.stringContaining("overlapping"),
         remedy: {
           argv: [
             "arc", "base", "merge",
@@ -423,6 +350,7 @@ describe("integration checkpoint", () => {
         state: "reconcile",
         nextAction: "reconcile-regenerable",
         reason: "regenerable-reconcile-required",
+        detail: expect.stringContaining("regenerable-conflict"),
         remedy: {
           argv: [
             "arc", "base", "merge",
@@ -455,6 +383,42 @@ describe("integration checkpoint", () => {
         reason: "host-pending",
         payload: { detail: "Host is still computing exact admission." },
         remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
+      });
+  });
+
+  it.each([
+    [undefined, "Resolve the reported host policy refusal before retrying", ["arc", "review", "status"]],
+    [
+      "not-mergeable",
+      "resolve the conflicts the host reports, then re-run the checkpoint",
+      ["arc", "integrate", "checkpoint", "example"],
+    ],
+    [
+      "head-moved",
+      "Publish the approved head to the change request, or recompose over the head it now carries",
+      ["arc", "integrate", "checkpoint", "example"],
+    ],
+  ] as const)("keys a host refusal's remedy on its %s condition", async (condition, correction, argv) => {
+    const deps = dependencies();
+    deps.readMovementObservation = async () => ({
+      feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+      admission: {
+        state: "refused",
+        repository: "owner/repo",
+        changeRequest: 42,
+        baseRef: "main",
+        base: oid("b"),
+        head: oid("c"),
+        detail: "The host refused the exact coordinates.",
+        ...(condition === undefined ? {} : { condition }),
+      },
+    });
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "host-refused",
+        payload: { detail: "The host refused the exact coordinates." },
+        remedy: { text: expect.stringContaining(correction), argv },
       });
   });
 
@@ -760,7 +724,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "manual",
       state: "integrating",
@@ -791,7 +755,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "manual",
       state: "integrating",
@@ -865,19 +829,50 @@ describe("integration checkpoint", () => {
               state: "clean",
               text: expect.stringContaining("Machine evidence: 9 checks clean."),
             },
-            extensionReport: { label: "Extension report", content: null },
           },
         },
       });
   });
 
-  it("returns a typed recompose result when the Candidate record moves before persistence", async () => {
+  it("names each disposition set the approved merge will settle", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.composeSettlementPlan = async () => composeCanonicalSettlementPlan([composeHostedSettlementAction({
+      dispositionId: digest("e"),
+      request: {
+        schemaVersion: 1,
+        response: { attemptRef: "hosted-attempt", dispositionSetId: digest("e"), findingId: "finding-1" },
+        target: { repository: "owner/repo", pullRequest: 42, headSha: oid("c") },
+        fixTarget: null,
+        actorIdentity: "andrew",
+        finding: { commentId: "comment-1", threadId: "thread-1" },
+        disposition: "defer",
+        reply: "Deferred to a follow-up.",
+      },
+    })]);
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        payload: {
+          interlockSurface: {
+            machineEvidence: {
+              state: "exceptions",
+              text: expect.stringContaining(
+                `- Settlement: 1 approved disposition set(s) require settlement: ${digest("e")} (1 hosted action).`,
+              ),
+            },
+          },
+        },
+      });
+  });
+
+  it.each([[digest("a"), digest("b")], ["backend:candidate/7", "backend:candidate/8"]])("recomposes a moved Candidate at versions %s and %s", async (expected, observed) => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.createHandle = async () => ({
       status: "recompose-required",
-      expectedRecordVersion: digest("a"),
-      observedRecordVersion: digest("b"),
+      expectedRecordVersion: expected,
+      observedRecordVersion: observed,
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -897,8 +892,8 @@ describe("integration checkpoint", () => {
           argv: ["arc", "integrate", "checkpoint", "example"],
         },
         payload: {
-          expectedRecordVersion: digest("a"),
-          observedRecordVersion: digest("b"),
+          expectedRecordVersion: expected,
+          observedRecordVersion: observed,
         },
       });
   });
@@ -1134,7 +1129,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",
@@ -1161,7 +1156,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",
@@ -1188,7 +1183,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",
@@ -1223,7 +1218,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",
@@ -1248,7 +1243,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",
@@ -1453,5 +1448,24 @@ describe("integration checkpoint", () => {
           },
         },
       });
+  });
+
+  it("states that no hosted review was reserved rather than claiming a review carrier", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+
+    const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps);
+
+    expect(result).toMatchObject({
+      state: "ready",
+      payload: {
+        interlockSurface: {
+          machineEvidence: {
+            text: expect.stringContaining(`Review landed: ${NO_HOSTED_REVIEW_RESERVATION_DETAIL}`),
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/local carrier|local-attestation/iu);
   });
 });

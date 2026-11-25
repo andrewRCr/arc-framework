@@ -3,13 +3,13 @@
 import type { GitExec } from "../git/exec.js";
 import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import { isGitObjectId } from "../git/object-id.js";
-import { readGitBlobEntry, type GitBlobEntry } from "../io-context.js";
+import { readGitBlobEntries, readGitBlobEntry, type GitBlobEntry } from "../io-context.js";
 import { classifyPathTreatment } from "../evidence-applicability/index.js";
 import {
   identifyWorkUnitArtifactPath,
   type WorkUnitArtifactKind,
 } from "../layout/index.js";
-import { canonicalDigest, digestBytes } from "../canonical/canonical-json.js";
+import { canonicalDigest, digestBytes } from "../kernel/canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import {
   CandidateLineageTargetSchema,
@@ -17,9 +17,8 @@ import {
   type CandidateLineageTarget,
   type CandidateSubjectEntryInput,
 } from "./candidate-attestation.js";
-import { resolveCandidateRecordRelativePath } from "./candidate-record-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import { resolveSubmissionBoundaryPath } from "./submission-boundary-store.js";
 
 export interface CollectGitCandidateTargetInput {
   cwd: string;
@@ -32,6 +31,12 @@ export interface CollectGitCandidateTargetInput {
   revision?: string;
   readBlob?: (cwd: string, ref: string | null, path: string) => Promise<Uint8Array | null>;
   readEntry?: (cwd: string, ref: string | null, path: string) => Promise<GitBlobEntry | null>;
+  /** Bulk entry reader; when supplied it takes precedence over the single-entry compatibility seams. */
+  readEntries?: (
+    cwd: string,
+    ref: string | null,
+    paths: readonly string[],
+  ) => Promise<ReadonlyMap<string, GitBlobEntry>>;
 }
 
 /**
@@ -61,12 +66,13 @@ export type CandidateSubjectCollection =
 export async function resolveGitCandidateBaseRevision(input: {
   readonly cwd: string;
   readonly baseBranch: string;
+  readonly remote?: string;
   readonly exec: GitExec;
 }): Promise<string> {
   const baseBranch = input.baseBranch.trim();
   if (baseBranch === "") throw new Error("Candidate subject collection requires a configured base branch");
   const options = { cwd: input.cwd, objectAccess: "local-only" as const };
-  const remoteBaseRef = `refs/remotes/origin/${baseBranch}`;
+  const remoteBaseRef = `refs/remotes/${input.remote ?? "origin"}/${baseBranch}`;
   const remote = (await input.exec(
     "git",
     ["for-each-ref", "--format=%(objectname)", remoteBaseRef],
@@ -223,6 +229,15 @@ export async function collectGitCandidateSubject(
     options,
   )).stdout.split("\0").filter((path) => path !== "");
   const paths = [...new Set(changed)].sort(compareUtf8);
+  const readEntries = input.readEntries ?? (
+    input.readEntry === undefined && input.readBlob === undefined
+      ? (cwd: string, ref: string | null, selectedPaths: readonly string[]) =>
+          readGitBlobEntries(cwd, ref, selectedPaths, { objectAccess: "local-only" })
+      : undefined
+  );
+  const entriesByPath = readEntries === undefined
+    ? null
+    : await readEntries(input.cwd, input.revision ?? null, paths);
   const readEntry = input.readEntry ?? (input.readBlob === undefined
     ? readGitBlobEntry
     : async (cwd: string, ref: string | null, path: string) => {
@@ -242,7 +257,9 @@ export async function collectGitCandidateSubject(
   }>();
   const absentPaths = new Set<string>();
   for (const path of paths) {
-    const entry = await readEntry(input.cwd, input.revision ?? null, path);
+    const entry = entriesByPath === null
+      ? await readEntry(input.cwd, input.revision ?? null, path)
+      : entriesByPath.get(path) ?? null;
     const digest = entry === null ? canonicalDigest({ path, state: "absent" }) : digestBytes(entry.bytes);
     const mode = entry?.mode ?? "absent";
     const classification = classifyCandidateSubjectPath(name, path, projectionPaths);

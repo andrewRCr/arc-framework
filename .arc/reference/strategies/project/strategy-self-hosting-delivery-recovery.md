@@ -84,9 +84,9 @@ git rev-list --parents -n 1 <repaired-head>
 git diff --quiet recovery/<work-unit>-delivery-topology <repaired-head> --
 ```
 
-Require the tree to equal `<verified-tree>`, the parent line to equal
-`<repaired-head> <public-terminal> <refreshed-predecessor>`, and the diff to be empty. Then move only the local
-terminal branch under an exact old-head lease:
+Require the tree to equal `<verified-tree>`, the parent line to equal `<repaired-head> <public-terminal>
+<refreshed-predecessor>`, and the diff to be empty. Then move only the local terminal branch under an exact old-head
+lease:
 
 ```bash
 git update-ref refs/heads/<work-unit-branch> <repaired-head> <corrected-top>

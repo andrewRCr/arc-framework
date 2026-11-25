@@ -9,6 +9,15 @@
  *
  * @module
  */
+import { runStoreRename, type StoreRenameContext } from "./rename-store.js";
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import type { LifecycleRollbackRecovery } from "../store-transition-types.js";
+import type { Remedy, StoreRefusal } from "../../store/refusal.js";
+import type { Store } from "../../store/contract.js";
+import type { RecordReference } from "../../store/identity.js";
+import type { UnboundHoldingCheckout } from "../locus-ports.js";
+import { emptyRenameReport, type RenameReport } from "../rename-report.js";
+
 
 import type { RenameRemoteBranchResult } from "../rename-identity.js";
 import type {
@@ -20,13 +29,13 @@ import type {
   RenameRetirementContext,
   RenameTransitionSourceEvidence,
 } from "../direct-retirement-driver.js";
-import { validateManagedPath } from "../../canonical/managed-path.js";
+import { validateManagedPath } from "../../kernel/canonical/managed-path.js";
 import type { TerminalTransitionRecordWriter } from "../terminal-transition-record-writer.js";
-import type { TransitionRecord } from "../transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../store/kinds/lineage/index.js";
 import { resolveTransitionRecordRelativePath } from "../transition-record-store.js";
 
 /** Subject shapes with distinct identity-leg applicability. */
-export type RenameSubjectShape = "spawned" | "in-place" | "stub";
+export type RenameSubjectShape = "spawned" | "in-place" | "stub" | "archived";
 
 /** Fully guarded rename plan returned before any mutation. */
 export interface RenamePlan {
@@ -48,19 +57,26 @@ export interface RenamePlan {
 }
 
 /** Result of the tracked commit plus applicable identity legs. */
-export type RunRenameResult =
-  | {
+export type RunRenameResult = (
+  | ({
       status: "renamed";
-      shape: RenameSubjectShape;
-      trackedCommit: "created" | "existing";
+      trackedCommit?: "created" | "existing";
+      recordBatch?: "applied" | "existing";
+      report: RenameReport;
       pendingIntegration: boolean;
       advisories: readonly string[];
       remote?: RenameRemoteBranchResult;
       worktree?: RenameWorktreeMoveResolution | ReconcileWorkUnitWorktreeResult;
       checkout?: RenameWorktreeTransactionOutcome;
-    }
-  | { status: "rejected"; reason: string }
-  | { status: "partial"; reason: string };
+    } & ({ shape: RenameSubjectShape } | { shape: "cohort"; sourceSlug: string; targetSlug: string }))
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; recovery?: LifecycleRollbackRecovery; unbound?: UnboundHoldingCheckout }
+  | { status: "partial"; reason: string; remedy?: Remedy; report: RenameReport })
+  & { /** Exact operational subject; tracked results have no store reference. */ reference?: RecordReference };
+
+/** Machine output preserves landed outcomes and explicitly identifies an unavailable store reference. */
+export type RenameResultEnvelope =
+  | (Omit<Extract<RunRenameResult, { status: "renamed" }>, "reference"> & { reference: RecordReference | null })
+  | (Omit<Extract<RunRenameResult, { status: "partial" }>, "reference"> & { reference: RecordReference | null });
 
 /** Checkout identity report plus any physical move the transaction performed. */
 export interface RenameCheckoutReport {
@@ -70,6 +86,8 @@ export interface RenameCheckoutReport {
 
 /** Injected operations driven by {@link runRename}. */
 export interface RunRenameContext {
+  /** Optional operational store injected by the lifecycle caller. */
+  store?: Store;
   retirement: RenameRetirementContext;
   transitionWriter: TerminalTransitionRecordWriter;
   preflight(params: { sourceSlug: string; targetSlug: string }): Promise<RenamePlan>;
@@ -95,9 +113,14 @@ export interface RunRenameContext {
  * @returns Complete, refused, or resumable-partial outcome
  */
 export async function runRename(
-  ctx: RunRenameContext,
+  ctx: RunRenameContext | StoreRenameContext,
   params: { sourceSlug: string; targetSlug: string },
 ): Promise<RunRenameResult> {
+  if (usesOffBranchState(ctx.store)) {
+    if (!("exec" in ctx)) return { status: "rejected", reason: "Store rename requires its bound checkout and Git adapters." };
+    return runStoreRename(ctx, { operand: params.sourceSlug, targetSlug: params.targetSlug });
+  }
+  if ("exec" in ctx) return { status: "rejected", reason: "Store rename is unsupported before the storage flip." };
   let plan: RenamePlan;
   try {
     plan = await ctx.preflight(params);
@@ -130,6 +153,7 @@ export async function runRename(
       shape: plan.shape,
       trackedCommit,
       pendingIntegration: true,
+      report: emptyRenameReport(),
       advisories,
     };
   }
@@ -142,6 +166,7 @@ export async function runRename(
       return {
         status: "partial",
         reason: `old remote head moved from ${remote.expectedOid} to ${remote.actualOid ?? "[absent]"}`,
+        report: emptyRenameReport(),
       };
     }
 
@@ -150,7 +175,7 @@ export async function runRename(
       : { status: "in-place" };
     const rename = await ctx.renameCheckout(plan, move);
     if (rename.checkout.kind === "refused") {
-      return { status: "partial", reason: `checkout rename refused: ${rename.checkout.reason}` };
+      return { status: "partial", reason: `checkout rename refused: ${rename.checkout.reason}`, report: emptyRenameReport() };
     }
     const worktree = plan.shape === "spawned" ? rename.worktree ?? move : undefined;
     return {
@@ -158,13 +183,14 @@ export async function runRename(
       shape: plan.shape,
       trackedCommit,
       pendingIntegration: false,
+      report: emptyRenameReport(),
       advisories,
       remote,
       ...(worktree === undefined ? {} : { worktree }),
       checkout: rename.checkout,
     };
   } catch (error) {
-    return { status: "partial", reason: errorMessage(error) };
+    return { status: "partial", reason: errorMessage(error), report: emptyRenameReport() };
   }
 }
 
@@ -173,7 +199,7 @@ class RenameTrackedRefusal extends Error {}
 async function runTrackedRename(
   ctx: RunRenameContext,
   plan: RenamePlan,
-): Promise<{ status: "ok"; advisories: readonly string[] } | { status: "rejected"; reason: string }> {
+): Promise<{ status: "ok"; advisories: readonly string[] } | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; recovery?: LifecycleRollbackRecovery }> {
   let source: RenameTransitionSourceEvidence;
   try {
     source = await ctx.retirement.captureSource({
@@ -190,7 +216,7 @@ async function runTrackedRename(
 
   const snapshot = await ctx.retirement.authority.readSnapshot(source.scope);
   if (snapshot.status === "refused") {
-    return { status: "rejected", reason: `rename authority snapshot refused: ${snapshot.reason}` };
+    return { status: "rejected", reason: `rename authority snapshot refused: ${snapshot.diagnostic ?? snapshot.reason}` };
   }
 
   let readinessAdvisory: string | undefined;
@@ -210,13 +236,13 @@ async function runTrackedRename(
     return { status: "rejected", reason: `rename conservation failed: ${errorMessage(error)}` };
   }
 
-  const transitionRecord: TransitionRecord = {
-    schemaVersion: 1,
-    origin: plan.sourceSlug,
+  const transitionRecord: LineageRecord = LineageRecordSchema.parse({
+    schemaVersion: 2,
+    origin: { name: plan.sourceSlug },
     kind: "rename",
-    successors: [plan.targetSlug],
-    edges: [],
-  };
+    successors: [{ name: plan.targetSlug }],
+    incoming: [],
+  });
   const transitionRecorded = await ctx.transitionWriter.record(transitionRecord);
   if (transitionRecorded.status !== "recorded") {
     const rollback = await ctx.retirement.rollbackRefusedCommit(source);

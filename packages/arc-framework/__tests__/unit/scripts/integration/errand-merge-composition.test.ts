@@ -2,8 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { composeErrandFinalPlan, selectCurrentErrandMergeIdentity } from
+import { composeErrandFinalPlan, createErrandMergeDependencies, selectCurrentErrandMergeIdentity } from
   "../../../../src/scripts/integration/errand-merge-composition.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 
 const oid = (character: string): string => character.repeat(40);
 const markerDigest = `sha256:${"d".repeat(64)}`;
@@ -74,7 +76,7 @@ describe("Errand final-plan composition", () => {
   });
 
   it.each([
-    ["complete", { state: "reconcile", nextAction: "reconcile-base" }],
+    ["complete", { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" }],
     ["partial", { state: "blocked", reason: "unsafe-reconcile" }],
   ] as const)("admits strict-host reconciliation only with %s integration evidence", (coverage, plan) => {
     expect(composeErrandFinalPlan({
@@ -100,8 +102,40 @@ describe("Errand final-plan composition", () => {
       status: "available",
       plan,
       reviewApplicability: {
+        verdict: "carries",
+        residual: null,
+        reason: "base-movement-clean-merge",
+        judgmentRequired: false,
+      },
+    });
+  });
+
+  it("asks for judgment over a shared file the merge cannot combine", () => {
+    expect(composeErrandFinalPlan({
+      drift: {
+        ...drift,
+        verdict: "reconcile",
+        movement: "overlapping",
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/index.ts"],
+          regenerablePaths: [],
+        },
+      },
+      target,
+      feasibility: {
+        state: "substantive-conflict",
+        base: oid("b"),
+        head: target.headSha,
+        paths: ["src/index.ts"],
+      },
+      admission,
+    })).toMatchObject({
+      status: "available",
+      reviewApplicability: {
         verdict: "supplemental",
         residual: ["src/index.ts"],
+        reason: "bounded-overlap",
         judgmentRequired: true,
       },
     });
@@ -129,7 +163,7 @@ describe("Errand final-plan composition", () => {
       admission,
     })).toMatchObject({
       status: "available",
-      plan: { state: "reconcile", nextAction: "reconcile-regenerable" },
+      plan: { state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" },
     });
   });
 });
@@ -141,6 +175,7 @@ function currentErrandFrame(): IdentityFrame {
   const row: IdentityFrame["roster"][number] = {
     kind: "transient",
     checkout: {
+      folderPresent: true,
       path: "/repo/repair",
       head: oid("b"),
       branch: "chore/repair",
@@ -222,4 +257,31 @@ describe("Errand terminal identity composition", () => {
       );
     },
   );
+});
+
+describe("Errand merge dependencies over the native store", () => {
+  it("composes without a bound work item, since an Errand merge settles no review response", () => {
+    const { store } = createReviewHarness();
+    expect(store.capabilities.stateOffBranch).toBe(true);
+    const compose = () => createErrandMergeDependencies({ cwd: "/unavailable", exec: scriptGitExec([]).exec,
+      identity: "test-user", slug: "example-errand", store });
+    expect(compose).not.toThrow();
+    expect(compose()).toMatchObject({ readCurrentIdentity: expect.any(Function), mergePinned: expect.any(Function) });
+  });
+
+  it("reads an already-merged Errand change request without a host round trip for a merge identity it never records", async () => {
+    const { store } = createReviewHarness();
+    const target = { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: "chore/repair", headSha: "c".repeat(40) };
+    const calls: string[][] = [];
+    const dependencies = createErrandMergeDependencies({ cwd: "/unavailable", exec: scriptGitExec([]).exec,
+      identity: "test-user", slug: "example-errand", store,
+      hostedRunner: { run: async args => { calls.push([...args]); throw new Error("host unavailable"); } },
+      changeRequestPort: { resolveRepository: async () => target.repository,
+        readHeadRef: async () => ({ local: target.headSha, remote: target.headSha }),
+        listByHead: async () => [{ number: 42, url: "https://example.test/owner/repo/pull/42", state: "MERGED",
+          baseRefName: "main", headRefName: target.headRef, headRefOid: target.headSha }],
+        searchByHeadSha: async () => [], isAncestor: async () => false } });
+    await expect(dependencies.readMerged(target)).resolves.toEqual({ merged: true, providerMergeId: null });
+    expect(calls).toEqual([]);
+  });
 });

@@ -1,7 +1,10 @@
 /** Recovery projection from one exact entering-checkout frame. */
 
+import { posix, win32 } from "node:path";
 import { z } from "zod";
 
+import { SlugSchema } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
@@ -15,13 +18,22 @@ import {
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 
 /** Recovery workflow loaded for Errand sessions. */
-export const RUN_ERRAND_WORKFLOW_PATH = ".arc/system/workflows/arc/supplemental/run-errand.md";
+export const RUN_ERRAND_WORKFLOW_PATH = posix.join(
+  resolveArcPath({ kind: "procedure-root", family: "workflows" }),
+  "arc/supplemental/run-errand.md",
+);
 
 /** Recovery workflow loaded for planning-groom sessions. */
-export const DRAFT_DESIGN_WORKFLOW_PATH = ".arc/system/workflows/arc/draft-design.md";
+export const DRAFT_DESIGN_WORKFLOW_PATH = posix.join(
+  resolveArcPath({ kind: "procedure-root", family: "workflows" }),
+  "arc/draft-design.md",
+);
 
 /** Recovery workflow loaded for housekeeping sessions. */
-export const DRAIN_INBOX_WORKFLOW_PATH = ".arc/system/workflows/arc/supplemental/drain-inbox.md";
+export const DRAIN_INBOX_WORKFLOW_PATH = posix.join(
+  resolveArcPath({ kind: "procedure-root", family: "workflows" }),
+  "arc/supplemental/drain-inbox.md",
+);
 
 const WorkUnitSubjectSchema = z.strictObject({
   kind: z.literal("work-unit"),
@@ -86,7 +98,6 @@ export function deriveRecoveryLocusContext(options: {
   state: DerivedLocusFrame;
   identity: string | null;
   workingMemoryPath: string | null;
-  activeExtensions: readonly string[];
 }): RecoveryLocusContext {
   const entering = options.state.entering;
   if (entering.kind === "unresolved") {
@@ -124,14 +135,14 @@ function workUnitContext(
   return {
     frame: RecoveryLocusFrameSchema.parse({
       kind: "resolved",
-      subject,
+      subject: { kind: subject.kind, key: subject.key },
       checkoutPath: row.checkout.path,
       parentCheckoutPath: null,
       workflow: recoveryWorkflowForWorkUnit(context),
       sessionType: context.sessionType,
     }),
     loadSet: context.loadSet,
-    taskCursor: context.taskCursor,
+    taskCursor: context.sessionType === "planning" ? null : context.taskCursor,
   };
 }
 
@@ -140,13 +151,14 @@ function transientContext(
     state: DerivedLocusFrame;
     identity: string | null;
     workingMemoryPath: string | null;
-    activeExtensions: readonly string[];
   },
   row: DerivedCheckoutRow,
   subject: Exclude<DerivedCheckoutSubject, { kind: "work-unit" }>,
 ): RecoveryLocusContext {
   const parent = resolveParentWorkUnit(options.state.roster, row.parentCheckoutPath);
   const workflow = transientWorkflow(subject);
+  const parentLoadSet = parent === null || row.parentCheckoutPath === null ? null
+    : anchorParentArtifacts(parent, row.parentCheckoutPath, options.identity);
   return {
     frame: RecoveryLocusFrameSchema.parse({
       kind: "resolved",
@@ -156,15 +168,77 @@ function transientContext(
       workflow: workflow.name,
       sessionType: parent?.sessionType ?? null,
     }),
-    loadSet: appendRecoveryWorkflow(parent?.loadSet ?? baseLoadSet(options), workflow.path),
-    taskCursor: parent?.taskCursor ?? null,
+    loadSet: appendRecoveryWorkflow(parentLoadSet ?? baseLoadSet(options), workflow.path),
+    taskCursor: parent?.sessionType === "planning" ? null : parent?.taskCursor ?? null,
   };
+}
+
+type RecoveryParentWorkUnitContext = NonNullable<DerivedCheckoutRow["context"]> & { workflow: string; workUnit: string };
+
+/**
+ * Anchor the parent work unit's own artifacts to the parent checkout.
+ *
+ * A transient's recovery reads from its own checkout, where the parent's meta, task list, session notes, and cohort
+ * document do not exist. The shared ARC context and workflows stay checkout-relative.
+ */
+function anchorParentArtifacts(
+  parent: RecoveryParentWorkUnitContext,
+  parentCheckoutPath: string,
+  identity: string | null,
+): LoadSetManifest {
+  const owned = new Set([
+    parent.metaPath,
+    parent.taskListPath,
+    parent.cohortDocPath,
+    parentSessionNotesPath(parent.workUnit, identity),
+  ]);
+  return {
+    manifestVersion: parent.loadSet.manifestVersion,
+    entries: parent.loadSet.entries.map((entry) => owned.has(entry.path)
+      ? { ...entry, path: anchorParentPath(parentCheckoutPath, entry.path) }
+      : entry),
+  };
+}
+
+/**
+ * Resolve a parent-owned load-set path from the parent checkout, joined in the checkout path's own style.
+ *
+ * @param parentCheckoutPath - The transient's marker parent checkout
+ * @param path - A path the parent's load set names; an absolute path is returned unchanged
+ * @returns The path a transient's recovery reads the parent artifact from
+ */
+export function anchorParentPath(parentCheckoutPath: string, path: string): string {
+  if (posix.isAbsolute(path) || win32.isAbsolute(path)) return path;
+  return parentCheckoutPath.startsWith("/") ? posix.join(parentCheckoutPath, path) : win32.join(parentCheckoutPath, path);
+}
+
+function parentSessionNotesPath(workUnit: string, identity: string | null): string | null {
+  const owner = SlugSchema.safeParse(identity);
+  const unit = SlugSchema.safeParse(workUnit);
+  if (!owner.success || !unit.success) return null;
+  return resolveArcPath({
+    kind: "user-document",
+    identity: owner.data,
+    document: { kind: "session-notes", workUnit: unit.data },
+  });
+}
+
+/** Resolve inherited context only for the exact selected transient and its healthy marker parent. */
+export function resolveRecoveryParentContext(state: DerivedLocusFrame, frame: RecoveryLocusFrame): RecoveryParentWorkUnitContext | null {
+  if (frame.kind !== "resolved" || frame.subject.kind === "work-unit" || state.entering.kind !== "selected") return null;
+  const row = state.entering.row;
+  if (row.kind !== "transient" || row.subject.kind === "work-unit"
+    || row.checkout.path !== frame.checkoutPath || row.parentCheckoutPath !== frame.parentCheckoutPath
+    || row.subject.kind !== frame.subject.kind || row.subject.key !== frame.subject.key
+    || row.subject.claimId !== frame.subject.claimId || transientWorkflow(row.subject).name !== frame.workflow) return null;
+  const parent = resolveParentWorkUnit(state.roster, row.parentCheckoutPath);
+  return parent?.sessionType === frame.sessionType ? parent : null;
 }
 
 function resolveParentWorkUnit(
   rows: readonly DerivedCheckoutRow[],
   parentCheckoutPath: string | null,
-): (NonNullable<DerivedCheckoutRow["context"]> & { workflow: string }) | null {
+): RecoveryParentWorkUnitContext | null {
   if (parentCheckoutPath === null) return null;
   const matches = rows.filter((row) => row.checkout.path === parentCheckoutPath);
   const parent = matches.length === 1 ? matches[0] : undefined;
@@ -174,7 +248,7 @@ function resolveParentWorkUnit(
     || parent.diagnostics.length > 0
     || parent.context === null
     || parent.context.workflow === null) return null;
-  return { ...parent.context, workflow: parent.context.workflow };
+  return { ...parent.context, workflow: parent.context.workflow, workUnit: parent.subject.key };
 }
 
 function requireWorkUnitContext(
@@ -197,7 +271,8 @@ function recoveryWorkflowForWorkUnit(
   return context.stage;
 }
 
-function transientWorkflow(
+/** Resolve the owning workflow for an already selected transient subject. */
+export function transientWorkflow(
   subject: Exclude<DerivedCheckoutSubject, { kind: "work-unit" }>,
 ): { name: string; path: string } {
   switch (subject.kind) {
@@ -214,7 +289,6 @@ function transientWorkflow(
 function baseLoadSet(options: {
   identity: string | null;
   workingMemoryPath: string | null;
-  activeExtensions: readonly string[];
 }): LoadSetManifest {
   return resolveLoadSetManifest({
     identity: options.identity,
@@ -224,7 +298,6 @@ function baseLoadSet(options: {
     sessionType: null,
     planningStage: null,
     taskListPath: null,
-    activeExtensions: options.activeExtensions,
     cohortDocPath: null,
   });
 }

@@ -4,7 +4,7 @@
  * @module
  */
 
-import { sortByCanonicalBytes } from "../canonical/canonical-json.js";
+import { sortByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
 import {
   canonicalizeManifest,
   canonicalizeClassInventory,

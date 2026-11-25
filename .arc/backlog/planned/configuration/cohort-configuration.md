@@ -23,6 +23,8 @@ There are no hard dependency edges within the cohort. Coordinate only where the 
   one of its schema changes belongs to the migration registry rather than to the customization mechanism itself.
 - The migration registry owns version-gated evolution during `arc update`. It consumes concrete schema changes
   from the other members without becoming the authority for those schemas.
+- The extension-point retirement removes today's extension mechanism ahead of customization architecture's extension
+  decision, which then designs the replacement rather than preserving the current mechanism.
 
 If members run concurrently, sequence edits to shared config schemas and update machinery rather than duplicating
 the same migration or naming decision. Otherwise, treat the work units as independent.

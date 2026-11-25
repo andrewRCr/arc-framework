@@ -16,6 +16,7 @@ import {
   type DeliveryStateV1,
 } from "../../src/lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 import type { HostedProcessRunner } from "../../src/scripts/review-gate/hosted/gh-process.js";
 import {
   MergeLockTransitionRequestSchema,
@@ -217,11 +218,11 @@ describe("readiness delivery binding at its composition roots", () => {
 
     const releasedFromBound = await releaseMergeLock(
       transitionRequest(unbound),
-      defaultMergeLockPort(bound, runner),
+      defaultMergeLockPort(bound, makeGitExec(bound), runner),
     );
     const releasedFromUnbound = await releaseMergeLock(
       transitionRequest(bound),
-      defaultMergeLockPort(unbound, runner),
+      defaultMergeLockPort(unbound, makeGitExec(unbound), runner),
     );
 
     expect(releasedFromBound).toMatchObject({ state: "released", nextAction: "proceed" });
@@ -234,6 +235,25 @@ describe("readiness delivery binding at its composition roots", () => {
     });
   });
 
+  it("uses the supplied Git executor for the release readiness read", async () => {
+    const bound = await boundRepository();
+    await writeLockConfig(bound);
+    const unavailable: GitExec = async () => { throw new Error("Git unavailable in this invocation"); };
+
+    const release = await releaseMergeLock(
+      transitionRequest(bound),
+      defaultMergeLockPort(bound, unavailable, ghRunner()),
+    );
+
+    expect(release).toMatchObject({
+      state: "blocked",
+      payload: { reason: "readiness-failed" },
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "delivery-state-unavailable" }),
+      ]),
+    });
+  });
+
   it("leaves neither reaching path's port unbound for want of wiring", async () => {
     const bound = await boundRepository();
     await writeLockConfig(bound);
@@ -241,7 +261,7 @@ describe("readiness delivery binding at its composition roots", () => {
     const readiness = await runReadinessHandler(bound, bound);
     const release = await releaseMergeLock(
       transitionRequest(bound),
-      defaultMergeLockPort(bound, ghRunner()),
+      defaultMergeLockPort(bound, makeGitExec(bound), ghRunner()),
     );
 
     expect(JSON.stringify(readiness)).not.toContain("delivery-state-unavailable");

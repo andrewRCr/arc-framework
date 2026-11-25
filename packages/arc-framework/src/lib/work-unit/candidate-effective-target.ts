@@ -5,6 +5,7 @@ import type {
   CandidateApplicabilityResult,
 } from "./candidate-applicability.js";
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
+import type { CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   CandidateLineageTargetSchema,
   CandidateConvergenceProjectionSchema,
@@ -27,9 +28,9 @@ export interface CandidateReRootContinuation {
     Slug,
     "--new-root",
     "--expected-candidate",
-    string,
+    CanonicalDigest,
     "--expected-subject",
-    string,
+    CanonicalDigest,
     "--json",
   ];
 }
@@ -42,8 +43,8 @@ export interface CandidateReRootContinuation {
  */
 export function projectCandidateReRootContinuation(input: {
   readonly name: string;
-  readonly candidateId: string;
-  readonly subjectDigest: string;
+  readonly candidateId: CanonicalDigest;
+  readonly subjectDigest: CanonicalDigest;
 }): CandidateReRootContinuation {
   const name = SlugSchema.parse(input.name);
   return {
@@ -66,7 +67,7 @@ export type CandidateEffectiveCurrentProjection = {
   readonly mode: "candidate-effective-target";
   readonly state: "current";
   readonly nextAction: "continue";
-  readonly candidateId: string;
+  readonly candidateId: CanonicalDigest;
   readonly durableBaselineTarget: CandidateLineageTarget;
   readonly recognizedTarget: CandidateLineageTarget;
   readonly recognition:
@@ -74,8 +75,8 @@ export type CandidateEffectiveCurrentProjection = {
     | {
         readonly kind: "machine";
         readonly proof: "subject-equality" | "tree-equality" | "mechanical-reapply";
-        readonly projectionDigest: string;
-        readonly residualDigest: string;
+        readonly projectionDigest: CanonicalDigest;
+        readonly residualDigest: CanonicalDigest;
       };
   readonly implementationChanged: boolean;
 } & CandidateConvergenceProjection;
@@ -85,11 +86,11 @@ export interface CandidateEffectiveChangedProjection {
   readonly mode: "candidate-effective-target";
   readonly state: "changed";
   readonly nextAction: "establish-new-root";
-  readonly candidateId: string;
+  readonly candidateId: CanonicalDigest;
   readonly durableBaselineTarget: CandidateLineageTarget;
   readonly currentTarget: CandidateLineageTarget;
-  readonly projectionDigest: string;
-  readonly residualDigest: string;
+  readonly projectionDigest: CanonicalDigest;
+  readonly residualDigest: CanonicalDigest;
   readonly selectedBy: string;
 }
 
@@ -98,7 +99,7 @@ export interface CandidateEffectiveStagedChangeProjection {
   readonly mode: "candidate-effective-target";
   readonly state: "staged-change";
   readonly nextAction: "establish-new-root";
-  readonly candidateId: string;
+  readonly candidateId: CanonicalDigest;
   readonly durableBaselineTarget: CandidateLineageTarget;
   readonly currentTarget: CandidateLineageTarget;
 }

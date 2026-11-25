@@ -36,6 +36,26 @@
 - _Captured during:_ `plan-amendment` Phase 3 close — the workflow's project copy at Task 3.1, after the same
   friction at Task 2.1, 2026-09-11.
 
+### `[ ]` **Re-check the renderer's pre-registration refusal once glob claims replace the hand-listed recipe**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ its inbound entry "Give the renderer a path for a project copy that must precede its recipe entry".
+
+- _Observation:_ `adopter-install-authority` replaces the hand-listed recipe with glob claims that carry each file's
+  class (`draft-adopter-install-authority.md` D1). A new file under a claimed path is a member the moment it exists, so
+  its `.arc/` copy and its self-hosting manifest entry must land in the same change. The self-hosting Markdown authority
+  admits a claimed source with no copy only for `render:framework`, which writes a Framework Markdown copy; every other
+  class or file type (a Configurable method, a script) keeps a hand-placed copy, and the `framework-sync.test.ts`
+  contract check prints the missing manifest entry. So `render:framework`'s refusal of an unregistered Framework source
+  (`markdown.projection-refused`) should stop meeting the case the per-copy link rule forces for Framework Markdown, and
+  a file outside every claimed glob still needs its claim first, in the same commit.
+
+- _Approach:_ once that unit lands, re-check the entry: dismiss or narrow it for Framework Markdown, and take a new file
+  of any class, manifest entry included, as a case the projection core should cover.
+
+- _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
+
 ---
 
 ## Problem / Motivation

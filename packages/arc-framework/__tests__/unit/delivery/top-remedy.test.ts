@@ -6,6 +6,7 @@ import {
 } from "../../../src/lib/delivery/top-remedy.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
+import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 
 function fixture(state: "open" | "closed" = "open") {
   const plan = deliveryStackPlanFixture();
@@ -332,7 +333,7 @@ describe("delivery top remedy", () => {
 
   it("retains the persisted reservation when mutation or fresh proof is unavailable", async () => {
     const { plan, state, request, facts } = fixture();
-    const published: typeof state[] = [];
+    const published: DeliveryStateV1[] = [];
     const result = await applyDeliveryTopRemedy({
       plan,
       current: { revision: 7, value: state },
@@ -349,7 +350,7 @@ describe("delivery top remedy", () => {
       }),
       stateStore: {
         publish: async (_planId, value, revision) => {
-          published.push(value as typeof state);
+          published.push(DeliveryStateV1Schema.parse(value));
           return { status: "ok" as const, value: { revision: revision + 1, value } };
         },
       },

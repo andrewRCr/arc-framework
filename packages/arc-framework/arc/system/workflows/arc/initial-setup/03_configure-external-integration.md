@@ -1,12 +1,12 @@
 ---
-purpose: Connect ARC's workflow extension points and methods to your external project tracker.
+purpose: Configure capture routing and method overrides for your external project tracker.
 audience: collaborative (human and agent)
 ---
 
 # Workflow: Configure External Tracker Integration
 
-This makes `pm.mode: external` meaningful — without this configuration, ARC workflows don't know
-how to interact with your tracker.
+Configure capture routing and method overrides for projects using an external tracker. ARC supplies no lifecycle
+notification or tracker-status synchronization mechanism.
 
 **When to use**: After [02_define-project.md][define-project] when `pm.mode` is set to
 `external` in [`arc-config.yml`][arc-config].
@@ -27,8 +27,7 @@ Which external tracker does the team use?
 - **Other** — any tool that tracks tasks and status
 
 This is informational — it shapes the guidance in subsequent steps but doesn't generate
-configuration. ARC's integration is tool-agnostic: extension points accept free-form
-instructions that you write for your specific tracker.
+configuration. Capture routing and method overrides use instructions for your team's tracker.
 
 ---
 
@@ -71,61 +70,7 @@ Replace the placeholder with your routing rules.
 
 ---
 
-## Step 3: Configure Workflow Extensions
-
-ARC provides extension points at key workflow moments for syncing with your tracker. These
-are configured in [`system/extensions/`][arc-extensions] — one file per extension. Each
-extension is optional — configure the ones that add value for your workflow.
-
-For background on how ARC and external trackers complement each other, see
-[Team Coordination Strategy][team-coordination] § External Tracker Integration.
-
-### post-task-completion
-
-**What it does:** Fires after a task is marked `[x]` in the ARC task list.
-
-**Why configure it:** Keeps your tracker's status in sync with actual completion. Without
-this, task status lives only in ARC's markdown files — your tracker won't reflect progress.
-
-**Think through:**
-
-- Should every completed task update the tracker, or only tasks linked to tracker items?
-- What status transition should happen? (e.g., "In Progress" -> "Done", "Move to Done column")
-- Should a comment be added to the tracker item with completion details?
-
-**Open** [`system/extensions/post-task-completion.md`][arc-ext-post-task-completion], set
-`active: true`, and replace the placeholder in `## post-task-completion.actions` with your
-sync steps.
-
-### post-work-unit-activate
-
-**What it does:** Fires after a work unit moves from backlog to active (branch created,
-task list activated, status file written).
-
-**Why configure it:** Keeps sprint boards or project dashboards current when new work begins.
-
-**Think through:**
-
-- Should activation create or update a tracker epic/story?
-- Should it update a sprint board or project dashboard?
-- Should team members be notified?
-
-### post-work-unit-archive
-
-**What it does:** Fires after a work unit is archived (tasks complete, branch merged).
-
-**Why configure it:** Closes the loop — ensures tracker items are resolved when ARC work
-finishes.
-
-**Think through:**
-
-- Should the corresponding epic/story be closed or moved to "Done"?
-- Should project dashboards be updated?
-- Should any summary be posted to the tracker?
-
----
-
-## Step 4: Review Method Overrides (Optional)
+## Step 3: Review Method Overrides (Optional)
 
 Two ARC methods may benefit from tracker-specific customization. Review each and decide
 whether the defaults work or whether an override is needed.
@@ -170,9 +115,7 @@ items go. The issue-triage method controls _when_ to defer; capture routing cont
 After completing this workflow, you should have configured:
 
 1. **Capture routing** in DEV-RULES.PROJECT — where deferred issues are sent
-2. **Extension points** under `system/extensions/` — how ARC workflows sync with your
-   tracker (whichever extensions are useful for your workflow)
-3. **Method overrides** under `system/methods/` — tracker-specific commit format or triage
+2. **Method overrides** under `system/methods/` — tracker-specific commit format or triage
    rules (if defaults don't fit)
 
 For ongoing reference on how ARC and external trackers work together, see the
@@ -182,8 +125,6 @@ For ongoing reference on how ARC and external trackers work together, see the
 
 [define-project]: 02_define-project.md
 [arc-config]: ../../../arc-config.yml
-[arc-extensions]: ../../../extensions/README.md
-[arc-ext-post-task-completion]: ../../../extensions/post-task-completion.md
 [arc-methods]: ../../../methods/README.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [dev-rules-project]: ../../../../system/rules/DEV-RULES.PROJECT.md

@@ -1,81 +1,47 @@
-/** Unit tests for the in-process Vitest adapter used by local heavy-test admission. */
+/** Supported discovery establishes its environment before creating a controller. */
+import { expect, it, vi } from "vitest";
+import type { createVitest } from "vitest/node";
+import { discoverVitestSelection } from "../../src/lib/vitest-discovery.js";
+import { makeVitestControllerFake } from "../helpers/vitest-controller-fake.js";
 
-import { describe, expect, it, vi } from "vitest";
+async function withDiscoveryEnvironment(action: () => Promise<void>): Promise<void> {
+  for (const key of ["TEST", "VITEST", "NODE_ENV"]) vi.stubEnv(key, process.env[key]);
+  try { await action(); }
+  finally { vi.unstubAllEnvs(); }
+}
 
-import { runLocalVitestTier } from "../../src/lib/local-vitest-runner.js";
-
-describe("runLocalVitestTier", () => {
-  it.each([
-    ["full", []],
-    ["unit", ["--project", "unit", "--project", "unit-mocks"]],
-    ["lane", [
-      "--project",
-      "unit",
-      "--project",
-      "unit-mocks",
-      "--project",
-      "integration",
-    ]],
-    ["integration", ["--project", "integration"]],
-    ["arc-contracts", [
-      "--project",
-      "integration",
-      "framework-sync",
-      "pr-open-extensions",
-      "review-gate-workflows",
-    ]],
-    ["e2e", ["--project", "e2e"]],
-    ["e2e-focused", ["--project", "e2e"]],
-    ["portability", [
-      "advisory-lock",
-      "user-sync-notes-lock",
-      "ref-tree-cas",
-      "state-ref-race.e2e",
-      "git-executor",
-      "delivery-transfer.e2e",
-    ]],
-  ] as const)("runs the %s tier through the current Vitest controller process", async (tier, tierArgs) => {
-    const exit = vi.fn(async () => {});
-    const parseCli = vi.fn(() => ({ filter: ["filtered.test.ts"], options: { run: true } }));
-    const start = vi.fn(async () => ({ shouldKeepServer: () => false, exit }));
-
-    await runLocalVitestTier(tier, ["filtered.test.ts", "--passWithNoTests=false"], { parseCli, start });
-
-    expect(parseCli).toHaveBeenCalledWith([
-      "vitest",
-      "run",
-      ...tierArgs,
-      "filtered.test.ts",
-      "--passWithNoTests=false",
-    ]);
-    expect(start).toHaveBeenCalledWith("test", ["filtered.test.ts"], { run: true });
-    expect(exit).toHaveBeenCalledOnce();
+it.each([undefined, "explicit-native-environment"])("initializes a controller with NODE_ENV=%s", async (nodeEnv) => {
+  const fake = makeVitestControllerFake([{ path: "unit.test.ts", project: "unit" }]);
+  let configured: string[] = [];
+  const create: typeof createVitest = async (...args) => {
+    configured = [process.env.TEST ?? "", process.env.VITEST ?? "", process.env.NODE_ENV ?? ""];
+    return await fake.create(...args);
+  };
+  await withDiscoveryEnvironment(async () => {
+    delete process.env.TEST; delete process.env.VITEST;
+    if (nodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = nodeEnv;
+    const selection = await discoverVitestSelection([], {}, undefined, create);
+    expect(configured).toEqual(["true", "true", nodeEnv ?? "test"]);
+    expect(selection.requiresRuntime).toBe(false);
+    expect(fake.events).toEqual(["initialized"]);
   });
+});
 
-  it("does not terminate a controller that intentionally keeps its server", async () => {
-    const exit = vi.fn(async () => {});
-
-    await runLocalVitestTier("full", [], {
-      parseCli: () => ({ filter: [], options: { run: true } }),
-      start: async () => ({ shouldKeepServer: () => true, exit }),
+it("restores an absent environment stub after discovery cleanup", async () => {
+  const key = "VITEST_ENV_CLEANUP_PROBE";
+  const previous = process.env[key];
+  try {
+    await withDiscoveryEnvironment(async () => {
+      await discoverVitestSelection([], {}, undefined, makeVitestControllerFake([
+        { path: "unit.test.ts", project: "unit" },
+      ]).create);
     });
-
-    expect(exit).not.toHaveBeenCalled();
-  });
-
-  it("normalizes forwarded excludes for Vitest's programmatic API", async () => {
-    const exit = vi.fn(async () => {});
-    const excludes = ["**/anchor-one.test.ts", "**/anchor-two.test.ts"];
-
-    await runLocalVitestTier("e2e", [], {
-      parseCli: () => ({ filter: [], options: { exclude: excludes } }),
-      start: async (_mode, _filters, options) => {
-        expect(options.cliExclude).toEqual(excludes);
-        expect(options.exclude).toBeUndefined();
-        return { shouldKeepServer: () => false, exit };
-      },
-    });
-
-    expect(exit).toHaveBeenCalledOnce();
-  });
+    delete process.env.VITEST_ENV_CLEANUP_PROBE;
+    vi.stubEnv(key, "temporary");
+    vi.unstubAllEnvs();
+    expect(process.env[key]).toBeUndefined();
+  } finally {
+    if (previous === undefined) delete process.env.VITEST_ENV_CLEANUP_PROBE;
+    else process.env[key] = previous;
+  }
 });

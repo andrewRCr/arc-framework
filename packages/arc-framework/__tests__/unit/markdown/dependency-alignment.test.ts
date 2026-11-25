@@ -12,6 +12,8 @@ interface VersionOverrides {
   lockedStringWidth?: string;
   runtimeMarkdownlint?: string;
   runtimeStringWidth?: string;
+  runtimeCliMarkdownlint?: string;
+  runtimeCliStringWidth?: string;
 }
 
 function dependencyInput(overrides: VersionOverrides = {}) {
@@ -29,6 +31,7 @@ function dependencyInput(overrides: VersionOverrides = {}) {
           version: overrides.lockedMarkdownlint ?? "0.40.0",
           dependencies: { "string-width": overrides.lockedMarkdownlintStringWidth ?? "8.1.0" },
         },
+        "node_modules/markdownlint-cli2": { dependencies: { markdownlint: "0.41.1" } },
         "node_modules/string-width": { version: overrides.lockedStringWidth ?? "8.1.0" },
         "packages/arc-framework": {
           dependencies: { "string-width": overrides.lockedPackageStringWidth ?? "8.1.0" },
@@ -38,6 +41,10 @@ function dependencyInput(overrides: VersionOverrides = {}) {
     runtimeVersions: {
       markdownlint: overrides.runtimeMarkdownlint ?? "0.40.0",
       stringWidth: overrides.runtimeStringWidth ?? "8.1.0",
+      cli2: {
+        markdownlint: overrides.runtimeCliMarkdownlint ?? "0.40.0",
+        stringWidth: overrides.runtimeCliStringWidth ?? "8.1.0",
+      },
     },
   };
 }
@@ -60,6 +67,8 @@ describe("Markdown dependency alignment", () => {
     ["locked width package", { lockedStringWidth: "8.2.2" }],
     ["loaded linter", { runtimeMarkdownlint: "0.39.0" }],
     ["loaded width package", { runtimeStringWidth: "8.2.2" }],
+    ["loaded CLI2 linter", { runtimeCliMarkdownlint: "0.41.1" }],
+    ["loaded CLI2 width package", { runtimeCliStringWidth: "8.2.1" }],
   ] satisfies readonly (readonly [string, VersionOverrides])[])(
     "rejects divergence in the %s",
     (_label, overrides) => {
@@ -68,4 +77,21 @@ describe("Markdown dependency alignment", () => {
       );
     },
   );
+
+  it.each([
+    ["nested CLI2 linter", "node_modules/markdownlint-cli2/node_modules/markdownlint",
+      { version: "0.41.1", dependencies: { "string-width": "8.2.1" } }],
+    ["nested linter width declaration", "node_modules/markdownlint-cli2/node_modules/markdownlint",
+      { version: "0.40.0", dependencies: { "string-width": "8.2.1" } }],
+    ["nested width package", "node_modules/markdownlint/node_modules/string-width", { version: "8.2.1" }],
+    ["malformed nested linter", "node_modules/markdownlint-cli2/node_modules/markdownlint", null],
+    ["missing CLI2 metadata", "node_modules/markdownlint-cli2", undefined],
+    ["missing CLI2 linter declaration", "node_modules/markdownlint-cli2", { dependencies: {} }],
+  ] satisfies readonly (readonly [string, string, unknown])[])("rejects %s instead of falling back to the root pair", (_label, path, value) => {
+    const input = dependencyInput();
+    expect(() => assertMarkdownDependencyAlignment({
+      ...input,
+      lockfile: { packages: { ...input.lockfile.packages, [path]: value } },
+    })).toThrowError(expect.objectContaining({ code: "markdown.dependency-misaligned" }));
+  });
 });

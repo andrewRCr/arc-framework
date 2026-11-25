@@ -336,18 +336,69 @@ describe("required-checks await", () => {
   });
 
   it("returns pending at the deadline instead of classifying the yield as failure", async () => {
+    let reads = 0;
+    const pendingPort = port([{ name: "build", state: "pending" }]);
+    const readRequiredChecks = pendingPort.readRequiredChecks;
+    pendingPort.readRequiredChecks = async (...args) => { reads += 1; return readRequiredChecks(...args); };
     await expect(awaitRequiredChecks({
       repository: "owner/repo",
       pullRequest: 42,
       headSha,
       timeoutMs: 2_000,
       pollIntervalMs: 500,
-    }, { port: port([{ name: "build", state: "pending" }]), clock: clock() })).resolves.toMatchObject({
+    }, { port: pendingPort, clock: clock() })).resolves.toMatchObject({
       state: "pending",
       nextAction: "await",
       elapsedMs: 2_000,
       checks: [{ name: "build", state: "pending" }],
     });
+    expect(reads).toBe(4);
+  });
+
+  it("bounds the final observation by its reads, not by the polling interval", async () => {
+    const pending = [{ name: "build", state: "pending" }] satisfies RequiredCheck[];
+    let now = 0;
+    // Reads answer at once until the deadline, then take longer than one polling interval.
+    const read = <T>(value: T) => now < 100
+      ? Promise.resolve(value)
+      : new Promise<T>((resolve) => setTimeout(() => resolve(value), 10));
+
+    await expect(awaitRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      timeoutMs: 100,
+      pollIntervalMs: 20,
+    }, {
+      port: {
+        resolveRepository: () => read("owner/repo"),
+        readHead: () => read(headSha),
+        readRequiredChecks: () => read(pending),
+        readObservedChecks: () => read(pending),
+      },
+      clock: { now: () => now, sleep: async (milliseconds) => { now += milliseconds; } },
+    })).resolves.toMatchObject({ state: "pending", nextAction: "await", checks: pending });
+  });
+
+  it("lets the final observation answer when the deadline cuts an observation short", async () => {
+    const pending = [{ name: "build", state: "pending" }] satisfies RequiredCheck[];
+    const slow = <T>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 10));
+
+    await expect(awaitRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      timeoutMs: 30,
+      pollIntervalMs: 20,
+    }, {
+      port: {
+        resolveRepository: () => slow("owner/repo"),
+        readHead: () => slow(headSha),
+        readRequiredChecks: () => slow(pending),
+        readObservedChecks: () => slow(pending),
+      },
+      clock: clock(),
+    })).resolves.toMatchObject({ state: "pending", nextAction: "await", checks: pending });
   });
 
   it("returns early diagnostic failures without granting them merge authority", async () => {

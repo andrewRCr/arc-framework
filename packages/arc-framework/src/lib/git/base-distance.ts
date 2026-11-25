@@ -11,15 +11,17 @@ import {
   boundedGitInvocation,
   checkOriginExists,
   getCurrentBranch,
+  type BoundedFetchResult,
   type GitExec,
 } from "./exec.js";
+import { z } from "zod";
 import { analyzeIntegrationEvidence } from "./base-integration-evidence.js";
 import { composeBaseDriftRegister, composeUnavailableRegister } from "./base-drift-register.js";
 import type { HistoryCompletenessResult } from "./history-completeness.js";
 import { readHistoryCompleteness } from "./history-completeness.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
 import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
-import type { RemoteFailureReason } from "../kernel/index.js";
+import { RemoteFailureReasonSchema } from "../kernel/index.js";
 import { analyzeBaseOverlap } from "./base-overlap.js";
 import { isGitObjectId } from "./object-id.js";
 import { isGitProcessError } from "./process-error.js";
@@ -32,17 +34,60 @@ import type {
   IntegrationEvidenceResolverFactory,
   PathTreatmentClassifier,
 } from "./base-drift-types.js";
+import { BaseDriftResultSchema } from "./base-drift-types.js";
 import {
   countAheadBehindRef,
-  DEFAULT_FETCH_TIMEOUT_MS,
+  MATERIALIZING_FETCH_TIMEOUT_MS,
   type WorktreeSyncState,
 } from "./worktree-sync.js";
 
 export type BaseDistanceStatusResult = BaseDriftResult;
 
+function snapshotEvidenceArms<T extends z.ZodRawShape>(fields: T) {
+  const { failureReason: _driftFailureReason, ...snapshotFields } = fields;
+  void _driftFailureReason;
+  return [
+    z.strictObject({ ...snapshotFields, remoteEvidence: z.literal("exact") }),
+    z.strictObject({ ...snapshotFields, remoteEvidence: z.literal("pending-fetch") }),
+    z.strictObject({ ...snapshotFields, remoteEvidence: z.literal("unreachable"), failureReason: RemoteFailureReasonSchema }),
+  ] as const;
+}
+
+const [CleanDrift, ReconcileDrift, UnavailableDrift, SkippedDrift] = BaseDriftResultSchema.options;
+
+/** Strict snapshot readings on each evidence arm, preserving every drift verdict. */
+export const BaseDistanceSnapshotAnalysisResultSchema = z.union([
+  ...snapshotEvidenceArms(CleanDrift.shape),
+  ...snapshotEvidenceArms(ReconcileDrift.shape),
+  ...snapshotEvidenceArms(UnavailableDrift.shape),
+  ...snapshotEvidenceArms(SkippedDrift.shape),
+]);
+export type BaseDistanceSnapshotAnalysisResult = z.infer<typeof BaseDistanceSnapshotAnalysisResultSchema>;
+
+/** Readings resolved before snapshot evidence is consulted. */
+export const BaseDistanceNotApplicableResultSchema = z.union([
+  z.strictObject({ ...SkippedDrift.shape, state: z.literal("skipped"),
+    remoteEvidence: z.literal("not-applicable") }),
+  z.strictObject({ ...UnavailableDrift.shape, state: z.literal("no-remote"),
+    unavailableReason: z.literal("no-remote"), remoteEvidence: z.literal("not-applicable") }),
+  z.strictObject({ ...UnavailableDrift.shape, state: z.literal("detached-head"),
+    unavailableReason: z.literal("detached-head"), remoteEvidence: z.literal("not-applicable") }),
+]);
+export type BaseDistanceNotApplicableResult = z.infer<typeof BaseDistanceNotApplicableResultSchema>;
+
+/** Registered full base-distance root. */
+export const BaseDistanceSnapshotResultSchema = z.union([
+  BaseDistanceSnapshotAnalysisResultSchema,
+  BaseDistanceNotApplicableResultSchema,
+]);
+
 export interface RunBaseDriftOptions {
   exec: GitExec;
   baseBranch: string;
+  /**
+   * Bounds the base fetch. Defaults to {@link MATERIALIZING_FETCH_TIMEOUT_MS}: an authoritative read is one a
+   * requested operation acts on, never a quick status probe.
+   */
   fetchTimeoutMs?: number;
   /**
    * Acquiring base drift is authoritative-only; an advisory reading analyzes supplied
@@ -68,13 +113,45 @@ export interface AnalyzeBaseDistanceSnapshotOptions {
   classifyReconciliation?: PathTreatmentClassifier;
 }
 
-/** Base-distance result classified against one immutable advertised snapshot. */
-type WithoutFailureReason<T> = T extends unknown ? Omit<T, "failureReason"> : never;
+/** Build a session reading that never consulted snapshot evidence. */
+export function buildBaseDistanceNotApplicable(
+  state: "skipped" | "no-remote" | "detached-head",
+  baseBranch: string,
+): BaseDistanceNotApplicableResult {
+  if (state === "skipped") {
+    return {
+      mode: "advisory", verdict: "skipped", state, ahead: 0, behind: 0,
+      base: baseBranch, baseOid: null, headOid: null,
+      integrationEvidence: null, overlap: null, register: null,
+      remoteEvidence: "not-applicable",
+    };
+  }
+  const base = state === "detached-head" ? null : baseBranch;
+  return {
+    mode: "advisory", verdict: "unavailable", state, ahead: 0, behind: 0,
+    base, baseOid: null, headOid: null, unavailableReason: state,
+    integrationEvidence: null, overlap: null, register: null,
+    detail: state === "detached-head"
+      ? "Base drift requires a checked-out branch, but HEAD is detached."
+      : "The repository has no origin remote from which to observe the base.",
+    coordinates: { base, baseOid: null, headOid: null },
+    continuation: {
+      kind: "terminal-explanation",
+      terminalExplanation: state === "detached-head"
+        ? "Check out the intended work branch, then repeat session initialization."
+        : "Configure the origin remote, then repeat session initialization.",
+    },
+    remoteEvidence: "not-applicable",
+  } as BaseDistanceNotApplicableResult;
+}
 
-export type BaseDistanceSnapshotAnalysisResult = WithoutFailureReason<BaseDriftResult> & (
-  | { remoteEvidence: "exact" | "pending-fetch" }
-  | { remoteEvidence: "unreachable"; failureReason: RemoteFailureReason }
-);
+type WithoutDriftFailureReason<T> = T extends unknown ? Omit<T, "failureReason"> : never;
+
+function withoutDriftFailureReason<T extends BaseDriftResult>(drift: T): WithoutDriftFailureReason<T> {
+  const { failureReason: _driftFailureReason, ...snapshot } = drift;
+  void _driftFailureReason;
+  return snapshot as WithoutDriftFailureReason<T>;
+}
 
 /** Analyze base distance from supplied advertised evidence without acquiring it. */
 export async function analyzeBaseDistanceSnapshot(
@@ -83,14 +160,14 @@ export async function analyzeBaseDistanceSnapshot(
   const mode = options.mode ?? "advisory";
   if (options.snapshot.kind === "unreachable") {
     return {
-      ...unavailable(
+      ...withoutDriftFailureReason(unavailable(
         mode,
         "remote-evidence-unreachable",
         "remote-unavailable",
         options.baseBranch,
         "error",
         `Remote snapshot evidence was unreachable (${options.snapshot.failureReason}).`,
-      ),
+      )),
       register: null,
       remoteEvidence: "unreachable",
       failureReason: options.snapshot.failureReason,
@@ -99,7 +176,7 @@ export async function analyzeBaseDistanceSnapshot(
   const baseOid = options.snapshot.tips[options.baseBranch];
   if (baseOid === undefined) {
     return {
-      ...unavailable(mode, "remote-base-absent", "remote-unavailable", options.baseBranch),
+      ...withoutDriftFailureReason(unavailable(mode, "remote-base-absent", "remote-unavailable", options.baseBranch)),
       remoteEvidence: "exact",
     };
   }
@@ -111,7 +188,7 @@ export async function analyzeBaseDistanceSnapshot(
   const baseCommitIsLocal = options.objectAvailability.commits[baseOid];
   if (baseCommitIsLocal === false) {
     return {
-      ...unavailable(mode, "base-object-pending-fetch", "remote-unavailable", options.baseBranch),
+      ...withoutDriftFailureReason(unavailable(mode, "base-object-pending-fetch", "remote-unavailable", options.baseBranch)),
       baseOid,
       coordinates: { base: options.baseBranch, baseOid, headOid: null },
       remoteEvidence: "pending-fetch",
@@ -143,7 +220,7 @@ export async function analyzeBaseDistanceSnapshot(
     resolverFactory: options.resolverFactory,
     classifyReconciliation: options.classifyReconciliation ?? (() => "reviewable"),
   });
-  return { ...analysis, remoteEvidence: "exact" };
+  return { ...withoutDriftFailureReason(analysis), remoteEvidence: "exact" };
 }
 
 /** Analyze current HEAD against a freshly fetched immutable base commit. */
@@ -159,11 +236,27 @@ export async function runBaseDrift(options: RunBaseDriftOptions): Promise<BaseDr
   return runAuthoritativeBaseDrift(options);
 }
 
+/** Report a failed authoritative base fetch, naming the bound a timed-out fetch ran out. */
+function unavailableBaseFetch(
+  fetch: BoundedFetchResult,
+  baseBranch: string,
+  fetchTimeoutMs: number,
+): Extract<BaseDriftResult, { verdict: "unavailable" }> {
+  if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
+    return unavailable("authoritative", "remote-base-absent", "remote-unavailable", baseBranch);
+  }
+  if (fetch.outcome === "timeout") {
+    return unavailable("authoritative", "fetch-timeout", "remote-unavailable", baseBranch, "timeout",
+      `The fetch was bounded at ${fetchTimeoutMs / 1000} s.`);
+  }
+  return unavailable("authoritative", "fetch-failed", "remote-unavailable", baseBranch, "error", fetch.error);
+}
+
 async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<BaseDriftResult> {
   const {
     exec,
     baseBranch,
-    fetchTimeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
+    fetchTimeoutMs = MATERIALIZING_FETCH_TIMEOUT_MS,
     resolver,
     resolverFactory,
     classifyReconciliation = () => "reviewable",
@@ -189,19 +282,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
     ["fetch", "origin", fetchRefspec],
     fetchTimeoutMs,
   );
-  if (fetch.outcome !== "ok") {
-    if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
-      return unavailable("authoritative", "remote-base-absent", "remote-unavailable", baseBranch);
-    }
-    return unavailable(
-      "authoritative",
-      fetch.outcome === "timeout" ? "fetch-timeout" : "fetch-failed",
-      "remote-unavailable",
-      baseBranch,
-      fetch.outcome,
-      fetch.error,
-    );
-  }
+  if (fetch.outcome !== "ok") return unavailableBaseFetch(fetch, baseBranch, fetchTimeoutMs);
 
   let baseOid: string;
   try {
@@ -344,6 +425,15 @@ function resolveResolver(
   }
 }
 
+/** An authoritative unavailable verdict for a failure met before analysis, carrying its diagnostic text. */
+export function unavailableBaseDrift(
+  reason: BaseDriftUnavailableReason,
+  base: string | null,
+  diagnostic: unknown,
+): Extract<BaseDriftResult, { verdict: "unavailable" }> {
+  return unavailable("authoritative", reason, "remote-unavailable", base, "error", diagnostic);
+}
+
 function unavailable(
   mode: BaseDriftMode,
   reason: BaseDriftUnavailableReason,
@@ -394,6 +484,7 @@ function baseDriftFailureDetail(
     "fetched-base-unresolved": `The fetched origin/${namedBase} ref did not resolve to a commit.`,
     "distance-read-failed": `Git could not compare HEAD with the observed ${namedBase} commit.`,
     "remote-evidence-unreachable": `Remote snapshot evidence for ${namedBase} was unreachable.`,
+    "locus-unavailable": "The checkout's work-unit state could not be read, so its path treatment is unknown.",
   };
   const raw = diagnostic === undefined
     ? ""
@@ -421,6 +512,7 @@ function baseDriftTerminalExplanation(
     "fetched-base-unresolved": `Repair origin/${namedBase} so it resolves to a commit, then rerun arc base drift.`,
     "distance-read-failed": "Restore a complete readable Git history, then rerun arc base drift.",
     "remote-evidence-unreachable": "Restore remote evidence access, then repeat the calling operation.",
+    "locus-unavailable": "Repair the reported work-unit state, then rerun arc base drift.",
   };
   return explanations[reason];
 }

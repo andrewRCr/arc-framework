@@ -25,6 +25,11 @@ checklist, see [generate-tasks.md § Finalize the task list][generate-tasks].
 
 ## Task List Headers
 
+**Implementation scope.** Cross-work-unit coordination routing — seam captures, messages to live sessions, and
+routing into sibling planning artifacts — is planning work. Keep it out of specs and implementation task lists,
+including their tasks, phases and success criteria. Route each concern when it arises; its evidence lives outside
+the implementation record.
+
 See [`template-tasks.md`][template-tasks] for skeletons.
 
 **Task List** (`# Task List: {Name}`) — work with an upstream spec artifact (PRD by default):
@@ -119,6 +124,17 @@ incidentally-bracketed prose in titles. Subtasks use the same backtick-wrapped m
 Numbers follow `1.1`, `1.2`, `2.1` (not `1.1.0`). Description is concise but complete — what,
 not how.
 
+**Design-element citation — recommended for an RFC-form spec.** When a parent realizes one of the spec's Proposed
+Design elements, cite it in the title as a trailing `— Dn`, or `— Dn, Dm` for several. The citation sits inside the
+bold and composes with the role suffixes, which trail outside it (§ Verification family):
+
+```text
+### `[ ]` **X.Y Description — D7** — validate criteria at member scope
+```
+
+It keeps the parents realizing a given design element greppable when that element is later
+[amended][amend-design]. Recommended, never scanned — a title without one is not refused.
+
 Phase headings (H2) and parent task headings (H3) provide the outline-pane navigation surface
 in editors. Subtasks remain bullets — promoting them to H4 would crowd outline panes without
 navigation benefit.
@@ -210,34 +226,53 @@ references. Omit tenuous, general, or already-loaded references: ARC-supplied st
 task-local context and belong only when the task directly works in that strategy's domain. Do not use
 the field for generic test sequencing or project testing standards; those load through methods.
 
-**Goal and retiring-phase bullets are preserved across completion; other body content is replaced.** At `[x]`,
-Goal and every `_Retired in:_ Phase N` detail bullet stay verbatim. Peer descriptors (when present) and all other
-Goal-children (description bullets, Build test-first lists) are pruned — replaced by a rolled-up `_Outcome:_` bullet
-at parent-Goal indent **placed after all subtasks** when the rollup carries signal (synthesis, verification, or
-cross-cutting), or simply removed when title + Goal already capture the work. Goal opens the post-completion shape;
-Outcome (when added) closes it from below, with any retained retiring-phase bullet staying at its original depth.
-See [process-task-loop § Completion notes content discipline][process-task-loop] for the threshold and granularity
-rules.
+**Goal, retiring-phase, and amendment bullets are preserved across completion; other body content is replaced.** At
+`[x]`, Goal, every `_Retired in:_ Phase N` detail bullet, and every `_Amended in:_ X.R (An)` bullet stay verbatim.
+Peer descriptors (when present) and all other Goal-children (description bullets, Build test-first lists) are pruned —
+replaced by a rolled-up `_Outcome:_` bullet at parent-Goal indent **placed after all subtasks** when the rollup
+carries signal (synthesis, verification, or cross-cutting), or simply removed when title + Goal already capture the
+work. Goal opens the post-completion shape; Outcome (when added) closes it from below, with any retained
+retiring-phase or amendment bullet staying at its original depth — Goal-child depth for `_Amended in:_`, which is what
+keeps it outside the Goal's descriptor extent. See [process-task-loop § Completion notes content
+discipline][process-task-loop] for the threshold and granularity rules.
 
 **Per-subtask description shifts in place** (unchanged behavior). At `[x]`, each subtask's description bullets at
 indent +2 shift from plan-content to outcome-content — same shape, no label change — except a `_Retired in:_ Phase N`
-detail bullet, which stays verbatim. The parent's rolled-up Outcome at root summarizes the unit-level result.
+or `_Amended in:_ X.R (An)` detail bullet, which stays verbatim. The parent's rolled-up Outcome at root summarizes
+the unit-level result.
 
 **Verification-task exception preserved.** The verification phase's single task (per
 [verify-work-unit.md][verify-work-unit]) carries two required completion-note categories
-at root — `_Quality gates:_`, `_Success criteria:_` — peers to Goal in
-lieu of `_Outcome:_`. All three (Goal + two categories) protected post-completion.
+at root — `_Quality gates:_`, `_Success criteria:_` — peers to Goal in lieu of `_Outcome:_`. All three (Goal + two
+categories) protected post-completion.
 
 ### Revision Numbering (R Scheme)
 
-Expanding a previously-complete subtask without destroying existing numbering:
+Expanding a task plan without destroying existing numbering:
 
-- `X.Y.R` — subtask-level discovered/remaining work
-- `X.R` — phase-level follow-on that cuts across a whole phase (e.g., post-Phase-3 quality-gate
-  close)
+- `X.Y.R` — subtask-level discovered or remaining work, available only while `X.Y` is still open
+- `X.R` — phase-level follow-on that cuts across a whole phase (e.g., post-Phase-3 quality-gate close), and the
+  corrective parent for one amendment — a change to settled design made after the plan was authored
+- `X.R2`, `X.R3` — one corrective parent per further amendment to the same phase
 - `X.Y.R.a`, `X.R.a` — children when the revision item itself needs subtasks
 
 Preserves original numbering and audit trail. Documents mid-implementation discoveries.
+
+**A completed parent is never reopened to host corrective work.** `[x]` is terminal derived state and does not
+reverse; execution resumes at the first open parent in document order, so work hung beneath a completed one is
+never reached. A corrective parent is reused for work on the same amendment only while it is still open; a later
+amendment gets its own parent even if `X.R` remains open. When an amendment changes what a completed task recorded,
+that task keeps its marker and the corrective parent carries the work.
+
+**Placement.** The corrective parent sits in the phase whose work it corrects, ahead of that phase's verifiers,
+and is never nested under one — a verifier records an outcome, it never hosts the work that produces one. See
+[Segments and Verification Boundaries](#segments-and-verification-boundaries) for the verifier family.
+
+**Placement yields to member immutability.** When the affected phase falls inside a delivery member that has
+already landed, the corrective parent goes in the earliest unlanded member that can carry it, or in the terminal
+member, taking the host phase's id and the ordinary position inside it — ahead of the host member's verifier. The
+id stays positional; the parent's Goal names the task it corrects. Placing it earlier in the host member's range
+is the Owner's call when that member's remaining tasks depend on the correction.
 
 ### Emoji Usage
 
@@ -395,7 +430,9 @@ verifier appears in the terminal phase.
 A segment verifier is an evidence sink. Its completion records the scenario executed and its result as the ordinary
 `_Outcome:_`; it is not a criteria report and never hosts corrective work. Segment exit criteria therefore remain
 phase-preamble and closing-task evidence rather than Success Criteria entries. Mandatory lifecycle outcomes remain
-Success Criteria and consume that evidence at their assigned member or work-unit boundary.
+Success Criteria and consume that evidence at their assigned member or work-unit boundary. Because the verifier
+never hosts the correction, a failed exit criterion's corrective work lands in a revision parent of its own — see
+[`amend-design` § Placement of revision work][amend-design-placement].
 
 ---
 
@@ -454,12 +491,17 @@ Required final section of every task list. Each Scope "Will Do" item maps to a v
 criterion — the checkable operationalization of the PRD's success criteria. See
 [`template-tasks.md`][template-tasks] for the block.
 
+Track a success criterion at the earliest boundary whose validator can see its evidence.
+
 When a Delivery Plan is present, group criteria beneath plain `### Member {ordinal} —` headings carrying a
 backticked chunk key and one `### Cross-member seams` heading. A member's ordinary closing task walks its group;
-terminal verification walks
-the seam group and dispositions member groups from their recorded boundary evidence. Assign each criterion to the
-earliest member boundary whose validator can see its evidence; criteria that no member boundary can see belong to
-the seam group. A single-deliverable work unit omits the subgroup headings and retains the flat form.
+terminal verification walks the seam group and dispositions member groups from their recorded boundary evidence. Assign
+each criterion to the earliest member boundary whose validator can see its evidence; criteria that no member boundary
+can see belong to the seam group. A criterion an [amendment][amend-design] appends follows the same rule: it joins the
+group of the member carrying the corrective parent, or the seam group when the correction lands at the terminal. One
+appended to a closed member's group never resolves, because terminal verification dispositions member groups from their
+recorded boundary evidence and never re-derives one. A single-deliverable work unit omits the subgroup headings and
+retains the flat form.
 
 Headings group; indentation must not. Criterion checkboxes stay at root indent. Two or three leading spaces make a
 criterion inert content and silently drop it from the walk; four or more spaces parse as a subtask without an open
@@ -470,10 +512,9 @@ Grouped member criteria are checked through `validate-criteria` during each memb
 Those checks record boundary evidence but leave the markers unchanged. The terminal
 [verification phase](#verification-phase) consumes those reports, checks seam and union coherence, dispositions
 the member groups, and owns marker changes. Flat criteria are checked during terminal verification. Markers are
-backtick-wrapped
-(matching parent + subtask convention — see [§ Subtasks](#subtasks-third-level) for rationale). Always include
-"All quality gates pass" and "Ready for integration" as seam items for grouped criteria, or standard items in the
-flat form. The [`validate-criteria` method][validate-criteria] owns the three states and immutable-criterion-text
+backtick-wrapped (matching parent + subtask convention — see [§ Subtasks](#subtasks-third-level) for rationale). Always
+include "All quality gates pass" and "Ready for integration" as seam items for grouped criteria, or standard items in
+the flat form. The [`validate-criteria` method][validate-criteria] owns the three states and immutable-criterion-text
 rule. Do not duplicate the PRD's criteria verbatim — operationalize them into checkable items.
 
 All items must be `[x]` or `[~]` (with annotations) before running archive. Any remaining
@@ -494,6 +535,8 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 [process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [validate-criteria]: ../../../system/methods/validate-criteria.md
+[amend-design]: ../../../system/workflows/arc/supplemental/amend-design.md
+[amend-design-placement]: ../../../system/workflows/arc/supplemental/amend-design.md#placement-of-revision-work
 [arc-methods-tf]: ../../../system/methods/test-first.md
 [template-tasks]: ../../templates/arc/work-unit/template-tasks.md
 [work-org-wu-headers]: strategy-work-organization.md#wu-artifact-headers

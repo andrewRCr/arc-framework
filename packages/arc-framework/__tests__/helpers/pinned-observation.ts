@@ -145,6 +145,10 @@ function render(value: unknown): string {
 /**
  * Assert that `actual` is still the held result, and neither the awaited one nor anything else.
  *
+ * When a design accepts `observed` and rejects `target`, replace this pin with a plain assertion
+ * as soon as that decision settles, even while the pin passes. The helper cannot detect that
+ * `target` is no longer awaited.
+ *
  * @param actual - The typed result the test produced.
  * @param pin - The behavior under test, the result held today, and the result awaited.
  */

@@ -12,6 +12,7 @@ const ready = z.strictObject({
   recovery: z.string().optional(),
   reconciliation: z.string().optional(),
   entering: z.string().optional(),
+  pause: z.string().optional(),
   identityDiscovery: z.string().optional(),
   identities: z.array(z.string()),
   cleanup: z.array(z.string()),
@@ -64,6 +65,10 @@ export function deriveDerivedLocusSessionGuidance(
   return LocusSessionGuidanceSchema.parse({
     kind: "ready",
     entering: `${row.kind} at ${row.checkout.path}`,
+    ...(row.kind === "work-unit" && row.subject.kind === "work-unit" && row.context?.pause != null
+      ? { pause: `Work unit '${row.subject.key}' is paused: ${row.context.pause.reason}. `
+        + (row.context.pause.resumeNotes === null ? "" : `Resume notes: ${row.context.pause.resumeNotes}. `)
+        + `Run arc resume ${row.subject.key} before starting work.` } : {}),
     ...(primaryAvailability === undefined ? {} : { primaryAvailability }),
     ...(identityDiscovery === undefined ? {} : { identityDiscovery }),
     identities: [],
@@ -115,6 +120,10 @@ function renderDerivedCleanup(row: DerivedCheckoutRow, entering: DerivedCheckout
     return [`Cleanup is available for retired checkout ${row.checkout.path}.`];
   }
   if (row.kind === "unresolved-checkout") {
+    const retry = row.diagnostics.find((diagnostic) => diagnostic.code === "pending-errand-provisioning");
+    if (retry !== undefined && entering.kind === "free-primary") {
+      return [`Provisioning is incomplete at ${row.checkout.path}. ${retry.message} Primary: ${entering.checkout.path}.`];
+    }
     if (!enteringRow) return [];
     const activeCandidateSchemaSkew = row.subject?.kind === "work-unit"
       && row.lifecycleLocation === "active"

@@ -24,6 +24,7 @@ import {
   AdvisoryLockTimeoutError,
   type AdvisoryLockOptions,
 } from "../../src/lib/advisory-lock.js";
+import { atomicCreateFile } from "../../src/lib/fs.js";
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -95,6 +96,99 @@ function buildMemoryLockFs(initial: Record<string, string>): {
 }
 
 describe("acquireAdvisoryLock", () => {
+  it("refuses a negative wait without creating a lock, and takes one with a fresh budget", async () => {
+    await expect(acquireAdvisoryLock(lockPath, { maxWaitMs: -1, now: () => 10 }))
+      .rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(await exists(lockPath)).toBe(false);
+    const handle = await acquireAdvisoryLock(lockPath, { maxWaitMs: 10, now: () => 10, pid: 42 });
+    expect((await readHolder(lockPath)).pid).toBe(handle.pid);
+    await releaseAdvisoryLock(handle);
+  });
+  it.each([180, 200])("acquires a lock released at %i ms within its 200 ms wait", async (releasedAt) => {
+    let clock = 0;
+    let bytes = JSON.stringify({ pid: 1, acquiredAt: 0 });
+    const handle = await acquireAdvisoryLock("/lock", {
+      pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      exclusiveCreate: async (_path, content) => {
+        if (clock < releasedAt) throw Object.assign(new Error("held"), { code: "EEXIST" });
+        bytes = content;
+      },
+      readFile: async () => bytes,
+      sleep: async (ms) => { clock += ms; },
+    });
+    expect(handle.pid).toBe(2);
+    expect(JSON.parse(bytes)).toMatchObject({ pid: 2, token: handle.token });
+    expect(clock).toBeLessThanOrEqual(200);
+  });
+  it("observes a healthy release during the last bounded sleep even when its timer wakes late", async () => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": holder(1, 0) });
+    const acquired = await acquireAdvisoryLock("/lock", {
+      ...memory, pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      sleep: async (ms) => {
+        const wake = clock + ms;
+        if (wake >= 180) {
+          clock = 180;
+          memory.files.delete("/lock");
+        }
+        clock = wake === 200 ? 201 : wake;
+      },
+    });
+    expect(clock).toBe(201);
+    expect(JSON.parse(memory.files.get("/lock")!)).toMatchObject({ pid: 2, token: acquired.token });
+  });
+  it("does not earn a final create from a holder read that outlasts the budget, and permits a fresh retry", async () => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": holder(1, 0) });
+    const readFile = async (path: string) => {
+      clock = 220;
+      memory.files.delete(path);
+      throw enoent();
+    };
+    await expect(acquireAdvisoryLock("/lock", {
+      ...memory, readFile, pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      sleep: async (ms) => { clock += ms; },
+    })).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(clock).toBe(220);
+    expect(memory.files.size).toBe(0);
+    const retry = await acquireAdvisoryLock("/lock", { ...memory, pid: 2, maxWaitMs: 200, now: () => clock });
+    expect(JSON.parse(memory.files.get("/lock")!)).toMatchObject({ pid: 2, token: retry.token });
+  });
+  it("times out instead of acquiring after stale-holder settling spends the remaining budget, then permits retry", async () => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": JSON.stringify({ pid: 1, acquiredAt: 0 }) });
+    const options = { ...memory, pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      sleep: async (ms: number) => {
+        clock += ms;
+        if (clock >= 150 && memory.files.has("/lock")) memory.files.set("/lock", "malformed");
+      },
+    };
+    await expect(acquireAdvisoryLock("/lock", options)).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(clock).toBeLessThanOrEqual(200);
+    expect(memory.files.get("/lock")).toBe("malformed");
+    expect(memory.files.has("/lock.break")).toBe(false);
+    memory.files.delete("/lock");
+    const retry = await acquireAdvisoryLock("/lock", options);
+    expect(retry.pid).toBe(2);
+    expect(clock).toBeLessThanOrEqual(200);
+  });
+  it.each(["main-reread", "break-holder"])("bounds settling the %s during serialized reclamation", async (phase) => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": JSON.stringify({ pid: 1, acquiredAt: 0 }) });
+    if (phase === "break-holder") memory.files.set("/lock.break", "malformed");
+    const options = { ...memory, pid: 2, maxWaitMs: 200, now: () => clock,
+      isProcessAlive: () => clock < 150,
+      readFile: async (path: string) => phase === "main-reread" && path === "/lock" && memory.files.has("/lock.break")
+        ? "malformed" : memory.readFile(path),
+      sleep: async (ms: number) => { clock += ms; },
+    };
+    await expect(acquireAdvisoryLock("/lock", options)).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(clock).toBeLessThanOrEqual(200);
+    expect(JSON.parse(memory.files.get("/lock")!)).toMatchObject({ pid: 1 });
+    memory.files.delete("/lock");
+    memory.files.delete("/lock.break");
+    expect((await acquireAdvisoryLock("/lock", options)).pid).toBe(2);
+  });
   let dir: string;
   let lockPath: string;
 
@@ -122,6 +216,46 @@ describe("acquireAdvisoryLock", () => {
     expect(holder.acquiredAt).toBe(1000);
     // The per-acquisition token round-trips to the lockfile so release can match it.
     expect(holder.token).toBe(handle.token);
+  });
+
+  it("acquires a free lock with one immediate zero-wait attempt", async () => {
+    let attempts = 0, time = 1000;
+    const handle = await acquireAdvisoryLock(lockPath, { maxWaitMs: 0, now: () => time++,
+      exclusiveCreate: async (path, content) => { attempts += 1; await atomicCreateFile(path, content); },
+      sleep: async () => { throw new Error("A zero-wait acquisition must not back off"); },
+      readFile: async () => { throw new Error("A zero-wait acquisition must not inspect holders"); },
+      removeFile: async () => { throw new Error("A zero-wait acquisition must not reclaim holders"); },
+    });
+    try {
+      expect(attempts).toBe(1);
+      expect(await readHolder(lockPath)).toMatchObject({ pid: handle.pid, token: handle.token });
+    } finally { await releaseAdvisoryLock(handle); }
+    expect(await exists(lockPath)).toBe(false);
+  });
+
+  it("tries a held lock once at zero wait without changing its owner and succeeds after release", async () => {
+    const owner = await acquireAdvisoryLock(lockPath);
+    const original = await readFile(lockPath, "utf8");
+    let attempts = 0, time = 1000;
+    const options: AdvisoryLockOptions = { maxWaitMs: 0, now: () => time++,
+      exclusiveCreate: async (path, content) => { attempts += 1; await atomicCreateFile(path, content); },
+      sleep: async () => { throw new Error("A zero-wait acquisition must not back off"); },
+      readFile: async () => { throw new Error("A zero-wait acquisition must not inspect holders"); },
+      removeFile: async () => { throw new Error("A zero-wait acquisition must not reclaim holders"); },
+    };
+    try {
+      await expect(acquireAdvisoryLock(lockPath, options)).rejects.toMatchObject({ name: "AdvisoryLockTimeoutError", phase: "acquire", lockPath, waitedMs: 0 });
+      expect(attempts).toBe(1);
+      expect(await readFile(lockPath, "utf8")).toBe(original);
+    } finally { await releaseAdvisoryLock(owner); }
+    attempts = 0;
+    const next = await acquireAdvisoryLock(lockPath, options);
+    try {
+      expect(attempts).toBe(1);
+      expect(next.token).not.toBe(owner.token);
+      expect(await readHolder(lockPath)).toMatchObject({ pid: next.pid, token: next.token });
+    } finally { await releaseAdvisoryLock(next); }
+    expect(await exists(lockPath)).toBe(false);
   });
 
   it("retries with bounded backoff while the lock is held-and-live, then proceeds once it frees", async () => {
@@ -399,9 +533,17 @@ describe("acquireAdvisoryLock", () => {
     await writeFile(lockPath, JSON.stringify({ pid: 9999, acquiredAt: 0 }), "utf-8");
     const isProcessAlive = (pid: number) => pid !== 9999;
 
+    // The wait clock starts once a contender holds the lock, so slow file creation
+    // before then cannot spend the loser's wait; only waiting on the live winner does.
+    let heldSince: number | undefined;
     const shared: AdvisoryLockOptions = {
       isProcessAlive,
       maxWaitMs: 150,
+      now: () => (heldSince === undefined ? 0 : performance.now() - heldSince),
+      exclusiveCreate: async (path, content) => {
+        await atomicCreateFile(path, content);
+        if (path === lockPath) heldSince ??= performance.now();
+      },
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     };
 
@@ -591,6 +733,33 @@ describe("acquireAdvisoryLock", () => {
     expect(handle.pid).toBe(2);
     expect((await readHolder(lockPath)).pid).toBe(2);
   });
+
+  it("reports no holder it never read when the deadline passes during a create", async () => {
+    // The second create runs out the budget, so the read after it is never made; the waiter has still seen only the
+    // live holder, and the wait ends on that.
+    const fs = buildMemoryLockFs({ [lockPath]: holder(1, 0, "holder") });
+    let clock = 0;
+    let creates = 0;
+    const onWait = vi.fn();
+    await expect(acquireAdvisoryLock(lockPath, {
+      pid: 2,
+      now: () => clock,
+      isProcessAlive: () => true,
+      readFile: fs.readFile,
+      removeFile: fs.removeFile,
+      exclusiveCreate: async (path, content) => {
+        creates += 1;
+        if (creates === 2) clock = 1_000;
+        await fs.exclusiveCreate(path, content);
+      },
+      sleep: async (ms) => { clock += ms; },
+      onWait,
+      maxWaitMs: 100,
+    })).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(creates).toBe(2);
+    expect(onWait.mock.calls.map(([contention]) => contention.holder))
+      .toEqual([{ pid: 1, acquiredAt: 0, token: "holder" }]);
+  });
 });
 
 describe("renewAdvisoryLock", () => {
@@ -640,7 +809,7 @@ describe("renewAdvisoryLock", () => {
     await expect(renewAdvisoryLock(handle, 1_000)).resolves.toBe("ownership-lost");
   });
 
-  it("reports a retry when another process temporarily holds maintenance", async () => {
+  it("reports maintenance contention when another process temporarily holds the break lock", async () => {
     const handle = await acquireAdvisoryLock(lockPath, {
       pid: 5,
       token: "ours",
@@ -652,7 +821,7 @@ describe("renewAdvisoryLock", () => {
     await expect(renewAdvisoryLock(handle, 1_000, {
       isProcessAlive: () => true,
       now: () => 300,
-    })).resolves.toBe("retry");
+    })).resolves.toBe("maintenance-busy");
   });
 });
 

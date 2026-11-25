@@ -104,6 +104,126 @@
   inherit audit-specific volatility, fan-out ranking, corpus boundaries, or hard-consumer views; treat this as
   coordination evidence, not a pre-committed composition edge.
 
+### `[ ]` **Narrow knowledge-lint's planning pointer rule to resolving named symbols**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `knowledge-lint`
+
+- _Observation:_ the fold-in consumes "`planning-iteration-mechanics`' source-pointer convention" and enforces
+  "absence/shape rules". The convention moved to `grounded-planning-review` (draft D2): a claim that states what
+  shipped code does names that code in the existing backticked symbol form, with no marker syntax. Whether a claim
+  states shipped behavior is not mechanically decidable, so lint can check that a named symbol resolves but cannot
+  detect a missing one. The draft splits the two: resolution is lint's; whether the code does what the claim says is
+  the new `source-grounding` method's.
+
+- _Approach:_ repoint the inbound owner to `grounded-planning-review` and narrow the rule to symbol resolution over
+  eligible planning artifacts.
+
+- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
+- _Integration relation:_ this amends the existing inbound item "Detect planning claims that lack their required
+  source grounding": its convention owner is `grounded-planning-review`, and the mechanically decidable rule is
+  resolution of named symbols. Preserve the semantic absence check with the author-run grounding method.
+
+### `[ ]` **Resolve inbound `§` citations against real headings**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Design > Mechanical tier, family 1 "Cross-references", beside its anchor validation for `file.md#section`;
+  and § Open questions, "Per-family gate wiring".
+
+- _Observation:_ nothing validates inbound `§` citations; `lint:arc:section-refs` enforces the opposite rule (no `§` in
+  code). About 45 citation sites across workflows, methods, and strategies (counted 2026-07-28) orphan silently when a
+  heading is renamed. Forks: file-qualified versus bare same-file citations, the package and `.arc/` copies, and `§`
+  in incidental prose.
+
+- _Approach:_ a check in family 1, possibly renaming `lint:arc:section-refs` to tell the two apart. On gate wiring:
+  `quality-gate-hooks`' check declaration gives each family its own inputs and gate, and its verb dispatches `arc lint`
+  like any declared check.
+
+- _Observation (routing):_ this entry and the next were routed to `quality-gate-hooks` at earlier drains although its
+  Out of scope already handed knowledge-base content checks here.
+
+- _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07 (first captured during `judgment-authority-model`
+  create-spec, adversarial pass two).
+
+### `[ ]` **Resolve cross-file Markdown anchors in the section-reference audit**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Design > Mechanical tier, family 1's "anchor validation for `file.md#section`", and the stable-anchor
+  grammar it adopts from `composable-workflows`.
+
+- _Overlap:_ largely the anchor validation family 1 already names; what this adds is its edge cases. The
+  `USER-INBOX § Errand` capture "Check relative Markdown links over the installed layout, and refuse them in
+  movable artifacts" covers the same anchors for `validate-links.sh`.
+
+- _Observation:_ per the original capture, `lint:arc:section-refs` passes a `file.md#anchor` link whose heading does
+  not exist — the silent break produced when procedure moves across the workflow/CLI seam.
+
+- _Approach:_ resolve cross-file targets against the referenced file's headings; settle slug rules and generated or
+  conditional sections before failing closed, together with the `§` citation checker above.
+
+- _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07 (first captured during `judgment-authority-model`
+  Task 4.3).
+
+### `[ ]` **Absorb the interim link checks into `arc lint`'s cross-reference and relocatability families**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Design › Mechanical tier, check families 1 (cross-references) and 3 (relocatability).
+
+- _Observation:_ the `markdown-links` Errand landed an interim for both families ahead of this work unit, at the
+  Owner's direction: a project-only `lint:arc:links` (`packages/arc-framework/src/scripts/audit-links.ts`) sweeps
+  tracked `.arc/` Markdown outside `.arc/completed/` and the template sources, checking file targets and heading
+  anchors with GitHub's slug rules plus HTML `id` / `name` anchors; and the shipped `validate-links.sh` commit check
+  refuses any relative link from a `meta-`, `draft-`, `spec-`, `tasks-`, `notes-`, or `cohort-` file under
+  `active/` or `backlog/`. The live corpus had no relative link in a movable artifact, so the draft's "one-time sweep
+  of the ~38 known offending link-defs" may already be discharged; re-derive before planning it.
+
+- _Approach:_ when `arc lint` is designed, decide whether to absorb `audit-links.ts`'s resolver and slugger into
+  family 1 (covering both copies, with the stable-anchor grammar once `composable-workflows` settles it) and retire
+  `lint:arc:links`, and whether family 3 keeps the hook refusal or moves it under `arc lint`. Duplicate
+  link-definition detection is not in the interim.
+
+- _Captured during:_ the `markdown-links` Errand, 2026-10-12.
+
+### `[ ]` **Re-ground knowledge lint’s validator inventory after point-scanner removal**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Problem / Motivation; § Open questions — fragment orphan detection.
+
+- _Observation:_ The existing-lint inventory lists point-scanner as an extension fire-point checker and an optional
+  fragment-orphan owner. Retirement deletes that scanner and its validator.
+
+- _Approach:_ Update the inventory and choose fragment/method coverage from the actual surviving substrate. Do not
+  assert a current point validator or take the retired extension grammar as the future lint contract.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
+### `[ ]` **Validate backticked artifact references, so a reference by name resolves like a link**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Mechanical tier family 1: resolve and validate filename-only artifact references
+
+- _Observation:_ ARC references a movable artifact by backticked filename only, from anywhere (`DEV-RULES.ARC` § `.arc/`
+  artifact references), because artifacts move with their lifecycle; from the flip a record's projected path also
+  differs by checkout (`active/current/` in its own, `active/in-flight/<slug>/` elsewhere), so no path to a record is
+  stable. That is half of the established idiom for documents that move — link by a stable identifier the system
+  resolves (wiki links, Sphinx `:doc:` and `:ref:` labels, Hugo `ref`, issue keys). The other half is missing: nothing
+  checks that a backticked `spec-foo.md` names an artifact that exists, so a stale or mistyped reference passes every
+  check, and nothing resolves one for a reader beyond search, though `arc view` opens an artifact by slug and kind.
+  `validate-links.sh` and `audit-links.ts` enforce only the negative rule, no relative links, never the positive one.
+
+- _Approach:_ validate backticked artifact references against the store's records (by slug and kind, archived ones
+  included), at whatever deadline family 1 takes; decide whether `arc view` resolves a backticked name so a reader can
+  follow one. Keep it apart from backticked code symbols, which `source-grounding` uses.
+
+- _Captured during:_ `projected-markdown-checks` draft-design, 2026-10-17 (the Owner asked whether ARC's link rules are
+  idiomatic).
+
 ---
 
 ## Problem / Motivation

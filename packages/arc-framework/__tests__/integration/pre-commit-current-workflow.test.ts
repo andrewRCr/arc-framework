@@ -22,7 +22,10 @@ function meta(currentWorkflow: string): string {
   return [
     "# Metadata: Example",
     "",
-    "- **State:** Active",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    "| Active | — | — | — | — |",
+    "",
     "- **Design:** `spec-example.md`",
     "- **Task List:** `tasks-example.md`",
     `- **Current Workflow:** ${currentWorkflow}`,
@@ -55,10 +58,25 @@ describe("pre-commit Current Workflow validation", () => {
     await expect(execFileAsync(
       process.execPath,
       ["--import", tsxLoader, validatorPath, metaPath],
-      { cwd: root },
+      { cwd: root, env: { ...process.env, FORCE_COLOR: undefined } },
     )).rejects.toMatchObject({
       code: 1,
       stderr: expect.stringContaining("Current Workflow"),
     });
+  });
+
+  it("accepts a staged Active meta naming its task-execution workflow", async () => {
+    const root = await createTempRepo("arc-current-workflow-task-loop-");
+    fixtures.push(root);
+    const fullPath = join(root, metaPath);
+    await mkdir(dirname(fullPath), { recursive: true });
+    await writeFile(fullPath, meta("`process-task-loop`"));
+    await git(root, ["add", metaPath]);
+
+    await expect(execFileAsync(
+      process.execPath,
+      ["--import", tsxLoader, validatorPath, metaPath],
+      { cwd: root, env: { ...process.env, FORCE_COLOR: undefined } },
+    )).resolves.toMatchObject({ stderr: "" });
   });
 });

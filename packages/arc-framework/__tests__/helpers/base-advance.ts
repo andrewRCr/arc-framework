@@ -20,6 +20,7 @@
 import { execFile } from "node:child_process";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import type { GitExec } from "../../src/lib/git/exec.js";
@@ -77,6 +78,13 @@ export interface BaseAdvanceOptions extends BaseCoordinates {
    * distinct `message` — whenever one test advances the base more than once over the same paths.
    */
   readonly generation?: number;
+  /**
+   * Exact content for named paths, in place of the generated content.
+   *
+   * A path the branch also edits needs content the two sides can merge, which generated content never is:
+   * each side writes the whole file, so any intersection conflicts.
+   */
+  readonly contents?: Readonly<Record<string, string>>;
   /**
    * How the advancing commit reached the base.
    *
@@ -233,6 +241,7 @@ async function writeTreeOverParent(input: {
   readonly paths: readonly string[];
   readonly message: string;
   readonly generation: number;
+  readonly contents?: Readonly<Record<string, string>>;
 }): Promise<string> {
   const indexFile = join(
     await makeScratchDirectory(input.cwd),
@@ -244,7 +253,7 @@ async function writeTreeOverParent(input: {
     const blob = (await gitWithInput(
       input.cwd,
       ["hash-object", "-w", "--stdin"],
-      `base side\n${input.message}\ngeneration ${input.generation}\n${path}\n`,
+      input.contents?.[path] ?? `base side\n${input.message}\ngeneration ${input.generation}\n${path}\n`,
     )).trim();
     await git(
       input.cwd,
@@ -278,6 +287,7 @@ export async function advanceBase(options: BaseAdvanceOptions): Promise<BaseAdva
     paths: options.paths,
     message,
     generation,
+    ...(options.contents === undefined ? {} : { contents: options.contents }),
   });
   const head = options.landing === "merge"
     ? await landMergeCommit({ cwd: options.cwd, tree, parent, message, generation, ...(
@@ -448,10 +458,10 @@ export function advanceBaseStep(options: BaseAdvanceOptions): {
       process.execPath,
       "--import",
       "tsx",
-      new URL("base-advance-step.ts", import.meta.url).pathname,
+      fileURLToPath(new URL("base-advance-step.ts", import.meta.url)),
       JSON.stringify(options),
     ],
-    cwd: new URL("../../", import.meta.url).pathname,
+    cwd: fileURLToPath(new URL("../../", import.meta.url)),
   };
 }
 

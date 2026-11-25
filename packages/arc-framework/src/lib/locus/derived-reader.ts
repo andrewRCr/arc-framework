@@ -1,5 +1,10 @@
 /** Dormant worktree-first reader over one fully injected evidence snapshot. */
 
+import { markerIdentitySnapshot, projectStoreIdentityDiscovery, type StoreIdentityEvidence, type StoreIdentityDiscovery } from "./store-identities.js";
+import type { z } from "zod";
+import { DerivedLocusFrameSchema } from "./derived-schema.js";
+import type { Store } from "../store/contract.js";
+import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
 import type {
   IdentitySnapshotDiagnostic,
   TransientIdentitySnapshot,
@@ -32,6 +37,7 @@ import {
 /** Already-read marker and active-meta evidence for one registered checkout. */
 export interface DormantCheckoutReadEvidence {
   readonly checkoutPath: string;
+  readonly workUnit?: StoreWorkUnitEvidence;
   readonly marker: DormantMarkerGenerationEvidence;
   readonly metaRoots: readonly MetaRootEvidence[];
   readonly metas: readonly DormantMetaEvidence[];
@@ -41,6 +47,7 @@ export interface DormantCheckoutReadEvidence {
 
 /** Identity entries that do not fabricate checkout rows. */
 export type DerivedIdentityDiscovery =
+  | StoreIdentityDiscovery
   | { readonly kind: "absent" }
   | { readonly kind: "error"; readonly stage: "tip" | "tree"; readonly message: string }
   | {
@@ -75,16 +82,8 @@ export type DerivedPrimaryAvailability =
   | { readonly kind: "unsafe"; readonly checkoutPath: string | null; readonly reasons: readonly string[] };
 
 /** Build-order migration frame selected beside the retiring record-backed state. */
-export interface DerivedLocusFrame {
-  readonly roster: readonly DerivedCheckoutRow[];
-  readonly entering: DerivedEnteringCheckout;
-  readonly primaryAvailability: DerivedPrimaryAvailability;
-  readonly identityDiscovery: DerivedIdentityDiscovery;
-  readonly active: {
-    readonly checkoutPath: string;
-    readonly subject: Extract<DerivedCheckoutRow["subject"], { kind: "work-unit" }>;
-    readonly context: NonNullable<DerivedCheckoutRow["context"]>;
-  } | null;
+export interface DerivedLocusFrame extends z.infer<typeof DerivedLocusFrameSchema> {
+  readonly roster: z.infer<typeof DerivedLocusFrameSchema>["roster"];
 }
 
 /** Select the canonical entering checkout from one worktree-derived evidence snapshot. */
@@ -139,14 +138,15 @@ export async function readDerivedLocusFrame(
 /** Compose future derived rows from one injected topology and evidence snapshot. */
 export async function readDerivedLocusRoster(options: {
   identity: string;
+  store?: Store;
   identityGlobalUserDir?: string | null;
-  activeExtensions?: readonly string[];
   /** Checkout whose context projection failures must remain operation-blocking. */
   strictCheckoutPath?: string;
   topology: Extract<RegisteredWorktreeScanResult, { ok: true }>;
   checkouts: readonly DormantCheckoutReadEvidence[];
   completed: CompletedEvidenceRead;
   identities: TransientIdentitySnapshot;
+  identityAcquisitions?: StoreIdentityEvidence;
   primarySafety: PrimarySafetyProjection;
   canonicalizePath(path: string): Promise<string>;
   subjectMetaIO: SubjectMetaIO;
@@ -223,28 +223,33 @@ export async function readDerivedLocusRoster(options: {
       marker: evidence.marker,
       activeMeta,
       archivedMeta,
+      workUnit: evidence.workUnit,
       completed: options.completed,
-      identities: options.identities,
+      identities: options.identityAcquisitions === undefined ? options.identities
+        : await markerIdentitySnapshot(options.identityAcquisitions, evidence.marker, options.store),
       primarySafety: item.checkout.primary
         ? options.primarySafety
         : { kind: "error", message: "Primary safety does not apply to linked checkouts" },
     });
+    row = withWorkUnitRecovery(row, evidence.workUnit);
     const subjectMeta = activeMeta.kind === "present"
       ? activeMeta
       : archivedMeta.kind === "present"
         ? archivedMeta
         : null;
-    if (row.kind === "work-unit" && subjectMeta !== null) {
+    if (row.kind === "work-unit" && (subjectMeta !== null || evidence.workUnit?.kind === "present")
+      && !(evidence.workUnit?.kind === "present" && evidence.workUnit.record.placement?.kind === "backlog")) {
       let context: Awaited<ReturnType<typeof projectCheckoutSubjectMeta>>;
       try {
         context = await projectCheckoutSubjectMeta({
           cwd: item.original.path,
-          subjectKey: subjectMeta.subject.key,
+          subjectKey: evidence.workUnit?.kind === "present" ? evidence.workUnit.subject.key : row.subject.key,
           identity: options.identity,
           identityGlobalUserDir: options.identityGlobalUserDir,
-          metaRoot: subjectMeta.metaRoot,
-          candidates: subjectMeta.candidates,
-          activeExtensions: options.activeExtensions ?? [],
+          metaRoot: subjectMeta?.metaRoot ?? { kind: "maintainer" },
+          candidates: subjectMeta?.candidates ?? [],
+          store: options.store,
+          workUnit: evidence.workUnit?.kind === "present" ? evidence.workUnit : undefined,
           foreignCheckout: options.strictCheckoutPath !== undefined
             && item.checkout.path !== options.strictCheckoutPath,
           io: options.subjectMetaIO,
@@ -274,15 +279,27 @@ export async function readDerivedLocusRoster(options: {
     }
     rows.push(row);
   }
-  const guardedRows = guardWorkUnitLocusCollisions(rows);
+  const guardedRows = guardDuplicateMarkerClaims(guardWorkUnitLocusCollisions(rows), options.store?.capabilities.stateOffBranch === true);
   guardedRows.sort((left, right) => Buffer.compare(
     Buffer.from(left.checkout.path),
     Buffer.from(right.checkout.path),
   ));
   return {
     rows: guardedRows,
-    identityDiscovery: projectIdentityDiscovery(options.identities, guardedRows),
+    identityDiscovery: options.identityAcquisitions === undefined ? projectIdentityDiscovery(options.identities, guardedRows)
+      : projectStoreIdentityDiscovery(options.identityAcquisitions, guardedRows),
   };
+}
+
+function withWorkUnitRecovery(row: DerivedCheckoutRow, workUnit: StoreWorkUnitEvidence | undefined): DerivedCheckoutRow {
+  if (workUnit?.kind !== "unreadable") return row;
+  const code = workUnit.missingRecord ? "work-unit-record-missing" : workUnit.code;
+  const diagnostics = row.diagnostics.map(diagnostic => diagnostic.source === "lifecycle" && code !== undefined
+    ? { ...diagnostic, code } : diagnostic);
+  if (row.subject?.kind !== "work-unit" || diagnostics.some(diagnostic => diagnostic.source !== "lifecycle")) return { ...row, diagnostics };
+  if (workUnit.unbound !== undefined) return { ...row, diagnostics, actions: [...workUnit.unbound.exits] };
+  return workUnit.missingRecord ? { ...row, diagnostics, actions: [{ text: "arc locus release",
+    argv: ["arc", "locus", "release"], checkout: row.checkout.path }] } : { ...row, diagnostics };
 }
 
 function guardWorkUnitLocusCollisions(rows: readonly DerivedCheckoutRow[]): DerivedCheckoutRow[] {
@@ -333,6 +350,7 @@ function guardWorkUnitLocusCollisions(rows: readonly DerivedCheckoutRow[]): Deri
     return {
       ...row,
       kind: "unresolved-checkout",
+      actions: undefined,
       context: null,
       diagnostics: [...row.diagnostics, {
         code: "work-unit-locus-conflict",
@@ -347,7 +365,8 @@ function projectIdentityDiscovery(
   snapshot: TransientIdentitySnapshot,
   rows: readonly DerivedCheckoutRow[],
 ): DerivedIdentityDiscovery {
-  if (snapshot.kind !== "complete") return snapshot;
+  if (snapshot.kind === "absent") return { kind: "absent" };
+  if (snapshot.kind === "error") return { kind: "error", stage: snapshot.stage, message: snapshot.message };
   const consumed = new Set(rows.flatMap((row) => row.identity === null ? [] : [row.identity.key]));
   return {
     kind: "complete",
@@ -401,4 +420,27 @@ function projectPrimaryAvailability(rows: readonly DerivedCheckoutRow[]): Derive
       ? [`Primary checkout resolved as ${primary.kind}`]
       : primary.diagnostics.map((diagnostic) => diagnostic.code),
   };
+}
+
+function guardDuplicateMarkerClaims(rows: readonly DerivedCheckoutRow[], stateOffBranch: boolean): DerivedCheckoutRow[] {
+  const holders = new Map<string, string[]>();
+  for (const row of rows) {
+    const key = row.markerGeneration === null ? undefined : markerClaimKey(row, stateOffBranch);
+    if (key === undefined) continue;
+    const paths = holders.get(key) ?? [];
+    paths.push(row.checkout.path);
+    holders.set(key, paths);
+  }
+  return rows.map(row => {
+    const key = markerClaimKey(row, stateOffBranch), paths = key === undefined ? undefined : holders.get(key);
+    return paths === undefined || paths.length < 2 ? row : { ...row, kind: "unresolved-checkout", context: null, actions: undefined,
+      diagnostics: [...row.diagnostics, { code: "work-unit-locus-conflict",
+        message: `Work unit '${row.subject?.key ?? "unknown"}' has multiple marker holders: ${paths.join(", ")}. Inspect and release the stray checkout's claim.` }] };
+  });
+}
+
+function markerClaimKey(row: DerivedCheckoutRow, stateOffBranch: boolean): string | undefined {
+  const subject = row.subject;
+  if (subject?.kind !== "work-unit" || (stateOffBranch && row.kind === "retired" && subject.uid === undefined)) return undefined;
+  return subject.uid === undefined ? `slug:${subject.key}` : `uid:${subject.uid}`;
 }

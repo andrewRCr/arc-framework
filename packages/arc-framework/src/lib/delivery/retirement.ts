@@ -4,7 +4,6 @@ import type { DeliveryHostRequestObservation } from "./host.js";
 import type { DeliveryPlanStore, DeliveryStateStore } from "./ports.js";
 import { classifyPredecessorRelation, type AncestryAnswer } from "./predecessor-relation.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
-import type { CanonicalDigest } from "../kernel/index.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 type DeliveryRefObservation =
@@ -265,7 +264,7 @@ export async function retireCompletedDeliveryRecords(
   for (const plan of plans) {
     const removedPlan = await dependencies.planStore.removeCurrent(
       plan.planId,
-      plan.planDigest as CanonicalDigest,
+      plan.planDigest,
     );
     if (removedPlan.status === "refused") {
       return { status: "blocked", reason: `plan-${removedPlan.reason}`, planId: plan.planId };

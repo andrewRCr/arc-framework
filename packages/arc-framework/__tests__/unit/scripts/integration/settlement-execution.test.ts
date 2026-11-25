@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { responsePolicyRequestFixture } from "../../../fixtures/review-response-policy.js";
+
 import {
   executeSettlementPlan,
   type SettlementExecutionDependencies,
@@ -43,17 +45,21 @@ function reviewResponseAction() {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: originTarget.targetId,
+      producerId: "settlement-operation",
+      resultDigest: digest("3"),
       policyVersion: digest("1"),
       rubricVersion: "standard-review/v1",
       rubricDigest: digest("2"),
       proposedBy: "review-runtime",
+      proposedVerification: "full",
       findings: [{
         findingId: "finding-1",
         sourceIdentity: "reviewer",
         locus: "src/example.ts:1",
         sourceVerification: "verified",
         verificationRefs: ["receipt:1"],
-        severity: "major",
+        reportedSeverity: "major",
+        verifiedSeverity: "major",
         disposition: "fix",
         rationale: "The finding is supported.",
         recommendation: "Apply the bounded correction.",
@@ -69,6 +75,10 @@ function reviewResponseAction() {
     request: {
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: "local:operation:receipt" },
+      policyRequest: responsePolicyRequestFixture({
+        headSha: originTarget.headSha,
+        reviewOperationId: "settlement-operation",
+      }),
       dispositions,
     },
   });
@@ -227,6 +237,29 @@ describe("integration settlement execution", () => {
     )).resolves.toMatchObject({ state: "invalidated", reason, completedActions: 0 });
   });
 
+  it("maps a hosted unperformed fix to the fix-not-performed invalidation", async () => {
+    const action = hostedAction("d");
+    const dependencies: SettlementExecutionDependencies = {
+      settleHosted: async (request) => ({
+        schemaVersion: 1,
+        mode: "review-hosted-settle",
+        response: request.response,
+        disposition: action.request.disposition,
+        threadId: action.request.finding.threadId,
+        state: "fix-not-performed",
+        nextAction: "complete-verified-fix",
+        interactionText: "Complete the approved fix, then retry.",
+      }),
+      settleReviewResponse: async () => ({ state: "settled" }),
+      confirmCandidateResponse: () => Promise.reject(new Error("unexpected Candidate response confirmation")),
+    };
+
+    await expect(executeSettlementPlan(
+      composeCanonicalSettlementPlan([action]),
+      dependencies,
+    )).resolves.toMatchObject({ state: "invalidated", reason: "fix-not-performed", completedActions: 0 });
+  });
+
   it("hands the review-response executor the head its approved fixes settled at", async () => {
     const action = reviewResponseAction();
     const seen: unknown[] = [];
@@ -250,6 +283,7 @@ describe("integration settlement execution", () => {
     ["stale-target", "stale"],
     ["actor-mismatch", "actor-mismatched"],
     ["missing-record", "missing"],
+    ["fix-not-performed", "fix-not-performed"],
     ["ready-to-fix", "ambiguous"],
   ] as const)("maps a review-response %s to the %s invalidation", async (state, reason) => {
     const action = reviewResponseAction();

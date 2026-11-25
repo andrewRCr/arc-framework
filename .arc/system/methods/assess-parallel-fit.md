@@ -7,7 +7,7 @@ override-active: false
 # Method: assess-parallel-fit
 
 > - **Workflow:** [in-flight-scope-check.md][in-flight-scope-check], [activate-work-unit.md][activate-work-unit],
->   [run-errand.md][run-errand], [session-init.md][session-init]
+>   [run-errand.md][run-errand], [discover-next-work.md][discover-next-work]
 > - **When:** A candidate is weighed against the in-flight work set — when a new WU is about to start (cold-start /
 >   spawn, via the in-flight scope check), at the Planning→Active flip, at the errand surface where `arc errand
 >   check` already emits overlap facts, and at the pick-time / next-work-discovery subset selection.
@@ -137,4 +137,4 @@ candidates at once is the same 2+-unsettled-design note surfacing here — infor
 [in-flight-scope-check]: ../workflows/arc/work-unit-lifecycle/in-flight-scope-check.md
 [activate-work-unit]: ../workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [run-errand]: ../workflows/arc/supplemental/run-errand.md
-[session-init]: ../workflows/arc/session-lifecycle/session-init.md
+[discover-next-work]: discover-next-work.md

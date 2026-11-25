@@ -1,6 +1,8 @@
 /** Typed pre-publication review, delta verification, and Candidate convergence procedure. */
 
 import { z } from "zod";
+import { projectReviewCeilingJudgment } from "./review-ceiling-override.js";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import {
@@ -15,12 +17,14 @@ import {
   type CandidateReviewResponseEvidenceV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
 import { ReviewTargetSchema } from "../core/gate-contract-v2-schema.js";
+import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
 import {
   ReviewPolicyRequestSchema,
   ReviewResolveEnvelopeSchema,
   resolveReviewPolicy,
 } from "./review-policy-driver.js";
 import { FrontlineResponseBindingSchema } from "../core/frontline-response-binding.js";
+import { ReviewCommandDiagnosticSchema } from "../core/review-command-diagnostic.js";
 import { ReviewRoutingFactsSchema } from "./routing-schema.js";
 import {
   CandidateConvergenceBoundarySchema,
@@ -37,12 +41,17 @@ import {
   RunSelfReviewActionSchema,
   StandardReviewReservationTargetSchema,
   parseIntegrationBoundaryLocus,
-  type IntegrationBoundaryLocus,
+  PostAttestContinuationSchema,
+  type PublishedIntegrationBoundaryLocus,
+  type PublishedPostAttestContinuation,
   type StandardReviewReservationV1,
 } from "./integration-boundary-locus.js";
 
-const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const CandidateSubjectDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+import { IntegrationBoundaryLocusV2Schema, CandidateSelfReviewBoundaryV2Schema, CandidateReviewResumeBoundaryV2Schema, CandidateFixBoundaryV2Schema,
+  CandidateConvergenceBoundaryV2Schema, CandidatePublishReadyBoundaryV2Schema } from "./integration-boundary-locus-v2.js";
+
+const CandidateIdSchema = CanonicalDigestSchema;
+const CandidateSubjectDigestSchema = CanonicalDigestSchema;
 const ReviewEvidenceReferenceSchema = z.string().trim().min(1);
 const FrontlinePolicyRequestSchema = ReviewPolicyRequestSchema.refine(
   ({ lane }) => lane === "frontline",
@@ -72,13 +81,18 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
    * checkout cannot currently produce one rather than refusing a procedure that has other work to do.
    */
   target: ReviewTargetSchema.nullable().default(null),
-  /** Complete normalized facts supplied to the workflow-facing Frontline resolver. */
+  /** Complete normalized facts supplied to the workflow-facing frontline resolver. */
   routingFacts: ReviewRoutingFactsSchema,
   /** Candidate authority carried only while frontline reviews a private delivery member. */
   responseBinding: FrontlineResponseBindingSchema.optional(),
   selfReview: z.enum(["inactive", "pending", "settled"]),
   frontline: FrontlinePolicyRequestSchema,
   standard: StandardPolicyRequestSchema,
+  /** Repository-derived completion of the latest findings response in each lane. */
+  pendingResponse: z.strictObject({
+    frontline: ReviewResponseSettlementSourceSchema.nullable(),
+    standard: ReviewResponseSettlementSourceSchema.nullable(),
+  }),
   candidate: z.union([
     z.strictObject({
       ...PrePublicationCandidateCommonSchema,
@@ -121,6 +135,10 @@ type PrePublicationNextAction =
   | z.infer<typeof ContinuePrePublicationActionSchema>
   | z.infer<typeof RunConvergenceVerificationActionSchema>
   | z.infer<typeof PublishCandidateActionSchema>;
+type RoutinePrePublicationNextAction = Exclude<
+  PrePublicationNextAction,
+  z.infer<typeof RunConvergenceVerificationActionSchema>
+>;
 
 export { StandardReviewReservationV1Schema } from "./integration-boundary-locus.js";
 export type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
@@ -131,8 +149,15 @@ const PrePublicationEnvelopeFields = {
   /** The immutable target the exact-target operations this envelope routes to require. */
   target: ReviewTargetSchema.nullable(),
   responseBinding: FrontlineResponseBindingSchema.optional(),
+  /** Why this call composed what it did, such as routing inputs it rejected; never part of the durable boundary. */
+  diagnostics: z.array(ReviewCommandDiagnosticSchema).optional(),
 };
 export const PrePublicationReviewEnvelopeSchema = z.union([
+  CandidateSelfReviewBoundaryV2Schema.extend({ ...PrePublicationEnvelopeFields, policy: z.null() }),
+  CandidateReviewResumeBoundaryV2Schema.extend({ ...PrePublicationEnvelopeFields, policy: ReviewResolveEnvelopeSchema.nullable() }),
+  CandidateFixBoundaryV2Schema.extend({ ...PrePublicationEnvelopeFields, policy: ReviewResolveEnvelopeSchema.nullable() }),
+  CandidateConvergenceBoundaryV2Schema.safeExtend({ ...PrePublicationEnvelopeFields, policy: z.null() }),
+  CandidatePublishReadyBoundaryV2Schema.extend({ ...PrePublicationEnvelopeFields, policy: z.null() }),
   CandidateSelfReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidatePolicyReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateReviewResumeBoundarySchema.extend(PrePublicationEnvelopeFields),
@@ -143,57 +168,87 @@ export const PrePublicationReviewEnvelopeSchema = z.union([
 export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEnvelopeSchema>;
 
 /**
- * The durable boundary an envelope carries, without the target composed alongside it.
+ * The durable boundary an envelope carries, without the target and diagnostics composed alongside it.
  *
- * The target is derived live from the checkout on every call; persisting it would record a fact that
- * goes stale the moment the head moves, against a boundary deliberately keyed to the reviewable
+ * Both are derived live on every call; persisting them would record facts that go stale the moment
+ * the head or the call's inputs change, against a boundary deliberately keyed to the reviewable
  * subject instead.
  */
-export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): IntegrationBoundaryLocus {
+export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): PublishedIntegrationBoundaryLocus {
   const boundary: Record<string, unknown> = { ...envelope };
   delete boundary.target;
   delete boundary.responseBinding;
+  delete boundary.diagnostics;
+  if (envelope.schemaVersion === 2) {
+    delete boundary.policy;
+    return IntegrationBoundaryLocusV2Schema.parse(boundary);
+  }
   return parseIntegrationBoundaryLocus(boundary);
 }
 
 /** Project the next pre-publication action while delegating lane mechanics to the review-policy driver. */
-export function projectPrePublicationReview(input: unknown): PrePublicationReviewEnvelope {
+export function projectPrePublicationReview(
+  input: unknown,
+  postAttestContinuation: PublishedPostAttestContinuation,
+  nativeBoundary?: NativePrePublicationBoundary,
+): PrePublicationReviewEnvelope {
   const request = PrePublicationReviewRequestSchema.parse(input);
+  const nativeTerminus = request.standard.terminus;
+  if (nativeTerminus?.schemaVersion === 2 && nativeBoundary?.terminus !== nativeTerminus.decisionKey) {
+    throw new Error("Native terminus requires its matching boundary key; recompose the boundary on its owning backend.");
+  }
   if (request.selfReview === "pending") {
     return envelope(request, {
       locus: "candidate-review-pending",
       nextAction: action(request.workUnit, "run-self-review", "Run the active author self-review method."),
-    });
+    }, nativeBoundary);
   }
 
   const frontline = resolveReviewPolicy(request.frontline);
+  // A findings producer can exist before the Owner approves dispositions. The response command
+  // is the route that obtains that approval, so it takes precedence over derived policy state.
+  if (request.pendingResponse.frontline !== null) {
+    return pendingResponseEnvelope(request, "frontline", frontline, request.pendingResponse.frontline, nativeBoundary);
+  }
   if (!isSettledFrontline(frontline.state)) {
-    return policyEnvelope(request, "frontline", frontline);
+    return policyEnvelope(request, "frontline", frontline, nativeBoundary);
   }
 
   const standard = resolveReviewPolicy(request.standard);
-  if (standard.state === "findings") return policyEnvelope(request, "standard", standard);
-  if (!isSettledStandard(standard.state)) return policyEnvelope(request, "standard", standard);
+  if (request.pendingResponse.standard !== null) {
+    return pendingResponseEnvelope(request, "standard", standard, request.pendingResponse.standard, nativeBoundary);
+  }
+  if (standard.state === "findings") return policyEnvelope(request, "standard", standard, nativeBoundary);
+  if (!isSettledStandard(standard.state)) return policyEnvelope(request, "standard", standard, nativeBoundary);
   const reservation = standard.state === "awaiting-change-request"
     ? createStandardReviewReservation(request, firstWaitingSource(standard.payload.waitingSources))
     : null;
-  const terminus = standard.state === "owner-accepted" ? standard.payload.terminus : null;
+  const resolvedTerminus = standard.state === "owner-accepted" ? standard.payload.terminus : null;
+  const terminus = resolvedTerminus?.schemaVersion === 1 ? resolvedTerminus : null;
 
   if (request.candidate.convergenceVerification === "pending") {
-    const requiredScope = request.candidate.convergenceScope;
     return envelope(request, {
       locus: "candidate-convergence-verification-pending",
-      nextAction: createRunConvergenceVerificationAction(request.workUnit, requiredScope),
+      nextAction: nativeBoundary === undefined
+        ? createRunConvergenceVerificationAction(request.workUnit, request.candidate.convergenceScope,
+          PostAttestContinuationSchema.parse(postAttestContinuation))
+        : createRunConvergenceVerificationAction(request.workUnit, request.candidate.convergenceScope, postAttestContinuation, 2),
       reservation,
       terminus,
-    });
+    }, nativeBoundary);
   }
   return envelope(request, {
     locus: "candidate-publish-ready",
     nextAction: action(request.workUnit, "publish-candidate", "Publish the current Candidate."),
     reservation,
     terminus,
-  });
+  }, nativeBoundary);
+}
+
+/** Already-resolved native authority carried by the emitted boundary. */
+interface NativePrePublicationBoundary {
+  terminus: z.infer<typeof CanonicalDigestSchema> | null;
+  readinessBinding: z.infer<typeof CanonicalDigestSchema> | null;
 }
 
 export const CandidateDeltaVerificationProjectionSchema = z.strictObject({
@@ -211,7 +266,7 @@ export const CandidateDeltaVerificationProjectionSchema = z.strictObject({
 });
 export type CandidateDeltaVerificationProjection = z.infer<typeof CandidateDeltaVerificationProjectionSchema>;
 
-/** Supply the exact Candidate delta and prior evidence before the primary chooses verification applicability. */
+/** Supply the exact Candidate delta and prior evidence before performed verification is recorded. */
 export function projectCandidateDeltaVerification(input: {
   record: CandidateManagedRecordV1;
   current: z.input<typeof CandidateLineageTargetSchema>;
@@ -240,11 +295,12 @@ export const RecordCandidateVerifiedResponseInputSchema = z.strictObject({
   dispositionId: CandidateIdSchema,
   approvedBy: z.string().trim().min(1),
   appliedBy: z.string().trim().min(1),
+  approvedVerification: CandidateVerificationApplicabilitySchema.optional(),
   applicability: CandidateVerificationApplicabilitySchema,
   verificationEvidenceRefs: z.array(ReviewEvidenceReferenceSchema).min(1),
 });
 
-/** Record one primary-selected verification applicability over an approved exact Candidate delta. */
+/** Record one performed verification and any approved scope supplied by the response boundary. */
 export function recordCandidateVerifiedResponse(input: unknown): CandidateReviewResponseEvidenceV1 {
   const request = RecordCandidateVerifiedResponseInputSchema.parse(input);
   const exactDelta = diffCandidateSubjectSnapshots(
@@ -254,23 +310,28 @@ export function recordCandidateVerifiedResponse(input: unknown): CandidateReview
   if (!sameDelta(exactDelta, request.projection.delta)) {
     throw new Error("Candidate delta verification projection does not match its exact targets");
   }
-  return createCandidateReviewResponseEvidence({
+  const transitionInput = {
     candidateId: request.projection.candidateId,
     oldTarget: request.projection.oldTarget,
     newTarget: request.projection.newTarget,
     dispositionId: request.dispositionId,
     approvedBy: request.approvedBy,
     appliedBy: request.appliedBy,
+    ...(request.approvedVerification === undefined
+      ? {}
+      : { approvedVerification: request.approvedVerification }),
     applicability: request.applicability,
     verificationEvidenceRefs: request.verificationEvidenceRefs,
     implementationChanged: deltaChanged(exactDelta),
-  });
+  };
+  return createCandidateReviewResponseEvidence(transitionInput);
 }
 
 function policyEnvelope(
   request: PrePublicationReviewRequest,
   lane: "frontline" | "standard",
   policy: z.infer<typeof ReviewResolveEnvelopeSchema>,
+  nativeBoundary?: NativePrePublicationBoundary,
 ): PrePublicationReviewEnvelope {
   const findings = policy.state === "findings";
   const interactionText = findings
@@ -278,12 +339,29 @@ function policyEnvelope(
     : `Continue the ${lane} review from the typed policy result '${policy.state}'.`;
   let nextAction: z.infer<typeof ContinuePrePublicationActionSchema>;
   if (policy.state === "ready" && policy.nextAction === "run-frontline") {
+    if (request.target === null) {
+      throw new Error("ready frontline review requires a current exact review target");
+    }
     const resolverRequest = {
       schemaVersion: 1 as const,
       changeSet: request.routingFacts,
       invocation: { mode: "inherit" as const, sourceId: policy.payload.sourceId },
-      pass: policy.payload.pass,
-      maxPasses: Math.max(policy.payload.pass, policy.payload.maxPasses),
+      target: {
+        kind: request.target.kind,
+        baseRef: request.target.baseRef,
+        diffBaseSha: request.target.diffBaseSha,
+        headSha: request.target.headSha,
+      },
+      ...(request.responseBinding === undefined
+        ? {}
+        : { vehicle: request.responseBinding.deliveryMember }),
+      ...(request.frontline.ceilingOverride === undefined
+        ? {}
+        : {
+            policyJudgment: {
+              ceilingOverride: projectReviewCeilingJudgment(request.frontline.ceilingOverride),
+            },
+          }),
     };
     nextAction = ContinuePrePublicationActionSchema.parse({
       kind: "continue-pre-publication-review",
@@ -304,16 +382,41 @@ function policyEnvelope(
     locus: findings ? "candidate-fix-pending" : "candidate-review-pending",
     nextAction,
     policy,
-  });
+  }, nativeBoundary);
+}
+
+function pendingResponseEnvelope(
+  request: PrePublicationReviewRequest,
+  lane: "frontline" | "standard",
+  policy: z.infer<typeof ReviewResolveEnvelopeSchema>,
+  source: z.infer<typeof ReviewResponseSettlementSourceSchema>,
+  nativeBoundary?: NativePrePublicationBoundary,
+): PrePublicationReviewEnvelope {
+  const terminal = request[lane].attempts.at(-1);
+  if (terminal?.outcome !== "findings") {
+    throw new Error("pending review response requires its terminal findings producer");
+  }
+  return envelope(request, {
+    locus: "candidate-fix-pending",
+    nextAction: ContinuePrePublicationActionSchema.parse({
+      kind: "continue-pre-publication-review",
+      command: "arc review respond -",
+      responseOperationId: terminal.reviewOperationId,
+      responseSource: source,
+      interactionText: `Complete the ${lane} review findings response, then resume pre-publication review.`,
+    }),
+    policy,
+  }, nativeBoundary);
 }
 
 function envelope(
   request: PrePublicationReviewRequest,
   projection: Pick<PrePublicationReviewEnvelope, "locus" | "nextAction">
     & Partial<Pick<PrePublicationReviewEnvelope, "policy" | "reservation" | "terminus">>,
+  nativeBoundary?: NativePrePublicationBoundary,
 ): PrePublicationReviewEnvelope {
   return PrePublicationReviewEnvelopeSchema.parse({
-    schemaVersion: 1,
+    schemaVersion: nativeBoundary === undefined ? 1 : 2,
     mode: "pre-publication-review",
     workUnit: request.workUnit,
     candidateId: request.candidateId,
@@ -324,29 +427,25 @@ function envelope(
     reservation: null,
     terminus: null,
     ...projection,
+    ...(nativeBoundary === undefined ? {} : { terminus: nativeBoundary.terminus,
+      ...(projection.locus === "candidate-publish-ready"
+        ? { readinessBinding: nativeBoundary.readinessBinding } : {}) }),
   });
 }
 
 function action(
   workUnit: string,
-  kind: Exclude<PrePublicationNextAction["kind"], "run-convergence-verification">,
+  kind: RoutinePrePublicationNextAction["kind"],
   interactionText: string,
-): PrePublicationNextAction {
-  if (kind === "publish-candidate") {
-    return PublishCandidateActionSchema.parse({
-      kind,
-      command: `arc publish ${workUnit} --json`,
-      interactionText,
-    });
-  }
-  const value = {
-    kind,
-    command: `arc review pre-publication ${workUnit}`,
-    interactionText,
-  };
-  return kind === "run-self-review"
-    ? RunSelfReviewActionSchema.parse(value)
-    : ContinuePrePublicationActionSchema.parse(value);
+): RoutinePrePublicationNextAction {
+  const command = kind === "publish-candidate"
+    ? `arc publish ${workUnit} --json`
+    : `arc review pre-publication ${workUnit}`;
+  return z.union([
+    RunSelfReviewActionSchema,
+    ContinuePrePublicationActionSchema,
+    PublishCandidateActionSchema,
+  ]).parse({ kind, command, interactionText });
 }
 
 function isSettledFrontline(state: z.infer<typeof ReviewResolveEnvelopeSchema>["state"]): boolean {

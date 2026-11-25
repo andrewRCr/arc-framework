@@ -78,15 +78,15 @@ salience for inconsistent rules.
 
 ### Surface set and audience-per-surface
 
-| Surface                  | Audience                         | Purpose                                                       |
-|--------------------------|----------------------------------|---------------------------------------------------------------|
-| Commit body              | Future code archaeology          | WHY + IMPACT; decisions; verification status                  |
-| Task-list Outcome bullet | Integration-time review          | Synthesis from subtasks; spec → outcome traceability          |
-| Status-file pointers     | Next session's session-init      | One-line pointers — what was done / what's next               |
-| SESSION-NOTES            | Next session's agent (cold load) | Personal working context; what tracked surfaces don't carry   |
-| `notes-*.md`             | Integration-time review + author | Free-form temporal scratchpad; trim-or-delete at integration  |
-| PR description           | External reviewer                | Scope summary + test plan; review entry point                 |
-| Handoff commit body      | Cross-machine resume / audit     | Handoff metadata + position pointer (recently codified)       |
+| Surface                  | Audience                         | Purpose                                                      |
+| ------------------------ | -------------------------------- | ------------------------------------------------------------ |
+| Commit body              | Future code archaeology          | WHY + IMPACT; decisions; verification status                 |
+| Task-list Outcome bullet | Integration-time review          | Synthesis from subtasks; spec → outcome traceability         |
+| Status-file pointers     | Next session's session-init      | One-line pointers — what was done / what's next              |
+| SESSION-NOTES            | Next session's agent (cold load) | Personal working context; what tracked surfaces don't carry  |
+| `notes-*.md`             | Integration-time review + author | Free-form temporal scratchpad; trim-or-delete at integration |
+| PR description           | External reviewer                | Scope summary + test plan; review entry point                |
+| Handoff commit body      | Cross-machine resume / audit     | Handoff metadata + position pointer (recently codified)      |
 
 ### Routing principles
 
@@ -469,5 +469,5 @@ Captured 2026-05-20 in maintainer-side exploratory session. The parallel-session
 
 Per ADR-022, the `SESSION-NOTES` / meta pointer-field length hooks become schema-derived — the managed
 operational-state document schema owns the field set and which fields are pointer-shaped vs. free-text,
-so enforcement reads from one schema rather than per-field hooks. See
-`adr-022-managed-operational-state-documents.md` § Coordination.
+so enforcement reads from one schema rather than per-field hooks. See `adr-022-managed-operational-state-documents.md` §
+Coordination.

@@ -1,9 +1,6 @@
 ---
 purpose: Archive a shipped work unit — state flip, file sweep, cohort closeout, ROADMAP regen. Cadence-invariant body.
 audience: agent
-arc:
-  extensions:
-    - post-work-unit-archive
 ---
 
 # Workflow: Archive Work Unit
@@ -96,12 +93,7 @@ WU integration is a regen fire-point. Re-render per [Work Organization Strategy 
 the shipped WU drops out of ROADMAP (rendered from `active/**` and `backlog/planned/**`; once swept, no longer
 reachable).
 
-### 5) Fire `post-work-unit-archive` extension
-
-If `post-work-unit-archive` appears in the active-extensions list (established at session init), load and
-execute its [`.actions`][arc-ext-post-archive]. Otherwise, skip.
-
-### 6) Commit archival
+### 5) Commit archival
 
 Bundle the `arc archive` sweep (state flip + WU relocation + cohort move) + the cohort closeout content when
 applicable + ROADMAP regen.
@@ -149,4 +141,3 @@ keep-a-changelog norms). No mechanical enforcement; convention only.
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [integrate-work-unit]: integrate-work-unit.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
-[arc-ext-post-archive]: ../../../extensions/post-work-unit-archive.md

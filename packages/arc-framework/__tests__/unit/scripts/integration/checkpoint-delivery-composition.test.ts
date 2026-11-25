@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deliveryThreeMemberStackPlanFixture } from "../../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../../fixtures/delivery-state.js";
-import { canonicalDigest } from "../../../../src/lib/kernel/index.js";
-import { GitProcessError } from "../../../../src/lib/git/process-error.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
+import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -15,6 +15,8 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { ReviewResult } from
+  "../../../../src/scripts/review-gate/core/review-result.js";
 import { createStandardReviewReservation } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
@@ -33,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   readConfigSettings: vi.fn(),
   readLaneProgress: vi.fn(),
   readOperationSnapshot: vi.fn(),
+  readResult: vi.fn(),
   readRequest: vi.fn(),
   readSubmissionBoundary: vi.fn(),
   resolveDischargeTargets: vi.fn(),
@@ -60,8 +63,8 @@ vi.mock("../../../../src/lib/work-unit/candidate-effective-target.js", async (im
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/candidate-effective-target.js")>(),
   projectEffectiveCandidateCurrentness: mocks.projectEffectiveCandidateCurrentness,
 }));
-vi.mock("../../../../src/lib/work-unit/candidate-record-store.js", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../../../src/lib/work-unit/candidate-record-store.js")>(),
+vi.mock("../../../../src/lib/store/kinds/review/candidate/access.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../src/lib/store/kinds/review/candidate/access.js")>(),
   readCandidateRecordVersion: mocks.readCandidateRecordVersion,
   readCandidateRecordVersioned: mocks.readCandidateRecordVersioned,
 }));
@@ -74,8 +77,8 @@ vi.mock("../../../../src/lib/work-unit/git-candidate-effective-target.js", async
   projectGitCandidateEffectiveTarget: mocks.projectGitCandidateEffectiveTarget,
   readGitCandidateTargetBase: mocks.readGitCandidateTargetBase,
 }));
-vi.mock("../../../../src/lib/work-unit/submission-boundary-store.js", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../../../src/lib/work-unit/submission-boundary-store.js")>(),
+vi.mock("../../../../src/lib/store/kinds/review/integration-boundary/access.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../src/lib/store/kinds/review/integration-boundary/access.js")>(),
   readSubmissionBoundary: mocks.readSubmissionBoundary,
 }));
 vi.mock("../../../../src/scripts/delivery/hosts/github.js", () => ({
@@ -104,9 +107,12 @@ vi.mock("../../../../src/scripts/review-gate/hosts/local/operation-state-store.j
     readonly readOperationSnapshot = mocks.readOperationSnapshot;
   },
 }));
+vi.mock("../../../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js", () => ({
+  createRepositoryReviewResultReader: vi.fn(() => ({ readResult: mocks.readResult })),
+}));
 vi.mock("../../../../src/scripts/review-gate/lane-progress.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/scripts/review-gate/lane-progress.js")>(),
-  readLaneProgress: mocks.readLaneProgress,
+  readLaneProgressAcrossLineage: mocks.readLaneProgress,
 }));
 vi.mock("../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js", async (importOriginal) => {
   const actual = await importOriginal<
@@ -134,8 +140,17 @@ import {
   "../../../../src/scripts/integration/checkpoint-composition.js";
 import { composeCanonicalSettlementPlan } from
   "../../../../src/scripts/integration/settlement-plan.js";
+import { nativeListingRefusal } from "../../../fixtures/native-refusal.js";
+import type { BaseDriftResult } from "../../../../src/lib/git/base-drift-types.js";
 
 const oid = (character: string): string => character.repeat(40);
+
+function mergeBaseAndDiff(mergeBase: string, paths: string) {
+  return scriptGitExec([
+    { match: { prefix: ["merge-base"] }, responses: [{ stdout: `${mergeBase}\n`, stderr: "" }] },
+    { match: { prefix: ["diff"] }, responses: [{ stdout: paths, stderr: "" }] },
+  ]);
+}
 
 function candidateRecord(workUnit: string, revision: string): CandidateManagedRecordV1 {
   const subject = createCandidateSubjectSnapshot([{
@@ -193,7 +208,13 @@ describe("delivery checkpoint composition", () => {
         detail: "The reserved source has no clean attempt.",
         nextSource: "coderabbit-pr",
       }],
-      progress: [{ status: "complete", completedPasses: 2, attempts: [], attemptHistory: [] }],
+      progress: [{
+        status: "complete",
+        completedPasses: 2,
+        completePasses: 2,
+        attempts: [],
+        attemptHistory: [],
+      }],
       ownerTermini: [{
         vehicle,
         terminus: {
@@ -211,8 +232,8 @@ describe("delivery checkpoint composition", () => {
   it("classifies disjoint delivery drift before effective currentness and path intersections", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
-    const candidateId = `sha256:${"a".repeat(64)}`;
-    const subjectDigest = `sha256:${"b".repeat(64)}`;
+    const candidateId = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
+    const subjectDigest = CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`);
     const candidateHead = oid("c");
     const currentness = {
       status: "current" as const,
@@ -247,11 +268,7 @@ describe("delivery checkpoint composition", () => {
     mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
 
     const mergeBase = oid("a");
-    const exec = vi.fn(async (_command: string, args: readonly string[]) => {
-      if (args[0] === "merge-base") return { stdout: `${mergeBase}\n`, stderr: "" };
-      if (args[0] === "diff") return { stdout: "", stderr: "" };
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    });
+    const { exec, calls } = mergeBaseAndDiff(mergeBase, "");
     const dependencies = createIntegrationCheckpointDependencies({
       cwd: "/repository",
       exec,
@@ -291,6 +308,7 @@ describe("delivery checkpoint composition", () => {
       },
     });
     expect(rawExec).not.toHaveBeenCalled();
+    expect(calls.some(({ args }) => args[0] === "merge-base")).toBe(true);
     expect(mocks.projectGitCandidateEffectiveTarget).not.toHaveBeenCalled();
 
     await dependencies.readCandidate(plan.workUnitId, oid("d"));
@@ -330,18 +348,15 @@ describe("delivery checkpoint composition", () => {
       convergenceVerification: "satisfied",
       convergenceScope: null,
     });
-    const exec = vi.fn(async (_command: string, args: readonly string[]) => {
-      if (args[0] === "merge-base") return { stdout: `${mergeBase}\n`, stderr: "" };
-      if (args[0] === "diff") return { stdout: `${sharedPath}\0`, stderr: "" };
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    });
-    const rawExec = vi.fn(async (args: string[]) => ({
-      stdout: new TextEncoder().encode(
-        args[4] === firstCoordinate.base && args[5] === highestCoordinate.head
-          ? `${sharedPath}\0`
-          : "",
-      ),
-    }));
+    const { exec, calls } = mergeBaseAndDiff(mergeBase, `${sharedPath}\0`);
+    const rawExec = vi.fn(scriptRawGitExec([{
+      match: { prefix: [] },
+      responses: [({ args }) => ({
+        stdout: new TextEncoder().encode(
+          args[4] === firstCoordinate.base && args[5] === highestCoordinate.head ? `${sharedPath}\0` : "",
+        ),
+      })],
+    }]).exec);
     const dependencies = createIntegrationCheckpointDependencies({
       cwd: "/repository",
       exec,
@@ -384,6 +399,7 @@ describe("delivery checkpoint composition", () => {
       },
     });
     expect(mocks.projectGitCandidateEffectiveTarget).not.toHaveBeenCalled();
+    expect(calls.some(({ args }) => args[0] === "merge-base")).toBe(true);
   });
 
   it("scopes the residual to the operator's own resolution above the absorbed predecessor", async () => {
@@ -419,11 +435,7 @@ describe("delivery checkpoint composition", () => {
       convergenceVerification: "satisfied",
       convergenceScope: null,
     });
-    const exec = vi.fn(async (_command: string, args: readonly string[]) => {
-      if (args[0] === "merge-base") return { stdout: `${mergeBase}\n`, stderr: "" };
-      if (args[0] === "diff") return { stdout: `${resolvedPath}\0`, stderr: "" };
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    });
+    const { exec, calls } = mergeBaseAndDiff(mergeBase, `${resolvedPath}\0`);
     // The absorbed top carries the predecessor's content as well as the hand resolution, so the
     // span each diff is anchored at decides which of the two the residual reports.
     const diffs = new Map([
@@ -431,11 +443,14 @@ describe("delivery checkpoint composition", () => {
       [`${firstCoordinate.base}..${highestCoordinate.head}`, [predecessorPath]],
       [`${firstCoordinate.base}..${baselineRevision}`, [predecessorPath, resolvedPath]],
     ]);
-    const rawExec = vi.fn(async (args: string[]) => {
-      const paths = diffs.get(`${args[4]}..${args[5]}`);
-      if (paths === undefined) throw new Error(`unexpected diff span: ${args.join(" ")}`);
-      return { stdout: new TextEncoder().encode(paths.map((path) => `${path}\0`).join("")) };
-    });
+    const rawExec = vi.fn(scriptRawGitExec([{
+      match: { prefix: [] },
+      responses: [({ args }) => {
+        const paths = diffs.get(`${args[4]}..${args[5]}`);
+        if (paths === undefined) throw new Error(`unexpected diff span: ${args.join(" ")}`);
+        return { stdout: new TextEncoder().encode(paths.map((path) => `${path}\0`).join("")) };
+      }],
+    }]).exec);
     const dependencies = createIntegrationCheckpointDependencies({
       cwd: "/repository",
       exec,
@@ -476,6 +491,7 @@ describe("delivery checkpoint composition", () => {
         predecessorPaths: [predecessorPath],
       },
     });
+    expect(calls.some(({ args }) => args[0] === "merge-base")).toBe(true);
   });
 
   it("sanitizes a malformed managed Candidate record failure", async () => {
@@ -511,6 +527,33 @@ describe("delivery checkpoint composition", () => {
     })).resolves.toEqual({
       status: "unavailable",
       detail: "The managed delivery Candidate record could not be read or validated.",
+      evidence: { baseRevision },
+      nextAction: { command: "rerun-checkpoint", workUnit: plan.workUnitId },
+    });
+  });
+
+  it("raises a native refusal reading the managed Candidate record whole, and classifies once the store reads", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baseRevision = oid("d");
+    const refusal = nativeListingRefusal();
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    mocks.readCandidateRecordVersioned.mockRejectedValueOnce(refusal).mockResolvedValueOnce({ record: null, version: null });
+    // Each checkpoint run composes its own dependencies, so the rerun after repair reads the record afresh.
+    const checkpoint = () => createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
+    const drift: BaseDriftResult = {
+      mode: "authoritative", verdict: "reconcile", state: "diverged", ahead: 2, behind: 1, base: "main",
+      baseOid: baseRevision, headOid: oid("c"), movement: "overlapping",
+      integrationEvidence: { coverage: "complete", scannedCommitCount: 1, events: [], unclassifiedCommitCount: 0,
+        truncated: false, limitations: [] },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
+    };
+
+    await expect(checkpoint().classifyDeliveryDrift(plan.workUnitId, drift)).rejects.toBe(refusal);
+    await expect(checkpoint().classifyDeliveryDrift(plan.workUnitId, drift)).resolves.toEqual({
+      status: "unavailable",
+      detail: "The managed delivery Candidate record is unavailable.",
       evidence: { baseRevision },
       nextAction: { command: "rerun-checkpoint", workUnit: plan.workUnitId },
     });
@@ -566,13 +609,13 @@ describe("delivery checkpoint composition", () => {
       record: candidateRecord(plan.workUnitId, baselineRevision),
       version: `sha256:${"e".repeat(64)}`,
     });
+    const { exec, calls } = scriptGitExec([
+      { match: { prefix: ["merge-base"] },
+        responses: [{ stdout: `${oid("a")}\n${oid("b")}\n`, stderr: "" }] },
+    ]);
     const dependencies = createIntegrationCheckpointDependencies({
       cwd: "/repository",
-      exec: vi.fn(async (_command: string, args: readonly string[]) => (
-        args[0] === "merge-base"
-          ? { stdout: `${oid("a")}\n${oid("b")}\n`, stderr: "" }
-          : { stdout: "", stderr: "" }
-      )),
+      exec,
     });
 
     // The baseline is pinned, so merging the base in moves neither side of this pair and the same two bases
@@ -604,6 +647,7 @@ describe("delivery checkpoint composition", () => {
       evidence: { baseRevision, baselineRevision },
       nextAction: { command: "rebaseline", workUnit: plan.workUnitId },
     });
+    expect(calls.map(({ args }) => args[0])).toEqual(["merge-base"]);
   });
 
   it("routes a branch and base sharing no history to the join no reconcile performs", async () => {
@@ -736,14 +780,12 @@ describe("delivery checkpoint composition", () => {
       record: candidateRecord(plan.workUnitId, baselineRevision),
       version: `sha256:${"e".repeat(64)}`,
     });
+    const { exec, calls } = scriptGitExec([
+      { match: { prefix: ["merge-base"] }, responses: [{ failure: { exitCode: 1 } }] },
+    ]);
     const dependencies = createIntegrationCheckpointDependencies({
       cwd: "/repository",
-      exec: vi.fn(async (_command: string, args: readonly string[]) => {
-        if (args[0] === "merge-base") {
-          throw new GitProcessError({ kind: "nonzero-exit", command: "git", args, exitCode: 1 });
-        }
-        return { stdout: "", stderr: "" };
-      }),
+      exec,
     });
 
     // Retaking the baseline is what clears an ambiguous pair here, and it cannot clear this one: a baseline
@@ -775,6 +817,7 @@ describe("delivery checkpoint composition", () => {
       evidence: { baseRevision, baselineRevision },
       nextAction: { command: "merge-unrelated", workUnit: plan.workUnitId },
     });
+    expect(calls.map(({ args }) => args[0])).toEqual(["merge-base"]);
   });
 
   it("retains exact coordinates when the delivery overlap revisions cannot resolve", async () => {
@@ -789,7 +832,9 @@ describe("delivery checkpoint composition", () => {
     });
     const dependencies = createIntegrationCheckpointDependencies({
       cwd: "/repository",
-      exec: vi.fn(async () => { throw new Error("missing object"); }),
+      exec: vi.fn(async (command, args) => {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "missing object" });
+      }),
     });
 
     await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
@@ -837,17 +882,17 @@ describe("delivery checkpoint composition", () => {
         record: candidateRecord(plan.workUnitId, baselineRevision),
         version: `sha256:${"e".repeat(64)}`,
       });
-      const exec = vi.fn(async (_command: string, args: readonly string[]) => {
-        if (args[0] === "merge-base") return { stdout: `${mergeBase}\n`, stderr: "" };
-        if (args[0] === "diff") return { stdout: `${sharedPath}\0`, stderr: "" };
-        throw new Error(`unexpected git args: ${args.join(" ")}`);
-      });
+      const { exec, calls } = mergeBaseAndDiff(mergeBase, `${sharedPath}\0`);
       let diffReads = 0;
-      const rawExec = vi.fn(async () => {
-        diffReads += 1;
-        if (diffReads === failureIndex) throw new Error("private git diagnostic");
-        return { stdout: new Uint8Array() };
-      });
+      const rawExec = vi.fn(scriptRawGitExec([{
+        match: { prefix: [] },
+        responses: [() => {
+          diffReads += 1;
+          return diffReads === failureIndex
+            ? { failure: { exitCode: 128, stderr: "private git diagnostic" } }
+            : { stdout: new Uint8Array() };
+        }],
+      }]).exec);
       const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec, rawExec });
 
       await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
@@ -883,6 +928,7 @@ describe("delivery checkpoint composition", () => {
         },
         nextAction: { command: "rerun-checkpoint", workUnit: plan.workUnitId },
       });
+      expect(calls.some(({ args }) => args[0] === "merge-base")).toBe(true);
     },
   );
 
@@ -977,8 +1023,8 @@ describe("delivery checkpoint composition", () => {
     for (const [index, member] of state.members.entries()) {
       member.changeRequest = { providerId: "github", changeRequestId: String(41 + index) };
     }
-    const candidateId = `sha256:${"a".repeat(64)}`;
-    const subjectDigest = `sha256:${"b".repeat(64)}`;
+    const candidateId = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
+    const subjectDigest = CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`);
     const candidateHead = state.members.at(-1)!.coordinates!.head;
     const baseHead = oid("d");
     const reservation = createStandardReviewReservation({
@@ -1039,7 +1085,9 @@ describe("delivery checkpoint composition", () => {
       reservation,
       deliveryReviewTermini: [],
     });
-    mocks.readConfigSettings.mockResolvedValue({ settings: { "branch.base": "main" } });
+    mocks.readConfigSettings.mockResolvedValue({
+      settings: { "branch.base": "main", "review.standard_max_passes": 2 },
+    });
     mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
     for (const [index, member] of state.members.entries()) {
       mocks.resolveChangeRequest.mockResolvedValueOnce({
@@ -1094,6 +1142,12 @@ describe("delivery checkpoint composition", () => {
     });
     mocks.resolveRepositoryIdentity.mockResolvedValue("repo-1");
     mocks.readOperationSnapshot.mockResolvedValue({ status: "complete", records: [] });
+    const reviewResults = new Map<string, ReviewResult>();
+    mocks.readResult.mockImplementation(async (producerId: string) => {
+      const result = reviewResults.get(producerId);
+      if (result === undefined) throw new Error(`missing review result: ${producerId}`);
+      return result;
+    });
     mocks.readLaneProgress.mockImplementation(async (_store, input) => {
       const target = targets.find(({ headSha }) => headSha === input.headSha);
       if (target === undefined) return { status: "unrecorded" };
@@ -1122,11 +1176,49 @@ describe("delivery checkpoint composition", () => {
         initialAdmission: "automatic",
       });
       if (requirement === null) throw new Error("checkpoint review requirement must derive");
+      const producerId = `coderabbit-pr-${target.headSha}`;
+      reviewResults.set(producerId, {
+        kind: "hosted",
+        producerId,
+        repositoryId: reviewTarget.repositoryId,
+        target: reviewTarget,
+        sourceIdentity: "coderabbit-pr",
+        originalOutcome: "clean",
+        findings: [],
+        resultDigest: canonicalDigest({ producerId }),
+        admission: {
+          lineage: {
+            kind: "delivery-member",
+            planId: vehicle.planId,
+            deliverableId: vehicle.deliverableId,
+            workUnitId: vehicle.workUnitId,
+          },
+          logicalPass: 1,
+          retryGeneration: 0,
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          scopeMode: "whole-target",
+          policyVersion: requirement.policyVersion,
+        },
+        laneOperationId: `lane-progress-${target.headSha}`,
+        actorIdentity: "reviewer-1",
+        hostedTarget: {
+          repository: target.repository,
+          pullRequest: target.pullRequest,
+          headSha: target.headSha,
+        },
+        requirement,
+        hostSettlementFindingIds: [],
+        noHostSettlementFindingIds: [],
+        settled: false,
+      });
       return {
         status: "recorded",
         completedPasses: 1,
+        completePasses: 1,
         attempts: [{
-          attemptId: `coderabbit-pr-${target.headSha}`,
+          attemptId: producerId,
+          logicalPass: 1,
           sourceId: "coderabbit-pr",
           outcome: "clean",
           hosted: {
@@ -1143,7 +1235,9 @@ describe("delivery checkpoint composition", () => {
             actorIdentity: "reviewer-1",
             findings: [],
             dispositionSetId: null,
+            dispositionSetLineage: [],
             settledFindingIds: [],
+            settlementEvidence: [],
           },
         }],
       };
@@ -1152,17 +1246,17 @@ describe("delivery checkpoint composition", () => {
       status: "ready",
       review: input.review,
     }));
-    const exec = vi.fn(async (_command: string, args: readonly string[]) => {
-      if (args[0] === "merge-base") return { stdout: `${baseHead}\n`, stderr: "" };
-      if (args[0] === "rev-list") return { stdout: `${args[1]!.split("..").at(-1)!}\n`, stderr: "" };
-      if (args[0] === "rev-parse" && args[1] === "--verify") {
-        return { stdout: `${args[2]!.replace(/\^\{commit\}$/u, "")}\n`, stderr: "" };
-      }
-      if (args[0] === "rev-parse" && args[1]?.endsWith("^{tree}")) {
-        return { stdout: `${oid("f")}\n`, stderr: "" };
-      }
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    });
+    const exec = vi.fn(scriptGitExec([
+      { match: { prefix: ["merge-base"] }, responses: [{ stdout: `${baseHead}\n`, stderr: "" }] },
+      { match: { prefix: ["rev-list"] }, responses: [({ args }) => ({
+        stdout: `${args[1]!.split("..").at(-1)!}\n`, stderr: "",
+      })] },
+      { match: { prefix: ["rev-parse", "--verify"] }, responses: [({ args }) => ({
+        stdout: `${args[2]!.replace(/\^\{commit\}$/u, "")}\n`, stderr: "",
+      })] },
+      { match: { predicate: (args) => args[0] === "rev-parse" && args[1]?.endsWith("^{tree}") === true },
+        responses: [{ stdout: `${oid("f")}\n`, stderr: "" }] },
+    ]).exec);
 
     const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec });
     return { plan, state, currentness, baseHead, dependencies };
@@ -1209,8 +1303,8 @@ describe("delivery checkpoint composition", () => {
     const state = deliveryStateFixture(plan);
     const terminal = state.members.at(-1)!;
     terminal.changeRequest = { providerId: "github", changeRequestId: "43" };
-    const candidateId = `sha256:${"a".repeat(64)}`;
-    const subjectDigest = `sha256:${"b".repeat(64)}`;
+    const candidateId = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
+    const subjectDigest = CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`);
     const candidateHead = oid("f");
     const currentness = {
       status: "current" as const,

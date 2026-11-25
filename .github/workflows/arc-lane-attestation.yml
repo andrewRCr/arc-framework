@@ -1,5 +1,10 @@
 name: ARC Lane Attestation
 
+# Publication audit (2026-10-06): the pre-flip audit recorded no secrets
+# across branch, tag, pull-request, notes, and backup refs, and verified
+# that this workflow skipped fork pull requests at the job level.
+# Recheck the public-fork threat model whenever this workflow changes.
+# This dated audit does not certify later workflow edits.
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, edited]
@@ -8,7 +13,11 @@ permissions: {}
 
 jobs:
   lane-attestation:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    # Review projections (`review-projection/` heads) are stacked draft pull requests that never merge,
+    # so there is no lane to attest on them.
+    if: >-
+      ${{ github.event.pull_request.head.repo.full_name == github.repository
+      && !startsWith(github.event.pull_request.head.ref, 'review-projection/') }}
     permissions:
       contents: read
       pull-requests: read
@@ -16,11 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: lane-trusted-checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24'
           cache: npm
@@ -61,12 +70,13 @@ jobs:
             -f state=pending -f context=arc-lane \
             -f description='ARC is reclassifying this exact head' -f target_url="$target"
       # Pull-request content is inert classification data; no command executes from this checkout.
+      # It lives under the root `.cache`, which the build inventory excludes, so the trusted build stays qualified.
       - id: lane-data
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ steps.lane-target.outputs.head_repository }}
           ref: ${{ steps.lane-target.outputs.head_sha }}
-          path: _arc_change_data
+          path: .cache/arc-lane-change-data
           fetch-depth: 0
           persist-credentials: false
       - id: lane-status
@@ -79,7 +89,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           lane="$(node packages/arc-framework/dist/cli.js review planning-lane "$BASE_SHA" "$HEAD_SHA" \
-            --repository "$GITHUB_WORKSPACE/_arc_change_data")"
+            --repository "$GITHUB_WORKSPACE/.cache/arc-lane-change-data")"
           test "$lane" = planning || test "$lane" = reviewed
           if [ "$lane" = planning ]; then
             bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY" \

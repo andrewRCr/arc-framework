@@ -39,7 +39,7 @@
 
 ### Carry exact-effect landing approval across a proven no-effect retry
 
-_Routed from `USER-INBOX § Errand`, 2026-09-09._
+- _Routed from:_ `USER-INBOX § Errand`, 2026-09-09.
 
 After an approved delivery-member landing returned a generic refusal, reconciliation proved that no host effect
 landed, cleared the reservation, and required a fresh operation ID. The new preparation described the same member,

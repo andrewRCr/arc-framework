@@ -1,44 +1,19 @@
 # Development Rules (Project)
 
-<!-- Project-specific development standards — filled during project definition
-     (02_define-project § Step 5). Quality gates, testing, code quality, and architecture
-     rules for YOUR project. ARC methodology rules (commit discipline, task execution,
-     session management) live in DEV-RULES.ARC.md and apply universally. -->
-
-Project-specific development standards for [project name]. Quality gates, testing requirements,
-documentation style, file organization, and architecture rules.
-
-For ARC methodology rules (commit discipline, task execution, session management, verification), see
-[DEV-RULES.ARC][dev-rules-arc].
-
 **Domain-scoped rules:** Teams can split domain-specific rules into separate files — e.g.,
 `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`. Domain rule files live alongside this file in
-`constitution/` and are loaded on-demand when work touches the relevant domain, not every session.
+`system/rules/` and are loaded on-demand when work touches the relevant domain, not every session.
 Use this when a domain's rules are substantial enough to warrant separation.
 
 ---
 
 ## Quality Gates
 
-**Zero Tolerance Policy:** All quality checks must pass before any commit, no exceptions · `[invariant]`.
-
-**Tiered Approach:** Quality gates follow a tiered system — fast incremental checks per-task (Tier 1),
-integration checkpoints at coherent unit boundaries (Tier 2), and full suite for phase completion and
-pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates] for tier definitions, escalation guidance,
-and task list integration.
-
-<!-- Record each gate's command in QUICK-REFERENCE § Quality Gate Commands, not here. -->
+**Zero Tolerance Policy:** Every check in a quality gate must pass before its event, no exceptions · `[invariant]`.
 
 ## Testing Requirements
 
-<!-- Describe your test strategy: framework, directory structure, what each tier covers. -->
-
 **Test framework:** [framework name]
-
-<!-- Example structure — adapt to your project: -->
-<!-- - **Unit**: Pure function tests, no side effects -->
-<!-- - **Integration**: Module interaction tests, may use test databases -->
-<!-- - **E2E**: Full application tests against running services -->
 
 **Coverage expectations:** [your coverage philosophy — percentage targets, meaningful assertions,
 or focus areas]
@@ -48,11 +23,6 @@ or focus areas]
 ## Code Quality Principles
 
 Separate concerns, prefer composition over duplication, favor readability when principles conflict.
-
-<!-- Add language-specific or framework-specific standards below. Examples: -->
-<!-- "Strict TypeScript with no `any` types except at validated system boundaries" -->
-<!-- "Python type hints on all public functions" -->
-<!-- "Go error handling: always check, never ignore" -->
 
 ## Documentation Standards
 
@@ -75,26 +45,13 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 ## File Organization
 
-<!-- Describe your project's directory structure — what goes where and why. -->
-
-- `.arc/` - Development documentation (constitution, strategies, workflows, active tasks)
+- `.arc/` - Development documentation (rules, strategies, workflows, active tasks)
 - `[src_dir]/` - [description]
 - `[test_dir]/` - [description]
 
 ## Capture Routing
 
-<!-- How deferred issues are tracked depends on your PM mode. -->
-<!-- arc-in-git: use ARC's built-in capture surfaces (shown below). -->
-<!-- external: route to your tracker per project convention. -->
-<!-- none: define your convention or ask the user. -->
-
-Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces:
-
-- **Atomic work for this work unit** → fold into the commit, or spin an Errand
-- **Atomic work for later** → resolver-backed identity-global `user/{identity}/USER-INBOX.md` § Errand
-- **Multi-step work for later** → appropriate backlog file or existing draft document
-
-See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routing table.
+[Project-specific routing rules]
 
 ## Architecture Documentation
 
@@ -106,5 +63,4 @@ Strategy][adr-methodology] for decision criteria, the three-tier stability model
 ---
 
 [dev-rules-arc]: DEV-RULES.ARC.md
-[quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
 [adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md

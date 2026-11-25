@@ -93,8 +93,7 @@
   `USER-INBOX entry '<title>' is not in the Errand section.` The entry was real and correctly formed; it was
   simply filed under `## Work Unit`, and the fix was to relocate it to `## Errand` first — which the message
   never says. It is a bare `throw new Error` in `lib/user-sync/inbox-writer.ts` rather than a typed refusal
-  carrying a remedy, unlike the checkpoint refusals next door that compose
-  `spineRemedy(cause, instruction, argv)`.
+  carrying a remedy, unlike the checkpoint refusals next door that compose `spineRemedy(cause, instruction, argv)`.
 
 - _Family:_ fifth in the "diagnostics that report a state without naming the fix" family tracked under "Make the
   in-flight artifact advisory name its remedy". That entry's standing clause — "If a fifth appears, state the
@@ -109,6 +108,14 @@
   semantics, ordering contract, or atomicity.
 
 - _Captured during:_ `delivery-post-landing-conflict-recovery` integration, 2026-09-19.
+
+### `[ ]` **Stop treating append-only as an invariant in operational-advisory-registers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-advisory-registers`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan treats append-only history as an invariant. Once notes retire, `history.policy` defaults to
+  `rewrite-with-lease` with `append-only` opt-in (ADR-035 items 9 and 10), built by `history-policy`.
+- _Approach:_ Re-derive whatever rests on append-only against the policy at next planning.
 
 ## Problem / Motivation
 
@@ -194,5 +201,25 @@ reconciliation rather than an introduction.** Two typed register fields already 
 session-init's `notesDriftSurface` carries `expected` / `caution`. Each was minted locally for one surface. A
 third naming that does not absorb these two leaves three vocabularies where the problem was one too many, so the
 inventory owes a mapping for the existing fields, not only a classification of the conditions.
+
+### `[ ]` **Decide whether the session-start reminder nudges survive before building cadence on their markers**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ its cadence mechanism — the draft plans to batch or rate-limit awareness advisories through the existing
+  daily nudge markers.
+
+- _Observation:_ the three once-per-day nudges at session start — the notes compaction advisory, the flagged-Errand
+  reminder (`_Remind:` captures past `inbox.remind_after_days`), and the stale in-flight reminder — are not in active
+  use, and the Owner expects them to need a redesign (2026-10-31). `session-init-agenda` keeps them as they are: their
+  `note` steps carry the marker, and the agent writes it after orientation, as today. The compaction advisory retires
+  with the storage cutover's notes module either way.
+
+- _Approach:_ before building cadence on the daily markers, decide with the Owner whether the Errand and stale
+  in-flight reminders earn their place. Retiring them reaches the `arc-inbox` skill's reminder flag, `drain-inbox`,
+  `strategy-session-operations.md` § USER-INBOX, the `inbox.remind_after_days` setting, `nudge-rate-limit.ts` and its
+  slot fields, and the envelope schema.
+
+- _Captured during:_ `session-init-agenda` draft-design, 2026-10-31.
 
 ---

@@ -1,15 +1,21 @@
 /** Production filesystem and Git boundaries for transient-locus provisioning. */
 
-import { access, cp } from "node:fs/promises";
+import { access } from "node:fs/promises";
 
 import {
   createLinkedWorktree,
   type LinkedWorktreeCreationReceipt,
 } from "../git/linked-worktree.js";
-import { setupLinkedWorktree } from "../git/linked-worktree-setup.js";
+import { nodeCopyWorktreeDirectory, setupLinkedWorktree } from "../git/linked-worktree-setup.js";
+import { nodeCopyFileIfAbsent } from "../git/worktree-include.js";
 import type { BaseSyncResult } from "../git/base-sync.js";
 import type { GitExec } from "../git/exec.js";
+import { normalizeGitRejection } from "../git/process-error.js";
+import {
+  nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
+} from "../schema-command/editor-documents.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
+import { lockSpawnedCheckout, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import {
   createWorktreeMarkerGeneration,
   ensureWorktreeMarkerIgnored,
@@ -27,11 +33,13 @@ import {
 import { withWorktreeOperationLock } from "../work-unit/worktree-operation-lock.js";
 
 export interface NodeProvisioningRuntimeOptions {
+  readonly writeEditorDocuments?: EditorDocumentsWriter;
   readonly exec: GitExec;
   readonly base: string;
   readonly branch: string | null;
-  /** Synchronize the configured base immediately before a new primary branch is cut. */
-  readonly synchronizePrimaryBase?: () => Promise<BaseSyncResult>;
+  /** Synchronize the configured base immediately before a new branch is cut. */
+  readonly synchronizeBase?: () => Promise<BaseSyncResult>;
+  readonly projectionRemovalSlots: ProjectionRemovalSlots;
   readonly postCreateScript: string;
   readonly registeredHarnessDirs: string;
 }
@@ -41,10 +49,15 @@ export function createNodeProvisioningDependencies(
   options: NodeProvisioningRuntimeOptions,
 ): ProvisionTransientLocusDependencies {
   return {
-    createLinkedWorktree: (request) => createLinkedWorktree({
-      exec: options.exec,
-      pathExists: async (path) => access(path).then(() => true, () => false),
-    }, request),
+    createLinkedWorktree: async (request) => {
+      if (request.createBranch && options.synchronizeBase !== undefined) {
+        await synchronizeBaseBeforeCreation(options.synchronizeBase, "Spawned");
+      }
+      return createLinkedWorktree({
+        exec: options.exec,
+        pathExists: async (path) => access(path).then(() => true, () => false),
+      }, request);
+    },
     scanWorktrees: () => scanRegisteredWorktrees(options.exec),
     readMarker: async (worktreePath) => {
       const result = await readWorktreeMarkerGeneration(worktreePath);
@@ -54,16 +67,21 @@ export function createNodeProvisioningDependencies(
     },
     createMarker: async (worktreePath, marker) => {
       await ensureWorktreeMarkerIgnored(worktreePath, options.exec, nodeWorktreeMarkerIgnoreFs);
+      await writeEditorDocumentsOrThrow(worktreePath, options.exec, nodeEditorDocumentsFs, undefined, options.writeEditorDocuments);
       return createWorktreeMarkerGeneration(worktreePath, marker);
     },
     replaceMarker: replaceWorktreeMarkerGeneration,
     removeMarker: removeWorktreeMarkerGeneration,
+    canResumePendingErrandCheckout: (worktreePath, expectedHead) =>
+      canResumePendingErrandCheckout(options, worktreePath, expectedHead),
     setupWorktree: async (worktreePath, primaryPath) => {
       await setupLinkedWorktree({
         exec: options.exec,
         fs: {
+          pathExists: async (path) => access(path).then(() => true, () => false),
+          copyFileIfAbsent: nodeCopyFileIfAbsent,
           directoryExists: async (path) => access(path).then(() => true, () => false),
-          copyDirectory: (source, destination) => cp(source, destination, { recursive: true }),
+          copyDirectory: nodeCopyWorktreeDirectory,
         },
       }, {
         worktreePath,
@@ -107,12 +125,55 @@ export function createNodeProvisioningDependencies(
         checkoutPath,
         branch,
         expectedBranchHead,
-        options.synchronizePrimaryBase,
+        options.synchronizeBase,
       ),
     rollbackPrimary: (checkoutPath, receipt) => rollbackPrimary(options.exec, checkoutPath, receipt),
+    checkRollback: options.projectionRemovalSlots.check,
     rollbackSpawned: (receipt, rosterHead, primaryWorktreePath) =>
       rollbackSpawned(options.exec, receipt, rosterHead, primaryWorktreePath),
+    lockSpawnedCheckout: (worktreePath) => lockSpawnedCheckout(options.exec, worktreePath),
   };
+}
+
+/** Admit setup replay only for a clean, exact branch generation already preserved by base. */
+async function canResumePendingErrandCheckout(
+  options: NodeProvisioningRuntimeOptions,
+  worktreePath: string,
+  expectedHead: string,
+): Promise<boolean> {
+  const run = (args: string[]) => options.exec("git", args, { cwd: worktreePath });
+  const branch = (await run(["symbolic-ref", "--quiet", "--short", "HEAD"])).stdout.trim();
+  const head = (await run(["rev-parse", "--verify", "HEAD^{commit}"])).stdout.trim();
+  if (branch !== options.branch || head !== expectedHead) return false;
+  if ((await run(["status", "--porcelain=v1", "-z", "--untracked-files=all"])).stdout !== "") return false;
+  const args = ["merge-base", "--is-ancestor", head, options.base];
+  try {
+    await run(args);
+    return true;
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    if (failure.exitCode === 1) return false;
+    throw error;
+  }
+}
+
+async function synchronizeBaseBeforeCreation(
+  synchronizeBase: () => Promise<BaseSyncResult>,
+  allocation: "Primary" | "Spawned",
+): Promise<void> {
+  const synchronized = await synchronizeBase();
+  if (synchronized.status === "cleanup-required") {
+    throw new Error(
+      `${allocation} base synchronization requires cleanup at '${synchronized.worktreePath}'; `
+        + "reconcile the temporary base checkout, then retry Errand open.",
+    );
+  }
+  if (synchronized.status === "refused" && synchronized.reason !== "local-ahead") {
+    throw new Error(
+      `${allocation} base synchronization refused (${synchronized.reason}); `
+        + "repair base synchronization, then retry Errand open.",
+    );
+  }
 }
 
 async function checkoutPrimary(
@@ -120,18 +181,10 @@ async function checkoutPrimary(
   checkoutPath: string,
   branch: string | null,
   expectedBranchHead: string | null,
-  synchronizePrimaryBase: (() => Promise<BaseSyncResult>) | undefined,
+  synchronizeBase: (() => Promise<BaseSyncResult>) | undefined,
 ): Promise<PrimaryCheckoutReceipt> {
-  if (branch !== null && expectedBranchHead === null && synchronizePrimaryBase !== undefined) {
-    const synchronized = await synchronizePrimaryBase();
-    if (synchronized.status === "cleanup-required") {
-      throw new Error(
-        `Primary base synchronization requires cleanup at '${synchronized.worktreePath}'.`,
-      );
-    }
-    if (synchronized.status === "refused" && synchronized.reason !== "local-ahead") {
-      throw new Error(`Primary base synchronization refused (${synchronized.reason}).`);
-    }
+  if (branch !== null && expectedBranchHead === null && synchronizeBase !== undefined) {
+    await synchronizeBaseBeforeCreation(synchronizeBase, "Primary");
   }
   const previousBranch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath }))
     .stdout.trim();

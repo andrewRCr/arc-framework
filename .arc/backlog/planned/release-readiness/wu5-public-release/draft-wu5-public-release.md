@@ -9,7 +9,50 @@ README, public repo, community infrastructure, and release automation.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Consider an edge on storage-cutover for the public release**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu5-public-release`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan carries no edge on `storage-cutover` and ignores `refs/arc/*` history. After the cutover,
+  state history rides the code remote by default, and the default backend gives no privacy on a public repository
+  (ADR-035; storage-coupling register row 43, now owned by `storage-cutover`).
+- _Approach:_ Decide at next planning whether release follows the cutover, and how state refs are treated when the
+  repository goes public.
+- _Reconciled 2026-10-14:_ the repository has been public in place with its full history since 2026-10-06.
+  The 2026-10-10 backend decision publishes this repository's personal state with its project state;
+  `storage-cutover` owns the interim `user.notes_push: manual` until notes retire. The remaining planning question is
+  release timing relative to the cutover.
+
+### `[ ]` **Cut releases only from commits that passed the full suite on Linux, Windows and macOS**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Release Automation.
+
+- _Observation:_ nothing in `release-readiness`' drafts requires a release commit to have passed CI, and the
+  repository has no publish workflow yet. A push to `main` runs CI on Linux only; the Windows/macOS pair runs weekly
+  over a fixed list of about 70 files, so nothing records which commits passed everything on all three platforms.
+  `main`'s `errand open` path comparison (on `main` since 2026-07-30) and session-init's checkout selection (since
+  2026-10-16) fail on Windows, and no run tested them there until 2026-11-16 (runs 43917592586, 43925523017).
+
+- _Approach:_ (Owner, 2026-11-16) cut a release only from a commit with a recorded full pass on all three platforms,
+  the record coming from the post-merge full run in "Run every retirement, teardown and park suite on hosted
+  Windows". Settle where the release path reads that record before ARC first publishes for adopters.
+
+- _Captured during:_ `project-manager.ARC`, from a quote on validation tiers the Owner shared, 2026-11-16.
+
+---
+
 ## Scope
+
+_Amended 2026-10-14:_ the scope below is a historical snapshot. The repository has been public in place with its full
+history since 2026-10-06, so making it public through a clean initial commit is no longer a WU5 deliverable. The full
+pre-public history remains public; this work unit does not replace it. The remaining public-release work follows the
+documentation sequence in `cohort-release-readiness.md`.
 
 WU5 takes the beta-tested, contributor-ready framework (WU4 output) and makes it public. This is
 primarily a content and infrastructure work unit — the framework, CLI, and contributor mechanics are
@@ -73,6 +116,11 @@ not "the only approach."
 
 ## Pre-Public Extraction Candidates
 
+_Amended 2026-10-14:_ the list below is a historical catalog, not a remaining pre-publication prerequisite. Public
+visibility with full history is already settled; extracting this content to a private archive before a clean initial
+commit is superseded. Any later content curation needs its own planning decision and does not make already-public
+history private.
+
 Content in `.arc/reference/supplemental/research/` that has value as personal/developer reference but
 doesn't belong in the public repo. Extract to a private archive before the clean initial commit.
 
@@ -102,6 +150,10 @@ doesn't belong in the public repo. Extract to a private archive before the clean
 ---
 
 ## Open Questions (Carried Forward)
+
+_Amended 2026-10-14:_ the going-public mechanism question below is settled: the existing repository became public in
+place with its full history on 2026-10-06. A fresh repository or squashed initial commit is no longer a release
+decision; the other questions remain for planning.
 
 - **GitHub Discussions:** Evaluate need based on beta testing experience
 - **Docs site versioning:** Start unversioned, add versioning later

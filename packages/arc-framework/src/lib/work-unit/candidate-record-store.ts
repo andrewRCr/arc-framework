@@ -3,15 +3,22 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { digestBytes } from "../canonical/canonical-json.js";
+import { CandidateRecordVersionConflictError } from "../store/kinds/review/errors.js";
+import { resolveCandidateRecordRelativePath } from "../store/kinds/review/paths.js";
+
+import { digestBytes, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { atomicWriteFile } from "../fs.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";
+import { withAdvisoryLock } from "../advisory-lock.js";
 import {
   parseCandidateManagedRecord,
   serializeCandidateManagedRecord,
   type CandidateManagedRecordV1,
 } from "./candidate-attestation.js";
+
+export { readRepositoryCandidateSupersessionChain, readRepositoryCandidateRecordRevision } from
+  "../store/kinds/review/candidate/history.js";
+export { resolveCandidateRecordRelativePath };
 
 export const CANDIDATE_RECORD_NAMESPACE = ".arc/system/.internal/candidates";
 
@@ -24,32 +31,15 @@ export interface CandidateRecordStoreFs {
 const nodeCandidateRecordStoreFs: CandidateRecordStoreFs = {
   readFile: (path) => readFile(path, "utf8"),
   writeFile: atomicWriteFile,
-  withLock: async (path, action) => {
-    const handle = await acquireAdvisoryLock(path);
-    try {
-      return await action();
-    } finally {
-      await releaseAdvisoryLock(handle);
-    }
-  },
+  withLock: (path, action) => withAdvisoryLock(path, action),
 };
 
 export interface VersionedCandidateRecord {
   record: CandidateManagedRecordV1 | null;
-  version: string | null;
+  version: CanonicalDigest | null;
 }
 
-export class CandidateRecordVersionConflictError extends Error {
-  constructor() {
-    super("Candidate record changed after it was read");
-    this.name = "CandidateRecordVersionConflictError";
-  }
-}
-
-/** Resolve a Candidate record's repository-relative path. */
-export function resolveCandidateRecordRelativePath(name: string): string {
-  return `${CANDIDATE_RECORD_NAMESPACE}/${SlugSchema.parse(name)}.json`;
-}
+export { CandidateRecordVersionConflictError };
 
 /** Read and validate one Candidate record, or return null when absent. */
 export async function readCandidateRecord(
@@ -83,7 +73,7 @@ export async function readCandidateRecordVersion(
   cwd: string,
   name: string,
   fs: CandidateRecordStoreFs = nodeCandidateRecordStoreFs,
-): Promise<string | null> {
+): Promise<CanonicalDigest | null> {
   const relativePath = resolveCandidateRecordRelativePath(name);
   const content = await readCandidateRecordContent(cwd, relativePath, fs);
   return content === null ? null : digestBytes(Buffer.from(content, "utf8"));

@@ -95,6 +95,8 @@ interface PendingMarker {
 interface RunOpts {
   // undefined → DEFAULT_SESSION_ID on stdin; null → no session_id (sessionless scope).
   sessionId?: string | null;
+  // Present → the payload a hook receives inside a subagent of that session.
+  agentId?: string;
   env?: NodeJS.ProcessEnv;
   args?: string[];
 }
@@ -107,10 +109,14 @@ function claimSentinelPath(markerPath: string): string {
   return markerPath.replace(/\.json$/, ".claim.json");
 }
 
-function hookStdin(sessionId: string | null): string {
+function hookStdin(sessionId: string | null, agentId?: string): string {
   const payload: Record<string, unknown> = { hook_event_name: "PreCompact" };
   if (sessionId !== null) {
     payload.session_id = sessionId;
+  }
+  if (agentId !== undefined) {
+    payload.agent_id = agentId;
+    payload.agent_type = "default";
   }
   return `${JSON.stringify(payload)}\n`;
 }
@@ -138,7 +144,7 @@ function runHookScriptRaw(path: string, cwd?: string, opts: RunOpts = {}): strin
   return execFileSync(process.execPath, [path, ...(opts.args ?? [])], {
     cwd,
     encoding: "utf8",
-    input: hookStdin(resolveSessionId(opts)),
+    input: hookStdin(resolveSessionId(opts), opts.agentId),
     stdio: ["pipe", "pipe", "pipe"],
     env: hookEnv(opts.env),
   });
@@ -154,7 +160,7 @@ function runHookViaShellRaw(path: string, cwd: string, opts: RunOpts = {}): stri
   return execFileSync("sh", ["-c", command], {
     cwd,
     encoding: "utf8",
-    input: hookStdin(resolveSessionId(opts)),
+    input: hookStdin(resolveSessionId(opts), opts.agentId),
     stdio: ["pipe", "pipe", "pipe"],
     env: hookEnv(opts.env),
   });
@@ -991,6 +997,36 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       // Having claimed via the prompt channel, the tool channel now stays silent.
       expect(existsSync(claimSentinelPath(markerPath))).toBe(true);
       expect(runHookScriptRaw(postToolUseScriptPath, root)).toBe("");
+    });
+  });
+
+  it("leaves a pending marker for the session that compacted when its subagent reaches a boundary", () => {
+    withTempArcProject((root) => {
+      runSeedSuccess(root);
+      const markerPath = identityMarkerPath(root);
+      const subagent = { agentId: "019f2f10-cccc-7000-8000-000000000003" };
+
+      // A subagent's hooks carry its parent's session_id, so only the agent marker keeps it from the parent's
+      // one-shot claim.
+      expect(runHookScriptRaw(postToolUseScriptPath, root, subagent)).toBe("");
+      expect(runHookScriptRaw(userPromptScriptPath, root, subagent)).toBe("");
+      expect(existsSync(markerPath)).toBe(true);
+      expect(existsSync(claimSentinelPath(markerPath))).toBe(false);
+
+      const output = runHookScript(postToolUseScriptPath, root);
+      expect(output.hookSpecificOutput?.additionalContext).toContain(markerPath);
+    });
+  });
+
+  it("arms nothing for a subagent's own compaction", () => {
+    withTempArcProject((root) => {
+      const subagent = { agentId: "019f2f10-cccc-7000-8000-000000000003" };
+
+      runSeedSuccess(root, subagent);
+      runSeedFailure(root, subagent);
+
+      expect(existsSync(identityMarkerPath(root))).toBe(false);
+      expect(existsSync(fallbackMarkerPath(root))).toBe(false);
     });
   });
 

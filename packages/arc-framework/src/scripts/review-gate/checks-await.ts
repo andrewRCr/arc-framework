@@ -8,6 +8,8 @@ import {
   type FailedCheckLogsResult,
 } from "./failed-check-logs.js";
 import { SpineRemedySchema } from "../integration/spine-refusal.js";
+import { AWAIT_POLL_INTERVAL_LIMIT_MS, AWAIT_TIMEOUT_LIMIT_MS } from "./await-timing.js";
+import { ReviewCommandDiagnosticSchema } from "./core/review-command-diagnostic.js";
 
 export const RequiredChecksObservationInputSchema = z.strictObject({
   repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
@@ -17,8 +19,8 @@ export const RequiredChecksObservationInputSchema = z.strictObject({
 export type RequiredChecksObservationInput = z.infer<typeof RequiredChecksObservationInputSchema>;
 
 export const ChecksAwaitInputSchema = RequiredChecksObservationInputSchema.extend({
-  timeoutMs: z.number().int().positive().max(30 * 60 * 1_000),
-  pollIntervalMs: z.number().int().positive().max(60 * 1_000),
+  timeoutMs: z.number().int().positive().max(AWAIT_TIMEOUT_LIMIT_MS),
+  pollIntervalMs: z.number().int().positive().max(AWAIT_POLL_INTERVAL_LIMIT_MS),
 }).refine((value) => value.pollIntervalMs <= value.timeoutMs, {
   message: "pollIntervalMs must not exceed timeoutMs",
 });
@@ -68,6 +70,8 @@ const ChecksResultBaseShape = {
   repository: z.string().trim().min(1),
   pullRequest: z.number().int().positive(),
   headSha: GitObjectIdSchema,
+  /** This call's notices, such as a timing flag applied at its limit. */
+  diagnostics: z.array(ReviewCommandDiagnosticSchema).min(1).optional(),
 };
 
 const ChecksObservationBaseShape = {
@@ -301,6 +305,12 @@ function withAwaitTiming(
   return ChecksAwaitResultSchema.parse(projected);
 }
 
+/**
+ * Bound for the one observation made after the wait's deadline. It spans several sequential host reads, so it is
+ * sized for those reads rather than tied to the polling interval, which only paces the observations before it.
+ */
+const FINAL_OBSERVATION_TIMEOUT_MS = 30_000;
+
 /** Await required checks for one exact pull-request head. */
 export async function awaitRequiredChecks(
   input: ChecksAwaitInput,
@@ -310,15 +320,19 @@ export async function awaitRequiredChecks(
     timeoutMs: input.timeoutMs,
     pollIntervalMs: input.pollIntervalMs,
     clock: dependencies.clock,
+    // The deadline callback owns the final observation and its multi-read budget.
+    observeAtDeadline: false,
     deadline: async (elapsedMs) => {
       const observation = await observeRequiredChecks(input, {
         port: dependencies.port,
-        signal: AbortSignal.timeout(input.pollIntervalMs),
+        signal: AbortSignal.timeout(FINAL_OBSERVATION_TIMEOUT_MS),
       });
       return withAwaitTiming(observation, elapsedMs);
     },
     attempt: async ({ signal, elapsedMs }) => {
       const observation = await observeRequiredChecks(input, { port: dependencies.port, signal });
+      // The wait's own deadline cut this observation short; the final observation answers instead.
+      if (observation.state === "unavailable" && signal.aborted) return { kind: "continue" };
       if (observation.state === "pending" && observation.diagnosticFailures.length === 0) {
         return { kind: "continue" };
       }

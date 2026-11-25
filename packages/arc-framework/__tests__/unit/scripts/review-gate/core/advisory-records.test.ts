@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
@@ -6,6 +7,7 @@ import {
   FrontlineOutcomeRecordSchema,
   ReviewReductionProjectionSchema,
   createFrontlineOutcomeRecord,
+  currentApprovedDispositionNode,
 } from "../../../../../src/scripts/review-gate/core/advisory-records.js";
 import {
   approveDispositionState,
@@ -15,6 +17,7 @@ import {
 import { createFixAuthorization } from
   "../../../../../src/scripts/review-gate/core/fix-authorization.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
 
 const target = {
   schemaVersion: 2,
@@ -34,18 +37,22 @@ const approvedDisposition = approveDispositionState({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     targetId: target.targetId,
+    producerId: "local-producer-1",
+    resultDigest: canonicalDigest({ result: "first" }),
     policyVersion: canonicalDigest({ policy: "review" }),
     rubricVersion: "standard-review/v1",
     rubricDigest: canonicalDigest({ rubric: "standard" }),
     proposedBy: "agent-1",
+    proposedVerification: "full",
     findings: [{
       findingId: "finding-1",
       sourceIdentity: "delegated-agent",
       locus: "src/review.ts:42",
       sourceVerification: "verified",
       verificationRefs: ["review:finding-1"],
-      severity: "major",
-      disposition: "fix",
+      reportedSeverity: "major",
+      verifiedSeverity: "major",
+      disposition: "defer",
       gating: "blocking",
       rationale: "The source confirms the boundary issue.",
       recommendation: "Track the correction as follow-up work.",
@@ -70,14 +77,51 @@ const outcome = normalizeFrontlineOutcome({
 });
 
 describe("advisory review records", () => {
+  it("binds canonical disposition identity to the exact producer content", () => {
+    const { dispositionSetId, ...fields } = approvedDisposition.dispositionSet;
+    const first = createDispositionSet({
+      ...fields,
+      producerId: "local-producer-1",
+      resultDigest: canonicalDigest({ result: "first" }),
+    });
+    const second = createDispositionSet({
+      ...fields,
+      producerId: "local-producer-2",
+      resultDigest: canonicalDigest({ result: "second" }),
+    });
+
+    expect(first).toMatchObject({
+      producerId: "local-producer-1",
+      resultDigest: canonicalDigest({ result: "first" }),
+    });
+    expect(second.dispositionSetId).not.toBe(dispositionSetId);
+    expect(second.dispositionSetId).not.toBe(first.dispositionSetId);
+  });
+
+  it("refuses non-NFC finding identities in approval-bearing disposition content", () => {
+    const { dispositionSetId, ...fields } = approvedDisposition.dispositionSet;
+    void dispositionSetId;
+
+    expect(() => createDispositionSet({
+      ...fields,
+      findings: fields.findings.map((finding) => ({
+        ...finding,
+        findingId: "finding-e\u0301",
+      })),
+    })).toThrow(/NFC-normalized/u);
+  });
+
   it("requires exactly one rubric or frontline disposition binding", () => {
     const dispositionSet = approvedDisposition.dispositionSet;
     const fields = {
       schemaVersion: dispositionSet.schemaVersion,
       semanticsVersion: dispositionSet.semanticsVersion,
       targetId: dispositionSet.targetId,
+      producerId: dispositionSet.producerId,
+      resultDigest: dispositionSet.resultDigest,
       policyVersion: dispositionSet.policyVersion,
       proposedBy: dispositionSet.proposedBy,
+      proposedVerification: dispositionSet.proposedVerification,
       findings: dispositionSet.findings,
     };
     const frontlineBinding = {
@@ -118,27 +162,33 @@ describe("advisory review records", () => {
       errand: null,
       deliveryMember: null,
       source,
-      approvedDisposition,
-      fixAuthorization: null,
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     };
     expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       source: source.kind === "attested-local"
         ? { ...source, outcomeRef: "forged" }
         : { ...source, receiptRef: "forged" },
-    }).success).toBe(false);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    });
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       errand: {
         key: "repair-review-state",
         claimId: "claim-1",
         branch: "chore/repair-review-state",
       },
-    }).success).toBe(false);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    });
+    const deliveryMemberRecord = {
       ...record,
       deliveryMember: {
         kind: "delivery-member",
@@ -147,12 +197,33 @@ describe("advisory review records", () => {
         workUnitId: "example",
         head: "a".repeat(40),
       },
-    }).success).toBe(source.kind === "frontline");
+    };
+    if (source.kind === "frontline") {
+      assertSchemaAccepts(ApprovedDispositionRecordSchema, deliveryMemberRecord);
+    } else {
+      assertSchemaRefuses(ApprovedDispositionRecordSchema, deliveryMemberRecord);
+    }
   });
 
   it("binds a Candidate-owned private member to the fix authorization head", () => {
+    const { dispositionSetId: _unused, ...fields } = approvedDisposition.dispositionSet;
+    expect(_unused).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    const finding = fields.findings[0];
+    if (finding?.sourceVerification !== "verified") throw new Error("expected a verified finding");
+    const fixDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...fields,
+        findings: [{
+          ...finding,
+          disposition: "fix" as const,
+          recommendation: "Apply the correction.",
+        }],
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-07-23T15:00:00Z",
+    });
     const fixAuthorization = createFixAuthorization({
-      dispositionState: approvedDisposition,
+      dispositionState: fixDisposition,
       oldTarget: target,
     });
     const record = {
@@ -170,17 +241,203 @@ describe("advisory review records", () => {
         head: target.headSha,
       },
       source: { kind: "frontline", outcomeRef: "outcome:1" },
-      approvedDisposition,
-      fixAuthorization,
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: fixDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition: fixDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
+        fixAuthorization,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     } as const;
 
     expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       deliveryMember: { ...record.deliveryMember, head: "e".repeat(40) },
-    }).success).toBe(false);
+    });
+  });
+
+  it("accepts one immutable approved-set lineage with an explicit current pointer", () => {
+    const dispositionSetId = approvedDisposition.dispositionSet.dispositionSetId;
+    const record = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-advisory/v1" as const,
+      repositoryId: "repo-1",
+      operationId: "operation-1",
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
+      deliveryMember: null,
+      source: { kind: "attested-local" as const, receiptRef: "receipt:1", localSourceRef: "source:1" },
+      currentDispositionSetId: dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
+    };
+
+    expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
+  });
+
+  it("requires an ordered, source-stable lineage whose current pointer identifies the tail", () => {
+    const firstId = approvedDisposition.dispositionSet.dispositionSetId;
+    const { dispositionSetId: _ignored, ...fields } = approvedDisposition.dispositionSet;
+    void _ignored;
+    const successor = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...fields,
+        proposedBy: "agent-2",
+        findings: fields.findings.map((finding) => ({
+          ...finding,
+          sourceVerification: "not-supported" as const,
+          verificationRefs: ["verification://finding-1-refuted"],
+          verifiedSeverity: null,
+          disposition: "reject" as const,
+          rationale: "Focused verification disproved the reported issue.",
+          recommendation: "Take no action.",
+        })),
+      })),
+      approvedBy: "maintainer-2",
+      approvedAt: "2026-07-23T16:00:00Z",
+    });
+    const successorId = successor.dispositionSet.dispositionSetId;
+    const record = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-advisory/v1" as const,
+      repositoryId: "repo-1",
+      operationId: "operation-1",
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
+      deliveryMember: null,
+      source: { kind: "attested-local" as const, receiptRef: "receipt:1", localSourceRef: "source:1" },
+      currentDispositionSetId: successorId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: successorId,
+      }, {
+        approvedDisposition: successor,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: firstId,
+        successorDispositionSetId: null,
+      }],
+    };
+
+    const parsed = ApprovedDispositionRecordSchema.parse(record);
+    expect(currentApprovedDispositionNode(parsed).approvedDisposition).toEqual(successor);
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
+      ...record,
+      currentDispositionSetId: firstId,
+    });
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
+      ...record,
+      approvedDispositionLineage: record.approvedDispositionLineage.map((node, index) =>
+        index === 1 ? { ...node, predecessorDispositionSetId: null } : node),
+    });
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
+      ...record,
+      approvedDispositionLineage: record.approvedDispositionLineage.map((node, index) =>
+        index === 1
+          ? {
+              ...node,
+              approvedDisposition: {
+                ...successor,
+                dispositionSet: { ...successor.dispositionSet, producerId: "other-producer" },
+              },
+            }
+          : node),
+    });
+    const { dispositionSetId: _successorId, ...successorFields } = successor.dispositionSet;
+    void _successorId;
+    const wrongFindingSuccessor = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...successorFields,
+        proposedBy: "agent-3",
+        findings: successorFields.findings.map((finding) => ({
+          ...finding,
+          findingId: "finding-other",
+        })),
+      })),
+      approvedBy: "maintainer-3",
+      approvedAt: "2026-07-23T16:30:00Z",
+    });
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
+      ...record,
+      currentDispositionSetId: wrongFindingSuccessor.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        ...record.approvedDispositionLineage[0]!,
+        successorDispositionSetId: wrongFindingSuccessor.dispositionSet.dispositionSetId,
+      }, {
+        ...record.approvedDispositionLineage[1]!,
+        approvedDisposition: wrongFindingSuccessor,
+      }],
+    });
+  });
+
+  it("binds the fix authorization to the disposition set's approved verification scope", () => {
+    const { dispositionSetId: originalDispositionSetId, ...dispositionFields } = approvedDisposition.dispositionSet;
+    const approvedFix = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...dispositionFields,
+        findings: dispositionFields.findings.map((finding) => {
+          if (finding.sourceVerification !== "verified") {
+            throw new Error("fix-authorization fixture requires a verified finding");
+          }
+          return {
+            ...finding,
+            disposition: "fix" as const,
+            recommendation: "Apply the bounded fix.",
+          };
+        }),
+      })),
+      approvedBy: approvedDisposition.approval.approvedBy,
+      approvedAt: approvedDisposition.approval.approvedAt,
+    });
+    expect(approvedFix.dispositionSet.dispositionSetId).not.toBe(originalDispositionSetId);
+    const fixAuthorization = createFixAuthorization({ dispositionState: approvedFix, oldTarget: target });
+    const record = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-advisory/v1" as const,
+      repositoryId: "repo-1",
+      operationId: "operation-1",
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
+      deliveryMember: null,
+      source: { kind: "attested-local" as const, receiptRef: "receipt:1", localSourceRef: "source:1" },
+      currentDispositionSetId: approvedFix.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition: approvedFix,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
+        fixAuthorization,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
+    };
+
+    expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
+      ...record,
+      approvedDispositionLineage: record.approvedDispositionLineage.map((node) => ({
+        ...node,
+        fixAuthorization: { ...fixAuthorization, approvedVerification: "targeted" as const },
+      })),
+    });
   });
 
   it("binds a frontline outcome to its canonical digest and launched executable", () => {
@@ -198,18 +455,53 @@ describe("advisory review records", () => {
     });
 
     expect(FrontlineOutcomeRecordSchema.parse(record)).toEqual(record);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    assertSchemaRefuses(FrontlineOutcomeRecordSchema, {
       ...record,
       outcomeDigest: canonicalDigest({ outcome: "tampered" }),
-    }).success).toBe(false);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    });
+    assertSchemaRefuses(FrontlineOutcomeRecordSchema, {
       ...record,
       executableIdentity: null,
-    }).success).toBe(false);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    });
+    assertSchemaRefuses(FrontlineOutcomeRecordSchema, {
       ...record,
       sourceIdentity: "other-source",
-    }).success).toBe(false);
+    });
+  });
+
+  it("includes frontline finding navigation in the immutable outcome digest", () => {
+    const normalized = (sourceLabel: string) => normalizeFrontlineOutcome({
+      providerResult: {
+        kind: "findings" as const,
+        findings: [{
+          findingId: "finding-1",
+          severity: "major" as const,
+          locus: "src/review.ts:42",
+          evidenceUrlOrId: "review:finding-1",
+          sourceOrdinal: 1,
+          sourceLabel,
+        }],
+      },
+      source: outcome.source,
+      target,
+      pass: 1,
+      maxPasses: 2,
+    });
+    const recordFor = (sourceLabel: string) => createFrontlineOutcomeRecord({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: "repo-1",
+      operationId: "operation-1",
+      sourceIdentity: "review-cli",
+      executableIdentity: {
+        digest: canonicalDigest({ executable: "reviewer" }),
+        qualifiedVersion: "reviewer/v1",
+      },
+      outcome: normalized(sourceLabel),
+    });
+
+    expect(recordFor("First native label").outcomeDigest)
+      .not.toBe(recordFor("Changed native label").outcomeDigest);
   });
 
   it("requires no executable identity for a never-launched terminal", () => {
@@ -235,13 +527,13 @@ describe("advisory review records", () => {
     });
 
     expect(FrontlineOutcomeRecordSchema.parse(record)).toEqual(record);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    assertSchemaRefuses(FrontlineOutcomeRecordSchema, {
       ...record,
       executableIdentity: {
         digest: canonicalDigest({ executable: "reviewer" }),
         qualifiedVersion: "reviewer/v1",
       },
-    }).success).toBe(false);
+    });
   });
 
   it("retains executable identity when a launched carrier reports an unsupported capability", () => {
@@ -266,10 +558,10 @@ describe("advisory review records", () => {
     });
 
     expect(FrontlineOutcomeRecordSchema.parse(record)).toEqual(record);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    assertSchemaAccepts(FrontlineOutcomeRecordSchema, {
       ...record,
       executableIdentity: null,
-    }).success).toBe(true);
+    });
   });
 
   it("registers strict reduction state and action pairings", () => {
@@ -284,10 +576,10 @@ describe("advisory review records", () => {
       sourceRefs: ["outcome:1"],
     };
     expect(ReviewReductionProjectionSchema.parse(projection)).toEqual(projection);
-    expect(ReviewReductionProjectionSchema.safeParse({
+    assertSchemaRefuses(ReviewReductionProjectionSchema, {
       ...projection,
       nextAction: "none",
-    }).success).toBe(false);
+    });
     expect(ReviewReductionProjectionSchema.parse({
       schemaVersion: 1,
       semanticsVersion: "review-advisory/v1",

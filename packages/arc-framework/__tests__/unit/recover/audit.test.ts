@@ -1,9 +1,23 @@
+import { StateVersionSchema } from "../../../src/lib/store/identity.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { resolveRecoveryStateBasis } from "../../../src/lib/recover/state-basis.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 /** Recovery audit over checkout-local seed and derived-frame facts. */
+
+import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { runRecoverStatus } from "../../../src/commands/status.js";
+import {
+  assertSessionRecoverProbeResult,
+  SessionRecoverProbeResultSchema,
+} from "../../../src/commands/status/schema.js";
 import type { Probe } from "../../../src/commands/status/types.js";
+import { emitCompactionSeed } from "../../../src/lib/compaction-seed/emitter.js";
 import type { CompactionSeed } from "../../../src/lib/compaction-seed/schema.js";
+import { resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
@@ -115,7 +129,8 @@ const CURSOR = {
 
 function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    stateVersion: null,
     emittedAt: "2026-08-05T12:00:00.000Z",
     repoRoot: "/repo",
     branch: "fix/demo",
@@ -136,7 +151,7 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
 function workUnitRow(overrides: Partial<DerivedCheckoutRow> = {}): DerivedCheckoutRow {
   return {
     kind: "work-unit",
-    checkout: { path: "/repo", head: "a".repeat(40), branch: "fix/demo", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "a".repeat(40), branch: "fix/demo", detached: false, primary: true },
     markerGeneration: null,
     parentCheckoutPath: null,
     origin: null,
@@ -164,7 +179,7 @@ function workUnitRow(overrides: Partial<DerivedCheckoutRow> = {}): DerivedChecko
 function transientRow(parentCheckoutPath: string): DerivedCheckoutRow {
   return {
     kind: "transient",
-    checkout: { path: "/repo", head: "a".repeat(40), branch: "chore/recover", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "a".repeat(40), branch: "chore/recover", detached: false, primary: true },
     markerGeneration: `sha256:${"d".repeat(64)}`,
     parentCheckoutPath,
     origin: null,
@@ -218,6 +233,11 @@ function recoveryFrame(overrides: Partial<Extract<RecoveryLocusFrame, { kind: "r
 
 function ok<T>(value: T): Probe<T> {
   return { ok: true, value };
+}
+
+function fixtureValue<T>(probe: Probe<T>): T {
+  if (!probe.ok) throw new Error("Expected a successful fixture probe");
+  return probe.value;
 }
 
 function recover(overrides: Partial<RecoveryAuditProbeState> = {}): RecoveryAuditProbeState {
@@ -336,7 +356,7 @@ function publicIntegrationToTaskOptions(input: {
   const freshCursor = resolveTaskListCursor(freshContent);
   if (freshCursor.status !== "found") throw new Error("expected an appended correction cursor");
   const row = workUnitRow({
-    checkout: { path: checkoutPath, head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
+    checkout: { folderPresent: true, path: checkoutPath, head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
     subject: { kind: "work-unit", key: freshWorkUnit },
     context: {
       ...workUnitRow().context!,
@@ -397,7 +417,7 @@ function integrationTaskProgressionOptions(input: {
   if (seedCursor.status !== "found") throw new Error("expected a seed correction cursor");
   if (freshCursor.status === "malformed") throw new Error("expected a valid fresh task list");
   const row = workUnitRow({
-    checkout: { path: "/repo", head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
     context: {
       ...workUnitRow().context!,
       sessionType: "integration",
@@ -473,7 +493,7 @@ function verificationToPublicOptions(input: {
     }),
     changeRequest: { repository: "owner/repo", pullRequest: 42 },
     terminus: null,
-  });
+  }, 1);
   const integrationBoundary = input.includeContinuation === false
     ? publicationBoundary
     : projectCorrectiveDeliveryStatusBoundary({
@@ -494,7 +514,7 @@ function verificationToPublicOptions(input: {
         },
       });
   const row = workUnitRow({
-    checkout: { path: "/repo", head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
     context: {
       ...workUnitRow().context!,
       sessionType: "integration",
@@ -545,7 +565,7 @@ describe("auditRecoveryState", () => {
 
   it("stops when the entering checkout differs from the seed", async () => {
     const row = workUnitRow({
-      checkout: { path: "/other", head: "a".repeat(40), branch: "fix/demo", detached: false, primary: true },
+      checkout: { folderPresent: true, path: "/other", head: "a".repeat(40), branch: "fix/demo", detached: false, primary: true },
     });
     const frame = derivedFrame({ roster: [row], entering: { kind: "selected", row } });
     const result = await run({
@@ -636,7 +656,7 @@ describe("auditRecoveryState", () => {
     const healthy = workUnitRow();
     const malformed = workUnitRow({
       kind: "unresolved-checkout",
-      checkout: { path: "/bad", head: "e".repeat(40), branch: null, detached: true, primary: false },
+      checkout: { folderPresent: true, path: "/bad", head: "e".repeat(40), branch: null, detached: true, primary: false },
       context: null,
       diagnostics: [{ code: "marker-unreadable", message: "bad sibling" }],
       subject: null,
@@ -1029,6 +1049,16 @@ describe("auditRecoveryState", () => {
     }));
   });
 
+  it("recognizes canonical completed meta paths across archive quarters and sequences", async () => {
+    const result = await run(archivedIntegrationOptions({ archivedMetaPath: ".arc/completed/2029-q2/88_demo/meta-demo.md" }));
+    expect(result.status).toBe("ready");
+    expect(result.explainedDrift).toContainEqual(expect.objectContaining({ kind: "load-set-archival-relocation" }));
+  });
+
+  it.each([".arc/completed/not-a-quarter/49_demo/meta-demo.md"])("refuses a completed lookalike outside the layout: %s", async (archivedMetaPath) => {
+      expect((await run(archivedIntegrationOptions({ archivedMetaPath }))).status).toBe("stop");
+    });
+
   it.each([
     {
       name: "additional path drift",
@@ -1064,18 +1094,64 @@ describe("auditRecoveryState", () => {
     expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "load-set-drift" }));
   });
 
-  it("stops on new dirty paths but explains seed paths committed since emission", async () => {
-    const newDirt = await run({ freshUncommittedFiles: ["src/demo.ts", "src/new.ts"] });
-    expect(newDirt.stopReasons).toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
+  it("explains files dirtied after the seed while every seed path stays dirty", async () => {
+    const added = await run({ freshUncommittedFiles: ["src/demo.ts", "src/new.ts", "src/other.ts"] });
+    expect(added.status).toBe("ready");
+    expect(added.dirtyFiles).toMatchObject({ pathSetMatch: false, match: false, explainedByCommittedProgress: false });
+    expect(added.explainedDrift).toContainEqual(expect.objectContaining({
+      kind: "dirty-path-drift",
+      detail: { resolvedPaths: [], addedPaths: ["src/new.ts", "src/other.ts"], committedSince: "a".repeat(40) },
+    }));
+  });
 
+  it("explains seed paths committed since emission, with or without files dirtied after the seed", async () => {
+    const committedProgress = async () => ({ advanced: true, files: new Set(["src/demo.ts"]) });
     const committed = await run({
       freshHead: "b".repeat(40),
       freshUncommittedFiles: [],
       recover: recover({ dirty: ok({ state: "clean", fileCount: 0 }) }),
-      resolveCommittedProgress: async () => ({ advanced: true, files: new Set(["src/demo.ts"]) }),
+      resolveCommittedProgress: committedProgress,
     });
     expect(committed.status).toBe("ready");
-    expect(committed.explainedDrift).toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
+    expect(committed.explainedDrift).toContainEqual(expect.objectContaining({
+      kind: "dirty-path-drift",
+      detail: { resolvedPaths: ["src/demo.ts"], addedPaths: [], committedSince: "a".repeat(40) },
+    }));
+
+    const both = await run({
+      freshHead: "b".repeat(40),
+      freshUncommittedFiles: ["src/new.ts"],
+      resolveCommittedProgress: committedProgress,
+    });
+    expect(both.status).toBe("ready");
+    expect(both.explainedDrift).toContainEqual(expect.objectContaining({
+      kind: "dirty-path-drift",
+      detail: { resolvedPaths: ["src/demo.ts"], addedPaths: ["src/new.ts"], committedSince: "a".repeat(40) },
+    }));
+  });
+
+  it.each([
+    { name: "a seed path left the dirty set uncommitted", freshUncommittedFiles: [] as string[] },
+    { name: "a seed path left the dirty set uncommitted beside a file dirtied after the seed",
+      freshUncommittedFiles: ["src/new.ts"] },
+  ])("stops when $name", async ({ freshUncommittedFiles }) => {
+    const result = await run({
+      freshUncommittedFiles,
+      recover: recover({ dirty: ok(freshUncommittedFiles.length === 0
+        ? { state: "clean" as const, fileCount: 0 } : { state: "dirty" as const, fileCount: 1 }) }),
+    });
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
+    expect(result.explainedDrift).not.toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
+  });
+
+  it("stops on added files when the dirty-state probe contradicts the path set", async () => {
+    const result = await run({
+      freshUncommittedFiles: ["src/demo.ts", "src/new.ts"],
+      recover: recover({ dirty: ok({ state: "clean", fileCount: 0 }) }),
+    });
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
   });
 
   it("stops on task-cursor drift or a missing required cursor", async () => {
@@ -1102,4 +1178,122 @@ describe("auditRecoveryState", () => {
     expect(result.status).toBe("ready");
     expect(result.taskCursor).toBeNull();
   });
+
+  it("recovers a Planning work unit with a written task list from its emitted seed", async () => {
+    const taskCursor = resolveTaskListCursor(APPENDED_INTEGRATION_TASKS);
+    if (taskCursor.status !== "found") throw new Error("Expected a written task-list cursor");
+    const loadSet = resolveLoadSetManifest({
+      identity: "andrew",
+      activeWorkUnit: "demo",
+      metaPath: ".arc/active/meta-demo.md",
+      sessionType: "planning",
+      planningStage: "generate-tasks",
+      taskListPath: ".arc/active/tasks-demo.md",
+      cohortDocPath: null,
+    });
+    const row = workUnitRow({
+      checkout: { ...workUnitRow().checkout, branch: "plan/demo" },
+      context: {
+        ...workUnitRow().context!,
+        branch: "plan/demo",
+        sessionType: "planning",
+        workflow: "planning",
+        stage: "generate-tasks",
+        taskCursor,
+        loadSet,
+        integrationBoundary: null,
+      },
+    });
+    const state = derivedFrame({
+      roster: [row],
+      entering: { kind: "selected", row },
+      active: { checkoutPath: "/repo", subject: { kind: "work-unit", key: "demo" }, context: row.context! },
+    });
+    const report = JSON.parse(readFileSync(
+      new URL("../../fixtures/session-envelope/recovery-audit-ready.json", import.meta.url), "utf8",
+    )) as { recover: unknown };
+    const baseline = SessionRecoverProbeResultSchema.parse(report.recover);
+    const fresh = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: {
+        derivedLocusState: async () => state,
+        worktree: async () => ({
+          state: "no-remote",
+          ahead: 0,
+          behind: 0,
+          branch: "plan/demo",
+          remoteEvidence: "not-applicable",
+        }),
+        worktreeIdentity: async () => ({ kind: "primary" }),
+        dirty: async () => ({ state: "dirty", fileCount: 1 }),
+        config: async () => fixtureValue(baseline.config),
+        releaseRouting: async () => fixtureValue(baseline.releaseRouting),
+      },
+    });
+    assertSessionRecoverProbeResult(fresh);
+    const emitted = await emitCompactionSeed({
+      store: { version: async () => ({ status: "ok", result: StateVersionSchema.parse("planning-state") }) },
+      cwd: "/repo",
+      envelope: {
+        identity: { identity: "andrew" },
+        derivedLocusState: ok(state),
+        worktree: fresh.worktree,
+        active: ok({ path: ".arc/active/meta-demo.md", sessionType: "planning", currentWorkflow: "generate-tasks" }),
+        loadSet: ok(loadSet),
+        taskCursor: ok(taskCursor),
+      },
+      gitSnapshot: { branch: "plan/demo", head: "a".repeat(40), uncommittedFiles: [".arc/active/tasks-demo.md"] },
+      writeSeed: async () => undefined,
+    });
+    expect(emitted.status).toBe("written");
+    if (emitted.status !== "written") throw new Error("Expected a compaction seed");
+
+    const result = await run({
+      seed: emitted.seed,
+      recover: fresh,
+      freshBranch: "plan/demo",
+      freshUncommittedFiles: [".arc/active/tasks-demo.md"],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.taskCursor).toBeNull();
+    expect(fresh).not.toHaveProperty("taskCursor");
+    expect(row.context?.taskCursor).toEqual(taskCursor);
+  });
 });
+
+it.each((["null", "expired"] as const).flatMap(anchor => (["execution", "planning"] as const).map(sessionType => ({ anchor, sessionType }))))(
+  "rebuilds $anchor state from an emitted $sessionType seed into cursorless verification without replacing code evidence", async ({ anchor, sessionType }) => {
+    const h = createLifecycleHarness(); const primary = await h.seedMeta("demo");
+    const subject = { kind: "work-unit" as const, key: "demo", uid: boundWorkUnitSubject(primary).uid };
+    const beforeLoadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: "demo", metaPath: ".arc/active/meta-demo.md",
+      sessionType, planningStage: sessionType === "planning" ? "generate-tasks" : null, workUnitStage: "task-work", taskListPath: ".arc/active/tasks-demo.md", cohortDocPath: null });
+    const beforeRow = workUnitRow({ subject, context: { ...workUnitRow().context!, sessionType, stage: sessionType === "planning" ? "generate-tasks" : null,
+      workflow: sessionType === "planning" ? "planning" : "process-task-loop", loadSet: beforeLoadSet } });
+    const before = derivedFrame({ roster: [beforeRow], entering: { kind: "selected", row: beforeRow },
+      active: { checkoutPath: "/repo", subject, context: beforeRow.context! } });
+    const missing = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [], condition: "History expired.", remedy: { text: "Rebuild current state." } };
+    const emitted = await emitCompactionSeed({ cwd: "/repo", envelope: { identity: { identity: "andrew" }, derivedLocusState: ok(before),
+      worktree: ok({ branch: "fix/demo", identity: { kind: "primary" } }), active: ok({ path: ".arc/active/meta-demo.md", sessionType, currentWorkflow: "process-task-loop" }),
+      loadSet: ok(beforeLoadSet), taskCursor: ok(CURSOR) }, gitSnapshot: { branch: "fix/demo", head: "a".repeat(40), uncommittedFiles: ["src/demo.ts"] },
+      store: anchor === "null" ? { version: async () => ({ status: "refused", refusal: missing }) } : h.store, writeSeed: async () => {} });
+    if (emitted.status !== "written") throw new Error(JSON.stringify(emitted));
+    const selected: Store = Object.create(h.store) as Store;
+    if (anchor === "expired") selected.changes = async () => ({ status: "refused", refusal: missing });
+    const afterLoadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: "demo", metaPath: ".arc/active/meta-demo.md",
+      sessionType: "execution", planningStage: null, workUnitStage: "verification-closeout", taskListPath: ".arc/active/tasks-demo.md", cohortDocPath: null });
+    const afterRow = workUnitRow({ subject, context: { ...workUnitRow().context!, workflow: "verify-work-unit", workUnitStage: "verification-closeout",
+      taskCursor: { status: "no-open-task" }, loadSet: afterLoadSet } });
+    const after = derivedFrame({ roster: [afterRow], entering: { kind: "selected", row: afterRow },
+      active: { checkoutPath: "/repo", subject, context: afterRow.context! } });
+    const fresh = recover({ derivedLocusState: ok(after), recoveryFrame: ok(recoveryFrame({ workflow: "verify-work-unit" })), loadSet: ok(afterLoadSet), taskCursor: ok({ status: "no-open-task" }) });
+    const basis = await resolveRecoveryStateBasis({ seed: emitted.seed, recover: fresh, store: selected });
+    const verdict = await run({ seed: basis.seed, recover: fresh });
+    expect(verdict.status).toBe("ready");
+    expect(verdict.taskCursor).toBeNull();
+    expect(basis).toEqual({ rebuilt: true, seed: { ...emitted.seed, stateVersion: lifecycleSuccess(await h.store.version()),
+      currentWorkflow: "verify-work-unit", sessionType: "execution", loadSet: afterLoadSet, taskCursor: null } });
+    expect(emitted.seed.currentWorkflow).toBe(sessionType === "planning" ? "generate-tasks" : "process-task-loop");
+    expect(emitted.seed.uncommittedFiles).toEqual(["src/demo.ts"]);
+  });

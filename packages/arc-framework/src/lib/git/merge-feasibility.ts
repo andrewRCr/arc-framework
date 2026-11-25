@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "./exec.js";
 import type { PathTreatmentClassifier } from "./base-drift-types.js";
 import { isGitObjectId } from "./object-id.js";
 import { readMergeTreeComposition } from "./merge-tree.js";

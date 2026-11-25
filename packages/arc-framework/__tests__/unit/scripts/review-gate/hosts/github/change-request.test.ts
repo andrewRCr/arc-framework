@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { GitExec } from "../../../../../../src/lib/git/exec.js";
 import { createGhChangeRequestResolutionPort } from "../../../../../../src/scripts/review-gate/hosts/github/change-request.js";
+import { scriptGitExec } from "../../../../../helpers/git-exec-fake.js";
 
 const head = "a".repeat(40);
 const candidate = {
@@ -29,16 +30,17 @@ describe("GitHub change-request port", () => {
   });
 
   it("reads qualified local and remote branch identities with exact argv", async () => {
-    const exec = vi.fn<GitExec>(async (_command, args) => {
-      if (args[0] === "check-ref-format") return { stdout: "" };
-      if (args[0] === "rev-parse") return { stdout: `${head}\n` };
-      if (args[0] === "ls-remote") return { stdout: `${head}\trefs/heads/feat/example\n` };
-      throw new Error(`unexpected invocation: ${args.join(" ")}`);
-    });
+    const { exec, calls } = scriptGitExec([
+      { match: ["check-ref-format", "--branch", "feat/example"], responses: [{ stdout: "" }] },
+      { match: ["rev-parse", "--verify", "refs/heads/feat/example^{commit}"],
+        responses: [{ stdout: `${head}\n` }] },
+      { match: ["ls-remote", "--heads", "origin", "refs/heads/feat/example"],
+        responses: [{ stdout: `${head}\trefs/heads/feat/example\n` }] },
+    ]);
     const port = createGhChangeRequestResolutionPort(exec, "/repo");
 
     await expect(port.readHeadRef("feat/example")).resolves.toEqual({ local: head, remote: head });
-    expect(exec.mock.calls).toEqual([
+    expect(calls.map(({ command, args, options }) => [command, args, options])).toEqual([
       ["git", ["check-ref-format", "--branch", "feat/example"], { cwd: "/repo" }],
       ["git", ["rev-parse", "--verify", "refs/heads/feat/example^{commit}"], { cwd: "/repo" }],
       ["git", ["ls-remote", "--heads", "origin", "refs/heads/feat/example"], { cwd: "/repo" }],
@@ -46,35 +48,91 @@ describe("GitHub change-request port", () => {
   });
 
   it("resolves repository and remote heads through the selected non-origin remote", async () => {
-    const exec = vi.fn<GitExec>(async (_command, args) => {
-      if (args[0] === "config") return { stdout: "git@github.com:owner/repo.git\n" };
-      if (args[0] === "check-ref-format") return { stdout: "" };
-      if (args[0] === "rev-parse") throw new Error("missing local branch");
-      if (args[0] === "ls-remote") return { stdout: `${head}\trefs/heads/feat/example\n` };
-      throw new Error(`unexpected invocation: ${args.join(" ")}`);
-    });
+    const { exec, calls } = scriptGitExec([
+      { match: ["config", "--get", "remote.upstream.url"],
+        responses: [{ stdout: "git@github.com:owner/repo.git\n" }] },
+      { match: ["check-ref-format", "--branch", "feat/example"], responses: [{ stdout: "" }] },
+      { match: ["rev-parse", "--verify", "refs/heads/feat/example^{commit}"],
+        responses: [{ failure: { exitCode: 1, stderr: "missing local branch" } }] },
+      { match: ["ls-remote", "--heads", "upstream", "refs/heads/feat/example"],
+        responses: [{ stdout: `${head}\trefs/heads/feat/example\n` }] },
+    ]);
     const port = createGhChangeRequestResolutionPort(exec, "/repo", "upstream");
 
     await expect(port.resolveRepository()).resolves.toBe("owner/repo");
     await expect(port.readHeadRef("feat/example")).resolves.toEqual({ local: null, remote: head });
-    expect(exec).toHaveBeenCalledWith("git", ["config", "--get", "remote.upstream.url"], { cwd: "/repo" });
-    expect(exec).toHaveBeenCalledWith(
-      "git",
-      ["ls-remote", "--heads", "upstream", "refs/heads/feat/example"],
-      { cwd: "/repo" },
-    );
+    expect(calls).toContainEqual({ command: "git", args: ["config", "--get", "remote.upstream.url"], options: { cwd: "/repo" } });
+    expect(calls).toContainEqual({
+      command: "git", args: ["ls-remote", "--heads", "upstream", "refs/heads/feat/example"],
+      options: { cwd: "/repo" },
+    });
   });
 
   it("represents an absent local and remote branch without inventing an identity", async () => {
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "check-ref-format") return { stdout: "" };
-      if (args[0] === "rev-parse") throw new Error("missing local branch");
-      if (args[0] === "ls-remote") return { stdout: "" };
-      throw new Error(`unexpected invocation: ${args.join(" ")}`);
-    };
+    const { exec, calls } = scriptGitExec([
+      { match: ["check-ref-format", "--branch", "feat/example"], responses: [{ stdout: "" }] },
+      { match: ["rev-parse", "--verify", "refs/heads/feat/example^{commit}"],
+        responses: [{ failure: { exitCode: 1, stderr: "missing local branch" } }] },
+      { match: ["ls-remote", "--heads", "origin", "refs/heads/feat/example"],
+        responses: [{ stdout: "" }] },
+    ]);
 
     await expect(createGhChangeRequestResolutionPort(exec, "/repo").readHeadRef("feat/example"))
       .resolves.toEqual({ local: null, remote: null });
+    expect(calls.map(({ args }) => args[0])).toEqual(["check-ref-format", "rev-parse", "ls-remote"]);
+  });
+
+  it("confirms ancestry from local objects only", async () => {
+    const descendant = "b".repeat(40);
+    const { exec, calls } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "--quiet", "--end-of-options", `${head}^{commit}`],
+        responses: [{ stdout: `${head}\n` }] },
+      { match: ["rev-parse", "--verify", "--quiet", "--end-of-options", `${descendant}^{commit}`],
+        responses: [{ stdout: `${descendant}\n` }] },
+      { match: ["merge-base", "--is-ancestor", head, descendant], responses: [{ stdout: "" }] },
+    ]);
+
+    await expect(createGhChangeRequestResolutionPort(exec, "/repo").isAncestor(head, descendant)).resolves.toBe(true);
+    expect(calls.map(({ args, options }) => [args[0], options])).toEqual([
+      ["rev-parse", { cwd: "/repo", objectAccess: "local-only" }],
+      ["rev-parse", { cwd: "/repo", objectAccess: "local-only" }],
+      ["merge-base", { cwd: "/repo", objectAccess: "local-only" }],
+    ]);
+  });
+
+  it("answers no ancestry when Git reports none", async () => {
+    const descendant = "b".repeat(40);
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["rev-parse", "--verify", "--quiet", "--end-of-options"] },
+        responses: [{ stdout: `${head}\n` }, { stdout: `${descendant}\n` }] },
+      { match: ["merge-base", "--is-ancestor", head, descendant],
+        responses: [{ failure: { exitCode: 1, stderr: "" } }] },
+    ]);
+
+    await expect(createGhChangeRequestResolutionPort(exec, "/repo").isAncestor(head, descendant)).resolves.toBe(false);
+  });
+
+  it("answers no ancestry without comparing when a commit is absent locally", async () => {
+    const descendant = "b".repeat(40);
+    const { exec, calls } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "--quiet", "--end-of-options", `${head}^{commit}`],
+        responses: [{ failure: { exitCode: 1, stderr: "" } }] },
+    ]);
+
+    await expect(createGhChangeRequestResolutionPort(exec, "/repo").isAncestor(head, descendant)).resolves.toBe(false);
+    expect(calls.map(({ args }) => args[0])).toEqual(["rev-parse"]);
+  });
+
+  it("surfaces any other ancestry failure", async () => {
+    const descendant = "b".repeat(40);
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["rev-parse", "--verify", "--quiet", "--end-of-options"] },
+        responses: [{ stdout: `${head}\n` }, { stdout: `${descendant}\n` }] },
+      { match: ["merge-base", "--is-ancestor", head, descendant],
+        responses: [{ failure: { exitCode: 128, stderr: "fatal: bad object" } }] },
+    ]);
+
+    await expect(createGhChangeRequestResolutionPort(exec, "/repo").isAncestor(head, descendant)).rejects.toThrow();
   });
 
   it("bounds both host searches and validates their payloads", async () => {

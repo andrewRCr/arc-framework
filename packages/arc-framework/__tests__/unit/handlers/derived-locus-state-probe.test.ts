@@ -12,7 +12,6 @@ const EXPECTED_CORRECTION_BY_ENTRY_STATUS = {
   "authoring-required": "none",
   "canonicalize-provisional": "none",
   "validate-canonical": "none",
-  "repair-required": "none",
   "resume-bound": "none",
   "correction-routing-required": "authoring-required",
   "review-fix-verification-required": "scoped-verification-required",

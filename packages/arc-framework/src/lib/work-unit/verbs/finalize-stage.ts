@@ -16,6 +16,8 @@
  * - **create-spec** — persists the resolved `Class` only. `Current Workflow` and
  *   the begin-sentinel `Next Action` are PPR's, written by the adjacent
  *   `set-stage generate-tasks --advance`.
+ * - **amend-design** — persists the resolved `Class` only, without changing
+ *   the current planning stage or its pointers.
  * - **generate-tasks** (the planning terminus) — persists `Class`, the derived
  *   `Task List` (`tasks-<name>.md`), and the terminal `Next Action`. No stage
  *   advance (`activate` clears `Current Workflow`), so the `Next Action` is a fixed
@@ -27,25 +29,28 @@
  * @module
  */
 
-import { validateClass, type WorkClass } from "../../../commands/active/types.js";
+import { validateClass, type WorkClass } from "../../kernel/schema/vocabulary.js";
 import { formatValue, type MetaFieldName } from "../../active/meta-reader.js";
 import { resolveArcPath } from "../../layout/index.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
+import { readWorkUnit, recordPut, batchLifecycleWrites, usesOffBranchState, workUnitMetaPath } from "../../store/lifecycle-write.js";
+import type { StoreRefusal } from "../../store/refusal.js";
+import type { Store } from "../../store/contract.js";
+import { writeMetaClass, writeMetaTaskList, writeMetaNextAction } from "../../store/kinds/meta/writers.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /** The planning ceremony whose finalize facts are being written. */
-export type FinalizeFirePoint = "create-spec" | "generate-tasks";
+export type FinalizeFirePoint = "create-spec" | "amend-design" | "generate-tasks";
 
-/** The fire-points, in lifecycle order — the closed set the verb validates against. */
-const FIRE_POINTS: readonly FinalizeFirePoint[] = ["create-spec", "generate-tasks"];
+/** The closed set of ceremony fire-points the verb validates against. */
+const FIRE_POINTS: readonly FinalizeFirePoint[] = ["create-spec", "amend-design", "generate-tasks"];
 
 /** Fire-points that persist the resolved `Class` (the others take no Class). */
 const CLASS_FIRE_POINTS: ReadonlySet<FinalizeFirePoint> = new Set(FIRE_POINTS);
 
 /**
- * The fixed terminal `Next Action` strings, keyed by fire-point. create-spec is
- * absent — its `Next Action` is PPR's begin-sentinel (it advances into a next
- * stage), not a terminal string.
+ * The fixed terminal `Next Action` strings, keyed by fire-point. create-spec
+ * and amend-design are absent — neither writes a terminal pointer.
  */
 const TERMINAL_NEXT_ACTION: Partial<Record<FinalizeFirePoint, string>> = {
   "generate-tasks": "Task list finalized — ready to activate",
@@ -53,6 +58,8 @@ const TERMINAL_NEXT_ACTION: Partial<Record<FinalizeFirePoint, string>> = {
 
 /** The executor capabilities the finalize-fact write needs. */
 export interface FinalizeStageContext {
+  cwd: string;
+  store?: Store;
   /** Core-table `Class` write (read → rewrite cell → write). */
   writeClassField: NonNullable<ExecuteTransitionContext["writeClassField"]>;
   /** Bullet-field write for `Task List` / `Next Action` (read → rewrite → write). */
@@ -72,7 +79,7 @@ export type FinalizeStageResult =
       /** The terminal Next Action written, or `null` when not written. */
       nextAction: string | null;
     }
-  | { status: "rejected"; reason: string };
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal };
 
 /**
  * Write the named WU's finalize facts for the given `firePoint`. Validates the
@@ -82,7 +89,7 @@ export type FinalizeStageResult =
  *
  * @param ctx - The executor seams carrying the Class and bullet-field writes.
  * @param params - `name` (the WU slug, resolving `.arc/active/meta-<name>.md`), the `firePoint`, and the
- *   resolved `workClass` (required at create-spec / generate-tasks).
+ *   resolved `workClass` (required at every fire-point).
  * @returns `ok` with the written meta path and the facts written, or `rejected` with a reason.
  */
 export async function runFinalizeStage(
@@ -133,6 +140,10 @@ export async function runFinalizeStage(
     return { status: "rejected", reason: `The \`${firePoint}\` finalize takes no Class.` };
   }
 
+  if (ctx.store !== undefined && usesOffBranchState(ctx.store)) {
+    return finalizeThroughStore(ctx.cwd, ctx.store, { name, firePoint, resolvedClass });
+  }
+
   const metaPath = resolveArcPath({
     kind: "work-unit-artifact",
     placement: { kind: "active", scope: { kind: "project" } },
@@ -163,4 +174,23 @@ export async function runFinalizeStage(
   }
 
   return { status: "ok", metaPath, firePoint, workClass: resolvedClass, taskList, nextAction };
+}
+
+async function finalizeThroughStore(checkoutRoot: string, store: Store, values: {
+  name: string; firePoint: FinalizeFirePoint; resolvedClass: WorkClass | null;
+}): Promise<FinalizeStageResult> {
+  const { name, firePoint, resolvedClass } = values;
+    const read = await readWorkUnit(store, name);
+    if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
+    const metaPath = await workUnitMetaPath(checkoutRoot, read.result);
+    let content = read.result.content;
+    if (resolvedClass !== null) content = writeMetaClass(content, resolvedClass);
+    const taskList = firePoint === "generate-tasks" ? `tasks-${read.result.reference.owner.name}.md` : null;
+    if (taskList !== null) content = writeMetaTaskList(content, taskList);
+    const nextAction = TERMINAL_NEXT_ACTION[firePoint] ?? null;
+    if (nextAction !== null) content = writeMetaNextAction(content, nextAction);
+    const written = await batchLifecycleWrites(store, [recordPut(read.result, { content })],
+      { verb: "finalize", lifecycleAction: firePoint });
+    return written.status === "refused" ? { status: "rejected", reason: written.refusal.condition, refusal: written.refusal }
+      : { status: "ok", metaPath, firePoint, workClass: resolvedClass, taskList, nextAction };
 }

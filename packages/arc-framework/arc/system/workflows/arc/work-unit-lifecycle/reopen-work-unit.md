@@ -5,8 +5,6 @@ arc:
   methods:
     - branch-format
     - commit-footer
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Reopen Work Unit
@@ -51,12 +49,18 @@ Then choose how the PR is withdrawn:
 - **draft** (`--keep-pr`) — convert the PR back to a draft, leaving it open but out of active review. Use when the same
   PR will resume shortly and its thread / URL are worth preserving.
 
+A withdrawal driven by a finding that changes the design record enters through [`amend-design`][amend-design]
+first: its [entry gate][amend-design-gate] settles what changes, and the corrective parent is authored and
+committed before the reopen runs, so `--task` has an executable leaf to anchor on. A coherently bound delivery
+refuses here (Step 2) — that correction runs through [`deliver-stack`][deliver-stack]'s review-fix continuation
+instead.
+
 ### 2) Run the `reopen` transition
 
 ```bash
 arc reopen {name}            # close the PR (default)
 arc reopen {name} --keep-pr  # convert the PR to a draft instead
-arc reopen {name} --keep-pr --task "Task X.Y.R — ..."  # return to reopened task execution
+arc reopen {name} --keep-pr --task "Task X.R.a — ..."  # resume at the corrective parent's executable leaf
 ```
 
 The verb first establishes exact delivery composition through its typed read-only projection. Determinate delivery
@@ -72,8 +76,8 @@ with the exact corrective boundary.
 The executor then fires the `reopen` edge: flips `**State:** Integrating → Active`, clears the now-stale integration
 `**Next Action:**` pointer, and fires the `withdraw-pr` side-effect — `gh pr close` (default) or
 `gh pr ready --undo` (`--keep-pr`). Without `--task`, `**Next Task:**` stays `[none]` and `Current Workflow`
-returns to `prepare-work-unit`. With an exact `--task`, the transition writes that orientation and clears
-`Current Workflow` to `[none]`, returning the Active work unit to `process-task-loop`. `{name}` defaults to the
+returns to `prepare-work-unit`. With an exact `--task`, the transition writes that orientation and sets
+`Current Workflow` to `process-task-loop`, returning the Active work unit to task execution. `{name}` defaults to the
 current worktree's WU. Candidate currentness remains mandatory before prepublication resumes; reopened task
 execution carries no review or publication authority from the stale Candidate.
 
@@ -105,10 +109,6 @@ Context: meta-{name}.md (maintenance)
 The branch is already upstream (the PR was open). Push the state-flip commit so the remote reflects `Active` — and,
 under `--keep-pr`, so the draft PR carries it.
 
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list (established at
-  session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an actionable message; user
-  fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
@@ -116,10 +116,10 @@ under `--keep-pr`, so the draft PR carries it.
 
 With `--task`, resume [`process-task-loop.md`](../process-task-loop.md) at the exact canonical cursor. When the final
 task closes, session init and recovery project `verify-work-unit` until Candidate attestation. Without `--task`, the
-already-closed WU is back in
-Candidate-bearing `**State:** Active`, which projects `sessionType: prepublication` and `workflow:
-prepare-work-unit`; return to [`prepare-work-unit.md`][prepare]. Candidate currentness and review procedures account
-for head-changing fixes; never route from the cleared narrative `**Next Action:**` field.
+already-closed WU is back in Candidate-bearing `**State:** Active`, which projects
+`sessionType: prepublication` and `workflow: prepare-work-unit`; return to [`prepare-work-unit.md`][prepare].
+Candidate currentness and review procedures account for head-changing fixes;
+never route from the cleared narrative `**Next Action:**` field.
 
 ---
 
@@ -144,4 +144,7 @@ back to [`integrate-work-unit.md`][integrate].
 [commit-footer]: ../../../methods/commit-footer.md
 [integrate]: integrate-work-unit.md
 [prepare]: prepare-work-unit.md
+[deliver-stack]: ../supplemental/deliver-stack.md
+[amend-design]: ../supplemental/amend-design.md
+[amend-design-gate]: ../supplemental/amend-design.md#entry-gate
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md

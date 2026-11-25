@@ -4,7 +4,7 @@
  * @module
  */
 
-import { sortByCanonicalBytes } from "../canonical/canonical-json.js";
+import { sortByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
 import type { GitExec } from "../git/exec.js";
 import { CouplingAuditScanError } from "./contracts.js";
 import { normalizeRepositoryPath } from "./canonical.js";

@@ -4,6 +4,7 @@
  * @module
  */
 
+import { assertNever } from "../kernel/index.js";
 import type { GitExec } from "./exec.js";
 import {
   classifyPathTreatment,
@@ -226,10 +227,6 @@ async function analyzeRevisionOverlapWithClassifier(options: {
     mergeBase,
     overlap: { status: "available", substantivePaths, regenerablePaths },
   };
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled path treatment: ${String(value)}`);
 }
 
 async function readChangedPaths(exec: GitExec, mergeBase: string, revision: string): Promise<string[] | null> {

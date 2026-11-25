@@ -4,14 +4,10 @@ audience: agent
 arc:
   methods:
     - issue-triage
-    - quality-gate-commands
     - review-chunking
     - testing-standards
     - validate-criteria
-  extensions:
-    - post-task-quality
-    - post-unit-quality
-    - post-task-completion
+    - verification-review
 ---
 
 # Workflow: Task Processing Loop
@@ -26,14 +22,11 @@ printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect -
 
 Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required`,
 `review-fix-verification-required`, and a correction-owned `resume-bound` invoke the selector-free
-`arc delivery review-fix continue -` procedure in
-[`supplemental/deliver-stack.md`](supplemental/deliver-stack.md). It derives the exact member, operation, verification,
-and acknowledgment from canonical state; dispatch its machine actions and re-enter it without reconstructing a
-selector. `canonicalize-provisional` resumes the matching
-delivery-entry route. `repair-required` with `reauthor-plan` enters the matching authoring route in that workflow and
-reruns inspection after the replacement revision is composed. `refused` renders `recommendedActionText` and stops;
-any other result also stops as an
-execution-entry contract violation.
+`arc delivery review-fix continue -` procedure in [`supplemental/deliver-stack.md`](supplemental/deliver-stack.md).
+It derives the exact member, operation, verification, and acknowledgment from
+canonical state; dispatch its machine actions and re-enter it without reconstructing a
+selector. `canonicalize-provisional` resumes the matching delivery-entry route. `refused` renders
+`recommendedActionText` and stops; any other result stops as an execution-entry contract violation.
 
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded unit of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
@@ -81,20 +74,14 @@ execution-entry contract violation.
 - **Completion protocol:**
 
   1. When you finish a **single task** (one checkbox item):
-     - **First**: Run incremental quality checks on modified files — **Tier 1** — using the
-       [quality-gate-commands method][arc-methods-qg]
-       - Task list may specify additional checkpoints (including E2E) — those are mandatory; otherwise
-         use judgment on whether changes warrant extra validation
-     - **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
-       (established at session init), load and execute its [`.actions`][arc-ext-task-quality]. Otherwise, skip.
-     - **Second**: Prepare the task's completion edit; apply the final `[x]` in item 4 after any coherent-unit and
+     - **First**: Prepare the task's completion edit; apply the final `[x]` in item 4 after any coherent-unit and
        delivery-member checks have completed
        - Update task description to reflect actual work done (not just original plan)
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.
-       - **Completion notes — content discipline.** At `[x]`, **`_Goal:_` and every `_Retired in:_ Phase N`
-         detail bullet are preserved verbatim**.
+       - **Completion notes — content discipline.** At `[x]`, **`_Goal:_`, every `_Retired in:_ Phase N`
+         detail bullet, and every `_Amended in:_ X.R (An)` detail bullet are preserved verbatim**.
          **Replace** pre-completion peer descriptors (`_Note:_`, `_Rationale:_`, `_Approach:_`,
          `_Context:_`, `_Shape:_`) and all other Goal-children (description bullets, Build test-first lists)
          with a single `_Outcome:_` bullet at root — peer to Goal, **placed after the subtasks** (Goal opens;
@@ -116,10 +103,10 @@ execution-entry contract violation.
          preserving — only when the choice would surprise a reader; cross-references to the commit, ADR, or
          `notes-{name}.md` for deeper context.
 
-         **Exclude:** quality-gate outcomes (`[x]` already implies they passed; metrics like "840/840 tests"
-         or "Tier 2 clean" are noise); per-decision rationale already in the commit body or `notes-{name}.md`
-         (link, don't restate); test-batching / sequencing narrative (mention only if deviating from project
-         default); process narration (what was tried, debugging steps, mid-task discoveries); forward planning
+         **Exclude:** quality-gate outcomes (`[x]` already implies they passed; metrics like "840/840 tests" are noise);
+         per-decision rationale already in the commit body or `notes-{name}.md` (link, don't restate); test-batching /
+         sequencing narrative (mention only if deviating from project default); process narration (what was tried,
+         debugging steps, mid-task discoveries); forward planning
          (belongs in next task entry or Next Action).
 
          **Soft cap:** ~3 lines for atomic subtasks, ~6 lines for parent tasks summarizing rolled-up scope.
@@ -127,24 +114,34 @@ execution-entry contract violation.
 
          **Per-subtask outcome content:** the indented description bullet under each subtask shifts from plan
          to outcome at `[x]`. Same shape, no label change — the indent under a `[x]` already signals "what
-         got done." A `_Retired in:_ Phase N` detail bullet stays verbatim instead of shifting.
+         got done." A `_Retired in:_ Phase N` or `_Amended in:_ X.R (An)` detail bullet stays verbatim instead of
+         shifting.
        - **Deferred or superseded tasks**: When a task is intentionally skipped — deferred to a later work
          unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
          instead of `[x]`. Add a brief outcome note explaining why (e.g., "Deferred to WU3", "Superseded by
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
        - **Do not update `meta-{name}.md` at this step.** See [DEV-RULES.ARC][dev-rules-arc]
          § Meta-file timing.
-     - **Third**: Verify the task work before the boundary checks below.
+     - **Second**: Verify the task work before the boundary checks below.
+
+     **Segment-verifier scenario (conditional).** A task carrying the `— validate exit criterion at segment scope`
+     role suffix closes its segment by running that segment's exit-criterion scenario and recording the outcome as
+     its ordinary completion note. A scenario that did not pass is not a completion: leave the task `[ ]`, stop,
+     and enter [`amend-design`][amend-design] over the failure — its [entry gate][amend-design-gate] decides what
+     the failure changes. When the miss is a timing or performance bound, first take the free rerun in
+     [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure; unless a rule the user already gave makes a passing rerun
+     the verdict, stop with every result. Never patch it inline, and never hang the corrective work under the
+     verifier, which re-runs its scenario to close. The key is the task in hand, never list-wide state.
 
      **Deferred-review policy for item 4:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
      The deferral changes only item 4's task-interlock cadence. Delivery-member and work-unit verification methods,
      including any advisory companions they invoke, still fire at their ordinary boundaries.
-     Complete only the specified work — update the task list and run quality gates after each
-     task, but continue to the next without waiting for approval. Leave the task list updated,
-     quality gates passing, and changes uncommitted (user decides commit boundaries when they
-     return). Under `arc.commitInterlock ∈ {on-task-approval, on-workflow}`, deferred review
+     Complete only the specified work — update the task list and run the quality request after each task's `[x]` and
+     completion note, then continue without waiting for approval. Leave the task list updated, quality gates passing,
+     and changes uncommitted (user decides commit boundaries when they return). Under
+     `arc.commitInterlock ∈ {on-task-approval, on-workflow}`, deferred review
      safe-accumulates by default — no per-task commit release within the deferred range. See
      [strategy-session-operations][session-ops] § Deferred-Review × Commit-Interlock Release for the explicit
      opt-in syntax.
@@ -170,14 +167,20 @@ execution-entry contract violation.
 
      Stop when the specified scope is complete, or earlier if a stop condition is met:
 
-     - **Must stop:** quality gate failure that can't be auto-fixed, blocking dependency on
-       another task or external input, unanticipated design decision that needs user input,
+     - **Must stop:** quality gate failure with neither an auto-fix nor an in-scope fix, blocking dependency
+       on another task or external input, unanticipated design decision that needs user input,
        or scope significantly exceeding expectations for the task
-     - **Continue with note:** auto-fixable lint issues (fix and note), task taking longer
-       than expected but progressing, minor deviation from plan that doesn't change outcomes
+     - **Continue with note:** auto-fixable lint issues (fix and note), an in-scope fix (make it, note it on the
+       task it serves, and re-run), including one for a confirmed finding from your own review of the unfinished
+       work ([DEV-RULES.ARC][dev-rules-arc] § Review finding mutation guard), task taking longer than expected but
+       progressing, minor deviation from plan that doesn't change outcomes
 
-     Stop conditions are not suspended by deferred review — a non-auto-fixable gate failure
-     ends the deferred scope early and surfaces the issue to the user.
+     Stop conditions are not suspended by deferred review — a gate failure with neither an auto-fix nor an
+     in-scope fix ends the deferred scope early and surfaces the issue to the user.
+
+     An unanticipated design decision enters [`amend-design`][amend-design] at that stop rather than being settled
+     inside the increment; its [entry gate][amend-design-gate] returns that the design holds where only the
+     derivation was incomplete.
 
   2. **Coherent unit completion:** If the task you just finished completes a coherent unit of work —
      the last incomplete subtask under a parent, a standalone task that modifies
@@ -187,10 +190,7 @@ execution-entry contract violation.
      within the phase are complete.
 
     - **First**: Ensure new code has appropriate test coverage for new or modified logic
-    - **Second**: Run quality gates — **Tier 2** — using the [quality-gate-commands method][arc-methods-qg]
-    - **Extensions** · `#post-unit-quality`: If `post-unit-quality` appears in the active-extensions list
-      (established at session init), load and execute its [`.actions`][arc-ext-unit-quality]. Otherwise, skip.
-    - **Third**: Verify completion before reporting (use pre-report checklist below)
+    - **Second**: Verify completion before reporting (use pre-report checklist below)
 
   3. **Delivery-member boundary (conditional):** When this is the last task assigned to a delivery member, run the
      member's criteria walk after the coherent-unit checks and before completing or reporting the task. Record the
@@ -198,8 +198,35 @@ execution-entry contract violation.
      for terminal verification. If the report contains an unresolved `[ ]`, dispatch to item 4's unresolved branch;
      otherwise dispatch to its resolved completion branch.
 
+     **A closing task that already carries a preserved boundary report does not re-walk.** For a `_Work:_ none`
+     amendment awaiting this verifier, run [validate-criteria's amendment-delta procedure][criteria-deltas] over the
+     changed criteria and amendment span; record the bounded delta in this verifier's own evidence, keyed by the
+     amendment row id.
+
+     Compose the effective report from the preserved report and its deltas. If any criterion remains `[ ]`, dispatch to
+     item 4's unresolved branch; otherwise close with a completion note citing the delta subtask, or the verifier and
+     amendment id for a work-free delta, and dispatch to the resolved branch. The key selecting this branch is the
+     preserved report on the task being executed, never list-wide state.
+
+     Before a fresh member criteria walk or its first independent reviewer, invoke `arc review changeset resolve -`
+     over the bounded member diff, including local edits, using `validate-criteria` § Verification subject for its
+     exact coordinates. Dispatch on the resolver's typed state/action pair:
+
+     - `disabled / none`, `below-threshold / continue-review`, or `scope-selected / continue-review` — continue.
+     - `consider-chunks / select-review-scope` — render `recommendedActionText`, then apply
+       [`review-chunking`][review-chunking]. Select bounded scopes or an explicit capable whole-target route before
+       launch; keep the selected criteria and verification rubric unchanged.
+     - `delivery-bound / continue-review` — use the bound scopes as seeds, assess this member's attention burden
+       under `review-chunking`, and resolve uncovered verification scope before launch.
+     - `evidence-unavailable / continue-review`, command failure, or an unsupported result — preserve the diagnostic
+       and resolve the missing measurement or scope evidence before launch; never treat it as below threshold.
+
+     Retain the target, state, metrics when supplied, and scope disposition with the criteria evidence. Reuse an
+     unchanged exact-subject result. This check leaves the independent companion's offer intact; the committed-span
+     check below still closes the member's final span.
+
      ```yaml
-     validate-criteria:
+     verification-review:
        scope:
          kind: delivery-member
          criteria: member group in the task list's Success Criteria section
@@ -207,11 +234,14 @@ execution-entry contract violation.
          reachability: cumulative tree through this member
      ```
 
+     Run [verification-review][verification-review] over that scope, including its [author criteria
+     walk][verification-walk] and [independent companion][verification-companion].
+
      Before advancing beyond the member, close its scale-attention result against the exact committed member span.
      When the closing task's changes do not yet have their approved commit head, defer this scale step through item 4
      and obtain the commit in item 5, then return here before starting the next task. Under
      `arc.commitInterlock: manual`, approval does not authorize delivery-member advancement or the missing commit;
-     item 5 stops for the developer's explicit commit invocation. Invoke `arc review chunking resolve -` with the
+     item 5 stops for the developer's explicit commit invocation. Invoke `arc review changeset resolve -` with the
      member's bounded `{ kind, baseRef, diffBaseSha, headSha }` target and any existing exact-target scope selection.
 
      - `disabled / none` records the returned exact target, state, and disposition; its typed envelope carries no
@@ -232,34 +262,45 @@ execution-entry contract violation.
      criterion. Use the unresolved member-report branch only when item 3 returns an unresolved `[ ]`. Then stop
      through the shared interlock.
 
+     The quality request is `arc check increment`. For the task carrying the
+     `— validate exit criterion at segment scope` role suffix, use `arc check segment` instead.
+
      **Unresolved member-report branch:** When item 3 returned an unresolved `[ ]`, leave the closing task `[ ]`.
-     Preserve the report as boundary evidence, but do not cascade parent completion, run the completion extension,
-     or apply the completion-only checklist. Report the unresolved criteria, evidence span, and verification status,
+     Preserve the report as boundary evidence, but do not cascade parent completion or apply the completion-only
+     checklist. Run the quality request once after recording the preserved report.
+     Report its result with the unresolved criteria and evidence span as the branch's verification status,
      then end with `Member criteria unresolved: <details>. Fix now or amend/defer?`. Do not execute the resolved
      completion branch.
+
+     Every answer — `Fix now`, `amend`, and `defer` alike — enters [`amend-design`][amend-design]; its
+     [entry gate][amend-design-gate] decides what the chosen answer changes. Corrective work takes a revision parent of
+     its own; it never lands inside the verifier's increment. An amendment with `_Work:_ none` needs no corrective
+     parent: the covering verifier records its bounded delta as verification evidence through the preserved-report path
+     above. This task closes only on a resolved effective report.
 
      **Resolved completion branch:** Finalize the task completion and report it through the ordinary task interlock.
 
      - **First**: Mark the task `[x]`, cascade its parent to `[x]` when all subtasks are complete, and finish the
        prepared completion note. When item 3 fired, include the returned criteria evidence and span in that outcome.
+     - **Quality request**: Run the request once over the final tracked edits, including this completion edit.
+       Report feedback failures; failed enforcement holds the increment and follows the quality-gate-failure prompt
+       below. Re-run after obvious fixes. If the segment request remains red, remove this task's `[x]` and completion
+       note, leave the segment open, and skip the completion-only checklist. Whichever answer
+       the failure prompt receives, it does not close the segment; this gate failure uses the ordinary failure path,
+       while a failed verifier scenario still enters `amend-design` as above.
      - **Delivery correction acknowledgment (conditional):** When the delivery continuation returned
        `verification-required`, complete the scoped result, close this task, and invoke its `resumeAction` with only
        that result added as `verification`. Dispatch the returned exact acknowledgment action, re-enter the same
        continuation, invoke its Candidate-renewal authority action and require `status: unchanged`, then re-enter and
        require the retained hosted-review authority action. Any refusal, malformed action, other attestation result,
        or other continuation route stops. Never reconstruct or refresh a locator, and never substitute whole-WU
-       verification, Frontline, or generic prepublication.
-     - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
-       list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
-       Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
-       sync task completion status — see [Team Coordination Strategy][team-coordination] § External Tracker
-       Integration.
+       verification, frontline review, or generic prepublication.
      - **Second**: Verify completion against the pre-report checklist.
 
      **Pre-Report Checklist** (verify before generating the completion report):
 
      ```
-     - [ ] Quality checks passed (Tier 1, plus Tier 2 when item 2 applied)
+     - [ ] Quality request completed; enforcement passed and feedback failures reported
      - [ ] Task list file edited and saved
      - [ ] Task marked [x] and description updated to reflect actual work
      - [ ] Member report recorded and Success Criteria unchanged (when item 3 applied)
@@ -284,24 +325,25 @@ execution-entry contract violation.
          continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
          before moving on.
 
-     If any checklist item is unchecked, complete it before reporting. For quality gate failures: fix obvious
-     issues (lint, type errors) and re-run. Diagnose a non-obvious failure before posing it, then end the completion
-     report with `Quality gates failed: <details>. <cause>. Fix now or defer? (fix / defer)`. If diagnosis reaches
-     no cause, say so and ask for direction.
+     If any checklist item is unchecked, complete it before reporting. For quality gate failures: fix obvious issues
+     (lint, type errors), make an in-scope fix ([DEV-RULES.ARC][dev-rules-arc] § Quality gate failure), and re-run.
+     Diagnose any other failure before posing it, then end the completion report with
+     `Quality gates failed: <details>. <cause>. Fix now or defer? (fix / defer)`. If diagnosis reaches no cause, say
+     so and ask for direction.
 
 > [!IMPORTANT]
 > `task-interlock`: Stop after reporting task completion. Surface verification status and await
 > approval before advancing.
 
-  5. Await user instructions on how to proceed.
-     User may choose to commit changes or request modifications. Under
-     `arc.commitInterlock: manual`, task approval advances work only; committing remains an
-     explicit user-invoked action. Under `on-task-approval` (or `on-workflow`, which subsumes it),
-     the commit-interlock releases on task approval per
-     [Configurability Architecture Strategy][config-arch] § Session interlocks; on
-     approval signal, invoke the [arc-commit skill][arc-commit-skill] — it owns the
-     simple-vs-complex path decision and loads the format methods. A deferred delivery-member scale closeout is the
-     bounded exception to ordinary advancement: in manual mode, stop for the explicit commit invocation; in an
+  5. Await user instructions on how to proceed. User may choose to commit changes
+     or request modifications. Under `arc.commitInterlock: manual`, task approval
+     advances work only; committing remains an explicit user-invoked action.
+     Under `on-task-approval` (or `on-workflow`, which subsumes it), the commit-interlock
+     releases on task approval per [Configurability Architecture Strategy][config-arch]
+     § Session interlocks; on approval signal, invoke the [arc-commit skill][arc-commit-skill]
+     — it owns the simple-vs-complex path decision and loads the format methods.
+     A deferred delivery-member scale closeout is the bounded exception to ordinary
+     advancement: in manual mode, stop for the explicit commit invocation; in an
      auto-fire mode, commit on approval. After that commit lands, return to item 3, record and close the scale result,
      then start the bundle's named target without re-prompting. Complexity criteria still bump to manual-with-prompt
      rather than invoking prepare-commits silently.
@@ -335,10 +377,10 @@ publication transition. Public integration follows through `integrate-work-unit.
 
 ## Incidental Work Management
 
-When work surfaces mid-task that should be fixed, route it by urgency × isolation — fix inline
-(same concern), run an Errand (out-of-WU), or capture to `USER-INBOX` for later. See
-[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full decision table: the
-atomic-vs-multi-step call, capture routing, and where captures drain.
+When work surfaces mid-task that should be fixed, route it by urgency × isolation — fix inline (same concern), message
+a live work unit's session (its concern), run an Errand (out-of-WU), or capture to `USER-INBOX` for later. See
+[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full decision table: the atomic-vs-multi-step call,
+capture routing, and where captures drain.
 
 ### Atomic Task Completion
 
@@ -355,10 +397,10 @@ When you complete an atomic task in a shared inbox (`ATOMIC-INBOX` or `USER-INBO
 
 ### Incidental Commit Discipline
 
-Off-workflow / incidental commits follow the review-increment invariant
-([DEV-RULES.ARC][dev-rules-arc] § Review-Increment Invariant): surface what landed (file list,
-summary, or diff sample), then end with the structured prompt — `Commit and proceed to
-<next-target>?` (releasing) or `Proceed?` (manual). The affirmative covers both work AND commit.
+Off-workflow / incidental commits follow the review-increment invariant ([DEV-RULES.ARC][dev-rules-arc]
+§ Review-Increment Invariant): surface what landed (file list, summary, or diff
+sample), then end with the structured prompt — `Commit and proceed to <next-target>?`
+(releasing) or `Proceed?` (manual). The affirmative covers both work AND commit.
 Informal mid-discussion approval ("ok", "looks good") does not release commit.
 
 ## Task List Maintenance
@@ -377,14 +419,15 @@ updates**. Always update the task list file before reporting completion.
 
 [config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
-[arc-ext-task-quality]: ../../extensions/post-task-quality.md
-[arc-ext-task-completion]: ../../extensions/post-task-completion.md
-[arc-ext-unit-quality]: ../../extensions/post-unit-quality.md
 [arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
-[arc-methods-qg]: ../../methods/quality-gate-commands.md
+[verification-review]: ../../methods/verification-review.md
+[verification-walk]: ../../methods/verification-review.md#author-criteria-walk
+[verification-companion]: ../../methods/verification-review.md#independent-companion
+[criteria-deltas]: ../../methods/validate-criteria.md#amendment-deltas
 [review-chunking]: ../../methods/review-chunking.md
-[team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
 [arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md
 [session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md
 [strat-tlf]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
+[amend-design]: supplemental/amend-design.md
+[amend-design-gate]: supplemental/amend-design.md#entry-gate

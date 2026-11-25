@@ -111,7 +111,9 @@ export function createBaseMergePort(input: {
       const before = await resolveOid(input.exec, input.cwd, "HEAD");
       if (before !== headOid) return { status: "head-moved", actualHead: before };
       try {
-        await input.exec("git", ["merge", "--no-ff", "--no-edit", baseOid], { cwd: input.cwd });
+        await input.exec("git", [
+          "-c", "merge.directoryRenames=false", "merge", "--no-ff", "--no-edit", baseOid,
+        ], { cwd: input.cwd });
         const after = await resolveOid(input.exec, input.cwd, "HEAD");
         const parents = await resolveParents(input.exec, input.cwd, after);
         if (parents.length !== 2 || parents[0] !== headOid || parents[1] !== baseOid) {
@@ -177,7 +179,7 @@ export function createBaseMergePort(input: {
                     cwd: input.cwd,
                     objectAccess: "local-only",
                   });
-                  await input.exec("git", ["commit", "--no-edit"], { cwd: input.cwd });
+                  await input.exec("git", ["commit", "--no-edit", "--no-verify"], { cwd: input.cwd });
                   const after = await resolveOid(input.exec, input.cwd, "HEAD");
                   const parents = await resolveParents(input.exec, input.cwd, after);
                   const clean = (await input.exec("git", ["status", "--porcelain=v1"], {
@@ -234,6 +236,13 @@ export function createBaseMergePort(input: {
           detail: `Merge conflicts remain in: ${conflictPaths.join(", ")}.`,
         };
       }
+    },
+    changedPaths: async (fromOid, toOid) => {
+      const stdout = (await input.exec("git", ["diff", "--name-only", "-z", "--no-renames", fromOid, toOid], {
+        cwd: input.cwd,
+        objectAccess: "local-only",
+      })).stdout;
+      return stdout.split("\0").filter(Boolean);
     },
   };
 }

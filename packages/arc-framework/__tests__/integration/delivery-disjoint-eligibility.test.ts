@@ -31,6 +31,7 @@ import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { analyzeRevisionOverlap } from "../../src/lib/git/base-overlap.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import {
   createCandidateAttestation,
   type CandidateManagedRecordV1,
@@ -333,8 +334,10 @@ describe("disjoint delivery eligibility", () => {
       nextAction: "continue",
       evidence: { baselineRevision: terminalHead, baseRevision: observedTip, mergeBase: firstHead },
     });
+    // The terminal head never took the base in, so only its own contribution is compared: the landed
+    // predecessor and the regenerated readiness file are the base's own commits and leave it current.
     await expect(production.readCandidate("example", observedTip))
-      .resolves.not.toMatchObject({ status: "current" });
+      .resolves.toMatchObject({ status: "current" });
 
     const downstreamReads: string[] = [];
     const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, {
@@ -357,7 +360,7 @@ describe("disjoint delivery eligibility", () => {
       readLifecycle: async () => {
         downstreamReads.push("lifecycle");
         return {
-          workUnit: "example",
+          workUnit: SlugSchema.parse("example"),
           storageVersion: terminalHead,
           archiveCadence: "manual",
           state: "integrating",

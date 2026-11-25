@@ -2,13 +2,14 @@
  * Integration tests for the active-status probe.
  *
  * Builds synthetic `.arc/active/` fixture trees — zero-file, one-file, and
- * many-file under Full layout plus single-file under Lite layout — and
+ * many-file metadata sets alongside unrelated status files — and
  * exercises the real `runActiveStatus` / `runActiveSessionInitStatus`
  * against them. Covers layout detection, per-WU field parsing, and
  * session-init resolution shaping (none/single/multiple).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-assertion.js";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -18,13 +19,14 @@ import {
   runActiveSessionInitStatusInternal,
   runActiveStatus,
 } from "../../src/commands/active.js";
+import { ActiveSessionInitResultSchema } from "../../src/commands/active/schema.js";
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { stubGitExec } from "../helpers/integration.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -35,6 +37,11 @@ import {
   projectCandidateApplicabilityDecision,
   projectDurableCandidateTarget,
 } from "../helpers/candidate.js";
+
+function stubGitExec(branch: string | null): GitExec {
+  const stdout = branch ?? "HEAD";
+  return async () => ({ stdout, stderr: "" });
+}
 
 /** Shared default — non-planning branch keeps existing assertions stable. */
 const defaultExec = stubGitExec("main");
@@ -117,8 +124,10 @@ function statusBody(fields: {
   const lines: string[] = [
     "# Metadata: fixture",
     "",
-    `- **State:** ${fields.state}`,
-    `- **Branch:** ${fields.branch}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${fields.state} | — | ${fields.branch} | — | — |`,
+    "",
   ];
   if (fields.design !== undefined) lines.push(`- **Design:** ${fields.design}`);
   if (fields.currentWorkflow !== undefined) {
@@ -128,6 +137,7 @@ function statusBody(fields: {
   if (fields.candidateId !== undefined) lines.push(`- **Candidate:** ${fields.candidateId}`);
   if (fields.nextTask !== undefined) lines.push(`- **Next Task:** ${fields.nextTask}`);
   if (fields.nextAction !== undefined) lines.push(`- **Next Action:** ${fields.nextAction}`);
+  lines.push("", "---", "");
   return lines.join("\n");
 }
 
@@ -191,7 +201,7 @@ describe("runActiveStatus — Full layout", () => {
   });
 });
 
-describe("runActiveStatus — Lite layout", () => {
+describe("runActiveStatus — unrelated status file", () => {
   let fixture: Fixture;
   beforeEach(async () => {
     fixture = await createFixture();
@@ -200,16 +210,13 @@ describe("runActiveStatus — Lite layout", () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
-  it("detects Lite layout via .arc/active/status.md and returns a single candidate", async () => {
+  it("ignores status.md when no meta candidates exist", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
       statusBody({ state: "Active", branch: "main" }),
     );
     const result = await runActiveStatus({ cwd: fixture.root });
-    expect(result.layout).toBe("lite");
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.path).toBe(".arc/active/status.md");
-    expect(result.candidates[0]!.state).toBe("Active");
+    expect(result).toEqual({ mode: "full", layout: "full", candidates: [], warnings: [] });
   });
 });
 
@@ -228,6 +235,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     expect(result.resolution).toBe("none");
     expect(result.path).toBeNull();
     expect(result.candidates).toEqual([]);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 
   it("returns resolution=single with the resolved path for exactly one candidate", async () => {
@@ -240,6 +248,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     expect(result.resolution).toBe("single");
     expect(result.path).toBe(".arc/active/meta-foo.md");
     expect(result.candidates).toEqual([]);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 
   it("retains semantic project placement without changing the serialized envelope", async () => {
@@ -282,6 +291,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     const beta = result.candidates.find((c) => c.filename === "meta-beta.md");
     expect(beta?.branch).toBe("technical/beta");
     expect(beta?.state).toBe("Integrating");
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 
   it("warns per malformed Candidate without hiding a valid sibling", async () => {
@@ -331,17 +341,25 @@ describe("runActiveSessionInitStatus — resolution states", () => {
       integrationBoundary: null,
     });
     expect(session.warnings).toContainEqual(expect.stringContaining(".arc/active/meta-beta.md"));
+    assertSchemaAccepts(ActiveSessionInitResultSchema, session);
+    expect(() => ActiveSessionInitResultSchema.parse({ ...session, unexpected: true })).toThrow(/unexpected/u);
   });
 
-  it("resolves Lite layout's single file as resolution=single", async () => {
+  it("ignores status.md during session initialization", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
       statusBody({ state: "Active", branch: "main" }),
     );
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
-    expect(result.layout).toBe("lite");
-    expect(result.resolution).toBe("single");
-    expect(result.path).toBe(".arc/active/status.md");
+    expect(result.layout).toBe("full");
+    expect(result.resolution).toBe("none");
+    expect(result.path).toBeNull();
+  });
+
+  it("refuses an unsupported layout in the session wire contract", async () => {
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
+    assertSchemaRefuses(ActiveSessionInitResultSchema, { ...result, layout: "lite" }, ["layout"]);
   });
 
   it("propagates warnings when .arc/active/ is missing entirely", async () => {
@@ -351,6 +369,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
       expect(result.resolution).toBe("none");
       expect(result.warnings.length).toBe(1);
       expect(result.warnings[0]).toContain(".arc/active/");
+      assertSchemaAccepts(ActiveSessionInitResultSchema, result);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -424,9 +443,9 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     expect(result.companions).toEqual({ notes: null, atomic: null });
   });
 
-  it("omits companions entirely for Lite-shape `tasks.md` task-list value", async () => {
+  it("omits companions for a task-list filename without a companion stem", async () => {
     await writeFile(
-      join(fixture.activeDir, "status.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       statusBody({
         state: "Active",
         branch: "main",
@@ -437,7 +456,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     await writeFile(join(fixture.activeDir, "notes.md"), "# notes\n");
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
-    expect(result.layout).toBe("lite");
+    expect(result.layout).toBe("full");
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBe(".arc/active/tasks.md");
     expect(result.companions).toBeUndefined();
@@ -689,6 +708,7 @@ describe("runActiveSessionInitStatus — contributor role-aware resolution", () 
   });
 
   it("resolves contributor full-layout multiple → resolution=multiple with candidate list", async () => {
+    await writeFile(join(userActiveDir, "status.md"), statusBody({ state: "Active", branch: "main" }));
     await writeFile(
       join(userActiveDir, "meta-foo.md"),
       statusBody({ state: "Active", branch: "user/alice/foo" }),
@@ -714,7 +734,7 @@ describe("runActiveSessionInitStatus — contributor role-aware resolution", () 
     ]);
   });
 
-  it("resolves contributor lite-layout {root}/status.md → resolution=single", async () => {
+  it("ignores contributor status.md when no meta candidates exist", async () => {
     await writeFile(
       join(userActiveDir, "status.md"),
       statusBody({ state: "Active", branch: "main" }),
@@ -726,9 +746,9 @@ describe("runActiveSessionInitStatus — contributor role-aware resolution", () 
       role: "contributor",
       exec: defaultExec,
     });
-    expect(result.layout).toBe("lite");
-    expect(result.resolution).toBe("single");
-    expect(result.path).toBe(".arc/user/alice/active/status.md");
+    expect(result.layout).toBe("full");
+    expect(result.resolution).toBe("none");
+    expect(result.path).toBeNull();
   });
 
   it("returns resolution=none when contributor active dir has no files", async () => {
@@ -1114,7 +1134,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       candidateSubjectDigest: subjectDigest,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
     await mkdir(boundaryDir, { recursive: true });
     await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(storedBoundary));

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  hostAdmissionRefusalCorrection,
   observeChangeRequestMergeAdmission,
   type ChangeRequestMergeCoordinates,
   type ChangeRequestMergeObservationPort,
@@ -23,6 +24,7 @@ describe("change-request merge admission", () => {
   it.each([
     { state: "mergeable" as const },
     { state: "base-currentness-required" as const, detail: "The target requires a current base." },
+    { state: "unresolved" as const, condition: "stale-base-test-merge" as const, detail: "Different test-merge base." },
   ])("retains exact coordinates for $state", async (observation) => {
     await expect(observeChangeRequestMergeAdmission(coordinates, port({
       ...coordinates,
@@ -35,7 +37,9 @@ describe("change-request merge admission", () => {
     await expect(observeChangeRequestMergeAdmission(coordinates, port({
       ...coordinates,
       baseRef: "release",
-      state: "mergeable",
+      state: "unresolved",
+      condition: "stale-base-test-merge",
+      detail: "Different test-merge base.",
     }))).resolves.toEqual({
       ...coordinates,
       state: "unresolved",
@@ -47,6 +51,7 @@ describe("change-request merge admission", () => {
     { state: "refused", ...coordinates },
     { state: "unresolved", ...coordinates, detail: "", statusCode: 409 },
     { state: "mergeable", ...coordinates, mergeStateStatus: "CLEAN" },
+    { state: "unresolved", ...coordinates, detail: "Unavailable.", condition: "api-unavailable" },
   ])("conservatively normalizes malformed or provider-shaped evidence %#", async (observation) => {
     const result = await observeChangeRequestMergeAdmission(coordinates, port(observation));
     expect(result).toEqual({
@@ -66,5 +71,39 @@ describe("change-request merge admission", () => {
       state: "refused",
       detail: "Repository policy rejects this request.",
     });
+  });
+
+  it("carries a typed refusal condition through normalization", async () => {
+    await expect(observeChangeRequestMergeAdmission(coordinates, port({
+      ...coordinates,
+      state: "refused",
+      condition: "not-mergeable",
+      detail: "The host reports conflicts.",
+    }))).resolves.toEqual({
+      ...coordinates,
+      state: "refused",
+      condition: "not-mergeable",
+      detail: "The host reports conflicts.",
+    });
+  });
+
+  it.each([
+    ["head-moved", "Publish the approved head"],
+    ["base-ref-mismatch", "Retarget the change request"],
+    ["not-mergeable", "resolve the conflicts the host reports"],
+  ] as const)("names the correction a %s refusal asks for", (condition, correction) => {
+    expect(hostAdmissionRefusalCorrection({
+      ...coordinates,
+      state: "refused",
+      condition,
+      detail: "Refused.",
+    })).toContain(correction);
+  });
+
+  it("names no correction for an untyped refusal or a pending observation", () => {
+    expect(hostAdmissionRefusalCorrection({ ...coordinates, state: "refused", detail: "Policy refusal." }))
+      .toBeNull();
+    expect(hostAdmissionRefusalCorrection({ ...coordinates, state: "unresolved", detail: "Still computing." }))
+      .toBeNull();
   });
 });

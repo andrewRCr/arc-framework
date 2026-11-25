@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
 
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { DeliveryStateV1Schema } from "../../../src/lib/delivery/schema.js";
@@ -347,7 +348,7 @@ describe("native delivery landing decline", () => {
       expectedRevision: current.revision,
       value: { ...current.value, activeOperation: null },
     }]);
-    expect(DeliveryStateV1Schema.safeParse(store.writes[0]?.value).success).toBe(true);
+    assertSchemaAccepts(DeliveryStateV1Schema, store.writes[0]?.value);
   });
 
   it("holds the reservation when the clear meets a competing write", async () => {

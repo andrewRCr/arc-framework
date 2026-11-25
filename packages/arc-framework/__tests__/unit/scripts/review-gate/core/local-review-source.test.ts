@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import {
   LocalReviewSourceSchema,
@@ -27,11 +28,11 @@ describe("local review source descriptor", () => {
 
     expect(LocalReviewSourceSchema.parse(source)).toEqual(source);
     expect(source.sourceDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
-    expect(LocalReviewSourceSchema.safeParse({ ...source, extra: true }).success).toBe(false);
-    expect(LocalReviewSourceSchema.safeParse({
+    assertSchemaRefuses(LocalReviewSourceSchema, { ...source, extra: true });
+    assertSchemaRefuses(LocalReviewSourceSchema, {
       ...source,
       headSha: "f".repeat(40),
-    }).success).toBe(false);
+    });
   });
 
   it("excludes operational locators from the semantic digest", () => {
@@ -56,15 +57,57 @@ describe("local review source descriptor", () => {
       materializationRef: "/tmp/review-1",
     });
 
-    expect(LocalReviewSourceSchema.safeParse({
+    assertSchemaRefuses(LocalReviewSourceSchema, {
       ...source,
       semanticsVersion: "git-object-range/v2",
-    }).success).toBe(false);
+    });
     expect(() => createLocalReviewSource({
       ...semanticFields,
       objectFormat: "sha256",
       reachabilityRef: "refs/arc/review/pin-1",
       materializationRef: "/tmp/review-1",
     })).toThrow(/object format/iu);
+  });
+
+  it("binds correction semantics while excluding their operation-owned pins", () => {
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "hosted/attempt-1",
+      predecessorHeadSha: "f".repeat(40),
+      basisHeadSha: semanticFields.diffBaseSha,
+      headSha: semanticFields.headSha,
+      requiredFindings: [{
+        producerId: "hosted/attempt-1",
+        findingId: "F-1",
+        locus: "src/example.ts:1",
+      }],
+    };
+    const first = createLocalReviewSource({
+      ...semanticFields,
+      correctionScope,
+      reachabilityRef: "refs/arc/review/local/operation-2",
+      predecessorReachabilityRef: "refs/arc/review/local-scope/operation-2/predecessor",
+      basisReachabilityRef: "refs/arc/review/local-scope/operation-2/basis",
+      materializationRef: "/tmp/review-2",
+    });
+    const relocated = createLocalReviewSource({
+      ...semanticFields,
+      correctionScope,
+      reachabilityRef: "refs/arc/review/local/operation-3",
+      predecessorReachabilityRef: "refs/arc/review/local-scope/operation-3/predecessor",
+      basisReachabilityRef: "refs/arc/review/local-scope/operation-3/basis",
+      materializationRef: "/tmp/review-3",
+    });
+
+    expect(first.correctionScope).toEqual(correctionScope);
+    expect(relocated.sourceDigest).toBe(first.sourceDigest);
+    assertSchemaRefuses(LocalReviewSourceSchema, {
+      ...first,
+      correctionScope: { ...correctionScope, headSha: "0".repeat(40) },
+    });
+    assertSchemaRefuses(LocalReviewSourceSchema, {
+      ...first,
+      predecessorReachabilityRef: undefined,
+    });
   });
 });

@@ -30,6 +30,11 @@ import type {
   DeliveryTerminalRecordLookup,
   DeliveryTerminalRecordLookupResult,
 } from "../../core/delivery-member-lookup.js";
+import type { DeliveryReviewMemberVehicle } from "../../../../lib/delivery/review-vehicle.js";
+
+function fullHeadRef(ref: string): string {
+  return ref.startsWith("refs/heads/") ? ref : `refs/heads/${ref}`;
+}
 
 function branchName(ref: string | null): string | null {
   if (ref === null) return null;
@@ -98,6 +103,7 @@ export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, Del
 DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminalRecordLookup {
   private readonly plans: RepositoryDeliveryPlanStore<DeliveryPlanV1>;
   private readonly store: RepositoryDeliveryStateStore;
+  private readonly readOnly: boolean;
   private readonly transitionSource: DeliveryRenameTransitionSource;
 
   /**
@@ -107,8 +113,10 @@ DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminal
     readonly exec: GitExec;
     readonly cwd: string;
     readonly transitionSource?: DeliveryRenameTransitionSource;
+    readonly readOnly?: boolean;
   }) {
     const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+    this.readOnly = input.readOnly === true;
     this.plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
     this.store = new RepositoryDeliveryStateStore(publisher);
     this.transitionSource = input.transitionSource
@@ -122,14 +130,49 @@ DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminal
    * @returns The member binding, `unbound`, or `unavailable`.
    */
   async resolveMemberByHead(headObjectId: string): Promise<DeliveryMemberLookupResult> {
+    return this.resolveMember({ kind: "head", objectId: headObjectId });
+  }
+
+  /**
+   * Resolve the member bound to one exact retained ref and observed head.
+   *
+   * @param headRef - Retained local branch ref, with or without the full namespace.
+   * @param headObjectId - Head observed for that ref.
+   * @returns The member binding, `unbound`, or `unavailable`.
+   */
+  async resolveMemberByRef(headRef: string, headObjectId: string): Promise<DeliveryMemberLookupResult> {
+    return this.resolveMember({
+      kind: "ref",
+      ref: fullHeadRef(headRef),
+      observedHeadObjectId: headObjectId,
+    });
+  }
+
+  /**
+   * Resolve one stable member identity at its admitted head.
+   *
+   * @param vehicle - Plan, work-unit, member, and head identity admitted by review status.
+   * @returns The member binding, `unbound`, or `unavailable`.
+   */
+  async resolveMemberByVehicle(vehicle: DeliveryReviewMemberVehicle): Promise<DeliveryMemberLookupResult> {
+    return this.resolveMember({
+      kind: "member",
+      planId: vehicle.planId,
+      deliverableId: vehicle.deliverableId,
+      workUnitId: vehicle.workUnitId,
+      observedHeadObjectId: vehicle.head,
+    });
+  }
+
+  private async resolveMember(
+    selector: Parameters<RepositoryDeliveryStateStore["resolveMember"]>[0]["selector"],
+  ): Promise<DeliveryMemberLookupResult> {
     // The store returns typed refusals but does not contain thrown failures: its
     // snapshot read propagates I/O errors, and resolving the state namespace
     // throws outside a repository. Containing both is what makes the port total.
     let resolution;
     try {
-      resolution = await this.store.resolveMember({
-        selector: { kind: "head", objectId: headObjectId },
-      });
+      resolution = await (this.readOnly ? this.store.resolveMemberReadOnly({ selector }) : this.store.resolveMember({ selector }));
     } catch {
       return { status: "unavailable" };
     }

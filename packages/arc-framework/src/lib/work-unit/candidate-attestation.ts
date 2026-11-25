@@ -6,7 +6,8 @@ import {
   canonicalize,
   canonicalDigest,
   sortByCanonicalBytes,
-} from "../canonical/canonical-json.js";
+  type CanonicalDigest,
+} from "../kernel/canonical/canonical-json.js";
 import { composeEvidenceDelta, reduceEvidenceApplicability } from "../evidence-applicability/index.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { ReviewContributionApplicabilitySelectorSchema } from "./review-applicability-selector.js";
@@ -160,6 +161,70 @@ export function candidateReviewResponses(
 ): CandidateReviewResponseEvidenceV1[] {
   return record.transitions.filter((transition): transition is CandidateReviewResponseEvidenceV1 =>
     transition.transitionKind === "review-response");
+}
+
+/** A validated older root whose review budget survives an explicit Candidate re-root. */
+export interface CandidateSupersessionAncestor {
+  candidateId: CanonicalDigest;
+  baseRevision: string;
+  /** Exact commit carrying this predecessor record, when resolved from repository history. */
+  recordRevision?: string;
+  reviewResponseCount: number;
+  /** Disposition identities let lane owners distinguish frontline from standard responses. */
+  reviewDispositionIds?: readonly CanonicalDigest[];
+}
+
+/** Refuse a missing, cyclic, or out-of-order Candidate supersession chain. */
+export class CandidateSupersessionResolutionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CandidateSupersessionResolutionError";
+  }
+}
+
+/** Follow only explicit `attestation.supersedes` links through older versions of this work unit. */
+export function resolveCandidateSupersessionAncestors(
+  current: CandidateManagedRecordV1,
+  historicalNewestFirst: readonly CandidateManagedRecordV1[],
+): readonly CandidateSupersessionAncestor[] {
+  const currentId = current.attestation.candidateId;
+  const currentIndex = historicalNewestFirst.findIndex((record) =>
+    record.attestation.candidateId === currentId);
+  let searchFrom = currentIndex < 0 ? 0 : currentIndex + 1;
+  let predecessorId = current.attestation.supersedes;
+  const seen = new Set([currentId]);
+  const ancestors: CandidateSupersessionAncestor[] = [];
+  while (predecessorId !== undefined) {
+    if (seen.has(predecessorId)) {
+      throw new CandidateSupersessionResolutionError("Candidate supersession contains a cycle.");
+    }
+    const index = historicalNewestFirst.findIndex((record, position) =>
+      position >= searchFrom
+      && record.attestation.candidateId === predecessorId
+      && record.attestation.workUnit === current.attestation.workUnit);
+    if (index < 0) {
+      throw new CandidateSupersessionResolutionError(
+        `Superseded Candidate ${predecessorId} is absent from reachable record history. Restore its history, then retry the command.`,
+      );
+    }
+    const predecessor = historicalNewestFirst[index];
+    if (predecessor === undefined) {
+      throw new CandidateSupersessionResolutionError("Superseded Candidate history changed during resolution.");
+    }
+    const reviewResponses = candidateReviewResponses(predecessor);
+    ancestors.push({
+      candidateId: predecessorId,
+      baseRevision: predecessor.attestation.baseRevision,
+      reviewResponseCount: reviewResponses.length,
+      ...(reviewResponses.length === 0
+        ? {}
+        : { reviewDispositionIds: reviewResponses.map((response) => response.dispositionId) }),
+    });
+    seen.add(predecessorId);
+    predecessorId = predecessor.attestation.supersedes;
+    searchFrom = index + 1;
+  }
+  return ancestors;
 }
 
 /** Select target-neutral review-applicability authority from an ordered Candidate sequence. */
@@ -669,13 +734,13 @@ function requiredConvergenceScopeAtResponse(
 export type CandidateCurrentnessProjection =
   | ({
       status: "current";
-      candidateId: string;
+      candidateId: CanonicalDigest;
       recognizedRevision: string;
       implementationChanged: boolean;
     } & CandidateConvergenceProjection)
   | {
       status: "blocked";
-      candidateId: string;
+      candidateId: CanonicalDigest;
       recognizedRevision: string;
       currentRevision: string;
       delta: { added: string[]; removed: string[]; changed: string[] };
@@ -683,7 +748,7 @@ export type CandidateCurrentnessProjection =
     };
 
 export type CandidateDurableBaselineProjection = {
-  candidateId: string;
+  candidateId: CanonicalDigest;
   target: CandidateLineageTarget;
   implementationChanged: boolean;
   selectedChange: CandidateApplicabilitySelectionV1 | null;
@@ -817,7 +882,7 @@ export function projectCandidateCurrentness(input: {
 }
 
 function blockedProjection(
-  candidateId: string,
+  candidateId: CanonicalDigest,
   recognizedRevision: string,
   current: z.infer<typeof CandidateLineageTargetSchema>,
   recognized: CandidateSubjectSnapshot,

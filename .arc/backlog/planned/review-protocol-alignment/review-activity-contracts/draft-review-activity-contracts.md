@@ -265,16 +265,15 @@
   members above it on heads that no longer descend from it. Both are the same shape: a review fix leaves the
   state around it un-reconciled. The second produced a live authority defect in this very work unit (a later
   member's head admitted under an earlier member's vehicle), which suggests the root is wider than review
-  evidence alone and worth scoping as such. The design intent is the
-  opposite — avoid redundant ceremony, repeat an expensive pass only on semantic grounds, and reach the Owner
-  as a deterministic recommendation the agent applies judgment on top of. `evidence-applicability` shipped
-  exactly that machinery; it is not wired to review lanes, and the one cause that matters most here is pinned
-  to the expensive answer. Five layers, each verified at source during
+  evidence alone and worth scoping as such. The design intent is the opposite — avoid redundant ceremony, repeat an
+  expensive pass only on semantic grounds, and reach the Owner as a deterministic recommendation the agent applies
+  judgment on top of. `evidence-applicability` shipped exactly that machinery; it is not wired to review lanes, and the
+  one cause that matters most here is pinned to the expensive answer. Five layers, each verified at source during
   `delivery-post-landing-conflict-recovery`.
 
-- _Layer 1 — the pass is recorded and complete._ Git-common
-  `review-gate/operations/operation-e71c08c3…json`: lane `standard`, head `31d0bea2`, `completedPasses: 1`,
-  one attempt, `outcome: "findings"`, `chunkSeriesComplete: true`. Nothing is lost at the recording layer.
+- _Layer 1 — the pass is recorded and complete._ Git-common `review-gate/operations/operation-e71c08c3…json`: lane
+  `standard`, head `31d0bea2`, `completedPasses: 1`, one attempt, `outcome: "findings"`, `chunkSeriesComplete: true`.
+  Nothing is lost at the recording layer.
 
 - _Layer 2 — a re-root empties the lineage; a settled response does not._ Established by running both paths.
   When an approved fix settles through `arc review respond -` with `verifiedFix`, the record gains a
@@ -459,6 +458,51 @@
 
 - _Captured during:_ the `delivery-entry-input-shape` errand, 2026-09-18.
 
+- _Folded in:_ "Decide whether a small fix to a non-material finding should cost a full review", routed from `USER-INBOX
+  § Work Unit`, housekeep drain (2026-10-09). The Errand capture "Show at the disposition gate that fixing a finding
+  moves the head and costs a review pass" waits on this decision.
+
+    - _Observation:_ `evidence-applicability` scales verification with the approved fix scope (`targeted` carries,
+      `focused` gets a supplemental check, `full` gets fresh verification), but D3 rule 2 makes review clearance over any
+      `approved-fix` `fresh`. So even a targeted one-line fix of a confirmed minor requires another review pass at the new
+      head. `review-signal-convergence` softens this only through an incremental correction pass over the fix range
+      (§ 5), and Errands can't request one, so on PR #836 a 20-line minor fix cost a complete CodeRabbit pass.
+
+    - _Design needed:_ whether a fix approved for a non-material finding at `targeted` (or `focused`) scope should carry
+      review clearance, be limited to its own diff, or keep requiring a fresh pass; how that interacts with convergence's
+      "a confirmed minor never buys a pass" (§ 3), its `changed-target` reroute (§ 7), and the rule that only actual
+      review establishes coverage (§ 5); and what evidence a carried clearance would need so the agent never clears its
+      own fix.
+
+    - _Observation:_ an Owner-level design question, not an implementation defect: both shipped designs require the
+      post-fix review as written. The defect parts are captured separately (Errand incremental route; disposition-gate
+      pass cost).
+
+    - _Captured during:_ the review of PR #836 against `review-signal-convergence` and `evidence-applicability`,
+      2026-10-08.
+
+### `[ ]` **Let a minor-only fix close an Errand's standard lane outside `full-final` routes**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`),
+  housekeep drain (2026-10-11).
+
+- _Shapes:_ the held entry "Carry proportionate review evidence and pass accounting across approved review fixes" —
+  whether a fix's severity decides that its head needs another standard pass.
+
+- _Observation:_ an Errand's fixed head always needs another standard pass, whatever the fixed finding's severity: the
+  lane filters attempts by head, so the fix head has none and `readUnreviewedErrandHead` requires review
+  (`status-errand.ts:713-742, 858-873`), as the evidence-applicability reducer's rule "review clearance over
+  `approved-fix` returns `fresh`" records. Delivery members already discharge a minor-only fix through contribution
+  applicability (`policy/hosted-reservation-discharge.ts:520-526`), frontline follows up only after a material fix
+  (`policy/frontline-follow-up.ts:64-70`), and planning review converges when only minors are fixed. The Errand rule
+  makes recording a minor free and fixing it cost a metered pass, an incentive to leave minors unfixed (PR #836).
+
+- _Approach:_ close the lane when the approved set fixes no confirmed `critical` or `major` finding, except under
+  `retrigger: full-final`, where `classify-review-risk` promises a complete re-review after any fix. Record it as a
+  forward amendment of the reducer rule, and keep an Owner-named additional pass available for an unreviewed fix diff.
+
+- _Captured during:_ `disposition-gate-pass-cost` Errand design discussion, 2026-10-10.
+
 ### `[ ]` **Stop letting an omitted activity flag silently deactivate a configured review lane**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
@@ -484,6 +528,28 @@
 
 - _Captured during:_ the `delivery-request-identity` errand, 2026-09-18.
 
+### `[ ]` **Fire author self-review in an Errand when routing requires it, or exempt the Errand vehicle**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`),
+  housekeep drain (2026-10-11).
+
+- _Shapes:_ the held entry "Stop letting an omitted activity flag silently deactivate a configured review lane" —
+  how activity keeps author self-review `required` (`applyAssuranceAndActivity`), and which workflow discharges
+  the obligation it routes. This entry is the Errand vehicle's case.
+
+- _Observation:_ Errand review routing returns `authorSelfReview: required` for a `sensitive` change whenever the
+  project's `self-review` method is active (`applyAssuranceAndActivity` in `routing.ts` keeps the decision while
+  `activity.selfReview` is true), but `run-errand` neither declares `self-review` nor marks a fire-point for it, so the
+  obligation is never discharged and nothing reports the gap. PR #845 routed `sensitive` with self-review `required`,
+  ran frontline and hosted standard review, and merged through `arc errand merge` with no author self-review and no
+  refusal. `prepare-work-unit` is the working model: it fires the method and reports `--self-review settled`.
+
+- _Approach:_ decide which side is wrong. Either `run-errand` fires `self-review` when the routed obligation asks for
+  it, or Errand routing exempts author self-review for the vehicle and records why. Either way, the routed obligation
+  and what the workflow does should agree.
+
+- _Captured during:_ `review-risk-criteria` Errand (PR #845), 2026-10-09.
+
 ### `[ ]` **Make a `recommended` standard-review obligation stop for an Owner decision, not spend like `required`**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
@@ -496,21 +562,19 @@
 - _Observation:_ `recommended` is load-bearing for whether a finding blocks and inert for whether a pass is
   spent — the distinction is honored on the axis that costs nothing and dropped on the axis that costs money.
   Every reader of the routing projection tests only `exempt` and treats the rest alike
-  (`policy/review-policy-driver.ts:563`, `core/gate-contract-v2.ts:140`,
-  `core/review-command-envelope.ts:362,370,423`, `policy/planning-grooming-command.ts:126,133`,
-  `runtime/local-prepare.ts:186`), even though `ReviewObligationSchema` carries three values
-  (`policy/routing-schema.ts:12`). One axis over, the two-valued requirement obligation does discriminate:
-  only `required` produces blockers and gates the verdict (`core/requirements.ts:109`, `core/verdict.ts:71`),
-  and `aggregateRequirementDisposition` ranks `required` above `recommended`
+  (`policy/review-policy-driver.ts:563`, `core/gate-contract-v2.ts:140`, `core/review-command-envelope.ts:362,370,423`,
+  `policy/planning-grooming-command.ts:126,133`, `runtime/local-prepare.ts:186`), even though `ReviewObligationSchema`
+  carries three values (`policy/routing-schema.ts:12`). One axis over, the two-valued requirement obligation does
+  discriminate: only `required` produces blockers and gates the verdict (`core/requirements.ts:109`,
+  `core/verdict.ts:71`), and `aggregateRequirementDisposition` ranks `required` above `recommended`
   (`core/requirements.ts:126`).
 
 - _Observation:_ the state this wants already exists in the sibling lane, which together with the above is
   what makes the gap look like an omission rather than a decision. Frontline routing is
   `z.enum(["skip", "offer", "attempt"])`, and `action === "offer"` resolves to `state: "offered"`
-  with `nextAction: "obtain-authorization"`
-  (`policy/frontline-command.ts:102`) — a typed, pre-spend stop for exactly this decision. The standard lane
-  has no analogue. For the observed change the two lanes disagreed on the same routing verdict:
-  `arc review frontline resolve -` returned `skipped / none`, while `arc review resolve -` lane=standard
+  with `nextAction: "obtain-authorization"` (`policy/frontline-command.ts:102`) — a typed, pre-spend stop for exactly
+  this decision. The standard lane has no analogue. For the observed change the two lanes disagreed on the same routing
+  verdict: `arc review frontline resolve -` returned `skipped / none`, while `arc review resolve -` lane=standard
   returned `ready / hosted-request`.
 
 - _Observation:_ the one route that avoids the spend is closed on a first pass. The Owner-directed review stop
@@ -544,6 +608,216 @@
   rewriting, so whichever ships second should read the other.
 
 - _Captured during:_ the `publish-errand-merge-skeleton` errand, PR #655, 2026-09-19.
+
+### `[ ]` **Make a `recommended` standard obligation non-blocking, or stop documenting it as one**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`),
+  housekeep drain (2026-10-11).
+
+- _Shapes:_ the held entry "Make a `recommended` standard-review obligation stop for an Owner decision, not spend
+  like `required`" — the same gap seen from the gate's enforcement; settle the two together.
+
+- _Observation:_ `classify-review-risk` says a `recommended` standard pass "runs by default but does not block merge
+  when it does not complete", but the live policy path treats it like `required`: the driver special-cases only
+  `exempt` (`policy/review-policy-driver.ts:723-724`), and `arc review status` carries no obligation field
+  (`status.ts:266-270`). Non-blocking logic exists only in `core/requirements.ts:109` and `core/verdict.ts:71`,
+  reached through `runtime/reduce-command.ts`, which hard-codes `full-final` (`:94`).
+
+- _Approach:_ decide which is right. Either implement the non-blocking behavior for an incomplete `recommended`
+  pass at the merge gate, or correct the method and the routing table's description to what the gate enforces.
+
+- _Captured during:_ `disposition-gate-pass-cost` Errand mapping, 2026-10-10.
+
+### `[ ]` **Carry private correction coverage across a Candidate re-root**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain (2026-09-30);
+  captured during `review-signal-convergence` prepublication Pass 13, 2026-09-26.
+- _Observation:_ During `review-signal-convergence` Pass 13, a verified Pass 12 response and
+  complete local review supported an exact incremental correction scope on the same Candidate root.
+  An additional source correction required `arc attest --new-root`. ARC preserved 12 spent passes,
+  but the new Candidate id had no response transition and the local coverage selector required an
+  exact Candidate-id match to the Pass 12 producer, so it could no longer offer incremental review.
+  The existing `review-activity-contracts` draft names re-root lineage and incremental settlement
+  generally, but does not explicitly own this private, origin-linked no-PR admission case or its
+  cross-root evidence proof. `candidate-reroot-recovery-frame` excludes this authority design.
+- _Approach:_ Decide what exact, validated supersession and performed-response evidence may carry a
+  prior complete-review basis into a new Candidate root. Preserve exact-head invalidation and
+  Owner pass authority; offer incremental as a scoped choice only when the complete chain and live
+  Git/Candidate contribution prove it. Cover the origin-linked no-PR route and an out-of-band
+  re-root in a real CLI test, including a refusal when the proof does not hold.
+
+### `[ ]` **Put the verified-fix response before after-fix hosted settlement in the shipped workflow prose**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain (2026-09-30);
+  captured during Errand `verified-fix-reentry`, 2026-09-28.
+- _Observation:_ Layer 6's field confirmation specifies the order approve → apply and verify → commit →
+  `verifiedFix` response → push and after-fix hosted settlement. The shipped prose still states the older order in
+  two places, and omits the response in a third:
+    - `run-errand.md` § Integrate Step 4, the `findings / triage` arm, and `integrate-work-unit.md`'s matching hosted
+      arm both say to apply, verify, commit, and push the fixes, "then settle every `afterFixFindingIds` entry", and
+      only afterwards "the verified-fix response continuation". Hosted settlement of a `fix` finding needs the
+      recorded response, so the prose order fails at the first after-fix settle. The delivery-member arm of
+      `integrate-work-unit.md` is already correct: it requires `delivery-member-advanced` first.
+    - `run-errand.md` Step 2's frontline and local `findings / respond` arm ends at "Approved fixes run Tier 1 gates,
+      commit atomically, push, and create a new target" and never names the `verifiedFix` response. `arc review
+      resolve` needs that recorded response to see the fix for incremental applicability.
+- _Already landed, so the prose is no longer a dead end:_ PR #729 (`034d338a9`) makes a `ready-to-fix` response name
+  `reentryCommand: "respond-verified-fix"` for every source. It also makes `arc review hosted settle` return a
+  typed `fix-not-performed / complete-verified-fix` refusal, with that response as the remedy, instead of a generic
+  error. Following the current prose now ends at a recoverable refusal; what remains is stating the right order.
+- _Approach:_ fold into Layer 6's typed sequence. Have the three arms follow `payload.reentryCommand` after the fix
+  commit and only then run after-fix settlement. Edit the package source and sync `.arc/`.
+
+### `[ ]` **Bind the review disposition set to the stored review fact, not the fix commit's body**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ `review-triage` puts a `Review disposition set` body on review fix commits, and this draft names the
+  disposition-set identity recorded in the fix commit as a candidate binding for frontline pass durability.
+  `storage-contract` takes ARC's process vocabulary out of code commits by default (C8's surface boundary), and once
+  durable review facts are stored at project scope (C2), the disposition set belongs there rather than in commit
+  bodies.
+- _Approach:_ Design the binding against the stored review fact, and drop the commit body once review facts are
+  stored.
+
+### `[ ]` **Tell a fix-check reviewer the scope each repair was held to, without handing it a preferred fix**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ § Hosted Guidance Contract item 3, the evaluator boundary that withholds preferred fixes and
+  author conclusions; and the fix-check prompt in `code-review`'s findings round.
+
+- _Observation:_ two of four findings in `storage-ref-backend`'s fix check 2 carried a second half calling a repair
+  broader than its finding required. Both repairs followed their approved actions, which the reviewer never saw, so it
+  judged them against the producer's suggested correction, and discarding those halves took source reads each time.
+
+- _Approach:_ decide what a fix check may be told about each repair's approved scope (the approved action, or only the
+  finding's boundary) without breaching the evaluator boundary that withholds preferred fixes and author conclusions.
+
+- _Evidence:_ `fix-check-2/REVIEW-report.yaml` R-03 and R-04, and `fix-check-2/verification.md` § F3 and § F4,
+  under `storage-ref-backend`'s review and measurement evidence (kept outside the repository),
+  `verification/prepublication/`.
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24 (Owner-approved).
+
+---
+
+### `[ ]` **Settle which reviewers `AGENTS.md`'s review guidance reaches when trimming it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Hosted Guidance Contract, D3.1 (the trim).
+
+- _Observation:_ The draft treats `AGENTS.md`'s `arc:review-guidance` block as the channel to a hosted reviewer. In this
+  repository `CLAUDE.md` imports `AGENTS.md` and Codex reads it directly, so every local session and its subagents load
+  the block too, whatever its scope note says. In `seam-delivery-review`'s chunked local standard pass (2026-10-31) the
+  reviewer brief carried the typed five-dimension rubric, and two of nine reviewers also applied the block's sixth
+  dimension, "Repository contract coherence", read from `AGENTS.md`; the aggregate recorded it. After D3.1's trim, item
+  4 still reaches local reviewers beside the typed brief's dimensions.
+
+- _Approach:_ when settling D3.1, decide whether a local reviewer should apply item 4 — it is repository context a local
+  reviewer also lacks — and say so in the block's scope note or the typed brief, so a local reader applies the block as
+  the design intends.
+
+- _Evidence:_ `seam-delivery-review`'s first pre-publication review pass, kept outside the repository: the reviewer
+  instructions (five dimensions), two reviewer reports that each applied the sixth, and the aggregate's note on the
+  sixth dimension.
+
+- _Captured during:_ `seam-delivery-review` pre-publication review, pass 1 disposition (2026-10-31).
+
+---
+
+### `[ ]` **Let a work unit waiting on a dependency start its complete review over the change set so far**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Represent authorized incremental review without whole-target clearance", beside the capture "Let an
+  incremental pass settle a lane whose complete coverage already happened".
+
+- _Observation:_ on 2026-11-02 `storage-ref-hardening` finished every task it could and stood idle at Task 5.12, which
+  waits for `seam-delivery-review`'s merge; only 5.12, 5.13 and verification remained, and its review (likely three
+  or more complete passes) could start only after verification. The review machinery cannot run a complete pass over
+  the change set so far and have a later incremental pass over the rest settle the final obligation, so a dependency
+  wait and the review run in series. The Owner wants this in general, an Owner-chosen review scope.
+
+- _Approach:_ when settling those two items, cover this sequence: an Owner-authorized complete pass over
+  `base..H1` before verification, with findings through the ordinary disposition path, then an incremental pass over
+  `H1..H2` (here, 5.12's and 5.13's corrective parents and any base merge) that settles the whole-target obligation
+  at `H2`.
+
+- _Captured during:_ `project-manager.ARC`, `storage-ref-hardening`'s wait on `seam-delivery-review`, 2026-11-02.
+
+---
+
+### `[ ]` **Read Codex's structured review state as its completion signal**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Recognize CodeRabbit's edited incremental-clean signal" — the same completion pattern for Codex.
+
+- _Observation:_ Codex keeps one `<!-- codex-pull-request-review-summary -->` issue comment per pull request, edited as
+  reviews run, carrying `<!-- codex-review-state:v1 {...} -->` JSON: `code_review.commit_sha`, `has_any_findings`,
+  `has_unresolved_findings` and `status` (`completed`), plus a matching `security_review` block (seen on #1295-#1303).
+  The adapter (`hosted/codex.ts`) decides completion from wording instead: the receipt's "Didn't find any major issues"
+  and its `Reviewed commit:` line. It also drops every edited comment (`createdAt === updatedAt`), so it never reads
+  this one.
+
+- _Approach:_ read the state JSON as the exact-head completion signal (commit SHA equal to the head, status
+  `completed`), keeping findings from reviews and threads as now and the receipt wording as corroboration. Settle how an
+  edited comment binds to one request, since its update time is the only timing it carries.
+
+- _Files:_ `packages/arc-framework/src/scripts/review-gate/hosted/codex.ts` and
+  `__tests__/unit/scripts/review-gate/hosted/codex.test.ts`.
+
+- _Captured during:_ the `coderabbit-reader-format-tolerance` Errand's completion report, 2026-11-08 (Owner-approved).
+
+---
+
+### `[ ]` **Settle a commented CodeRabbit review on its completion status when the reply is never edited**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Recognize CodeRabbit's edited incremental-clean signal", and "Recognize hosted acknowledgement and
+  retrigger semantics before completion waiting".
+
+- _Observation:_ a commented CodeRabbit review settles only when CodeRabbit edits its tagged reply to the request at or
+  after the review (`commentedReviewSettlement`, `hosted/coderabbit.ts`). If CodeRabbit stops editing that reply, the
+  wait runs to the attention timeout. CodeRabbit also sets a `CodeRabbit` commit status reading "Review completed",
+  which the no-review clean path already requires (`completedStatus`).
+
+- _Approach:_ accept a success status created after the review, and before the next request boundary, as completion
+  for a commented review, keeping the reply as corroboration. Check first whether the status is set once per request
+  or once per review, since CodeRabbit can post several reviews for one request.
+
+- _Files:_ `packages/arc-framework/src/scripts/review-gate/hosted/coderabbit.ts` and its tests.
+
+- _Captured during:_ the `coderabbit-reader-format-tolerance` Errand's completion report, 2026-11-08 (Owner-approved).
+
+### `[ ]` **State what each review activity's evaluator needs, so reviewers spawn without ambient instructions**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Audit Activity Control and § Hosted Guidance Contract; beside its inbound "Bound and disclose read-only
+  scouts inside review activities" and "Settle which reviewers `AGENTS.md`'s review guidance reaches when trimming it".
+
+- _Observation:_ from 2026-10-29 to 11-12, 653 Opus subagents took 19.2B input and cache tokens in this repository's
+  Claude sessions; review and verification subagents were 609 of them and 95% of those tokens, averaging 147 turns
+  each (`dotfiles-ai-7e`'s count). Spawned as general-purpose agents, each loads the whole instruction chain (the
+  host's global rules, about 2.5k tokens, and the repository `AGENTS.md`, its hosted-review block about 550), so every
+  1,000 always-loaded tokens costs about 96M cache-read tokens per two weeks; Codex's 491 default-role subagents start
+  with about 4k tokens of `AGENTS.md` and 1.4k of skills catalog. `adversarial-review`'s prompt is already
+  self-contained ("Use only the context supplied in this prompt plus source files you inspect directly"), naming its
+  rubric, artifacts and orientation by path, so the ambient chain is cost without a reader.
+
+- _Approach:_ give each review activity a declared evaluator profile (the context its brief names, its tools, a turn
+  budget, a brief-size bound) and install it per harness as ARC installs `arc-worker`: a Claude agent with
+  `omitClaudeMd`, a Codex role with the skills catalog and repository instructions off. Model choice stays host-side
+  (the Owner runs formal review lanes on Opus). An interim host-side `reviewer` agent in the Owner's `dotfiles-ai`
+  carries the trims until this lands (Owner-approved, 2026-11-12). The repository `AGENTS.md`'s review block (about 282
+  words, about 200 condensable under D3.1) also loads into every Claude main session through `CLAUDE.md`'s import,
+  though its scope note excludes development sessions (always-loaded audit, 2026-11-12).
+
+- _Captured during:_ `project-manager.ARC`, relayed from `dotfiles-ai-7e` with the Owner's approval, 2026-11-12.
 
 ## Hosted Guidance Contract
 

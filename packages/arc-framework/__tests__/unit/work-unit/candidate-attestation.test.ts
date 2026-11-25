@@ -1,8 +1,9 @@
 /** Unit coverage for Candidate attestation and lineage currentness. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   CandidateConvergenceProjectionSchema,
   CandidateManagedRecordV1Schema,
@@ -13,6 +14,7 @@ import {
   createCandidateVerificationResponseEvidence,
   parseCandidateManagedRecord,
   projectCandidateCurrentness,
+  resolveCandidateSupersessionAncestors,
   serializeCandidateManagedRecord,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 
@@ -41,6 +43,33 @@ function attestation() {
 }
 
 describe("Candidate attestation", () => {
+  it("follows only explicit nested supersession links in older record order", () => {
+    const record = (at: string, supersedes?: string) => {
+      const subject = snapshot();
+      return CandidateManagedRecordV1Schema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation: createCandidateAttestation({
+          workUnit: "example", subject, baseRevision: SHA_A,
+          attestedBy: "andrew", attestedAt: at,
+          verificationEvidenceRef: `verification://example/${at}`,
+          ...(supersedes === undefined ? {} : { supersedes }),
+        }),
+        subject, transitions: [], lineageAttestations: [],
+      });
+    };
+    const oldest = record("2026-08-12T12:00:00.000Z");
+    const middle = record("2026-08-13T12:00:00.000Z", oldest.attestation.candidateId);
+    const current = record("2026-08-14T12:00:00.000Z", middle.attestation.candidateId);
+    expect(resolveCandidateSupersessionAncestors(current, [current, middle, oldest])).toEqual([
+      { candidateId: middle.attestation.candidateId, baseRevision: SHA_A, reviewResponseCount: 0 },
+      { candidateId: oldest.attestation.candidateId, baseRevision: SHA_A, reviewResponseCount: 0 },
+    ]);
+    expect(() => resolveCandidateSupersessionAncestors(current, [current, oldest]))
+      .toThrow(/absent from reachable record history/u);
+    expect(() => resolveCandidateSupersessionAncestors(current, [oldest, middle, current]))
+      .toThrow(/absent from reachable record history/u);
+  });
   it("rejects repository paths whose Unicode spelling is not NFC-normalized", () => {
     expect(() => createCandidateSubjectSnapshot([{
       path: "packages/cafe\u0301.ts",
@@ -75,26 +104,26 @@ describe("Candidate attestation", () => {
 
     expect(first).toEqual(second);
     expect(first.candidateId).toMatch(/^sha256:[0-9a-f]{64}$/u);
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    assertSchemaAccepts(CandidateManagedRecordV1Schema, {
       schemaVersion: 1,
       semanticsVersion: "candidate-attestation/v1",
       attestation: first,
       subject: snapshot(),
       transitions: [],
       lineageAttestations: [],
-    }).success).toBe(true);
+    });
   });
 
   it("rejects an unfilled evidence placeholder in a persisted root", () => {
     const root = attestation();
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    assertSchemaRefuses(CandidateManagedRecordV1Schema, {
       schemaVersion: 1,
       semanticsVersion: "candidate-attestation/v1",
       attestation: { ...root, verificationEvidenceRef: "{verificationEvidenceRef}" },
       subject: snapshot(),
       transitions: [],
       lineageAttestations: [],
-    }).success).toBe(false);
+    });
   });
 
   it("binds the superseded Candidate into the identity of the root that replaces it", () => {
@@ -151,18 +180,18 @@ describe("Candidate attestation", () => {
       lineageAttestations: [],
     };
 
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    assertSchemaRefuses(CandidateManagedRecordV1Schema, {
       ...record,
       attestation: { ...root, candidateId: canonicalDigest({ forged: "candidate" }) },
-    }).success).toBe(false);
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    });
+    assertSchemaRefuses(CandidateManagedRecordV1Schema, {
       ...record,
       transitions: [{ ...response, responseId: canonicalDigest({ forged: "response" }) }],
-    }).success).toBe(false);
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    });
+    assertSchemaRefuses(CandidateManagedRecordV1Schema, {
       ...record,
       transitions: [{ ...response, implementationChanged: false }],
-    }).success).toBe(false);
+    });
     const inconsistentSubject = {
       ...changed,
       subjectDigest: canonicalDigest({ inconsistent: "subject" }),
@@ -178,10 +207,10 @@ describe("Candidate attestation", () => {
       verificationEvidenceRefs: ["test://candidate/focused"],
       implementationChanged: true,
     });
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    assertSchemaRefuses(CandidateManagedRecordV1Schema, {
       ...record,
       transitions: [inconsistentResponse],
-    }).success).toBe(false);
+    });
   });
 
   it("round-trips an optional approved verification scope and binds it to response identity", () => {
@@ -219,14 +248,14 @@ describe("Candidate attestation", () => {
       });
       expect(parseCandidateManagedRecord(serializeCandidateManagedRecord(record))).toEqual(record);
     }
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    assertSchemaAccepts(CandidateManagedRecordV1Schema, {
       schemaVersion: 1,
       semanticsVersion: "candidate-attestation/v1",
       attestation: root,
       subject: snapshot(),
       transitions: [omitted],
       lineageAttestations: [],
-    }).success).toBe(true);
+    });
     expect(() => createCandidateReviewResponseEvidence({
       ...common,
       approvedVerification: "broad" as never,
@@ -281,14 +310,14 @@ describe("Candidate attestation", () => {
     expect(convergence[0]?.target.subject).not.toEqual(firstResponse.newTarget.subject);
     expect(convergence[0]?.target.subject.subjectDigest).toBe(firstResponse.newTarget.subject.subjectDigest);
 
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    assertSchemaAccepts(CandidateManagedRecordV1Schema, {
       schemaVersion: 1,
       semanticsVersion: "candidate-attestation/v1",
       attestation: root,
       subject: snapshot(),
       transitions: [firstResponse, secondResponse],
       lineageAttestations: convergence,
-    }).success).toBe(true);
+    });
   });
 
   it.each(["root", "response"] as const)(
@@ -312,7 +341,7 @@ describe("Candidate attestation", () => {
         ? root.verificationEvidenceRef
         : response.verificationEvidenceRefs[0]!;
 
-      expect(CandidateManagedRecordV1Schema.safeParse({
+      assertSchemaRefuses(CandidateManagedRecordV1Schema, {
         schemaVersion: 1,
         semanticsVersion: "candidate-attestation/v1",
         attestation: root,
@@ -327,7 +356,7 @@ describe("Candidate attestation", () => {
           verificationEvidenceRef: reusedEvidenceRef,
           scope: "focused",
         })],
-      }).success).toBe(false);
+      });
     },
   );
 });
@@ -380,7 +409,7 @@ describe("Candidate lineage currentness", () => {
     const root = attestation();
     const carried = snapshot(canonicalDigest({ source: "covered-base-carry" }));
 
-    const parsed = CandidateManagedRecordV1Schema.safeParse({
+    const parsed = assertSchemaAccepts(CandidateManagedRecordV1Schema, {
       schemaVersion: 1,
       semanticsVersion: "candidate-attestation/v1",
       attestation: root,
@@ -400,10 +429,8 @@ describe("Candidate lineage currentness", () => {
       lineageAttestations: [],
     });
 
-    expect(parsed.success).toBe(true);
-    if (!parsed.success) throw new Error("expected a valid Candidate transition record");
     expect(projectCandidateCurrentness({
-      record: parsed.data,
+      record: parsed,
       current: { revision: SHA_B, subject: carried },
     })).toMatchObject({
       status: "current",
@@ -435,11 +462,11 @@ describe("Candidate lineage currentness", () => {
       lineageAttestations: [],
     };
 
-    expect(CandidateManagedRecordV1Schema.safeParse({ ...record, transitions: [common] }).success).toBe(false);
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    assertSchemaRefuses(CandidateManagedRecordV1Schema, { ...record, transitions: [common] });
+    assertSchemaAccepts(CandidateManagedRecordV1Schema, {
       ...record,
       transitions: [{ ...common, targetedEvidenceRef: "verification://targeted-carry" }],
-    }).success).toBe(true);
+    });
   });
 
   it("records changed without advancing the durable Candidate target", () => {
@@ -586,15 +613,15 @@ describe("Candidate lineage currentness", () => {
       })],
     });
 
-    expect(CandidateManagedRecordV1Schema.safeParse(makeRecord("focused")).success).toBe(false);
-    expect(CandidateManagedRecordV1Schema.safeParse(makeRecord("full")).success).toBe(true);
+    assertSchemaRefuses(CandidateManagedRecordV1Schema, makeRecord("focused"));
+    assertSchemaAccepts(CandidateManagedRecordV1Schema, makeRecord("full"));
 
     const focusedResponse = createCandidateReviewResponseEvidence({
       ...response,
       approvedVerification: "focused",
       dispositionId: canonicalDigest({ dispositions: "approved-focused" }),
     });
-    expect(CandidateManagedRecordV1Schema.safeParse({
+    assertSchemaAccepts(CandidateManagedRecordV1Schema, {
       ...makeRecord("full"),
       transitions: [focusedResponse],
       lineageAttestations: [{
@@ -602,7 +629,7 @@ describe("Candidate lineage currentness", () => {
         responseId: focusedResponse.responseId,
         target: focusedResponse.newTarget,
       }],
-    }).success).toBe(true);
+    });
   });
 
   it("applies prior lineage attestations while guarding a later focused attestation", () => {
@@ -652,7 +679,7 @@ describe("Candidate lineage currentness", () => {
       scope: "focused",
     });
 
-    const parsed = CandidateManagedRecordV1Schema.safeParse({
+    const parsed = assertSchemaAccepts(CandidateManagedRecordV1Schema, {
       schemaVersion: 1,
       semanticsVersion: "candidate-attestation/v1",
       attestation: root,
@@ -661,9 +688,7 @@ describe("Candidate lineage currentness", () => {
       lineageAttestations: [fullAttestation, focusedAttestation],
     });
 
-    expect(parsed.success).toBe(true);
-    if (!parsed.success) throw new Error("expected prior full convergence to discharge before focused scope");
-    expect(projectCandidateCurrentness({ record: parsed.data, current: focused.newTarget })).toMatchObject({
+    expect(projectCandidateCurrentness({ record: parsed, current: focused.newTarget })).toMatchObject({
       status: "current",
       convergenceVerification: "satisfied",
       convergenceScope: null,
@@ -720,7 +745,7 @@ describe("Candidate lineage currentness", () => {
       applicability: "focused",
       verificationEvidenceRefs: [
         "criteria://delivery/member-1",
-        "gates://tier-1/current-top",
+        "gates://commit/current-top",
       ],
       implementationChanged: true,
     });
@@ -906,7 +931,7 @@ describe("Candidate lineage currentness", () => {
         verificationEvidenceRefs: [`test://candidate/repeated-${laterScope}`],
         implementationChanged: true,
       });
-      const parsed = CandidateManagedRecordV1Schema.safeParse({
+      const parsed = assertSchemaAccepts(CandidateManagedRecordV1Schema, {
         schemaVersion: 1,
         semanticsVersion: "candidate-attestation/v1",
         attestation: root,
@@ -923,9 +948,7 @@ describe("Candidate lineage currentness", () => {
         })],
       });
 
-      expect(parsed.success).toBe(true);
-      if (!parsed.success) throw new Error("expected occurrence-bound Candidate evidence");
-      expect(projectCandidateCurrentness({ record: parsed.data, current: repeated.newTarget })).toMatchObject({
+      expect(projectCandidateCurrentness({ record: parsed, current: repeated.newTarget })).toMatchObject({
         status: "current",
         convergenceVerification: "pending",
         convergenceScope: laterScope,
@@ -972,14 +995,14 @@ describe("Candidate lineage currentness", () => {
   });
 
   it("rejects impossible convergence status and scope pairs", () => {
-    expect(CandidateConvergenceProjectionSchema.safeParse({
+    assertSchemaRefuses(CandidateConvergenceProjectionSchema, {
       convergenceVerification: "satisfied",
       convergenceScope: "focused",
-    }).success).toBe(false);
-    expect(CandidateConvergenceProjectionSchema.safeParse({
+    });
+    assertSchemaRefuses(CandidateConvergenceProjectionSchema, {
       convergenceVerification: "pending",
       convergenceScope: null,
-    }).success).toBe(false);
+    });
   });
 
   it("blocks an unexplained reviewable delta with its exact path delta and one recovery action", () => {

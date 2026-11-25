@@ -1,6 +1,7 @@
 /** Exact-effect Errand terminal merge contracts and operation. */
 
 import { z } from "zod";
+import { describeCheckpointReconciliation } from "./checkpoint-reconciliation-detail.js";
 
 import {
   BoundedEvidenceResidualSchema,
@@ -8,11 +9,16 @@ import {
   type EvidenceApplicabilityResult,
 } from "../../lib/evidence-applicability/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
+import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
 import { LocusTokenSchema } from "../../lib/locus/schema/index.js";
 import {
   RequiredCheckSchema,
   type RequiredChecksObservationResult,
 } from "../review-gate/checks-await.js";
+import {
+  hostAdmissionRefusalCorrection,
+  type ChangeRequestMergeObservation,
+} from "../review-gate/change-request.js";
 import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
 import type { CheckpointMovementObservation, CheckpointMovementPlan } from "./checkpoint.js";
 import {
@@ -23,7 +29,7 @@ import {
 } from "./merge.js";
 import { SpineRemedySchema, spineRemedy } from "./spine-refusal.js";
 
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 const ErrandMergeIdentitySchema = z.strictObject({
   slug: SlugSchema,
   claimId: LocusTokenSchema,
@@ -117,12 +123,16 @@ export const ErrandMergeResultSchema = z.discriminatedUnion("state", [
     state: z.literal("reconcile-base"),
     nextAction: z.literal("reconcile-base"),
     reason: z.literal("base-reconcile-required"),
+    /** What the absorbed base movement leaves for the new head's review to settle, when review does not carry. */
+    applicability: EvidenceApplicabilityResultSchema.optional(),
   }),
   z.strictObject({
     ...nonSuccess,
     state: z.literal("reconcile-regenerable"),
     nextAction: z.literal("reconcile-regenerable"),
     reason: z.literal("regenerable-reconcile-required"),
+    /** What the absorbed base movement leaves for the new head's review to settle, when review does not carry. */
+    applicability: EvidenceApplicabilityResultSchema.optional(),
   }),
   z.strictObject({
     ...nonSuccess,
@@ -232,6 +242,15 @@ function exactRetry(
       request,
     ),
   };
+}
+
+/**
+ * Name what clears a host refusal, keyed on its typed condition when the observation carries one. A correction that
+ * moves the head leaves the approved request stale, so only an unchanged head retries it.
+ */
+function hostRefusalCorrection(admission: ChangeRequestMergeObservation): string {
+  return `${hostAdmissionRefusalCorrection(admission) ?? "Resolve the refusal"}, then retry the same approved request `
+    + "if the head is unchanged, or compose a new request and obtain fresh approval if the correction moved it";
 }
 
 function failureDetail(error: unknown): string {
@@ -442,8 +461,9 @@ async function withReheldTarget(
 function reconcileResult(
   request: ErrandMergeRequest,
   final: Extract<ErrandMergeFinalPlan, { status: "available" }>,
-  nextAction: "reconcile-base" | "reconcile-regenerable",
+  plan: Extract<CheckpointMovementPlan, { state: "reconcile" }>,
 ): ErrandMergeResult {
+  const { nextAction } = plan;
   const regenerable = nextAction === "reconcile-regenerable";
   const argv = [
     "arc", "base", "merge",
@@ -457,13 +477,12 @@ function reconcileResult(
     state: regenerable ? "reconcile-regenerable" : "reconcile-base",
     nextAction,
     reason: regenerable ? "regenerable-reconcile-required" : "base-reconcile-required",
-    detail: regenerable
-      ? "The exact plan admits only the determinate regenerable reconcile."
-      : "The exact plan requires an ordinary base reconcile.",
+    detail: describeCheckpointReconciliation(plan.rule),
     identity: request.identity,
     approvedTarget: request.approvedTarget,
     lane: request.lane,
     coordinates: { observedTarget: final.target, observedBaseOid: final.baseOid },
+    ...(final.reviewApplicability.verdict === "carries" ? {} : { applicability: final.reviewApplicability }),
     continuation: {
       kind: "remedy",
       remedy: spineRemedy(
@@ -640,22 +659,6 @@ export async function mergeErrand(
       final.baseOid,
     );
   }
-  if (final.reviewApplicability.judgmentRequired) {
-    return applicabilityJudgmentResult(request, final);
-  }
-  if (final.reviewApplicability.verdict === "fresh") {
-    return invalidatedResult(
-      request,
-      "review-applicability-fresh",
-      "The final evidence requires fresh review and exact integration approval.",
-      final.target,
-      final.baseOid,
-      final.reviewApplicability,
-    );
-  }
-  if (final.reviewApplicability.verdict === "carries" && final.plan.state === "reconcile") {
-    return reconcileResult(request, final, final.plan.nextAction);
-  }
   if (final.plan.state === "blocked") {
     const common = {
       schemaVersion: 1 as const,
@@ -689,7 +692,7 @@ export async function mergeErrand(
         continuation: exactRetry(
           request,
           "The host must accept the exact approved Errand target under its configured policy.",
-          "Resolve the refusal, then retry the same approved request",
+          hostRefusalCorrection(final.observation.admission),
         ),
       });
     }
@@ -709,7 +712,25 @@ export async function mergeErrand(
       },
     });
   }
-  if (final.plan.state !== "proceed" || final.reviewApplicability.verdict !== "carries") {
+  // Review applicability asks whether this head may merge as reviewed. A reconcile replaces this head, so the
+  // question passes to the reconciled head's own review status rather than stopping the reconcile.
+  if (final.plan.state === "reconcile") {
+    return reconcileResult(request, final, final.plan);
+  }
+  if (final.reviewApplicability.judgmentRequired) {
+    return applicabilityJudgmentResult(request, final);
+  }
+  if (final.reviewApplicability.verdict === "fresh") {
+    return invalidatedResult(
+      request,
+      "review-applicability-fresh",
+      "The final evidence requires fresh review and exact integration approval.",
+      final.target,
+      final.baseOid,
+      final.reviewApplicability,
+    );
+  }
+  if (final.reviewApplicability.verdict !== "carries") {
     throw new Error("The final Errand merge plan did not permit direct merge.");
   }
   try {
@@ -925,7 +946,7 @@ export async function mergeErrand(
           continuation: exactRetry(
             request,
             "The host must accept the exact approved Errand target under its configured policy.",
-            "Resolve the refusal, then retry the same approved request",
+            hostRefusalCorrection(refusedPlan.observation.admission),
           ),
         }),
       );
@@ -1012,6 +1033,15 @@ export async function mergeErrand(
         ),
       );
     }
+    if (currentnessPlan.plan.state === "reconcile") {
+      return withReheldTarget(
+        request,
+        dependencies,
+        currentnessPlan.target,
+        currentnessPlan.baseOid,
+        reconcileResult(request, currentnessPlan, currentnessPlan.plan),
+      );
+    }
     if (currentnessPlan.reviewApplicability.judgmentRequired) {
       return withReheldTarget(
         request,
@@ -1035,16 +1065,6 @@ export async function mergeErrand(
           currentnessPlan.baseOid,
           currentnessPlan.reviewApplicability,
         ),
-      );
-    }
-    if (currentnessPlan.reviewApplicability.verdict === "carries"
-      && currentnessPlan.plan.state === "reconcile") {
-      return withReheldTarget(
-        request,
-        dependencies,
-        currentnessPlan.target,
-        currentnessPlan.baseOid,
-        reconcileResult(request, currentnessPlan, currentnessPlan.plan.nextAction),
       );
     }
     return withReheldTarget(

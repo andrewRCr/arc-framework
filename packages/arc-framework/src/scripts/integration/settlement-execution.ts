@@ -18,6 +18,7 @@ export const SettlementInvalidationReasonSchema = z.enum([
   "stale",
   "ambiguous",
   "actor-mismatched",
+  "fix-not-performed",
 ]);
 export type SettlementInvalidationReason = z.infer<typeof SettlementInvalidationReasonSchema>;
 
@@ -60,6 +61,7 @@ function reviewResponseInvalidation(state: string): SettlementInvalidationReason
   if (state === "missing-record") return "missing";
   if (state === "stale-target") return "stale";
   if (state === "actor-mismatch") return "actor-mismatched";
+  if (state === "fix-not-performed") return "fix-not-performed";
   return "ambiguous";
 }
 
@@ -68,6 +70,7 @@ function hostedInvalidation(result: HostedSettleResult): SettlementInvalidationR
   if (result.state === "missing-thread" || result.state === "missing-comment") return "missing";
   if (result.state === "stale-target") return "stale";
   if (result.state === "actor-mismatch") return "actor-mismatched";
+  if (result.state === "fix-not-performed") return "fix-not-performed";
   return "ambiguous";
 }
 

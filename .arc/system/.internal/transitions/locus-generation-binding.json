@@ -1,1 +1,1 @@
-{"edges":[],"kind":"abandon","origin":"locus-generation-binding","schemaVersion":1,"successors":[]}
+{"incoming":[],"kind":"abandon","origin":{"name":"locus-generation-binding"},"schemaVersion":2,"successors":[]}

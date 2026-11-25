@@ -1,22 +1,26 @@
 /** Durable selection of one pending Candidate-bound review-fix response. */
 
+import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import {
   candidateReviewResponses,
   type CandidateManagedRecordV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
-import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { canonicalize, SlugSchema, sortByCanonicalBytes } from "../../../lib/kernel/index.js";
-import type { ApprovedDispositionRecord } from "../core/advisory-records.js";
+import {
+  currentApprovedDispositionNode,
+  type ApprovedDispositionRecord,
+} from "../core/advisory-records.js";
 import { validateFixAuthorization } from "../core/fix-authorization.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
-import { frontlineResponseBindingMatchesTarget } from
+import { frontlineResponseBindingMatchesTarget, type BoundFrontlineResponseBinding } from
   "../core/frontline-response-binding.js";
 import { parseReviewSourceReference } from "../core/review-source-reference.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
-import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import { computeFrontlineSourceBindingId } from "./frontline-operation.js";
+import { computeFrontlineSourceBindingId } from "../core/frontline-source-binding.js";
+import { createReviewCompositionContext, type ReviewCompositionContext } from "../runtime/composition-context.js";
+import type { ReviewInvocationInput, ReviewInvocationOptions } from "../runtime/invocation.js";
 
 export type PendingCandidateReviewFixAuthority =
   | { readonly status: "none" }
@@ -38,7 +42,7 @@ export type CandidateReviewFixAuthorityReader = (input: {
   readonly cwd: string;
   readonly workUnitId: string;
   readonly candidate: CandidateManagedRecordV1;
-}) => Promise<PendingCandidateReviewFixAuthority>;
+} & ReviewInvocationOptions) => Promise<PendingCandidateReviewFixAuthority>;
 
 type PendingCandidateReviewFixRecord =
   | Exclude<PendingCandidateReviewFixAuthority, { readonly status: "selected" }>
@@ -51,7 +55,8 @@ type PendingCandidateReviewFixRecord =
     };
 
 function recordHasExactPendingCandidateFixAuthority(record: ApprovedDispositionRecord): boolean {
-  const authorization = record.fixAuthorization;
+  const current = currentApprovedDispositionNode(record);
+  const authorization = current.fixAuthorization;
   const candidateOwnedPrivateMember = record.deliveryMember !== null
     && record.candidate !== null
     && record.source.kind === "frontline"
@@ -65,16 +70,16 @@ function recordHasExactPendingCandidateFixAuthority(record: ApprovedDispositionR
     return false;
   }
   const authorizedFindingIds = sortByCanonicalBytes(
-    record.approvedDisposition.dispositionSet.findings
+    current.approvedDisposition.dispositionSet.findings
       .filter(({ disposition }) => disposition === "fix")
       .map(({ findingId }) => findingId),
   );
   return authorizedFindingIds.length > 0
     && JSON.stringify(authorization.authorizedFindingIds) === JSON.stringify(authorizedFindingIds)
-    && authorization.authorizedBy === record.approvedDisposition.approval.approvedBy
+    && authorization.authorizedBy === current.approvedDisposition.approval.approvedBy
     && authorization.dispositionSetId
-      === record.approvedDisposition.dispositionSet.dispositionSetId
-    && authorization.oldTargetId === record.approvedDisposition.dispositionSet.targetId;
+      === current.approvedDisposition.dispositionSet.dispositionSetId
+    && authorization.oldTargetId === current.approvedDisposition.dispositionSet.targetId;
 }
 
 /**
@@ -92,13 +97,16 @@ export function selectPendingCandidateReviewFixRecord(input: {
   readonly records: readonly ApprovedDispositionRecord[];
 }): PendingCandidateReviewFixRecord {
   const workUnitId = SlugSchema.parse(input.workUnitId);
-  const consumedDispositionIds = new Set(
+  const consumedDispositionIds = new Set<string>(
     candidateReviewResponses(input.candidate).map(({ dispositionId }) => dispositionId),
   );
-  const pending = input.records.filter((record) => record.candidate?.workUnit === workUnitId
-    && record.candidate.candidateId === input.candidate.attestation.candidateId
-    && record.fixAuthorization !== null
-    && !consumedDispositionIds.has(record.approvedDisposition.dispositionSet.dispositionSetId));
+  const pending = input.records.filter((record) => {
+    const current = currentApprovedDispositionNode(record);
+    return record.candidate?.workUnit === workUnitId
+      && record.candidate.candidateId === input.candidate.attestation.candidateId
+      && current.fixAuthorization !== null
+      && !consumedDispositionIds.has(current.approvedDisposition.dispositionSet.dispositionSetId);
+  });
   if (pending.some((record) => !recordHasExactPendingCandidateFixAuthority(record))) {
     return { status: "refused", reason: "candidate-review-fix-response-invalid" };
   }
@@ -106,15 +114,25 @@ export function selectPendingCandidateReviewFixRecord(input: {
     return { status: "refused", reason: "candidate-review-fix-response-ambiguous" };
   }
   const selected = pending[0];
-  if (selected?.candidate === null || selected?.candidate === undefined
-    || selected.fixAuthorization === null) return { status: "none" };
+  if (selected?.candidate === null || selected?.candidate === undefined) return { status: "none" };
+  const current = currentApprovedDispositionNode(selected);
+  if (current.fixAuthorization === null) return { status: "none" };
   return {
     status: "selected",
     candidateId: selected.candidate.candidateId,
     operationId: selected.operationId,
-    reviewedHead: selected.fixAuthorization.oldHeadSha,
+    reviewedHead: current.fixAuthorization.oldHeadSha,
     record: selected,
   };
+}
+
+/** A frontline response binding must name the selected Candidate, its private member, and the reviewed member target. */
+function responseBindingMatchesSelection(record: ApprovedDispositionRecord, target: ReviewTarget,
+  binding: BoundFrontlineResponseBinding | undefined): boolean {
+  return binding === undefined || (record.candidate?.workUnit === binding.candidate.workUnit
+    && record.candidate.candidateId === binding.candidate.candidateId
+    && canonicalize(record.deliveryMember) === canonicalize(binding.deliveryMember)
+    && frontlineResponseBindingMatchesTarget(target, binding));
 }
 
 async function readReviewedTarget(
@@ -145,18 +163,13 @@ async function readReviewedTarget(
       || operation.state.targetId !== outcome.record.outcome.target.targetId
       || operation.state.sourceIdentity !== outcome.record.sourceIdentity
       || operation.state.outcome !== outcome.record.outcome.outcome
-      || operation.state.passCount !== outcome.record.outcome.pass
+      || operation.state.logicalPass !== outcome.record.outcome.pass
       || operation.state.sourceBindingId !== computeFrontlineSourceBindingId(
         outcome.record.outcome.source,
         responseBinding,
       )
       || canonicalize(operation.state.responseBinding ?? null) !== canonicalize(responseBinding ?? null)
-      || (selection.record.deliveryMember === null) !== (responseBinding === undefined)
-      || (responseBinding !== undefined
-        && (selection.record.candidate?.workUnit !== responseBinding.candidate.workUnit
-          || selection.record.candidate.candidateId !== responseBinding.candidate.candidateId
-          || canonicalize(selection.record.deliveryMember) !== canonicalize(responseBinding.deliveryMember)
-          || !frontlineResponseBindingMatchesTarget(outcome.record.outcome.target, responseBinding)))
+      || !responseBindingMatchesSelection(selection.record, outcome.record.outcome.target, responseBinding)
       || outcome.record.outcome.outcome !== "findings") return null;
     return outcome.record.outcome.target;
   }
@@ -172,8 +185,8 @@ async function readReviewedTarget(
       ({ sourceKind, qualifier }) => sourceKind === "hosted" && qualifier === attempt.sourceId,
     )?.qualifier
     || operation.state.repositoryId !== attempt.hosted.reviewTarget.repositoryId
-    || operation.state.headSha !== attempt.hosted.target.headSha
-    || operation.state.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
+    || attempt.headSha !== attempt.hosted.target.headSha
+    || attempt.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
     || attempt.hosted.reviewTarget.headSha !== attempt.hosted.target.headSha
     || (attempt.hosted.reviewTarget.kind === "delivery-member"
       ? attempt.hosted.vehicle === undefined
@@ -182,20 +195,29 @@ async function readReviewedTarget(
   return attempt.hosted.reviewTarget;
 }
 
+async function readSelectedTarget(context: ReviewCompositionContext,
+  selected: Extract<PendingCandidateReviewFixRecord, { readonly status: "selected" }>): Promise<ReviewTarget | null> {
+  if (context.family.mode === "in-repo") return readReviewedTarget(context.publisher, selected);
+  const evidence = await context.family.ports.evidence.read(selected.record.currentDispositionSetId);
+  if (evidence === null) return null;
+  const outcome = await context.family.ports.outcomes.read(evidence.value.result.outcomeKey);
+  if (outcome === null
+    || !responseBindingMatchesSelection(selected.record, outcome.value.target, outcome.value.frontline?.responseBinding)) return null;
+  return outcome.value.target;
+}
+
 /**
- * Read pending Candidate review-fix authority from repository-common advisory and source state.
+ * Read pending Candidate review-fix authority from the invocation's advisory and source records, repository or native.
  *
  * @param input - Repository, work-unit, and Candidate coordinates for the authority read.
  * @returns One source-validated pending authority, no authority, or a fail-closed refusal.
  */
-export async function readPendingCandidateReviewFixAuthority(input: {
-  readonly cwd: string;
-  readonly exec: GitExec;
+export async function readPendingCandidateReviewFixAuthority(input: ReviewInvocationInput & {
   readonly workUnitId: string;
   readonly candidate: CandidateManagedRecordV1;
 }): Promise<PendingCandidateReviewFixAuthority> {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+  const context = createReviewCompositionContext(input);
+  const records = await context.family.ports.dispositions.listDispositionRecords();
   const selected = selectPendingCandidateReviewFixRecord({
     workUnitId: input.workUnitId,
     candidate: input.candidate,
@@ -203,8 +225,8 @@ export async function readPendingCandidateReviewFixAuthority(input: {
   });
   if (selected.status !== "selected") return selected;
   try {
-    const reviewedTarget = await readReviewedTarget(publisher, selected);
-    const authorization = selected.record.fixAuthorization;
+    const reviewedTarget = await readSelectedTarget(context, selected);
+    const authorization = currentApprovedDispositionNode(selected.record).fixAuthorization;
     if (reviewedTarget === null || authorization === null
       || reviewedTarget.targetId !== authorization.oldTargetId
       || reviewedTarget.headSha !== authorization.oldHeadSha) {
@@ -217,7 +239,8 @@ export async function readPendingCandidateReviewFixAuthority(input: {
       reviewedHead: selected.reviewedHead,
       reviewedTarget,
     };
-  } catch {
+  } catch (error) {
+    if (isOffBranchStoreRefusal(error)) throw error;
     return { status: "refused", reason: "candidate-review-fix-response-invalid" };
   }
 }

@@ -275,9 +275,8 @@
     - **Semantic constraints** — a genuine rule over two independently valid shapes, which removing a field cannot
       fix. `RespondRequestSchema`'s "a settlement replay cannot also submit a verified fix" is this class. Only
       here do the original options apply: express it structurally as a discriminated union, or state the residue
-      in help and accept parse-time enforcement.
-  Classify each refinement before choosing a remedy; the redundancy class closes by simplifying the request, not
-  by improving generation.
+      in help and accept parse-time enforcement. Classify each refinement before choosing a remedy; the redundancy class
+  closes by simplifying the request, not by improving generation.
 
 - _Sequencing consequence:_ do not wire a `--schema` equivalent for `arc errand merge` before this decision. Both
   its refinements are redundancy-class, so the derivability fix changes the envelope's field set — a discovery
@@ -300,6 +299,395 @@
   `FrontlineCommandRequestSchema`, exactly the failure `D4.1` exists to end.
 
 - _Captured during:_ the `register-review-request-schemas` errand, 2026-09-18.
+
+### `[ ]` **Settle the review family's `--schema` flags against `arc schema get`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its D4.2 per-verb `--schema`, and its inbound-buffer entries "Narrow public review schema discovery to the
+  requested command" and "Make review request shapes discoverable and their projections derivable".
+
+- _Observation:_ `schema-introspection-layer` ships `arc schema get <id>` over `createProductionSchemaRegistry()`,
+  returning one self-contained document (`$defs` only, `$id` `urn:arc:schema:<id>`) projected on the input side for
+  roots registered `authored: "request"`. It marks all fifteen `REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS` roots `request`, and
+  changes `handleReviewRequestSchema` to compose the production registry and return that one document, keeping
+  `{rootId, schemas}` with a URN `rootId`. The projection fix ends the multi-megabyte closures. This work unit's
+  identity convention derives fourteen of the fifteen ids from the command path; the exception,
+  `review changeset resolve` → `review-chunking-resolve-request`, means callers cannot rely on derivation alone.
+
+- _Approach (lean):_ retire the per-verb flags for `arc schema get`, with each verb's `--help` naming its id; keeping
+  them means thin wrappers over `schema-introspection-layer`'s shared lookup. The decision is this work unit's.
+
+- _Also (decided at `schema-introspection-layer`'s create-spec, 2026-10-07):_ the build stops generating and shipping
+  `dist/schemas/kernel.json`, and `arc schema` becomes the registry's publication surface. This draft's D4.1 rests on
+  "a review-domain JSON Schema bundle already ships" (the `onSuccess` hook in `tsup.config.ts`); that work unit has
+  since shipped, so the premise no longer holds: registering the request schemas publishes them through
+  `arc schema get`, not a packaged bundle.
+
+- _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
+
+### `[ ]` **Rebind Errand review obligations when an approved fix changes routing risk**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the existing durable review-judgment and obligation-derivation contracts, including their Errand arm.
+
+- _Observation:_ PR #853 began with routine atomic review routing (`recommended`, `incremental`). An approved
+  review fix advanced the retained measurement format, changing the risk to sensitive (`required`, `full-final`).
+  The new-head policy resolver admitted pass 2 under that updated projection, but `review status` and hosted admission
+  retained the claim's original `standardReview`. The complete hosted Codex pass returned clean; reducing it against
+  the updated policy failed with "review producer policy or rubric does not match the policy request". Status
+  nevertheless reported settled under the old binding. Completion required explicit Owner approval to reduce the
+  genuine complete clean result using its original producer binding.
+
+- _Evidence:_ original head `a956ac6401e8a7a8fdfd3f42927d51617a3d67cd`, corrected head
+  `c9b7b03d3068f64cb211eac50d47abf4820fb81f`; hosted pass-2 result:
+  <https://github.com/andrewRCr/arc-framework/pull/853#issuecomment-6091750220>.
+  `hosted/request.ts` resolves an Errand binding by exact obligation equality; `policy/review-policy-evidence.ts`
+  likewise requires the terminal producer requirement to equal the caller's projection.
+
+- _Approach:_ derive and bind the current target's obligation from its current routing judgments before admitting
+  the next pass, preserving prior producer requirements and cumulative pass counts as history. Make status, hosted
+  admission, and result reduction agree on that current binding; cover routine-to-sensitive movement after a fix
+  and successful clean-result reduction. Do not relabel the earlier receipt or weaken exact policy matching.
+
+- _Boundary:_ review request and obligation binding across target movement, not provider selection, native review
+  scope, or Owner-accepted termini. Additional evidence for the existing work unit; no standalone implementation.
+
+- _Captured during:_ `warm-test-cost-runs` Errand, PR #853, 2026-10-09.
+
+### `[ ]` **Answer a review offer by reference rather than echoing it whole**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Hosted await re-derivation: answer decisions by offer reference while preserving version guards
+
+- _Observation:_ the review gate's decisions answer an offer the CLI emitted by echoing it back whole — an applicability
+  selection offer, a terminus offer, a hosted action — so an agent copies nested objects out of output and into a
+  request, where a slip yields a well-formed request bound to wrong coordinates. An offer already carries the version it
+  was computed from (`expectedRecordVersion`, `expectedBoundaryVersion`), and an answer against a moved version refuses
+  while an exact replay passes (`lib/work-unit/candidate-applicability-resolution.ts`), as a reused idempotency key with
+  different parameters does (Stripe). `seam-delivery-review` keeps that guard and stores no offer identity: a decision
+  is keyed by a digest of its own content.
+
+- _Approach:_ let a decision name its offer by a reference the CLI can re-derive from current state — a digest of the
+  offer, say — refusing a mismatch, and keep the whole echo only where a caller still needs it. No stored record
+  changes: the reference is resolved at the call.
+
+- _Captured during:_ `seam-delivery-review` draft-design close, 2026-10-15.
+
+### `[ ]` **Derive `frontline resolve`'s routing facts rather than demand them**
+
+- _Routed from:_ Errand `integration-friction-evidence`, 2026-10-20.
+- _Shapes:_ `D4.4` — the third instance its rule exists to prevent.
+
+- _Observation:_ `D4.4` names two requests that demand a field the caller cannot produce, and says stating the rule is
+  what keeps a third from landing. A third has landed: `arc review frontline resolve -` takes `changeSet`, which its
+  registered schema publishes as `{}` (`z.unknown()` in `frontline-command-schema.ts`), while the handler passes it
+  straight to `resolveReviewRouting` (`frontline-command.ts`). The caller therefore supplies full `ReviewRoutingFacts`,
+  including `changeSetState`, `assurance`, and `activity`, the three `D4.4` says no caller can produce. Unlike
+  `standardReview`, the published shape does not even name what is owed; only the handler shows it.
+
+- _Recurrence:_ the derivation half of "Make review request shapes discoverable and their projections derivable"
+  recurred unchanged in Errand `disposition-report-trim` (2026-10-20). Composing frontline and standard review for an
+  ordinary Errand meant running `resolveReviewRouting` and `projectStandardReviewObligation` through a scratch `tsx`
+  script, with the Errand assurance and method activity copied from `handlers/review.ts`.
+
+- _Approach:_ likely `D4.4`'s own shape — `frontline resolve` accepts `LocalReviewRoutingInput`, as `local prepare`
+  does, and derives the rest, under the same single-input sequencing.
+
+### `[ ]` **Derive a disposition approval's policy request instead of demanding hidden values**
+
+- _Routed from:_ Errand `test-cost-diagnosis-method` (PR #1087), 2026-10-21.
+- _Shapes:_ `D4.4` — the approval call of `arc review respond -` is a fourth instance.
+
+- _Observation:_ approving a disposition set takes a `policyRequest` the caller composes, and its validation
+  (`validateApprovedResponsePolicyBinding`, `runtime/respond-command.ts`) holds two values no published surface states.
+  For a local-review source, the target and scope must carry `pullRequest: null` even while the Errand's PR is open,
+  because `approvedPolicyVehicleMatches` accepts a PR number only for a hosted source or a delivery admission. And
+  `completedPasses` must equal the producer's logical pass, which after a fix check is the fix check's ordinal (3 on
+  PR #1087), not the complete-pass count. The resolve results the caller holds name the PR, the proposal call's
+  `awaiting-approval` payload returns no `policyRequest`, and the refusal ("must name the exact findings producer,
+  lane, pass, scope, and target") names neither field, so composing the approval meant reading source.
+
+- _Approach:_ likely `D4.4`'s own shape — the proposal result returns the exact approval `policyRequest`, as the
+  `ready-to-fix` result already does, or the approval call derives it from the source it is given; failing that, the
+  refusal names the mismatched field and its expected value.
+
+- _Additional evidence:_ `storage-ref-backend`'s first findings-response approval, 2026-10-27 (routed from
+  `USER-INBOX § Work Unit`, housekeep drain, 2026-10-28). Neither the first proposal result, the pending-response
+  pre-publication envelope nor `review lane read` exposes the complete `policyRequest`, so the session composed it
+  by calling `composePrePublicationReviewRequest(...).request.standard` from a private script and applying only
+  its typed producer-binding correction. An exposed request must not grant a successor pass. Sites:
+  `runtime/respond-command.ts`, `policy/pre-publication-request.ts` and `pre-publication-procedure.ts`.
+
+- _Additional evidence:_ `storage-ref-backend`'s chunked review scripted this composition every round, among 323
+  per-round scripts (about 40k lines; a copy is kept outside the repository), alongside the findings
+  proposal and the respond calls, the verified-fix replay, the staged Candidate commit, and re-entry with the resume
+  token after the push (routed from `USER-INBOX § Work Unit`, housekeep drain, 2026-10-30; its scope, evaluator and
+  report stages went to `chunk-scope-binding` and `review-evaluator-isolation`).
+
+- _Additional evidence:_ the same two values recurred on Errand `trend-first-pass` (PR #1313), 2026-11-10 (routed
+  from `USER-INBOX § Work Unit`, housekeep drain, 2026-11-10). Approving the disposition set from a local fix check on
+  the open PR refused twice with the same message, and was accepted only once the target and scope carried
+  `pullRequest: null` and `completedPasses` was 2, the fix check's logical pass. Composing the approval again meant
+  reading `approvedPolicyVehicleMatches` in `runtime/respond-command.ts`.
+
+- _Additional evidence:_ `projection-worktrees`' standard review passes 1–3, 2026-11-16 (routed from
+  `USER-INBOX § Errand`, housekeep drain, 2026-11-16). The first `arc review respond -` result,
+  `awaiting-approval / obtain-approval`, returns `operationId`, `proposal`, the disposition report texts and
+  `provisionalPassAssessment`, but the approval request it asks for must also carry the `policyRequest` (target, lane,
+  `standardReview`, `completedPasses`, `attempts`) and the disposition set's digest, which each pass rebuilt by hand
+  from earlier envelopes. Returning the exact approval request, or at least those two, would leave approval adding only
+  the Owner's decision.
+
+### `[ ]` **Give a fix's verification evidence a typed reference the CLI can check**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ D4.4, and the entry "A registered request schema is looser than the validator".
+
+- _Observation:_ `arc review respond -`'s `verifiedFix.verificationEvidenceRefs` takes free strings, and
+  `arc check gate merge --force --json` returns per-check logs and the tree but no reference to bind, so
+  `storage-ref-backend`'s replay carried prose plus a log path and nothing ties the response to the gate run that
+  verified it.
+
+- _Approach:_ the gate emits an evidence identity (head, tree, checks, outcome) the replay cites and the CLI checks.
+
+- _Evidence:_ `fix-round-1/final-merge-gate.json` and `fix-round-1/respond-verified-fix-request.json` under
+  `storage-ref-backend`'s review and measurement evidence (kept outside the repository), `verification/prepublication/`.
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
+- _Additional evidence:_ the same review's later rounds scripted the capture of the forced gate's head, tree, exit,
+  and log as each fix's verification evidence, round by round (routed from `USER-INBOX § Work Unit`, housekeep drain,
+  2026-10-30, with the chunked-review verb gaps).
+
+### `[ ]` **Make status agree with the typed continuation after a Candidate advance**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the entry "Make review-verb judgment inputs durable and status inputs derivable": a status read without the
+  resume token.
+
+- _Observation:_ after `storage-ref-backend`'s fix round pushed, `arc status --json` projected `run-self-review` with a
+  null policy, while the retained pre-publication resume returned `ready / local-prepare` for the fix check. Status
+  without the resume token names an author check the procedure does not ask for.
+
+- _Approach:_ without a resume token, status says a typed continuation is needed rather than naming a step.
+
+- _Evidence:_ `fix-round-1/status-after-push.json` and `fix-round-1/envelope-after-fix.json` under
+  `storage-ref-backend`'s review and measurement evidence (kept outside the repository), `verification/prepublication/`.
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
+### `[ ]` **Retire an acknowledged hosted review request before changing providers**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ the entry "Make a hosted review request idempotent for its exact target": what identity closes a
+  request, how stale outstanding requests end, and when an intentional replacement is admitted.
+
+- _Observation:_ PR #1124 requested hosted Codex review of `adb72aad09c28ce83f2a94548ec2e22f3ffaf64b` at
+  2026-10-24T20:19:12Z. Codex acknowledged it and kept its exact-head summary at Running for more than 25 minutes,
+  despite a two-file, 24-line addition and green CI. The preceding PR #1121 completed its Codex review in 76 seconds.
+  ARC reached `pending / inspect-or-extend`; a separately approved two-minute extension remained pending.
+
+- _Verified gap:_ `arc review hosted` has request, await, and settle, with no cancel, retire, or supersede verb.
+  `lane-progress-hosted-request.ts` holds a pass while any hosted attempt is pending or ambiguous, even at another
+  head. A read-only replay of the actual pending state with `coderabbit-pr` selected returned `ambiguous-delivery`
+  before capacity authorization or any write. Automatic fallback admits only observed safe unavailability, and
+  the Errand Owner-stop protocol also refuses while a request is pending. An operator cannot safely declare the
+  request null and select another provider through the current protocol.
+
+- _Approach:_ specify an Owner-directed retirement or supersession for an already-dispatched hosted request.
+  Preserve the request and the Owner decision as distinct provenance; do not invent a provider failure, successful
+  review, or completed pass. Bind it to the exact request, target, and owner; release the held admission so another
+  source can review the same head. Define idempotent re-entry and late-result handling so an obsolete request cannot
+  silently settle or block the replacement, and material findings are not silently discarded. Distinguish ARC
+  retirement from cancellation at the provider, which may not be available or acknowledged.
+
+- _Existing related work:_ the held "Let a prepared, unlaunched local review be withdrawn or superseded" capture
+  covers reviews that provably never started. This case was dispatched and acknowledged, so that narrow withdrawal
+  rule does not cover it. `review-source-authority` also requires operator choices to remain separate from observed
+  provider outcomes; retain that boundary here.
+
+- _Evidence:_ <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389066279> (request),
+  <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389068470> (provider summary), and the
+  `review-look-artifacts-2026-10-24` investigation's `diagnosis-stalled-request/`, kept outside the repository.
+
+- _Observed recovery:_ an Owner-authorized second `@codex review` at the same head was posted at 2026-10-24T21:47:28Z
+  (<https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389939984>). A fresh clean receipt arrived 61
+  seconds later, at 21:48:29Z, naming `adb72aad09`
+  (<https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389949474>); the shared summary changed to
+  Completed. `arc review hosted await` accepted it through the original handle, and normal policy reduction closed
+  standard pass 1 with zero findings. This recovered the occurrence by retrying the same provider; it exercised no ARC
+  request-retirement or provider-switch transition, and exposed no proof of how the provider handled its old job.
+
+- _Captured during:_ `review-look-artifacts` Errand review, 2026-10-24; Owner requested this recovery case be captured
+  if the review cohort did not already specify it.
+
+### `[ ]` **Align known change-set routing between pre-publication and local review**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ D4.4 — the CLI derives `changeSetState`, `assurance` and `activity` instead of taking them from the
+  caller; this is a concrete case of the two public paths composing `changeSetState` differently.
+
+- _Observation:_ A completed, attested local review cannot resume its pre-publication findings response when the
+  caller supplied the five documented routing facts without `changeSetState`. Local prepare adds `known`, while
+  pre-publication leaves the field absent and routing defaults it to `unknown`. Comparing the complete standard
+  projection then rejects `unknown-change-set` against the producer's `sensitive-change-set`, reporting
+  `review producer policy or rubric does not match the policy request` despite matching policy and rubric digests.
+  Both the opaque continuation and its bare public remedy repeat the refusal.
+
+- _Approach:_ Align change-set-state composition across these public paths and retain it through continuation.
+  Preserve honest unknown/unavailable routing and rejection of genuinely different policies, targets or rubrics.
+  Verify a successful prepared-review-to-findings-response round trip from the documented caller facts.
+
+- _Workaround:_ A fresh public pre-publication invocation with the original facts plus
+  `changeSetState: known`, the existing authorized lane judgments, and no old resume token returns
+  `candidate-fix-pending` / `arc review respond -`. Keep the newly returned opaque continuation. No review is
+  repeated, and no native records are edited.
+
+- _Files:_ `pre-publication-request.ts` routing composition, `local-prepare.ts` known-state composition,
+  `routing.ts` unknown defaults, `review-policy-evidence.ts` projection comparison, and public continuation tests.
+
+- _Evidence:_ `standard-pass-7/prepub-after-review.json`, `prepub-after-review-remedy.json`,
+  `prepub-after-review-explicit-corrected.json`, `prepub-after-review-known.json`, and
+  `response-continuation-diagnosis.json`, under `storage-ref-backend`'s review and measurement evidence (kept outside
+  the repository), `verification/prepublication/`. Source head `9c34e7fdce79e8b3611e68608380af903dd06786`; local
+  logical attempt 25 remained current throughout.
+
+- _Captured during:_ storage-ref-backend prepublication, 2026-10-27; explicitly requested for a later separate
+  Errand, outside this work unit. The public input correction restored the authorized fix route.
+
+### `[ ]` **Keep the coordinated hosted-request retirement slice ready for a deliberate pull-forward**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Retire an acknowledged hosted review request before changing providers" — the bounded pull-forward slice;
+  its coordination partner `seam-delivery-review` has shipped, so the slice re-plans without it.
+
+- _Direction (Owner, 2026-10-29):_ do not start this work now. If it is deliberately pulled forward, use the bounded
+  approach below, with the scope decisions recorded before implementation. Otherwise the concern and this evidence
+  stay with the original target, `review-request-contracts`, for its normal planning iteration.
+
+- _Observation:_ maintenance-lock PR #1172 requested hosted Codex review of
+  `cf79316bdd7405c8a558cb5167e44016562b9958`; the acknowledged request remained pending past ARC's attention window
+  and an approved retry/extension. ARC exposes no retirement verb, and forced delegated preparation failed because
+  one logical pass can have only one pending source attempt. A separate independent advisory review was clean,
+  but was never an admitted ARC evaluator operation. The Owner subsequently reported that another provider-side
+  request cleared the old job and returned clean. That recovery does not exercise ARC retirement or replacement.
+
+- _If pulled forward:_ implement a dedicated narrow work-unit contribution from a fresh base, preserving
+  `review-request-contracts` as the semantic home and agreeing the shared contract with the live
+  `seam-delivery-review` session before landing. This is not a shape-free Errand. The four record answers were
+  No / No / Yes / Yes: mapped steps; exclusions fit the intent; durable authority is costly to unwind; the
+  authority, publication, replay and import decisions need more than one explanatory line.
+
+- _Authority and effect:_ use one shared typed retirement payload/identity and a distinct, non-consuming retired
+  attempt carrying its decision key and original acknowledgment/admission. Bind project/work-item lineage, exact
+  admission and acknowledged handle, original host repository/PR/head and review-target digest, standard lane,
+  and a resolved non-null authorizer. Decision existence alone releases nothing; only committed retirement does.
+  Preserve request history and the public handle. Create no evaluator receipt, sealed result, findings or
+  completed pass. Do not overload withdrawal, terminus, safe-unavailable, terminal-failure, or reason strings.
+
+- _Replacement and observation:_ permit only an explicitly authorized configured delegated-agent complete review
+  of the unchanged target at the same uncompleted logical pass, retaining normal rubric, evaluator and grant
+  checks. Perform a final ordinary provider observation: only positively pending permits retirement; observed
+  terminal results follow normal settlement, while read errors, ambiguity and malformed findings refuse retirement.
+  An already-committed terminal result defeats stale retirement. After fresh positive pending observation, the
+  first successful conditional canonical commit wins; do not promise priority over an uncommitted provider
+  observation, cancellation at the provider, or automatic ingestion of future unobserved public posts.
+
+- _Before/after the storage flip:_ before the flip, publish typed authority and retirement effect together in one
+  expected-version legacy lane-owner transition. The active seam's ordinary decision ports are selected only when
+  `stateOffBranch=true`, so extending the native decision enum alone cannot unblock a current request. Use the same
+  shared payload in SDR's mapping to `review/decision` plus a typed administrative `review/outcome` linked to it
+  (field names remain provisional); retain key, actor, target, original admission and count. Native publication
+  must be atomic and compete with canonical completion. A seventh record kind appears unnecessary, subject to
+  approved design. Retirement is irreversible request closure; generic decision withdrawal must not resurrect it.
+
+- _Whole-path contract:_ pending holds, await and late settlement, admission, history validation, policy reduction,
+  counts, local preparation, replay and import must consume the same retirement. A retired request cannot remain
+  pending in the legacy import, whose current mapping refuses live pending attempts.
+
+- _Scope prerequisites:_ Owner must choose the bounded publication vehicle and explicitly elect SDR admission
+  through a spec amendment with an appended criterion and revision task. The proposed SDR sections are 4/4.7,
+  5.1/5.2/5.10 and 11.2. `RELEASE-GATES` needs a named exception to its post-seam timing and new-record-shape
+  restrictions. Coordination was read-only; no adoption, amendment, exception or implementation was approved.
+  Keep general provider-failure fallback, hosted-to-hosted switching and broader review-cohort work out of this slice.
+
+- _Verification:_ real-Git cases must cover positive pending retirement through complete local review; canonical
+  completion committed before retirement; rejection of late canonical settlement after retirement; observation
+  errors/ambiguity/malformed findings; duplicate or mismatched authority and idempotent re-entry; and pre-flip
+  import preserving retirement identity, actor, target and pass count. Include the actual failed local preparation:
+  its source/materialization and local operation are preparation artifacts, not admission or evaluator evidence.
+  Replay ordinary deterministic prepare at the unchanged claim/head, prove reuse/repair admits exactly one complete
+  local attempt, then run an actual admitted independent review. Do not attest the prior advisory clean, hand-edit
+  review state, or treat cleanup as authority.
+
+- _Evidence:_ the 2026-10-28 maintenance-lock investigation's records (hosted-retirement viability, its coordination
+  with `seam-delivery-review` and the recommendation, and the source-switch blocker), kept outside the repository. The
+  qualified-primary CLI bootstrap was proved against the unchanged Errand head, so a landed fix need not enter PR
+  #1172's reviewed delta before use. An advisor consultation completed once; its advice is preserved in the viability
+  record and confers no authorization.
+
+- _Captured during:_ isolated Errand batch, maintenance-lock PR #1172; coordinated with Codex session
+  `process-task-loop.SDR` (`01a15422-c53b-7bf3-9b69-97c96174ec4e`). Owner deferred the proposed start.
+
+### `[ ]` **Decide whether `arc delivery plan inventory schema` stays beside `arc schema get`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Settle the review family's `--schema` flags against `arc schema get`" (`delivery-rebuild-continuity`'s
+  design does not take it).
+
+- _Observation:_ `schema-introspection-layer` routes `handleDeliveryPlanInventorySchema` through its shared lookup over
+  `createProductionSchemaRegistry()`: the verb keeps its envelope but takes `schema` and `version` from the registry
+  instead of a delivery-only bundle and a version constant, which ends today's dangling `slug.schema.json` reference
+  (an e2e test asserts no external `$ref`). It marks `delivery-design-inventory-input` `authored: "request"`, so the
+  document reads on the input side.
+
+- _Approach:_ keep the verb as a thin wrapper, or retire it for `arc schema get delivery-design-inventory-input`.
+
+- _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
+
+### `[ ]` **Release a hosted review pass whose request never reached the host**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ the buffered "Retire an acknowledged hosted review request before changing providers" and "Make a hosted
+  review request idempotent for its exact target": what a request that never reached the host leaves held.
+
+- _Observation:_ a hosted review request whose `gh api` comment write fails with anything other than an HTTP 4xx or a
+  rate limit is recorded `ambiguous-delivery` (`writeFailure` in `hosted/gh-process.ts`), which is right while the
+  comment might exist. But nothing ever checks the host afterwards. The attempt holds that logical pass against every
+  hosted source (`hostedPassHold` in `lane-progress-hosted-request.ts`), and `arc review local prepare` refuses the
+  forced `delegated-agent` source too (`source-outcome-ambiguous-delivery`), so the lane has no route to the review a
+  sensitive change requires. No verb verifies the host and releases the pass.
+
+- _Evidence:_ PR #1336 at `eba5db55a7` (2026-11-12). The hosted request for `coderabbit-pr` returned
+  `ambiguous-delivery / stop` with empty stderr; the pull request had no comments afterwards, so nothing was
+  delivered. The recorded attempt has no handle and `requestFailureReason: null`; `arc review status` still reported
+  `review-required / run-review`. An empty commit moved the head to `9937e7dfd3`, and the request there returned
+  `ambiguous-delivery` again without recording a new attempt, so the hold spans heads within one Errand claim. The
+  original failure's cause is unrecoverable: `requestHostedReview` wraps `adapter.request` in a bare
+  `catch { ambiguous-delivery }` (`hosted/request.ts` ~677), and `writeFailure` keeps no detail. Afterwards the
+  pre-write reads (`readHead`, `currentActorIdentity`) succeeded, and a probe POST to a missing issue returned HTTP 404
+  in 0.25 s, so the write path works.
+
+- _Also:_ that bare catch also classifies exceptions thrown before the write (a failed or malformed `readHead` or
+  actor read) as ambiguous, though nothing was sent; those should conclude as transient or terminal. Record the
+  failure detail on the attempt either way.
+
+- _Approach:_ a typed reconcile for an ambiguous attempt: read the pull request's comments for one matching the
+  request body and actor after the attempt's admission, bind it as the handle when found, and otherwise record the
+  attempt undelivered so the pass is released. Never replay without that read.
+
+- _Captured during:_ the `dev-rules-project-condense` Errand's hosted review (Owner-approved capture, 2026-11-12).
+
+---
 
 ## Reachable Request Contracts
 
@@ -334,8 +722,8 @@ surface: `reviewCommandInputRegistrations` and the `declareInteractionSite` auto
 `src/handlers/review.ts` are consumed by the command-input inventory renderer and a projection-fidelity test, so both
 declarations move with the operand. Enumerated because a task list sized on "add a flag" would miss all of it. A
 lookup-and-print over the registry — not a second place where request shapes are described. A hand-maintained
-verb-to-schema table is rejected: it re-describes an
-association the registry exists to hold, which is `D8`'s defect at smaller scale.
+verb-to-schema table is rejected: it re-describes an association the registry exists to hold, which is `D8`'s defect at
+smaller scale.
 
 **D4.3 — Completeness anchor.** A test iterates `REVIEW_JSON_COMMAND_PATHS` (`src/handlers/review.ts`) — the canonical
 fourteen-verb list — and fails when a verb has no registered request schema at its derived id. A verb shipping without a

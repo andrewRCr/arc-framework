@@ -14,7 +14,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../src/lib/git/exec.js";
 import { closeDeliveryEligibility } from "../../src/lib/delivery/eligibility.js";
 import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contribution-proof.js";
 import { createTempRepoCore } from "../helpers/temp-repo.js";
@@ -116,7 +116,7 @@ describe("initial authoring, once the base moved before the chain was published"
 /**
  * Prepare the recut chain against the originating top, then close it, reporting both results.
  *
- * Preparation is the signal to go run Tier 2 against each member, so what it admits is what a full gate
+ * Preparation is the signal to request the push gate against each member, so what it admits is what a full gate
  * cycle is spent on, and the pair is what shows where the refusal lands relative to that spend.
  *
  * @param arrangement - The chain whose base has moved.

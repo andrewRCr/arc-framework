@@ -3,17 +3,11 @@ purpose: Execute or resume one canonical delivery stack through exact-head revie
 audience: agent
 arc:
   methods:
+    - code-review
     - assess-evidence-applicability
-    - frontline-review
-    - standard-review
-    - implementation-audit
-    - review-triage
-    - review-response
     - review-chunking
     - validate-criteria
-  extensions:
-    - pre-push-review
-    - pre-merge
+    - pull-request-format
 ---
 
 # Workflow: Deliver Stack
@@ -42,8 +36,6 @@ workflow never parses headings, derives members, or re-decides cohesion:
 
 - `not-applicable` returns to ordinary work-unit execution, including singleton integration from the pre-push door.
 - `authoring-required` enters the existing inventory-schema, `from-tasks`, author-slot, and compose sequence.
-- `repair-required` with `reauthor-plan` re-enters the returned `entry` path, authors a supported replacement
-  revision, composes it, and reruns entry inspection before eligibility.
 - `canonicalize-provisional` runs that same canonicalization sequence or its receipt-pinned recovery.
 - `validate-canonical` advances to eligibility.
 - `continue-publication` invokes `publicationAction.command` unchanged before reading position.
@@ -82,7 +74,7 @@ For every returned locator in plan order, compose the exact materialized member 
 head and plan-ordered predecessor boundary, then invoke:
 
 ```bash
-arc review chunking resolve -
+arc review changeset resolve -
 ```
 
 Supply the member's `{ kind, baseRef, diffBaseSha, headSha }` and any exact-target scope selection retained from
@@ -97,15 +89,16 @@ member closeout. Dispatch only on the typed result:
 - `evidence-unavailable / continue-review`, `delivery-bound / continue-review`, and every malformed or unsupported
   result stop before gate execution.
 
-No Tier 2 command starts until every exact member target has a closed result and disposition. Retain each exact-target
-selection for the calling pre-publication review. This recheck governs the current materialization only; later target
-movement requires another exact check.
+No member push-gate request starts until every exact member target has a closed result and disposition. Retain each
+exact-target selection for the calling pre-publication complete review. A fix check instead measures its own range after
+coverage is chosen. This recheck governs the current materialization only; after later target movement, status's measure
+of the selected pass is the next exact check.
 
 ```bash
 arc delivery eligibility prepare -
 ```
 
-Run the complete Tier 2 command set in every returned checkout. For each zero-exit run, report one result in the
+Request `arc check gate push --all` in every returned checkout. For each zero-exit run, report one result in the
 returned member order, bound to that member's exact coordinates:
 
 ```json
@@ -132,29 +125,29 @@ applicability method.
 
 ## Validate and publish
 
-Before the first mutation, load both the ordinary and delivery-member forms of
-[`template-pull-request.md`][template-pull-request]. Author one `presentations` entry for every non-terminal
-deliverable ID plus the ordinary terminal request as `terminalPresentation`:
+Before the first mutation, load [pull-request-format][pull-request-format]. Use its non-terminal guidance for
+one `presentations` entry per non-terminal deliverable ID, and its full title/body policy for `terminalPresentation`:
 
 ```json
 {
   "presentations": [{
     "deliverableId": "{canonical deliverable ID}",
     "summary": "{reviewer-facing purpose and outcome}",
-    "changes": [{ "topic": "{concrete topic}", "description": "{specific output}" }],
-    "designReference": "{accessible filename or URL}"
+    "changes": [{ "topic": "{concrete topic}", "description": "{specific output}" }]
   }],
   "terminalPresentation": {
-    "title": "{ordinary Conventional Commits pull-request title}",
+    "title": "{authored terminal title under the method contract}",
     "body": "{complete ordinary work-unit pull-request body}"
   }
 }
 ```
 
-`summary`, terminal `title`, and terminal `body` are required; `changes` and `designReference` are content-gated.
-Author the terminal `title` as an ordinary Conventional Commits subject: in a multi-member delivery it is also the
-source of the delivery-wide identity, so the verb takes its type from there and refuses
-(`terminal-title-not-conventional`) when it is not an admitted conventional subject.
+`summary`, terminal `title`, and terminal `body` are required; `changes` is content-gated. Do not supply
+`designReference`. For a multi-member delivery, author the terminal title as an admitted Conventional Commits subject
+under the method's contract: the verb derives the shared type from that title and refuses
+`terminal-title-not-conventional` when it cannot. A one-member delivery's authored title follows the method's
+ordinary title policy.
+
 Supply that complete presentation set with the plan ID, repository locators, the same candidate refs and checkout
 locators, and the same `gateResults` list to the sole initial mutation verb:
 
@@ -163,19 +156,18 @@ arc delivery publish -
 ```
 
 A refusal stops without publication. The verb resolves the current plan and originating top from repository-owned
-work-unit state, validates the complete presentation set, and reruns mechanical eligibility and exact Tier 2 result
+work-unit state, validates the complete presentation set, and reruns mechanical eligibility and exact push-gate result
 admission against the post-gate checkouts before the first ref push or host mutation. It then creates or adopts
-every member ref before opening any request: delivery refs in plan order, the content-neutral top adoption and
-ordinary top-branch push, then
-requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the originating branch
-over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒ `true`) so every request
-opens under the configured hold; the landing sequence releases that lock only after readiness. The verb composes every
-request title in a multi-member delivery as `{type}({work-unit-slug}): [{n}/{N}] {summary}` — one shared type and
-scope taken from the authored terminal title, positions from the canonical plan, and non-terminal summaries from the
-plan's member titles — so delivery identity and the complete range stay visible even when the host cannot link the
-requests natively. A one-member delivery is not a stack and keeps its authored title unchanged. Authored
-presentation is used only when creating a missing request; an exact existing request is adopted unchanged. A
-failed request step retains its reservation for `reconcile` or an exact publication retry.
+every member ref before opening any request: delivery refs in plan order, the content-neutral top adoption and ordinary
+top-branch push, then requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the
+originating branch over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒
+`true`) so every request opens under the configured hold; the landing sequence releases that lock only after readiness.
+The verb composes every request title in a multi-member delivery as `{type}({work-unit-slug}): [{n}/{N}] {summary}` —
+the shared type comes from the authored terminal title, scope is the work-unit ID, positions come from the canonical
+plan, and non-terminal summaries come from the plan's member titles — so delivery identity and the complete range stay
+visible even when the host cannot link the requests natively. A one-member delivery is not a stack and keeps its
+authored title unchanged. Authored presentation is used only when creating a missing request; an exact existing request
+is adopted unchanged. A failed request step retains its reservation for `reconcile` or an exact publication retry.
 
 After interruption, rerun the candidate gates before invoking the mutation verb again. Resume any persisted
 reservation through:
@@ -240,11 +232,11 @@ Only after every request ID exists, compose the exact non-terminal native-link r
 arc delivery native link -
 ```
 
-An initial `unlinked` result, returned after exact plan/state validation, enters the ordinary singleton path without
-an operator choice; `refused` stops. Only `decision-required` reaches the choice. Render both texts verbatim —
-`recommendedOptInText` and
-`recommendedOptOutText` — before asking the operator to choose. This is the choice surface, not a capability check.
-After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged request:
+An initial `unlinked` result, returned after exact plan/state validation, enters the ordinary singleton path without an
+operator choice; `refused` stops. Only `decision-required` reaches the choice. Render both texts verbatim —
+`recommendedOptInText` and `recommendedOptOutText` — before asking the operator to choose. This is the choice surface,
+not a capability check. After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged
+request:
 
 ```bash
 arc delivery native link -
@@ -304,44 +296,27 @@ review evidence exists. Resolve its exact open change request and pass the resol
 arc review status --target '{targetRef}'
 ```
 
-No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
-A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
-attention disposition while retaining `consider-chunks`. Require the returned review action to carry either the
-exact-target chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected
-by the Owner. A missing or stale selection returns to the owning route rather than editing the action or invoking a
-carrier.
+Apply [code-review's chunk gate][code-chunk-gate] to status's coverage-aware measure. An explicit whole-target
+hosted selection re-enters `arc review status --target '{targetRef}' --source <hosted-source-id>`; the source-less
+form retains the automatic chunked route.
 
-After the Owner selects the whole-target route, re-enter the same exact target with that configured hosted source:
+Dispatch only on `nextAction`.
 
-```bash
-arc review status --target '{targetRef}' --source <hosted-source-id>
-```
+Before source dispatch, run [code-review's successor decision][code-successor-decision] with the selected member's
+exact `targetRef.headSha` as `memberHeadObjectId` and this member-target route's explicit stop limit.
 
-The source-less form retains the automatic chunked route.
+`select-coverage` applies [code-review's coverage selection][code-coverage-selection] to the returned offer and this
+caller's stop capability. Re-enter the same status scope through its returned command; retain the resulting admission.
 
-The default action requests complete coverage. When a typed applicability recommendation requires a focused
-supplemental hosted pass, request it from the same first-outstanding member position instead of editing an action:
+`stop` renders the refusal's `reason`, `detail`, and `remedy.text` verbatim, then stops. Preserve the structured remedy
+and follow its exact command after the stated repair or Owner decision.
 
-```bash
-arc review status --target '{targetRef}' --coverage incremental
-```
+At `obtain-ceiling-override`, apply [code-review's ceiling override][code-ceiling-override] with this exact member
+subject. Carry an approved consequence unchanged in `arc review status --target '{targetRef}' --ceiling-override
+'{consequence}'`.
 
-Pass the returned action unchanged. Re-enter without `--coverage` after the supplemental attempt concludes; an
-incremental result does not settle or consume the member's required complete review.
-
-Dispatch only on `nextAction`. `obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
-Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
-with the returned consequence serialized unchanged:
-
-```bash
-arc review status --target '{targetRef}' --ceiling-override '{consequence}'
-```
-
-`review-hosted-request` means pass the returned action unchanged to:
-
-```bash
-arc review hosted request -
-```
+`review-hosted-request` enters [code-review's hosted await and settlement][code-hosted-await-and-settlement]
+with the returned action unchanged.
 
 `review-local-prepare` returns the exact standard-review driver admission. Pass its `action` unchanged as
 `deliveryAdmission` in the ordinary local prepare request:
@@ -350,77 +325,29 @@ arc review hosted request -
 arc review local prepare -
 ```
 
-Follow the typed local launch, attest, reduce, and findings-response sequence. Do not rerun source selection or
-substitute the current checkout head for the returned member head. After the local attempt concludes, re-enter
-through `arc review status`; durable lane progress consumes the admitted pass.
+Apply [code-review's local operation][code-local-operation] to the returned member head and driver admission,
+then re-enter `arc review status` for that exact member.
 
-`review-local-resume` means pass the returned action unchanged to:
+`review-local-resume` applies [code-review's local operation][code-local-operation] to the returned resume action,
+then re-enters this caller's same status scope.
 
-```bash
-arc review local resume -
-```
+`respond-to-findings` applies [code-review's findings round][code-findings-round] to `responsePlan`'s exact target,
+source, and findings. Use this workflow's selector-free correction route for a delivery-owned fix and its exact
+[review-fix verification continuation][review-fix-verification] when requested; the controller owns machine writes.
+Re-enter this member's status only after the durable response and remaining hosted phases complete.
 
-Follow the same typed local sequence, then re-enter through `arc review status`.
-
-`respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
-[`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:
-
-```bash
-arc review respond -
-```
-
-This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
-plan through the existing phase-ordered settlement path below, then re-enter through `arc review status`.
-After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
-`payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
-
-On `requested / await`, pass the returned `action` unchanged to:
-
-```bash
-arc review hosted await -
-```
-
-`pending / await` retains the newly returned `action` unchanged for one more bounded call;
-`pending / inspect-or-extend` retains the request for the diagnostic below, then stops. Submitting `action`
-unchanged checks once; on explicit direction, add
-`continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review or
-records a provider outcome. For either pending outcome, run one short exact-head diagnostic observation before
-continuing or stopping:
-
-```bash
-arc review checks await \
-  --repository <action.handle.target.repository> \
-  --pull-request <action.handle.target.pullRequest> \
-  --head-sha <action.handle.target.headSha> \
-  --timeout-ms 10000 \
-  --poll-interval-ms 10000
-```
-
-Surface failed required `checks` and any `diagnosticFailures`; when either is present, begin read-only diagnosis by
-inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface `failureLogs.failures`
-when retrieval is partial or unavailable.
-`unavailable / retry` surfaces `cause`, `detail`, current `checks`, and `diagnosticFailures`, retains the same
-hosted-review `action`, and ends this foreground attempt.
-`pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
-that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
-action intact. This observation does not become review settlement, feed the review driver, move the exact head, or
-release the draft lock.
-
-Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
-finding settlement, execute the returned settlement plan in phase order through:
-
-```bash
-arc review hosted settle -
-```
+For `requested / await` and pending hosted results, apply [code-review's hosted await and
+settlement][code-hosted-await-and-settlement]. Feed clean and safe-unavailability
+outcomes through the retained driver/status route; findings use the findings round above.
 
 `resolve-review-applicability` renders `selectionAction.interactionText` before the Owner's typed choice.
 
 **Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: Only when the typed
 member-rewrite result carries `selectionAction.projection.applicability.judgmentRequired: true`, or a projection in
-`selectionAction.projections` carries the same field, load and apply the method to each such bounded review residual
-and show its `supplemental | fresh` recommendation before selection. A
-`judgmentRequired: false` result is final, `merge-safety` never fires the method, and mechanical eligibility or
-terminal position never substitutes for this result.
+`selectionAction.projections` carries the same field, load and apply the method to each such bounded review residual and
+show its `supplemental | fresh` recommendation before selection. A `judgmentRequired: false` result is final,
+`merge-safety` never fires the method, and mechanical eligibility or terminal position never substitutes for this
+result.
 
 Obtain the Owner's typed choice and submit the returned `selectionAction` unchanged as `offer` beside that
 `selection` to:
@@ -441,8 +368,7 @@ permits landing when a returned typed discharge conjunction is `discharged`; the
 conjunction is also authoritative because no delivery-member conjunction remains to discharge. No other review-status
 result permits landing preparation.
 
-Apply `frontline-review`, then `standard-review` or `implementation-audit` as applicable, and settle findings through
-`review-triage` and `review-response` before returning to the calling landing arm.
+Return to the calling landing arm only after the selected typed review action and its findings response complete.
 
 Only a native arm admitted by `member-discharged / continue-reconcile` or `settled / continue-reconcile` advances to
 set-wide preparation:
@@ -696,6 +622,13 @@ that authority against the canonical plan, versioned Delivery State, persisted o
 boundary. Re-enter the same command after every returned step; never invoke a low-level correction verb from a
 selector reconstructed in prose.
 
+After every continuation result, read `effectLog` for the controller's executed and replayed correction effects.
+After the approved correction is pushed, resolve the terminal request against its published head from the canonical
+delivery bindings, then perform [code-review's description upkeep][code-hosted-settlement] before following the
+returned step. This applies before `review-status-required`, `position`, or any other result, including a stop after
+partial progress. Diagnose an incomplete update before advancing; retain the original result unchanged for resumption.
+The returned action keeps its authoring, settlement, and review-admission authority.
+
 - `dispatch / dispatch` invokes `action.argv` with `action.input` unchanged, then re-enters this continuation
   without an interlock. The typed action may publish the selected correction, rematerialize the exact suffix, resume
   provider refresh/adoption, reconcile a persisted operation, or acknowledge completed scoped verification.
@@ -709,8 +642,6 @@ selector reconstructed in prose.
 - `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or delivery
   status action. Candidate renewal requires `unchanged` before re-entry. A delivery-status action resumes the
   provider-neutral retained-member reducer directly; only its exact hosted-request result authorizes provider work.
-- `repair-required / reauthor-plan` re-enters the returned `entry` authoring path, composes a supported replacement,
-  then re-enters this continuation before correction work resumes.
 - `idle / continue-work-unit` returns to the current non-delivery task. Every `refused` or downstream
   conflict/authority stop renders its typed reason and retains the durable continuation for retry.
 
@@ -724,18 +655,19 @@ conflict route remain authoritative.
 ### Complete a review-fix verification continuation
 
 `applied / verify-review-fix` from refresh settlement, `rematerialized / verify-review-fix`,
-`rebound / verify-review-fix` from terminal correction settlement, and
-`review-fix-verification-required / verify-review-fix` from execution entry all enter the same exact verification
+`rebound / verify-review-fix` from terminal correction settlement, and `review-fix-verification-required /
+verify-review-fix` from execution entry all enter the same exact verification
 continuation. Invoke [`validate-criteria`][validate-criteria] at member scope once for each retained
-`memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved
-conflicted dependent; the rematerialized selector contains every contribution the arbiter found changed. An
-arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Bind Tier 1 to
-`verification.target`. Rerun by default. Reuse is admissible only under `tier1Reuse` when an existing passed result
-names exactly `targetTree` and every covered input is unchanged; inconclusive evidence reruns the tier.
+`memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved conflicted
+dependent; the rematerialized selector contains every contribution the arbiter found changed. An arbiter-accepted
+contribution-equivalent dependent member is absent and re-verifies nothing. Bind `arc check gate commit --all --force`
+to `verification.target` in its own checkout. Rerun by default. Reuse is admissible only under `commitGateReuseCriteria`
+when an existing passed result names exactly `targetTree` and every covered input is unchanged; inconclusive evidence
+reruns the commit gate.
 
 Retain the completed checks as one `verificationResult`: the primary selects `targeted`, `focused`, or `full` to
 describe the scope actually run, echoes the exact `target`, records non-empty evidence references for the
-member-criteria and Tier 1 results, and records Tier 1 as passed with `provenance: rerun` or
+member-criteria and commit-gate results, and records the commit gate as passed with `provenance: rerun` or
 `provenance: exact-tree-reuse`. The reuse arm also records `coveredInputs: unchanged`; both arms echo the exact target
 tree. This is verification evidence for the exact correction delta, not a review verdict or signal-convergence
 decision.
@@ -784,10 +716,20 @@ On `terminal-checkpoint`, delegate to [`integrate-work-unit.md`][integrate-work-
 delivery arm from the current Candidate and retained member bindings, and its existing integration interlock owns the
 terminal merge. Do not fire a delivery interlock here.
 
+---
+
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
 [assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
 [review-chunking]: ../../../methods/review-chunking.md
-[review-response]: ../../../methods/review-response.md
-[review-triage]: ../../../methods/review-triage.md
-[template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
-[validate-criteria]: ../../../methods/validate-criteria.md
+[validate-criteria]: ../../../methods/validate-criteria.md#validate-criteriadefault
+[pull-request-format]: ../../../methods/pull-request-format.md
+
+[code-successor-decision]: ../../../methods/code-review.md#successor-decision
+[code-coverage-selection]: ../../../methods/code-review.md#coverage-selection
+[code-chunk-gate]: ../../../methods/code-review.md#chunk-gate
+[code-ceiling-override]: ../../../methods/code-review.md#ceiling-override
+[code-findings-round]: ../../../methods/code-review.md#findings-round
+[code-hosted-await-and-settlement]: ../../../methods/code-review.md#hosted-await-and-settlement
+[code-local-operation]: ../../../methods/code-review.md#local-operation
+[review-fix-verification]: #complete-a-review-fix-verification-continuation
+[code-hosted-settlement]: ../../../methods/code-review.md#hosted-settlement

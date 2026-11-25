@@ -81,6 +81,8 @@ async function fixture() {
       runtimeIdentity: "local-attestor-1",
       mechanism: "local-runtime",
     },
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
     generation: 0,
     requestMechanism: "automatic",
   });
@@ -152,6 +154,7 @@ describe("local forward receipt authority", () => {
         severity: "major",
         locus: "src/index.ts:1",
         evidenceUrlOrId: "local:finding-1",
+        sourceOrdinal: 1,
       }],
     }, 1)).rejects.toThrow(/conflicting-replay/u);
     await expect(records.store.appendReceipt({ ...records.receipt, reviewRunId: "run-2" }, 0))

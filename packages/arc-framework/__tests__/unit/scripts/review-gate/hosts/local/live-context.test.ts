@@ -4,7 +4,7 @@ import type { GitExec } from "../../../../../../src/lib/git/exec.js";
 
 const mocks = vi.hoisted(() => ({
   readActiveMetaCandidates: vi.fn(),
-  readConfiguredIdentity: vi.fn(),
+  resolveIdentity: vi.fn(),
   readTransientInFlightIndexes: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ vi.mock("../../../../../../src/lib/errand/record.js", () => ({
   readTransientInFlightIndexes: mocks.readTransientInFlightIndexes,
 }));
 vi.mock("../../../../../../src/lib/git/identity.js", () => ({
-  readConfiguredIdentity: mocks.readConfiguredIdentity,
+  resolveIdentity: mocks.resolveIdentity,
 }));
 
 const { readLocalReviewLiveContext } = await import(
@@ -26,8 +26,8 @@ const { readLocalReviewLiveContext } = await import(
 );
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.readConfiguredIdentity.mockResolvedValue("andrew");
+  vi.resetAllMocks();
+  mocks.resolveIdentity.mockResolvedValue("andrew");
   mocks.readActiveMetaCandidates.mockResolvedValue({
     layout: "full",
     candidates: [],
@@ -42,11 +42,13 @@ beforeEach(() => {
 
 describe("readLocalReviewLiveContext", () => {
   it("pins the identity read to the supplied repository root", async () => {
-    const exec: GitExec = vi.fn(async () => ({ stdout: "chore/example\n" }));
-
-    await readLocalReviewLiveContext({ exec, cwd: "/repo/root" });
-
-    expect(mocks.readConfiguredIdentity).toHaveBeenCalledWith(exec, "/repo/root");
+    mocks.resolveIdentity.mockImplementation(async ({ exec }: { exec: GitExec }) =>
+      (await exec("git", ["config", "--get", "user.name"])).stdout.trim());
+    const exec: GitExec = async (_command, args, options) => ({ stdout: args[0] === "config"
+      ? options?.cwd === "/repo/root" ? "andrew" : "wrong-checkout" : "chore/example\n" });
+    await expect(readLocalReviewLiveContext({ exec, cwd: "/repo/root" })).resolves.toMatchObject({
+      context: { activeIdentity: "andrew" },
+    });
   });
 
   it("carries the exact transient claim into local review context", async () => {

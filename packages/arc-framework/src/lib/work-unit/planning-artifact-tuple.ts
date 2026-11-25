@@ -8,7 +8,7 @@ import {
   isPlanningWorkflow,
   type PlanningWorkflow,
 } from "../active/current-workflow-consistency.js";
-import { canonicalize } from "../canonical/canonical-json.js";
+import { canonicalize } from "../kernel/canonical/canonical-json.js";
 import type { V3PlanObservedPathState } from "./decompose-v3-plan.js";
 import type { V3DecomposeMachine } from "./decompose-v3-schema.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";

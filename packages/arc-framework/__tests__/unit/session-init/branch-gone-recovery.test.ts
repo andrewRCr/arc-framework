@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 
-import { runBranchGoneRecovery } from "../../../src/lib/session-init/branch-gone-recovery.js";
+import { runBranchGoneRecovery as runBranchGoneRecoveryCore, type RunBranchGoneRecoveryOptions } from "../../../src/lib/session-init/branch-gone-recovery.js";
 import type { CleanupBaseEvidence } from "../../../src/lib/session-init/cleanup-remote-evidence.js";
 import type { ExecResult, GitExec, GitExecOptions } from "../../../src/lib/git/exec.js";
 import type {
@@ -10,6 +10,17 @@ import type {
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
+
+const folderExists = vi.fn<() => Promise<boolean>>();
+beforeEach(() => { folderExists.mockReset().mockResolvedValue(true); });
+
+function runBranchGoneRecovery(options: Omit<RunBranchGoneRecoveryOptions, "derivedRoster"> & Partial<Pick<RunBranchGoneRecoveryOptions, "derivedRoster">>) {
+  return runBranchGoneRecoveryCore({ ...options, folderExists: options.folderExists ?? folderExists, derivedRoster: options.derivedRoster ?? options.roster.entries.map((entry) => ({
+    kind: "unmanaged-checkout" as const, subject: null, markerGeneration: null, parentCheckoutPath: null,
+    origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [],
+    checkout: { path: entry.worktreePath, branch: entry.branch ?? null, head: "a".repeat(40), detached: false, primary: false, folderPresent: true },
+  })) });
+}
 
 const PRESENT_MARKER: WorktreeMarkerReadResult = {
   kind: "present",
@@ -125,7 +136,7 @@ describe("runBranchGoneRecovery", () => {
     expect(result).toEqual({
       kind: "resolved",
       remoteEvidence: "exact",
-      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable" },
+      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable", workUnitName: "x" },
     });
   });
 
@@ -169,7 +180,7 @@ describe("runBranchGoneRecovery", () => {
     expect(result).toEqual({
       kind: "resolved",
       remoteEvidence: "exact",
-      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable" },
+      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable", workUnitName: "x" },
     });
   });
 
@@ -494,5 +505,75 @@ describe("runBranchGoneRecovery", () => {
     if (result.kind === "surface") {
       expect(result.candidates.map((c) => c.branch)).toEqual(["feat/a", "feat/b"]);
     }
+  });
+});
+
+describe("recovery folder observations", () => {
+  it("rechecks an administrative destination's folder before switching and admits it after repair without removal probes", async () => {
+    const input = { roster: roster([{ worktreePath: "/wt/admin", branch: "chore/admin" }]),
+      currentBranch: "feat/gone", baseBranch: "main", recentBranches: ["chore/admin"], exec: buildExec(),
+      readMarker: async (): Promise<WorktreeMarkerReadResult> => { throw new Error("Administrative destinations need no marker read"); },
+      projectionRemovalSlots: { check: async (): Promise<never> => { throw new Error("No administrative removal check"); },
+        persist: async (): Promise<never> => { throw new Error("No persist"); }, release: async (): Promise<never> => { throw new Error("No release"); } },
+      userSurfaceFs: emptyUserSurfaceFs };
+    folderExists.mockResolvedValue(false);
+    expect(await runBranchGoneRecovery(input)).toMatchObject({ kind: "resolved", candidate: { worktreePath: "/wt/admin", proposedAction: "external" } });
+    folderExists.mockResolvedValue(true);
+    expect(await runBranchGoneRecovery(input)).toMatchObject({ kind: "resolved", candidate: { worktreePath: "/wt/admin", proposedAction: "switch" } });
+    folderExists.mockRejectedValue(Object.assign(new Error("Cannot observe folder"), { code: "EACCES" }));
+    expect(await runBranchGoneRecovery(input)).toMatchObject({ kind: "resolved", candidate: { worktreePath: "/wt/admin", proposedAction: "external" } });
+  });
+  function options() {
+    return { roster: roster([{ worktreePath: "/wt/a", branch: "feat/a", metaFilePath: "/wt/a/.arc/active/meta-a.md" }]),
+      currentBranch: "feat/gone", baseBranch: "main", recentBranches: ["feat/a"], exec: buildExec(),
+      readMarker: readMarkerFrom({ "/wt/a": PRESENT_MARKER }), userSurfaceFs: emptyUserSurfaceFs };
+  }
+  it("maps a folder lost after the roster observation to external", async () => {
+    folderExists.mockResolvedValue(false);
+    expect(await runBranchGoneRecovery(options())).toMatchObject({ kind: "resolved", candidate: { proposedAction: "external" } });
+  });
+  it.each([true, false])("excludes missing registrations from both tiers (has meta=%s)", async (hasMeta) => {
+    folderExists.mockResolvedValue(false);
+    const input = options();
+    if (!hasMeta) input.roster.entries = input.roster.entries.map(({ worktreePath, branch }) => ({ worktreePath, branch }));
+    const derivedRoster = [{ kind: "unmanaged-checkout" as const, subject: null, markerGeneration: null,
+      parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [],
+      checkout: { path: "/wt/a", branch: "feat/a", head: "a".repeat(40), detached: false, primary: false, folderPresent: false } }];
+    const result = await runBranchGoneRecovery({ ...input, derivedRoster });
+    expect(result).toMatchObject({ kind: "main-fallback", missingFolders: [{ worktreePath: "/wt/a", branch: "feat/a",
+      actions: [{ text: expect.stringContaining("git worktree remove '/wt/a'") }] }] });
+    expect(JSON.stringify(result)).toContain("still missing");
+  });
+  it.each([true, false])("keeps foreign-locked registrations separate (folder present=%s)", async (folderPresent) => {
+    folderExists.mockResolvedValue(folderPresent);
+    const input = { ...options(), exec: buildExec({ merged: new Set(["feat/a"]) }) };
+    const exec: GitExec = async (command, args, opts) => args[0] === "worktree"
+      ? { stdout: worktreePorcelainZ("worktree /primary\nHEAD " + "a".repeat(40) + "\nbranch refs/heads/main\n\nworktree /wt/a\nHEAD " + "a".repeat(40) + "\nbranch refs/heads/feat/a\nlocked owner\n"), stderr: "" }
+      : input.exec(command, args, opts);
+    const derivedRoster = [{ kind: "unmanaged-checkout" as const, subject: null, markerGeneration: null,
+      parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [],
+      checkout: { path: "/wt/a", branch: "feat/a", head: "a".repeat(40), detached: false, primary: false, folderPresent } }];
+    const result = await runBranchGoneRecovery({ ...input, exec, derivedRoster });
+    if (folderPresent) expect(result).toMatchObject({ kind: "resolved", candidate: { proposedAction: "switch" } });
+    else {
+      expect(result).toMatchObject({ kind: "main-fallback", missingFolders: [{ worktreePath: "/wt/a" }] });
+      expect(JSON.stringify(result)).toContain("git worktree unlock");
+      expect(JSON.stringify(result)).toContain("still missing");
+    }
+  });
+
+  it("reports an unobservable WU as external", async () => {
+    const input = options();
+    const exec: GitExec = async (command, args, opts) => {
+      if (args[0] === "status") throw new Error("status failed");
+      return input.exec(command, args, opts);
+    };
+    expect(await runBranchGoneRecovery({ ...input, exec })).toMatchObject({ kind: "resolved", candidate: { proposedAction: "external" } });
+  });
+  it("honors the projection check and retains a refused checkout as a switch target", async () => {
+    const { passingProjectionRemovalSlots } = await import("../../../src/lib/git/worktree-removal.js");
+    expect(await runBranchGoneRecovery({ ...options(), exec: buildExec({ merged: new Set(["feat/a"]) }), projectionRemovalSlots: { ...passingProjectionRemovalSlots,
+      check: async () => ({ kind: "would-refuse", remedy: { text: "save projection", argv: ["arc", "save"] } }) },
+    })).toMatchObject({ kind: "resolved", candidate: { proposedAction: "switch" } });
   });
 });

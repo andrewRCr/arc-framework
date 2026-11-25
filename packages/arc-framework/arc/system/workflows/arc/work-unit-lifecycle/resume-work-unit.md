@@ -1,9 +1,6 @@
 ---
 purpose: Resume a parked work unit — re-attach its preserved branch to the active set and remove the tracked-branch pointer-record.
 audience: agent
-arc:
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Resume Work Unit
@@ -100,9 +97,6 @@ delta is trivial.
 
 Under full protection, push the grooming branch and open the PR:
 
-- **Extensions** · `#pre-push-review`: If `pre-push-review` is in the active-extensions list, load and execute its
-  `.actions` before the push. Otherwise, skip.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin chore/resume-{name}`.
 
@@ -118,7 +112,7 @@ gh pr create --base {base-branch} --head chore/resume-{name}
 > explicit 'merge' direction before merging.
 
 ```bash
-gh pr merge {pr-number} --squash   # or per merge.strategy
+gh pr merge {pr-number} --merge   # or per merge.strategy
 ```
 
 **`--here` re-attach (after the removal lands on the base).** Once the pointer removal is committed on the tracked
@@ -141,8 +135,9 @@ arc wu reconcile {name} --apply --json
 
 - `clean` — continue without a write, stage, or commit.
 - `pending` — stop and surface every advisory reference. Inspect the referenced content; either edit it in this
-  dependent-owned review increment and rerun until `clean` / `applied`, or obtain explicit user direction to retain
-  the advisory as intentional before continuing. Never classify this schema-valid result as malformed.
+  dependent-owned review increment, run `arc check increment`, and rerun until `clean` / `applied`, or obtain
+  explicit user direction to retain the advisory as intentional before continuing. Never classify this
+  schema-valid result as malformed.
 - `applied` — commit only the staged dependent-owned paths on the preserved WU branch:
 
   > [!CAUTION]

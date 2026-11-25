@@ -1,6 +1,7 @@
 /** Generation-guard input contract for Errand materialization. */
 
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { ErrandMaterializeInputSchema } from "../../../src/handlers/errand.js";
 
@@ -12,13 +13,13 @@ describe("Errand materialize input", () => {
     { slug: "fix-output" },
     { slug: "fix-output", claimId, expectedHead },
   ])("accepts an absent guard or a complete generation guard", (input) => {
-    expect(ErrandMaterializeInputSchema.safeParse(input).success).toBe(true);
+    assertSchemaAccepts(ErrandMaterializeInputSchema, input);
   });
 
   it.each([
     { slug: "fix-output", claimId },
     { slug: "fix-output", expectedHead },
   ])("refuses an incomplete generation guard", (input) => {
-    expect(ErrandMaterializeInputSchema.safeParse(input).success).toBe(false);
+    assertSchemaRefuses(ErrandMaterializeInputSchema, input);
   });
 });

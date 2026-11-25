@@ -1,0 +1,61 @@
+---
+name: code-review-author
+description: Local author-side aggregate diff preflight — generic and composable
+related:
+  - code-review
+active: true
+override-active: false
+---
+
+# Method: code-review-author
+
+> - **Workflow:** [code-review's author check][author-check]
+> - **When:** When a workflow or skill invokes local diff preflight — notably before opening a change request
+>
+> - **Contract:** The authoring agent reviews its aggregate local diff for cross-cutting issues that per-task review
+>   misses. This preflight is not peer/independent review evidence and cannot satisfy a review requirement. Callers
+>   decide when to invoke it and what gating applies. As agent-side ergonomics, it does not structurally enforce
+>   merge safety.
+> - **Related:** [code-review](code-review.md) — owns findings handling and the author-fix gate
+
+## code-review-author.override
+
+[No override configured]
+
+## code-review-author.default
+
+Lightweight author-side diff preflight. It catches issues that only emerge at the aggregate level; it invokes no
+external review provider by default and authors no independent evidence.
+
+**Review the aggregate diff against the parent branch:**
+
+```bash
+git diff {parent-branch}...HEAD
+```
+
+**Check for:**
+
+- **Scope**: Does every change serve the stated purpose? Look for unrelated modifications within legitimately
+  changed files, not just accidentally staged files
+- **Consistency**: Cross-task inconsistencies in naming, patterns, or approaches that diverged during
+  incremental work
+- **Cleanup**: Debug artifacts (logging statements, commented-out code, temp scaffolding), dead code from
+  refactoring (unused imports, orphaned functions, stale references)
+- **Documentation drift**: Docs or comments that no longer match the implementation
+- **Unresolved markers**: TODO/FIXME items that should be resolved before merge
+- **Correctness**: The aggregate behavior satisfies its declared contract, including boundary conditions
+- **Error paths**: Failures are handled explicitly and do not silently weaken invariants
+
+**AI-assisted code** (when an agent performed implementation): Verify business logic correctness — does the
+aggregate change actually solve the stated problem? Check exception handling paths explicitly — AI-generated
+code systematically underperforms on error cases and edge conditions.
+
+Return the author findings to [code-review's author check][author-check] for source verification, the standalone
+non-producer report, complete-set approval, and any approved fix increment. This check creates no producer or lane
+evidence and invokes no response command.
+
+Do not reinterpret this author-side preflight as independent review evidence.
+
+---
+
+[author-check]: code-review.md#author-check

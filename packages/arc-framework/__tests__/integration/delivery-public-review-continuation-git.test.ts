@@ -136,6 +136,9 @@ describe("delivery public-review continuation Git proof", () => {
       convergenceScope: null,
     };
 
+    await expect(projectGitDeliveryTerminalRecordAdvance({ cwd, exec, workUnitId: "example", baseBranch: "main",
+      priorHead: baselineHead, currentHead, stateOffBranch: true })).resolves.toBeUndefined();
+
     await expect(projectGitDeliveryTerminalCoordinateAdvance({
       cwd,
       exec,

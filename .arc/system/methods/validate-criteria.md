@@ -1,25 +1,21 @@
 ---
 name: validate-criteria
 description: Evidence-led success-criteria validation over an explicit member or work-unit scope.
-arc:
-  methods:
-    - adversarial-review
 related:
-  - adversarial-review
+  - verification-review
 override-active: false
 ---
 
 # Method: validate-criteria
 
-> - **Workflow:** [process-task-loop.md][process-task-loop], [verify-work-unit.md][verify-work-unit]
+> - **Workflow:** [verification-review][verification-review], [deliver-stack][deliver-stack], and
+>   [amend-design][amend-design] for evidence-only deltas.
 > - **When:** A delivery member or whole work unit reaches its criteria-validation boundary.
 >
 > - **Signature:** `validate-criteria(scope)` → criteria report
 > - **Contract:** Walk the criteria, diff, and reachable tree selected by one explicit scope; bind every immutable
 >   criterion by its exact task-list locus and criterion digest, and report its evidence, resolved state, and the
->   shared span walked; then
->   offer the same fresh-context adversarial companion at either boundary. The method gathers evidence and never
->   marks task-list criteria.
+>   shared span walked. The check gathers evidence and never marks task-list criteria.
 
 ## validate-criteria.override
 
@@ -38,22 +34,28 @@ Do not widen or reconstruct one coordinate independently of the others. At membe
 inspect the bounded diff and reachable tree, and resolve each criterion in the selected member group against
 source-grounded evidence.
 
+Direct inspection toward whether the selected criteria and governing spec contract are fulfilled, including required
+failure and recovery behavior. Tie each reviewer assignment and seam question to that verification purpose. Read
+whole files and follow dependencies when needed to answer it; do not add an independent general code-quality rubric
+or an exhaustive file-body reading requirement. Report concrete incidental defects through the ordinary findings
+and approval protocol; their discovery does not widen every remaining assignment. Criteria-review evidence does not
+satisfy the separate standard-review obligation.
+
 At work-unit scope, first inspect whether the task list contains a Delivery Plan. When none is present, open the
 upstream design/spec artifact, inspect the complete work-unit diff and reachable tree, and resolve every criterion
 in the flat Success Criteria section against actual outcomes. When a Delivery Plan is present, disposition each
 member group from its recorded boundary report; do not re-derive member criteria from the complete work-unit diff.
 Require one report whose span matches each planned member, carry its criterion loci, digests, evidence, and state
-forward,
-then use the complete diff and reachable tree to detect regressions across group boundaries and walk the seam group
-and union coherence. Resolve each recorded locus against the current task list before carrying it. A missing,
+forward, then use the complete diff and reachable tree to detect regressions across group boundaries and walk the seam
+group and union coherence. Resolve each recorded locus against the current task list before carrying it. A missing,
 ambiguous, or mismatched member report is an unresolved `[ ]`, not permission to reopen that member's bounded walk.
 
-One report has one exact `criteria-slice` and one shared `span`. Every criterion in that slice gets one entry. Its
-`locus` is the heading path plus 1-based ordinal — for example,
-`Success Criteria > Member 6 — refresh-and-native-landing > 2` — and must resolve to exactly one immutable
-criterion. Its `criterion-digest` is the SHA-256 digest of the parsed criterion text after removing the root bullet
-and checkbox marker; marker state and Markdown layout are not identity. The task-list text remains the authority;
-the digest detects identity drift without duplicating or paraphrasing that text into a second authority.
+One report has one exact `criteria-slice` and one shared `span`. Every criterion in that slice gets
+one entry. Its `locus` is the heading path plus 1-based ordinal — for example,
+`Success Criteria > Member 6 — refresh-and-native-landing > 2` — and must resolve to exactly one immutable criterion.
+Its `criterion-digest` is the SHA-256 digest of the parsed criterion text after removing the root bullet and checkbox
+marker; marker state and Markdown layout are not identity. The task-list text remains the authority; the digest detects
+identity drift without duplicating or paraphrasing that text into a second authority.
 
 When carrying a member report into work-unit validation, resolve its locus and recompute the criterion digest from
 the current task list. A changed digest — including one caused by an insertion or reorder that leaves the recorded
@@ -98,29 +100,65 @@ At member scope, record the report as ordinary closing-task evidence without cha
 checkboxes. At work-unit scope, let the terminal verification workflow own marking after it consumes the flat report
 or the combined member-and-seam report.
 
-### Adversarial companion
+### Amendment deltas
 
-After the primary walk, offer one fresh-context pass over the same selected scope. Use the work unit's
-`Class`-scaled posture at both member and work-unit scope: recommend at `Novel`; make a neutral offer at `Light` or
-`Heavy`. Withhold the primary report and all task-list criterion markings from the fresh pass. The primary compares
-the returned report with its own walk and retains judgment over every finding.
+An amendment landing after a member's boundary report supplements that report rather than producing a second one.
+[`amend-design`][amend-design] owns the amendment record and its `## Amendments` log; what follows is the report
+side of that closure.
 
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; surface a neutral
-> offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds normally.
+A member's **effective report** is its base boundary report plus its ordered deltas. Apply each delta to the
+effective report produced by all preceding deltas. For a same-locus entry, the delta supplies current evidence and
+state while inheriting the `criterion-digest` from the preceding effective entry, including one introduced by an
+earlier delta; the delta never restates it. An appended criterion must carry its own `criterion-digest`. The latest
+delta supplies the span. Consume the effective report wherever the work-unit-scope walk above consumes the base one —
+dispositioning a member group and detecting cross-boundary regressions read it the same way.
 
-```yaml
-adversarial-review:
-  rubric:          # the selected success-criteria slice, validated adversarially
-  artifacts:       # upstream design + task list with markings withheld + the selected diff and reachable tree
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  prior-findings:  # pass two onward; omitted on pass one
-```
+A **delta** here is a supplement to one member's report, not a diff of the work tree. It carries the changed
+criteria with their evidence, any criteria the amendment appended with theirs and a new digest, the new span, and
+the summary. Unchanged criteria are omitted, and a digest already recorded in an effective entry is never restated.
+
+Each entry carries a **per-criterion verdict** saying why it is present or absent — a judgment applied per
+criterion; independent review has its own report-level verdict:
+
+- `carries` — the base entry still holds; this is why an unchanged criterion is absent from the delta;
+- `supplemental` — the entry is listed because evidence was added to what the base already carries; and
+- `fresh` — the entry is listed because its evidence now stands on its own.
+
+A verdict never replaces the entry's `state`, which stays `[x]` / `[~]` / `[ ]` as above. A criterion superseded by
+the amendment is `[~]` citing the log row's id and carries no verdict.
+
+Locate a member's deltas through the `## Amendments` log. With corrective work, `_Work:_` names the parent whose closing
+subtask carries the delta. For `_Work:_ none`, `_Revalidated:_` names the covering verifier; `pending → X.Z` names `X.Z`
+while the detour is open.
+
+When the caller is that covering verifier and the row is pending, run the bounded delta walk over the amendment's
+changed criteria and span, and record its delta in the caller's verification evidence under the row id before composing
+the effective report. Preserve the base report and inherited criterion digests; this is not a fresh member walk.
+Close the row only after the verifier passes. Member completion stays unresolved while any effective criterion remains
+`[ ]`.
+
+For `_Work:_ none`, consume only the delta keyed by the amendment row's id in the named verifier's verification evidence.
+A missing or ambiguous delta leaves the affected member unresolved `[ ]`; never substitute another amendment's evidence.
+Other callers consume the recorded delta through the same locator.
+
+Never locate a delta positionally or by scanning revision parents — either would be a second authority over the same
+fact.
+
+### Verification subject
+
+For the caller's pre-walk `arc review changeset resolve -`, use the selected diff's actual baseline: the member's
+bounded base or the work unit's merge base. A committed subject uses its exact commit coordinates. For local content,
+anchor `target.headSha` to current HEAD and supply `localSubject: index` or `localSubject: worktree` to include the
+index or staged, unstaged, and non-ignored untracked content respectively. Use `kind: change-set` for local sizing
+with that bounded diff base; a snapshot has no published delivery-member binding. Never measure HEAD alone when
+verifying local edits.
+
+The local mode snapshots through a private index without staging files or moving refs. Retain the returned exact
+target and use its snapshot as the reviewed subject; refresh sizing and scope selection when that subject changes.
+Any `scopeSelection` must name that returned target, rather than the HEAD used to anchor the snapshot.
 
 ---
 
-[process-task-loop]: ../workflows/arc/process-task-loop.md
-[verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
+[verification-review]: verification-review.md
+[deliver-stack]: ../workflows/arc/supplemental/deliver-stack.md

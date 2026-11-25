@@ -24,7 +24,7 @@
  * @module
  */
 
-import { validateClass, validatePriority } from "../../commands/active/types.js";
+import { validateClass, validatePriority } from "../kernel/schema/vocabulary.js";
 import type { LifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
 
@@ -47,7 +47,7 @@ export interface PlannedWorkUnit {
 }
 
 /** Whether a planned WU belongs to the identity's slice (its own or unattributed). */
-function isMine(owner: string | undefined, identity: string | null): boolean {
+export function isMine(owner: string | undefined, identity: string | null): boolean {
   return identity === null || owner === undefined || owner === identity;
 }
 

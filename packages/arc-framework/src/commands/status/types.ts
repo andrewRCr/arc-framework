@@ -1,10 +1,8 @@
 /**
  * Type contracts for `arc status` — the composite probe orchestrator.
  *
- * The composite fans out to the four standalone probes (user, extensions,
- * config, active) and folds their results into a single envelope. Session-init
- * consumes this in place of its own Batch 1 git-config reads and four separate
- * CLI invocations.
+ * Full status combines user, config, active, and projection probes. Session-specific
+ * results carry their own scoped probe sets.
  *
  * Each probe slot is wrapped in a {@link Probe} discriminated union so
  * per-probe failures surface through the result shape rather than process
@@ -12,6 +10,10 @@
  * `identity` is populated by direct `git config` reads in the handler,
  * logically parallel to the probe fan-out.
  */
+import type { PausedWorkResult } from "../../lib/session-init/paused-work.js";
+import type { ProjectionStatus } from "../../lib/store/projection/status.js";
+import type { InboundBackPressureResult } from "../../lib/session-init/inbound-back-pressure.js";
+import { SessionInitUserValueSchema, SessionUserValueSchema } from "../user/session-init-schema.js";
 import { z } from "zod";
 
 import type {
@@ -29,12 +31,7 @@ import type {
 } from "../config/types.js";
 import type { DomainRulesSessionInitResult } from "../constitution/types.js";
 import type {
-  ExtensionsSessionInitResult,
-  ExtensionsStatusResult,
-} from "../extensions/types.js";
-import type {
   UserSessionInitStatusResult,
-  UserSessionNotesDriftSurface,
   UserStatusResult,
 } from "../user/types.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
@@ -45,7 +42,7 @@ import type {
 } from "../../lib/git/worktree-sync.js";
 import type {
   BaseDistanceSnapshotAnalysisResult,
-  BaseDistanceStatusResult,
+  BaseDistanceNotApplicableResult,
 } from "../../lib/git/base-distance.js";
 import type {
   BaseBranchSnapshotAnalysisResult,
@@ -66,6 +63,7 @@ import type { OrphanBranchSweepResult } from "../../lib/session-init/orphan-bran
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
+import type { HooksPathSessionAdvisory } from "../../lib/session-init/hooks-path-advisory.js";
 import type { PartialPushMarkerSurfaceResult } from "../../lib/session-init/partial-push-marker-surface.js";
 import type { NotesCompactionSessionAdvisoryResult } from "../../lib/session-init/notes-compaction-advisory.js";
 import type { DeliveryPositionView } from "../../lib/session-init/delivery-position.js";
@@ -114,22 +112,16 @@ export type SessionInitWorktreeValue = (
    * swaps its generic reconcile for the lossless-reset offer carried in
    * `recommendedPromptText`.
    */
-  supersession: SupersessionResult | null;
+  supersession: SupersessionResult | SupersessionSnapshotAnalysisResult | null;
 };
 
 /**
  * A base-distance reading that resolved before any snapshot evidence was consulted.
  *
- * Bounded to exactly those arms: unbounded, the intersection also admitted
- * `remote-unavailable` with `not-applicable`, which the envelope rule refuses — so a
- * probe could satisfy the type and still fail the contract at runtime. Named once
- * because the probe signature and the envelope value state the same contract, and
- * two copies of it drifted from the schema.
+ * Bounded by the owning strict schema to skipped, no-remote, and detached-head.
+ * The probe signature and envelope value share that same contract.
  */
-export type BaseDistanceNotApplicableResult = BaseDistanceStatusResult & {
-  state: "skipped" | "no-remote" | "detached-head";
-  remoteEvidence: "not-applicable";
-};
+export type { BaseDistanceNotApplicableResult } from "../../lib/git/base-distance.js";
 
 /**
  * Base-distance slot in the session-init envelope. Extends the raw probe
@@ -167,24 +159,17 @@ export type SessionInitBaseBranchSyncValue = BaseBranchSnapshotAnalysisResult & 
  * standalone probe result with the finalized clean-arm notes/disk drift
  * advisory (D3), resolved from the raw `notesDrift` signal.
  */
-export interface SessionUserValue extends UserSessionInitStatusResult {
-  /**
-   * Finalized clean-arm notes/disk drift advisory (D3), resolved from the raw
-   * `notesDrift` signal against the active WU name. Present only when the
-   * divergence surfaces (neither a safe auto-load nor benign); the safe sub-case
-   * is folded into `loadNeeded` instead. Rendered in the workflow's advisory tier.
-   */
-  notesDriftSurface?: UserSessionNotesDriftSurface;
-}
+export type SessionUserValue = z.infer<typeof SessionUserValueSchema>;
 
 /**
  * User slot in the session-init envelope. Extends the shared session-user
  * result with the same recommendation pair as the worktree slot.
  */
-export interface SessionInitUserValue extends SessionUserValue {
-  recommendedAction: RecommendedAction;
-  recommendedPromptText: string;
-}
+export type SessionInitUserValue = z.infer<typeof SessionInitUserValueSchema>;
+
+/** Raw selected-backend user evidence before legacy recommendation enrichment. */
+export type SessionInitUserProbeValue = UserSessionInitStatusResult
+  | import("../../lib/session-init/store-user-pull.js").StoreSessionInitUserValue | null;
 
 /**
  * Retired-subdir slot in the session-init envelope. Extends the raw detection
@@ -204,9 +189,9 @@ export type StatusIdentity = z.infer<typeof StatusIdentitySchema>;
 /**
  * Per-probe failure reason.
  *
- * - `identity-missing` — user probe short-circuited because `arc.identity`
- *   was absent. Other probes do not use identity and never emit this kind.
- * - `runtime` — probe threw (e.g., missing extensions directory on a partial
+ * - `identity-missing` — user probe short-circuited because neither `arc.identity`
+ *   nor Git `user.name` resolved an identity. Other probes do not use identity and never emit this kind.
+ * - `runtime` — probe threw (e.g., a filesystem failure during active roster inspection on a partial
  *   install). `message` is the `Error.message` or stringified value.
  */
 export const ProbeErrorSchema = z.strictObject({
@@ -241,13 +226,17 @@ export interface StatusResult {
   mode: "full";
   identity: StatusIdentity;
   user: Probe<UserStatusResult>;
-  extensions: Probe<ExtensionsStatusResult>;
   config: Probe<ConfigStatusResult>;
   active: Probe<ActiveStatusResult>;
+  projection: Probe<ProjectionStatus>;
 }
 
 /** Session-init-scoped composite result — `--session-init` consumer shape. */
 export interface SessionInitProbeResult {
+  /** Paused work for the resolved identity; dormant until off-branch state is active. */
+  pausedWork?: Probe<PausedWorkResult>;
+  /** Current work unit's inbound figures; dormant until off-branch state is active. */
+  inboundBackPressure?: Probe<InboundBackPressureResult>;
   mode: "session-init";
   identity: StatusIdentity;
   /** Worktree-derived entering-checkout frame selected for session-init consumers. */
@@ -271,11 +260,16 @@ export interface SessionInitProbeResult {
    */
   baseBranchSync: Probe<SessionInitBaseBranchSyncValue>;
   dirty: Probe<DirtyStateResult>;
-  extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
   active: Probe<ActiveSessionInitResult>;
   domainRules: Probe<DomainRulesSessionInitResult>;
   releaseRouting: Probe<ReleaseRoutingValue>;
+  /**
+   * Entering checkout's hooks-path advisory. Always present (eager, non-gated);
+   * `surface` names a configured hooks path Git cannot find, under which a raw
+   * commit runs no hooks.
+   */
+  hooksPath: Probe<HooksPathSessionAdvisory>;
   /**
    * Read-only reconcile facts for the single active work unit. Present exactly
    * on the single-WU arm; the workflow renders the precomposed guidance and
@@ -388,9 +382,8 @@ export interface SessionInitProbeResult {
   /**
    * Pre-computed partial-push-marker surface — the cohort sibling's live,
    * non-expired sync-state markers, each a notes push that has not yet arrived
-   * at origin (lag, not loss). Rendered as the Aware advisory one-liner in
-   * Step 6, co-located with the base-ref surface; the agent proceeds-with-context
-   * and never auto-resolves. Present whenever identity resolved (the ref is
+   * at origin (lag, not loss). Entry compilation carries an advisory alongside
+   * base-ref context and never auto-resolves it. Present whenever identity resolved (the ref is
    * identity-scoped); omitted only when identity is absent. An empty `markers`
    * array means the ref was read and nothing is live (or the ref is absent —
    * degrade-silent).
@@ -401,8 +394,8 @@ export interface SessionInitProbeResult {
    * compared to the internal threshold, plus a once-per-calendar-day nudge
    * marker. Present when identity resolved on the primary worktree and the
    * optional probe is supplied; omitted when identity is absent, the session is
-   * a linked worktree, or the probe is not supplied. Workflow
-   * renders it as offer-only guidance and never auto-runs compaction.
+   * a linked worktree, or the probe is not supplied. Entry compilation carries
+   * offer-only guidance and never auto-runs compaction.
    */
   compactionAdvisory?: Probe<NotesCompactionSessionAdvisoryResult>;
   /**
@@ -418,21 +411,21 @@ export interface SessionInitProbeResult {
    * Pre-resolved path to the active WU's coordinating `cohort-<leaf>.md`,
    * relative to cwd (forward-slash normalized). Present only when the active
    * meta carries a `Cohort` value and the backing doc exists under
-   * `backlog/planned/`; omitted otherwise. The session-init workflow reads it
-   * during context-load to surface cross-member coordination awareness.
+   * `backlog/planned/`; omitted otherwise. Included in the context-read projection
+   * for cross-member coordination.
    */
   cohortDocPath?: string;
   /**
    * Ordered context load set projected from the resolved session-init state.
-   * Purely additive: recovery consumes it as the deterministic context-load
-   * contract, while session-init keeps its existing prose-level reads for now.
+   * Shared deterministic context-read contract consumed by entry compilation
+   * and recovery.
    */
   loadSet: Probe<LoadSetManifest>;
   /**
    * Deterministic cursor derived from the active task-list checkbox grammar.
    * Present only when `active.value.taskListPath` resolves and passes the same
-   * path-safety validation used by `loadSet`. Session-init may use it as a
-   * line-anchor helper for strategic reads; it is not thought-state.
+   * path-safety validation used by `loadSet`. Supplies strategic-read anchors;
+   * it does not carry thought-state.
    */
   taskCursor?: Probe<TaskListCursorFileResult>;
   /**
@@ -444,8 +437,8 @@ export interface SessionInitProbeResult {
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
-   * (or neither) prompts. Workflow renders verbatim instead of composing
-   * combined-prompt prose itself.
+   * (or neither) prompts. Entry compilation carries this text into its combined
+   * offer rather than composing another prompt.
    */
   recommendedCombinedPrompt: string | null;
 }
@@ -468,7 +461,6 @@ export interface SessionRecoverProbeResult {
   recoveryFrame: Probe<RecoveryLocusFrame>;
   worktree: Probe<SessionRecoverWorktreeValue>;
   dirty: Probe<DirtyStateResult>;
-  extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
   releaseRouting: Probe<ReleaseRoutingValue>;
   /** Present only when a single active WU resolves to a coordinating cohort doc. */
@@ -483,13 +475,13 @@ export interface SessionRecoverProbeResult {
 export interface StatusProbes {
   /**
    * User-sync probe. Receives `identity` at call time so the composite can
-   * short-circuit the user slot when `arc.identity` is absent without ever
+   * short-circuit the user slot when no identity resolves from `arc.identity` or Git `user.name` without ever
    * invoking this function.
    */
   user: (identity: string) => Promise<UserStatusResult>;
-  extensions: () => Promise<ExtensionsStatusResult>;
   config: () => Promise<ConfigStatusResult>;
   active: () => Promise<ActiveStatusResult>;
+  projection: () => Promise<ProjectionStatus>;
 }
 
 /**
@@ -518,6 +510,11 @@ export interface HandoffPathSet {
   /** Resolver-backed WORKING-MEMORY absolute path (primary worktree), or `null`. */
   workingMemory: string | null;
 }
+
+/** Passive handoff worktree evidence with the physical checkout identity used by its header. */
+export type SessionHandoffWorktreeValue = WorktreeSnapshotAnalysisResult & {
+  identity: WorktreeIdentity;
+};
 
 /**
  * Session-handoff composite result — `--session-handoff` consumer shape.
@@ -556,8 +553,8 @@ export interface SessionHandoffResult {
    */
   branch: string | null;
   dirty: Probe<DirtyStateResult>;
-  worktree: Probe<WorktreeSnapshotAnalysisResult>;
-  user: Probe<SessionUserValue>;
+  worktree: Probe<SessionHandoffWorktreeValue>;
+  user: Probe<SessionUserValue | import("../../lib/session-init/store-user-pull.js").StoreSessionInitUserValue | null>;
   syncInterlock: Probe<HandoffSyncInterlock>;
   active: Probe<ActiveSessionInitResult>;
   head: Probe<HeadHashResult>;
@@ -612,13 +609,16 @@ export interface SessionHandoffResult {
 
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
 export interface SessionInitProbes {
-  user: (identity: string) => Promise<UserSessionInitStatusResult>;
+  /** Independently probe the resolved identity's paused work. */
+  pausedWork?: (identity: string) => Promise<PausedWorkResult>;
+  /** Independently probe the current work unit's inbound figures. */
+  inboundBackPressure?: (workUnitId: string) => Promise<InboundBackPressureResult>;
+  user: (identity: string) => Promise<SessionInitUserProbeValue>;
   dirty: () => Promise<DirtyStateResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
-  /** Resolve the entering-checkout frame with the exact active extension set. */
+  /** Resolve the entering-checkout frame for the exact identity. */
   derivedLocusState: (
     identity: string,
-    activeExtensions: readonly string[],
   ) => Promise<DerivedLocusFrame>;
   /** Acquire the immutable request-scoped code-repository remote context. */
   remoteContext: () => Promise<SessionRemoteContext>;
@@ -681,9 +681,10 @@ export interface SessionInitProbes {
     context: SessionRemoteContext,
     branch: string,
   ) => Promise<SupersessionResult | SupersessionSnapshotAnalysisResult>;
-  extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;
+  /** Hooks-path advisory for the entering checkout. */
+  hooksPath: () => Promise<HooksPathSessionAdvisory>;
   /**
    * In-flight worktree roster scan, identity-filtered (`git worktree list` +
    * per-worktree meta reads). Always provided — the orchestrator owns the
@@ -798,32 +799,28 @@ export interface SessionInitProbes {
 
 /** Probe functions in recover mode — the lean subset recovery needs. */
 export interface SessionRecoverProbes {
-  /** Resolve the entering checkout with the exact active extension set. */
+  /** Resolve the entering checkout and its exact subject context. */
   derivedLocusState: (
     identity: string,
-    activeExtensions: readonly string[],
   ) => Promise<DerivedLocusFrame>;
   worktree: () => Promise<WorktreeSnapshotAnalysisResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
-  extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
 export interface SessionHandoffProbes {
-  user: (identity: string) => Promise<UserSessionInitStatusResult>;
+  user: (identity: string) => Promise<SessionInitUserProbeValue>;
   worktree: () => Promise<WorktreeSnapshotAnalysisResult>;
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
-  /** Resolve the entering checkout with the exact active extension set. */
+  /** Resolve the entering checkout and its exact subject context. */
   derivedLocusState: (
     identity: string,
-    activeExtensions: readonly string[],
   ) => Promise<DerivedLocusFrame>;
-  /** Resolve active extensions before composing the derived WU projection. */
-  extensions: () => Promise<ExtensionsSessionInitResult>;
   syncInterlock: () => Promise<HandoffSyncInterlock>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;
@@ -838,6 +835,8 @@ export interface RunStatusOptions {
 }
 
 export interface RunSessionInitStatusOptions {
+  /** Selected operational backend controls notes-policy retirement. */
+  stateOffBranch?: boolean;
   identity: string | null;
   role: string | null;
   probes: SessionInitProbes;

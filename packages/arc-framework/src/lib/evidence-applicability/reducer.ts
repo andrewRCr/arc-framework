@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { assertNever } from "../kernel/index.js";
 import {
   BoundedEvidenceResidualSchema,
   EvidenceDeltaSchema,
@@ -19,6 +20,7 @@ const FinalReasonSchema = z.enum([
   "merge-safety-admitted-disjoint",
   "merge-safety-requires-fresh",
   "base-movement-disjoint",
+  "base-movement-clean-merge",
   "overlap-unknown",
   "overlap-ambiguous-base",
   "overlap-unrelated-base",
@@ -108,6 +110,12 @@ export function reduceEvidenceApplicability(
       case "unknown":
         return final("fresh", unprovenOverlapReason(delta.overlap.cause));
       case "overlapping":
+        // A merge that combines both sides without a substantive conflict leaves the reviewed change as it was
+        // reviewed, wherever in a shared file the base moved. That settles review clearance only: what the
+        // combined code does is still verification's question, and merging it is still merge safety's.
+        if (evidence === "review-clearance" && delta.substantiveMerge === "clean") {
+          return final("carries", "base-movement-clean-merge");
+        }
         return delta.residual === null
           ? final("fresh", "unbounded-residual")
           : judgment(delta.residual, "bounded-overlap");
@@ -223,8 +231,4 @@ function reduceOtherMovement(
   if (delta.relation === "interaction") return final("fresh", "interaction");
   if (delta.relation === "unavailable") return final("fresh", "unavailable");
   return final("fresh", "conservative-default");
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled evidence-applicability value: ${JSON.stringify(value)}`);
 }

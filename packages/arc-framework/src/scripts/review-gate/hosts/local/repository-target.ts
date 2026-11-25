@@ -16,6 +16,7 @@ import {
 export type LocalTargetInvalidReason =
   | "ambiguous-merge-base"
   | "dirty-worktree"
+  | "diff-base-mismatch"
   | "invalid-base"
   | "no-merge-base"
   | "non-commit-head"
@@ -66,6 +67,11 @@ export type LocalTargetConfirmation =
       currentTarget: ReviewTarget;
     };
 
+export type LocalCorrectionTargetConfirmation =
+  | { state: "current"; target: ReviewTarget; dirtyPaths: readonly string[] }
+  | { state: "stale-head"; attemptedTarget: ReviewTarget; currentHeadSha: string }
+  | { state: "unexpected-dirty-paths"; target: ReviewTarget; unexpectedPaths: readonly string[] };
+
 interface GitBoundary {
   exec: GitExec;
   cwd: string;
@@ -75,9 +81,11 @@ async function readGit(
   input: GitBoundary,
   args: string[],
   reason: LocalTargetInvalidReason,
+  options: { preserveStdout?: boolean } = {},
 ): Promise<string> {
   try {
-    return (await input.exec("git", args, { cwd: input.cwd })).stdout.trim();
+    const stdout = (await input.exec("git", args, { cwd: input.cwd })).stdout;
+    return options.preserveStdout === true ? stdout : stdout.trim();
   } catch {
     throw new LocalTargetDerivationError(reason);
   }
@@ -95,7 +103,7 @@ async function resolveObject(
 
 /** Derive the change set from the checkout: its HEAD, its working tree, and the base's merge base. */
 async function deriveFromCheckout(
-  input: LocalTargetDerivationInput,
+  input: Omit<LocalTargetDerivationInput, "repositoryId">,
   baseRef: string,
 ): Promise<DerivedCoordinates> {
   const head = await resolveObject(input, "HEAD", "unborn-repository");
@@ -180,6 +188,26 @@ export async function deriveLocalReviewTargetFromCoordinates(input: {
   });
 }
 
+/** Require a change-set target's supplied base to match what the local base branch reproduces. */
+export async function assertLocalReviewTargetBase(input: GitBoundary & { target: ReviewTarget }): Promise<void> {
+  const { target } = input;
+  if (target.kind !== "change-set") return;
+  const base = await resolveObject(input, `refs/heads/${target.baseRef}`, "unresolved-base");
+  if (base.type !== "commit") throw new LocalTargetDerivationError("unresolved-base");
+  const sole = await resolveSoleMergeBase({
+    exec: (command, args) => input.exec(command, args, { cwd: input.cwd }),
+    leftRevision: base.oid,
+    rightRevision: target.headSha,
+  });
+  if (sole.status === "ambiguous") throw new LocalTargetDerivationError("ambiguous-merge-base");
+  if (sole.status !== "resolved") throw new LocalTargetDerivationError("no-merge-base");
+  if (sole.mergeBase !== target.diffBaseSha) {
+    throw new LocalTargetDerivationError("diff-base-mismatch",
+      `The supplied diff base '${target.diffBaseSha}' differs from merge base '${sole.mergeBase}' `
+      + `reproduced by the local base branch '${target.baseRef}'.`);
+  }
+}
+
 /**
  * Derives an exact review target from clean repository state, or from supplied member coordinates.
  *
@@ -196,23 +224,21 @@ export async function deriveLocalReviewTargetFromCoordinates(input: {
 export async function deriveLocalReviewTarget(
   input: LocalTargetDerivationInput,
 ): Promise<ReviewTarget> {
+  return createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2",
+    repositoryId: input.repositoryId, ...await deriveLocalReviewTargetFacts(input) });
+}
+
+/** Read exact Git coordinates without minting a repository identity or persisting a target. */
+export async function deriveLocalReviewTargetFacts(
+  input: Omit<LocalTargetDerivationInput, "repositoryId">,
+): Promise<DerivedCoordinates & { baseRef: string; kind: "change-set" | "delivery-member" }> {
   const baseRef = input.baseRef.trim();
   if (baseRef === "") throw new LocalTargetDerivationError("invalid-base");
   await readGit(input, ["check-ref-format", `refs/heads/${baseRef}`], "invalid-base");
-
   const coordinates = input.memberCoordinates;
   const derived = coordinates === undefined
-    ? await deriveFromCheckout(input, baseRef)
-    : await resolveMemberCoordinates(input, coordinates);
-
-  return createReviewTarget({
-    schemaVersion: 2,
-    semanticsVersion: "review-gate/v2",
-    kind: coordinates === undefined ? "change-set" : "delivery-member",
-    repositoryId: input.repositoryId,
-    baseRef,
-    ...derived,
-  });
+    ? await deriveFromCheckout(input, baseRef) : await resolveMemberCoordinates(input, coordinates);
+  return { kind: coordinates === undefined ? "change-set" : "delivery-member", baseRef, ...derived };
 }
 
 /**
@@ -281,4 +307,55 @@ export async function confirmLocalReviewTarget(input: {
   return currentTarget.targetId === attemptedTarget.targetId
     ? { state: "current", target: attemptedTarget }
     : { state: "stale-target", attemptedTarget, currentTarget };
+}
+
+function parsePorcelainPaths(stdout: string): string[] {
+  const records = stdout.split("\0").filter(Boolean);
+  const paths: string[] = [];
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    if (record === undefined || record.length < 4) continue;
+    const status = record.slice(0, 2);
+    paths.push(record.slice(3));
+    if (status.includes("R") || status.includes("C")) {
+      const source = records[index + 1];
+      if (source === undefined) {
+        throw new LocalTargetDerivationError("dirty-worktree", "rename/copy status lacks its source path");
+      }
+      paths.push(source);
+      index += 1;
+    }
+  }
+  return [...new Set(paths)].sort();
+}
+
+/**
+ * Confirm an unchanged reviewed head while allowing only named uncommitted fix paths.
+ *
+ * @param input - Git boundary, reviewed target, and authorized dirty path set.
+ * @returns Current target evidence or a typed head/dirt refusal.
+ */
+export async function confirmLocalReviewCorrectionTarget(input: {
+  exec: GitExec;
+  cwd: string;
+  attemptedTarget: ReviewTarget;
+  expectedFixPaths: readonly string[];
+}): Promise<LocalCorrectionTargetConfirmation> {
+  const attemptedTarget = ReviewTargetSchema.parse(input.attemptedTarget);
+  const currentHeadSha = await readGit(input, ["rev-parse", "--verify", "HEAD"], "unborn-repository");
+  if (currentHeadSha !== attemptedTarget.headSha) {
+    return { state: "stale-head", attemptedTarget, currentHeadSha };
+  }
+  const status = await readGit(
+    input,
+    ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+    "dirty-worktree",
+    { preserveStdout: true },
+  );
+  const dirtyPaths = parsePorcelainPaths(status);
+  const expected = new Set(input.expectedFixPaths);
+  const unexpectedPaths = dirtyPaths.filter((path) => !expected.has(path));
+  return unexpectedPaths.length === 0
+    ? { state: "current", target: attemptedTarget, dirtyPaths }
+    : { state: "unexpected-dirty-paths", target: attemptedTarget, unexpectedPaths };
 }
