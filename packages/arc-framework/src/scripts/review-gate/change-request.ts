@@ -185,6 +185,8 @@ export const ChangeRequestResolveResultSchema = z.union([
      * that is unpushed or not yet seen by the host.
      */
     headAhead: z.literal(true).optional(),
+    /** The remote already carries the requested head while the host still reports its ancestor. */
+    headPublished: z.literal(true).optional(),
     remedy: SpineRemedySchema.optional(),
   }),
   z.strictObject({
@@ -251,27 +253,26 @@ async function classifyCandidates(
     observed.remoteHead,
     targetRef.headSha,
   );
+  const headPublished = headAhead && observed.remoteHead === targetRef.headSha;
   return {
     ...base,
     state: "ambiguous",
     nextAction: "stop",
     candidates: matching,
     ...(headAhead ? { headAhead: true as const } : {}),
-    remedy: spineRemedy(
-      "An open change request exists at a different head.",
-      "Push the target branch, then re-run exact-head resolution",
-      [
-        "arc",
-        "review",
-        "change-request",
-        "resolve",
-        "--head-ref",
-        targetRef.headRef,
-        "--head-sha",
-        targetRef.headSha,
-      ],
-    ),
+    ...(headPublished ? { headPublished: true as const } : {}),
+    remedy: openHeadRemedy(targetRef, headPublished),
   };
+}
+
+function openHeadRemedy(targetRef: ChangeRequestTargetRef, headPublished: boolean): z.infer<typeof SpineRemedySchema> {
+  return spineRemedy(
+    headPublished ? "The open change request still shows an ancestor of the pushed head."
+      : "An open change request exists at a different head.",
+    headPublished ? "Wait for the host to observe the pushed head, then re-run exact-head resolution"
+      : "Push the target branch, then re-run exact-head resolution",
+    ["arc", "review", "change-request", "resolve", "--head-ref", targetRef.headRef, "--head-sha", targetRef.headSha],
+  );
 }
 
 /** Resolve host change-request state for one exact proposed head. */

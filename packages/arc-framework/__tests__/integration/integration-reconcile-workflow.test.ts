@@ -36,9 +36,12 @@ describe("integration current-WU reconcile workflow", () => {
     expect(pending, "Handle the not-written landing-link result before delivery closeout").toBeGreaterThan(-1);
     const [recovery] = dispatch.slice(pending).split(/`[\w-]+ \/ [\w-]+`/u);
     expect(recovery).toContain("payload.landingLink.remedy.argv");
+    expect(dispatch.slice(0, pending)).toMatch(/`written`\s+or\s+`not-applicable`/u);
     const resume = dispatch.slice(dispatch.indexOf("`merged-at-head`"));
     expect(resume).toMatch(/(?:verify|confirm)[\s\S]*landing[- ](?:commit )?link/iu);
     expect(resume).toMatch(/retained[^.]*checkpoint/iu);
+    expect(resume).toMatch(/retained `written` or `not-applicable` merge result/u);
+    expect(resume).toContain("same landing-link result check");
   });
 
   it.each(WORKFLOWS)("routes Candidate applicability through typed checkpoint results in %s", async (path) => {
@@ -102,6 +105,10 @@ describe("integration current-WU reconcile workflow", () => {
     expect(entry).toMatch(/every entry[^.]*index[^.]*PR head/iu);
     expect(entry).toMatch(/staged[^.]*`git restore --source=HEAD --staged --worktree --/iu);
     expect(entry).toMatch(/Step 7[^.]*Step 9/iu);
+    expect(entry).toMatch(/headPublished: true[^.]*remedy\.argv/u);
+    expect(entry).toMatch(/head-mismatch[^.]*original head/u);
+    const resume = workflow.slice(0, workflow.indexOf("Resolve worktree/branch presence"));
+    expect(resume).toMatch(/shipped[^.]*headAhead: true[^.]*Step 10[^.]*lookup/iu);
 
     const refresh = workflow.slice(workflow.indexOf("`candidate-publication-required / refresh-shipped-delivery`"));
     expect(refresh.split("`terminal-rebind-required / reconcile-delivery-state`")[0]).toMatch(

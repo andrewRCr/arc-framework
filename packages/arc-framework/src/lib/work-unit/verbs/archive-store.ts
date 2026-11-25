@@ -19,7 +19,8 @@ import { writeMetaSessionContext, writeMetaStateAtHandoff, writeMetaCommitAtHand
 import { archivePrUrlWarnings, resolveArchiveFinalizeFacts } from "./archive-finalize.js";
 import type { Mutation, RecordObservation } from "../../store/write.js";
 import type { StoreRecord } from "../../store/read.js";
-import type { StoreRefusal, Remedy } from "../../store/refusal.js";
+import type { StoreRefusal, StoreResult, Remedy } from "../../store/refusal.js";
+import type { CallerProvenance } from "../../store/links.js";
 import type { TransitionOutcome } from "../lifecycle-executor.js";
 import { executeTransition } from "../lifecycle-executor.js";
 import { revalidateLifecycleRecords } from "../prepared-lifecycle-write.js";
@@ -62,6 +63,7 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   const content = writeMetaCompleted(writeMetaPrUrl(cleared, facts.prUrl), facts.completed);
   const outcome = await executeTransition(ctx.executor, { verb: "archive", slug: params.name, inputs: {
     suggestion: params.suggestion, storeTransition: { primary, content, placement: { kind: "completed", quarter }, additionalWrites: writes, preparedRecords: cohorts.records,
+      provenance: archiveProvenance(primary, cohorts.completed),
       observations: [...observeRecords(cohorts.completed), ...cohorts.holders] },
   } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,
@@ -127,9 +129,15 @@ async function publishCohortCloseout(store: Store, name: string, cohorts: Prepar
   if (cohorts.writes.length === 0) return undefined;
   const valid = await revalidateLifecycleRecords(store, cohorts.records);
   if (valid.status === "refused") return reportFailure(name, valid.refusal);
-  const closed = await batchLifecycleWrites(store, cohorts.writes, { verb: "archive", lifecycleAction: "archive" },
+  const closed = await batchLifecycleWrites(store, cohorts.writes, archiveProvenance(cohorts.primary, cohorts.completed),
     [...observeRecords([cohorts.primary, ...cohorts.completed]), ...cohorts.holders]);
   return closed.status === "refused" ? reportFailure(name, closed.refusal) : publishArchive(store, name, notices);
+}
+
+function archiveProvenance(primary: StoreRecord, completed: readonly StoreRecord[]): CallerProvenance {
+  return { verb: "archive", lifecycleAction: "archive", ...(completed.length === 0 ? {} : {
+    cohortCloseout: { member: primary.reference, cohorts: completed.map(cohort => cohort.reference) },
+  }) };
 }
 
 async function publishArchive(store: Store, name: string, notices: string[]): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
@@ -190,15 +198,33 @@ async function reportStoredArchive(checkoutRoot: string, store: Store, primary: 
   cohortReferences: readonly RecordReference[], notices: readonly string[]): Promise<ArchiveResult> {
   const placement = primary.placement;
   if (placement?.kind !== "completed" || !("sequence" in placement)) throw new Error("Archive result lacks its backend-assigned sequence");
-  const paths: string[] = [];
+  const paths: (string | null)[] = [];
   for (const reference of cohortReferences) {
-    const cohort = await store.read({ reference });
+    const cohort = await attributedCloseout(store, primary.reference, reference);
     if (cohort.status === "refused") return reportFailure(primary.reference.owner.name, cohort.refusal);
-    if (cohort.result.placement?.kind === "completed") paths.push(completedCohortPath(cohort.result));
+    paths.push(cohort.result);
   }
   const metaPath = await workUnitMetaPath(checkoutRoot, primary);
   return { status: "archived", outcome, metaPath, destination: { quarter: placement.quarter, sequence: placement.sequence, toDir: posix.dirname(metaPath) },
     cohortSwept: paths[0] ?? null, nestedParentSwept: paths[1] ?? null, warnings: [...notices] };
+}
+
+async function attributedCloseout(store: Store, member: RecordReference, reference: RecordReference): Promise<StoreResult<string | null>> {
+  const cohort = await store.read({ reference });
+  if (cohort.status === "refused") return cohort;
+  const record = cohort.result;
+  if (record.placement?.kind !== "completed") return { status: "ok", result: null };
+  const history = await store.history({ reference: record.reference });
+  if (history.status === "refused") return history;
+  for (const { provenance } of history.result) {
+    if (!("verb" in provenance)) continue;
+    if (provenance.verb === "cohort-close") break;
+    const closeout = provenance.cohortCloseout;
+    if (closeout?.cohorts.some(closed => sameReference(closed, record.reference))) {
+      return { status: "ok", result: sameReference(closeout.member, member) ? completedCohortPath(record) : null };
+    }
+  }
+  return { status: "ok", result: null };
 }
 
 /**

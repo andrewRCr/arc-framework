@@ -36,5 +36,6 @@ it("routes a Shipped final member back to archive when publication still needs a
   const integration = await readFile(resolve(import.meta.dirname,
     "../../arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8");
   const resume = integration.split("\n").find(line => line.includes("`shipped` in `completed`; `open`"));
-  expect(resume).toMatch(/Steps? 8.*Step 10|archive.*Step 10/iu);
+  const dispatch = resume?.split("|")[3]?.trim();
+  expect(dispatch).toMatch(/^(?:Step 8|archive recovery).*\bthen Step 10\b/iu);
 });

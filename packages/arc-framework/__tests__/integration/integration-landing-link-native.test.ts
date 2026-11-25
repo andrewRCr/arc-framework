@@ -16,6 +16,9 @@ import { RecordReferenceSchema, sameOwner } from "../../src/lib/store/identity.j
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { lackingEndedHistory } from "../helpers/store/ended-history.js";
 import { makeTempRoot, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { selectStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 /** Place a record that carries no work-item binding in that work item's folder, as no checkpoint writes one. */
 async function placeUnbound(cwd: string, uid: string, composition: IntegrationCheckpointCompositionInput): Promise<string> {
@@ -28,7 +31,7 @@ async function placeUnbound(cwd: string, uid: string, composition: IntegrationCh
   return handle;
 }
 
-async function landed(archived = false, binding = true, checkpointWorktree: "primary" | "linked" = "primary") {
+async function landed(archived = false, binding: boolean | "workspace" = true, checkpointWorktree: "primary" | "linked" = "primary") {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -60,14 +63,15 @@ async function landed(archived = false, binding = true, checkpointWorktree: "pri
   if (uid === undefined) throw new Error("Expected native work-item UID");
   const composition: IntegrationCheckpointCompositionInput = {
     workUnit: "example", approvedHead: head, lifecycleVersion: meta.version,
-    ...(binding ? { nativeOwnership: { projectId, workItemUid: uid } } : {}),
+    ...(binding === true ? { nativeOwnership: { projectId, workItemUid: uid } } : {}),
     target: { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: branch, headSha: head },
     settlementPlan: composeCanonicalSettlementPlan([]), mergeMethod: { schemaVersion: 1, mode: "review-merge-method-resolve",
       repository: "owner/repo", stackPosition: "non-delivery", state: "validated", nextAction: "use-method",
       method: "merge", allowedMethods: ["merge"], policyFingerprint: canonicalDigest({ policy: 1 }) },
   };
-  const checkpoint = binding ? await persistIntegrationCheckpointComposition(await integrationCheckpointLocation({ cwd: checkpointCwd,
-    identity: SlugSchema.parse("test-user"), workUnit: "example", store: h.reference.store, exec }), composition)
+  const checkpointStore = binding === "workspace" ? selectStore(createDefaultStorePorts({ checkoutRoot: cwd, exec })) : h.reference.store;
+  const checkpoint = binding !== false ? await persistIntegrationCheckpointComposition(await integrationCheckpointLocation({ cwd: checkpointCwd,
+    identity: SlugSchema.parse("test-user"), workUnit: "example", store: checkpointStore, exec }), composition)
     : await placeUnbound(cwd, uid, composition);
   if (checkpointWorktree === "linked") await git("worktree", "remove", "--force", checkpointCwd);
   const bin = join(cwd, "..", "landing-host-bin");
@@ -86,7 +90,7 @@ async function landed(archived = false, binding = true, checkpointWorktree: "pri
   const oldPath = process.env.PATH;
   process.env.PATH = `${bin}${delimiter}${oldPath ?? ""}`;
   onTestFinished(() => { if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath; });
-  const run = async (store: Store = h.reference.store, readProjectId = h.reference.projectId, bindOwner = true, name = "example") => {
+  const run = async (store: Store = checkpointStore, readProjectId = h.reference.projectId, bindOwner = binding !== "workspace", name = "example") => {
     let output = "";
     const exits: number[] = [];
     const originalCwd = process.cwd();
@@ -101,6 +105,14 @@ async function landed(archived = false, binding = true, checkpointWorktree: "pri
   };
   return { h, git, projectId, head, mergeCommit, links, meta, checkpoint, host, run, uid };
 }
+
+it("reports a completed landing without a link writer on exact checkpoint replay", async () => {
+  useInRepoStore();
+  const { head, mergeCommit, host, run } = await landed(true, "workspace");
+  await host(mergeCommit);
+  expect(await run()).toMatchObject({ state: "merged", nextAction: "complete",
+    payload: { approvedHead: head, target: { pullRequest: 42, headSha: head }, landingLink: { state: "not-applicable" } } });
+}, 30_000);
 
 it("retains a landed merge through missing host identity and a failed link write, then saves the host commit on retry", async () => {
   const { h, git, projectId, head, mergeCommit, links, meta, checkpoint, host, run } = await landed();

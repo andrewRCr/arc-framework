@@ -46,6 +46,10 @@ export const CallerProvenanceSchema = z.strictObject({
   verb: z.string().trim().min(1),
   lifecycleAction: z.string().trim().min(1),
   codeHead: CommitShaSchema.optional(),
+  cohortCloseout: z.strictObject({
+    member: RecordReferenceSchema.refine(reference => reference.kind === "work-item/meta"),
+    cohorts: z.array(RecordReferenceSchema.refine(reference => reference.kind === "cohort/document")).min(1),
+  }).optional(),
 });
 /** The provenance supplied by a verb. */
 export type CallerProvenance = z.infer<typeof CallerProvenanceSchema>;

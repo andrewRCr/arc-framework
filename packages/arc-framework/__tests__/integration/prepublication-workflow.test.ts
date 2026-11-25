@@ -358,7 +358,10 @@ describe("prepublication workflow boundary", () => {
       expect(gate).toMatch(/personal[^.]*`clear`/u);
       expect(gate).toMatch(/inbound[^.]*`listed`/u);
       expect(gate).toContain("`pending.count` is zero");
-      expect(gate).toMatch(/(?:failed|refused)[^.]*remedy[^.]*re-?run both listings/iu);
+      expect(gate).toMatch(/(?:failed|refused)[^.]*surface[^.]*remedy/iu);
+      expect(gate).toMatch(/remedy[^.]*completes?[^.]*listing[^.]*use[^.]*result/iu);
+      expect(gate).toMatch(/otherwise[^.]*re-?run[^.]*listing/iu);
+      expect(gate).not.toMatch(/ARC_IN_REPO_STORE|in-repo|pre-import/iu);
     }
   });
 

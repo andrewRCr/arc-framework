@@ -403,12 +403,15 @@ it("publishes before reporting and closes a shared cohort after another client's
   left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
   lifecycleSuccess(await left.store.push()); lifecycleSuccess(await right.store.push());
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", destination: { sequence: "01" } });
-  expect(await archive(right.store, "beta")).toMatchObject({ status: "archived", destination: { sequence: "02" } });
+  expect(await archive(right.store, "beta")).toMatchObject({ status: "archived", destination: { sequence: "02" },
+    cohortSwept: expect.stringContaining("03a_cohort-group") });
   const completed = lifecycleSuccess(await right.store.read({ reference: left.group.reference }));
   expect(completed.placement).toMatchObject({ kind: "completed", sequence: "03", closeout: "a" });
   lifecycleSuccess(await left.store.push());
   expect(lifecycleSuccess(await left.store.read({ reference: left.group.reference }))).toEqual(completed);
-  expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", cohortSwept: expect.stringContaining("03a_cohort-group") });
+  expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", cohortSwept: null });
+  expect(await archive(right.store, "beta")).toMatchObject({ status: "archived",
+    cohortSwept: expect.stringContaining("03a_cohort-group") });
 });
 it("retains a persisted archive through a failed publish and its completed-subject retry publishes the final report", async () => {
   const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;

@@ -18,7 +18,7 @@ const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: {
 const project = "34567890-1234-4234-8234-123456789abc", foreign = "abcdef01-1234-4234-8234-123456789abc";
 const provenance = { verb: "seed", lifecycleAction: "create" };
 
-async function archive(store: Store, cwd: string): Promise<ArchiveResult> {
+async function archive(store: Store, cwd: string, name = "example"): Promise<ArchiveResult> {
   const registered = scanCommanderSource({ file: "cli.ts", sourceText: await readFile(new URL("../../src/cli.ts", import.meta.url), "utf8") }).commands
     .find(command => command.path === "archive");
   if (!registered) throw new Error("Archive command registration is absent");
@@ -35,10 +35,28 @@ async function archive(store: Store, cwd: string): Promise<ArchiveResult> {
     result = await runArchive({ executor, fs: { readdir: forbidden }, clock: () => new Date("2026-10-14T12:00:00Z") },
       { name: input.slug, prUrl: input.prUrl, completed: input.completed });
   });
-  await command.parseAsync(["example"], { from: "user" });
+  await command.parseAsync([name], { from: "user" });
   if (!result) throw new Error("Archive command produced no result");
   return result;
 }
+
+it("replays a published closeout only for the work unit whose archive closed it", async () => {
+  const h = await refSyncFixture();
+  success(await h.a.store.write({ action: "put", reference: identity, expected: null, content: JSON.stringify({ projectId: project }), provenance }));
+  const cohort = RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: "group" } });
+  success(await h.a.store.write({ action: "put", reference: cohort, expected: null, provenance,
+    content: "# Cohort: group\n\n**Purpose:** Complete the shared work.\n" }));
+  for (const name of ["example", "sibling"]) {
+    success(await h.a.store.write({ action: "put", expected: null, provenance, placement: { kind: "active" },
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name } }),
+      content: renderMetaFile(name, { state: "Active", owner: "andrew", workClass: "Light", currentWorkflow: "process-task-loop", cohort: "group" }) }));
+  }
+  expect(await archive(h.a.store, h.a.root)).toMatchObject({ status: "archived", cohortSwept: null });
+  const closeout = { status: "archived", cohortSwept: expect.stringContaining("cohort-group") };
+  expect(await archive(h.a.store, h.a.root, "sibling")).toMatchObject(closeout);
+  expect(await archive(h.a.store, h.a.root)).toMatchObject({ status: "archived", cohortSwept: null });
+  expect(await archive(h.a.store, h.a.root, "sibling")).toMatchObject(closeout);
+}, 30_000);
 
 it.each(["project-check", "automatic-timeout"] as const)("keeps completion pending after a native %s and succeeds after repair", async failure => {
   const h = await refSyncFixture(), clock = createRefClock(new Date(0), 0);

@@ -321,7 +321,7 @@ export const IntegrationMergeResultSchema = z.union([
       pullRequest: z.number().int().positive(),
       target: IntegrationMergeTargetSchema,
       providerMergeId: z.string().trim().min(1).nullable(),
-      landingLink: LandingLinkStateSchema.optional(),
+      landingLink: LandingLinkStateSchema,
     }),
   }),
   z.strictObject({
@@ -627,8 +627,8 @@ async function completeMergedIntegration(request: IntegrationMergeRequest, check
     providerMergeId, write: writeLandingCommit === undefined ? undefined
       : (workUnit, sha) => writeLandingCommit(workUnit, sha, checkpoint), confirmationDetail });
   return IntegrationMergeResultSchema.parse({ schemaVersion: 1, mode: "integrate-merge", workUnit: request.workUnit,
-    state: "merged", nextAction: "complete", payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest, target, providerMergeId,
-      ...(landingLink === undefined ? {} : { landingLink }) } });
+    state: "merged", nextAction: "complete", payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest,
+      target, providerMergeId, landingLink } });
 }
 
 /** Execute the exact persisted post-approval span and merge only its approved head. */

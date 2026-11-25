@@ -25,10 +25,11 @@ task. Candidate attestation hands off to [prepare-work-unit][prepare-work-unit] 
 ## Step 1 — Clean, Self-Review, and Run the Merge Quality Gate
 
 Run `arc inbox personal --target {name} --json` for every capture that still names this work unit, including held
-captures, and `arc inbox {name} --json` for its inbound list. Proceed to cleanup only after both commands succeed,
-the personal listing reports `clear`, and the inbound listing reports `listed` and `pending.count` is zero.
-On a failed or refused listing, surface the diagnostic, apply its remedy, and rerun both listings at this gate.
-Route named captures and pending inbound entries through the Owner's pass below, then rerun the gate.
+captures, and `arc inbox {name} --json` for its inbound list. A successful personal listing must report `clear`. A
+successful inbound listing must report `listed` and `pending.count` is zero. On a failed or refused listing, surface the
+diagnostic and apply its reported remedy. If the remedy completes the listing, use its result to establish whether
+entries remain. Otherwise rerun the listing after repair. Require both checks to confirm no entries remain before
+cleanup. Route named captures and pending inbound entries through the Owner's pass below, then recheck both lists.
 
 **Method fire-point** · [`route-discovered-work`][route-discovered-work]:
 
@@ -43,7 +44,7 @@ On confirmation, carry out each outcome; no outcome holds the capture in this wo
 [`amend-design`][amend-design] over the capture, and any work it adds returns to the task loop before verification
 resumes. Remove each routed capture with `arc user inbox-remove --id <id> --expected-version <version>`, taking both
 from its listed row, or rewrite it in place when its outcome is itself a capture. Record each rejection or dismissal,
-with its reason, in the verification record's `_Captures:_` category. Then re-run both listings.
+with its reason, in the verification record's `_Captures:_` category. Then recheck both lists as above.
 
 Before the Candidate exists, clean the WU content:
 

@@ -85,7 +85,7 @@ Follow its typed state:
 | `merged-stale-head`, `ambiguous`, or `blocked` | unresolved                   | Stop; follow any emitted remedy text                           |
 
 For a `shipped` resume whose resolver returns `ambiguous` with `headAhead: true`, use Step 10's exact PR-head
-lookup before taking the `open` row.
+lookup, then dispatch on the resolved state above.
 
 Resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`. Within the
 suspendable review cycle, resume the first incomplete candidate-tail step. Preserve composition already written
@@ -463,10 +463,18 @@ rerun. After correcting authored text the checks read, run `arc check increment`
 dependent-owned repairs the reconcile has already written.
 
 On every entry, inspect the index, local HEAD, and current PR head for the exact review copy
-`.arc/specs/{name}/spec-{name}.md`. Use the Step 1 resolver to confirm the open PR. If it reports `ambiguous` with
-`headAhead: true` and one open candidate, resolve again with that candidate's `headRefOid` and require `open`.
-If resolution remains blocked, follow its remedy before proceeding. Inspect the tree at the confirmed PR head.
-Complete any review that needs a renewed export before removing it again.
+`.arc/specs/{name}/spec-{name}.md`. Use the Step 1 resolver at the local branch head to confirm the open PR.
+For `ambiguous` with `headAhead: true` and one open candidate, follow the exact PR-head lookup below.
+
+- With `headPublished: true`, surface the host lag and retain `remedy.argv` to retry the exact pushed head
+  once the host catches up. End this attempt while the host still reports the earlier head.
+- Otherwise resolve the candidate's `headRefOid` to confirm the open PR before any pending push.
+  If that returns `blocked / head-mismatch`, resolve the original head again and dispatch on the fresh result,
+  including the host lag route if the remote now carries that head.
+
+Inspect the tree at the confirmed open PR head. If the PR has merged, return to Step 1's merged dispatch.
+For any other unresolved result, surface the condition and follow its remedy before proceeding. Complete any review
+that needs a renewed export before removing it again.
 
 - If the copy is staged as an addition and absent from local HEAD, clear it with
   `git restore --source=HEAD --staged --worktree -- .arc/specs/{name}/spec-{name}.md`. Still check the PR head
@@ -476,7 +484,8 @@ Complete any review that needs a renewed export before removing it again.
 - If removal is already committed locally and the PR head still tracks the copy, follow Step 9 using the removal
   commit. If the local head cannot safely update the PR head, reconcile to the current PR head and repeat this check.
 
-After a cleanup push, verify the resulting PR head excludes the copy and restart this step.
+After a cleanup push, restart the exact lookup at the pushed head. Require the confirmed PR head to exclude the copy
+before checkpointing.
 
 Invoke the checkpoint:
 
@@ -617,12 +626,11 @@ green at the interlock, invoke:
 arc integrate merge {name} --checkpoint {payload.checkpointHandle}
 ```
 
-On `merged / complete`, check `payload.landingLink.state` before closeout. For `not-written`, surface
+On `merged / complete`, check `payload.landingLink.state` before closeout. For `written` or `not-applicable`,
+retain the result for the exact landed head and proceed to delivery closeout. For `not-written`, surface
 `payload.landingLink.detail` and keep the branch and checkout. After repairing the reported condition, invoke
 `payload.landingLink.remedy.argv` unchanged. Continue after the retry reports `merged / complete` with the link
-`written`. Under `with-integration`, if the result omits `landingLink`, report the missing evidence and enter the
-merged-at-head recovery below with the checkout intact. Retain a successful link-write result with the exact
-landed head for any resume.
+`written`.
 
 `awaiting-checks / retry` keeps the checkpoint and draft lock; surface `payload.observationKind`, `payload.checks`, any
 `payload.diagnosticFailures`, and `payload.detail` when present, then end the foreground attempt. Do not re-invoke
@@ -637,12 +645,12 @@ through the same result arms above, including the new-head check, push, checkpoi
 terminal explanation on every non-success arm rather than deriving a continuation from its evidence fields.
 The integration interlock is the sole merge authority.
 
-On a `merged-at-head` resume, verify the landing-commit link for the exact request and landed head before closeout. Use
-the retained `written` merge result for that target or replay the retained approved checkpoint with
+On a `merged-at-head` resume, confirm the landing-link result for the exact request and landed head before closeout.
+Use the retained `written` or `not-applicable` merge result for that target or replay the retained approved checkpoint with
 `arc integrate merge {name} --checkpoint {handle}` after confirming it binds this repository, PR number, and head. Apply
-the same landing-link result check to the replay. If the required link is unconfirmed and the checkpoint is unavailable,
-surface the missing evidence and keep the checkout. Recover the exact approved handle or successful link-write result
-from the integration that landed the request, then resume here. For a delivery, the checkpoint's typed arm has already
+the same landing-link result check to the replay. If the result is unconfirmed and the checkpoint is unavailable,
+surface the missing evidence and keep the checkout. Recover the exact approved handle or completed merge result
+for the landed request, then resume here. For a delivery, the checkpoint's typed arm has already
 bound the exact terminal claim, landed heads, residual, top target, and member-review conjunction before the integration
 interlock.
 

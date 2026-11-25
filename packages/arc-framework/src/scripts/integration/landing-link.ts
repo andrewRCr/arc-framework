@@ -12,6 +12,7 @@ import { StoreRefusalError } from "../../lib/store/refusal-error.js";
 /** Native landing-link persistence is distinct from the host's completed merge. */
 export const LandingLinkStateSchema = z.discriminatedUnion("state", [
   z.strictObject({ state: z.literal("written") }),
+  z.strictObject({ state: z.literal("not-applicable") }),
   z.strictObject({ state: z.literal("not-written"), detail: z.string().min(1).max(4_096), remedy: SpineRemedySchema }),
 ]);
 /** Reported landing-link persistence outcome. */
@@ -51,8 +52,8 @@ export async function recordLandingLink(input: {
   write?: (workUnit: string, sha: string) => Promise<void>;
   /** Why exact merged-state confirmation named no merge commit, when it failed rather than reporting none. */
   confirmationDetail?: string;
-}): Promise<LandingLinkState | undefined> {
-  if (input.write === undefined) return undefined;
+}): Promise<LandingLinkState> {
+  if (input.write === undefined) return { state: "not-applicable" };
   let detail = input.confirmationDetail ?? "The host has not reported the merge commit.";
   if (input.providerMergeId !== null) {
     try {

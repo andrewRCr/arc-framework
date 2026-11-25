@@ -65,10 +65,11 @@ The archive itself is protection-agnostic and runs the same under either cadence
 
 ### 3) Cohort closeout content — final member only
 
-For each closed cohort in Step 2's successful report, open its document at the reported closeout path. Skip
-authoring if it already has a complete `## Closeout` section. Otherwise, complete the section as follows. Save
-any outstanding closeout edits with `arc save` and require success before continuing. On refusal, apply the reported
-remedy and retry the save.
+Use the successful archive report as evidence of the cohorts this work unit closed. Open only the reported
+closeout paths. Skip authoring if the document already has a complete `## Closeout` section. Otherwise, complete
+the section as follows. Save any outstanding closeout edits with `arc save` and require success before continuing.
+On refusal, surface the condition and apply the reported remedy. If the remedy saves the edits, continue.
+Otherwise retry the save after repair.
 
 1. Lightly clean the doc for archive: remove transient open coordination, route unresolved follow-up to its
    authoritative home, and keep only historical coordination that helps future readers.

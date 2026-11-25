@@ -78,6 +78,29 @@ describe("arc user inbox-list", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ state: "clear", nextAction: "none", entries: [] });
   });
 
+  it("checks both verification inboxes through the reported remedy while listing remains unsupported", async () => {
+    await writeFile(inboxPath, "# User Inbox\n\n## Work Unit\n\n### `[ ]` **Pending**\n\n- WU_Target: payments\n");
+    const list = async (selector: string[]) => {
+      const result = await runArc(["inbox", ...selector, "--json"], tmpDir);
+      expect(result.exitCode).toBe(1);
+      const refusal = JSON.parse(result.stdout) as { remedy: { text: string } };
+      expect(refusal).toMatchObject({ state: "refused", code: "unsupported" });
+      const command = refusal.remedy.text.match(/Run arc (user inbox-list --target [\w-]+)/u)?.[1]?.split(/\s+/u);
+      expect(command).toEqual(["user", "inbox-list", "--target", "payments"]);
+      if (command === undefined) throw new Error("Inbox check remedy is missing");
+      const check = await runArc([...command, "--json"], tmpDir);
+      expect(check.exitCode).toBe(0);
+      return JSON.parse(check.stdout) as unknown;
+    };
+    for (const selector of [["personal", "--target", "payments"], ["payments"]]) {
+      expect(await list(selector)).toMatchObject({ state: "named", entries: [{ title: "Pending" }] });
+    }
+    await writeFile(inboxPath, "# User Inbox\n\n## Work Unit\n");
+    for (const selector of [["personal", "--target", "payments"], ["payments"]]) {
+      expect(await list(selector)).toMatchObject({ state: "clear", entries: [] });
+    }
+  });
+
   it("refuses while an unreadable entry could name the target", async () => {
     await writeFile(inboxPath, "# User Inbox\n\n## Work Unit\n\n### `[ ]` no bold title\n\n- WU_Target: payments\n");
 

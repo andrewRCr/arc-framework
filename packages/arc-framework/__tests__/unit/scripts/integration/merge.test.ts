@@ -1207,11 +1207,12 @@ it("reports an already-merged request with no host merge commit without writing 
   expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
 });
 
-it("keeps repository merge success free of native landing-link state", async () => {
-  const { value } = dependencies();
+it.each([false, true])("reports when a landing link is not applicable, already merged: %s", async merged => {
+  const { value, state } = dependencies();
+  state.merged = merged;
   const result = await mergeIntegration(request, value);
-  expect(result.state).toBe("merged");
-  expect(result).not.toHaveProperty("payload.landingLink");
+  expect(result).toMatchObject({ state: "merged", nextAction: "complete",
+    payload: { landingLink: { state: "not-applicable" } } });
 });
 
 it.each(["missing", "project", "generation"] as const)("refuses unmerged %s ownership before settlement or host mutation, then continues after repair", async fault => {
