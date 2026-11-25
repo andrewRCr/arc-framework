@@ -1424,13 +1424,12 @@ describe("CI verified-tree record", () => {
     // The forecast keeps the in-repo store on the storage cutover's own branch while its tree still tracks state.
     const cutoverStoreOverride = [
       "# The storage cutover's own branch runs ARC on its in-repo store until a commit stops it tracking state.",
-      'case "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" in',
-      "  */cutover-flip)",
-      '    if [ -n "$(git ls-tree --name-only HEAD -- .arc/active/ .arc/backlog/ .arc/completed/ \\',
-      '      .arc/system/.internal/candidates/ .arc/system/.internal/transitions/)" ]; then',
-      "      export ARC_IN_REPO_STORE=1",
-      "    fi ;;",
-      "esac",
+      'if [ "${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}" = feat/cutover-flip ] \\',
+      '  && { [ "${GITHUB_EVENT_NAME:-}" != pull_request ] || [ "$PR_HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]; } \\',
+      '  && [ -n "$(git ls-tree --name-only HEAD -- .arc/active/ .arc/backlog/ .arc/completed/ \\',
+      '    .arc/system/.internal/candidates/ .arc/system/.internal/transitions/)" ]; then',
+      "  export ARC_IN_REPO_STORE=1",
+      "fi",
     ].join("\n");
     const preparationCommands = new Set([
       "npm ci", "npm run setup", durationPreparationCommand,

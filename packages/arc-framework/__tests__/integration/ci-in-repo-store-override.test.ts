@@ -10,18 +10,23 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
-type Workflow = { jobs: Record<string, { steps: Array<{ id?: string; run?: string }> }> };
+type Workflow = { jobs: Record<string, { steps: Array<{ id?: string; run?: string; env?: Record<string, string> }> }> };
 
 const steps = [["setup", "forecast"], ["lint-typecheck", "markdown-underwrap"]] as const;
-const flipPullRequest = { GITHUB_HEAD_REF: "feat/cutover-flip", GITHUB_REF_NAME: "12/merge" };
-const flipDispatch = { GITHUB_HEAD_REF: "", GITHUB_REF_NAME: "feat/cutover-flip" };
-const otherPullRequest = { GITHUB_HEAD_REF: "feat/other-work", GITHUB_REF_NAME: "13/merge" };
+const repository = "owner/repository";
+const flipPullRequest = { headRef: "feat/cutover-flip", refName: "12/merge", headRepository: repository, event: "pull_request" };
+const flipDispatch = { headRef: "", refName: "feat/cutover-flip", headRepository: "", event: "workflow_dispatch" };
+const otherPullRequest = { ...flipPullRequest, headRef: "feat/other-work", refName: "13/merge" };
 const cases = [
   { run: "a pull request from the flip's branch over a tree tracking state", branch: flipPullRequest, tree: "tracking", expected: "1" },
   { run: "a dispatched run on the flip's branch over a tree tracking state", branch: flipDispatch, tree: "tracking", expected: "1" },
+  { run: "a dispatch on a different branch with the flip's suffix", branch: { ...flipDispatch, refName: "release/cutover-flip" },
+    tree: "tracking", expected: "unset" },
+  { run: "a pull request from a same-named branch in a fork", branch: { ...flipPullRequest, headRepository: "fork/repository" },
+    tree: "tracking", expected: "unset" },
   { run: "the flip's branch over a tree tracking no state", branch: flipPullRequest, tree: "clean", expected: "unset" },
   { run: "another branch over a tree tracking state", branch: otherPullRequest, tree: "tracking", expected: "unset" },
-  { run: "a branch named only cutover-flip", branch: { GITHUB_HEAD_REF: "", GITHUB_REF_NAME: "cutover-flip" }, tree: "tracking",
+  { run: "a branch named only cutover-flip", branch: { ...flipDispatch, refName: "cutover-flip" }, tree: "tracking",
     expected: "unset" },
 ] as const;
 
@@ -54,13 +59,23 @@ afterAll(async () => { await rm(root, { recursive: true, force: true }); });
 
 describe.each(steps)("the %s job's %s step", (job, id) => {
   it.each(cases)("for $run, sees the override as $expected", async ({ branch, tree, expected }) => {
-    const run = workflow.jobs[job]?.steps.find((step) => step.id === id)?.run;
-    if (run === undefined) throw new Error(`Missing ${job} step ${id}`);
+    const step = workflow.jobs[job]?.steps.find((candidate) => candidate.id === id);
+    if (step?.run === undefined) throw new Error(`Missing ${job} step ${id}`);
+    const expressions: Record<string, string> = {
+      "${{ github.event_name }}": branch.event,
+      "${{ github.event.before }}": "",
+      "${{ github.event.pull_request.head.repo.full_name }}": branch.headRepository,
+    };
+    const stepEnv = Object.fromEntries(Object.entries(step.env ?? {}).map(([key, expression]) => {
+      if (!(expression in expressions)) throw new Error(`Unrecognized workflow expression: ${expression}`);
+      return [key, expressions[expression]];
+    }));
     const runnerTemp = await mkdtemp(join(root, "runner-"));
     const log = join(runnerTemp, "override.log");
-    await execFileAsync("bash", ["-e", "-c", run], { cwd: checkouts[tree], env: {
+    await execFileAsync("bash", ["-e", "-c", step.run], { cwd: checkouts[tree], env: {
       PATH: `${join(root, "bin")}${delimiter}${process.env.PATH ?? ""}`, HOME: root, RUNNER_TEMP: runnerTemp,
-      OVERRIDE_LOG: log, EVENT_NAME: "pull_request", PUSH_BEFORE: "", ...branch } });
+      OVERRIDE_LOG: log, GITHUB_EVENT_NAME: branch.event, GITHUB_HEAD_REF: branch.headRef,
+      GITHUB_REF_NAME: branch.refName, GITHUB_REPOSITORY: repository, ...stepEnv } });
     const seen = (await readFile(log, "utf8")).trim().split("\n");
     expect(seen.length).toBeGreaterThan(0);
     expect(new Set(seen)).toEqual(new Set([expected]));

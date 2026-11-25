@@ -1,7 +1,7 @@
 /** The installed CLI keeps the global bypass distinct from unsupported projection save. */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { projectionSaveStep } from "../../src/lib/store/pre-flip-steps.js";
@@ -25,23 +25,31 @@ it.each([{ args: [] }, { args: ["--resolve", "personal/person/andrew/one"] }])("
   } finally { await cleanupTempDir(checkout); }
 });
 
-it.each([{ args: ["save", "--skip-projection", "--json"] }, { args: ["--skip-projection", "save", "--json"] }])(
-  "names the global bypass before backend support for $args", async ({ args }) => {
-    const checkout = await createTempRepo("arc-projection-skip-save-");
-    try {
-      await mkdir(join(checkout, ".arc"));
-      await mkdir(join(checkout, ".git", "arc-projection"));
-      const path = join(checkout, ".git", "arc-projection", "index");
-      await writeFile(path, "unreadable projection index");
-      const result = await runArc(args, checkout);
-      expect(result.exitCode).toBe(1);
-      expect(JSON.parse(result.stdout)).toMatchObject({ status: "refused", refusal: { code: "projection-skipped",
-        condition: expect.stringContaining("--skip-projection"),
-        remedy: { text: expect.stringContaining("without --skip-projection") } } });
-      expect(await readFile(path, "utf8")).toBe("unreadable projection index");
-    } finally { await cleanupTempDir(checkout); }
-  },
-);
+describe.each(["ref", "in-repo"] as const)("projection bypass with the %s backend", (backend) => {
+  it.each([{ args: ["save", "--skip-projection", "--json"] }, { args: ["--skip-projection", "save", "--json"] }])(
+    "reports the global bypass for $args", async ({ args }) => {
+      if (backend === "in-repo") useInRepoStore();
+      const checkout = await createTempRepo("arc-projection-skip-save-");
+      try {
+        await mkdir(join(checkout, ".arc"));
+        await mkdir(join(checkout, ".git", "arc-projection"));
+        const path = join(checkout, ".git", "arc-projection", "index");
+        await writeFile(path, "unreadable projection index");
+        const result = await runArc(args, checkout);
+        expect(result.exitCode).toBe(1);
+        expect(JSON.parse(result.stdout)).toMatchObject({ status: "refused", refusal: { code: "projection-skipped",
+          condition: expect.stringContaining("--skip-projection"),
+          remedy: { text: expect.stringContaining("without --skip-projection") } } });
+        expect(await readFile(path, "utf8")).toBe("unreadable projection index");
+        if (backend === "in-repo") {
+          const unskipped = await runArc(args.filter(arg => arg !== "--skip-projection"), checkout);
+          expect(unskipped.exitCode).toBe(1);
+          expect(JSON.parse(unskipped.stdout)).toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
+        }
+      } finally { await cleanupTempDir(checkout); }
+    },
+  );
+});
 
 it.each([{ args: ["--skip-projection", "config", "status", "--json"] },
   { args: ["config", "status", "--skip-projection", "--json"] }])(

@@ -28,7 +28,7 @@ it("leaves the override unset in the integration worker", () => {
   expect(process.env[IN_REPO_STORE_OVERRIDE]).toBeUndefined();
 });
 
-it("clears an override the parent environment sets before any test runs", async () => {
+it.each(["unit", "integration", "e2e"])("clears the inherited override when only %s runs", async (tier) => {
   const fixture = await makeVitestRuntimeFixture();
   try {
     const sourcePackage = join(import.meta.dirname, "../..");
@@ -37,14 +37,11 @@ it("clears an override the parent environment sets before any test runs", async 
     await writeFile(configuration, (await readFile(configuration, "utf8")).replace(
       'globalSetup: ["tests/unit-setup.mjs"] } }',
       'globalSetup: ["tests/unit-setup.mjs"], setupFiles: ["__tests__/helpers/unit-setup.ts"] } }'));
-    for (const tier of ["integration", "e2e"]) {
-      await writeFile(join(fixture.packageRoot, "tests", `${tier}-override.test.mjs`), spawnedObservation);
-    }
-    await writeFile(join(fixture.packageRoot, "tests", "unit-override.test.mjs"), workerObservation);
-    const result = await runVitestControllerFixture(fixture.packageRoot,
-      ["run", "--project", "unit", "--project", "integration", "--project", "e2e", "override"],
-      { ARC_IN_REPO_STORE: "1", ARC_E2E_SKIP_BUILD: undefined }, "native");
-    expect(result.code, result.stdout + result.stderr).toBe(0);
-    expect(stripVTControlCharacters(result.stdout)).toMatch(/Tests\s+3 passed \(3\)/u);
+    await writeFile(join(fixture.packageRoot, "tests", `${tier}-override.test.mjs`),
+      tier === "unit" ? workerObservation : spawnedObservation);
+    const result = await runVitestControllerFixture(fixture.packageRoot, ["run", "--project", tier, "override"],
+      { ARC_IN_REPO_STORE: "1", ARC_E2E_SKIP_BUILD: undefined, FORCE_COLOR: undefined }, "native");
+    expect(result.code, stripVTControlCharacters(result.stdout + result.stderr)).toBe(0);
+    expect(stripVTControlCharacters(result.stdout)).toMatch(/Tests\s+1 passed \(1\)/u);
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
 }, nestedRunLimit(60_000));

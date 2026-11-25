@@ -5,11 +5,13 @@ import { InboxResultSchema } from "../../src/lib/inbox/types.js";
 import { RouteResultSchema } from "../../src/lib/inbox/route.js";
 import { ErrandQueueResultSchema } from "../../src/lib/inbox/queue.js";
 import { HandoffWriteResultSchema } from "../../src/lib/handoff/write-schema.js";
-import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { storeImported } from "../../src/lib/store/store-imported.js";
 import { cohortCloseStep, cohortRemoveStep, errandQueueStep, handoffWriteStep, inboxListStep, routeStep } from "../../src/lib/store/pre-flip-steps.js";
 
 describe("dormant store command registrations", () => {
   let root: string;
+  useInRepoStoreForEach();
   beforeEach(async () => {
     root = await createTempRepo();
     expect((await runArc(["init", "--yes", "--name", "test-project"], root)).exitCode).toBe(0);
@@ -32,7 +34,7 @@ describe("dormant store command registrations", () => {
     { args: ["cohort", "remove", "example"], serving: cohortRemoveStep(), schema: undefined },
     { args: ["cohort", "remove", "example", "--json"], serving: cohortRemoveStep(), schema: undefined },
   ])("refuses $args, naming its pre-flip step", async ({ args, serving, schema }) => {
-    useInRepoStore();
+    expect(await storeImported(root), "the pre-flip fixture must have no project registry ref").toBe(false);
     const result = await runArcNoTty(["--no-input", ...args], root);
     expect(result.exitCode).toBe(1);
     expect(result.stdout + result.stderr).toContain("unsupported");
@@ -42,9 +44,14 @@ describe("dormant store command registrations", () => {
       status: "refused", refusal: { code: "unsupported", class: "terminal" },
     });
   });
-  it("keeps locus inspection invocable without a subcommand", async () => {
+});
+
+it("keeps locus inspection invocable without a subcommand", async () => {
+  const root = await createTempRepo();
+  try {
+    expect((await runArc(["init", "--yes", "--name", "test-project"], root)).exitCode).toBe(0);
     const result = await runArc(["locus", "--json"], root);
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({ mode: "locus", ok: true });
-  });
+  } finally { await cleanupTempDir(root); }
 });
