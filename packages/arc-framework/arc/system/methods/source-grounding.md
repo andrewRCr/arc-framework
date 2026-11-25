@@ -1,0 +1,153 @@
+---
+name: source-grounding
+description: Ground planning claims in source behavior and sweep their propagation across governed sites.
+related:
+  - spec-review
+  - task-audit
+  - adversarial-review
+override-active: false
+---
+
+# Method: source-grounding
+
+> - **Workflow:** [planning-review](planning-review.md), [spec-review](spec-review.md),
+>   [task-audit](task-audit.md), [adversarial-review](adversarial-review.md), [draft-design.md][draft-design],
+>   [create-spec.md][create-spec], [generate-tasks.md][generate-tasks], and [amend-design.md][amend-design].
+> - **When:** A planning stage grounds its artifact, a pass grounds through its rubric, or a response grounds its
+>   repairs before proposing them and its changes before a fix check.
+>
+> - **Signature:** `source-grounding(artifacts, scope)` → findings report
+> - **Contract:** Ground external claims at source by tracing or probing behavior and checking propagation. Report
+>   findings with the scope and runner named; an `author` or `separation-failure` report never counts as independent
+>   evidence.
+
+## source-grounding.override
+
+[No override configured]
+
+## source-grounding.default
+
+**Named inputs:**
+
+| Input       | Kind     | Contents                                          |
+| ----------- | -------- | ------------------------------------------------- |
+| `artifacts` | required | The artifact under check plus its upstream chain. |
+| `scope`     | required | `artifact` or `fold`, as defined below.           |
+
+`artifact` covers the whole artifact, an amendment's footprint, or a task scope. A narrowed target travels in
+`artifacts`. `fold` covers the change since the last review, including repairs proposed but not yet landed; there
+`artifacts` also carries the account of that change and, when they were kept, the reviewed versions it starts from.
+
+```yaml
+source-grounding:
+  artifacts:  # artifact + upstream chain; change account and reviewed versions at fold scope
+  scope:      # artifact | fold
+```
+
+**Return schema:** The findings report uses [adversarial-review][adversarial-review]'s report shape:
+
+```yaml
+findings:
+  - title:      # one line
+    severity:   # critical | major | minor
+    locus:      # passage, file, symbol, or diff region
+    evidence:   # paths + source-grounded observations
+    rationale:  # why the claim fails or would mislead its consumer
+
+withstood:
+  - # decision-relevant claim examined with no finding to report
+
+verdict:        # one line naming the scope, the runner (author | separation-failure | independent), and any
+                #   session files it loaded
+```
+
+### Check
+
+**Behavior-grade.** For each claim about what shipped code does, trace the named code path or probe it and confirm
+that it does what the claim says. Existence alone does not pass.
+
+**Propagation.** For each rule, concept, or complete-list claim, search everything it governs in the artifact and
+its upstream chain. Where the rule or list concerns code, tools, or shipped rules, search source too — callers,
+importers, and registries, by search or probe. The target bounds which claims are checked; for each claim inside it, the
+sweep's reach comes from source — the importers and callers of the symbols it names — never from the artifact's own
+scope or file list, which is itself a claim under check. Where the design or a proposed repair removes or changes an
+invariant — a required field, a file's presence, an enum value — inventory that invariant's readers in source and check
+each against the change. A claim that a list is complete or that a composed outcome set covers every case belongs to
+this sweep. So does a claim that a state is never re-entered or a path never taken: enumerate every path that could
+reach it — reopen, restore, retry, and remedy paths especially — and check each, since finding no counterexample does
+not ground it.
+
+**Reach.** Ground at source everything the artifact claims exists outside itself: code behavior, external tools,
+configuration, and what shipped rules and methods require. Re-ground inherited claims at source rather than citing
+the upstream artifact. An inherited premise that behavior stays unchanged is a claim about the implementation it relies
+on: ground it per class of caller — those that read, write, or list through it — tracing each class's path on its own,
+since a premise can hold for writes and fail for reads. Fidelity to upstream decisions stays with the stage's alignment
+checks; internal cross-references and use of defined terms stay with its coherence checks.
+
+**Proposed repairs.** At `fold` scope, ground a repair before it is proposed, not only once it lands. Check what a
+proposed repair asserts outside the artifact — what code or a tool does, what another artifact covers, how far a
+rule or hold reaches — before the disposition set carrying it is presented, and revise the repair when the check
+refutes it. Hold the evidence for the approver to request by [disposition-report][disposition-report]. This
+grounding is author-run and never stands in for the fix check.
+
+**Corrections toward the code.** A grounding correction that narrows a rule to match what the code does is a claim
+that the code is right. Check the code's special case against the general rule before narrowing the rule; when the
+special case is wrong, it is a finding against the code, not a correction to the artifact.
+
+**Procedure.** Enumerate the claims, verify each against source on its own, then cross-check them against what was
+found. An independent runner verifies from source, never from the author's account. Probe wherever a behavior claim can
+be cheaply executed; otherwise trace the named path.
+
+**Non-mutating probes.** Never write to the checkout, its refs or notes, a remote, or shared user state. Execute a
+mutating operation against a disposable copy or trace it instead. Suppressing interaction does not make an
+operation read-only: `arc --no-input start` can execute the complete start ceremony.
+
+**Name the actor.** A claim that states what shipped code does names the code that does it, in backticked symbol
+form. Attribution makes the claim checkable; the behavior check establishes whether the source supports it. A
+behavior claim with no named actor is a finding: `minor` if it holds once the actor is found; otherwise grade the
+false claim.
+
+### Severity interpretation
+
+- `critical` — a false claim a settled decision depends on, so the decision as written cannot work or reopens design.
+- `major` — a false or unsupported behavior or external-fact claim, or a propagation gap: a governed site the rule
+  never reached, or an incomplete list stated complete. Either would mislead the next stage or implementation.
+- `minor` — a claim true in substance but mis-stated, such as a wrong symbol name or stale locus, or an unnamed actor
+  whose claim holds.
+
+### Runner
+
+Grounding is the author's job first. Each stage grounds its own artifact, best effort, before any subagent sees it;
+the independent check attacks that best-effort artifact. A defect this grounding could have found that surfaces
+only downstream is the earlier stage's miss. Re-entry remains available, but is never the plan. The stage's own
+check runs every time; independent grounding runs inside each accepted pass and in the fix check.
+
+The agent running the check sets the runner in `verdict`; callers supply no runner input. It sets it from what
+happened, never from its own estimate of how far it was influenced. The first case that applies decides:
+
+- **Author-run.** The agent wrote the reviewed artifact or worked on it — drafting, implementing, repairing, or
+  folding. The runner is `author`.
+- **Separation failure.** The caller's inputs carried author conclusions, suspected weak spots, preferred fixes, or
+  self-verification claims. The runner is `separation-failure`: the check ran with the author's reasoning in view.
+- **Incidental exposure.** The agent loaded author-side session files itself, such as the work unit's SESSION-NOTES
+  or a personal WORKING-MEMORY during compaction recovery or session init. The runner is `independent`, and
+  `verdict` names each file loaded. Nothing those files assert counts as verified; every claim is still checked at
+  source.
+
+Otherwise the runner is `independent`: the agent had only the supplied artifacts, upstream chain, and orientation.
+A manual fresh-session pass takes its runner by the same facts.
+
+The fix check always requires independence. An `author` or `separation-failure` report does not count: the Owner
+reruns it or skips it with a note, never the author alone. An `independent` report that names loaded session files
+counts, and the Owner may still require a rerun. Where subagents are unavailable, follow
+[DEV-RULES.ARC § Sub-agent scope][sub-agent-scope]; the stage's own grounding still runs.
+
+---
+
+[draft-design]: ../workflows/arc/draft-design.md
+[create-spec]: ../workflows/arc/create-spec.md
+[generate-tasks]: ../workflows/arc/generate-tasks.md
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
+[adversarial-review]: adversarial-review.md
+[disposition-report]: disposition-report.md
+[sub-agent-scope]: ../rules/DEV-RULES.ARC.md#sub-agent-scope

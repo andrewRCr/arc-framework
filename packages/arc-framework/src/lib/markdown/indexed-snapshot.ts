@@ -7,6 +7,9 @@ import { enumerateTrackedMarkdownPaths } from "./selection.js";
 /** Read one path from the current Git index. */
 export type ReadIndexedBlob = (root: string, path: string) => Promise<Uint8Array | null>;
 
+/** Read selected index paths in bulk, omitting absent blobs. */
+export type ReadIndexedBlobs = (root: string, paths: readonly string[]) => Promise<ReadonlyMap<string, Uint8Array>>;
+
 /** Dependencies for constructing one exact indexed Markdown snapshot. */
 export interface LoadIndexedMarkdownSnapshotOptions {
   readonly root: string;

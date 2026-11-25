@@ -10,6 +10,34 @@ import {
 } from "../../../src/lib/delivery/git-lifecycle-contribution.js";
 
 describe("revalidateDeliveryLifecycleContribution", () => {
+  it("accepts only the chain-baseline entry for a regenerable path", async () => {
+    const path = ".arc/backlog/ROADMAP.md";
+    let candidateOid = "a".repeat(40);
+    const exec: GitExec = async (_command, args) => {
+      const ref = args[2];
+      const entryOid = ref === "protected"
+        ? "b".repeat(40)
+        : ref === "candidate" ? candidateOid : "a".repeat(40);
+      return { stdout: `100644 blob ${entryOid}\t${path}\0` };
+    };
+    const input = {
+      exec,
+      protectedBaseRef: "protected",
+      chainBaseRef: "chain",
+      candidateRef: "candidate",
+      paths: [path],
+      regenerablePaths: [path],
+    };
+
+    await expect(revalidateDeliveryLifecycleContribution(input)).resolves.toEqual({ status: "ok" });
+    candidateOid = "c".repeat(40);
+    await expect(revalidateDeliveryLifecycleContribution(input)).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-mismatch",
+      paths: [path],
+    });
+  });
+
   it("detects a contribution introduced after an earlier successful read", async () => {
     const path = ".arc/active/meta-example.md";
     const oid = "a".repeat(40);
@@ -22,8 +50,10 @@ describe("revalidateDeliveryLifecycleContribution", () => {
     const input = {
       exec,
       protectedBaseRef: "base",
+      chainBaseRef: "base",
       candidateRef: "candidate",
       paths: [path],
+      regenerablePaths: [],
     };
 
     await expect(revalidateDeliveryLifecycleContribution(input)).resolves.toEqual({ status: "ok" });
@@ -42,8 +72,10 @@ describe("revalidateDeliveryLifecycleContribution", () => {
     await expect(revalidateDeliveryLifecycleContribution({
       exec,
       protectedBaseRef: "base",
+      chainBaseRef: "base",
       candidateRef: "candidate",
       paths: [path],
+      regenerablePaths: [],
     })).resolves.toEqual({
       status: "refused",
       reason: "entry-unavailable",

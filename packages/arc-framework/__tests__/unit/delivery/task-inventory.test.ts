@@ -11,6 +11,7 @@ function taskList(goalLines: readonly string[], options?: {
   readonly title?: string;
   readonly peerLines?: readonly string[];
 }): string {
+  const marker = options?.marker ?? " ";
   return [
     "## Delivery Plan",
     "",
@@ -20,12 +21,12 @@ function taskList(goalLines: readonly string[], options?: {
     "",
     "## **Phase 1:** Implementation",
     "",
-    `### \`[${options?.marker ?? " "}]\` **1.1 ${options?.title ?? "Build inventory"}**`,
+    `### \`[${marker}]\` **1.1 ${options?.title ?? "Build inventory"}**`,
     "",
     ...goalLines,
     ...(options?.peerLines ?? []),
     "",
-    "    - `[ ]` **1.1.a Child task**",
+    `    - \`[${marker}]\` **1.1.a Child task**`,
     "",
     "        - _Goal:_ Child intent must not enter the parent inventory.",
     "",

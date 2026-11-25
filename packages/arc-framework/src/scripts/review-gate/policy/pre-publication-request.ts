@@ -1,25 +1,62 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
 
-import { z } from "zod";
+import { projectPrePublicationTerminus, preparePrePublicationTerminusDecision } from "./pre-publication-owner-judgments.js";
+import { composePrePublicationLaneJudgment, withoutExtraPassGrants, applyPrePublicationExtraPassJudgment } from "./pre-publication-lane-judgments.js";
+import { deriveReviewNextPassContextFromAttempts, latestCompletedLaneAttempt } from "./review-next-pass.js";
 
+import { createPrePublicationLanePreparation, PendingLaneReviewError, PrePublicationReplayMismatchError } from "./pre-publication-lane-preparation.js";
+import { z } from "zod";
+import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/canonical/canonical-json.js";
+
+import { currentApprovedDispositionNode } from "../core/advisory-records.js";
+import { validateApprovedDispositionRecordForResult } from
+  "../core/review-result-disposition.js";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
-import type { LanePolicyConfig } from "./lane-policy-config.js";
-import type { LaneProgressProjection } from "../lane-progress.js";
+
+import type { LanePolicyAttempt, LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
-import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
-import type { PreBindingDeliveryReviewTargets } from "./pre-publication-delivery-targets.js";
+
+import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
+import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
+
+import type { PreBindingDeliveryReviewTarget } from "./pre-publication-delivery-targets.js";
 import {
   PrePublicationReviewRequestSchema,
   type PrePublicationReviewRequest,
 } from "./pre-publication-procedure.js";
-import { resolveReviewPolicy, ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
-import type { OwnerAcceptedReviewTerminus } from "./review-terminus.js";
+import {
+  projectReviewPolicyAttempt,
+  resolveReviewPolicy,
+  ReviewLaneJudgmentSchema,
+  type ReviewPolicyBoundRequest,
+  type ReviewPolicyRequest,
+  type ReviewLaneJudgment,
+} from "./review-policy-driver.js";
+import {
+  bindReviewPolicyContinuationEvidence,
+  bindReviewPolicyEvidence,
+  readIncrementalPredecessorResponseEvidence,
+  ReviewProducerPolicyMismatchError,
+  ReviewProducerScopeMismatchError,
+} from "./review-policy-evidence.js";
+import type { ResolvedOwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
+import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
+
+import type { ReviewResult } from "../core/review-result.js";
+
 import type {
-  StandardReviewReservationTarget,
-  StandardReviewReservationV1,
-} from "./integration-boundary-locus.js";
+  ReviewLane, ReviewPolicyTarget, PrePublicationCompositionDependencies,
+  PrePublicationCompositionInput, PrePublicationComposition,
+} from "./pre-publication-contract.js";
+export type {
+  PrePublicationSelfReviewState, ReviewLane, ReviewPolicyTarget, CandidateRead, AssuranceRead, TargetRead,
+  ReservationTargetRead, ImmutableTargetRead, OwnerTerminusAuthorityRead, PrePublicationCompositionDependencies,
+  PrePublicationCompositionInput, PrePublicationComposition,
+} from "./pre-publication-contract.js";
 
 /** Per-lane scope, invocation, ceiling, and Owner-terminus judgment, keyed by lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
@@ -47,6 +84,13 @@ export const PrePublicationLaneJudgmentsSchema = z.strictObject({
       path: ["frontline", "terminus"],
     });
   }
+  if (judgments.frontline?.additionalPassAuthorization !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "additional review after convergence can be applied only to the standard lane",
+      path: ["frontline", "additionalPassAuthorization"],
+    });
+  }
 }).readonly();
 export type PrePublicationLaneJudgments = z.infer<typeof PrePublicationLaneJudgmentsSchema>;
 
@@ -68,7 +112,7 @@ export function consumeOwnerAcceptedTerminus(input: unknown): unknown {
   return { ...parsed.data, standard };
 }
 
-/** Remove a one-pass Frontline ceiling approval before another exact member is selected. */
+/** Remove a one-pass frontline ceiling approval before another exact member is selected. */
 export function consumeFrontlineCeilingOverride(input: unknown): unknown {
   const parsed = PrePublicationLaneJudgmentsSchema.safeParse(input ?? {});
   if (!parsed.success || parsed.data.frontline?.ceilingOverride === undefined) return input;
@@ -77,121 +121,11 @@ export function consumeFrontlineCeilingOverride(input: unknown): unknown {
   return { ...parsed.data, frontline };
 }
 
-/** The author self-review states the procedure distinguishes. */
-export type PrePublicationSelfReviewState = PrePublicationReviewRequest["selfReview"];
-/** The two lanes a pre-publication request composes. */
-export type ReviewLane = PrePublicationReviewRequest["frontline"]["lane"];
-/**
- * The target both lanes route against — repository, pull request, and head.
- *
- * Lane routing needs no more than this. It is not the exact-target identity the review operations
- * themselves bind to; that is {@link ImmutableTargetRead}, composed separately below.
- */
-export type ReviewPolicyTarget = PrePublicationReviewRequest["frontline"]["target"];
-
-export type CandidateRead =
-  | { status: "missing" }
-  | { status: "blocked"; reason: string }
-  | {
-    status: "current";
-    candidateId: string;
-    headSha: string;
-    subjectDigest: string;
-    implementationChanged: boolean;
-    convergenceVerification: "satisfied" | "pending";
-    lineageHeadShas: readonly string[];
-    /** Exact originating target retained only while an approved fix awaits response settlement. */
-    pendingReviewTarget?: ReviewTarget;
-  };
-
-export type AssuranceRead =
-  | { status: "resolved"; assurance: ReviewAssuranceInput; activity: ReviewMethodActivity }
-  | { status: "refused"; reason: string };
-
-export type TargetRead =
-  | { status: "resolved"; target: ReviewPolicyTarget }
-  | { status: "refused"; reason: string };
-
-/** Exact reservation marker selected from current singleton or delivery authority. */
-export type ReservationTargetRead =
-  | { status: "resolved"; target: StandardReviewReservationTarget }
-  | { status: "refused"; reason: string };
-
-/**
- * The immutable review target, or why the checkout cannot produce one.
- *
- * Unavailability is reported rather than refused: the procedure routes to work that needs no exact
- * target — self-review, convergence verification, submission — and refusing all of it because a
- * working tree is dirty would gate the whole boundary on a condition only some of it has.
- */
-export type ImmutableTargetRead =
-  | { status: "resolved"; target: ReviewTarget }
-  | { status: "unavailable"; reason: string };
-
-/** Live identity/ownership result used to bind an Owner-accepted terminus. */
-export type OwnerTerminusAuthorityRead =
-  | { status: "authorized"; ownerIdentity: string }
-  | { status: "refused"; reason: string };
-
-/** Repository reads the composition needs, each owned by its production binder. */
-export interface PrePublicationCompositionDependencies {
-  readCandidate(workUnit: string): Promise<CandidateRead>;
-  readAssurance(workUnit: string): Promise<AssuranceRead>;
-  resolveTarget(headSha: string): Promise<TargetRead>;
-  readReservationTarget(
-    workUnit: string,
-    singleton: { repository: string; headSha: string },
-  ): Promise<ReservationTargetRead>;
-  readDeliveryReviewTargets(workUnit: string): Promise<PreBindingDeliveryReviewTargets>;
-  deriveImmutableTarget(): Promise<ImmutableTargetRead>;
-  readOwnerTerminusAuthority(workUnit: string): Promise<OwnerTerminusAuthorityRead>;
-  readLaneProgress(
-    lane: ReviewLane,
-    headSha: string,
-    lineageHeadShas: readonly string[],
-  ): Promise<LaneProgressProjection>;
-  readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
-}
-
-export interface PrePublicationCompositionInput {
-  workUnit: string;
-  /** The author's report that an applicable self-review ran; applicability stays repository-owned. */
-  selfReview?: Extract<PrePublicationSelfReviewState, "settled">;
-  /**
-   * The author's change-set routing facts; absent, the change set routes as unestablished. Only the
-   * facts below are read — the work unit's `Class` and effective method activity are supplied from
-   * the repository and cannot be overridden here.
-   */
-  changeSet?: unknown;
-  /**
-   * Per-lane scope, invocation, ceiling, and Owner-terminus judgment. Unlike the
-   * change-set facts, these refuse rather than normalize: dropping a malformed bounded scope
-   * silently reviews the whole target, dropping an invocation changes the selected carrier, and
-   * dropping a malformed ceiling override silently re-blocks a pass the operator already approved.
-   */
-  lanes?: unknown;
-  /** Exact Frontline head to which a caller-carried one-pass ceiling approval remains bound. */
-  frontlineCeilingHeadSha?: string;
-}
-
-export type PrePublicationComposition =
-  | {
-    status: "composed";
-    request: PrePublicationReviewRequest;
-    /** Composition facts the envelope cannot carry and a caller must not lose. */
-    advisories: readonly string[];
-  }
-  | {
-    status: "refused";
-    reason: string;
-    code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta">;
-  };
-
 /** Keep post-publication source routing on the ordered reservation rather than live config order. */
 export function applyCarriedStandardReviewReservation(
   composition: PrePublicationComposition,
   input: {
-    candidateId: string;
+    candidateId: CanonicalDigest;
     candidateSubjectDigest: string | null;
     reservation: StandardReviewReservationV1;
   },
@@ -222,9 +156,9 @@ export function applyCarriedStandardReviewReservation(
  * The routing facts a change set's review obligation turns on are author judgments — content kind,
  * risk, determinacy, ownership, and surface authority. The repository does not establish them, so a
  * caller that supplies none routes as an unknown change set: `required` standard review, reason
- * `unknown-change-set`. What the repository does establish — the work unit's `Class` and the
- * effective activity of the two review methods — is supplied exactly and is never the caller's to
- * assert, because the reducer applies both over whichever base is in force.
+ * `unknown-change-set`. What the repository does establish — that a supplied change set is known, the
+ * work unit's `Class`, and the effective activity of the two review methods — is supplied exactly and
+ * is never the caller's to assert, because the reducer applies them over whichever base is in force.
  */
 const UNESTABLISHED_CHANGE_SET_FACTS = {
   changeSetState: "unknown",
@@ -249,11 +183,6 @@ function unrecordedLaneAdvisory(lane: ReviewLane): string {
 }
 
 /**
- * A rejected routing fact is normalized to an unknown change set rather than refused, so the route
- * it produces is the conservative one either way. What the caller loses without this is why: a
- * misspelled fact and a deliberately unestablished change set otherwise reach `required` alike.
- */
-/**
  * An absent exact target is reported rather than refused, so what it costs has to be said.
  *
  * The lane routing below is unaffected; what becomes unreachable is every exact-target operation the
@@ -264,25 +193,282 @@ function unavailableTargetAdvisory(reason: string): string {
     + "operations this procedure routes to cannot be invoked until it resolves.";
 }
 
+/**
+ * A rejected routing fact is normalized to an unknown change set rather than refused, so the route
+ * it produces is the conservative one either way. What the caller loses without this is why: a
+ * misspelled fact and a deliberately unestablished change set otherwise reach `required` alike.
+ */
 function rejectedRoutingAdvisory(paths: readonly string[]): string {
   return `Rejected or missing routing input at ${paths.join(", ")}; the change set routes as `
     + "unestablished, so standard review stays required.";
 }
 
+function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
+  if (error instanceof PrePublicationReplayMismatchError) {
+    return { status: "refused", reason: error.message,
+      ...(error.kind === "scope" ? { savedScopeMismatch: true as const } : { savedJudgmentMismatch: true as const }) };
+  }
+  if (error instanceof PendingLaneReviewError) {
+    return {
+      status: "refused",
+      reason: `The ${error.pending.lane} review operation ${error.pending.operationId} is still in progress.`,
+      pendingReview: error.pending,
+    };
+  }
+  if (error instanceof ReviewProducerPolicyMismatchError) {
+    return {
+      status: "refused",
+      code: "invalid-input",
+      reason: error.message,
+      routingMismatch: { producerReview: error.producerReview, requestReview: error.requestReview },
+    };
+  }
+  if (error instanceof ReviewProducerScopeMismatchError) {
+    return {
+      status: "refused",
+      code: "scope-judgment-required",
+      reason: error.message,
+      scopeMismatch: {
+        lane: error.lane,
+        observedScope: error.observedScope,
+        selectedScope: error.selectedScope,
+        target: error.target,
+      },
+    };
+  }
+  throw error;
+}
+
+async function applicableHistoricalAttempt(input: {
+  lane: ReviewLane;
+  progress: LaneProgressProjection;
+  sameHeadCandidate?: LanePolicyAttempt & { headSha: string };
+  exactTarget: ReviewTarget | null;
+  lineage?: LaneSubjectLineage;
+  workUnit: string;
+  policyTarget: ReviewPolicyTarget;
+  dependencies: PrePublicationCompositionDependencies;
+}): Promise<(LanePolicyAttempt & { headSha: string }) | undefined> {
+  const { progress, exactTarget, lineage } = input;
+  const historical = progress.status === "recorded"
+    ? input.sameHeadCandidate ?? progress.historicalAttempt : undefined;
+  if (input.lane !== "standard" || progress.status !== "recorded"
+    || progress.attempts.length > 0 || historical === undefined
+    || exactTarget === null || lineage === undefined) return undefined;
+  const prior = await input.dependencies.resultReader.readResult(historical.attemptId);
+  if (prior.target.headSha !== historical.headSha
+    || prior.admission.logicalPass !== historical.logicalPass) {
+    throw new Error("historical review producer does not match its original admission");
+  }
+  const applicability = await input.dependencies.confirmPriorProducerApplicability(
+    input.workUnit, prior, exactTarget, lineage, input.policyTarget,
+  );
+  return applicability === "applicable" ? historical : undefined;
+}
+
+function policyAttempts(
+  progress: LaneProgressProjection,
+  historicalAttempt?: LanePolicyAttempt & { headSha: string },
+) {
+  if (progress.status === "unrecorded") return [];
+  const attempts = historicalAttempt === undefined ? progress.attempts : [historicalAttempt];
+  // The policy request models one logical pass's ordered source attempts. Earlier passes remain
+  // accounted for by completedPasses, but cannot be replayed as fallback sources in this pass.
+  const logicalPass = attempts.at(-1)?.logicalPass;
+  return attempts.filter((attempt) => attempt.logicalPass === logicalPass)
+    .map(projectReviewPolicyAttempt);
+}
+
+function effectiveTerminalAttempt(
+  progress: LaneProgressProjection,
+  historicalAttempt?: LanePolicyAttempt,
+): LanePolicyAttempt | undefined {
+  if (historicalAttempt !== undefined) return historicalAttempt;
+  return progress.status === "recorded" ? progress.attempts.at(-1) : undefined;
+}
+
+async function terminalResponseSource(
+  request: ReviewPolicyBoundRequest,
+  dependencies: PrePublicationCompositionDependencies,
+  terminalAttempt?: LanePolicyAttempt,
+): Promise<z.infer<typeof ReviewResponseSettlementSourceSchema> | null> {
+  const terminal = request.attempts.at(-1);
+  if (terminal?.outcome !== "findings") return null;
+  const result = await dependencies.resultReader.readResult(terminal.reviewOperationId);
+  if (result.originalOutcome !== "findings") {
+    throw new Error("terminal findings attempt does not name a findings producer");
+  }
+  const response = await readIncrementalPredecessorResponseEvidence(
+    result,
+    dependencies.dispositionStore,
+    (predecessor) => dependencies.readResponsePerformance(predecessor),
+  );
+  const record = await dependencies.dispositionStore.readDispositionRecord(result.producerId);
+  const current = record === null ? null
+    : currentApprovedDispositionNode(validateApprovedDispositionRecordForResult(record, result));
+  const settled = current !== null && currentDispositionSettled(
+    result,
+    terminalAttempt,
+    current.approvedDisposition.dispositionSet.dispositionSetId,
+    current.policyProjectionPending === true,
+  );
+  return projectPendingResponseSource(result, response.status, settled);
+}
+
+function settledTerminalResponse(
+  attempt: LanePolicyAttempt | undefined,
+  pendingSource: z.infer<typeof ReviewResponseSettlementSourceSchema> | null,
+): boolean {
+  return attempt?.outcome === "settled-findings" && pendingSource === null;
+}
+
+/** Require the exact latest approved set to own the terminal lane settlement. */
+export function currentDispositionSettled(
+  result: Pick<ReviewResult, "kind" | "producerId">,
+  attempt: LanePolicyAttempt | undefined,
+  dispositionSetId: string,
+  policyProjectionPending: boolean,
+): boolean {
+  return !policyProjectionPending
+    && attempt?.attemptId === result.producerId
+    && attempt.outcome === "settled-findings"
+    && (result.kind === "hosted"
+      ? attempt.hosted?.dispositionSetId === dispositionSetId
+      : attempt.responsePerformance?.dispositionSetId === dispositionSetId);
+}
+
+/** Preserve a bound response route until the approved disposition and exact lane settlement both finish. */
+export function projectPendingResponseSource(
+  result: (Pick<Extract<ReviewResult, { kind: "attested-local" }>, "kind" | "producerId" | "receiptRef">
+    | Pick<Extract<ReviewResult, { kind: "frontline" }>, "kind" | "producerId" | "outcomeRef">
+    | Pick<Extract<ReviewResult, { kind: "hosted" }>, "kind" | "producerId" | "laneOperationId">) & Partial<Pick<ReviewResult, "repositoryId" | "workItem">>,
+  responseStatus: "performed" | "incomplete",
+  terminalSettled: boolean,
+): z.infer<typeof ReviewResponseSettlementSourceSchema> | null {
+  if (responseStatus === "performed" && terminalSettled) return null;
+  if (result.workItem !== undefined && result.repositoryId === undefined) throw new Error("Restore the native result's project identity.");
+  const owner = result.workItem !== undefined && result.repositoryId !== undefined
+    ? { repositoryId: result.repositoryId, workItem: result.workItem } : {};
+  if (result.kind === "attested-local") {
+    return { kind: "attested-local", receiptRef: bindReviewSourceReference({ ...owner,
+      kind: "attested-local", operationId: result.producerId, durableRef: result.receiptRef,
+    }) };
+  }
+  if (result.kind === "frontline") {
+    return { kind: "frontline", outcomeRef: bindReviewSourceReference({ ...owner,
+      kind: "frontline", operationId: result.producerId, durableRef: result.outcomeRef,
+    }) };
+  }
+  return { kind: "hosted", attemptRef: bindReviewSourceReference({ ...owner,
+    kind: "hosted", operationId: result.laneOperationId, durableRef: result.producerId,
+  }) };
+}
+
 /**
- * Compose the routing input from the caller's change-set facts and the repository's own two facts.
+ * Compose the routing input from the caller's change-set facts and the repository's own facts.
  *
- * The caller supplies facts, never the decision: `assurance` and `activity` are overwritten from
- * the repository, and any other key the caller adds is rejected by the router's own normalization.
+ * The caller supplies facts, never the decision: `changeSetState`, `assurance`, and `activity` are
+ * overwritten from the repository — a supplied change set is the one this call composes, so it is
+ * `known`, as local review preparation records it — and any other key the caller adds is rejected by
+ * the router's own normalization, which still routes a change set with a rejected fact as unknown.
  */
 function routingInput(
   changeSet: unknown,
   assurance: ReviewAssuranceInput,
   activity: ReviewMethodActivity,
 ): unknown {
-  const supplied = changeSet === undefined ? UNESTABLISHED_CHANGE_SET_FACTS : changeSet;
-  if (typeof supplied !== "object" || supplied === null || Array.isArray(supplied)) return supplied;
-  return { ...supplied, schemaVersion: 1, assurance, activity };
+  if (changeSet === undefined) return { ...UNESTABLISHED_CHANGE_SET_FACTS, schemaVersion: 1, assurance, activity };
+  if (typeof changeSet !== "object" || changeSet === null || Array.isArray(changeSet)) return changeSet;
+  return { ...changeSet, schemaVersion: 1, changeSetState: "known", assurance, activity };
+}
+
+async function readCandidateCorrectionContext(
+  dependencies: PrePublicationCompositionDependencies, workUnit: string, sources: readonly string[],
+) {
+  const candidateProof = await dependencies.readCandidateCorrectionProof?.(workUnit);
+  return { candidateProof, rangeProof: candidateProof,
+    deltaAdmission: { sources, surface: "pre-publication" as const } };
+}
+
+function standardNextPassProgress(progress: LaneProgressProjection) {
+  if (progress.status !== "recorded") return { completePasses: 0 };
+  const earlier = latestCompletedLaneAttempt(progress.attempts) ?? progress.historicalAttempt;
+  return { completePasses: progress.completePasses, predecessorOperationId: earlier?.attemptId };
+}
+
+interface LaneCompositionState {
+  advisories: string[];
+  terminalAttempts: Partial<Record<ReviewLane, LanePolicyAttempt>>;
+  pendingSources: Partial<Record<ReviewLane, z.infer<typeof ReviewResponseSettlementSourceSchema> | null>>;
+  judgedPasses: Partial<Record<ReviewLane, number>>;
+}
+
+type DeliveryMemberSelection = {
+  exactTarget: ReviewTarget;
+  policyTarget: ReviewPolicyTarget;
+  lineage: LaneSubjectLineage;
+  frontline: ReviewPolicyRequest;
+  vehicle: PreBindingDeliveryReviewTarget["vehicle"];
+};
+type FrontlineFailureContext = [ReviewPolicyTarget, ReviewTarget | null, readonly string[], LaneSubjectLineage?];
+type DeliverySelectionResult = {
+  advisories: string[];
+  laneState: LaneCompositionState;
+  examinedTargets: ReviewTarget[];
+} & ({ kind: "selected"; selected: DeliveryMemberSelection } | { kind: "empty" }
+  | { kind: "failed"; error: unknown; context: FrontlineFailureContext; selecting: boolean });
+
+function savedScopeExamined(saved: ReviewTarget | undefined, targets: readonly (ReviewTarget | null)[]): boolean {
+  return saved === undefined || targets.some(target => target !== null && canonicalize(target) === canonicalize(saved));
+}
+
+async function selectDeliveryReviewMember(input: {
+  targets: readonly PreBindingDeliveryReviewTarget[];
+  repository: string;
+  native: boolean;
+  scopeJudgmentTarget?: ReviewTarget;
+  onExamined(target: ReviewTarget): void;
+  beforeSelected(target: ReviewPolicyTarget, exact: ReviewTarget, heads: readonly string[], lineage: LaneSubjectLineage): Promise<void>;
+  judgment: ReviewLaneJudgment | undefined;
+  composeFrontline(target: ReviewPolicyTarget, exact: ReviewTarget, lineage: LaneSubjectLineage,
+    judgment: ReviewLaneJudgment | undefined, state: LaneCompositionState): Promise<ReviewPolicyRequest>;
+}): Promise<DeliverySelectionResult> {
+  const laneState: LaneCompositionState = { advisories: [], terminalAttempts: {}, pendingSources: {}, judgedPasses: {} };
+  const examinedTargets: ReviewTarget[] = [];
+  const result = { advisories: laneState.advisories, laneState, examinedTargets };
+  const selectionJudgment = input.native ? withoutExtraPassGrants(input.judgment) : input.judgment;
+  let selected: DeliveryMemberSelection | null = null;
+  // Stored decisions select the member before caller grants bind to that one exact subject.
+  for (const member of input.targets) {
+    examinedTargets.push(member.target);
+    input.onExamined(member.target);
+    const policyTarget = { repository: input.repository, pullRequest: null, headSha: member.target.headSha };
+    const lineage: LaneSubjectLineage = { kind: "delivery-member", planId: member.vehicle.planId,
+      deliverableId: member.vehicle.deliverableId, workUnitId: member.vehicle.workUnitId };
+    let frontline: ReviewPolicyRequest;
+    try {
+      frontline = await input.composeFrontline(policyTarget, member.target, lineage, selectionJudgment, laneState);
+    } catch (error) {
+      return { ...result, kind: "failed", error,
+        context: [policyTarget, member.target, [member.target.headSha], lineage], selecting: input.native };
+    }
+    selected = { exactTarget: member.target, policyTarget, lineage, frontline, vehicle: member.vehicle };
+    const state = resolveReviewPolicy(frontline).state;
+    if (laneState.pendingSources.frontline !== null || (state !== "skipped" && state !== "pass-complete")) break;
+  }
+  if (selected === null) return { ...result, kind: "empty" };
+  if (input.native) {
+    try {
+      await input.beforeSelected(selected.policyTarget, selected.exactTarget, [selected.exactTarget.headSha], selected.lineage);
+      selected.frontline = await input.composeFrontline(selected.policyTarget, selected.exactTarget,
+        selected.lineage, savedScopeExamined(input.scopeJudgmentTarget, examinedTargets)
+          ? input.judgment : withoutExtraPassGrants(input.judgment), { ...laneState, advisories: [] });
+    } catch (error) {
+      return { ...result, kind: "failed", error, context: [selected.policyTarget, selected.exactTarget,
+        [selected.exactTarget.headSha], selected.lineage], selecting: false };
+    }
+  }
+  return { ...result, kind: "selected", selected };
 }
 
 /**
@@ -313,6 +499,7 @@ export async function composePrePublicationReviewRequest(
       status: "refused",
       code: "candidate-unexplained-delta",
       reason: candidate.reason,
+      candidateContinuation: candidate.continuation,
     };
   }
 
@@ -334,21 +521,32 @@ export async function composePrePublicationReviewRequest(
       reason: "The resolved review target does not identify the Candidate head.",
     };
   }
-  const reservationTarget = await dependencies.readReservationTarget(input.workUnit, {
+  const singletonReservation = {
     repository: target.repository,
     headSha: target.headSha,
-  });
+  };
+  const pendingCandidateFix = candidate.pendingReviewTarget !== undefined;
+  const reservationTarget = candidate.pendingReviewTarget === undefined
+    ? await dependencies.readReservationTarget(input.workUnit, singletonReservation)
+    : {
+        status: "resolved" as const,
+        target: { kind: "pinned-head" as const, ...singletonReservation },
+      };
   if (reservationTarget.status === "refused") {
     return { status: "refused", reason: reservationTarget.reason };
   }
-  const deliveryTargets = await dependencies.readDeliveryReviewTargets(input.workUnit);
+  const deliveryTargets = candidate.pendingReviewTarget === undefined
+    ? await dependencies.readDeliveryReviewTargets(input.workUnit)
+    : { status: "absent" as const };
   if (deliveryTargets.status === "refused") {
     return {
       status: "refused",
       reason: `The pre-publication delivery-member targets could not be composed (${deliveryTargets.reason}).`,
     };
   }
-  const reservationMatchesDelivery = deliveryTargets.status === "composed"
+  const reservationMatchesDelivery = pendingCandidateFix
+    ? true
+    : deliveryTargets.status === "composed"
     ? reservationTarget.target.kind === "delivery"
       && reservationTarget.target.planId === deliveryTargets.planId
       && reservationTarget.target.workUnitId === input.workUnit
@@ -359,15 +557,22 @@ export async function composePrePublicationReviewRequest(
       reason: "The pre-publication delivery targets do not match the selected reservation.",
     };
   }
-  const immutable = deliveryTargets.status === "absent"
-    ? candidate.pendingReviewTarget === undefined
-      ? await dependencies.deriveImmutableTarget()
-      : { status: "resolved" as const, target: candidate.pendingReviewTarget }
-    : null;
-  if (immutable?.status === "resolved" && immutable.target.headSha !== candidate.headSha) {
+  // A pending approved fix retains its exact reviewed target in durable response authority.
+  const immutable = candidate.pendingReviewTarget === undefined
+    ? await dependencies.deriveImmutableTarget(candidate.headSha)
+    : { status: "resolved" as const, target: candidate.pendingReviewTarget };
+  if (immutable.status === "resolved" && !pendingCandidateFix
+    && immutable.target.headSha !== candidate.headSha) {
     return {
       status: "refused",
       reason: "The immutable review target does not identify the Candidate head.",
+    };
+  }
+  if (deliveryTargets.status === "composed"
+    && (immutable.status !== "resolved" || immutable.target.kind !== "change-set")) {
+    return {
+      status: "refused",
+      reason: "The root Candidate target could not be retained for private delivery-member review.",
     };
   }
 
@@ -394,131 +599,243 @@ export async function composePrePublicationReviewRequest(
 
   const advisories: string[] = [];
   if (routing.diagnostics.length > 0) advisories.push(rejectedRoutingAdvisory(routing.diagnostics));
-  if (immutable?.status === "unavailable") advisories.push(unavailableTargetAdvisory(immutable.reason));
+  if (immutable.status === "unavailable") advisories.push(unavailableTargetAdvisory(immutable.reason));
   const [frontlinePolicy, standardPolicy] = await Promise.all([
     dependencies.readLanePolicy("frontline"),
     dependencies.readLanePolicy("standard"),
   ]);
-  const composeLane = async (
+  const laneState: LaneCompositionState = { advisories, terminalAttempts: {}, pendingSources: {}, judgedPasses: {} };
+  const { pendingSources, judgedPasses } = laneState;
+  // A delivery call examines several member targets; a scope judgment confirmed for any of them still binds.
+  const examinedTargets: ReviewTarget[] = [];
+  // Every composed or evidence-refused result also carries the routing inputs normalization rejected.
+  const withCompositionContext = (composition: PrePublicationComposition): PrePublicationComposition => ({
+    ...composition,
+    ...(examinedTargets.length === 0 ? {} : { examinedTargets: [...examinedTargets] }),
+    ...(routing.diagnostics.length === 0 ? {} : { routingDiagnostics: routing.diagnostics }),
+  });
+  const preparation = createPrePublicationLanePreparation(input, candidate, dependencies, examinedTargets);
+  const judgeLane = async (
     lane: ReviewLane,
     policyTarget: ReviewPolicyTarget,
+    exactTarget: ReviewTarget | null,
     lineageHeadShas: readonly string[],
+    lineage?: LaneSubjectLineage,
+    callerJudgment = lanes.data[lane],
+    state = laneState,
   ) => {
-    const [policy, progress] = [
-      lane === "frontline" ? frontlinePolicy : standardPolicy,
-      await dependencies.readLaneProgress(lane, policyTarget.headSha, lineageHeadShas),
-    ];
-    if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
-    const judgment = lanes.data[lane];
-    const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
-    return {
+    const { rawProgress, progress, sameHeadCandidate } = await preparation.prepare(
+      lane, policyTarget, exactTarget, lineageHeadShas, lineage);
+    if (progress.status === "unrecorded") state.advisories.push(unrecordedLaneAdvisory(lane));
+    const savedScopeCurrent = savedScopeExamined(input.scopeJudgmentTarget, [...examinedTargets, exactTarget]);
+    const boundFrontlineElsewhere = lane === "frontline" && input.frontlineCeilingHeadSha !== undefined
+      && input.frontlineCeilingHeadSha !== policyTarget.headSha;
+    const admittedJudgment = savedScopeCurrent && !boundFrontlineElsewhere
+      ? callerJudgment : withoutExtraPassGrants(callerJudgment);
+    const judged = await composePrePublicationLaneJudgment({ candidate, lane, lineage, policyTarget, exactTarget, progress,
+      judgment: admittedJudgment, dependencies });
+    state.judgedPasses[lane] = judged.completedPasses;
+    return { ...judged, rawProgress, progress, sameHeadCandidate };
+  };
+  const composeLane = async (...args: Parameters<typeof judgeLane>) => {
+    const [lane, policyTarget, exactTarget, , lineage, , state = laneState] = args;
+    const policy = lane === "frontline" ? frontlinePolicy : standardPolicy;
+    const { completedPasses, currentLineage, judgment, invocation, frontlinePhaseClosed, extraPassAuthority, terminus,
+      rawProgress, progress, sameHeadCandidate } = await judgeLane(...args);
+    const historicalAttempt = await applicableHistoricalAttempt({
+      lane, progress, sameHeadCandidate, exactTarget, lineage,
+      workUnit: input.workUnit, policyTarget, dependencies,
+    });
+    state.terminalAttempts[lane] = effectiveTerminalAttempt(progress, historicalAttempt);
+    const policyInput: ReviewPolicyBoundRequest = {
       schemaVersion: 1,
       target: policyTarget,
       lane,
-      frontlineActive: assurance.activity.frontlineReview,
+      frontlineActive: assurance.activity.frontlineReview
+        && routing.decision.frontlineAction !== "skip",
       standardReview,
       completedPasses,
-      attempts: progress.status === "recorded"
-        ? progress.attempts.map(({ sourceId, outcome, chunkSeriesComplete }) => ({
-            sourceId,
-            outcome,
-            ...(chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete }),
-          }))
-        : [],
-      sources: policy.sources,
-      maxPasses: policy.maxPasses,
+      attempts: policyAttempts(progress, historicalAttempt),
+      ...extraPassAuthority,
+      ...projectPrePublicationTerminus({ lane, judgment, authority: ownerTerminusAuthority, completedPasses, stored: terminus }),
       ...(judgment?.scopeMode === undefined
         ? {}
         : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
-      ...(judgment?.invocation === undefined
-        ? {}
-        : { invocation: judgment.invocation }),
-      ...(lane !== "standard"
-        || judgment?.terminus === undefined
-        || ownerTerminusAuthority?.status !== "authorized"
-        ? {}
-        : {
-            terminus: {
-              schemaVersion: 1,
-              semanticsVersion: "review-terminus/v1",
-              kind: "owner-accepted",
-              lane: "standard",
-              acceptedBy: ownerTerminusAuthority.ownerIdentity,
-              completedPasses,
-            } satisfies OwnerAcceptedReviewTerminus,
-          }),
+      ...(invocation === undefined ? {} : { invocation }),
     };
+    // A fresh findings result must expose the exact response route before dispositions exist.
+    // Binding still validates the immutable producer; only this known pending route permits its
+    // provisional policy signal while approval and response remain incomplete.
+    const pendingSource = await terminalResponseSource(
+      policyInput, dependencies, state.terminalAttempts[lane],
+    );
+    state.pendingSources[lane] = pendingSource;
+    const evidenceDependencies = {
+      ...(dependencies.stateOffBranch === true ? { stateOffBranch: true as const } : {}),
+      ...(frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
+      allowUnapprovedFindings: pendingSource !== null,
+      terminalResponseSettled: settledTerminalResponse(state.terminalAttempts[lane], pendingSource),
+      sources: policy.sources,
+      maxPasses: policy.maxPasses,
+      ...(historicalAttempt === undefined
+        ? {} : { historicalProducerId: historicalAttempt.attemptId }),
+      resultReader: dependencies.resultReader,
+      dispositionStore: dependencies.dispositionStore,
+      readResponsePerformance: (predecessor: ReviewResult) => dependencies.readResponsePerformance(predecessor),
+      confirmIncrementalApplicability: (predecessor: ReviewResult, current: ReviewResult) =>
+        current.admission.lineage.kind === "delivery-member"
+          && predecessor.repositoryId === current.repositoryId
+          && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
+          && canonicalize(predecessor.target) === canonicalize(current.target)
+          ? Promise.resolve("applicable" as const)
+          : dependencies.confirmIncrementalApplicability(
+            input.workUnit, predecessor, current, policyTarget,
+          ),
+      confirmTarget: () => exactTarget === null
+        ? Promise.reject(new Error("terminal review progress requires a current exact review target"))
+        : Promise.resolve(exactTarget),
+    };
+    if (lane === "frontline") return bindReviewPolicyEvidence(policyInput, evidenceDependencies);
+    const nextPassContext = await deriveReviewNextPassContextFromAttempts({
+      attempts: policyInput.attempts, completedPasses: policyInput.completedPasses, ...standardNextPassProgress(rawProgress),
+      currentTarget: exactTarget, currentLineage, standardReview,
+      resultReader: dependencies.resultReader, dispositionStore: dependencies.dispositionStore,
+      readResponsePerformance: evidenceDependencies.readResponsePerformance,
+      confirmApplicability: evidenceDependencies.confirmIncrementalApplicability,
+      confirmCurrentApplicability: predecessor => exactTarget === null ? Promise.resolve("unavailable")
+        : dependencies.confirmPriorProducerApplicability(input.workUnit, predecessor, exactTarget, currentLineage, policyTarget),
+      ...await readCandidateCorrectionContext(dependencies, input.workUnit, policy.sources),
+    });
+    const continuationInput = applyPrePublicationExtraPassJudgment(policyInput, { lane, policyTarget, judgment,
+      native: dependencies.resolveExtraPassJudgment !== undefined, frontlineCeilingHeadSha: input.frontlineCeilingHeadSha });
+    return bindReviewPolicyContinuationEvidence(continuationInput, {
+      terminalResponsePerformed: evidenceDependencies.terminalResponseSettled,
+    }, { ...evidenceDependencies, nextPassContext });
   };
   const withCeilingOverride = <Request extends Awaited<ReturnType<typeof composeLane>>>(
     lane: ReviewLane,
     policyTarget: ReviewPolicyTarget,
     request: Request,
   ): Request => {
-    const ceilingOverride = lanes.data[lane]?.ceilingOverride;
-    const boundToAnotherFrontlineHead = lane === "frontline"
-      && input.frontlineCeilingHeadSha !== undefined
-      && input.frontlineCeilingHeadSha !== policyTarget.headSha;
-    return ceilingOverride === undefined || boundToAnotherFrontlineHead
-      ? request
-      : {
-          ...request,
-          ceilingOverride: { ...ceilingOverride, target: policyTarget, lane },
-        };
+    return applyPrePublicationExtraPassJudgment(request, { lane, policyTarget, judgment: lanes.data[lane],
+      native: dependencies.resolveExtraPassJudgment !== undefined, frontlineCeilingHeadSha: input.frontlineCeilingHeadSha });
+  };
+  // A frontline scope refusal ends composition before the standard lane is judged, and a native continuation
+  // carries only call inputs, so the refusal first records the standard judgments and terminus this call carried.
+  // While a delivery plan still selects its member, no subject exists yet for the call's grants: the pass count is
+  // judged without them, and the continuation keeps them for the member its re-entry selects.
+  const refuseFrontline = async (
+    error: unknown,
+    [standardTarget, standardExactTarget, standardHeads, standardLineage]:
+      [ReviewPolicyTarget, ReviewTarget | null, readonly string[], LaneSubjectLineage?],
+    selecting = false,
+  ): Promise<PrePublicationComposition> => {
+    const refusal = withCompositionContext(evidenceCompositionRefusal(error));
+    if (refusal.status !== "refused" || refusal.scopeMismatch === undefined
+      || dependencies.resolveExtraPassJudgment === undefined) return refusal;
+    try {
+      if (judgedPasses.standard === undefined) {
+        await judgeLane("standard", standardTarget, standardExactTarget, standardHeads, standardLineage,
+          selecting ? withoutExtraPassGrants(lanes.data.standard) : lanes.data.standard);
+      }
+    } catch (judgmentError) {
+      return withCompositionContext(evidenceCompositionRefusal(judgmentError));
+    }
+    const terminusDecision = await preparePrePublicationTerminusDecision({ candidateId: candidate.candidateId,
+      subjectDigest: candidate.subjectDigest, completedPasses: judgedPasses.standard ?? 0,
+      judgment: lanes.data.standard, authority: ownerTerminusAuthority, dependencies });
+    return { ...refusal, ...(terminusDecision === undefined ? {} : { terminusDecision }),
+      ...(selecting ? { retainsGrants: true as const } : {}) };
   };
   let exactTarget: ReviewTarget | null;
   let policyTarget: ReviewPolicyTarget;
   let policyLineage: readonly string[];
+  let selectedLineage: LaneSubjectLineage;
   let frontline: Awaited<ReturnType<typeof composeLane>>;
+  let responseBinding: PrePublicationReviewRequest["responseBinding"] = undefined;
   if (deliveryTargets.status === "composed") {
-    let selected: {
-      exactTarget: ReviewTarget;
-      policyTarget: ReviewPolicyTarget;
-      frontline: Awaited<ReturnType<typeof composeLane>>;
-    } | null = null;
-    for (const member of deliveryTargets.targets) {
-      const memberPolicyTarget = {
-        repository: target.repository,
-        pullRequest: null,
-        headSha: member.target.headSha,
-      };
-      const memberFrontline = await composeLane(
-        "frontline",
-        memberPolicyTarget,
-        [member.target.headSha],
-      );
-      selected = {
-        exactTarget: member.target,
-        policyTarget: memberPolicyTarget,
-        frontline: memberFrontline,
-      };
-      const state = resolveReviewPolicy(memberFrontline).state;
-      if (state !== "skipped" && state !== "pass-complete") break;
-    }
-    if (selected === null) {
-      return {
-        status: "refused",
-        reason: "The canonical delivery plan produced no private review members.",
-      };
-    }
+    const selection = await selectDeliveryReviewMember({ targets: deliveryTargets.targets, repository: target.repository,
+      native: dependencies.resolveExtraPassJudgment !== undefined, judgment: lanes.data.frontline,
+      scopeJudgmentTarget: input.scopeJudgmentTarget, beforeSelected: preparation.verify,
+      onExamined: target => { examinedTargets.push(target); },
+      composeFrontline: (memberTarget, exact, lineage, judgment, state) => composeLane("frontline", memberTarget,
+        exact, [exact.headSha], lineage, judgment, state) });
+    advisories.push(...selection.advisories);
+    Object.assign(laneState.terminalAttempts, selection.laneState.terminalAttempts);
+    Object.assign(pendingSources, selection.laneState.pendingSources);
+    Object.assign(judgedPasses, selection.laneState.judgedPasses);
+    if (selection.kind === "failed") return refuseFrontline(selection.error, selection.context, selection.selecting);
+    if (selection.kind === "empty") return { status: "refused",
+      reason: "The canonical delivery plan produced no private review members." };
+    const { selected } = selection;
     exactTarget = selected.exactTarget;
     policyTarget = selected.policyTarget;
     policyLineage = [selected.exactTarget.headSha];
+    selectedLineage = selected.lineage;
     frontline = withCeilingOverride("frontline", policyTarget, selected.frontline);
+    if (immutable.status !== "resolved") {
+      throw new Error("private delivery-member review requires a resolved root Candidate target");
+    }
+    responseBinding = {
+      candidate: {
+        workUnit: selected.vehicle.workUnitId,
+        candidateId: candidate.candidateId,
+        head: immutable.target.headSha,
+      },
+      deliveryMember: selected.vehicle,
+    };
+  } else if (pendingCandidateFix
+    && immutable.status === "resolved"
+    && immutable.target.kind === "delivery-member") {
+    exactTarget = immutable.target;
+    policyTarget = {
+      repository: target.repository,
+      pullRequest: null,
+      headSha: immutable.target.headSha,
+    };
+    policyLineage = [immutable.target.headSha];
+    selectedLineage = { kind: "candidate", candidateId: candidate.candidateId };
+    try {
+      await preparation.verify(policyTarget, exactTarget, policyLineage, selectedLineage);
+      frontline = withCeilingOverride(
+        "frontline",
+        policyTarget,
+        await composeLane("frontline", policyTarget, exactTarget, policyLineage, selectedLineage),
+      );
+    } catch (error) {
+      return refuseFrontline(error, [policyTarget, exactTarget, policyLineage, selectedLineage]);
+    }
   } else {
-    exactTarget = immutable?.status === "resolved" ? immutable.target : null;
+    exactTarget = immutable.status === "resolved" ? immutable.target : null;
     policyTarget = target;
     policyLineage = candidate.lineageHeadShas;
-    frontline = withCeilingOverride(
-      "frontline",
-      policyTarget,
-      await composeLane("frontline", policyTarget, policyLineage),
-    );
+    selectedLineage = { kind: "candidate", candidateId: candidate.candidateId };
+    let singletonFrontline: Awaited<ReturnType<typeof composeLane>>;
+    try {
+      await preparation.verify(policyTarget, exactTarget, policyLineage, selectedLineage);
+      singletonFrontline = await composeLane("frontline", policyTarget, exactTarget, policyLineage, selectedLineage);
+    } catch (error) {
+      return refuseFrontline(error, [policyTarget, exactTarget, policyLineage, selectedLineage]);
+    }
+    frontline = withCeilingOverride("frontline", policyTarget, singletonFrontline);
   }
-  const standard = withCeilingOverride(
-    "standard",
-    policyTarget,
-    await composeLane("standard", policyTarget, policyLineage),
-  );
+  let standardRequest: Awaited<ReturnType<typeof composeLane>>;
+  try {
+    standardRequest = await composeLane(
+      "standard",
+      policyTarget,
+      exactTarget,
+      policyLineage,
+      selectedLineage,
+    );
+  } catch (error) {
+    return withCompositionContext(evidenceCompositionRefusal(error));
+  }
+  const standard = withCeilingOverride("standard", policyTarget, standardRequest);
+  const pendingResponse: PrePublicationReviewRequest["pendingResponse"] = {
+    frontline: pendingSources.frontline ?? null,
+    standard: pendingSources.standard ?? null,
+  };
 
   const composed = {
     schemaVersion: 1,
@@ -526,16 +843,20 @@ export async function composePrePublicationReviewRequest(
     candidateId: candidate.candidateId,
     reservationTarget: reservationTarget.target,
     target: exactTarget,
+    routingFacts: routing.facts,
     selfReview: input.selfReview === "settled"
       ? "settled"
       : assurance.activity.selfReview ? "pending" : "inactive",
     frontline,
     standard,
+    pendingResponse,
     candidate: {
       subjectDigest: candidate.subjectDigest,
       implementationChanged: candidate.implementationChanged,
       convergenceVerification: candidate.convergenceVerification,
+      convergenceScope: candidate.convergenceScope,
     },
+    ...(responseBinding === undefined ? {} : { responseBinding }),
   };
   // Durable progress and the live target are read independently, so they can disagree — a hosted
   // attempt recorded at this head while the change request is no longer open, for one. The request
@@ -548,16 +869,27 @@ export async function composePrePublicationReviewRequest(
         + request.error.issues.map(({ path, message }) => `${path.join(".")}: ${message}`).join("; "),
     };
   }
-  return { status: "composed", request: request.data, advisories };
+  const terminusDecision = await preparePrePublicationTerminusDecision({ candidateId: request.data.candidateId,
+    subjectDigest: request.data.candidate.subjectDigest, completedPasses: request.data.standard.completedPasses,
+    judgment: lanes.data.standard, authority: ownerTerminusAuthority, dependencies });
+  return withCompositionContext({
+    status: "composed",
+    request: request.data,
+    advisories,
+    ...(terminusDecision === undefined ? {} : { terminusDecision }),
+    ...(candidate.pendingFixRootHeadSha === undefined
+      ? {}
+      : { pendingFixRootHeadSha: candidate.pendingFixRootHeadSha }),
+  });
 }
 
 /** Reapply a durable Owner conclusion only to the exact Candidate subject it accepted. */
 export function applyCarriedOwnerAcceptedTerminus(
   composition: PrePublicationComposition,
   input: {
-    candidateId: string;
+    candidateId: CanonicalDigest;
     candidateSubjectDigest: string | null;
-    terminus: OwnerAcceptedReviewTerminus;
+    terminus: ResolvedOwnerAcceptedReviewTerminus;
   },
 ): PrePublicationComposition {
   if (composition.status !== "composed"

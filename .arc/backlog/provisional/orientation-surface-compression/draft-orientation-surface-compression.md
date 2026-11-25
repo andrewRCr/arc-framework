@@ -41,6 +41,41 @@
   Settle the dependency test that separates load-bearing definitions from merely explanatory ones, and decide
   whether a workflow-region reason pass is needed to validate the observed distribution.
 
+### `[ ]` **Take only the design tier of always-loaded compression; the cheap tier lands with the session-init agenda**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ its scope — compression inside `AGENT-BRIEF.ARC`, `AGENT-BRIEF.PROJECT`, `STRATEGY-INDEX`, and
+  `QUICK-REFERENCE` § Environment & Path Context.
+
+- _Observation:_ `session-init-agenda` takes the low-design tier of a 2026-10-31 cut audit over the always-loaded set
+  (Owner): verified-stale text (`AGENT-BRIEF.ARC`'s PRD → tasks pipeline line, the release-push "no target argument"
+  claim, the one-level backlog-nesting line), verbatim duplicates, template fill-time comments, and footers. The
+  design tier stays here. Its sharpest finding: `adversarial-review`, `planning-review`, and `verification-review` hand
+  both briefs to fresh reviewers as their fixed orientation, so brief passages that only duplicate `DEV-RULES.ARC` for
+  the session agent (Key Documents, Directory Structure, Session lifecycle, Review authority) still serve reviewers.
+  `STRATEGY-INDEX`'s Maintenance rule and description suffixes are also design-tier.
+
+- _Approach:_ at planning, start from the audit table in `draft-session-init-agenda.md` (or its spec) and what that
+  unit actually landed, and treat the reviewers' fixed orientation as a second consumer of the briefs.
+
+- _Captured during:_ `session-init-agenda` draft-design, 2026-10-31.
+
+### `[ ]` **Condense the orientation brief's release-wrapper lines and the strategy index's description suffixes**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its design tier for `AGENT-BRIEF.ARC` and `STRATEGY-INDEX`.
+
+- _Observation:_ `AGENT-BRIEF.ARC` § How ARC Works › Release wrappers (61 words) restates argument shapes
+  `DEV-RULES.ARC` § Commit control already routes (about 35 condensable); `STRATEGY-INDEX`'s description suffixes on
+  planning-module, work-planning, task-list-formatting and testing-methodology add about 35. Vocabulary usage, as
+  irrelevance evidence the analysis's unresolved defect governs: `deliverable` has no hits in the rules or the index
+  and six in methods and workflows; `replication` appears in three files; the segment modes are restated in
+  `resolve-plan-segmentation.md`, the method holding the duplicate.
+
+- _Captured during:_ the always-loaded audit, a `reviewer` pass for `project-manager.ARC` (2026-11-12; Owner-approved).
+
 ---
 
 ## Problem

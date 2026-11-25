@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../src/lib/git/exec.js";
 import { adoptGitDeliveryChain } from "../../src/lib/delivery/chain-adoption.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 

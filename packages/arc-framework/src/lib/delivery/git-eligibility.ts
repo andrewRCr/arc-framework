@@ -90,20 +90,27 @@ export async function inspectDeliveryAuthoringCheckout(
 export async function compareGitNormalizedDeliveryTrees(input: {
   readonly exec: GitExec;
   readonly protectedBaseTree: string;
+  readonly chainBaseTree: string;
   readonly topTree: string;
   readonly finalCandidateTree: string;
   readonly lifecyclePaths: readonly string[];
+  readonly regenerablePaths: readonly string[];
 }): Promise<ReturnType<typeof compareNormalizedDeliveryTree> | { readonly status: "unavailable" }> {
-  const [protectedBase, top, finalCandidate] = await Promise.all([
+  const [protectedBase, chainBase, top, finalCandidate] = await Promise.all([
     readDeliveryEligibilityTree(input.exec, input.protectedBaseTree),
+    readDeliveryEligibilityTree(input.exec, input.chainBaseTree),
     readDeliveryEligibilityTree(input.exec, input.topTree),
     readDeliveryEligibilityTree(input.exec, input.finalCandidateTree),
   ]);
-  if (protectedBase === null || top === null || finalCandidate === null) return { status: "unavailable" };
+  if (protectedBase === null || chainBase === null || top === null || finalCandidate === null) {
+    return { status: "unavailable" };
+  }
   return compareNormalizedDeliveryTree({
     protectedBase,
+    chainBase,
     top,
     finalCandidate,
     lifecyclePaths: input.lifecyclePaths,
+    regenerablePaths: input.regenerablePaths,
   });
 }

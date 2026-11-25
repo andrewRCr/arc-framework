@@ -1,20 +1,23 @@
 /** Production authority, reader, and provisioning composition for ordinary Errand open. */
+import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOptions } from "../store/errand-runtime-transactions.js";
 
 import type { GitExecInput } from "../git/exec.js";
 import { syncLocalBase } from "../git/base-sync.js";
+import { createProjectionRemovalSlots } from "../store/projection/removal-slots.js";
+import { passingProjectionRemovalSlots } from "../git/worktree-removal.js";
 import { provisionTransientLocus } from "../locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import { runDerivedLocusStateProbe } from "../../handlers/derived-locus-state-probe.js";
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
+import { transformStoreErrand } from "./store-runtime.js";
 import { rollbackIdentityClaim } from "./identity-claims.js";
 import {
-  ordinaryErrandTransform,
   provePauseHead,
   rollbackOrdinaryErrandResumeTransform,
   type OrdinaryErrandRecord,
 } from "./identity-transitions.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import { serializeTransientIdentityRecord, type TransientIdentityRecord } from "./identity-record.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 import {
   openOrdinaryErrandWithDisposition,
@@ -26,18 +29,20 @@ import {
   evaluateChangeRequestReentry,
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
-import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandOperationResult } from "./operation-result.js";
+import type { ErrandBranchType } from "./branch-type.js";
 
-export interface OpenOrdinaryErrandRuntimeOptions {
+export interface OpenOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
   readonly cwd: string;
   readonly slug: string;
+  readonly type?: ErrandBranchType;
   readonly intent?: string;
-  readonly inbox: InspectedInboxEntry | null;
+  readonly inbox: ErrandInboxOrigin | null;
   readonly protection: "full" | "partial";
   readonly base: string;
-  /** Whether a new primary branch must first synchronize the configured local base. */
-  readonly syncPrimaryBase: boolean;
+  /** Whether a new Errand branch must first synchronize the configured local base. */
+  readonly syncBase: boolean;
   readonly createdAt: string;
   readonly identity: string;
   readonly locationTemplate: string;
@@ -75,8 +80,10 @@ export async function openOrdinaryErrandAtRuntime(
 export async function openOrdinaryErrandAtRuntimeWithDisposition(
   options: OpenOrdinaryErrandRuntimeOptions,
 ): Promise<OpenOrdinaryErrandExecution> {
-  return openOrdinaryErrandWithDisposition({
+  let spawnLock: OpenOrdinaryErrandExecution["spawnLock"];
+  const execution = await openOrdinaryErrandWithDisposition({
     slug: options.slug,
+    type: options.type,
     intent: options.intent,
     inbox: options.inbox,
     protection: options.protection,
@@ -89,20 +96,14 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
     dependencies: {
       readFrame: () => runDerivedLocusStateProbe({
         cwd: options.cwd,
+        store: options.store,
+        projectId: options.projectId,
         identity: options.identity,
         baseBranch: options.base,
         exec: options.exec,
       }),
       readIdentity: async () => {
-        const read = await transactTransientIdentities({
-          exec: options.exec,
-          execInput: options.execInput,
-          identity: options.identity,
-        }, {
-          remote: "origin",
-          message: `arc: reconcile errand identity ${options.slug}`,
-          transform: (records) => ({ kind: "idempotent", value: records.get(options.slug) ?? null }),
-        });
+        const read = await readRuntimeErrand(options, options, options.slug);
         if (read.kind === "applied" || read.kind === "idempotent") {
           if (options.expectedResumeGeneration !== undefined
             && !matchesExpectedResumeGeneration(read.value, options.expectedResumeGeneration)) {
@@ -121,17 +122,9 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
         options.changeRequestReentry,
         options.pausedHeadReentry,
       ),
-      recoverOpen: (record) => recoverOpenIdentityBranch(options.exec, record),
+      recoverOpen: (record) => recoverOpenIdentityBranch(options.exec, options.base, record),
       claim: async (record) => {
-        const claimed = await transactTransientIdentities({
-          exec: options.exec,
-          execInput: options.execInput,
-          identity: options.identity,
-        }, {
-          remote: "origin",
-          message: `arc: open errand ${record.slug}`,
-          transform: ordinaryErrandTransform({ kind: "create", record }),
-        });
+        const claimed = await transitionRuntimeErrand(options, options, { kind: "create", record }, `arc: open errand ${record.slug}`);
         if (claimed.kind === "applied" || claimed.kind === "idempotent") {
           if (claimed.value === null) return { kind: "error", message: "Identity claim returned no record" };
           return { kind: claimed.kind, record: claimed.value };
@@ -141,15 +134,7 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           : { kind: "error", message: claimed.message };
       },
       resume: async (record, authorization, updatedAt) => {
-        const resumed = await transactTransientIdentities({
-          exec: options.exec,
-          execInput: options.execInput,
-          identity: options.identity,
-        }, {
-          remote: "origin",
-          message: `arc: resume errand ${record.slug}`,
-          transform: ordinaryErrandTransform({ kind: "resume", previous: record, authorization, updatedAt }),
-        });
+        const resumed = await transitionRuntimeErrand(options, options, { kind: "resume", previous: record, authorization, updatedAt }, `arc: resume errand ${record.slug}`);
         if (resumed.kind === "applied" || resumed.kind === "idempotent") {
           if (resumed.value === null) return { kind: "error" as const, message: "Resume returned no identity" };
           return { kind: resumed.kind, record: resumed.value };
@@ -159,6 +144,16 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           : { kind: "error" as const, message: resumed.message };
       },
       rollbackClaim: async (record) => {
+        if (options.store?.capabilities.stateOffBranch) {
+          const companions = await options.rollbackCompanionWrites?.() ?? [];
+          const rolledBack = await transformStoreErrand({ ...options, store: options.store, companionWrites: companions }, record, (basis) => {
+            const actual = basis.get(record.slug);
+            if (actual === undefined) return { kind: "idempotent", value: null };
+            if (serializeTransientIdentityRecord(actual) !== serializeTransientIdentityRecord(record)) return { kind: "refused", reason: "Errand generation changed before rollback." };
+            return { kind: "applied", records: new Map(), value: null };
+          }, true);
+          return rolledBack.kind === "applied" || rolledBack.kind === "idempotent" ? { kind: "rolled-back" } : { kind: "generation-mismatch" };
+        }
         const rolledBack = await rollbackIdentityClaim({
           exec: options.exec,
           execInput: options.execInput,
@@ -173,7 +168,9 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           : { kind: "generation-mismatch" };
       },
       rollbackResume: async (previous, resumed) => {
-        const rollback = await transactTransientIdentities({
+        const rollback = options.store?.capabilities.stateOffBranch
+          ? await transformStoreErrand({ ...options, store: options.store, companionWrites: [] }, previous, rollbackOrdinaryErrandResumeTransform(previous, resumed))
+          : await transactTransientIdentities({
           exec: options.exec,
           execInput: options.execInput,
           identity: options.identity,
@@ -187,22 +184,29 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           : { kind: "generation-mismatch" as const };
       },
       provision: async (request) => {
-        return provisionTransientLocus({
+        const provisioned = await provisionTransientLocus({
           ...request,
           dependencies: createNodeProvisioningDependencies({
             exec: options.exec,
+            projectionRemovalSlots: options.store === undefined ? passingProjectionRemovalSlots
+              : createProjectionRemovalSlots({ store: options.store, identity: options.identity }),
             base: options.base,
             branch: request.branch,
-            ...(options.syncPrimaryBase ? {
-              synchronizePrimaryBase: () => syncLocalBase({ exec: options.exec, baseBranch: options.base }),
+            ...(options.syncBase ? {
+              synchronizeBase: () => syncLocalBase({ exec: options.exec, baseBranch: options.base }),
             } : {}),
             postCreateScript: options.postCreateScript,
             registeredHarnessDirs: options.registeredHarnessDirs,
           }),
         });
+        if (provisioned.kind === "provisioned" && provisioned.receipt.lock !== undefined) {
+          spawnLock = { checkoutPath: provisioned.receipt.checkoutPath, lock: provisioned.receipt.lock };
+        }
+        return provisioned;
       },
     },
   });
+  return spawnLock === undefined ? execution : { ...execution, spawnLock };
 }
 
 function matchesExpectedResumeGeneration(
@@ -217,6 +221,7 @@ function matchesExpectedResumeGeneration(
 
 async function recoverOpenIdentityBranch(
   exec: GitExec,
+  base: string,
   record: OrdinaryErrandRecord,
 ): Promise<
   | { kind: "ready"; expectedBranchHead: string | null }
@@ -238,6 +243,14 @@ async function recoverOpenIdentityBranch(
     head = (await exec("git", ["rev-parse", "--verify", `${ref}^{commit}`])).stdout.trim();
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+  const baseArgs = ["merge-base", "--is-ancestor", head, base];
+  try {
+    await exec("git", baseArgs);
+    return { kind: "ready", expectedBranchHead: head };
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args: baseArgs });
+    if (failure.exitCode !== 1) return { kind: "error", message: failure.message };
   }
   const proof = await provePauseHead(exec, { remote: "origin", branch: record.branch, savedHead: head });
   if (proof.kind === "proven") return { kind: "ready", expectedBranchHead: head };

@@ -11,7 +11,7 @@ const CLAIM = "c".repeat(32);
 function row(overrides: Partial<DerivedCheckoutRow> = {}): DerivedCheckoutRow {
   return {
     kind: "free-primary",
-    checkout: { path: "/repo", head: "a".repeat(40), branch: "main", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "a".repeat(40), branch: "main", detached: false, primary: true },
     markerGeneration: null,
     parentCheckoutPath: null,
     origin: null,
@@ -40,7 +40,7 @@ function frame(entering: DerivedCheckoutRow, siblings: readonly DerivedCheckoutR
 function workUnit(): DerivedCheckoutRow {
   return row({
     kind: "work-unit",
-    checkout: { path: "/repo.demo", head: "b".repeat(40), branch: "feat/demo", detached: false, primary: false },
+    checkout: { folderPresent: true, path: "/repo.demo", head: "b".repeat(40), branch: "feat/demo", detached: false, primary: false },
     subject: { kind: "work-unit", key: "demo" },
     context: {
       kind: "resolved",
@@ -150,7 +150,7 @@ describe("deriveHandoffLocusPlan", () => {
   it("does not let a malformed sibling refuse a healthy entering WU", () => {
     const malformed = row({
       kind: "unresolved-checkout",
-      checkout: { path: "/repo.bad", head: "e".repeat(40), branch: null, detached: true, primary: false },
+      checkout: { folderPresent: true, path: "/repo.bad", head: "e".repeat(40), branch: null, detached: true, primary: false },
       diagnostics: [{ code: "authority-conflict", message: "bad sibling" }],
     });
 

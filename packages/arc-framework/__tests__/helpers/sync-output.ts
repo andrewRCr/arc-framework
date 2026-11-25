@@ -13,6 +13,7 @@
  * @module
  */
 
+import { prompt } from "../../src/lib/command-input/prompter.js";
 import type { SyncOutput } from "../../src/lib/sync-output.js";
 
 export interface CapturingSyncOutput {
@@ -27,8 +28,7 @@ export interface CapturingSyncOutput {
 /**
  * Build a JSON-mode {@link SyncOutput} whose `warn`/`error` calls push to a
  * captured array rather than `process.stderr`. Visual surfaces and info-level
- * logs are no-ops, and interactive prompts resolve to their non-interactive
- * defaults — matching real JSON-mode behavior.
+ * logs are no-ops; confirmations retain the real declaration-bound policy.
  */
 export function makeCapturingSyncOutput(): CapturingSyncOutput {
   const stderr: string[] = [];
@@ -47,8 +47,7 @@ export function makeCapturingSyncOutput(): CapturingSyncOutput {
     },
     note: () => undefined,
     spinner: () => ({ start: () => undefined, stop: () => undefined }),
-    confirm: () => Promise.resolve(false),
-    isCancel: () => false,
+    confirm: prompt,
   };
   return { output, stderr };
 }

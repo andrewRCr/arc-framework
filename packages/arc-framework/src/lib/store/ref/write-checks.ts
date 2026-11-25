@@ -1,0 +1,92 @@
+/** Run registered admission checks against final prepared record bytes. */
+
+import type { CreatedOwner } from "../creation-receipt.js";
+import type { BatchInput, RecordObservation } from "../write.js";
+import type { RecordReference } from "../identity.js";
+import type { StoreRefusal, StoreResult } from "../refusal.js";
+import { composeWriteCheckRefusal, deriveWriteCheckWriter, type BrokenRule } from "../write-check.js";
+import type { RefBackendContext } from "./context.js";
+import type { PreparedRefMutation } from "./write-merge.js";
+import type { RefWriteGroup } from "./write-commits.js";
+import { readBatchObjects, type BatchObject } from "./batch-read.js";
+import { createRefWriteViews } from "./write-views.js";
+import { checkProjectionAdmission, projectionObservationRefusal } from "../projection/admission-check.js";
+import { checkRefObservations } from "./write-observations.js";
+import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
+import type { WriteCheckInput } from "../write-check.js";
+
+/** Check every caller mutation in order, retaining the original and final bytes. */
+export async function checkRefWrites(context: RefBackendContext, writes: readonly PreparedRefMutation[],
+  groups: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"],
+  proposedCreatedOwners: readonly CreatedOwner[], observations: readonly RecordObservation[] = [], projectionInput?: BatchInput): Promise<StoreRefusal | undefined> {
+  const { before, after } = createRefWriteViews(context, tips, groups);
+  const admission = await checkPreparedAdmission(context, before, observations, projectionInput);
+  if (admission) return admission;
+  const units = checkUnits(writes).filter(({ reference }) => context.registry[reference.kind].check !== null);
+  if (units.length === 0) return undefined;
+  const queries = units.flatMap(({ ref, priorPath, nextPath }) => [priorPath ? groups.get(ref)?.original.get(priorPath)?.oid : undefined,
+    nextPath ? groups.get(ref)?.entries.get(nextPath)?.oid : undefined].filter((oid): oid is string => oid !== undefined));
+  const objects = await readBatchObjects(context, [...new Set(queries)]);
+  const results: { reference: RecordReference; rules: readonly BrokenRule[] }[] = [];
+  for (const { reference, ref, priorPath, nextPath } of units) {
+    const group = groups.get(ref);
+    if (!group) throw new Error("A checked mutation has no captured ref group");
+    const priorSide = await checkRecord(context, { reference, ref, oid: entryOid(group.original, priorPath) }, objects, tips);
+    if (priorSide.status === "refused") return priorSide.refusal;
+    const nextSide = await checkRecord(context, { reference, ref, oid: entryOid(group.entries, nextPath) }, objects, tips);
+    if (nextSide.status === "refused") return nextSide.refusal;
+    const prior = priorSide.result, next = nextSide.result;
+    const check = context.registry[reference.kind].check;
+    if (!check) continue;
+    results.push({ reference, rules: await check({ reference, before, after, observations, proposedCreatedOwners,
+      writer: deriveWriteCheckWriter(provenance), ...(prior ? { prior } : {}),
+      ...(next ? { next: { content: next.content, fields: next.fields } } : {}) }) });
+  }
+  return composeWriteCheckRefusal(results);
+}
+
+async function checkPreparedAdmission(context: RefBackendContext, before: WriteCheckInput["before"],
+  observations: readonly RecordObservation[], input?: BatchInput): Promise<StoreRefusal | undefined> {
+  const observed = await checkRefObservations(context, before, observations);
+  if (observed) return projectionObservationRefusal(input, observed);
+  return input ? checkProjectionAdmission(before, input, context.registry, await context.identity()) : undefined;
+}
+
+async function checkRecord(context: RefBackendContext, { reference, ref, oid }: { reference: RecordReference; ref: string; oid: string | undefined },
+  objects: ReadonlyMap<string, BatchObject | null>, tips: ReadonlyMap<string, string>): Promise<StoreResult<{ content: string; fields?: unknown } | undefined>> {
+  if (oid === undefined) return { status: "ok", result: undefined };
+  const object = objects.get(oid);
+  if (object?.type !== "blob") return { status: "refused", refusal: refObjectFault(ref, "missing", {
+    reference, historyRefs: await missingHistoryRefs(context, [ref], tips),
+    condition: `The captured record blob ${oid} is unavailable.`,
+    remedy: { text: "Restore or fetch the missing record objects, then retry the write." },
+  }).refusal };
+  let content: string;
+  try { content = new TextDecoder("utf-8", { fatal: true,
+    ignoreBOM: context.registry[reference.kind].projection !== "never" }).decode(object.bytes); }
+  catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference, rule: "store.utf8",
+      condition: `The captured record blob ${oid} is not valid UTF-8.`,
+      remedy: { text: "Restore the original record object or repair the stored record, then retry the write with its captured version." } } };
+  }
+  const parsed = context.registry[reference.kind].parser?.(content);
+  return { status: "ok", result: { content, ...(parsed?.success ? { fields: parsed.data } : {}) } };
+}
+
+interface CheckUnit { reference: RecordReference; ref: string; priorPath: string | undefined; nextPath: string | undefined }
+
+function checkUnits(writes: readonly PreparedRefMutation[]): CheckUnit[] {
+  return writes.flatMap(({ mutation, home, prior }) => {
+    const replacement = prior && prior.reference.kind !== mutation.reference.kind;
+    return [
+      ...(replacement ? [{ reference: prior.reference, ref: home.ref, priorPath: prior.home.path, nextPath: undefined }] : []),
+      { reference: mutation.reference, ref: home.ref, priorPath: replacement ? undefined : prior?.home.path ?? home.path, nextPath: home.path },
+    ];
+  });
+}
+
+function entryOid(entries: ReadonlyMap<string, { oid: string }>, path: string | undefined): string | undefined {
+  return path === undefined ? undefined : entries.get(path)?.oid;
+}

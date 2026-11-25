@@ -1,5 +1,6 @@
 /** Marker- and topology-bound selection for checkout teardown. */
 
+import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
@@ -39,6 +40,8 @@ export type TeardownSelectionDecision =
 export interface TeardownSelectionRequest {
   readonly checkoutPath: string;
   readonly subject: WorktreeSubject;
+  /** Exact branch authority permits a folderless registration match. */
+  readonly expectedBranch?: string;
 }
 
 export type TeardownSelectionReader = (
@@ -70,6 +73,11 @@ export function createNodeTeardownSelectionReader(options: {
       marker,
       identity: options.identity,
       subject: request.subject,
+      expectedBranch: request.expectedBranch,
+      folderPresent: await stat(checkout.path).then(() => true, (error: unknown) => {
+        if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") return false;
+        throw error;
+      }),
     });
   };
 }
@@ -80,12 +88,14 @@ export function classifyTeardownSelection(options: {
   readonly marker: WorktreeMarkerGenerationReadResult;
   readonly identity: string;
   readonly subject: WorktreeSubject;
+  readonly expectedBranch?: string;
+  readonly folderPresent?: boolean;
 }): TeardownSelectionDecision {
   if (options.marker.kind === "malformed") {
     return manual("marker-malformed", "The teardown target ownership marker is malformed.");
   }
   if (options.marker.kind === "absent") {
-    if (!options.checkout.primary) {
+    if (!options.checkout.primary && !(options.folderPresent === false && options.expectedBranch !== undefined && options.checkout.branch === options.expectedBranch)) {
       return manual("markerless", "The teardown target has no ARC ownership marker.");
     }
     return {
@@ -117,13 +127,14 @@ export function teardownSelectionsEqual(left: TeardownSelection, right: Teardown
     && left.checkout.branch === right.checkout.branch
     && left.checkout.detached === right.checkout.detached
     && left.checkout.primary === right.checkout.primary
+    && left.checkout.locked === right.checkout.locked
     && subjectsEqual(left.subject, right.subject)
     && left.markerGeneration === right.markerGeneration;
 }
 
-function subjectsEqual(left: WorktreeMarkerSubject, right: WorktreeSubject): boolean {
+function subjectsEqual(left: WorktreeMarkerSubject | WorktreeSubject, right: WorktreeSubject): boolean {
   if (left.kind !== right.kind) return false;
-  if (left.kind === "work-unit" && right.kind === "work-unit") return left.name === right.name;
+  if (left.kind === "work-unit" && right.kind === "work-unit") return right.uid === undefined ? left.name === right.name : left.uid === right.uid;
   if (left.kind === "branch" && right.kind === "branch") return left.ref === right.ref;
   if (left.kind === "errand" && right.kind === "errand") {
     return !("claimId" in left) && left.slug === right.slug;

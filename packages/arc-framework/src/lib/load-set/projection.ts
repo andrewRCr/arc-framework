@@ -9,10 +9,11 @@
  * @module
  */
 
-import { isAbsolute } from "node:path";
+import { isAbsolute, posix } from "node:path";
 
 import { SlugSchema } from "../kernel/index.js";
-import { resolveArcPath } from "../layout/index.js";
+import { resolveArcPath, type WorkUnitPlacement } from "../layout/index.js";
+import { workItemArtifactPathAt } from "../store/lifecycle-storage.js";
 
 import {
   LOAD_SET_MANIFEST_VERSION,
@@ -34,6 +35,10 @@ export type LoadSetWorkUnitStage = "task-work" | "verification-closeout" | "deli
 export interface LoadSetProjectionInput {
   /** ARC identity, or `null` when identity is absent. */
   identity: string | null;
+  /** Physical coordinates resolved once by the checkout-aware metadata reader. */
+  workUnit?: { slug: string; placement: WorkUnitPlacement };
+  /** Whether session context lives in the meta rather than a workspace seed. */
+  stateOffBranch?: boolean;
   /**
    * Exact identity-global working-memory path selected by the user-surface owner.
    * When omitted, defaults to the active-checkout-relative semantic projection.
@@ -51,13 +56,6 @@ export interface LoadSetProjectionInput {
   workUnitStage?: LoadSetWorkUnitStage | null;
   /** Active task-list path relative to the repo root, or `null` when none applies. */
   taskListPath: string | null;
-  /**
-   * Active extension names from the session-init extensions slot.
-   *
-   * Names stay in the status envelope for workflow fire-points to consult.
-   * Extension bodies are intentionally excluded from the session load set.
-   */
-  activeExtensions: readonly string[];
   /** Active cohort coordination doc path, or `null` when none resolved. */
   cohortDocPath: string | null;
 }
@@ -79,14 +77,15 @@ function cloneEntry(entry: LoadSetEntry): LoadSetEntry {
   };
 }
 
+const ARC_ROOT = resolveArcPath({ kind: "arc-root" });
 const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
-  full(".arc/reference/briefs/AGENT-BRIEF.ARC.md"),
-  full(".arc/reference/briefs/AGENT-BRIEF.PROJECT.md"),
-  full(".arc/system/rules/DEV-RULES.ARC.md"),
-  full(".arc/system/rules/DEV-RULES.PROJECT.md"),
-  full(".arc/reference/strategies/STRATEGY-INDEX.md"),
+  full(posix.join(ARC_ROOT, "reference/briefs/AGENT-BRIEF.ARC.md")),
+  full(posix.join(ARC_ROOT, "reference/briefs/AGENT-BRIEF.PROJECT.md")),
+  full(posix.join(ARC_ROOT, "system/rules/DEV-RULES.ARC.md")),
+  full(posix.join(ARC_ROOT, "system/rules/DEV-RULES.PROJECT.md")),
+  full(posix.join(ARC_ROOT, "reference/strategies/STRATEGY-INDEX.md")),
   {
-    path: ".arc/reference/QUICK-REFERENCE.md",
+    path: posix.join(ARC_ROOT, "reference/QUICK-REFERENCE.md"),
     readMode: {
       kind: "partial-section",
       heading: "Environment & Path Context",
@@ -105,11 +104,11 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
   const workflowRoot = resolveArcPath({ kind: "procedure-root", family: "workflows" });
   const workUnitStage = input.workUnitStage ?? null;
 
-  if (input.metaPath !== null) {
-    entries.push(full(input.metaPath));
-  }
+  const metaPath = input.workUnit === undefined ? input.metaPath
+    : workItemArtifactPathAt(input.workUnit.slug, "meta", input.workUnit.placement);
+  if (metaPath !== null) entries.push(full(metaPath));
 
-  if (input.identity !== null && input.activeWorkUnit !== null) {
+  if (input.stateOffBranch !== true && input.identity !== null && input.activeWorkUnit !== null) {
     entries.push(full(resolveArcPath({
       kind: "user-document",
       identity: layoutSlug(input.identity),

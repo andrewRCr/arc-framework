@@ -7,11 +7,12 @@ import {
 import { GhMergeLockPort } from "../../../../../../src/scripts/review-gate/hosts/github/merge-lock.js";
 import { releaseMergeLock } from "../../../../../../src/scripts/review-gate/merge-lock.js";
 import type { MergeLockSetting } from "../../../../../../src/scripts/review-gate/merge-lock.js";
+import { ReviewVehicleSchema } from "../../../../../../src/scripts/review-gate/readiness.js";
 
 const SHA = "a".repeat(40);
 
 const TARGET = { repository: "owner/repo", pullRequest: 42, headSha: SHA };
-const VEHICLE = { kind: "work-unit" as const, slug: "demo", archiveCadence: "manual" as const };
+const VEHICLE = ReviewVehicleSchema.parse({ kind: "work-unit", slug: "demo", archiveCadence: "manual" });
 
 function repositoryJson() {
   return JSON.stringify({ nameWithOwner: "owner/repo", defaultBranchRef: { name: "main" } });

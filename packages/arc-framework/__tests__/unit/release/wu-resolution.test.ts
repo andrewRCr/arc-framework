@@ -31,9 +31,13 @@ function statusBody(state: string): string {
   return [
     "# Metadata: Sample",
     "",
-    `- **State:** ${state}`,
-    "- **Branch:** technical/sample",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | technical/sample | — | — |`,
+    "",
     "- **Task List:** `tasks-sample.md`",
+    "",
+    "---",
     "",
   ].join("\n");
 }
@@ -53,6 +57,7 @@ describe("resolveActiveWu — single full-layout candidate", () => {
 
   it("resolves with name parsed from the meta-*.md filename at the flat root", async () => {
     await writeMetaCandidate(fixture.activeDir, "foo", "Active");
+    await writeFile(join(fixture.activeDir, "status.md"), statusBody("Active"));
 
     const result = await resolveActiveWu({ cwd: fixture.root });
 
@@ -100,6 +105,7 @@ describe("resolveActiveWu — zero-candidate and ambiguous outcomes", () => {
 
   it("reports `ambiguous` with a disambiguation hint when multiple candidates resolve", async () => {
     await writeMetaCandidate(fixture.activeDir, "foo", "Active");
+    await writeFile(join(fixture.activeDir, "status.md"), statusBody("Active"));
     await writeMetaCandidate(fixture.activeDir, "bar", "Planning");
 
     const result = await resolveActiveWu({ cwd: fixture.root });
@@ -111,21 +117,16 @@ describe("resolveActiveWu — zero-candidate and ambiguous outcomes", () => {
   });
 });
 
-describe("resolveActiveWu — lite layout", () => {
+describe("resolveActiveWu — unrelated status file", () => {
   let fixture: Fixture;
   beforeEach(async () => { fixture = await createFixture(); });
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
-  it("resolves the single status.md with an empty name", async () => {
+  it("reports none when only status.md exists", async () => {
     await writeFile(join(fixture.activeDir, "status.md"), statusBody("Active"));
 
     const result = await resolveActiveWu({ cwd: fixture.root });
 
-    expect(result).toEqual({
-      status: "resolved",
-      path: ".arc/active/status.md",
-      name: "",
-      branch: "technical/sample",
-    });
+    expect(result).toEqual({ status: "none" });
   });
 });

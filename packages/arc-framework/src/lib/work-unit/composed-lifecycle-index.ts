@@ -9,8 +9,12 @@
  */
 
 import { isAbsolute, relative, sep } from "node:path";
+import { readConfigSettings } from "../config/status-reader.js";
+import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../errand/record.js";
+import type { GitExec } from "../git/exec.js";
 
 import type {
+  InFlightBranchProvenance,
   InFlightEntryMark,
   InFlightState,
   InFlightWarning,
@@ -27,6 +31,41 @@ import {
 import type { TransitionOverlayCompositionInput } from "./transition-overlay.js";
 
 import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "./lifecycle-index.js";
+
+/** Caller-bound I/O and acquisition policy for ordinary lifecycle queries. */
+export interface CallerComposedLifecycleOptions {
+  cwd: string;
+  identity: string | null;
+  acquisitionPolicy: "local" | "passive-live";
+  exec: GitExec;
+  fs: ProjectViewFs;
+}
+
+/**
+ * Compose ordinary lifecycle reads with configured base and transient-branch classification.
+ * @param options - Caller-bound checkout, identity, acquisition, and I/O.
+ * @returns The shared lifecycle index and selected record provenance.
+ */
+export async function resolveCallerComposedLifecycleIndex(
+  options: CallerComposedLifecycleOptions,
+): Promise<ComposedLifecycleIndexResult> {
+  const [{ settings }, transientRead] = await Promise.all([
+    readConfigSettings(options.cwd),
+    readTransientInFlightIndexes({ exec: options.exec, identity: options.identity }),
+  ]);
+  const transient = projectTransientInFlightRead(transientRead);
+  return await resolveComposedLifecycleIndex({
+    cwd: options.cwd,
+    fs: options.fs,
+    oracle: {
+      exec: options.exec,
+      acquisitionPolicy: options.acquisitionPolicy,
+      baseBranch: settings["branch.base"],
+      errandSlugByBranch: transient.indexes.slugByBranch,
+      errandRecordsComplete: transient.complete,
+    },
+  });
+}
 
 /** Native quality facts for one slug, including entries omitted from the lifecycle index. */
 export interface ComposedLifecycleSlugQuality {
@@ -61,6 +100,8 @@ export interface ComposedLifecycleIndexResult {
   index: LifecycleIndex;
   /** Selected semantic record, current-tree candidate, and optional exact write authority by slug. */
   recordsBySlug: ReadonlyMap<string, ComposedLifecycleRecord>;
+  /** Every branch copy retained by the oracle, including stale and unselected copies. */
+  readonly provenanceBySlug?: ReadonlyMap<string, readonly InFlightBranchProvenance[]>;
   qualityFacts: ComposedLifecycleQualityFacts;
   worktreePathBySlug: ReadonlyMap<string, string>;
   liveRefs: RefTipMap;
@@ -201,6 +242,11 @@ export async function resolveComposedLifecycleIndex(
       })),
     ),
     recordsBySlug,
+    ...(oracleResult !== null ? {
+      provenanceBySlug: new Map(oracleResult.entries
+        .filter((entry) => entry.kind === "work-unit")
+        .map((entry) => [entry.name, entry.provenance ?? []] as const)),
+    } : {}),
     qualityFacts: qualityFactsFor(
       oracleResult,
       options.oracle !== undefined && options.oracle.acquisitionPolicy !== "local",

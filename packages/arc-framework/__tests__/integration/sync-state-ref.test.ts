@@ -8,7 +8,7 @@
  * later phase consumes).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, onTestFinished } from "vitest";
 
 import {
   createTempRepo,
@@ -145,7 +145,7 @@ describe("sync-state ref transport primitives", () => {
   });
 
   it("fetch force-updates the local tracking ref from origin", async () => {
-    await addBareRemote(dir);
+    await addBareRemote(dir, { registerCleanup: onTestFinished });
     await writeEntry(io, "machine-a", "alpha");
     await pushSyncStateRef(io);
 

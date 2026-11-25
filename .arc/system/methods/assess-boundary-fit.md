@@ -1,7 +1,8 @@
 ---
 name: assess-boundary-fit
 description: WU boundary test — keep one concern whole, decompose orthogonal concerns, or plan separate delivery
-override-active: false
+override-active: true
+override-mode: extend
 ---
 
 # Method: assess-boundary-fit
@@ -24,7 +25,20 @@ override-active: false
 
 ## assess-boundary-fit.override
 
-[No override configured]
+**Size is a trigger in this project.** A work unit here lands as one pull request, and its verification and code
+review read the whole change set, so the per-task review grain does not carry a large unit's quality. After the default
+read, return the boundary decision to the Owner when the latest planning evidence crosses any of these marks:
+
+- a spec of about 1,500 lines, or a draft whose design forecasts one;
+- a task list of about 1,000 lines or more than six phases;
+- a forecast change set of about 10,000 changed lines.
+
+Present the cut the design's own seams suggest — its phases, layers, or separately landable parts — beside "stays one
+WU", with the size evidence. Above the marks, "stays one WU" needs the Owner's explicit decision and a recorded reason
+that one review of the whole change set can hold it; coupling alone is not that reason. Record the decision and its
+reason in the draft or spec decision prose, as the default records an outcome. Crossing a mark is material new
+evidence, so a hold-whole record made without that decision does not suppress it. Below the marks the default applies
+unchanged.
 
 ## assess-boundary-fit.default
 
@@ -129,9 +143,11 @@ dependency edges; complete only these authoring decisions:
 - **dependency dispositions** — one replacement, target set, or reasoned drop for every reported edge;
 - **internal dependency edges** — authored from the cut's delivery order.
 
-When the concern stays cohesive but the sizing read finds material distinct deliverables or independently reviewable
-surfaces, return **"stays one WU + delivery-plan candidate"**. This is a first-class planning outcome, not an advisory
-nested under "stays one WU". It is never a gate and authorizes no publication, binding, or external mutation.
+When the concern stays cohesive but the sizing read finds material distinct deliverables that are each independently
+landable on main, return **"stays one WU + delivery-plan candidate"**. Independently reviewable surfaces that are not
+independently landable remain one delivery member and use ordinary review chunking. The delivery outcome is a
+first-class planning result, not an advisory nested under "stays one WU". It is never a gate and authorizes no
+publication, binding, or external mutation.
 
 `direct-member` is the placement for exactly one newly minted member. Every decomposition with more than one new
 member must select `cohort`, `subcohort`, or `at-cap`, regardless of content ownership. Existing or atomic homes

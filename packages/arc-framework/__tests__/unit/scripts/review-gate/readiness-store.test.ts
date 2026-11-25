@@ -1,0 +1,332 @@
+/** Native readiness reads lifecycle facts from operational records, independently of a projected tree. */
+import { storeRepairCases } from "../../../fixtures/store-repair-remedies.js";
+import { expect, it } from "vitest";
+import { evaluateReviewReadiness, ReviewReadinessRequestSchema, type ReviewReadinessFs } from "../../../../src/scripts/review-gate/readiness.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { ListingOutcomeSchema } from "../../../../src/lib/store/read.js";
+import { batchLifecycleWrites, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { ProjectIdentityError } from "../../../../src/lib/store/project-identity.js";
+import { describeRecordConflicts } from "../../../../src/lib/store/conflict-diagnostics.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
+
+const projectId = "123e4567-e89b-42d3-a456-426614174099";
+const root = "/tree", head = "a".repeat(40);
+const fs: ReviewReadinessFs = {
+  stat: async path => {
+    if (path !== root) throw new Error("Projected lifecycle state must not be inspected");
+    return { isFile: () => false, isDirectory: () => true };
+  },
+  readFile: async () => { throw new Error("Projected lifecycle state must not be read"); },
+  readdir: async () => { throw new Error("Projected lifecycle state must not be listed"); },
+};
+
+async function fixture(options: { state?: "Active" | "Integrating" | "Shipped"; notes?: string | null;
+  branch?: string | null; changeRequest?: number; cohort?: string; project?: boolean;
+  cadence?: "manual" | "with-integration" } = {}) {
+  const h = createReviewHarness();
+  if (options.project !== false) await h.seedProject(projectId);
+  const cohorts: Awaited<ReturnType<typeof h.seed>>[] = [];
+  const parts = options.cohort?.split("/") ?? [];
+  for (const [index, name] of parts.entries()) cohorts.push(await h.seed(
+    recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })),
+    `# Cohort: ${name}\n\n**Purpose:** Deliver the coordinated work.\n`
+      + (index === 0 ? "" : `\n**Parent:** \`${parts[0]}\`\n`)));
+  const state = options.state ?? "Integrating", archived = state === "Shipped";
+  const notes = options.notes === undefined ? "The exact work is ready." : options.notes;
+  const branch = options.branch === undefined ? "topic/opaque" : options.branch;
+  const primary = await h.seed(recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" })),
+    makeMetaFixture("example", { state, branch: null, ...(options.cohort === undefined ? {} : { cohort: options.cohort }),
+      currentWorkflow: archived ? null : state === "Active" ? "process-task-loop" : "integrate-work-unit" })
+      + (notes === null ? "" : `\n## Completion Notes\n\n${notes}\n`),
+    archived ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }, {
+      branches: branch === null ? [] : [{ repository: projectId, ref: branch, linkedAs: "adopted", excluded: [] }],
+      ...(options.changeRequest === undefined ? {} : { changeRequest: { repository: projectId, number: options.changeRequest } }),
+    });
+  const request = ReviewReadinessRequestSchema.parse({ schemaVersion: 1, treeRoot: root,
+    target: { repository: "owner/repo", pullRequest: 42, headSha: head },
+    pullRequest: { repository: "owner/repo", number: 42, state: "open", headBranch: "topic/opaque", headSha: head },
+    vehicle: { kind: "work-unit", slug: "example", archiveCadence: options.cadence ?? (archived ? "with-integration" : "manual") } });
+  return { ...h, primary, request, cohorts };
+}
+
+it("accepts an Integrating stored work unit on its opaque adopted branch without projected metadata", async () => {
+  const h = await fixture();
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready", diagnostics: [] });
+});
+
+it.each(["missing", "errand", "unreadable"] as const)("reports a %s work-unit read with its exact remedy and is ready after repair", async fault => {
+  const h = await fixture(), lookup = h.store.lookup.bind(h.store), read = h.store.read.bind(h.store);
+  const refusal = StoreRefusalSchema.parse({ ...(fault === "missing"
+    ? { code: "not-found", class: "recoverable", reference: h.primary.reference }
+    : { code: "namespace-corrupt", class: "terminal", namespace: "work-item" }),
+    condition: "Work-unit metadata is unavailable.", remedy: { text: "Restore work-unit metadata, then retry." } });
+  if (fault !== "unreadable") h.store.lookup = async () => fault === "missing" ? { status: "refused", refusal }
+    : { status: "ok", result: { reference: recordReferences["work-item/record"](h.primary.reference.owner) } };
+  else h.store.read = async input => input.reference.kind === "work-item/meta" ? { status: "refused", refusal } : read(input);
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: { facts: [{
+    code: fault === "missing" ? "missing-artifact" : fault === "errand" ? "malformed-artifact" : "unreadable-artifact",
+    path: "work-item/meta:example", message: fault === "errand"
+      ? "`example` resolves to an Errand rather than a work unit. Use the Errand verb for `example`, or name a work unit."
+      : `${refusal.condition} ${refusal.remedy.text}` }] } });
+  h.store.lookup = lookup;
+  h.store.read = read;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it("refuses a clone holding no project ID with the port's typed failure, and is ready once the clone holds it", async () => {
+  const h = await fixture({ project: false });
+  const refused = await evaluateReviewReadiness(h.request, { fs, store: h.store }).catch((error: unknown) => error);
+  expect(refused).toBeInstanceOf(ProjectIdentityError);
+  expect(refused).toMatchObject({ failure: { remedy: {
+    text: "Restore the project's unique, valid identity record from its authoritative state source, then retry." } } });
+  await h.seedProject(projectId);
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready", diagnostics: [] });
+});
+
+const closeout = "\n## Closeout\n\n- **Closed:** 2026-10-20\n- **Final member:** `example`\n"
+  + "- **Member archives:** All members are archived.\n- **Outcome:** Complete.\n- **Follow-up:** None.\n";
+
+async function completeCohorts(h: Awaited<ReturnType<typeof fixture>>, malformed?: string): Promise<void> {
+  lifecycleSuccess(await batchLifecycleWrites(h.store, h.cohorts.map(record => recordPut(record, {
+    content: record.content + (record.reference.owner.name === malformed ? "\n## Closeout\n\nIncomplete.\n" : closeout),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+  })), { verb: "archive", lifecycleAction: "archive" }));
+}
+
+it("accepts completed cohorts with authored closeout after the final member archives", async () => {
+  const h = await fixture({ state: "Shipped", cohort: "parent/group" });
+  await completeCohorts(h);
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it.each(["group", "parent/group"])("keeps an earlier member ready after %s closes through another completed member", async cohort => {
+  const h = await fixture({ state: "Shipped", cohort });
+  const other = await h.seedMeta("other", { state: "Integrating", currentWorkflow: "integrate-work-unit", cohort });
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+  lifecycleSuccess(await h.store.write({ ...recordPut(other, { content: makeMetaFixture("other", { state: "Shipped", currentWorkflow: null, cohort }),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  lifecycleSuccess(await batchLifecycleWrites(h.store, h.cohorts.map(record => recordPut(record, {
+    content: record.content + closeout.replace("`example`", "`other`"),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+  })), { verb: "archive", lifecycleAction: "archive" }));
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+  // The second member's independent publication metadata is not needed to establish shared closeout validity.
+  const { storedCohortReadinessFacts } = await import("../../../../src/scripts/review-gate/readiness-store-cohort.js");
+  const { listLifecycleIndex } = await import("../../../../src/lib/store/lifecycle-index.js");
+  const listing = lifecycleSuccess(await listLifecycleIndex(h.store));
+  if (listing.status !== "complete") throw new Error("Expected complete lifecycle inventory");
+  expect(await storedCohortReadinessFacts(h.store, listing.index.entries(), cohort)).toEqual([]);
+});
+
+it("refuses a completed closeout naming a completed nonmember and accepts it after correction", async () => {
+  const h = await fixture({ state: "Shipped", cohort: "group" });
+  await h.seedMeta("foreign", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const cohort = h.cohorts[0]!;
+  lifecycleSuccess(await h.store.write({ ...recordPut(cohort, { content: cohort.content + closeout.replace("`example`", "`foreign`"),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",
+    payload: { facts: expect.arrayContaining([expect.objectContaining({ code: "malformed-cohort-closeout" })]) } });
+  const current = lifecycleSuccess(await h.store.read({ reference: cohort.reference }));
+  lifecycleSuccess(await h.store.write({ ...recordPut(current, { content: cohort.content + closeout }),
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it("refuses a planned cohort with no open holding", async () => {
+  const h = await fixture({ state: "Shipped", cohort: "group" });
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",
+    payload: { facts: expect.arrayContaining([expect.objectContaining({ code: "incomplete-cohort-closeout" })]) } });
+});
+
+it.each(["member", "subcohort"] as const)("retains planned coordination while an open %s remains", async holding => {
+  const h = await fixture({ state: "Shipped", cohort: "group" });
+  if (holding === "member") await h.seedMeta("other", { cohort: "group" });
+  else await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "child" })),
+    "# Cohort: child\n\n**Purpose:** More coordinated work.\n\n**Parent:** `group`\n");
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it.each([false, true])("distinguishes missing coordination from missing final closeout, open: %s", async open => {
+  const h = await fixture({ state: "Shipped", cohort: "group" });
+  if (open) await h.seedMeta("other", { cohort: "group" });
+  const list = h.store.list.bind(h.store);
+  h.store.list = async input => input.family === "cohort" ? { status: "ok", result: { status: "absent" } } : list(input);
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",
+    payload: { facts: expect.arrayContaining([expect.objectContaining({
+      code: open ? "missing-cohort-coordination" : "missing-cohort-closeout",
+    })]) } });
+});
+
+it.each(["group", "parent"] as const)("refuses malformed completed closeout in %s", async malformed => {
+  const h = await fixture({ state: "Shipped", cohort: "parent/group" });
+  await completeCohorts(h, malformed);
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",
+    payload: { facts: expect.arrayContaining([expect.objectContaining({ code: "malformed-cohort-closeout", path: `cohort/document:${malformed}` })]) } });
+});
+
+it.each([
+  [{ state: "Active" as const }, "wrong-cadence"],
+  [{ notes: null }, "missing-completion-notes"],
+  [{ notes: "[none]" }, "malformed-completion-notes"],
+  [{ branch: "topic/other" }, "vehicle-branch-mismatch"],
+  [{ branch: null }, "vehicle-branch-mismatch"],
+  [{ state: "Shipped", cadence: "manual" }, "wrong-cadence"],
+  [{ cadence: "with-integration" }, "wrong-cadence"],
+  [{ state: "Shipped", branch: "topic/other" }, "vehicle-branch-mismatch"],
+] as const)("refuses unmet stored lifecycle facts: %s", async (options, code) => {
+  const h = await fixture(options);
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",
+    payload: { facts: expect.arrayContaining([expect.objectContaining({ code })]) } });
+});
+
+it("accepts a completed stored work unit without branch/date fields or a change-request link", async () => {
+  const h = await fixture({ state: "Shipped" });
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it("refuses a completed work unit linked to another pull request and accepts it once relinked", async () => {
+  const h = await fixture({ state: "Shipped", changeRequest: 99 });
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",
+    payload: { facts: expect.arrayContaining([expect.objectContaining({ code: "pr-url-mismatch" })]) } });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.primary, { links: { ...h.primary.links,
+    changeRequest: { repository: projectId, number: 42 } } }), provenance: { verb: "integrate", lifecycleAction: "integrate" } }));
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+const inventoryRefusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+  condition: "The inventory's objects are missing.", remedy: { text: "Fetch the missing objects, then retry." } };
+
+it.each([
+  ["refused", "unreadable-artifact", "work-item/meta", "The inventory's objects are missing. Fetch the missing objects, then retry."],
+  ["unreadable", "unreadable-artifact", "work-item/meta", "Another meta cannot be decoded. Restore the inventory."],
+  ["diagnostic", "malformed-artifact", "work-item/meta:other", "Another meta cannot be decoded. Repair the other metadata."],
+  ["missed", "unreadable-artifact", "work-item/meta",
+    "The lifecycle inventory missed records. Repair the work-unit inventory, then retry."],
+] as const)("refuses incomplete stored lifecycle inventory with its remedy: %s, and is ready once complete", async (mode, code, path, message) => {
+  const h = await fixture({ state: "Shipped" });
+  const list = h.store.list.bind(h.store);
+  const key = "work-item/meta:other", condition = "Another meta cannot be decoded.";
+  const outcome = ListingOutcomeSchema.parse(mode === "unreadable"
+    ? { status: "unreadable", condition, remedy: { text: "Restore the inventory." } }
+    : { status: "complete", records: [h.primary], missed: mode === "missed", diagnostics: mode === "diagnostic"
+      ? [{ kind: "malformed", key, condition, remedy: { text: "Repair the other metadata." } }] : [] });
+  h.store.list = async input => input.kind !== "work-item/meta" ? list(input) : mode === "refused"
+    ? { status: "refused", refusal: inventoryRefusal } : { status: "ok", result: outcome };
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
+    facts: expect.arrayContaining([{ code, path, message }]) } });
+  h.store.list = list;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it.each([
+  ["refused", "unreadable-artifact", "cohort/document", "The inventory's objects are missing. Fetch the missing objects, then retry."],
+  ["unreadable", "unreadable-artifact", "cohort/document", "Cohort state is unavailable. Restore cohort state."],
+  ["diagnostic", "malformed-artifact", "cohort/document:other", "Another cohort cannot be decoded. Repair the other cohort."],
+  ["missed", "unreadable-artifact", "cohort/document", "The cohort inventory missed records. Repair the cohort inventory, then retry."],
+] as const)("refuses incomplete stored cohort inventory with its remedy: %s, and is ready once complete", async (mode, code, path, message) => {
+  const h = await fixture({ state: "Shipped", cohort: "group" });
+  await completeCohorts(h);
+  const list = h.store.list.bind(h.store);
+  const outcome = ListingOutcomeSchema.parse(mode === "unreadable"
+    ? { status: "unreadable", condition: "Cohort state is unavailable.", remedy: { text: "Restore cohort state." } }
+    : { status: "complete", records: [], missed: mode === "missed", diagnostics: mode === "diagnostic" ? [{ kind: "malformed",
+      key: "cohort/document:other", condition: "Another cohort cannot be decoded.", remedy: { text: "Repair the other cohort." } }] : [] });
+  h.store.list = async input => input.family !== "cohort" ? list(input) : mode === "refused"
+    ? { status: "refused", refusal: inventoryRefusal } : { status: "ok", result: outcome };
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
+    facts: expect.arrayContaining([{ code, path, message }]) } });
+  h.store.list = list;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it("names a stored cohort's conflict records in its readiness fact, and is ready once resolved", async () => {
+  const h = await fixture({ state: "Shipped", cohort: "group" });
+  await completeCohorts(h);
+  const list = h.store.list.bind(h.store), conflict = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" }));
+  let conflicted = true;
+  h.store.list = async input => {
+    const listed = await list(input);
+    return !conflicted || input.family !== "cohort" || listed.status !== "ok" || listed.result.status !== "complete" ? listed
+      : { status: "ok", result: { ...listed.result, records: listed.result.records.map(record => ({ ...record, conflicts: [conflict] })) } };
+  };
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
+    facts: [{ code: "malformed-artifact", path: "cohort/document:group",
+      message: `The stored cohort has unresolved conflicts.${describeRecordConflicts([conflict])}` }] } });
+  conflicted = false;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it("reports a planned work unit's unreadable metadata fields as their fact before deriving its projected path", async () => {
+  const h = await fixture();
+  const read = h.store.read.bind(h.store);
+  let faulty = true;
+  h.store.read = async input => {
+    const result = await read(input);
+    if (!faulty || input.reference.kind !== "work-item/meta" || result.status !== "ok") return result;
+    return { status: "ok", result: { ...result.result, fields: {}, placement: { kind: "backlog", commitment: "planned" } } };
+  };
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
+    facts: [{ code: "malformed-artifact", path: "work-item/meta:example",
+      message: "Metadata fields for `example` could not be read. Repair the work unit's metadata fields, then retry." }] } });
+  faulty = false;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it.each([["unreadable fields", "fields"], ["unresolved conflicts", "conflicts"]] as const)(
+  "refuses stored work-unit metadata with %s, naming the repair, and is ready once repaired", async (_label, fault) => {
+    const h = await fixture({ state: "Shipped" });
+    const read = h.store.read.bind(h.store);
+    let faulty = true;
+    h.store.read = async input => {
+      const result = await read(input);
+      if (!faulty || input.reference.kind !== "work-item/meta" || result.status !== "ok") return result;
+      return { status: "ok", result: fault === "fields" ? { ...result.result, fields: {} }
+        : { ...result.result, conflicts: [result.result.reference] } };
+    };
+    expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
+      facts: [{ code: "malformed-artifact", message: fault === "fields"
+        ? "Metadata fields for `example` could not be read. Repair the work unit's metadata fields, then retry."
+        : `The stored work-unit metadata has unresolved conflicts.${describeRecordConflicts([h.primary.reference])}` }] } });
+    faulty = false;
+    expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+  });
+
+
+it.each(["metadata", "lifecycle-refused", "lifecycle-unreadable", "lifecycle-diagnostics",
+  "cohort-refused", "cohort-unreadable", "cohort-diagnostics"] as const)(
+  "preserves all supplied commands in public native readiness %s facts", async fault => {
+    const h = await fixture({ state: "Shipped", cohort: "group" });
+    await completeCohorts(h);
+    const list = h.store.list.bind(h.store), read = h.store.read.bind(h.store), before = await h.store.version();
+    const repair = storeRepairCases[0]!, remedy = repair.remedy;
+    const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Stored objects are unavailable.", remedy });
+    if (fault === "metadata") h.store.read = async input => input.reference.kind === "work-item/meta"
+      ? { status: "refused", refusal } : read(input);
+    else h.store.list = async input => {
+      const matches = fault.startsWith("cohort") ? input.family === "cohort" : input.kind === "work-item/meta";
+      if (!matches) return list(input);
+      if (fault.endsWith("refused")) return { status: "refused", refusal };
+      if (fault.endsWith("unreadable")) return { status: "ok", result: { status: "unreadable", condition: refusal.condition, remedy } };
+      return { status: "ok", result: { status: "complete", records: [], missed: true,
+        diagnostics: storeRepairCases.map(({ remedy: item }, i) => ({ kind: "unreadable", key: `entry-${i}`,
+          condition: `Entry ${i} is unavailable.`, remedy: item })) } };
+    };
+    const result = await evaluateReviewReadiness(h.request, { fs, store: h.store });
+    expect(result).toMatchObject({ state: "invalid", nextAction: "stop" });
+    if (result.state !== "invalid") throw new Error("Expected readiness refusal");
+    const messages = result.payload.facts.map(fact => fact.message).join("\n");
+    for (const { remedy: item, command } of fault.endsWith("diagnostics") ? storeRepairCases : [repair]) {
+      expect(messages).toContain(item.text); expect(messages).toContain(command);
+    }
+    expect(await h.store.version()).toEqual(before);
+    h.store.list = list; h.store.read = read;
+    expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+  });

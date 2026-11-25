@@ -12,6 +12,29 @@
  * @module
  */
 
+import { z } from "zod";
+import { withRemoteEvidence } from "../kernel/index.js";
+
+/** Shared fields carried by the status and snapshot producers. */
+export const WorktreeSyncStatusFields = {
+  state: z.enum([
+    "skipped", "clean", "remote-ahead", "local-ahead", "diverged", "no-upstream",
+    "detached-head", "no-remote", "branch-gone", "remote-unavailable",
+  ]),
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
+  branch: z.string().nullable(),
+} as const;
+
+/** Full strict status result from the fetch-owning worktree probe. */
+export const WorktreeSyncStatusResultSchema = z.strictObject({
+  ...WorktreeSyncStatusFields,
+  failureReason: z.enum(["timeout", "error"]).optional(),
+});
+
+/** Strict passive snapshot result with shared remote-evidence pairing. */
+export const WorktreeSnapshotAnalysisResultSchema = withRemoteEvidence(WorktreeSyncStatusFields);
+
 import {
   boundedFetch,
   checkOriginExists,
@@ -21,11 +44,10 @@ import {
 } from "./exec.js";
 import type { HistoryCompletenessResult } from "./history-completeness.js";
 import { readHistoryCompleteness } from "./history-completeness.js";
-import type { RemoteFailureReason } from "../kernel/index.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
 import { readObjectAvailability } from "./object-availability.js";
 import { isGitObjectId } from "./object-id.js";
-import { isGitProcessError } from "./process-error.js";
+import { isGitProcessError, normalizeGitRejection, type GitProcessError } from "./process-error.js";
 import {
   readRemoteHeadSnapshot,
   type RemoteHeadSnapshotResult,
@@ -50,36 +72,9 @@ import {
  *   so recovery can key on a recoverable, non-network failure.
  * - `remote-unavailable` — fetch failed for a transient reason (timeout, network, auth).
  */
-export type WorktreeSyncState =
-  | "skipped"
-  | "clean"
-  | "remote-ahead"
-  | "local-ahead"
-  | "diverged"
-  | "no-upstream"
-  | "detached-head"
-  | "no-remote"
-  | "branch-gone"
-  | "remote-unavailable";
+export type WorktreeSyncState = z.infer<typeof WorktreeSyncStatusFields.state>;
 
-export interface WorktreeSyncStatusResult {
-  state: WorktreeSyncState;
-  /** Local commits not in remote. Always 0 outside healthy states. */
-  ahead: number;
-  /** Remote commits not in local. Always 0 outside healthy states. */
-  behind: number;
-  /**
-   * Current branch name resolved via `getCurrentBranch`. `null` for detached
-   * HEAD or any failure to resolve. Populated on every return arm including
-   * `skipped` so callers don't need their own branch-resolution helper.
-   */
-  branch: string | null;
-  /**
-   * Distinguishes failure modes when `state` is `remote-unavailable`.
-   * Omitted for all other states.
-   */
-  failureReason?: "timeout" | "error";
-}
+export type WorktreeSyncStatusResult = z.infer<typeof WorktreeSyncStatusResultSchema>;
 
 export interface RunWorktreeSyncStatusOptions {
   exec: GitExec;
@@ -104,7 +99,7 @@ export interface RunPassiveWorktreeInspectionOptions {
 /** Inputs for one explicit materializing worktree inspection. */
 export interface RunMaterializingWorktreeInspectionOptions {
   exec: GitExec;
-  /** Bounded fetch timeout in milliseconds. */
+  /** Bounded fetch timeout in milliseconds. Defaults to {@link MATERIALIZING_FETCH_TIMEOUT_MS}. */
   fetchTimeoutMs?: number;
   /** Repository root whose tracking refs may be materialized. */
   cwd?: string;
@@ -127,10 +122,7 @@ export interface AnalyzeWorktreeSnapshotOptions {
 }
 
 /** Worktree relation classified against one immutable advertised snapshot. */
-export type WorktreeSnapshotAnalysisResult = Omit<WorktreeSyncStatusResult, "failureReason"> & (
-  | { remoteEvidence: "exact" | "pending-fetch" | "not-applicable" }
-  | { remoteEvidence: "unreachable"; failureReason: RemoteFailureReason }
-);
+export type WorktreeSnapshotAnalysisResult = z.infer<typeof WorktreeSnapshotAnalysisResultSchema>;
 
 /** Exact or locally inapplicable result from an explicit materializing inspection. */
 export type WorktreeMaterializingInspectionResult = Omit<
@@ -140,6 +132,32 @@ export type WorktreeMaterializingInspectionResult = Omit<
   state: Exclude<WorktreeSyncState, "skipped" | "remote-unavailable">;
   remoteEvidence: "exact" | "not-applicable";
 };
+
+/** A bounded materializing fetch stopped before exact remote evidence was acquired. */
+export class WorktreeFetchTimeoutError extends Error {
+  constructor(
+    readonly branch: string,
+    readonly remoteBranch: string,
+    readonly timeoutMs: number,
+  ) {
+    super(`Materializing the worktree remote tip timed out after ${timeoutMs}ms. `
+      + "Retry the command when the remote responds.");
+    this.name = "WorktreeFetchTimeoutError";
+  }
+}
+
+/** A materializing fetch failed before exact remote evidence was acquired. */
+export class WorktreeFetchFailedError extends Error {
+  constructor(
+    readonly branch: string,
+    readonly remoteBranch: string,
+    readonly failure: GitProcessError,
+  ) {
+    super(`Materializing the worktree remote tip failed: ${failure.message}. `
+      + "Retry the command once the condition Git reported is resolved.", { cause: failure });
+    this.name = "WorktreeFetchFailedError";
+  }
+}
 
 /** Analyze a tracked worktree against supplied remote evidence without acquiring it. */
 export async function analyzeWorktreeSnapshot(
@@ -252,6 +270,12 @@ export async function analyzeWorktreeSnapshot(
 
 /** Default bounded timeout for the worktree-sync fetch. */
 export const DEFAULT_FETCH_TIMEOUT_MS = 3000;
+
+/**
+ * Explicit materialization, and a remote read a requested operation acts on, serve that operation rather than a
+ * quick status probe.
+ */
+export const MATERIALIZING_FETCH_TIMEOUT_MS = 30_000;
 /**
  * Inspect one tracked worktree through a bounded exact-ref read without materializing objects.
  *
@@ -384,7 +408,7 @@ export async function runMaterializingWorktreeInspection(
   const fetch = await boundedFetch(
     exec,
     upstreamBranch,
-    options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS,
+    options.fetchTimeoutMs ?? MATERIALIZING_FETCH_TIMEOUT_MS,
   );
   if (fetch.outcome === "error"
     && isGitProcessError(fetch.error)
@@ -399,11 +423,14 @@ export async function runMaterializingWorktreeInspection(
     });
   }
   if (fetch.outcome === "timeout") {
-    throw new Error("Materializing the worktree remote tip timed out.");
+    throw new WorktreeFetchTimeoutError(
+      branch, upstreamBranch, options.fetchTimeoutMs ?? MATERIALIZING_FETCH_TIMEOUT_MS,
+    );
   }
   if (fetch.outcome === "error") {
-    if (fetch.error instanceof Error) throw fetch.error;
-    throw new Error("Materializing the worktree remote tip failed.", { cause: fetch.error });
+    throw new WorktreeFetchFailedError(branch, upstreamBranch, normalizeGitRejection(fetch.error, {
+      command: "git", args: ["fetch", "origin", upstreamBranch],
+    }));
   }
 
   const advertisedOid = (await exec(

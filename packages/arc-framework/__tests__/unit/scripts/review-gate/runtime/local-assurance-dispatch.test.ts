@@ -126,7 +126,7 @@ describe("local review assurance dispatch", () => {
     const member = await dependencies.composeAssurance(authority(memberVehicle));
     const workUnit = await dependencies.composeAssurance(authority(workUnitVehicle));
     const errand = await dependencies.composeAssurance(
-      authority({ kind: "errand", identity: "repair-review-state" }),
+      authority({ kind: "errand", identity: "repair-review-state", claimId: "claim-1" }),
     );
     if (member.status !== "resolved"
       || workUnit.status !== "resolved"
@@ -182,7 +182,7 @@ describe("local review assurance dispatch", () => {
     // Not a tautology: the Errand arm an unrouted member falls to digests differently,
     // which attest reports as changed guidance rather than as a misrouted vehicle.
     await expect(attest.resolveGuidanceDigest(
-      authority({ kind: "errand", identity: "repair-review-state" }),
+      authority({ kind: "errand", identity: "repair-review-state", claimId: "claim-1" }),
       state,
     )).resolves.not.toBe(published.guidance.guidanceDigest);
   });

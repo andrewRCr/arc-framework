@@ -8,7 +8,7 @@ import { z } from "zod";
 import { parseMetaFile } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
-  declareCliOptionSite,
+  declareCliOperandSite,
   declareInteractionSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
@@ -21,8 +21,15 @@ import {
 } from "../lib/delivery/entry-inspection.js";
 import { inspectRepositoryDeliveryEntry as inspectRepositoryDeliveryEntryAt } from
   "../lib/delivery/repository-entry.js";
+import { resolveReviewInvocation, type ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
+import type { GitExec } from "../lib/git/exec.js";
+import { readStoredDeliveryEntryInput } from "../lib/store/delivery-entry-input.js";
+import { unwrapReviewRecordResult } from "../lib/store/kinds/review/access-shared.js";
 import { createGitExec } from "../lib/io-context.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { raiseNativeResolutionRefusal, resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { nativeRefusalText } from "../lib/store/native-refusal.js";
+import { isOffBranchStoreRefusal } from "../lib/store/refusal-error.js";
+import { refuseWithRemedy } from "./lifecycle-shared.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 const InputSchema = z.union([
@@ -32,30 +39,28 @@ const InputSchema = z.union([
   }),
   z.strictObject({ entryMode: z.enum(["execution", "integrating", "prepublication"]) }),
 ]);
-const OptionsSchema = z.strictObject({ input: z.string().min(1), json: z.boolean().optional() });
+const OptionsSchema = z.strictObject({ input: z.string().min(1) });
 
-export interface DeliveryEntryInspectOptions { readonly input?: string; readonly json?: boolean }
+export interface DeliveryEntryInspectOptions { readonly input?: string }
+
+/** Operational authority and optional external execution boundaries for repository inspection. */
+interface DeliveryEntryInvocationOptions extends ReviewInvocationOptions { cwd?: string; exec?: GitExec }
 
 export const deliveryEntryCommandInputRegistration = {
   commandPath: "delivery entry inspect",
   schema: OptionsSchema,
-  schemaFields: { "option.input": "input", "option.json": "json" },
+  schemaFields: { "operand.input": "input" },
 } as const satisfies CommandInputRegistration;
 
 export const deliveryEntryCommandInputPolicyDeclarations = [{
   commandPath: "delivery entry inspect",
   aliases: [],
   sites: [
-    declareCliOptionSite("input", {
+    declareCliOperandSite("input", {
       acquisition: "handler-required", schemaOwnership: "owned", schemaField: "input",
       cancellation: "not-applicable",
-      automation: { noInput: "read-explicit-stdin", flags: ["--input"], acceptedSyntax: ["--input <json-path>", "--input -"] },
+      automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["<json-path>", "-"] },
       mutationBoundary: "delivery entry context validation", subprocess: "explicit-stdin",
-    }),
-    declareCliOptionSite("json", {
-      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
-      cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-      mutationBoundary: "output selection", subprocess: "none",
     }),
     declareInteractionSite(
       { file: "handlers/delivery-entry.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
@@ -98,7 +103,7 @@ function defaultDependencies(): DeliveryEntryInspectHandlerDependencies {
 function emit(
   dependencies: DeliveryEntryInspectHandlerDependencies,
   result: z.output<typeof DeliveryEntryInspectionResultSchema>
-    | { readonly status: "refused"; readonly reason: string },
+    | { readonly status: "refused"; readonly reason: string; readonly recommendedActionText?: string },
 ): void {
   dependencies.write(`${JSON.stringify({
     schemaVersion: 1,
@@ -139,8 +144,16 @@ export async function handleDeliveryEntryInspect(
     emit(dependencies, result.success
       ? result.data
       : { status: "refused", reason: "invalid-service-result" });
-  } catch {
-    emit(dependencies, { status: "refused", reason: "inspection-unavailable" });
+  } catch (error) {
+    if (isOffBranchStoreRefusal(error)) {
+      refuseWithRemedy(error.refusal.condition, error.refusal.remedy, true, error.refusal);
+      dependencies.setExitCode(1);
+      return;
+    }
+    // A native store, project-identity, or owner refusal keeps its condition and remedy for the operator.
+    const recommendedActionText = nativeRefusalText(error);
+    emit(dependencies, { status: "refused", reason: "inspection-unavailable",
+      ...(recommendedActionText === null ? {} : { recommendedActionText }) });
   }
 }
 
@@ -158,24 +171,34 @@ function resolveTaskListPath(cwd: string, activePath: string, taskList: string):
 export async function inspectActiveRepositoryDeliveryEntry(
   input: z.infer<typeof InputSchema>,
   interaction?: InteractionContext,
+  invocation: DeliveryEntryInvocationOptions = {},
 ): Promise<DeliveryEntryInspectionResult> {
-  const cwd = requireArcProjectRoot();
+  const cwd = invocation.cwd ?? requireArcProjectRoot();
   if (cwd === null) throw new Error("ARC project root unavailable");
-  const active = await resolveActiveWu({ cwd });
+  const exec = invocation.exec ?? createGitExec(interaction?.subprocess);
+  const bound = resolveReviewInvocation({ ...invocation, cwd, exec });
+  const active = raiseNativeResolutionRefusal(await resolveActiveWu({ cwd, store: bound.store, projectId: bound.projectId }));
   if (active.status !== "resolved" || active.name === "") throw new Error("Active work unit unavailable");
-  const parsedMeta = parseMetaFile(await readFile(resolve(cwd, active.path), "utf8"));
-  if (parsedMeta.taskList === null || parsedMeta.taskList === "[none]") {
-    throw new Error("Task list unavailable");
+  let taskListPath: string;
+  if (bound.store.capabilities.stateOffBranch) {
+    const stored = unwrapReviewRecordResult(bound.store, await readStoredDeliveryEntryInput(cwd, bound.store, active.name, bound.workItem));
+    bound.workItem = stored.primary.reference.owner;
+    taskListPath = stored.taskListPath;
+  } else {
+    const parsedMeta = parseMetaFile(await readFile(resolve(cwd, active.path), "utf8"));
+    if (parsedMeta.taskList === null || parsedMeta.taskList === "[none]") throw new Error("Task list unavailable");
+    const resolved = resolveTaskListPath(cwd, active.path, parsedMeta.taskList);
+    if (resolved === null) throw new Error("Task list path invalid");
+    taskListPath = resolved;
   }
-  const taskListPath = resolveTaskListPath(cwd, active.path, parsedMeta.taskList);
-  if (taskListPath === null) throw new Error("Task list path invalid");
   const { settings } = await readConfigSettings(cwd);
 
   return inspectRepositoryDeliveryEntryAt({
+    ...bound,
     cwd,
     taskListPath,
     request: DeliveryEntryInspectionRequestSchema.parse({ workUnitId: active.name, ...input }),
     baseBranch: settings["branch.base"],
-    exec: createGitExec(interaction?.subprocess),
+    exec,
   });
 }

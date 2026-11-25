@@ -1,6 +1,7 @@
 /** Truthful provider-neutral frontline execution outcome normalization. */
 
 import { z } from "zod";
+import { PortableFrontlineSourceSchema } from "../core/portable-frontline-admission.js";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import {
@@ -9,14 +10,19 @@ import {
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
-import { NormalizedReviewFindingSchema } from "../core/finding-records.js";
+import { NormalizedReviewFindingsSchema } from "../core/finding-records.js";
 import {
   FrontlineSourceDescriptorSchema,
   type FrontlineSourceDescriptor,
 } from "./frontline-source.js";
 
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const EmptyFindingsSchema = z.array(NormalizedReviewFindingSchema).max(0);
+const EmptyFindingsSchema = NormalizedReviewFindingsSchema.refine((findings) => findings.length === 0, {
+  message: "non-finding outcomes require an empty finding set",
+});
+const NonEmptyFindingsSchema = NormalizedReviewFindingsSchema.refine((findings) => findings.length > 0, {
+  message: "finding outcomes require at least one finding",
+});
 
 export const FrontlineUnavailableRetryReasonSchema = z.strictObject({
   class: z.enum(["rate-limited", "transient-unavailable"]),
@@ -37,9 +43,11 @@ export const FrontlineFailedRetryReasonSchema = z.strictObject({
     "signal-termination",
     "unexpected-adapter-failure",
   ]),
+  detail: z.string().trim().min(1).max(400).optional(),
 });
 export const FrontlineFailedRepairReasonSchema = z.strictObject({
   class: z.enum(["invalid-output", "authorization-rejected"]),
+  detail: z.string().trim().min(1).max(400).optional(),
 });
 export const FrontlineFailedReasonSchema = z.union([
   FrontlineFailedRetryReasonSchema,
@@ -78,7 +86,7 @@ const FrontlineProviderResultSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("clean") }),
   z.strictObject({
     kind: z.literal("findings"),
-    findings: z.array(NormalizedReviewFindingSchema).min(1),
+    findings: NonEmptyFindingsSchema,
   }),
   z.strictObject({ kind: z.literal("rate-limited") }),
   z.strictObject({ kind: z.literal("unavailable"), reason: z.string().min(1) }),
@@ -101,64 +109,72 @@ const FrontlineProviderResultSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("pass-cap-exhausted") }),
 ]);
 
-const FrontlineOutcomeBaseShape = {
-  schemaVersion: z.literal(1),
-  semanticsVersion: z.literal("frontline-review/v1"),
-  source: FrontlineSourceDescriptorSchema,
-  target: ReviewTargetSchema,
-  pass: ReviewPassSchema,
-  maxPasses: ReviewPassSchema,
-};
+function frontlineOutcomeSchema<Source extends z.ZodType>(source: Source) {
+  const base = {
+    schemaVersion: z.literal(1),
+    semanticsVersion: z.literal("frontline-review/v1"),
+    source,
+    target: ReviewTargetSchema,
+    pass: ReviewPassSchema,
+    maxPasses: ReviewPassSchema,
+  };
+  return z.discriminatedUnion("outcome", [
+    z.strictObject({
+      ...base,
+      outcome: z.literal("clean"),
+      findings: EmptyFindingsSchema,
+      reason: z.null(),
+    }),
+    z.strictObject({
+      ...base,
+      outcome: z.literal("findings"),
+      findings: NonEmptyFindingsSchema,
+      reason: z.null(),
+    }),
+    z.strictObject({
+      ...base,
+      outcome: z.literal("unavailable"),
+      findings: EmptyFindingsSchema,
+      reason: FrontlineUnavailableReasonSchema,
+    }),
+    z.strictObject({
+      ...base,
+      outcome: z.literal("failed"),
+      findings: EmptyFindingsSchema,
+      reason: FrontlineFailedReasonSchema,
+    }),
+    z.strictObject({
+      ...base,
+      outcome: z.literal("timed-out"),
+      findings: EmptyFindingsSchema,
+      reason: FrontlineTimedOutReasonSchema,
+    }),
+    z.strictObject({
+      ...base,
+      outcome: z.literal("stale-target"),
+      findings: EmptyFindingsSchema,
+      reason: FrontlineStaleTargetReasonSchema,
+    }),
+    z.strictObject({
+      ...base,
+      outcome: z.literal("pass-cap-exhausted"),
+      findings: EmptyFindingsSchema,
+      reason: FrontlinePassCapReasonSchema,
+    }),
+  ]).superRefine((record, context) => {
+    if (record.pass > record.maxPasses) {
+      context.addIssue({ code: "custom", message: "pass cannot exceed maxPasses", path: ["pass"] });
+    }
+  });
+}
 
-export const FrontlineExecutionOutcomeSchema = z.discriminatedUnion("outcome", [
-  z.strictObject({
-    ...FrontlineOutcomeBaseShape,
-    outcome: z.literal("clean"),
-    findings: EmptyFindingsSchema,
-    reason: z.null(),
-  }),
-  z.strictObject({
-    ...FrontlineOutcomeBaseShape,
-    outcome: z.literal("findings"),
-    findings: z.array(NormalizedReviewFindingSchema).min(1),
-    reason: z.null(),
-  }),
-  z.strictObject({
-    ...FrontlineOutcomeBaseShape,
-    outcome: z.literal("unavailable"),
-    findings: EmptyFindingsSchema,
-    reason: FrontlineUnavailableReasonSchema,
-  }),
-  z.strictObject({
-    ...FrontlineOutcomeBaseShape,
-    outcome: z.literal("failed"),
-    findings: EmptyFindingsSchema,
-    reason: FrontlineFailedReasonSchema,
-  }),
-  z.strictObject({
-    ...FrontlineOutcomeBaseShape,
-    outcome: z.literal("timed-out"),
-    findings: EmptyFindingsSchema,
-    reason: FrontlineTimedOutReasonSchema,
-  }),
-  z.strictObject({
-    ...FrontlineOutcomeBaseShape,
-    outcome: z.literal("stale-target"),
-    findings: EmptyFindingsSchema,
-    reason: FrontlineStaleTargetReasonSchema,
-  }),
-  z.strictObject({
-    ...FrontlineOutcomeBaseShape,
-    outcome: z.literal("pass-cap-exhausted"),
-    findings: EmptyFindingsSchema,
-    reason: FrontlinePassCapReasonSchema,
-  }),
-]).superRefine((record, context) => {
-  if (record.pass > record.maxPasses) {
-    context.addIssue({ code: "custom", message: "pass cannot exceed maxPasses", path: ["pass"] });
-  }
-});
+export const FrontlineExecutionOutcomeSchema = frontlineOutcomeSchema(FrontlineSourceDescriptorSchema);
 export type FrontlineExecutionOutcome = z.infer<typeof FrontlineExecutionOutcomeSchema>;
+
+export const FrontlineReviewOutcomeSchema = frontlineOutcomeSchema(z.union([
+  FrontlineSourceDescriptorSchema, PortableFrontlineSourceSchema,
+]));
+export type FrontlineReviewOutcome = z.infer<typeof FrontlineReviewOutcomeSchema>;
 
 /**
  * Normalize a carrier result against its exact source, target, and bounded pass.
@@ -246,7 +262,10 @@ export function normalizeFrontlineOutcome(input: {
       });
     case "failed":
       return FrontlineExecutionOutcomeSchema.parse({
-        ...base, outcome: "failed", findings: [], reason: { class: "unexpected-adapter-failure" },
+        ...base,
+        outcome: "failed",
+        findings: [],
+        reason: { class: "unexpected-adapter-failure", detail: providerResult.reason.slice(0, 400) },
       });
     case "pass-cap-exhausted":
       return FrontlineExecutionOutcomeSchema.parse({

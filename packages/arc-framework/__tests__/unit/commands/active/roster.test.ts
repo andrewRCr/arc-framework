@@ -31,9 +31,9 @@ const THREE_WORKTREES = [
 
 const META_TREE: Record<string, string> = {
   "/repo.wu-a/.arc/active/meta-wu-a.md":
-    "# A\n\n- **State:** Active\n- **Owner:** andrew\n- **Branch:** feat/wu-a\n",
+    "# Metadata: wu-a\n\n| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n| --------- | --------- | ---------- | --------- | ------------ |\n| Active | andrew | feat/wu-a | — | — |\n\n---\n",
   "/repo.wu-b/.arc/active/meta-wu-b.md":
-    "# B\n\n- **State:** Active\n- **Owner:** dana\n- **Branch:** feat/wu-b\n",
+    "# Metadata: wu-b\n\n| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n| --------- | --------- | ---------- | --------- | ------------ |\n| Active | dana | feat/wu-b | — | — |\n\n---\n",
 };
 
 function execReturning(stdout: string): GitExec {

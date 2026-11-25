@@ -10,7 +10,7 @@ import { posix } from "node:path";
 
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { contentDigest, type ArtifactSetEntry } from "../canonical/content-digest.js";
-import type { ManagedPath } from "../canonical/managed-path.js";
+import type { ManagedPath } from "../kernel/canonical/managed-path.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";

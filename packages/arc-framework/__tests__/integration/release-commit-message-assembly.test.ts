@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { access, chmod, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { tmpdir } from "node:os";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -15,11 +15,11 @@ import {
 import { classifyCommitMessageInput } from "../../src/lib/release/commit-message-source.js";
 import { renderCommitMessageRetryCommand } from "../../src/lib/release/commit-message-retry.js";
 import type { ResolvedSettingsResult } from "../../src/lib/config/resolved-settings.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
+import { createGitExec } from "../../src/lib/io-context.js";
 import {
-  cleanupRealConsumedMessageRetry,
   createRealCommitMessageSnapshot,
-  persistRealCommitMessageRetry,
-  readRealCommitMessageFileWithIdentity,
+  createRealCommitMessageRetryStore,
 } from "../../src/handlers/release/commit-cli.js";
 import { runReleaseCommit } from "../../src/handlers/release/commit.js";
 
@@ -30,6 +30,8 @@ interface GitResult {
 
 let repository = "";
 let capturePath = "";
+const snapshotMessage = createRealCommitMessageSnapshot(createGitExec());
+const retryStore = createRealCommitMessageRetryStore(createGitExec());
 
 async function runGit(args: readonly string[], stdin?: Uint8Array): Promise<GitResult> {
   return new Promise((resolve, reject) => {
@@ -196,37 +198,71 @@ describe("Git-managed controls", () => {
 });
 
 describe("captured file snapshot", () => {
+  it("uses the invocation executor to locate the Git directory", async () => {
+    const alternate = await mkdtemp(join(tmpdir(), "arc-bound-message-"));
+    try {
+      const exec: GitExec = async () => ({ stdout: `${alternate}\n` });
+      const snapshot = await createRealCommitMessageSnapshot(exec)({
+        cwd: repository,
+        bytes: Buffer.from("bound message"),
+      });
+      expect(snapshot.path.startsWith(`${alternate}${sep}`)).toBe(true);
+      expect((await readFile(snapshot.path)).toString()).toBe("bound message");
+      await snapshot.cleanup();
+    } finally {
+      await cleanupTempDir(alternate);
+    }
+  });
+
   it("writes private bytes under the absolute worktree Git directory and removes them", async () => {
     const bytes = Uint8Array.from([0x63, 0x61, 0x66, 0xe9]);
 
-    const snapshot = await createRealCommitMessageSnapshot({ cwd: repository, bytes });
+    const snapshot = await snapshotMessage({ cwd: repository, bytes });
 
-    expect(snapshot.path.startsWith(`${join(repository, ".git")}/`)).toBe(true);
+    expect(snapshot.path.startsWith(`${join(repository, ".git")}${sep}`)).toBe(true);
     expect(Uint8Array.from(await readFile(snapshot.path))).toEqual(bytes);
-    expect((await stat(snapshot.path)).mode & 0o777).toBe(0o600);
+    // POSIX owner-only mode bits have no equivalent in Node's Windows file modes.
+    if (process.platform !== "win32") {
+      expect((await stat(snapshot.path)).mode & 0o777).toBe(0o600);
+    }
     await snapshot.cleanup();
     expect(await exists(snapshot.path)).toBe(false);
   });
 });
 
 describe("latest retry message", () => {
+  it("persists retry bytes under the Git directory from the bound executor", async () => {
+    const alternate = await mkdtemp(join(tmpdir(), "arc-bound-retry-"));
+    try {
+      const exec: GitExec = async () => ({ stdout: `${alternate}\n` });
+      const retry = await createRealCommitMessageRetryStore(exec).persist({
+        cwd: repository,
+        bytes: Buffer.from("retry through bound Git"),
+      });
+      expect(retry.path.startsWith(`${alternate}${sep}`)).toBe(true);
+      expect((await readFile(retry.path)).toString()).toBe("retry through bound Git");
+    } finally {
+      await cleanupTempDir(alternate);
+    }
+  });
+
   it("resolves primary and linked worktree destinations beneath their absolute Git directories", async () => {
     const linkedParent = await mkdtemp(join(tmpdir(), "arc-release-message-linked-"));
     const linked = join(linkedParent, "linked repo");
     try {
       expect((await runGit(["worktree", "add", "--detach", linked])).exitCode).toBe(0);
 
-      const primaryRetry = await persistRealCommitMessageRetry({
+      const primaryRetry = await retryStore.persist({
         cwd: repository,
         bytes: Buffer.from("primary"),
       });
-      const linkedRetry = await persistRealCommitMessageRetry({
+      const linkedRetry = await retryStore.persist({
         cwd: linked,
         bytes: Buffer.from("linked"),
       });
 
-      expect(primaryRetry.path.startsWith(`${join(repository, ".git")}/`)).toBe(true);
-      expect(linkedRetry.path.startsWith(`${join(repository, ".git", "worktrees")}/`)).toBe(true);
+      expect(primaryRetry.path.startsWith(`${join(repository, ".git")}${sep}`)).toBe(true);
+      expect(linkedRetry.path.startsWith(`${join(repository, ".git", "worktrees")}${sep}`)).toBe(true);
       expect(linkedRetry.path).not.toBe(primaryRetry.path);
     } finally {
       await cleanupTempDir(linkedParent);
@@ -234,11 +270,11 @@ describe("latest retry message", () => {
   });
 
   it("uses private permissions and atomically replaces the latest bytes", async () => {
-    const first = await persistRealCommitMessageRetry({
+    const first = await retryStore.persist({
       cwd: repository,
       bytes: Buffer.from("first message"),
     });
-    const second = await persistRealCommitMessageRetry({
+    const second = await retryStore.persist({
       cwd: repository,
       bytes: Buffer.from("replacement message"),
     });
@@ -247,15 +283,17 @@ describe("latest retry message", () => {
     expect(Uint8Array.from(await readFile(second.path))).toEqual(
       Uint8Array.from(Buffer.from("replacement message")),
     );
-    expect((await stat(second.path)).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") {
+      expect((await stat(second.path)).mode & 0o777).toBe(0o600);
+    }
   });
 
   it("removes only the consumed retry generation at its exact path", async () => {
     const firstBytes = Buffer.from("first message");
-    const retry = await persistRealCommitMessageRetry({ cwd: repository, bytes: firstBytes });
-    const firstGeneration = await readRealCommitMessageFileWithIdentity(retry.path);
+    const retry = await retryStore.persist({ cwd: repository, bytes: firstBytes });
+    const firstGeneration = await retryStore.readFileWithIdentity(retry.path);
 
-    expect(await cleanupRealConsumedMessageRetry({
+    expect(await retryStore.cleanup({
       cwd: repository,
       sourcePath: join(repository, "unrelated-message"),
       sourceIdentity: firstGeneration.identity,
@@ -263,16 +301,16 @@ describe("latest retry message", () => {
     expect(await exists(retry.path)).toBe(true);
 
     const replacementBytes = Buffer.from("first message");
-    await persistRealCommitMessageRetry({ cwd: repository, bytes: replacementBytes });
-    expect(await cleanupRealConsumedMessageRetry({
+    await retryStore.persist({ cwd: repository, bytes: replacementBytes });
+    expect(await retryStore.cleanup({
       cwd: repository,
       sourcePath: retry.path,
       sourceIdentity: firstGeneration.identity,
     })).toBe(false);
     expect(await exists(retry.path)).toBe(true);
 
-    const replacementGeneration = await readRealCommitMessageFileWithIdentity(retry.path);
-    expect(await cleanupRealConsumedMessageRetry({
+    const replacementGeneration = await retryStore.readFileWithIdentity(retry.path);
+    expect(await retryStore.cleanup({
       cwd: repository,
       sourcePath: retry.path,
       sourceIdentity: replacementGeneration.identity,
@@ -303,13 +341,14 @@ describe("latest retry message", () => {
         }),
         spawnGit: async () => ({ exitCode: 7, stdout: "", stderr: "hook failed" }),
         resolveHead: async () => "unused",
-        createMessageSnapshot: createRealCommitMessageSnapshot,
+        createMessageSnapshot: snapshotMessage,
         persistMessageRetry: async (opts) => {
-          const retry = await persistRealCommitMessageRetry(opts);
+          const retry = await retryStore.persist(opts);
           retryPath = retry.path;
           return retry;
         },
-        cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
+        cleanupConsumedMessageRetry: retryStore.cleanup,
+        listRemoteRefsContainingHead: async () => [],
         preflightRemedy: "unused",
         writeStderr: (message) => { stderr.push(message); },
         appendAudit: async () => ({ ok: true }),
@@ -326,7 +365,7 @@ describe("latest retry message", () => {
         settings: authorizingSettings(),
         currentBranch: "HEAD",
         preflightCommitMessage: async () => {
-          const captured = await readRealCommitMessageFileWithIdentity(retryPath);
+          const captured = await retryStore.readFileWithIdentity(retryPath);
           return {
             kind: "passed",
             verdict: "pass",
@@ -344,9 +383,10 @@ describe("latest retry message", () => {
           return { exitCode: 0, stdout: "", stderr: "" };
         },
         resolveHead: async () => "1a2b3c4d5e6f7890abcdef1234567890abcdef12",
-        createMessageSnapshot: createRealCommitMessageSnapshot,
-        persistMessageRetry: persistRealCommitMessageRetry,
-        cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
+        createMessageSnapshot: snapshotMessage,
+        persistMessageRetry: retryStore.persist,
+        cleanupConsumedMessageRetry: retryStore.cleanup,
+        listRemoteRefsContainingHead: async () => [],
         preflightRemedy: "unused",
         writeStderr: (message) => { stderr.push(message); },
         appendAudit: async () => ({ ok: true }),

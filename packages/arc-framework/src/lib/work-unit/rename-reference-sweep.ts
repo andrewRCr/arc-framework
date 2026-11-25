@@ -3,6 +3,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, join, posix } from "node:path";
 
+import { rewriteCohortMemberHeading } from "../store/kinds/cohort/index.js";
 import {
   formatValue,
   parseMetaRecord,
@@ -10,7 +11,7 @@ import {
 } from "../active/meta-reader.js";
 import { listArcFiles } from "../fs.js";
 
-/** Filesystem seams used by {@link sweepRenameReferences}. */
+/** Filesystem seams used to plan and apply reference rewrites. */
 export interface RenameReferenceSweepContext {
   listFiles(root: string): Promise<string[]>;
   readFile(path: string): Promise<string>;
@@ -54,6 +55,8 @@ export interface RenameReferenceSweepParams {
   cohortDocRelativePath?: string;
   /** Exact current-checkout metas withheld from an in-flight coordination hazard. */
   excludedPaths?: readonly string[];
+  /** Exact conventional filenames acquired by a record-based rename. */
+  artifactRenames?: ReadonlyMap<string, string>;
 }
 
 /** Paths changed by the bounded reference sweep, relative to the repository root. */
@@ -70,35 +73,6 @@ export interface RenameReferenceEdit {
 /** A deterministic reference-sweep plan and its authority-bound path set. */
 export interface RenameReferencePlan extends RenameReferenceSweepResult {
   edits: RenameReferenceEdit[];
-}
-
-/** Rewrite one member heading only inside a cohort doc's `## Members` section. */
-export function rewriteCohortMemberHeading(content: string, sourceSlug: string, targetSlug: string): string {
-  let inMembers = false;
-  return content.split("\n").map((line) => {
-    const h2 = /^##\s+(.*)$/u.exec(line);
-    if (h2 !== null) {
-      inMembers = (h2[1] ?? "").trim().toLowerCase() === "members";
-      return line;
-    }
-    return inMembers && line === `### \`${sourceSlug}\`` ? `### \`${targetSlug}\`` : line;
-  }).join("\n");
-}
-
-/**
- * Rewrite renamed artifact code spans and exact `Depends On` edges in lifecycle tiers.
- *
- * @param params - ARC root, slug map, and optional cohort document
- * @param ctx - Injectable filesystem traversal; defaults to the shipped ARC file walker
- * @returns Repository-relative paths whose content changed
- */
-export async function sweepRenameReferences(
-  params: RenameReferenceSweepParams,
-  ctx: RenameReferenceSweepContext = nodeContext,
-): Promise<RenameReferenceSweepResult> {
-  const plan = await planRenameReferences(params, ctx);
-  await applyRenameReferencePlan(plan, ctx);
-  return { changedPaths: plan.changedPaths };
 }
 
 /**
@@ -128,8 +102,9 @@ export async function planRenameReferences(
       original,
       params.sourceSlug,
       params.targetSlug,
+      params.artifactRenames,
     );
-    rewritten = rewriteBacktickedArtifactReferences(rewritten, params.sourceSlug, params.targetSlug);
+    rewritten = rewriteBacktickedArtifactReferences(rewritten, params.sourceSlug, params.targetSlug, params.artifactRenames);
     if (basename(relativePath).startsWith("meta-") && basename(relativePath).endsWith(".md")) {
       rewritten = rewriteDependsOn(rewritten, params.sourceSlug, params.targetSlug);
     }
@@ -157,14 +132,18 @@ function isLifecycleTierFile(path: string): boolean {
     || path.startsWith("backlog/provisional/");
 }
 
+/** Apply only the conventional artifact's supported self-title and planning-operand rewrites. */
 function rewriteArtifactSelfReferences(
   relativePath: string,
   content: string,
   sourceSlug: string,
   targetSlug: string,
+  artifactRenames?: ReadonlyMap<string, string>,
 ): string {
+  const filename = basename(relativePath);
   const rule = ARTIFACT_SELF_TITLE_RULES.find(
-    (candidate) => basename(relativePath) === `${candidate.prefix}-${sourceSlug}.md`,
+    (candidate) => filename === `${candidate.prefix}-${sourceSlug}.md`
+      || (artifactRenames?.has(filename) === true && filename.startsWith(`${candidate.prefix}-`)),
   );
   if (rule === undefined) return content;
 
@@ -184,11 +163,19 @@ function rewriteArtifactSelfReferences(
   );
 }
 
-function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string, targetSlug: string): string {
-  const escaped = sourceSlug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const pattern = new RegExp("`([a-z]+)-" + escaped + "\\.md`", "gu");
-  return content.replace(pattern, (match, prefix: string) =>
-    prefix === "cohort" ? match : `\`${prefix}-${targetSlug}.md\``);
+/** Rewrite each original backticked filename once, preferring exact acquired names to the conventional suffix. */
+export function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string, targetSlug: string,
+  artifactRenames?: ReadonlyMap<string, string>): string {
+  const escape = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const names = [...(artifactRenames?.keys() ?? [])].map(escape);
+  names.push(`[a-z]+-${escape(sourceSlug)}\\.md`);
+  const pattern = new RegExp("`(" + names.join("|") + ")`", "gu");
+  return content.replace(pattern, (match, filename: string) => {
+    const exact = artifactRenames?.get(filename);
+    if (exact !== undefined) return `\`${exact}\``;
+    return filename === `cohort-${sourceSlug}.md` ? match
+      : `\`${filename.slice(0, -sourceSlug.length - 3)}${targetSlug}.md\``;
+  });
 }
 
 function rewriteDependsOn(content: string, sourceSlug: string, targetSlug: string): string {

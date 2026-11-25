@@ -23,6 +23,50 @@ atomic companion and the personal atomic inbox.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Carry a recommendation into approval gates, not only advisory forks**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: TBD`
+
+- _Home note:_ not `interlock-release-refinement` (that member owns wrapper routing, not prompt content). The
+  `approval-flow-refinement` cohort owns the unit of approval; this is the content of the approval prompt, so it is
+  either a small Rule Authority follow-on beside "A stop with one answer" or a new cohort member. Resolve at drain.
+
+- _Observation:_ `DEV-RULES.ARC` § Recommend on advisory forks requires a recommended option with a one-line
+  rationale on advisory accept/decline forks and explicitly excludes mandatory approval gates. At lifecycle
+  approval gates agents therefore render "approve X?" even when the typed result already composed a recommended
+  action, or when a short residual judgment would change what is worth approving. The user keeps the final say
+  either way; the bare form spends the approval turn without the judgment ARC exists to surface.
+
+- _Approach:_ extend the rule to approval gates in the form "given X, I recommend Y — approve?", with the split
+  that keeps routine ops cheap: the verb composes the recommendation wherever the facts are deterministic (the
+  session-init envelope's `recommendedAction` / `recommendedPromptText` is the existing pattern), and the agent
+  supplies one only for a genuinely open residual. Not a judgment-authority-model change; the invariant holders
+  and interlock semantics stay as they are.
+
+- _Coordination:_ `concurrent-integration-characterization` records per stop whether the returned result carried a
+  recommendation or a bare fork; that ledger is field evidence for this rule's scope.
+
+- _Field evidence (2026-09-14):_ that ledger closed with six bare stops, and the pattern is inverted from what the
+  rule would predict. Four of the six are the same typed result — the checkpoint's `reconcile / reconcile-base`,
+  once on the singleton path and three times across the delivery-member cells — and it is what the boundary returns
+  _after_ deciding the movement is tolerable. The other two are teardown's authority-ref refusal and public review's
+  `base-moved / rerun-checkpoint`, which names an action but carries no argv for it. **The bare stops are the safe
+  results**; every refusal at the landing boundary carries a remedy. So the gap is not that hard outcomes go
+  unexplained — it is that the outcomes a session can act on are the ones left without a composed next step.
+
+- _Observation (one-answer stops):_ the same family from the other side. Agents routinely stop to ask whether to
+  take the only forward path there is ("the next indicated step is this checkpoint — run it?") on non-destructive,
+  reversible verbs. `DEV-RULES.ARC` § Rule Authority "A stop with one answer" already says to discharge such a stop
+  when the action is reversible in one turn; the stops are the agent under-applying it, plus a handful of
+  workflow-mandated asks (session-init's closing "proceed to Next Action?", with `--next` as its opt-out) and three
+  session-init channels configured to `prompt` in this project (`session.init_pull.worktree`,
+  `session.init_pull.notes`, `session.init_load.notes`). Audit workflow prose for one-answer asks and decide whether
+  the rule needs a more prominent home or a harness-facing restatement.
+
+- _Captured during:_ `concurrent-integration-characterization` draft-design session, 2026-09-14.
+
 ### `[ ]` **Resolve commit-footer artifacts across lifecycle locations**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
@@ -173,6 +217,94 @@ atomic companion and the personal atomic inbox.
 - _Fold-in:_ settle the classification for skill-owned workflow bodies, then either add the appropriate class
   tag and approval callout or state the raw-routing exemption at the commit step. The always-loaded review
   invariant already supplies the gate; this concern is routing authority, not a missing approval rule.
+
+### `[ ]` **Decide whether the release wrappers still earn their place once harnesses stop prompting per call**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the Problem, and § In-Flight's wrapper-routing extension, whose premise this questions: whether
+  `arc release commit` / `arc release push`, their setup workflow, and class-tag routing remain, shrink to a thin guard,
+  or are removed before the first public release.
+
+- _Observation:_ the wrappers carry two value layers (`strategy-interlock-release-wrappers.md` § Trust Model). The
+  conditional one — skipping the harness's per-call prompt after ARC's approval gate — does nothing under Claude Code's
+  auto mode, which is becoming the default, or under bypass mode. Most of the mechanism serves that layer: the setup
+  workflow and per-harness permission translation, the per-machine opt-in flag and markers, `releaseRouting` in the
+  session-init envelope, and class-tag routing across about 26 shipped workflow files and 16 source files. The
+  unconditional layer (interlock-scope validation, destructive-flag refusal, an audit entry) is small, and binds only
+  when the agent chooses the wrapper; raw `git` skips it, where a harness deny rule or a git hook would not.
+
+- _Evidence:_ the CineXplorer install rehearsal (`2026-10-23T083226`): `/arc-setup`'s wrapper step could not observe a
+  prompt either way, because the user-level allow `Bash(arc:*)` already covers the wrappers and `defaultMode: auto`
+  prompts for neither path. `setup-release-wrapper.md` § Mode detection knows only `bypassPermissions` and reads any
+  other value, `auto` included, as default-prompt; that misreading is a gap whatever this decides. Run through Claude
+  Code's `!` prefix, `arc release setup install` had no terminal to confirm in and stopped with "missing required input:
+  --yes, --workflow-verified", saying neither what the flags attest nor that a plain terminal would ask; the session
+  explained both and left them to the user.
+
+- _Approach:_ establish who still gets a per-call prompt — Codex CLI at its default approval policy (push likely still
+  prompts behind gated network), and teams whose managed settings disable auto mode; whether anything reads the audit
+  log; and which refusals a hook or harness deny rule would enforce better. Then choose between removal (workflows
+  commit with `git` after the approval gate), a thin guard verb with no setup, opt-in, or routing, or keeping the
+  wrappers only for prompting harnesses. Removal is cheapest before the first public release, while unpublished
+  contracts may change in place.
+
+- _Related:_ `composable-workflows` holds a routed concern to load the wrapper mechanics only when `arc.releaseOptedIn`
+  is set, which this would moot or reshape; `graduation-cleanup`'s state-flip commit fires through the `workflowCommit`
+  class tag.
+
+- _Captured during:_ the CineXplorer install rehearsal's `/arc-setup`, 2026-10-23.
+
+### `[ ]` **Add a planned-fix check failure that ended a whole deferred range to the one-answer-stops audit**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Carry a recommendation into approval gates, not only advisory forks", its one-answer-stops observation
+  (that entry's home is the `approval-flow-refinement` cohort's to settle). The in-scope fix rule landed in #1231; what
+  remains is holding one item and continuing the deferred range.
+
+- _Observation:_ a workflow-mandated one-answer ask that cost an overnight range. `storage-ref-hardening`'s Codex
+  implementer stopped at Task 3.4 (2026-11-01) on a feedback failure whose fix Task 3.9.a already specifies, with
+  edits uncommitted and the same pull-forward already made once at Task 3.3.b; implementation waited about 6 hours.
+  The Owner reports it has recurred. In the same window `projection-substrate`'s Opus implementer held one item for
+  the Owner and kept implementing, which the text does not describe either: it says a failure ends the deferred scope.
+
+- _Approach:_ an **in-scope fix** rule (a known-cause fix that plainly serves the goal of a task inside the current
+  approval, within the recorded design, is made, noted on its task, rerun and reported) runs now as Errand #1231 (Owner
+  2026-11-01), widened from a planned-task carve-out after the implementer stopped again on a fix spec § 1.6 required
+  but no task named. Left for the audit: whether a deferred range should hold the one failing item and continue
+  independent tasks rather than end, which needs what commits while an item is held (safe-accumulate or opted-in
+  per-task commits) and how tasks that depend on it are ordered; and whether the Backstop's check-integrity limb should
+  say that fixing and rerunning lies outside it.
+
+- _Captured during:_ `project-manager.ARC`, `storage-ref-hardening`'s overnight stop, 2026-11-01.
+
+### `[ ]` **Let one "yes" accept every recommendation an approval question names**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Carry a recommendation into approval gates, not only advisory forks" (part 1 duplicates it in substance;
+  that entry's home is the `approval-flow-refinement` cohort's to settle).
+
+- _Observation:_ ARC requires a recommendation on every advisory fork (`DEV-RULES.ARC` § Recommend on advisory forks)
+  and review decision, but nothing asks for a closing question that one "yes" can answer. Codex asks for each decision
+  separately, and review reports never offer the next look: `disposition-report` § Closing question says "Never name
+  the next pass", chosen in `cd6ee84b6c` (2026-10-20) because the command cannot see the agent's recommendation
+  (free-text `successorRecommendation`) and a yes would authorize the pass. The Owner wants that authorization, and
+  `review-triage` already lets one reply grant the set and the next activity.
+
+- _Approach:_ (1) Extend § Recommend on advisory forks: end with one question whose "yes" accepts every
+  recommendation, naming each thing it approves; § A stop with one answer and the merge invariant keep their own
+  stops. (2) Give the report input a structured recommended look (one that `nextLooks` admits, or stop) and have
+  `response-report.ts`'s closer name it as its own clause, such as `… → push, then fix check round 2?`; update
+  `disposition-report` § Closing question and its examples. Ask separately for an over-ceiling pass (its consequence
+  comes first), a finding with an open question, and a pass an Owner-set stop rules out. Fix-check approval has no
+  record today, so this is wording plus one input field.
+
+- _Files:_ `DEV-RULES.ARC.md` and `disposition-report.md` (both trees),
+  `packages/arc-framework/src/scripts/review-gate/runtime/response-report.ts`, its report-input schema and tests.
+
+- _Captured during:_ `project-manager.ARC`, 2026-11-10 (Owner-approved; kept in ARC rather than a host rule).
 
 ---
 
@@ -345,10 +477,9 @@ What remains is mostly _routing-half_ work:
   Four mitigation options considered; option (4) admonition variant adopted.
 
 - _Status_ (2026-05-15): option (4) admonition variant adopted in 5 Phase 3 boundary workflows
-  (`init-work-unit.md`, `activate-work-unit.md`, `integrate-work-unit.md`,
-  `archive-work-unit.md`, `1_create-prd.md`) alongside the implied-approval-scope rule. Options
-  (1) inline cue, (2) frontmatter declaration, and (3) DEV-RULES procedural emphasis all
-  superseded — option (4) solves the underlying agent-attention concern at the fire site itself.
+  (`init-work-unit.md`, `activate-work-unit.md`, `integrate-work-unit.md`, `archive-work-unit.md`, `1_create-prd.md`)
+  alongside the implied-approval-scope rule. Options (1) inline cue, (2) frontmatter declaration, and (3) DEV-RULES
+  procedural emphasis all superseded — option (4) solves the underlying agent-attention concern at the fire site itself.
 
 - _Remaining sweep:_ Apply option (4) admonition across other class-tag-using workflows —
   `session-handoff.md`, `prepare-commits.md`, the `arc-commit` skill, and any others identified
@@ -475,11 +606,10 @@ No firm upstream blockers. Soft preferences:
 - **Wait until post-WOR** for the class-tag admonition sweep (avoid tangling with WOR's
   remaining workflow restructures).
 - **Wrapper-routing migration can ship any time post-WOR** — independent of the visibility fix
-  already shipped; doesn't depend on the enum-granularity decision in
-  `plan-customization-arch-realign.md` (the migration works under any of the candidate enum
-  shapes). If the customization arch-realign decision lands first, the migration absorbs the
-  resulting enum; if this plan lands first, the customization plan's text adjusts to the
-  retired routing axis.
+  already shipped; doesn't depend on the enum-granularity decision in `plan-customization-arch-realign.md` (the
+  migration works under any of the candidate enum shapes). If the customization arch-realign decision lands first, the
+  migration absorbs the resulting enum; if this plan lands first, the customization plan's text adjusts to the retired
+  routing axis.
 - **A3 (orientation surface)** — decide after the visibility fix settles in use; could ride
   the wrapper-routing migration or stay deferred indefinitely.
 

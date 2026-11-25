@@ -28,7 +28,13 @@ import { join } from "node:path";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { SlugSchema } from "../kernel/index.js";
-import { ArchiveQuarterSchema, ArchiveSequenceSchema, resolveArcPath } from "../layout/index.js";
+import {
+  ArchiveQuarterSchema,
+  ArchiveSequenceSchema,
+  resolveArcPath,
+} from "../layout/index.js";
+
+import { branchToWorkUnitSlug } from "./work-unit-slug.js";
 
 /** Filesystem adapter — injected for unit testability; production binds `node:fs/promises`. */
 export interface CompletedIndexFs {
@@ -69,9 +75,12 @@ export type ArchivedWorkUnitMetaRead =
   | { readonly kind: "duplicate"; readonly paths: readonly string[] }
   | { readonly kind: "unreadable"; readonly path?: string; readonly reason: string };
 
-/** `NN_<slug>` archive-directory shape; capture group 1 is the WU-name slug. */
+/**
+ * `NN_<slug>` archive-directory shape; capture group 1 is the WU-name slug. A
+ * cohort closeout's letter after its number (`NNa_cohort-<slug>`) fails the
+ * match, so a work unit whose own slug starts with `cohort-` still reads as one.
+ */
 const ARCHIVE_DIR_RE = /^\d+_(.+)$/u;
-const COHORT_ARCHIVE_PREFIX = "cohort-";
 
 /**
  * Completion-order prefix shape; capture group 1 is the numeric `NN`. Matches
@@ -95,9 +104,7 @@ const COMPLETED_META_READ_CONCURRENCY = 16;
  * @returns The WU-name slug, or `null` for a non-WU entry
  */
 function slugFromArchiveDir(entry: string): string | null {
-  const slug = ARCHIVE_DIR_RE.exec(entry)?.[1];
-  if (slug === undefined || slug.startsWith(COHORT_ARCHIVE_PREFIX)) return null;
-  return slug;
+  return ARCHIVE_DIR_RE.exec(entry)?.[1] ?? null;
 }
 
 /**
@@ -339,23 +346,6 @@ async function readCompletedRecordFromMeta(
     prUrl: prMatch?.[1] ?? null,
     prNumber: Number.isSafeInteger(prNumber) ? prNumber : null,
   };
-}
-
-/**
- * Strip a branch's type-prefix to its WU-name slug. A WU branch is
- * `<type>/<slug>` (`feat/foo`, `plan/foo`); the slug is everything after the
- * first `/`. A branch with no `/` (e.g. `main`) carries no WU and returns
- * `null`.
- *
- * @param branch - Branch short-name
- * @returns The WU-name slug, or `null` when the branch is not a WU branch
- */
-export function branchToWorkUnitSlug(branch: string): string | null {
-  if (branch.startsWith("delivery/")) return null;
-  const slash = branch.indexOf("/");
-  if (slash === -1) return null;
-  const slug = branch.slice(slash + 1);
-  return slug === "" ? null : slug;
 }
 
 /**

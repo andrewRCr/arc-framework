@@ -55,6 +55,8 @@ const VALIDATION_DOMAIN_ORDER = [
   "review.hosted_await_timeout_seconds",
   "review.hosted_await_initial_poll_interval_seconds",
   "review.hosted_await_attention_after_minutes",
+  "review.checks_await_timeout_seconds",
+  "review.checks_await_initial_poll_interval_seconds",
   "changeset.advisory_threshold_lines",
   "changeset.advisory_threshold_files",
   "pm.mode",
@@ -67,10 +69,15 @@ const VALIDATION_DOMAIN_ORDER = [
   "user.notes_push",
   "sync.auto_pull",
   "archive.cadence",
+  "storage.track_design_docs",
+  "layout.active",
 ] as const satisfies readonly ArcConfigKey[];
 
 const OPTIONAL_INTEGER_KEYS = [
   "inbox.remind_after_days",
+  "inbound.retriage_after_entries",
+  "inbound.retriage_after_days",
+  "pause.review_after_days",
   "integration.stale_after_days",
 ] as const;
 
@@ -241,6 +248,12 @@ function selectedValue(values: Readonly<Record<string, string>>, key: ArcConfigK
     : value;
 }
 
+/** Each bounded wait's initial polling interval must fit inside its call bound. */
+const AWAIT_TIMING_PAIRS = [
+  ["review.hosted_await_initial_poll_interval_seconds", "review.hosted_await_timeout_seconds"],
+  ["review.checks_await_initial_poll_interval_seconds", "review.checks_await_timeout_seconds"],
+] as const;
+
 function renderCrossFieldChecks(
   output: ValidationOutput,
   values: Readonly<Record<string, string>>,
@@ -249,10 +262,6 @@ function renderCrossFieldChecks(
   const customPattern = selectedValue(values, "commit.custom_pattern");
   const footer = selectedValue(values, "commit.context_footer");
   const contextPattern = selectedValue(values, "commit.context_pattern");
-  const hostedAwaitTimeoutSeconds = Number(selectedValue(values, "review.hosted_await_timeout_seconds"));
-  const hostedAwaitPollIntervalSeconds = Number(
-    selectedValue(values, "review.hosted_await_initial_poll_interval_seconds"),
-  );
 
   if (format === "custom") {
     if (customPattern === "") {
@@ -277,11 +286,10 @@ function renderCrossFieldChecks(
     );
   }
 
-  if (hostedAwaitPollIntervalSeconds > hostedAwaitTimeoutSeconds) {
-    error(
-      output,
-      "review.hosted_await_initial_poll_interval_seconds must not exceed review.hosted_await_timeout_seconds",
-    );
+  for (const [interval, timeout] of AWAIT_TIMING_PAIRS) {
+    if (Number(selectedValue(values, interval)) > Number(selectedValue(values, timeout))) {
+      error(output, `${interval} must not exceed ${timeout}`);
+    }
   }
 }
 
@@ -347,6 +355,10 @@ export async function validateConfigFile(
   const locationTemplate = values["worktree.location_template"];
   if (locationTemplate !== undefined && invalidKeys.has("worktree.location_template")) {
     error(output, "worktree.location_template: '' is not valid (expected: non-empty value)");
+  }
+
+  if (invalidKeys.has("storage.backing_repository")) {
+    error(output, "storage.backing_repository must be empty (unset) or contain a non-whitespace repository pointer");
   }
 
   renderCrossFieldChecks(output, values);

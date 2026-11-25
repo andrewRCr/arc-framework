@@ -22,17 +22,11 @@ the ARC-specific setup and conventions you need to know.
     This sets your role (`arc.role=contributor`) and identity, configures git hooks, and
     sets up your local environment. Use `--yes` for non-interactive mode.
 
-3. **Verify your setup** by running the project's quality gates. All checks should pass
-   on a clean checkout.
-
-<!-- Replace with your project's actual quality gate commands
-     from .arc/reference/QUICK-REFERENCE.md § Quality Gate Commands -->
+3. **Verify your setup** by requesting the project's merge quality gate. All selected checks should pass on a clean
+   checkout.
 
 ```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
+arc check gate merge
 ```
 
 ## Commit Convention
@@ -64,8 +58,8 @@ if you stage changes in these directories. This is a soft warning, not a hard bl
 **Quality standards are the same** for contributors and maintainers — linting, type checking,
 tests, and build verification all apply equally. CI enforces these on every PR.
 
-**Branch from the base branch** (typically `main`) for your work. Check
-`.arc/system/arc-config.yml` → `branch.base` for the project's integration branch.
+**Branch from the base branch** (typically `main`) for your work. Check `.arc/system/arc-config.yml` → `branch.base` for
+the project's integration branch.
 
 **Personal planning is supported, optionally.** The boundary is ownership of tracked state, not
 the presence of planning concepts. If your contribution is substantial enough to benefit from

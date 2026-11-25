@@ -1,17 +1,63 @@
 /** Pinned integration merge behavior and fail-closed exits. */
 
-import { describe, expect, it } from "vitest";
+import { storeRepairCases } from "../../../fixtures/store-repair-remedies.js";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import {
   mergeIntegration,
+  type IntegrationFinalPlan,
   type IntegrationMergeDependencies,
+  type IntegrationMergeTarget,
 } from "../../../../src/scripts/integration/merge.js";
-import { IntegrationCheckpointCompositionRecordSchema } from "../../../../src/scripts/integration/checkpoint-store.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
+import { IntegrationCheckpointCompositionRecordSchema, persistIntegrationCheckpointComposition,
+  readIntegrationCheckpointComposition } from "../../../../src/scripts/integration/checkpoint-store.js";
+import { createIntegrationMergeDependencies } from "../../../../src/scripts/integration/merge-composition.js";
+import { createStoreLifecycleStorage } from "../../../../src/lib/store/lifecycle-storage.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/index.js";
+import { writeMetaPriority } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { adversarialPassFixture } from "../../../fixtures/review-adversarial-pass.js";
+import { MergeLockTransitionRequestSchema } from "../../../../src/scripts/review-gate/merge-lock.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
+import { ProjectIdentityError } from "../../../../src/lib/store/project-identity.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
 const checkpointHandle = `checkpoint-v1:${oid("c")}:${digest("e")}`;
+
+function directFinalPlan(
+  target: IntegrationMergeTarget,
+): Extract<IntegrationFinalPlan, { status: "available" }> {
+  const baseOid = oid("b");
+  return {
+    status: "available",
+    target,
+    baseOid,
+    observation: {
+      movement: "disjoint",
+      integrationEvidenceComplete: true,
+      feasibility: { state: "clean", base: baseOid, head: target.headSha },
+      admission: {
+        state: "mergeable",
+        repository: target.repository,
+        changeRequest: target.pullRequest,
+        baseRef: target.baseRef,
+        base: baseOid,
+        head: target.headSha,
+      },
+    },
+    plan: { state: "proceed" },
+  };
+}
 
 function dependencies() {
   const state = { held: true, merged: false };
@@ -29,7 +75,7 @@ function dependencies() {
         headRef: "feat/example",
         headSha: oid("c"),
       },
-      lifecycleVersion: oid("c"),
+      lifecycleVersion: "meta-example:v1",
       settlementPlan: composeCanonicalSettlementPlan([]),
       mergeMethod: {
         schemaVersion: 1,
@@ -48,7 +94,7 @@ function dependencies() {
     readStatus: async () => ({
       actualHead: oid("c"),
       lifecycleComplete: true,
-      lifecycleVersion: oid("c"),
+      lifecycleVersion: "meta-example:v1",
       target: {
         repository: "owner/repo",
         pullRequest: 42,
@@ -57,7 +103,8 @@ function dependencies() {
         headSha: oid("c"),
       },
     }),
-    readMerged: async () => state.merged,
+    readMerged: async () => state.merged
+      ? { merged: true, providerMergeId: "merge-123" } : { merged: false, providerMergeId: null },
     readConfiguredBase: async () => "main",
     refreshTarget: async (target) => target,
     releaseLock: async () => {
@@ -68,7 +115,7 @@ function dependencies() {
       state.held = true;
       return { state: "held" };
     },
-    createLockRequest: async (target) => ({
+    createLockRequest: async (target) => MergeLockTransitionRequestSchema.parse({
       schemaVersion: 1,
       treeRoot: "/candidate",
       target: {
@@ -78,9 +125,9 @@ function dependencies() {
       },
       vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
     }),
-    awaitChecks: async () => ({
+    observeChecks: async () => ({
       schemaVersion: 1,
-      mode: "review-checks-await",
+      mode: "review-checks-observe",
       repository: "owner/repo",
       pullRequest: 42,
       headSha: oid("c"),
@@ -99,10 +146,30 @@ function dependencies() {
       allowedMethods: ["merge"],
       policyFingerprint: digest("d"),
     }),
-    readFinalDrift: async () => ({ verdict: "clean" }),
-    mergePinned: async () => {
+    readFinalPlan: async (target, admissionOverride) => {
+      const direct = directFinalPlan(target);
+      if (admissionOverride === undefined) return direct;
+      const observation = {
+        ...direct.observation,
+        admission: {
+          ...admissionOverride,
+          repository: target.repository,
+          changeRequest: target.pullRequest,
+          base: direct.baseOid,
+          head: target.headSha,
+        },
+      };
+      return {
+        ...direct,
+        observation,
+        plan: admissionOverride.state === "refused"
+          ? { state: "blocked", reason: "host-refused", detail: admissionOverride.detail }
+          : { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" },
+      } as IntegrationFinalPlan;
+    },
+    mergePinned: async (target) => {
       state.merged = true;
-      return { state: "merged" };
+      return { state: "merged", target, providerMergeId: "merge-123" };
     },
   };
   return { value, state };
@@ -110,13 +177,112 @@ function dependencies() {
 
 const request = { schemaVersion: 1 as const, workUnit: "example", checkpointHandle };
 
+async function storedLifecycleMerge(native = false) {
+  const root = await mkdtemp(join(tmpdir(), "arc-merge-lifecycle-"));
+  onTestFinished(async () => rm(root, { recursive: true, force: true }));
+  await mkdir(join(root, ".arc/system"), { recursive: true });
+  await writeFile(join(root, ".arc/system/arc-config.yml"), "archive.cadence: manual\n");
+  const h = createLifecycleHarness();
+  const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "example" });
+  const meta = await h.seed(recordReferences["work-item/meta"](owner),
+    makeMetaFixture("example", { state: "Integrating", currentWorkflow: null })
+      + "\n## Completion Notes\n\nDelivered the work unit.\n", { kind: "active" });
+  const storage = createStoreLifecycleStorage({ store: h.store, checkoutRoot: root });
+  let actualHead = oid("c");
+  const { exec } = scriptGitExec([
+    { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "feat/example\n", stderr: "" }] },
+    { match: ["rev-parse", "HEAD"], responses: [() => ({ stdout: `${actualHead}\n`, stderr: "" })] },
+  ]);
+  const { value, state } = dependencies();
+  const initial = await value.readCheckpoint("example", checkpointHandle);
+  if (initial === null) throw new Error("Missing initial checkpoint fixture");
+  const { workUnit, approvedHead, target, settlementPlan, mergeMethod } = initial;
+  const checkpoint = async (lifecycleVersion: string) => ({ schemaVersion: 1 as const, workUnit,
+    checkpointHandle: await persistIntegrationCheckpointComposition(root,
+      { workUnit, approvedHead, target, settlementPlan, mergeMethod, lifecycleVersion }) });
+  value.readCheckpoint = (workUnit, handle) => readIntegrationCheckpointComposition(root, workUnit, handle);
+  value.readStatus = createIntegrationMergeDependencies({ cwd: root, exec, workUnit: "example", lifecycleStorage: native ? undefined : storage,
+    ...(native ? { store: h.store, workItem: meta.reference.owner } : {}),
+    changeRequestPort: { resolveRepository: async () => target.repository,
+      readHeadRef: async () => ({ local: null, remote: target.headSha }), searchByHeadSha: async () => [],
+      isAncestor: async () => false,
+      listByHead: async () => [{ number: target.pullRequest, url: "https://example.test/owner/repo/pull/42", state: "OPEN",
+        baseRefName: target.baseRef, headRefName: target.headRef, headRefOid: target.headSha }] } }).readStatus;
+  return { h, meta, storage, value, state, checkpoint, request: await checkpoint(meta.version),
+    moveHead: (head: string) => { actualHead = head; } };
+}
+
+describe("integration merge lifecycle binding", () => {
+  it("invalidates a moved meta record and resumes with a checkpoint of its new version", async () => {
+    const t = await storedLifecycleMerge();
+    await expect(mergeIntegration(t.request, t.value)).resolves.toMatchObject({ state: "merged" });
+    t.state.merged = false;
+    const moved = lifecycleSuccess(await t.h.store.write({ action: "put", reference: t.meta.reference,
+      expected: t.meta.version, placement: { kind: "active" }, content: writeMetaPriority(t.meta.content, "P1"),
+      provenance: { verb: "set-priority", lifecycleAction: "edit" } }));
+    await expect(mergeIntegration(t.request, t.value)).resolves.toMatchObject({ state: "invalidated",
+      reason: "head-mismatch", nextAction: "checkpoint", payload: { checkpointLifecycleVersion: t.meta.version,
+        liveLifecycleVersion: moved.version } });
+    expect(t.state).toEqual({ held: true, merged: false });
+    if (moved.version === undefined) throw new Error("Missing written meta version");
+    await expect(mergeIntegration(await t.checkpoint(moved.version), t.value)).resolves.toMatchObject({ state: "merged" });
+  });
+
+  it("invalidates a moved code head independently of the unchanged meta version", async () => {
+    const t = await storedLifecycleMerge();
+    t.moveHead(oid("d"));
+    await expect(mergeIntegration(t.request, t.value)).resolves.toMatchObject({ state: "invalidated",
+      reason: "head-mismatch", nextAction: "checkpoint", payload: { actualHead: oid("d"),
+        checkpointLifecycleVersion: t.meta.version, liveLifecycleVersion: t.meta.version } });
+    expect(t.state).toEqual({ held: true, merged: false });
+  });
+
+  it.each(["another meta", "a review record"])("merges when only %s advances the namespace", async (record) => {
+    const t = await storedLifecycleMerge();
+    const before = await t.storage.readSnapshot();
+    if (record === "another meta") await t.h.seedMeta("unrelated");
+    else {
+      const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "example" });
+      await t.h.seed(recordReferences["review/adversarial-pass"](owner, { activity: "draft-readiness", number: 1 }),
+        JSON.stringify(adversarialPassFixture()));
+    }
+    expect((await t.storage.readSnapshot()).version).not.toBe(before.version);
+    await expect(mergeIntegration(t.request, t.value)).resolves.toMatchObject({ state: "merged" });
+    expect(t.state).toEqual({ held: false, merged: true });
+  });
+
+  it("invalidates an old HEAD-bound checkpoint and resumes after checkpointing the meta version", async () => {
+    const t = await storedLifecycleMerge();
+    await expect(mergeIntegration(await t.checkpoint(oid("c")), t.value)).resolves.toMatchObject({ state: "invalidated",
+      reason: "head-mismatch", nextAction: "checkpoint", payload: { checkpointLifecycleVersion: oid("c"),
+        liveLifecycleVersion: t.meta.version } });
+    expect(t.state).toEqual({ held: true, merged: false });
+    await expect(mergeIntegration(t.request, t.value)).resolves.toMatchObject({ state: "merged" });
+  });
+
+  it("invalidates an absent meta binding without a parsing failure", async () => {
+    const t = await storedLifecycleMerge();
+    lifecycleSuccess(await t.h.store.write({ action: "remove", reference: t.meta.reference, expected: t.meta.version,
+      provenance: { verb: "remove-meta", lifecycleAction: "edit" } }));
+    await expect(mergeIntegration(t.request, t.value)).resolves.toMatchObject({ state: "invalidated",
+      reason: "head-mismatch", nextAction: "checkpoint", payload: { liveLifecycleVersion: null } });
+    expect(t.state).toEqual({ held: true, merged: false });
+  });
+});
+
+
 describe("integration merge", () => {
   it("merges only the checkpointed head", async () => {
     const { value, state } = dependencies();
 
     await expect(mergeIntegration(request, value)).resolves.toMatchObject({
       state: "merged",
-      payload: { approvedHead: oid("c"), pullRequest: 42 },
+      payload: {
+        approvedHead: oid("c"),
+        pullRequest: 42,
+        target: { repository: "owner/repo", baseRef: "main", headSha: oid("c") },
+        providerMergeId: "merge-123",
+      },
     });
     expect(state).toEqual({ held: false, merged: true });
   });
@@ -183,12 +349,12 @@ describe("integration merge", () => {
       headRef: "feat/example",
       headSha: oid("f"),
     };
-    const refreshedTarget = { ...liveTarget, headSha: oid("g") };
+    const refreshedTarget = { ...liveTarget, headSha: oid("e") };
     let heldTarget: typeof refreshedTarget | undefined;
     value.readStatus = async () => ({
       actualHead: liveTarget.headSha,
       lifecycleComplete: true,
-      lifecycleVersion: liveTarget.headSha,
+      lifecycleVersion: "meta-example:v1",
       target: liveTarget,
     });
     value.refreshTarget = async (target) => {
@@ -223,7 +389,7 @@ describe("integration merge", () => {
       headSha: oid("f"),
     };
     let heldTarget: typeof movedTarget | undefined;
-    value.readFinalDrift = async () => {
+    value.readFinalPlan = async () => {
       throw new Error("drift reader unavailable");
     };
     let refreshes = 0;
@@ -284,14 +450,369 @@ describe("integration merge", () => {
     expect(state).toEqual({ held: true, merged: false });
   });
 
-  it("keeps a nonterminal host merge response unmerged and re-locks the candidate", async () => {
+  it("invalidates and re-locks when the checks observation sees a moved head", async () => {
     const { value, state } = dependencies();
-    value.mergePinned = async () => ({ state: "not-merged" });
+    state.held = false;
+    value.observeChecks = async () => ({
+      schemaVersion: 1,
+      mode: "review-checks-observe",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha: oid("c"),
+      state: "stale-target",
+      nextAction: "stop",
+      actualHeadSha: oid("f"),
+    });
 
     await expect(mergeIntegration(request, value)).resolves.toMatchObject({
       state: "invalidated",
-      reason: "merge-blocked",
-      payload: { merge: { state: "not-merged" } },
+      nextAction: "checkpoint",
+      reason: "head-mismatch",
+      payload: { approvedHead: oid("c"), actualHead: oid("f") },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("returns an opaque host refusal without selecting reconciliation and re-locks the candidate", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => ({
+      state: "refused",
+      target,
+      detail: "The host rejected the exact merge without establishing a stricter cause.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-refused",
+      payload: {
+        target: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: oid("c"),
+        },
+        detail: "The host rejected the exact merge without establishing a stricter cause.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("preserves approval and does not re-lock when the mutating outcome is unknown", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => ({
+      state: "merge-outcome-unknown",
+      target,
+      mutationDetail: "The mutating request timed out.",
+      confirmationDetail: "The exact merged state could not be read.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "retry",
+      reason: "merge-outcome-unknown",
+      payload: {
+        checkpointHandle,
+        target: { headSha: oid("c") },
+        mutationDetail: "The mutating request timed out.",
+        confirmationDetail: "The exact merged state could not be read.",
+      },
+    });
+    expect(state).toEqual({ held: false, merged: false });
+  });
+
+  it("returns a typed base reconcile only for independently established strict currency", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target, admissionOverride) => {
+      const direct = directFinalPlan(target);
+      if (admissionOverride === undefined) return direct;
+      const observation = {
+        ...direct.observation,
+        admission: {
+          state: "base-currentness-required" as const,
+          repository: target.repository,
+          changeRequest: target.pullRequest,
+          baseRef: target.baseRef,
+          base: direct.baseOid,
+          head: target.headSha,
+          detail: admissionOverride.detail,
+        },
+      };
+      return {
+        ...direct,
+        observation,
+        plan: { state: "reconcile" as const, nextAction: "reconcile-base" as const, rule: "base-currentness-required" as const },
+      };
+    };
+    value.mergePinned = async (target) => ({
+      state: "base-currentness-required",
+      target,
+      detail: "Applicable target policy requires the head to include the current base.",
+    });
+
+    const result = await mergeIntegration(request, value);
+    expect(result).toMatchObject({
+      state: "invalidated",
+      nextAction: "reconcile-base",
+      reason: "base-currentness-required",
+      remedy: {
+        argv: [
+          "arc", "base", "merge",
+          "--expected-base", oid("b"),
+          "--expected-head", oid("c"),
+        ],
+      },
+      payload: {
+        target: { headSha: oid("c") },
+        baseOid: oid("b"),
+        detail: "Applicable target policy requires the head to include the current base.",
+      },
+    });
+    if (result.state !== "invalidated") throw new Error("expected typed base reconciliation");
+    expect(BaseMergeInputSchema.parse({
+      expectedBase: result.remedy.argv[4],
+      expectedHead: result.remedy.argv[6],
+    })).toEqual({ expectedBase: oid("b"), expectedHead: oid("c") });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it.each(["refused", "base-currentness-required"] as const)(
+    "invalidates when the base moves while %s is classified",
+    async (outcome) => {
+      const { value, state } = dependencies();
+      value.mergePinned = async (target) => outcome === "refused"
+        ? { state: "refused", target, detail: "The host refused the merge." }
+        : { state: "base-currentness-required", target, detail: "The host requires the current base." };
+      value.readFinalPlan = async (target, admissionOverride) => {
+        const direct = directFinalPlan(target);
+        if (admissionOverride === undefined) return direct;
+        const baseOid = oid("d");
+        return {
+          ...direct,
+          baseOid,
+          observation: {
+            ...direct.observation,
+            movement: "overlapping",
+            feasibility: { state: "clean", base: baseOid, head: target.headSha },
+            admission: {
+              ...admissionOverride,
+              repository: target.repository,
+              changeRequest: target.pullRequest,
+              base: baseOid,
+              head: target.headSha,
+            },
+          },
+          plan: admissionOverride.state === "refused"
+            ? { state: "blocked", reason: "host-refused", detail: admissionOverride.detail }
+            : { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" },
+        } as IntegrationFinalPlan;
+      };
+
+      await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+        state: "invalidated",
+        nextAction: "checkpoint",
+        reason: "drift-reconcile",
+        detail: expect.stringContaining("base moved"),
+        coordinates: { observedBaseOid: oid("d") },
+      });
+      expect(state).toEqual({ held: true, merged: false });
+    },
+  );
+
+  it("does not reconcile a strict-currency refusal from incomplete integration evidence", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target, admissionOverride) => {
+      const direct = directFinalPlan(target);
+      if (admissionOverride === undefined) return direct;
+      return {
+        ...direct,
+        observation: {
+          ...direct.observation,
+          integrationEvidenceComplete: false,
+          admission: {
+            state: "base-currentness-required",
+            repository: target.repository,
+            changeRequest: target.pullRequest,
+            baseRef: target.baseRef,
+            base: direct.baseOid,
+            head: target.headSha,
+            detail: admissionOverride.detail,
+          },
+        },
+        plan: { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" },
+      };
+    };
+    value.mergePinned = async (target) => ({
+      state: "base-currentness-required",
+      target,
+      detail: "Applicable target policy requires the head to include the current base.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "checkpoint",
+      reason: "base-currentness-required",
+      payload: {
+        terminalExplanation: "Complete exact integration evidence did not authorize base reconciliation.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("invalidates and re-locks when the host reports native head movement", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => ({
+      state: "head-moved",
+      target,
+      actualHead: oid("f"),
+      detail: "The change-request head moved before merge.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "checkpoint",
+      reason: "head-moved",
+      payload: {
+        target: { headSha: oid("c") },
+        actualHead: oid("f"),
+        detail: "The change-request head moved before merge.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("returns an established operation failure and re-locks the exact target", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => ({
+      state: "operation-failed",
+      target,
+      detail: "The host confirmed that the mutating request did not merge.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "operation-failed",
+      payload: {
+        target: { headSha: oid("c") },
+        detail: "The host confirmed that the mutating request did not merge.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("returns prompt host-pending detail before releasing the merge lock", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target) => ({
+      status: "available",
+      target,
+      baseOid: oid("b"),
+      observation: {
+        movement: "disjoint",
+        integrationEvidenceComplete: true,
+        feasibility: { state: "clean", base: oid("b"), head: target.headSha },
+        admission: {
+          state: "unresolved",
+          repository: target.repository,
+          changeRequest: target.pullRequest,
+          baseRef: target.baseRef,
+          base: oid("b"),
+          head: target.headSha,
+          detail: "The host is still computing exact merge admission.",
+        },
+      },
+      plan: {
+        state: "blocked",
+        reason: "host-pending",
+        detail: "The host is still computing exact merge admission.",
+      },
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "retry",
+      reason: "host-pending",
+      payload: {
+        checkpointHandle,
+        target: { headSha: oid("c") },
+        baseOid: oid("b"),
+        detail: "The host is still computing exact merge admission.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("returns an exact host refusal before releasing the merge lock", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target) => {
+      const direct = directFinalPlan(target);
+      return {
+        ...direct,
+        observation: {
+          ...direct.observation,
+          admission: {
+            state: "refused",
+            repository: target.repository,
+            changeRequest: target.pullRequest,
+            baseRef: target.baseRef,
+            base: direct.baseOid,
+            head: target.headSha,
+            detail: "Repository policy refused this exact request.",
+          },
+        },
+        plan: { state: "blocked", reason: "host-refused", detail: "Repository policy refused this exact request." },
+      };
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-refused",
+      payload: {
+        target: { headSha: oid("c") },
+        baseOid: oid("b"),
+        detail: "Repository policy refused this exact request.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it.each([
+    [undefined, "Resolve the reported host refusal, then re-checkpoint"],
+    ["not-mergeable", "resolve the conflicts the host reports, then re-checkpoint"],
+    ["base-ref-mismatch", "Retarget the change request to the approved base branch, then re-checkpoint"],
+  ] as const)("keys a host admission refusal's remedy on its %s condition", async (condition, correction) => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target) => {
+      const direct = directFinalPlan(target);
+      return {
+        ...direct,
+        observation: {
+          ...direct.observation,
+          admission: {
+            state: "refused",
+            repository: target.repository,
+            changeRequest: target.pullRequest,
+            baseRef: target.baseRef,
+            base: direct.baseOid,
+            head: target.headSha,
+            detail: "The host refused this exact request.",
+            ...(condition === undefined ? {} : { condition }),
+          },
+        },
+        plan: { state: "blocked", reason: "host-refused", detail: "The host refused this exact request." },
+      };
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-refused",
+      remedy: {
+        text: expect.stringContaining(correction),
+        argv: ["arc", "integrate", "checkpoint", "example"],
+      },
     });
     expect(state).toEqual({ held: true, merged: false });
   });
@@ -301,7 +822,7 @@ describe("integration merge", () => {
       deps.readStatus = async () => ({
         actualHead: oid("c"),
         lifecycleComplete: false,
-        lifecycleVersion: oid("c"),
+        lifecycleVersion: "meta-example:v1",
         target: {
           repository: "owner/repo",
           pullRequest: 42,
@@ -327,7 +848,7 @@ describe("integration merge", () => {
     value.readStatus = async () => ({
       actualHead: oid("c"),
       lifecycleComplete: false,
-      lifecycleVersion: oid("c"),
+      lifecycleVersion: "meta-example:v1",
       target: {
         repository: "owner/repo",
         pullRequest: 42,
@@ -392,7 +913,7 @@ describe("integration merge", () => {
       deps.readStatus = async () => ({
         actualHead: oid("f"),
         lifecycleComplete: true,
-        lifecycleVersion: oid("c"),
+        lifecycleVersion: "meta-example:v1",
         target: {
           repository: "owner/repo",
           pullRequest: 42,
@@ -416,9 +937,9 @@ describe("integration merge", () => {
       });
     }],
     ["checks-failed", (deps: IntegrationMergeDependencies) => {
-      deps.awaitChecks = async () => ({
+      deps.observeChecks = async () => ({
         schemaVersion: 1,
-        mode: "review-checks-await",
+        mode: "review-checks-observe",
         repository: "owner/repo",
         pullRequest: 42,
         headSha: oid("c"),
@@ -428,7 +949,11 @@ describe("integration merge", () => {
       });
     }],
     ["drift-reconcile", (deps: IntegrationMergeDependencies) => {
-      deps.readFinalDrift = async () => ({ verdict: "reconcile" });
+      deps.readFinalPlan = async (target) => ({
+        ...directFinalPlan(target),
+        observation: { ...directFinalPlan(target).observation, movement: "overlapping" },
+        plan: { state: "reconcile", nextAction: "reconcile-base", rule: "overlapping" },
+      });
     }],
   ] as const)("re-locks before returning %s", async (reason, arrange) => {
     const { value, state } = dependencies();
@@ -439,28 +964,27 @@ describe("integration merge", () => {
     expect(state.merged).toBe(false);
   });
 
-  it("resumes the same checkpoint after required checks reach their deadline", async () => {
+  it("returns the same checkpoint authorization after one pending observation", async () => {
     const { value, state } = dependencies();
     let attempts = 0;
-    value.awaitChecks = async () => {
+    value.observeChecks = async () => {
       attempts += 1;
       if (attempts === 1) {
         return {
           schemaVersion: 1,
-          mode: "review-checks-await",
+          mode: "review-checks-observe",
           repository: "owner/repo",
           pullRequest: 42,
           headSha: oid("c"),
           state: "pending",
-          nextAction: "await",
+          nextAction: "retry",
           checks: [{ name: "merge-ok", state: "pending" }],
           diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
-          elapsedMs: 600_000,
         };
       }
       return {
         schemaVersion: 1,
-        mode: "review-checks-await",
+        mode: "review-checks-observe",
         repository: "owner/repo",
         pullRequest: 42,
         headSha: oid("c"),
@@ -470,13 +994,29 @@ describe("integration merge", () => {
       };
     };
 
-    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+    const pending = await mergeIntegration(request, value);
+    expect(pending).toMatchObject({
       state: "awaiting-checks",
       payload: {
+        checkpointHandle,
+        approvedHead: oid("c"),
+        approvedTarget: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: oid("c"),
+        },
+        observationKind: "pending",
         checks: [{ name: "merge-ok", state: "pending" }],
         diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+        retry: {
+          argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle],
+        },
       },
     });
+    expect(pending.payload).not.toHaveProperty("elapsedMs");
+    expect(attempts).toBe(1);
     expect(state.held).toBe(true);
     expect(state.merged).toBe(false);
 
@@ -484,4 +1024,221 @@ describe("integration merge", () => {
     expect(state.held).toBe(false);
     expect(state.merged).toBe(true);
   });
+
+  it("preserves authorization and diagnostics when required-check evidence is unavailable", async () => {
+    const { value, state } = dependencies();
+    value.observeChecks = async () => ({
+      schemaVersion: 1,
+      mode: "review-checks-observe",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha: oid("c"),
+      state: "unavailable",
+      nextAction: "retry",
+      cause: "deadline",
+      detail: "Required-check evidence was unavailable: hosted process timed out",
+      checks: [{ name: "merge-ok", state: "pending" }],
+      diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+    });
+
+    const unavailable = await mergeIntegration(request, value);
+
+    expect(unavailable).toMatchObject({
+      state: "awaiting-checks",
+      nextAction: "retry",
+      payload: {
+        checkpointHandle,
+        approvedHead: oid("c"),
+        approvedTarget: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: oid("c"),
+        },
+        observationKind: "unavailable",
+        cause: "deadline",
+        detail: "Required-check evidence was unavailable: hosted process timed out",
+        checks: [{ name: "merge-ok", state: "pending" }],
+        diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+        retry: {
+          argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle],
+        },
+      },
+    });
+    expect(unavailable.payload).not.toHaveProperty("elapsedMs");
+    expect(state).toEqual({ held: true, merged: false });
+  });
 });
+
+async function nativeLandingMerge(completed = false, readProjectId?: () => Promise<string>) {
+  const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
+  await h.seedProject(projectId);
+  const links = { branches: [{ repository: projectId, ref: "topic/opaque", linkedAs: "adopted" as const, excluded: [] }],
+    changeRequest: { repository: projectId, number: 42 } };
+  const meta = await h.seedMeta("example", { state: completed ? "Shipped" : "Integrating",
+    currentWorkflow: completed ? null : "integrate-work-unit" },
+    completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }, links);
+  const uid = meta.reference.owner.type === "work-item" ? meta.reference.owner.uid : undefined;
+  if (uid === undefined) throw new Error("Expected work-item UID");
+  const production = createIntegrationMergeDependencies({ cwd: "/unused", exec: scriptGitExec([]).exec,
+    workUnit: "example", store: h.store, projectId: readProjectId ?? h.projectId, workItem: meta.reference.owner });
+  const { value, state } = dependencies();
+  const readCheckpoint = value.readCheckpoint;
+  value.readCheckpoint = async (...args) => {
+    const checkpoint = await readCheckpoint(...args);
+    return checkpoint === null ? null : { ...checkpoint, nativeOwnership: { projectId, workItemUid: uid } };
+  };
+  value.writeLandingCommit = production.writeLandingCommit;
+  value.readMerged = async () => state.merged
+    ? { merged: true, providerMergeId: oid("d") } : { merged: false, providerMergeId: null };
+  value.mergePinned = async target => { state.merged = true; return { state: "merged", target, providerMergeId: oid("d") }; };
+  return { ...h, meta, projectId, links, value, state, production, uid };
+}
+
+it.each([false, true])("retains project repair argv through merge ownership and landing-link refusals (already merged: %s)", async merged => {
+  let repaired = false;
+  const h = await nativeLandingMerge(false, async () => {
+    if (!repaired) throw new ProjectIdentityError({ status: "unavailable", reason: "Project objects are missing.",
+      remedy: { text: "Fetch the project state and retry.", argv: ["git", "fetch", "origin", "refs/arc/project/registry"] } });
+    return "123e4567-e89b-42d3-a456-426614174099";
+  });
+  h.value.validateCheckpointOwnership = h.production.validateCheckpointOwnership;
+  h.state.merged = merged;
+  const refused = await mergeIntegration(request, h.value);
+  expect(refused).toMatchObject(merged ? { state: "merged", payload: { landingLink: { state: "not-written",
+    detail: expect.stringContaining("git fetch origin refs/arc/project/registry") } } }
+    : { state: "blocked", reason: "operation-failed", detail: expect.stringContaining("git fetch origin refs/arc/project/registry") });
+  expect(h.state).toEqual({ held: true, merged });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  repaired = true;
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links?.landingCommit)
+    .toEqual({ repository: h.projectId, sha: oid("d") });
+});
+
+it.each(["read", "write"] as const)("retains store repair argv after a landed merge's metadata %s refusal", async method => {
+  const h = await nativeLandingMerge(), read = h.store.read.bind(h.store), write = h.store.write.bind(h.store);
+  const refusal = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: "Landing metadata objects are missing.", remedy: { text: "Fetch metadata and retry.",
+      argv: ["git", "fetch", "origin", "refs/arc/meta/exact"] } });
+  let broken = true;
+  if (method === "read") h.store.read = async input => broken && input.reference.kind === "work-item/meta"
+    ? { status: "refused", refusal } : read(input);
+  else h.store.write = async input => broken && input.action === "put" && input.links?.landingCommit !== undefined
+    ? { status: "refused", refusal } : write(input);
+  const result = await mergeIntegration(request, h.value);
+  expect(result).toMatchObject({ state: "merged", payload: { landingLink: { state: "not-written",
+    detail: expect.stringContaining("git fetch origin refs/arc/meta/exact") } } });
+  expect(h.state.merged).toBe(true);
+  expect(lifecycleSuccess(await read({ reference: h.meta.reference }))).toEqual(h.meta);
+  broken = false;
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await read({ reference: h.meta.reference })).links?.landingCommit)
+    .toEqual({ repository: h.projectId, sha: oid("d") });
+});
+
+it.each([false, true])("records the native landing commit with project identity and retained links (completed: %s)", async completed => {
+  const h = await nativeLandingMerge(completed);
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links).toEqual({ ...h.links,
+    landingCommit: { repository: h.projectId, sha: oid("d") } });
+});
+
+it.each(["already-merged", "recovered"] as const)("records the native landing link for %s success", async route => {
+  const h = await nativeLandingMerge();
+  if (route === "already-merged") h.state.merged = true;
+  else h.value.mergePinned = async () => { h.state.merged = true; throw new Error("The host response was lost."); };
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged",
+    payload: { providerMergeId: oid("d"), landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links).toEqual({ ...h.links,
+    landingCommit: { repository: h.projectId, sha: oid("d") } });
+});
+
+it("reports a landed merge when its link write fails and repairs the link on an already-merged retry", async () => {
+  const h = await nativeLandingMerge(), write = h.store.write.bind(h.store);
+  h.store.write = async input => input.action === "put" && input.links?.landingCommit !== undefined
+    ? { status: "refused", refusal: { code: "version-conflict", class: "recoverable", records: [h.meta.reference],
+        condition: "Metadata changed before its landing link was saved.", remedy: { text: "Reread metadata and retry." } } }
+    : write(input);
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: {
+    landingLink: { state: "not-written", detail: expect.stringContaining("Metadata changed"),
+      remedy: { argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle] } } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  h.store.write = write;
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links).toEqual({ ...h.links,
+    landingCommit: { repository: h.projectId, sha: oid("d") } });
+});
+
+it("reports the link unwritten when a successful merge has no reported merge commit", async () => {
+  const h = await nativeLandingMerge();
+  h.value.mergePinned = async target => { h.state.merged = true; return { state: "merged", target, providerMergeId: null }; };
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { providerMergeId: null,
+    landingLink: { state: "not-written", remedy: { argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle] } } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+});
+
+it("reports an already-merged request with no host merge commit without writing a link", async () => {
+  const h = await nativeLandingMerge();
+  h.value.readMerged = async () => ({ merged: true, providerMergeId: null });
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { providerMergeId: null,
+    landingLink: { state: "not-written", remedy: { argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle] } } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+});
+
+it("keeps repository merge success free of native landing-link state", async () => {
+  const { value } = dependencies();
+  const result = await mergeIntegration(request, value);
+  expect(result.state).toBe("merged");
+  expect(result).not.toHaveProperty("payload.landingLink");
+});
+
+it.each(["missing", "project", "generation"] as const)("refuses unmerged %s ownership before settlement or host mutation, then continues after repair", async fault => {
+  const h = await nativeLandingMerge();
+  const original = h.value.readCheckpoint;
+  h.value.readCheckpoint = async (...args) => {
+    const record = await original(...args);
+    if (record === null) throw new Error("Expected checkpoint");
+    return { ...record, nativeOwnership: fault === "missing" ? undefined : {
+      projectId: fault === "project" ? "123e4567-e89b-42d3-a456-426614174088" : h.projectId,
+      workItemUid: fault === "generation" ? "123e4567-e89b-42d3-a456-426614174077" : h.uid,
+    } };
+  };
+  h.value.validateCheckpointOwnership = h.production.validateCheckpointOwnership;
+  let effects = 0;
+  const settle = h.value.executeSettlement, hold = h.value.holdLock, release = h.value.releaseLock;
+  h.value.executeSettlement = async record => { effects++; return settle(record); };
+  h.value.holdLock = async target => { effects++; return hold(target); };
+  h.value.releaseLock = async target => { effects++; return release(target); };
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "blocked", reason: "operation-failed" });
+  expect(effects).toBe(0);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  h.value.readCheckpoint = original;
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
+});
+
+
+it.each(["version", "list", "unreadable", "diagnostics"] as const)(
+  "retains native default snapshot %s commands in the public merge refusal", async fault => {
+    const t = await storedLifecycleMerge(true), store = t.h.store;
+    const version = store.version.bind(store), list = store.list.bind(store), before = await version();
+    const repair = storeRepairCases[0]!, remedy = repair.remedy;
+    const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Lifecycle objects are unavailable.", remedy });
+    if (fault === "version") store.version = async () => ({ status: "refused", refusal });
+    else store.list = async () => fault === "list" ? { status: "refused", refusal } : { status: "ok", result:
+      fault === "unreadable" ? { status: "unreadable", condition: refusal.condition, remedy } : {
+        status: "complete", records: [], missed: true, diagnostics: storeRepairCases.map(({ remedy: item }, i) => ({
+          kind: "unreadable", key: `entry-${i}`, condition: `Entry ${i} is unavailable.`, remedy: item })) } };
+    const result = await mergeIntegration(t.request, t.value);
+    expect(result).toMatchObject({ state: "blocked", nextAction: "stop", reason: "operation-failed" });
+    if (result.state !== "blocked") throw new Error("Expected merge refusal");
+    for (const { remedy: item, command } of fault === "diagnostics" ? storeRepairCases : [repair]) {
+      expect(result.detail).toContain(item.text); expect(result.detail).toContain(command);
+    }
+    expect(t.state).toEqual({ held: true, merged: false });
+    expect(await version()).toEqual(before);
+    store.version = version; store.list = list;
+    expect(await mergeIntegration(t.request, t.value)).toMatchObject({ state: "merged" });
+  });

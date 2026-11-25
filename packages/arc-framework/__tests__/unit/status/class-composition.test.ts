@@ -1,6 +1,7 @@
 /** Unit coverage for schema-backed resolved work-class composition tallies. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   ClassCompositionSchema,
@@ -35,6 +36,6 @@ describe("ClassCompositionSchema", () => {
     { heavy: 0, light: 0, novel: Number.NaN },
     { heavy: 0, light: 0, novel: 0, leaked: true },
   ])("rejects malformed numeric values", (value) => {
-    expect(ClassCompositionSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(ClassCompositionSchema, value);
   });
 });

@@ -1,6 +1,7 @@
 /** Public Errand terminal result boundaries. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   completeErrandTerminalResult,
@@ -54,7 +55,7 @@ describe("Errand terminal results", () => {
 
     expect(ErrandTerminalResultSchema.parse(result)).toEqual(result);
     for (const retired of ["recordId", "leaseId", "activeLocusPath", "sessionHomePath", "restoredParent"]) {
-      expect(ErrandTerminalResultSchema.safeParse({ ...result, [retired]: "retired" }).success).toBe(false);
+      assertSchemaRefuses(ErrandTerminalResultSchema, { ...result, [retired]: "retired" });
     }
   });
 

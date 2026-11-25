@@ -9,7 +9,7 @@
 
 import { join, posix, resolve } from "node:path";
 
-import { canonicalDigest, canonicalize } from "../canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../kernel/canonical/canonical-json.js";
 import {
   contentDigest,
   deleteOperation,
@@ -17,7 +17,7 @@ import {
   type ArtifactSetEntry,
   type PatchOperation,
 } from "../canonical/content-digest.js";
-import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
+import { validateManagedPath, type ManagedPath } from "../kernel/canonical/managed-path.js";
 import { getCurrentBranch, type GitExec } from "../git/exec.js";
 import { resolveArcPath } from "../layout/index.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";
@@ -223,7 +223,11 @@ function createInRepoDirectRetirementContext(
     readSnapshot: async (scope) => {
       const source = requireCaptured(captured, { scope });
       const staged = await readStagedPaths(deps.exec, deps.cwd);
-      if (staged.length > 0) return { status: "refused", reason: "evidence-mismatch" };
+      if (staged.length > 0) return {
+        status: "refused", reason: "evidence-mismatch",
+        diagnostic: `The index contains staged paths: ${staged.map((path) => JSON.stringify(path)).join(", ")}. `
+          + "Commit the staged changes or clear them from the index, then retry this retirement",
+      };
       const result = await readRetirementAuthoritySnapshot(
         {
           cwd: deps.cwd,

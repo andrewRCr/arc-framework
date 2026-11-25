@@ -4,15 +4,13 @@ import { z } from "zod";
 
 import {
   canonicalize,
+  canonicalDigest,
   digestBytes,
-  isCanonicalDigest,
-} from "../canonical/canonical-json.js";
-import { isManagedPath } from "../canonical/managed-path.js";
+  type CanonicalDigest,
+} from "../kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
+import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
-import {
-  V3DecomposeLocatorSchema,
-  v3SourceId,
-} from "./decompose-v3-schema.js";
 
 export { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 
@@ -36,6 +34,62 @@ function isArtifactBasename(artifact: string): boolean {
     && !artifact.includes("/")
     && !artifact.includes("\\")
     && !artifact.includes("\0");
+}
+
+const BasenameSchema = z.string().min(1).refine(isArtifactBasename, "must be a slash-free NFC basename");
+const ManagedPathSchema = z.string().refine(isManagedPath, "must be a managed repository-relative path");
+
+const HeadingIdentitySchema = z.strictObject({
+  level: z.number().int().min(2).max(6),
+  headingSource: z.string().refine(
+    (value) => normalizeDecomposeHeadingSource(value) === value,
+    "must be normalized",
+  ),
+  occurrence: z.number().int().nonnegative(),
+});
+
+export const V3DecomposeLocatorSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ artifact: BasenameSchema, kind: z.literal("preamble") }),
+  z.strictObject({
+    artifact: BasenameSchema,
+    kind: z.literal("section"),
+    level: z.number().int().min(2).max(6),
+    headingSource: z.string().refine(
+      (value) => normalizeDecomposeHeadingSource(value) === value,
+      "must be normalized",
+    ),
+    ancestry: z.array(HeadingIdentitySchema),
+    occurrence: z.number().int().nonnegative(),
+  }),
+  z.strictObject({ artifact: BasenameSchema, kind: z.literal("whole-file") }),
+]).superRefine((locator, ctx) => {
+  if (locator.kind !== "section") return;
+  let previousLevel = 1;
+  for (let index = 0; index < locator.ancestry.length; index += 1) {
+    const ancestor = locator.ancestry[index];
+    if (ancestor !== undefined
+      && (ancestor.level <= previousLevel || ancestor.level >= locator.level)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "ancestry levels must increase strictly and remain below the section level",
+        path: ["ancestry", index, "level"],
+      });
+    }
+    if (ancestor !== undefined) previousLevel = ancestor.level;
+  }
+});
+
+
+/** Canonical identity for one source allocation unit. */
+export function v3SourceId(source: {
+  sourcePath: string;
+  sourceLocator: z.infer<typeof V3DecomposeLocatorSchema>;
+}): CanonicalDigest {
+  const preimage = z.strictObject({
+    sourcePath: ManagedPathSchema,
+    sourceLocator: V3DecomposeLocatorSchema,
+  }).parse(source);
+  return canonicalDigest({ schemaVersion: 3, ...preimage });
 }
 
 function sourceLines(content: string): SourceLine[] {
@@ -301,10 +355,10 @@ export type V3DecomposeContentResolution =
     };
 
 const V3DecomposeSourceReferenceSchema = z.strictObject({
-  sourceId: z.string().refine(isCanonicalDigest, "must be a canonical digest"),
+  sourceId: CanonicalDigestSchema,
   sourcePath: z.string().refine(isManagedPath, "must be a managed repository-relative path"),
   sourceLocator: V3DecomposeLocatorSchema,
-  contentDigest: z.string().refine(isCanonicalDigest, "must be a canonical digest"),
+  contentDigest: CanonicalDigestSchema,
 });
 
 export type V3DecomposeSourceReference = z.infer<typeof V3DecomposeSourceReferenceSchema>;
@@ -316,7 +370,8 @@ function byteOffset(content: string, offset: number): number {
 /**
  * Scan one source artifact into disjoint exhaustive v3 byte units.
  *
- * Markdown recognizes protected H2-H6 boundaries; other artifacts remain whole.
+ * Task-list Markdown recognizes protected H2 phase boundaries; other Markdown
+ * recognizes protected H2-H6 boundaries, and non-Markdown artifacts remain whole.
  */
 export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3DecomposeContentScanResult {
   if (!isArtifactBasename(artifact)) {
@@ -341,7 +396,8 @@ export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3D
     };
   }
   const classificationOffset = content.startsWith("\uFEFF") ? 1 : 0;
-  const boundaries = markdownBoundaries(content.slice(classificationOffset), true)
+  const taskList = /^tasks-.+\.md$/u.test(artifact);
+  const boundaries = markdownBoundaries(content.slice(classificationOffset), !taskList)
     .map((heading) => ({ ...heading, start: heading.start + classificationOffset }));
   const headings = boundaries.filter(({ level }) => level >= 2);
   const units: V3DecomposeContentUnit[] = [];

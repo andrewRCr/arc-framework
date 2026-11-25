@@ -6,6 +6,7 @@
 
 import type { Location } from "../work-unit/lifecycle-state.js";
 import type { Slug } from "../kernel/index.js";
+import type { RecordReference, RecordVersion } from "../store/identity.js";
 import type { WorkUnitPlacement } from "../layout/index.js";
 
 export const VIEW_KINDS = [
@@ -13,6 +14,7 @@ export const VIEW_KINDS = [
   "spec",
   "draft",
   "meta",
+  "design",
   "notes",
   "cohort",
   "session-notes",
@@ -22,10 +24,16 @@ export const VIEW_KINDS = [
 
 export type ViewKind = typeof VIEW_KINDS[number];
 
-export type ViewArtifactResult =
+export type ViewArtifactResult = (
   | { status: "resolved"; kind: ViewKind; path: string; workUnit: string | null }
+  | { status: "resolved"; kind: ViewKind; content: string; ref: string; displayLabel: string; workUnit: string | null }
+  | { status: "resolved"; source: "store"; kind: ViewKind; content: string; ref: string; displayLabel: string; workUnit: string | null; renderCommand: string }
   | { status: "absent"; kind: ViewKind }
-  | { status: "error"; kind: string; message: string };
+  | { status: "error"; kind: string; message: string }
+) & { warnings?: readonly string[] };
+
+/** A resolved file or reference artifact ready for a viewer destination. */
+export type ResolvedViewArtifact = Extract<ViewArtifactResult, { status: "resolved" }>;
 
 export interface ResolvedViewTarget {
   status: "resolved";
@@ -34,12 +42,26 @@ export interface ResolvedViewTarget {
   location: Location;
   metaPath: string;
   taskListPath: string | null;
+  artifactSource?: { kind: "checkout"; cwd: string } | { kind: "ref"; ref: string } | { kind: "store"; reference: RecordReference };
 }
 
 export type ViewTargetResult =
   | ResolvedViewTarget
   | { status: "completed"; slug: string }
-  | { status: "unavailable"; slug?: string };
+  | { status: "unavailable"; slug?: string; message?: string };
+
+/** One record read selected by a semantic view kind. */
+export type StoreViewArtifactRead =
+  | { status: "found"; path: string; content: string; version: RecordVersion; conflicts: readonly RecordReference[]; warnings?: string[] }
+  | { status: "absent" }
+  | { status: "error"; message: string };
+/** Store selection stays at the handler boundary; the resolver receives only record facts. */
+export interface StoreViewArtifactInput {
+  kind: ViewKind;
+  target?: ResolvedViewTarget;
+  project: boolean;
+  identity: string | null;
+}
 
 export interface ResolveViewArtifactOptions {
   cwd: string;
@@ -59,6 +81,12 @@ export interface RunViewOptions {
   project: boolean;
   identity: string | null;
   current?: boolean;
+  /** Print the resolved artifact's absolute path instead of its content. */
+  path?: boolean;
+  /** Open the actual resolved file in the configured editor. */
+  editor?: boolean;
+  /** Explicit adapter-bound permission to hand off terminal interaction. */
+  editorAllowed?: boolean;
   forSlug?: string;
   nonInteractive?: boolean;
 }

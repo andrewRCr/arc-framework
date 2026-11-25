@@ -9,16 +9,12 @@
  * @module
  */
 
+import type { StoreIdentityAcquisition } from "../errand/store-discovery.js";
+import type { z } from "zod";
+import { MaterializableErrandSchema } from "./errand-state-schema.js";
 import type { TransientIdentityRecord } from "../errand/identity-record.js";
 /** One exact ordinary-v3 identity tail that can be materialized. */
-export interface MaterializableErrand {
-  slug: string;
-  claimId: string;
-  branch: string;
-  expectedHead: string;
-  state: "paused" | "awaiting-merge";
-  originEntry: string | null;
-}
+export type MaterializableErrand = z.infer<typeof MaterializableErrandSchema>;
 
 export interface FindMaterializableErrandsOptions {
   /** Complete identity records whose exact generation authorizes resume. */
@@ -59,7 +55,19 @@ export function findMaterializableErrands(
       expectedHead: generation.expectedHead,
       state: generation.state,
       originEntry: record.originEntry,
+      actions: [{ text: `arc errand materialize ${record.slug} --claim-id ${record.claimId} --expected-head ${generation.expectedHead} --json`,
+        argv: ["arc", "errand", "materialize", record.slug, "--claim-id", record.claimId,
+          "--expected-head", generation.expectedHead, "--json"] }],
     }];
   });
   return { candidates: candidates.sort((left, right) => left.slug.localeCompare(right.slug)) };
+}
+
+/** Select active ordinary Errands by their record owner before resume or materialization. */
+export function ownedActiveErrandRecords(acquisition: StoreIdentityAcquisition, identity: string | null): TransientIdentityRecord[] {
+  if (acquisition.kind !== "complete" || identity === null) return [];
+  const active = new Set(acquisition.records.filter(record => record.reference.kind === "work-item/record" && record.placement?.kind === "active")
+    .map(record => record.reference.owner.name));
+  return [...acquisition.decoded.values()].filter(record => record.kind === "errand" && record.purpose === "errand"
+    && record.owner === identity && active.has(record.slug));
 }

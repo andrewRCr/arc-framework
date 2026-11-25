@@ -5,12 +5,15 @@ import type {
   CandidateApplicabilityResult,
 } from "./candidate-applicability.js";
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
+import type { CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   CandidateLineageTargetSchema,
+  CandidateConvergenceProjectionSchema,
   diffCandidateSubjectSnapshots,
   projectCandidateCurrentness,
   reduceCandidateDurableBaseline,
   type CandidateCurrentnessProjection,
+  type CandidateConvergenceProjection,
   type CandidateLineageTarget,
   type CandidateManagedRecordV1,
 } from "./candidate-attestation.js";
@@ -25,9 +28,9 @@ export interface CandidateReRootContinuation {
     Slug,
     "--new-root",
     "--expected-candidate",
-    string,
+    CanonicalDigest,
     "--expected-subject",
-    string,
+    CanonicalDigest,
     "--json",
   ];
 }
@@ -40,8 +43,8 @@ export interface CandidateReRootContinuation {
  */
 export function projectCandidateReRootContinuation(input: {
   readonly name: string;
-  readonly candidateId: string;
-  readonly subjectDigest: string;
+  readonly candidateId: CanonicalDigest;
+  readonly subjectDigest: CanonicalDigest;
 }): CandidateReRootContinuation {
   const name = SlugSchema.parse(input.name);
   return {
@@ -59,12 +62,12 @@ export function projectCandidateReRootContinuation(input: {
   };
 }
 
-export interface CandidateEffectiveCurrentProjection {
+export type CandidateEffectiveCurrentProjection = {
   readonly schemaVersion: 1;
   readonly mode: "candidate-effective-target";
   readonly state: "current";
   readonly nextAction: "continue";
-  readonly candidateId: string;
+  readonly candidateId: CanonicalDigest;
   readonly durableBaselineTarget: CandidateLineageTarget;
   readonly recognizedTarget: CandidateLineageTarget;
   readonly recognition:
@@ -72,23 +75,22 @@ export interface CandidateEffectiveCurrentProjection {
     | {
         readonly kind: "machine";
         readonly proof: "subject-equality" | "tree-equality" | "mechanical-reapply";
-        readonly projectionDigest: string;
-        readonly residualDigest: string;
+        readonly projectionDigest: CanonicalDigest;
+        readonly residualDigest: CanonicalDigest;
       };
   readonly implementationChanged: boolean;
-  readonly convergenceVerification: "satisfied" | "pending";
-}
+} & CandidateConvergenceProjection;
 
 export interface CandidateEffectiveChangedProjection {
   readonly schemaVersion: 1;
   readonly mode: "candidate-effective-target";
   readonly state: "changed";
   readonly nextAction: "establish-new-root";
-  readonly candidateId: string;
+  readonly candidateId: CanonicalDigest;
   readonly durableBaselineTarget: CandidateLineageTarget;
   readonly currentTarget: CandidateLineageTarget;
-  readonly projectionDigest: string;
-  readonly residualDigest: string;
+  readonly projectionDigest: CanonicalDigest;
+  readonly residualDigest: CanonicalDigest;
   readonly selectedBy: string;
 }
 
@@ -97,7 +99,7 @@ export interface CandidateEffectiveStagedChangeProjection {
   readonly mode: "candidate-effective-target";
   readonly state: "staged-change";
   readonly nextAction: "establish-new-root";
-  readonly candidateId: string;
+  readonly candidateId: CanonicalDigest;
   readonly durableBaselineTarget: CandidateLineageTarget;
   readonly currentTarget: CandidateLineageTarget;
 }
@@ -144,6 +146,10 @@ export async function projectEffectiveCandidateTarget(
   const baseline = reduceCandidateDurableBaseline(input.record);
   const durableCurrentness = projectCandidateCurrentness({ record: input.record, current });
   if (durableCurrentness.status === "current") {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: durableCurrentness.convergenceVerification,
+      convergenceScope: durableCurrentness.convergenceScope,
+    });
     return {
       schemaVersion: 1,
       mode: "candidate-effective-target",
@@ -154,7 +160,7 @@ export async function projectEffectiveCandidateTarget(
       recognizedTarget: current,
       recognition: { kind: "durable" },
       implementationChanged: durableCurrentness.implementationChanged,
-      convergenceVerification: durableCurrentness.convergenceVerification,
+      ...convergence,
     };
   }
 
@@ -172,6 +178,10 @@ export async function projectEffectiveCandidateTarget(
     if (baselineCurrentness.status !== "current") {
       throw new Error("Candidate durable baseline did not reduce to a current target");
     }
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: baselineCurrentness.convergenceVerification,
+      convergenceScope: baselineCurrentness.convergenceScope,
+    });
     return {
       schemaVersion: 1,
       mode: "candidate-effective-target",
@@ -187,7 +197,7 @@ export async function projectEffectiveCandidateTarget(
         residualDigest: applicability.residualDigest,
       },
       implementationChanged: baselineCurrentness.implementationChanged,
-      convergenceVerification: baselineCurrentness.convergenceVerification,
+      ...convergence,
     };
   }
 
@@ -220,12 +230,16 @@ export function projectEffectiveCandidateCurrentness(
   input: CandidateEffectiveTargetProjection,
 ): CandidateEffectiveCurrentnessProjection {
   if (input.state === "current") {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: input.convergenceVerification,
+      convergenceScope: input.convergenceScope,
+    });
     return {
       status: "current",
       candidateId: input.candidateId,
       recognizedRevision: input.recognizedTarget.revision,
       implementationChanged: input.implementationChanged,
-      convergenceVerification: input.convergenceVerification,
+      ...convergence,
     };
   }
   if (input.state === "changed" || input.state === "staged-change") {
@@ -253,12 +267,16 @@ export function projectStagedCandidateCurrentness(input: {
   const staged = CandidateLineageTargetSchema.parse(input.staged);
   if (input.committed.state === "current"
     && input.committed.recognizedTarget.subject.subjectDigest === staged.subject.subjectDigest) {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: input.committed.convergenceVerification,
+      convergenceScope: input.committed.convergenceScope,
+    });
     return {
       status: "current",
       candidateId: input.committed.candidateId,
       recognizedRevision: staged.revision,
       implementationChanged: input.committed.implementationChanged,
-      convergenceVerification: input.committed.convergenceVerification,
+      ...convergence,
     };
   }
   return projectCandidateCurrentness({ record: input.record, current: staged });

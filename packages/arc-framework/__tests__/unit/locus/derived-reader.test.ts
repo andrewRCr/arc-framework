@@ -16,7 +16,10 @@ import {
 } from "../../../src/lib/locus/derived-reader.js";
 import { projectDurableCandidateTarget } from "../../helpers/candidate.js";
 
-const projectorInputs = vi.hoisted(() => [] as Array<{ activeExtensions?: readonly string[] }>);
+const projectorInputs = vi.hoisted(() => [] as Array<{
+  cwd: string;
+  foreignCheckout?: boolean;
+}>);
 
 vi.mock("../../../src/lib/locus/subject-meta.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../src/lib/locus/subject-meta.js")>();
@@ -34,7 +37,21 @@ function meta(root: string, key = "demo") {
     kind: "read" as const,
     name: `meta-${key}.md`,
     path: `${root}/.arc/active/meta-${key}.md`,
-    text: `# Metadata: ${key}\n\n- **State:** \`Active\`\n- **Owner:** \`andrew\`\n- **Branch:** \`feat/${key}\`\n- **Cohort:** [none]\n- **Task List:** \`tasks-${key}.md\`\n- **Current Workflow:** [none]\n- **Next Action:** Continue\n`,
+    text: [
+      `# Metadata: ${key}`,
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      `| \`Active\` | \`andrew\` | \`feat/${key}\` | — | — |`,
+      "",
+      "- **Cohort:** [none]",
+      `- **Task List:** \`tasks-${key}.md\``,
+      "- **Current Workflow:** [none]",
+      "- **Next Action:** Continue",
+      "",
+      "---",
+      "",
+    ].join("\n"),
   };
 }
 
@@ -44,7 +61,21 @@ function archivedMeta(root: string, key = "demo") {
     kind: "read" as const,
     name: `meta-${key}.md`,
     path: `${archiveRoot}/meta-${key}.md`,
-    text: `# Metadata: ${key}\n\n- **State:** \`Shipped\`\n- **Owner:** \`andrew\`\n- **Branch:** [none]\n- **Cohort:** [none]\n- **Task List:** \`tasks-${key}.md\`\n- **Current Workflow:** [none]\n- **Next Action:** Complete post-merge cleanup\n`,
+    text: [
+      `# Metadata: ${key}`,
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Shipped` | `andrew` | [none] | — | — |",
+      "",
+      "- **Cohort:** [none]",
+      `- **Task List:** \`tasks-${key}.md\``,
+      "- **Current Workflow:** [none]",
+      "- **Next Action:** Complete post-merge cleanup",
+      "",
+      "---",
+      "",
+    ].join("\n"),
   };
 }
 
@@ -105,10 +136,10 @@ function baseOptions(overrides: Partial<ReaderOptions> = {}) {
   ]);
   return {
     identity: "andrew",
-    activeExtensions: [] as readonly string[],
     topology: {
       ok: true as const,
       worktrees: [{
+        folderPresent: true,
         path,
         head: "a".repeat(40),
         branch: "feat/demo",
@@ -155,6 +186,39 @@ describe("dormant derived roster reader", () => {
     expect(projectCandidateMutationOwner(result)).toEqual({ status: "owned", workUnit: "demo" });
   });
 
+  it("marks only non-entering subject projections as foreign", async () => {
+    const entering = "/repo/demo";
+    const sibling = "/repo/sibling";
+    const enteringMeta = meta(entering);
+    const siblingMeta = meta(sibling, "sibling");
+    const files = new Map([
+      [enteringMeta.path, enteringMeta.text],
+      [`${entering}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[ ]` **1.1 Do it**\n"],
+      [siblingMeta.path, siblingMeta.text],
+      [`${sibling}/.arc/active/tasks-sibling.md`, "## **Phase 1:** Sibling\n\n### `[ ]` **1.1 Do it**\n"],
+    ]);
+
+    await readDerivedLocusFrame({
+      ...baseOptions({
+        topology: {
+          ok: true,
+          worktrees: [
+            { folderPresent: true, path: entering, head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
+            { folderPresent: true, path: sibling, head: "b".repeat(40), branch: "feat/sibling", detached: false, primary: false },
+          ],
+        },
+        checkouts: [wuEvidence(entering), wuEvidence(sibling, "sibling")],
+        subjectMetaIO: subjectIO(files),
+      }),
+      enteringCheckoutPath: entering,
+    });
+
+    expect(projectorInputs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ cwd: entering, foreignCheckout: false }),
+      expect.objectContaining({ cwd: sibling, foreignCheckout: true }),
+    ]));
+  });
+
   it("refuses a branch carrier while the marker-owned work-unit origin is unresolved", async () => {
     const origin = "/repo/origin";
     const carrier = "/repo/carrier";
@@ -178,8 +242,8 @@ describe("dormant derived roster reader", () => {
         topology: {
           ok: true,
           worktrees: [
-            { path: origin, head: "a".repeat(40), branch: null, detached: true, primary: false },
-            { path: carrier, head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
+            { folderPresent: true, path: origin, head: "a".repeat(40), branch: null, detached: true, primary: false },
+            { folderPresent: true, path: carrier, head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
           ],
         },
         checkouts: [
@@ -267,7 +331,6 @@ describe("dormant derived roster reader", () => {
       state: result,
       identity: "andrew",
       workingMemoryPath: "/repo/.arc/user/andrew/WORKING-MEMORY.md",
-      activeExtensions: [],
     })).toMatchObject({
       frame: {
         kind: "resolved",
@@ -325,7 +388,7 @@ describe("dormant derived roster reader", () => {
         ok: true,
         worktrees: [
           baseOptions().topology.worktrees[0]!,
-          { path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
+          { folderPresent: true, path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
         ],
       },
       checkouts: [
@@ -373,7 +436,7 @@ describe("dormant derived roster reader", () => {
         ok: true,
         worktrees: [
           baseOptions().topology.worktrees[0]!,
-          { path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
+          { folderPresent: true, path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
         ],
       },
       checkouts: [wuEvidence("/repo/demo"), wuEvidence(badPath, "bad")],
@@ -390,12 +453,9 @@ describe("dormant derived roster reader", () => {
       .rejects.toThrow("bad sibling task I/O");
   });
 
-  it("forwards active extensions once into a stable rich WU context", async () => {
-    const activeExtensions = ["release-notes", "security-review"] as const;
-    const result = await readDerivedLocusRoster(baseOptions({ activeExtensions }));
+  it("projects a stable rich work-unit context", async () => {
+    const result = await readDerivedLocusRoster(baseOptions());
 
-    expect(projectorInputs).toHaveLength(1);
-    expect(projectorInputs[0]?.activeExtensions).toBe(activeExtensions);
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0]).toMatchObject({
       kind: "work-unit",
@@ -418,7 +478,7 @@ describe("dormant derived roster reader", () => {
         ok: true,
         worktrees: [
           healthy.topology.worktrees[0]!,
-          { path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
+          { folderPresent: true, path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
         ],
       },
       checkouts: [
@@ -450,7 +510,7 @@ describe("dormant derived roster reader", () => {
         ok: true,
         worktrees: [
           baseOptions().topology.worktrees[0]!,
-          { path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
+          { folderPresent: true, path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
         ],
       },
       checkouts: [
@@ -484,6 +544,18 @@ describe("dormant derived roster reader", () => {
     });
   });
 
+  it("reports a failed discovery read by its stage and message alone", async () => {
+    const result = await readDerivedLocusRoster(baseOptions({
+      identities: { kind: "error", stage: "tip", message: "identity ref unavailable", error: new Error("git failed") },
+    }));
+
+    expect(result.identityDiscovery).toStrictEqual({
+      kind: "error",
+      stage: "tip",
+      message: "identity ref unavailable",
+    });
+  });
+
   it("does not project unrelated WU metas into a marker-selected transient", async () => {
     const path = "/repo/repair";
     const unrelated = meta(path, "other");
@@ -492,7 +564,7 @@ describe("dormant derived roster reader", () => {
       topology: {
         ok: true,
         worktrees: [
-          { path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
+          { folderPresent: true, path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
         ],
       },
       checkouts: [{

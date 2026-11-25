@@ -42,6 +42,14 @@
 /.arc/backlog/planned/*/*/research-*.md
 /.arc/backlog/planned/*/*/analysis-*.md
 /.arc/backlog/planned/*/*/spec-*.md
+/.arc/backlog/planned/*/*/*/draft-*.md
+/.arc/backlog/planned/*/*/*/tasks-*.md
+/.arc/backlog/planned/*/*/*/meta-*.md
+/.arc/backlog/planned/*/*/*/notes-*.md
+/.arc/backlog/planned/*/*/*/cohort-*.md
+/.arc/backlog/planned/*/*/*/research-*.md
+/.arc/backlog/planned/*/*/*/analysis-*.md
+/.arc/backlog/planned/*/*/*/spec-*.md
 /.arc/backlog/provisional/*/draft-*.md
 /.arc/backlog/provisional/*/tasks-*.md
 /.arc/backlog/provisional/*/meta-*.md

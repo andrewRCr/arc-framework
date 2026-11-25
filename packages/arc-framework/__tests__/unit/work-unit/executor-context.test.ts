@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
 
 const mockBuildLifecycleIndex = vi.fn();
@@ -349,7 +350,7 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
     expect(io.exec).toHaveBeenCalledWith("git", ["mv", "a", "b"], { cwd: "/repo" });
   });
 
-  it("honors an explicit per-call cwd over the default — the worktree-clean guard targets the right tree", async () => {
+  it("honors an explicit per-call cwd over the default for worktree operations", async () => {
     const io = fakeIo();
     const ctx = buildExecutorContext({
       cwd: "/repo",
@@ -359,9 +360,7 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
       internalTemplateDir: "/tpl",
     });
 
-    // The `worktree-clean` guard checks `git status` in the *target worktree*; the
-    // default-to-repo pin must not clobber that, or the guard checks the base repo
-    // (a dirty base then wrongly refuses a clean worktree's teardown).
+    // A worktree operation must retain its explicitly selected checkout.
     await ctx.exec!("git", ["status", "--porcelain"], { cwd: "/wt-foo" });
 
     expect(io.exec).toHaveBeenCalledWith("git", ["status", "--porcelain"], { cwd: "/wt-foo" });
@@ -383,4 +382,13 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
 
     expect(io.exec).toHaveBeenCalledWith("git", ["status", "--short"], { cwd: "/repo.plan-foo" });
   });
+});
+
+it("binds off-branch locus operations and preserves their record through checkout rebinding", async () => {
+  const context = buildExecutorContext({ cwd: "/repo", io: fakeIo(), identity: "andrew", teamMode: false,
+    internalTemplateDir: "/templates", store: createReferenceFixture().store });
+  expect(context.locusPorts).toBeDefined();
+  expect(context.withCwd?.("/other").locusPorts).toBe(context.locusPorts);
+  const clear = await context.locusPorts?.checkMarkerExclusivity({ kind: "creation", slug: "demo" });
+  expect(clear).toMatchObject({ kind: "refused", reason: expect.stringContaining("Git lists") });
 });

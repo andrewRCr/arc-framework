@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
+import { canonicalDigest, canonicalize } from "../kernel/index.js";
 import { classifyDeliveryPlanAmendment, type DeliveryPlanAmendmentResult } from "./amendment.js";
 import type { DeliveryChainAdoptionResult } from "./chain-adoption.js";
 import type {
@@ -58,7 +58,7 @@ export interface DeliverySuffixRematerializedResult {
   readonly nextAction: "verify-review-fix";
   readonly verification: {
     readonly memberDeliverableIds: readonly string[];
-    readonly tier1Required: true;
+    readonly commitGateRequired: true;
   };
 }
 
@@ -117,6 +117,7 @@ export interface DeliverySuffixRematerializationDependencies {
     readonly plan: DeliveryPlanV1;
     readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
     readonly rewrite: DeliverySuffixRewritePlan;
+    readonly snapshot: DeliveryEligibilitySnapshot;
     readonly supersedePendingReviewFixVerification?: DeliveryPendingReviewFixVerificationV1;
   }): Promise<
     | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
@@ -150,7 +151,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
         proposed: input.proposedPlan,
         boundDeliverableIds: input.state.members
           .filter((member) => member.ref !== null || member.changeRequest !== null || member.coordinates !== null)
-          .map((member) => member.deliverableId as CanonicalDigest),
+          .map((member) => member.deliverableId),
         landedDeliverableIds: position.position.landedPrefix,
       }),
     };
@@ -159,7 +160,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
   if (snapshot.planId !== input.plan.planId || snapshot.workUnitId !== input.plan.workUnitId
     || snapshot.planRevision !== input.plan.planRevision || snapshot.planDigest !== input.plan.planDigest
     || input.state.target?.coordinates === null || input.state.target === null
-    || canonicalize(snapshot.protectedBase) !== canonicalize({
+    || canonicalize({ ref: snapshot.protectedBase.ref, ...snapshot.chainBase }) !== canonicalize({
       ref: input.state.target.ref,
       ...input.state.target.coordinates,
     })) return { status: "refused", reason: "snapshot-mismatch" };
@@ -173,7 +174,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
     return { status: "refused", reason: "direct-delivery-ref" };
   }
   const selected = new Set(input.selectedDeliverableIds);
-  const suffixIds = new Set(suffix.slice(0, -1).map((member) => member.deliverableId));
+  const suffixIds = new Set<string>(suffix.slice(0, -1).map((member) => member.deliverableId));
   if (selected.size === 0 || selected.size !== input.selectedDeliverableIds.length
     || input.selectedDeliverableIds.some((id) => !suffixIds.has(id))) {
     return { status: "refused", reason: "selected-member-invalid" };
@@ -187,7 +188,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
     const beforePredecessor = stored?.coordinates === null || stored?.coordinates === undefined
       ? null
       : await input.resolveCoordinate(stored.coordinates.base);
-    const afterPredecessor = suffixIndex === 0 ? snapshot.protectedBase : snapshot.members[suffixIndex - 1];
+    const afterPredecessor = suffixIndex === 0 ? snapshot.chainBase : snapshot.members[suffixIndex - 1];
     if (stored?.coordinates === null || stored?.coordinates === undefined
       || beforePredecessor === null || afterPredecessor === undefined
       || beforePredecessor.head !== stored.coordinates.base) {
@@ -204,7 +205,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
   const rewrites: DeliverySuffixRewritePlan[] = [];
   for (const [suffixIndex, candidate] of snapshot.members.slice(0, -1).entries()) {
     const stored = input.state.members[landedCount + suffixIndex];
-    const predecessor = suffixIndex === 0 ? snapshot.protectedBase : snapshot.members[suffixIndex - 1];
+    const predecessor = suffixIndex === 0 ? snapshot.chainBase : snapshot.members[suffixIndex - 1];
     if (stored?.ref === null || stored?.ref === undefined || stored.coordinates === null || predecessor === undefined) {
       return { status: "refused", reason: "snapshot-mismatch" };
     }
@@ -330,7 +331,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
             ?? contributionVerdicts
               .filter((verdict) => verdict.contribution === "changed")
               .map((verdict) => verdict.deliverableId),
-          tier1Required: true,
+          commitGateRequired: true,
         },
       };
     }
@@ -342,6 +343,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
       plan: fresh.plan,
       current: fresh.current,
       rewrite,
+      snapshot: fresh.snapshot,
       ...(supersession !== undefined
         ? {
             supersedePendingReviewFixVerification:

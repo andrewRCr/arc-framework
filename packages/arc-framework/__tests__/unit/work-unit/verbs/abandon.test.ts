@@ -14,10 +14,11 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import type { PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
-import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
+import { validateManagedPath } from "../../../../src/lib/kernel/canonical/managed-path.js";
 import type {
   ExecuteTransitionContext,
   SideEffectHandler,
@@ -29,7 +30,7 @@ import {
   type LifecycleIndexFs,
 } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
-import type { TransitionRecord } from "../../../../src/lib/work-unit/transition-record.js";
+import type { LineageRecord } from "../../../../src/lib/store/kinds/lineage/index.js";
 import { planAbandon, runAbandon, type AbandonContext, type AbandonParams } from "../../../../src/lib/work-unit/verbs/abandon.js";
 
 const CWD = "/repo";
@@ -65,7 +66,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   const addChildDir = (parent: string, name: string): void => {
     const entries = ensureDir(parent);
     if (!entries.some((e) => e.name === name && e.isDirectory())) {
-      entries.push({ name, isDirectory: () => true });
+      entries.push({ name, isDirectory: () => true, isFile: () => false });
     }
   };
 
@@ -79,7 +80,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
       dirAbs = parent;
     }
     const filename = `meta-${meta.slug}.md`;
-    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
+    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false, isFile: () => true });
     files.set(
       `${dirAbs}/${filename}`,
       `# Metadata: ${meta.slug}\n\n` +
@@ -93,11 +94,11 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       return entries === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
     },
   };
@@ -108,14 +109,14 @@ interface Harness {
   calls: string[];
   removed: string[];
   rmdirs: string[];
-  recordedTransitions: TransitionRecord[];
+  recordedTransitions: LineageRecord[];
 }
 
-function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
+function buildCtx(metas: MetaSpec[]): Harness {
   const calls: string[] = [];
   const removed: string[] = [];
   const rmdirs: string[] = [];
-  const recordedTransitions: TransitionRecord[] = [];
+  const recordedTransitions: LineageRecord[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -131,7 +132,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     setPhase: async () => ({ phase: "Planning" }),
     relocateArtifacts: async () => ({ moved: [] }),
     reconcileBranch: async (op) => {
-      calls.push(op.mutation === "delete" ? `branch:delete:${op.branch}` : `branch:${op.mutation}`);
+      calls.push(`branch:${op.mutation}`);
     },
     reconcileWorkUnitWorktree: async (op) => {
       calls.push(op.mutation === "teardown" ? `worktree:teardown:${op.currentLocus}` : `worktree:${op.mutation}`);
@@ -144,29 +145,19 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     writeDesignField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
-    // The `worktree-clean` IO guard is a caller-supplied seam (production binds the
-    // real `git status` read via `buildFootgunGuards`); the started-WU abandon
-    // cells declare it as the fail-fast that keeps a dirty teardown from
-    // half-applying (artifacts removed, branch/worktree intact).
-    guardValidators: {
-      "worktree-clean": () =>
-        worktreeClean
-          ? { ok: true }
-          : { ok: false, message: "refusing to tear down a dirty worktree: /repo/../wt-foo has uncommitted work." },
-    },
   };
 
   // The artifact-removal seam: list the WU's files, delete each, drop the emptied subdir.
   const fs: AbandonContext["fs"] = {
     readdir: async (path) => {
       // One meta per WU in these fixtures; the matcher narrows by slug.
-      return path.includes("/.arc/") ? ["meta-foo.md", "spec-foo.md", "cohort-other.md"] : [];
+      return fixturePath(path).includes("/.arc/") ? ["meta-foo.md", "spec-foo.md", "cohort-other.md"] : [];
     },
     rm: async (path) => {
-      removed.push(String(path));
+      removed.push(fixturePath(String(path)));
     },
     rmdir: async (path) => {
-      rmdirs.push(String(path));
+      rmdirs.push(fixturePath(String(path)));
     },
   };
 
@@ -219,6 +210,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
 
   return {
     ctx: {
+      removal: { exec: async () => ({ stdout: "", stderr: "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) },
       executor,
       fs,
       retirement,
@@ -313,11 +305,11 @@ describe("runAbandon — started WU (active)", () => {
     expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("transition:record"));
     expect(calls.indexOf("transition:record")).toBeLessThan(calls.indexOf("retirement:complete"));
     expect(recordedTransitions).toEqual([{
-      schemaVersion: 1,
-      origin: "foo",
+      schemaVersion: 2,
+      origin: { name: "foo" },
       kind: "abandon",
       successors: [],
-      edges: [],
+      incoming: [],
     }]);
   });
 
@@ -360,11 +352,11 @@ describe("runAbandon — started WU (active)", () => {
 
     expect(result.status).toBe("abandoned");
     expect(recordedTransitions).toEqual([{
-      schemaVersion: 1,
-      origin: "foo",
+      schemaVersion: 2,
+      origin: { name: "foo" },
       kind: "abandon",
       successors: [],
-      edges: [],
+      incoming: [],
     }]);
   });
 
@@ -402,22 +394,6 @@ describe("runAbandon — started WU (active)", () => {
         remedy: null,
       },
     });
-  });
-});
-
-describe("runAbandon — started WU on a dirty worktree", () => {
-  it("no longer gates on worktree cleanliness — the deferred teardown owns the worktree", async () => {
-    const { ctx, calls, removed } = buildCtx([ACTIVE], /* worktreeClean */ false);
-
-    const result = await runAbandon(ctx, BASE);
-
-    // The started-WU abandon edges dropped the `worktree-clean` guard along with the
-    // in-verb teardown legs it protected, so a dirty worktree no longer blocks the
-    // artifact removal; structurally authorized `arc teardown` owns the worktree.
-    expect(result.status).toBe("abandoned");
-    if (result.status !== "abandoned") return;
-    expect(removed).toContain("/repo/.arc/active/meta-foo.md");
-    expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
   });
 });
 
@@ -505,5 +481,38 @@ describe("runAbandon — illegal sources", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/reopen|integrat/i);
     expect(removed).toEqual([]);
+  });
+});
+
+describe("abandon removal preflight", () => {
+  it("reads the selected repository's lock through an ambient executor and abandons after owner unlock", async () => {
+    const { ctx, removed, recordedTransitions } = buildCtx([ACTIVE]);
+    let locked = true;
+    ctx.removal = { folderExists: async () => true, readMarker: async () => ({ kind: "absent" }),
+      exec: async (_command, args, options) => ({ stdout: args[0] !== "worktree" ? "" : options?.cwd === CWD
+        ? `worktree ${CWD}\0HEAD ${"a".repeat(40)}\0branch refs/heads/feat/foo\0${locked ? "locked owner holds checkout\0" : ""}\0`
+        : `worktree /ambient\0HEAD ${"b".repeat(40)}\0branch refs/heads/main\0\0` }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "rejected", reason: expect.stringContaining("owner holds checkout") });
+    expect(removed).toEqual([]); expect(recordedTransitions).toEqual([]);
+    locked = false;
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+    expect(removed.length).toBeGreaterThan(0); expect(recordedTransitions).toHaveLength(1);
+  });
+  it.each(["Planning", "Active"])("refuses dirty %s work before recording or staging", async (state) => {
+    const { ctx, removed, recordedTransitions, calls } = buildCtx([{ ...ACTIVE, state }]);
+    ctx.removal = { exec: async (_cmd, args) => ({ stdout: args[0] === "status" ? " M changed-file\n" : "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "rejected", reason: expect.stringContaining("changed-file") });
+    expect(removed).toEqual([]); expect(recordedTransitions).toEqual([]); expect(calls).not.toContain("retirement:stage-transition");
+  });
+  it.each([PROVISIONAL, PARKED])("keeps no-checkout abandon available for $state $tier", async (meta) => {
+    const { ctx } = buildCtx([meta]);
+    ctx.removal = { exec: async () => ({ stdout: " M dirty\n" }), folderExists: async () => true };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+  });
+  it("retains dirty anchored changes while recording abandonment", async () => {
+    const { ctx, recordedTransitions } = buildCtx([ACTIVE]);
+    ctx.removal = { exec: async () => { throw Error("Git must not be read for release"); }, readMarker: async () => ({ kind: "present", marker: { spawnedByArc: false, wuName: "foo", spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z" } }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+    expect(recordedTransitions).toHaveLength(1);
   });
 });

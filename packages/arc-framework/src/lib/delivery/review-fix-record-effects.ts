@@ -2,13 +2,12 @@
 
 import { createHash } from "node:crypto";
 
-import { canonicalDigest, canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, isCanonicalDigest, sortByCanonicalBytes, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import { carryDeliveryReviewFixPublicBoundary } from "./review-fix.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
 import type { CandidateManagedRecordV1 } from "../work-unit/candidate-attestation.js";
-import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
-import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 import type { IntegrationBoundaryLocus } from
   "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { DeliveryReviewFixDriveEffect } from "./review-fix-driver.js";
@@ -58,7 +57,7 @@ export function reconstructDeliveryReviewFixExpectedRecords(input: {
   readonly currentCandidate: CandidateManagedRecordV1;
   readonly beforeBoundary: IntegrationBoundaryLocus;
   readonly currentBoundary: IntegrationBoundaryLocus;
-  readonly candidateSubjectDigest: string;
+  readonly candidateSubjectDigest: CanonicalDigest;
   readonly candidateRecord: {
     readonly path: string;
     readonly content: string;
@@ -207,21 +206,48 @@ export function deliveryReviewFixRecordCommitMessage(
     + `with exact expectation ${expectationDigest}.\n\nContext: ${context}`;
 }
 
+function normalizeDeliveryReviewFixRecordCommitMessage(message: string): string | null {
+  const paragraphs = message.split("\n\n");
+  if (paragraphs.length !== 3) return null;
+  const [subject, body, context] = paragraphs;
+  if (subject === undefined || body === undefined || context === undefined) return null;
+  const bodyLines = body.split("\n");
+  if (bodyLines.some((line) => line.length === 0 || line.trim() !== line)) return null;
+  return `${subject}\n\n${bodyLines.join(" ")}\n\n${context}`;
+}
+
+/**
+ * Compare an observed correction-record commit with its exact pre-wrap message.
+ *
+ * @param input - Observed Git message and the exact message supplied to the release wrapper.
+ * @returns Whether wrapping is the only byte-level difference between the messages.
+ */
+export function deliveryReviewFixRecordCommitMessagesMatch(input: {
+  readonly observed: string;
+  readonly expected: string;
+}): boolean {
+  const observed = normalizeDeliveryReviewFixRecordCommitMessage(input.observed);
+  const expected = normalizeDeliveryReviewFixRecordCommitMessage(input.expected);
+  return observed !== null && expected !== null && observed === expected;
+}
+
 /** Recognize one content-bound correction-record commit without trusting its record bytes. */
 export function isDeliveryReviewFixRecordCommitMessage(input: {
   readonly message: string;
   readonly recordClass: DeliveryReviewFixRecordClass;
   readonly context: string;
 }): boolean {
+  const message = normalizeDeliveryReviewFixRecordCommitMessage(input.message);
+  if (message === null) return false;
   const subject = input.recordClass === "review-applicability-selection"
     ? "chore(review): record applicability selection"
     : "chore(delivery): carry correction review boundary";
   const prefix = `${subject}\n\nRecord the machine-owned ${input.recordClass} effect for the active correction `
     + "with exact expectation ";
   const suffix = `.\n\nContext: ${input.context}`;
-  if (!input.message.startsWith(prefix) || !input.message.endsWith(suffix)) return false;
-  const digest = input.message.slice(prefix.length, -suffix.length);
-  return /^sha256:[0-9a-f]{64}$/u.test(digest);
+  if (!message.startsWith(prefix) || !message.endsWith(suffix)) return false;
+  const digest = message.slice(prefix.length, -suffix.length);
+  return isCanonicalDigest(digest);
 }
 
 /** Commit and publish one exact staged correction-record batch. */

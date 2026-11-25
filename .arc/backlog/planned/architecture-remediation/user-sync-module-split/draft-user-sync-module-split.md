@@ -154,8 +154,7 @@ test for `runUserStatus` and `runUserSessionInitStatus`.
 - Verification + buffer: ~1 session.
 
 **Sequencing.** Defer past the parallelism trio (Worktree Foundation + Agile WU
-Lifecycle + Concurrent Work Conventions) and Coord Probe per
-`analysis-cli-architecture-solid-dry-audit.md` § Sequencing Considerations. Parallel
-candidate with Plans A and B once worktree infrastructure unlocks parallel WUs.
+Lifecycle + Concurrent Work Conventions) and Coord Probe per `analysis-cli-architecture-solid-dry-audit.md` § Sequencing
+Considerations. Parallel candidate with Plans A and B once worktree infrastructure unlocks parallel WUs.
 
 ---

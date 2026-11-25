@@ -8,9 +8,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createCandidateAttestation, type CandidateManagedRecordV1 } from
   "../../src/lib/work-unit/candidate-attestation.js";
 import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { createGitExec } from "../../src/lib/io-context.js";
+import { DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID } from "../../src/lib/delivery/design-inventory.js";
+import { lookupKernelSchema } from "../../src/lib/kernel/schema/generate.js";
+import { createProductionSchemaRegistry } from "../../src/production-schema-registry.js";
 import { projectDeliveryPublicReviewContinuation } from
   "../../src/lib/delivery/public-review-continuation.js";
 import {
@@ -27,7 +31,10 @@ import {
   adjacentFieldSeams,
   type DeliveryFieldRun,
 } from "../fixtures/delivery-field-runs.js";
-import { deliveryFourMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
+import {
+  deliveryFourMemberStackPlanFixture,
+  deliverySingleMemberStackPlanFixture,
+} from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 
 const DIGEST = `sha256:${"1".repeat(64)}`;
@@ -51,10 +58,10 @@ describe("arc delivery", () => {
   it("registers compose and plan abandon from the built entry point", async () => {
     const entryHelp = await runArc(["delivery", "entry", "inspect", "--help"], repository);
     expect(entryHelp).toMatchObject({ exitCode: 0 });
-    expect(entryHelp.stdout).toContain("--input <path>");
+    expect(entryHelp.stdout).toContain("Strict JSON request path, or - for standard input");
     await writeFile(join(repository, "invalid-entry.json"), "{}\n");
     const invalidEntry = await runArc([
-      "delivery", "entry", "inspect", "--input", "invalid-entry.json", "--json",
+      "delivery", "entry", "inspect", "invalid-entry.json",
     ], repository);
     expect(invalidEntry.exitCode).toBe(1);
     expect(JSON.parse(invalidEntry.stdout)).toMatchObject({
@@ -92,7 +99,7 @@ describe("arc delivery", () => {
     }
     await writeFile(join(repository, "invalid-execution.json"), "{}\n");
     const invalidExecution = await runArc([
-      "delivery", "position", "invalid-execution.json", "--json",
+      "delivery", "position", "invalid-execution.json",
     ], repository);
     expect(invalidExecution.exitCode).toBe(1);
     expect(JSON.parse(invalidExecution.stdout)).toMatchObject({
@@ -104,6 +111,14 @@ describe("arc delivery", () => {
       "delivery", "plan", "inventory", "schema", "--json",
     ], repository);
     expect(inventorySchema.exitCode, inventorySchema.stderr).toBe(0);
+    const expected = lookupKernelSchema(createProductionSchemaRegistry(), DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID);
+    if (expected.status !== "found") throw new Error("Missing production inventory schema");
+    expect(JSON.parse(inventorySchema.stdout)).toEqual({
+      schemaVersion: 1,
+      command: "delivery plan inventory schema",
+      status: "ok",
+      value: { id: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID, version: expected.meta.version, schema: expected.schema },
+    });
     expect(JSON.parse(inventorySchema.stdout)).toMatchObject({
       command: "delivery plan inventory schema",
       status: "ok",
@@ -111,12 +126,14 @@ describe("arc delivery", () => {
         id: "delivery-design-inventory-input",
         version: 1,
         schema: {
-          $id: "delivery-design-inventory-input.schema.json",
+          $id: "urn:arc:schema:delivery-design-inventory-input",
           additionalProperties: false,
           required: ["artifacts"],
         },
       },
     });
+    const inventoryDocument = (JSON.parse(inventorySchema.stdout) as { value: { schema: unknown } }).value.schema;
+    expect(JSON.stringify(inventoryDocument)).not.toMatch(/"\$ref":"(?!#)/u);
   });
 
   it("reaps refs and retires records through the destructive closeout verb", async () => {
@@ -125,11 +142,11 @@ describe("arc delivery", () => {
     const transitions = join(repository, ".arc", "system", ".internal", "transitions");
     await mkdir(transitions, { recursive: true });
     await writeFile(join(transitions, `${plan.workUnitId}.json`), `${JSON.stringify({
-      schemaVersion: 1,
-      origin: plan.workUnitId,
+      schemaVersion: 2,
+      origin: { name: plan.workUnitId },
       kind: "rename",
-      successors: [closeoutWorkUnitId],
-      edges: [],
+      successors: [{ name: closeoutWorkUnitId }],
+      incoming: [],
     })}\n`);
     await git(repository, ["add", "-A"]);
     await git(repository, ["commit", "-m", "record closeout rename"]);
@@ -204,7 +221,7 @@ describe("arc delivery", () => {
     const env = { PATH: `${fakeBin}:${process.env.PATH ?? ""}` };
 
     const closed = await runArc([
-      "delivery", "closeout", "delivery-closeout.json", "--json",
+      "delivery", "closeout", "delivery-closeout.json",
     ], repository, { env });
     expect(closed.exitCode, closed.stderr).toBe(0);
     expect(JSON.parse(closed.stdout)).toMatchObject({
@@ -223,10 +240,55 @@ describe("arc delivery", () => {
     expect(await git(repository, ["rev-parse", "--verify", "refs/heads/main"])).toBe(head);
 
     const replay = await runArc([
-      "delivery", "closeout", "delivery-closeout.json", "--json",
+      "delivery", "closeout", "delivery-closeout.json",
     ], repository, { env });
     expect(replay.exitCode, replay.stderr).toBe(0);
     expect(JSON.parse(replay.stdout)).toMatchObject({ status: "closed-out", planIds: [] });
+  });
+
+  it("refuses incomplete lifecycle paths before returning a gate-bearing snapshot", async () => {
+    const plan = deliverySingleMemberStackPlanFixture();
+    const branch = await git(repository, ["branch", "--show-current"]);
+    const metaPath = `.arc/active/meta-${plan.workUnitId}.md`;
+    await mkdir(join(repository, ".arc", "active"), { recursive: true });
+    await writeFile(join(repository, metaPath), makeMetaFixture(plan.workUnitId, { branch }));
+    await git(repository, ["add", metaPath]);
+    await git(repository, ["commit", "-m", "add delivery work unit"]);
+
+    const ref = `refs/heads/${branch}`;
+    const canonicalPaths = [
+      metaPath,
+      ".arc/backlog/ROADMAP.md",
+      `.arc/system/.internal/candidates/${plan.workUnitId}.boundary.json`,
+      `.arc/system/.internal/candidates/${plan.workUnitId}.json`,
+    ].sort();
+    const request = {
+      plan,
+      protectedBaseRef: ref,
+      topRef: ref,
+      candidates: [{ deliverableId: plan.members[0]!.deliverableId, ref }],
+      lifecyclePaths: canonicalPaths.filter((path) => path !== ".arc/backlog/ROADMAP.md"),
+    };
+
+    const incomplete = await runArcWithStdin([
+      "delivery", "eligibility", "prepare", "-",
+    ], repository, `${JSON.stringify(request)}\n`);
+    expect(incomplete.exitCode, incomplete.stderr).toBe(1);
+    expect(JSON.parse(incomplete.stdout)).toMatchObject({
+      command: "delivery eligibility prepare",
+      status: "refused",
+      reason: "lifecycle-paths-moved",
+    });
+
+    const canonical = await runArcWithStdin([
+      "delivery", "eligibility", "prepare", "-",
+    ], repository, `${JSON.stringify({ ...request, lifecyclePaths: canonicalPaths })}\n`);
+    expect(canonical.exitCode, canonical.stderr).toBe(0);
+    expect(JSON.parse(canonical.stdout)).toMatchObject({
+      command: "delivery eligibility prepare",
+      status: "prepared",
+      snapshot: { lifecyclePaths: canonicalPaths },
+    });
   });
 
   it.skipIf(process.platform === "win32")(
@@ -240,6 +302,21 @@ describe("arc delivery", () => {
       const candidateRef = "refs/heads/delivery-candidate";
       await git(repository, ["update-ref", topRef, head]);
       await git(repository, ["update-ref", candidateRef, head]);
+      const metaPath = `.arc/active/meta-${plan.workUnitId}.md`;
+      await mkdir(join(repository, ".arc", "active"), { recursive: true });
+      await writeFile(join(repository, metaPath), makeMetaFixture(plan.workUnitId, {
+        state: "Integrating",
+        owner: "test-user",
+        branch,
+        currentWorkflow: "integrate-work-unit",
+        nextAction: "Close delivery eligibility",
+      }));
+      const lifecyclePaths = [
+        metaPath,
+        ".arc/backlog/ROADMAP.md",
+        `.arc/system/.internal/candidates/${plan.workUnitId}.boundary.json`,
+        `.arc/system/.internal/candidates/${plan.workUnitId}.json`,
+      ];
 
       const deliveryRoot = join(repository, ".git", "arc", "delivery");
       const planDirectory = join(deliveryRoot, "plans");
@@ -254,6 +331,8 @@ describe("arc delivery", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
+          chainBase: { head, tree },
+          predecessorRelation: { kind: "unchanged", observedTip: head, chainBase: head },
           top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
@@ -261,7 +340,8 @@ describe("arc delivery", () => {
             head,
             tree,
           }],
-          lifecyclePaths: [`.arc/active/meta-${plan.workUnitId}.md`],
+          lifecyclePaths,
+          regenerablePaths: [".arc/backlog/ROADMAP.md"],
         },
         gateResults: [{ deliverableId: plan.members[0]!.deliverableId, head, tree, status: "passed" }],
       })}\n`);
@@ -269,9 +349,9 @@ describe("arc delivery", () => {
       await chmod(stateDirectory, 0o500);
       try {
         const result = await runArc([
-          "delivery", "eligibility", "close", "eligibility-close.json", "--json",
+          "delivery", "eligibility", "close", "eligibility-close.json",
         ], repository);
-        expect(result.exitCode, result.stderr).toBe(0);
+        expect(result.exitCode, result.stderr || result.stdout).toBe(0);
         expect(JSON.parse(result.stdout)).toMatchObject({
           command: "delivery eligibility close",
           status: "eligible",
@@ -309,6 +389,8 @@ describe("arc delivery", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
+          chainBase: { head, tree },
+          predecessorRelation: { kind: "unchanged", observedTip: head, chainBase: head },
           top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
@@ -317,6 +399,7 @@ describe("arc delivery", () => {
             tree,
           }],
           lifecyclePaths: [`.arc/active/meta-${plan.workUnitId}.md`],
+          regenerablePaths: [],
         },
         gateResults: [{ deliverableId: plan.members[0]!.deliverableId, head, tree, status: "passed" }],
       })}\n`);
@@ -324,7 +407,7 @@ describe("arc delivery", () => {
       await chmod(stateDirectory, 0o500);
       try {
         const result = await runArc([
-          "delivery", "eligibility", "close", "eligibility-close.json", "--json",
+          "delivery", "eligibility", "close", "eligibility-close.json",
         ], repository);
         expect(result.exitCode, result.stderr).toBe(1);
         expect(JSON.parse(result.stdout)).toMatchObject({
@@ -348,19 +431,16 @@ describe("arc delivery", () => {
       ), "utf8"),
     ]);
     const invocationsByWorkflow = workflows.map(
-      (workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? [],
+      (workflow) => workflow.match(/^arc delivery .+$/gmu) ?? [],
     );
     expect(invocationsByWorkflow[0]?.length).toBeGreaterThan(0);
-    expect(invocationsByWorkflow[1]).toEqual(["arc delivery closeout - --json"]);
+    expect(invocationsByWorkflow[1]).toEqual(["arc delivery closeout -"]);
     const invocations = invocationsByWorkflow.flat();
     for (const invocation of invocations) {
       const args = invocation.split(" ").slice(1);
-      if (invocation.startsWith("arc delivery entry inspect ")) {
-        expect(invocation).toContain("--input - --json");
-      } else {
-        expect(invocation).not.toContain("--input");
-        expect(args).toContain("-");
-      }
+      expect(invocation).not.toContain("--input");
+      expect(invocation).not.toContain("--json");
+      expect(args).toContain("-");
       const result = await runArcWithStdin(args, repository, "{}\n");
       expect(result.stderr).not.toMatch(/unknown option|missing required argument/iu);
       expect(JSON.parse(result.stdout)).toMatchObject({
@@ -618,7 +698,7 @@ describe("arc delivery", () => {
     };
 
     const nativeRefreshDefault = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       repository,
       `${JSON.stringify({
         planId: plan.planId,
@@ -636,7 +716,7 @@ describe("arc delivery", () => {
     });
 
     const externalFallback = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       repository,
       `${JSON.stringify({
         planId: plan.planId,
@@ -655,7 +735,7 @@ describe("arc delivery", () => {
     });
 
     const singleton = await runArcWithStdin(
-      ["delivery", "native", "land-select", "-", "--json"],
+      ["delivery", "native", "land-select", "-"],
       repository,
       `${JSON.stringify(request)}\n`,
       { env },
@@ -670,7 +750,7 @@ describe("arc delivery", () => {
     });
 
     const atomic = await runArcWithStdin(
-      ["delivery", "native", "land-select", "-", "--json"],
+      ["delivery", "native", "land-select", "-"],
       repository,
       `${JSON.stringify({ ...request, explicitAtomic: true })}\n`,
       { env },
@@ -691,7 +771,7 @@ describe("arc delivery", () => {
     });
 
     const unsupported = await runArcWithStdin(
-      ["delivery", "native", "land-select", "-", "--json"],
+      ["delivery", "native", "land-select", "-"],
       repository,
       `${JSON.stringify({ ...request, explicitAtomic: true })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "unsupported" } },
@@ -700,7 +780,7 @@ describe("arc delivery", () => {
     expect(JSON.parse(unsupported.stdout)).toMatchObject({ status: "blocked", reason: "unsupported" });
 
     const unreviewedSequential = await runArcWithStdin(
-      ["delivery", "land", "prepare", "-", "--json"],
+      ["delivery", "land", "prepare", "-"],
       repository,
       `${JSON.stringify({
         planId: plan.planId,
@@ -734,7 +814,7 @@ describe("arc delivery", () => {
       treeRoot: repository,
     };
     const flattenedPrepare = await runArcWithStdin(
-      ["delivery", "native", "land-prepare", "-", "--json"],
+      ["delivery", "native", "land-prepare", "-"],
       repository,
       `${JSON.stringify(prepareRequest)}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "flattened" } },
@@ -749,7 +829,7 @@ describe("arc delivery", () => {
     });
 
     const unreviewed = await runArcWithStdin(
-      ["delivery", "native", "land-prepare", "-", "--json"],
+      ["delivery", "native", "land-prepare", "-"],
       repository,
       `${JSON.stringify(prepareRequest)}\n`,
       { env },
@@ -765,7 +845,7 @@ describe("arc delivery", () => {
 
     const top = state.members.at(-1)!;
     const exec = createGitExec();
-    const candidateTarget = await collectGitCandidateTarget({
+    const candidateTarget = await collectCandidateSubjectTarget({
       cwd: repository,
       name: plan.workUnitId,
       baseBranch: "main",
@@ -814,7 +894,7 @@ describe("arc delivery", () => {
       candidateSubjectDigest: candidate.subject.subjectDigest,
       reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 44 },
-    });
+    }, 1);
     const continuation = projectDeliveryPublicReviewContinuation({
       plan,
       state,
@@ -851,7 +931,7 @@ describe("arc delivery", () => {
     }), null);
 
     const prepared = await runArcWithStdin(
-      ["delivery", "native", "land-prepare", "-", "--json"],
+      ["delivery", "native", "land-prepare", "-"],
       repository,
       `${JSON.stringify(prepareRequest)}\n`,
       { env },
@@ -872,7 +952,6 @@ describe("arc delivery", () => {
           headRef: state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
           headSha: nativeMembers[0]!.headSha,
         }),
-        "--json",
       ],
       repository,
       { env },
@@ -889,7 +968,7 @@ describe("arc delivery", () => {
     const preparedStatePath = join(states, `${plan.planId}.json`);
     const preparedState = await readFile(preparedStatePath, "utf8");
     const recovered = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId, repository: "owner/repo", remote: "origin" })}\n`,
       { env: { ...env, ARC_FAKE_FAIL_HOST_ACCESS: "1" } },
@@ -928,7 +1007,7 @@ describe("arc delivery", () => {
           + "observation and the host prefix snapshot.",
       },
       submitAction: {
-        command: "arc delivery native land-submit - --json",
+        command: "arc delivery native land-submit -",
         input: expectedSubmitRequest,
       },
       recommendedActionText:
@@ -938,7 +1017,7 @@ describe("arc delivery", () => {
     expect(await readFile(preparedStatePath, "utf8")).toBe(preparedState);
     const submitRequest = recoveredResult.submitAction.input;
     const flattenedSubmit = await runArcWithStdin(
-      ["delivery", "native", "land-submit", "-", "--json"],
+      ["delivery", "native", "land-submit", "-"],
       repository,
       `${JSON.stringify(submitRequest)}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "flattened" } },
@@ -955,7 +1034,7 @@ describe("arc delivery", () => {
     const terminalCorrectionHead = await git(repository, ["rev-parse", "HEAD"]);
 
     const submitted = await runArcWithStdin(
-      ["delivery", "native", "land-submit", "-", "--json"],
+      ["delivery", "native", "land-submit", "-"],
       repository,
       `${JSON.stringify(submitRequest)}\n`,
       { env: { ...env, ARC_FAKE_TERMINAL_HEAD: terminalCorrectionHead } },
@@ -968,7 +1047,7 @@ describe("arc delivery", () => {
     await git(repository, ["reset", "--hard", top.coordinates!.head]);
 
     const divergentLanding = await runArcWithStdin(
-      ["delivery", "native", "land-status", "-", "--json"],
+      ["delivery", "native", "land-status", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId, request: expectedSubmitRequest.request, remote: "origin" })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "divergent-landed" } },
@@ -981,7 +1060,7 @@ describe("arc delivery", () => {
 
     await git(repository, ["update-ref", "refs/heads/main", landedTargetHead]);
     const landed = await runArcWithStdin(
-      ["delivery", "native", "land-status", "-", "--json"],
+      ["delivery", "native", "land-status", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId, request: expectedSubmitRequest.request, remote: "origin" })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "landed" } },
@@ -994,7 +1073,7 @@ describe("arc delivery", () => {
 
     const positionInput = { planId: plan.planId, repository: "owner/repo", remote: "origin" };
     const terminalPosition = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       repository,
       `${JSON.stringify(positionInput)}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "settled" } },
@@ -1011,7 +1090,7 @@ describe("arc delivery", () => {
     });
 
     const terminalHandoff = await runArcWithStdin(
-      ["delivery", "teardown", "-", "--json"],
+      ["delivery", "teardown", "-"],
       repository,
       `${JSON.stringify({
         ...positionInput,
@@ -1028,7 +1107,7 @@ describe("arc delivery", () => {
     });
 
     const degraded = await runArcWithStdin(
-      ["delivery", "native", "unlink", "-", "--json"],
+      ["delivery", "native", "unlink", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId, repository: "owner/repo", members: nativeMembers })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "degrade", ARC_FAKE_GH_COUNTER: counter } },
@@ -1070,7 +1149,7 @@ describe("arc delivery", () => {
     await expect(readdir(deliveryNamespace)).rejects.toMatchObject({ code: "ENOENT" });
 
     const inspected = await runArc([
-      "delivery", "entry", "inspect", "--input", "delivery-entry.json", "--json",
+      "delivery", "entry", "inspect", "delivery-entry.json",
     ], repository);
     expect(inspected.exitCode, inspected.stderr).toBe(0);
     expect(JSON.parse(inspected.stdout)).toMatchObject({
@@ -1180,15 +1259,11 @@ describe("arc delivery", () => {
     const base = await git(repository, ["rev-parse", "HEAD"]);
     await git(repository, ["checkout", "-b", "feature"]);
     await writeFile(join(repository, "contribution.txt"), "branch contribution\n");
-    await writeFile(join(repository, ".arc", "active", "meta-demo.md"), [
-      "# Metadata: demo",
-      "",
-      "- **State:** Active",
-      "- **Branch:** feat/demo",
-      "- **Task List:** `tasks-demo.md`",
-      "- **Next Action:** Author delivery boundaries",
-      "",
-    ].join("\n"));
+    await writeFile(join(repository, ".arc", "active", "meta-demo.md"), makeMetaFixture("demo", {
+      branch: "feat/demo",
+      taskList: "tasks-demo.md",
+      nextAction: "Author delivery boundaries",
+    }));
     await git(repository, ["add", "--", "contribution.txt", ".arc/active/meta-demo.md"]);
     await git(repository, ["commit", "-m", [
       "branch contribution",
@@ -1226,7 +1301,7 @@ describe("arc delivery", () => {
     expect(map).toContain('".arc/active/meta-demo.md"');
     expect(map).toContain('"boundary": null');
     await fillSlots(join(authoring, mapName), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: {
         kind: "explicit",
         segments: [{ chunkKey: "branch", sourceIds: [head] }],
@@ -1236,7 +1311,7 @@ describe("arc delivery", () => {
         title: "Branch contribution",
         contract: "Publish the inspected branch contribution",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1308,7 +1383,7 @@ describe("arc delivery", () => {
       expectedCurrentPlanDigest: initialPlan.planDigest,
     });
     await fillSlots(join(authoring, successorMap), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: {
         kind: "explicit",
         segments: [{ chunkKey: "branch", sourceIds: [head] }],
@@ -1318,7 +1393,7 @@ describe("arc delivery", () => {
         title: "Branch contribution",
         contract: "Publish the inspected branch contribution",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1425,14 +1500,14 @@ describe("arc delivery", () => {
     expect(mapName).toBeDefined();
     if (mapName === undefined) return;
     await fillSlots(join(authoring, mapName), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: { kind: "phase-aligned" },
       members: [{
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1483,14 +1558,14 @@ describe("arc delivery", () => {
       expectedCurrentPlanDigest: initialPlan.planDigest,
     });
     await fillSlots(join(authoring, successorMap), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: { kind: "phase-aligned" },
       members: [{
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1522,14 +1597,14 @@ describe("arc delivery", () => {
     expect(mapName).toBeDefined();
     if (mapName === undefined) return;
     await fillSlots(join(authoring, mapName), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: { kind: "phase-aligned" },
       members: [{
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1579,20 +1654,20 @@ describe("arc delivery", () => {
     expect(mapName).toBeDefined();
     if (mapName === undefined) return;
     await fillSlots(join(authoring, mapName), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: { kind: "phase-aligned" },
       members: [{
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }, {
         chunkKey: "companion",
         title: "Companion",
         contract: "Publish the companion contract",
         designElementIds: [],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1627,13 +1702,13 @@ describe("arc delivery", () => {
     expect(firstMap).toBeDefined();
     if (firstMap === undefined) return;
     const baseSlots = {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       members: [{
         chunkKey: "partial",
         title: "Partial member",
         contract: "Publish part of the implementation",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     } as const;
@@ -1673,13 +1748,8 @@ describe("arc delivery", () => {
 
   it("emits a typed integrity refusal and abandons the pair idempotently", async () => {
     await mkdir(join(repository, ".arc", "active"), { recursive: true });
-    await writeFile(join(repository, ".arc", "active", "meta-demo.md"), [
-      "# Metadata: demo",
-      "",
-      "- **State:** Active",
-      "- **Branch:** feat/demo",
-      "",
-    ].join("\n"));
+    await writeFile(join(repository, ".arc", "active", "meta-demo.md"),
+      makeMetaFixture("demo", { branch: "feat/demo" }));
     const common = resolve(repository, await git(repository, ["rev-parse", "--git-common-dir"]));
     const authoring = join(common, "arc", "delivery", "authoring");
     await mkdir(authoring, { recursive: true });
@@ -1744,15 +1814,11 @@ async function gitCommonDir(repository: string): Promise<string> {
 
 async function installTaskFixture(repository: string, includeSecondTask = false): Promise<void> {
   await mkdir(join(repository, ".arc", "active"), { recursive: true });
-  await writeFile(join(repository, ".arc", "active", "meta-demo.md"), [
-    "# Metadata: demo",
-    "",
-    "- **State:** Active",
-    "- **Branch:** feat/demo",
-    "- **Design:** `spec-demo.md`",
-    "- **Task List:** `tasks-demo.md`",
-    "",
-  ].join("\n"));
+  await writeFile(join(repository, ".arc", "active", "meta-demo.md"), makeMetaFixture("demo", {
+    branch: "feat/demo",
+    design: ["spec-demo.md"],
+    taskList: "tasks-demo.md",
+  }));
   await writeFile(join(repository, ".arc", "active", "tasks-demo.md"), [
     "# Task List: Demo",
     "",

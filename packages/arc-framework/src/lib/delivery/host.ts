@@ -42,6 +42,21 @@ export type DeliveryHostMutationResult =
       readonly reason: "queued" | "malformed" | "unavailable" | "native-stack-required";
     };
 
+/** Bounded process metadata for one refused host mutation; provider output is never retained. */
+export type DeliveryHostProviderFailure =
+  | { readonly kind: "http"; readonly status: number; readonly exitCode: number | null }
+  | { readonly kind: "command-failed"; readonly exitCode: number | null }
+  | { readonly kind: "timed-out" | "canceled" | "unexpected" };
+
+/** Landing-specific host result that can retain safe diagnostics for an unavailable submission. */
+export type DeliveryHostMergeResult =
+  | { readonly status: "submitted" }
+  | {
+      readonly status: "refused";
+      readonly reason: "queued" | "malformed" | "unavailable" | "native-stack-required" | "conflict";
+      readonly provider?: DeliveryHostProviderFailure;
+    };
+
 /** Failure-only mutation boundary kept separate from ordinary publication and landing. */
 export interface DeliveryTopRemedyHostPort {
   applyTopRemedy(effect: DeliveryTopRemedyEffectV1): Promise<DeliveryHostMutationResult>;
@@ -52,7 +67,7 @@ export interface DeliveryHostPort {
   observeRequest(effect: DeliveryPublishEffectV1): Promise<DeliveryHostRequestObservation>;
   openRequest(input: DeliveryHostOpenRequest): Promise<DeliveryHostMutationResult>;
   readRequest(repository: string, binding: DeliveryChangeRequestV1): Promise<DeliveryHostRequestObservation>;
-  mergeRequest(effect: DeliveryLandEffectV1): Promise<DeliveryHostMutationResult>;
+  mergeRequest(effect: DeliveryLandEffectV1): Promise<DeliveryHostMergeResult>;
   observeTarget(repository: string, targetRef: string): Promise<
     | { readonly status: "observed"; readonly coordinates: DeliveryTargetCoordinatesV1 }
     | { readonly status: "refused"; readonly reason: "malformed" | "unavailable" }

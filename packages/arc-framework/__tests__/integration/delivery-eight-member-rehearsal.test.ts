@@ -16,7 +16,7 @@ import {
   assessDeliveryTerminalTop,
   rebindDeliveryTerminalCoordinates,
 } from "../../src/lib/delivery/terminal-integration.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { canonicalDigest, type CanonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -32,7 +32,7 @@ const oid = (character: string): string => character.repeat(40);
 
 function positionFacts(
   state: DeliveryStateV1,
-  landedDeliverableIds: readonly string[],
+  landedDeliverableIds: readonly CanonicalDigest[],
 ): DeliveryPositionFactsV1 {
   return {
     target: state.target,
@@ -107,6 +107,7 @@ describe("eight-member delivery integration rehearsal", () => {
       recognition: { kind: "durable" as const },
       implementationChanged: false,
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     };
     const predecessor = initial.members.at(-2)!;
     const terminal = initial.members.at(-1)!;
@@ -186,12 +187,14 @@ describe("eight-member delivery integration rehearsal", () => {
         severity: "major" as const,
         locus: "src/example.ts:1",
         evidenceUrlOrId: "https://example.test/retained-finding",
+        sourceOrdinal: 1,
       }],
     };
     const outstanding = composeDeliveryReviewObligation({
       targets,
       discharges: targets.map((_, index) => ({
         completedPasses: 0,
+        completePasses: 0,
         passCeiling: 2,
         attemptHistory: [],
         ...(index === 0
@@ -230,6 +233,7 @@ describe("eight-member delivery integration rehearsal", () => {
         detail: "Hosted source is settled.",
         nextSource: null,
         completedPasses: 1,
+        completePasses: 1,
         passCeiling: 2,
         attemptHistory: [],
       })),
@@ -432,6 +436,9 @@ describe("eight-member delivery integration rehearsal", () => {
       retirement: {
         observeLocalRef: async () => ({ status: "absent" }),
         observeRemoteRef: async () => ({ status: "absent" }),
+        // The rehearsal binds the terminal to one exact head, so identity is the only relation it
+        // models; a distinct pair is one this rehearsal establishes nothing about.
+        readAncestry: async (ancestor, descendant) => ancestor === descendant ? "ancestor" : "not-ancestor",
         readTerminalRequest: async () => ({
           status: "observed",
           request: {

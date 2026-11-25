@@ -1,32 +1,18 @@
+/** Native integration setup consumes controller evidence or prepares direct runtime artifacts. */
+import { resolve } from "node:path";
+import type { TestProject } from "vitest/node";
+import { ensureTestRuntime } from "../../src/lib/build-runtime-setup.js";
+import { prepareIntegrationRunRoot } from "../helpers/integration-temp-root.js";
+
 /**
- * Vitest global setup for integration tests.
- *
- * Two suites in this tier spawn the built `dist/cli.js` as a subprocess, and a
- * stale bundle refuses every command — which would turn their exit-code and
- * stderr assertions into a refusal the failure output cannot explain. The
- * runtime-only build suffices: nothing in this tier reads declarations.
- * `ARC_E2E_SKIP_BUILD=1` skips it for callers that already built the exact tree
- * (CI downloads the shared dist artifact and sets it on this job); the spawn
- * helpers still fail fast with a "build the CLI first" error if `dist/cli.js`
- * is missing.
+ * Establish required CLI and metafile output before integration workers execute, then create the run's own temp
+ * directory when the config gave workers one.
+ * @param project - Native project and its inherited controller context
+ * @returns A teardown removing the run's temp directory, or nothing when workers use the OS temp root
  */
-
-import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-export function setup(): void {
-  const packageRoot = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "../..",
-  );
-  if (process.env.ARC_E2E_SKIP_BUILD !== "1") {
-    execSync("npm run build:fast", { cwd: packageRoot, stdio: "inherit" });
-  }
-  for (const artifact of ["dist/cli.js", "dist/schemas/kernel.json"]) {
-    if (!existsSync(resolve(packageRoot, artifact))) {
-      throw new Error(`${artifact} missing; build the CLI before running integration tests`);
-    }
-  }
+export async function setup(project: TestProject): Promise<(() => void) | undefined> {
+  await ensureTestRuntime(resolve(import.meta.dirname, "../.."), project.getProvidedContext());
+  // A project with no `env` resolves it as undefined, not empty, whatever its declared type says.
+  const runRoot = (project.config.env as Partial<NodeJS.ProcessEnv> | undefined)?.TMPDIR;
+  return runRoot === undefined ? undefined : prepareIntegrationRunRoot(runRoot);
 }

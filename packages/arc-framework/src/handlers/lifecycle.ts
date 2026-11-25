@@ -18,46 +18,37 @@
  *
  * @module
  */
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
+import { runTeardownForOperand } from "./teardown-operand.js";
+import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
+import { resolveSelfTeardownMode } from "../lib/config/self-teardown-mode.js";
+import { handleTeardownHuskSweep } from "./teardown-husk-sweep.js";
+import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
+import { handleStoreAbandon } from "./abandon-store.js";
+import { warnSpawnLock } from "./spawn-lock.js";
 
-import { basename, join, posix, resolve, win32 } from "node:path";
+
+import { collaborationCommandInputRegistrations, handleStoreResume } from "./lifecycle-collaboration.js";
+export { handlePause, handleHandover } from "./lifecycle-collaboration.js";
+import { linkedWorkBranch } from "../lib/work-unit/linked-work-branch.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { taskCommandInputRegistrations } from "./task.js";
+import { basename, join, posix, win32 } from "node:path";
 import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from "node:fs/promises";
-
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { z } from "zod";
-
 import {
   declareCliOptionSite,
-  declareInteractionSite,
+  declarePromptSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
-
-import {
-  formatValue,
-  parseMetaRecord,
-  readActiveMetaCandidates,
-  setMetaBulletFields,
-  setMetaCandidate,
-  type ParsedMetaRecord,
-} from "../lib/active/meta-reader.js";
-import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
-import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
-import {
-  expandActiveInFlight,
-  resolveTaskListPath,
-  runActiveInFlightExpansion,
-} from "../commands/active.js";
+import { prompt } from "../lib/command-input/prompter.js";
+import { parseMetaRecord } from "../lib/active/meta-reader.js";
+import { type ParsedMetaRecord } from "../lib/active/meta-schema.js";
+import { expandActiveInFlight, runActiveInFlightExpansion } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
-import { canonicalize } from "../lib/canonical/canonical-json.js";
-import {
-  createRawGitExec,
-  createUserIOContext,
-  prepareGitRefVerification,
-  readGitBlobBytes,
-  readGitObjectBytes,
-} from "../lib/io-context.js";
-import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import { getArcTemplatePath, getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
+import { createRawGitExec, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
@@ -66,9 +57,7 @@ import {
 import { renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
 import { DEFAULT_NETWORK_TIMEOUT_MS } from "../lib/git/remote-ref-reader.js";
 import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
-import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
-import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
-import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import {
   resolveComposedLifecycleIndex,
   type ComposedLifecycleIndexResult,
@@ -92,17 +81,9 @@ import {
 } from "../lib/work-unit/verbs/promote-demote.js";
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
-import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
-import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3-preflight.js";
-import {
-  executeGitV3DecomposeCommand,
-  executeGitV3ExtractionCommand,
-} from "../lib/work-unit/git-decompose-v3-operation.js";
-import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-finish.js";
-import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
-import { advanceGitDecomposeTransitionBase } from
-  "../lib/work-unit/git-decompose-transition-base-advancement.js";
-import { decodeV3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
+import { runStub } from "../lib/work-unit/verbs/stub.js";
+import { StubCommandInputSchema } from "../lib/work-unit/verbs/stub-parameters.js";
+export { StubCommandInputSchema } from "../lib/work-unit/verbs/stub-parameters.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -111,6 +92,7 @@ import {
   type InRepoDirectRetirementDeps,
 } from "../lib/work-unit/direct-retirement-driver.js";
 import { runRenameCommand } from "../commands/rename.js";
+import { reportRenameResult } from "./lifecycle-rename-report.js";
 import { runUserClose } from "../commands/user/close.js";
 import {
   createInRepoParkPlanningLandingContext,
@@ -122,46 +104,27 @@ import {
   resolveTransitionRecordPath,
   writeTransitionRecord,
 } from "../lib/work-unit/transition-record-store.js";
-import { runPublish } from "../lib/work-unit/verbs/publish.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import {
   runBranchTeardown,
-  runTeardown,
+  type TeardownContext,
   type TeardownResult,
 } from "../lib/work-unit/verbs/teardown.js";
+import type { StoreRecord } from "../lib/store/read.js";
+import type { StoreRefusal, StoreResult } from "../lib/store/refusal.js";
+import { handleStoreMaterialize } from "./materialize-store.js";
+import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
+import type { Store } from "../lib/store/contract.js";
+import { readLifecycleView } from "../lib/store/lifecycle-view.js";
+import { checkAdvancingPause } from "../lib/store/lifecycle-pause.js";
+import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import { ParsedMetaRecordSchema } from "../lib/active/meta-schema.js";
+import { runSetClass } from "../lib/work-unit/verbs/set-class.js";
 import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
-import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
-import {
-  collectGitCandidateTarget,
-  collectUnstagedReviewablePaths,
-} from "../lib/work-unit/git-candidate-subject.js";
-import {
-  readCandidateRecord,
-  readCandidateRecordVersioned,
-  writeCandidateRecord,
-} from "../lib/work-unit/candidate-record-store.js";
-import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
-import {
-  inspectRepositoryDeliveryCandidateRenewal,
-  inspectRepositoryDeliveryReopen,
-} from "../lib/delivery/repository-entry.js";
-import {
-  resolveLastCompletedTask,
-  resolveTaskListCursor,
-} from "../lib/task-list/cursor.js";
-import {
-  readSubmissionBoundaryVersioned,
-  writeSubmissionBoundary,
-} from "../lib/work-unit/submission-boundary-store.js";
-import {
-  projectCandidateReviewBoundary,
-  projectCandidateReviewResumeBoundary,
-  projectCorrectiveDeliveryStatusBoundary,
-} from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
@@ -170,67 +133,40 @@ import {
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
-import {
-  attestArgv,
-  attestNewRootArgv,
-  spineRemedy,
-  SpineRemedySchema,
-  type SpineRemedy,
-} from "../scripts/integration/spine-refusal.js";
-import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
-import {
-  PrioritySchema,
-  SLUG_PATTERN,
-  SlugSchema,
-  WorkClassSchema,
-  validateManagedPath,
-} from "../lib/kernel/index.js";
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
+import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import {
+  buildExecutor,
+  lifecycleFs,
+  materializeActiveMetaPath,
+  openDefaultStore,
+  parseLifecycleCommand,
+  refuse,
+  refuseWithRemedy,
+  refuseUnboundTarget,
+  reportOutcome,
+  resolveVerbBase,
+  type VerbBase,
+} from "./lifecycle-shared.js";
+import { permitDeliveryReopen, publishCandidateWithReviewBoundary, refuseProjectIdentityFailure } from "./lifecycle-delivery-review.js";
 
-// ---------------------------------------------------------------------------
-// Shared dispatch shape — target resolution + candidate surfacing
-// ---------------------------------------------------------------------------
-
-class DeliveryCandidateRenewalRefusal extends Error {}
-
-/** The production filesystem seam for the lifecycle-index scan (mirrors `start`). */
-const lifecycleFs: LifecycleIndexFs = {
-  readdir: (path) => readdir(path, { withFileTypes: true }),
-  readFile: (path) => readFile(path, "utf8"),
-};
-
-function projectActiveMetaPath(slugValue: string) {
-  return resolveArcPath({
-    kind: "work-unit-artifact",
-    placement: { kind: "active", scope: { kind: "project" } },
-    slug: SlugSchema.parse(slugValue),
-    artifact: "meta",
-  });
+/** Resolve this checkout's identity through the invocation's operational store. */
+async function resolveCurrentWuSlug(cwd: string, store?: Store): Promise<string | UnboundMarkerClassification | null> {
+  const current = await resolveCurrentWorkUnit({ cwd, store });
+  if (current.status === "unbound") return current.unbound;
+  return current.status === "resolved" ? current.candidate.reference.owner.name : null;
 }
 
-function materializeActiveMetaPath(cwd: string, slugValue: string): string {
-  return materializeArcPath(cwd, projectActiveMetaPath(slugValue));
-}
-
-/** `meta-<slug>.md` → `<slug>`, or `null` when the filename is not a meta file. */
-function slugFromMetaFilename(filename: string): string | null {
-  return /^meta-(.+)\.md$/u.exec(filename)?.[1] ?? null;
-}
-
-/**
- * The current worktree's WU slug for the context-defaulting fallback — the single
- * active meta's slug, or `null` when zero or more than one resolved (no unambiguous
- * default to act on).
- */
-async function resolveCurrentWuSlug(cwd: string): Promise<string | null> {
-  const { candidates } = await readActiveMetaCandidates(cwd);
-  const [only] = candidates;
-  if (candidates.length !== 1 || only === undefined) return null;
-  return slugFromMetaFilename(only.filename);
+async function resolveStageWorkUnit(base: VerbBase, store: Store | undefined, verb: string): Promise<string | null> {
+  const slug = await resolveCurrentWuSlug(base.cwd, usesOffBranchState(store) ? store : base.store);
+  if (slug !== null && typeof slug !== "string") { refuseUnboundTarget(slug); return null; }
+  if (slug === null) refuse(`\`arc ${verb}\` needs exactly one active work unit to target — none resolved in this worktree.`);
+  return slug;
 }
 
 /**
@@ -250,14 +186,21 @@ export async function resolveVerbTargetOrReport(
   slugArg: string | undefined,
   cwd: string,
   json = false,
+  store?: Store,
 ): Promise<string | null> {
   const needsCurrentWu = !slugArg?.trim() && DISPATCH_MODE[verb] === "context-defaulting";
-  const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd) : null;
+  const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd, store) : null;
+  if (currentWuSlug !== null && typeof currentWuSlug !== "string") { refuseUnboundTarget(currentWuSlug, json); return null; }
 
   const target = selectVerbTarget(verb, slugArg, currentWuSlug);
-  if (target.kind === "resolved") return target.slug;
+  if (target.kind === "resolved") return canonicalVerbTarget(target.slug, store, json);
 
-  const index = await buildLifecycleIndex({ cwd, fs: lifecycleFs });
+  const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(cwd, store) : undefined;
+  if (view?.status === "refused") {
+    refuseWithRemedy(view.refusal.condition, view.refusal.remedy, json, view.refusal);
+    return null;
+  }
+  const index = view?.status === "ok" ? view.result.index : await buildLifecycleIndex({ cwd, fs: lifecycleFs });
   const reason = formatVerbCandidates(verb, findVerbCandidates(index, verb));
   if (json) {
     refuseWithRemedy(
@@ -276,75 +219,19 @@ export async function resolveVerbTargetOrReport(
   return null;
 }
 
+/** Canonicalize former slugs while preserving unresolved create-new targets. */
+async function canonicalVerbTarget(slug: string, store: Store | undefined, json: boolean): Promise<string | null> {
+  if (!usesOffBranchState(store) || store === undefined) return slug;
+  const read = await readWorkUnit(store, slug);
+  if (read.status === "ok") return read.result.reference.owner.name;
+  if (read.refusal.code === "not-found") return slug;
+  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json, read.refusal);
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Shared handler preamble + reporting
 // ---------------------------------------------------------------------------
-
-/** The ambient context every verb handler resolves once. */
-interface VerbBase {
-  identity: string;
-  cwd: string;
-  io: ReturnType<typeof createUserIOContext>;
-}
-
-/** Resolve identity, repo root, and the I/O context; `null` when a guard already reported. */
-async function resolveVerbBase(context?: InteractionContext, json = false): Promise<VerbBase | null> {
-  const io = createUserIOContext(context?.subprocess);
-  if (json) {
-    const cwd = resolveArcRoot();
-    if (cwd === null) {
-      refuseWithRemedy(
-        "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
-        spineRemedy(
-          "Lifecycle commands require an ARC project root.",
-          "Enter an ARC project, then inspect its lifecycle state",
-          ["arc", "status", "--json"],
-        ),
-        true,
-      );
-      return null;
-    }
-    try {
-      const identity = await resolveUserIdentity(io.exec);
-      return { identity, cwd, io };
-    } catch {
-      refuseWithRemedy(
-        "No identity configured.",
-        spineRemedy(
-          "Lifecycle commands require a configured ARC identity.",
-          "Initialize the project identity",
-          ["arc", "init"],
-        ),
-        true,
-      );
-      return null;
-    }
-  }
-  let identity: string;
-  try {
-    identity = await resolveUserIdentity();
-  } catch (err) {
-    if (isHandledError(err)) return null;
-    throw err;
-  }
-  const cwd = requireArcProjectRoot();
-  if (!cwd) return null;
-  return { identity, cwd, io };
-}
-
-/** Read config once and build the production executor context, returning both. */
-async function buildExecutor(base: VerbBase) {
-  const { settings } = await readConfigSettings(base.cwd);
-  const executor = buildExecutorContext({
-    cwd: base.cwd,
-    io: base.io,
-    identity: base.identity,
-    teamMode: settings["team.mode"] === "true",
-    baseBranch: settings["branch.base"],
-    internalTemplateDir: getInternalTemplatePath(),
-  });
-  return { executor, settings };
-}
 
 /** Resolve the remote-aware lifecycle truth shared by destructive transform handlers. */
 async function resolveTransformComposition(
@@ -379,6 +266,12 @@ async function resolveTransformComposition(
   });
 }
 
+function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolean {
+  return Object.values(lifecycle.cleanup).some(
+    (projection) => projection.status === "pending" || projection.status === "blocked",
+  );
+}
+
 /** Bind the shared in-repository direct-transition retirement boundaries. */
 function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
   return {
@@ -400,13 +293,6 @@ function terminalTransitionWriter(base: VerbBase): ReturnType<typeof createInRep
   });
 }
 
-/** Surface a transition's success note plus any side-effect advisories. */
-function reportOutcome(label: string, lines: string[], outcome: TransitionOutcome): void {
-  p.note(lines.join("\n"), label);
-  if (outcome.status === "ok") for (const advisory of outcome.advisories) p.log.info(advisory);
-  p.outro("Done.");
-}
-
 /** Surface a placement-only materialize result without fabricating a lifecycle transition. */
 function reportMaterializeOutcome(
   label: string,
@@ -416,55 +302,6 @@ function reportMaterializeOutcome(
   p.note(lines.join("\n"), label);
   for (const advisory of advisories) p.log.info(advisory);
   p.outro("Done.");
-}
-
-/** Report a refusal and set a non-zero exit code. */
-function refuse(reason: string): void {
-  p.log.error(reason);
-  process.exitCode = 1;
-}
-
-/** Refuse with the failed invariant and the one command that advances from it. */
-export const LifecycleCommandRefusalSchema = z.strictObject({
-  status: z.literal("rejected"),
-  reason: z.string().min(1),
-  remedy: SpineRemedySchema,
-});
-
-function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): void {
-  if (json) {
-    const refusal = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy });
-    process.stdout.write(`${JSON.stringify(refusal)}\n`);
-    process.exitCode = 1;
-    return;
-  }
-  refuse(`${reason}\n${remedy.text}`);
-}
-
-/** Name a bounded sample of paths so a wide refusal stays readable without hiding its scale. */
-function summarizePaths(paths: readonly string[], limit = 5): string {
-  const shown = paths.slice(0, limit).map((path) => `\`${path}\``).join(", ");
-  return paths.length <= limit ? shown : `${shown}, and ${paths.length - limit} more`;
-}
-
-function parseLifecycleCommand<T extends z.ZodType>(
-  schema: T,
-  value: unknown,
-  command: readonly string[],
-  json = false,
-): z.output<T> | null {
-  const parsed = schema.safeParse(value);
-  if (parsed.success) return parsed.data;
-  refuseWithRemedy(
-    z.prettifyError(parsed.error),
-    spineRemedy(
-      "Command input must satisfy its registered schema.",
-      "Review command usage",
-      ["arc", ...command, "--help"],
-    ),
-    json,
-  );
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -482,28 +319,6 @@ export interface StubOptions {
   class?: string;
 }
 
-/** Canonical cohort path accepted by the `stub` command boundary. */
-const slugSegmentPatternSource = SLUG_PATTERN.source.slice(1, -1);
-const stubCohortPathPattern = new RegExp(
-  `^${slugSegmentPatternSource}(?:/${slugSegmentPatternSource}){0,${String(COHORT_SEGMENT_CAP - 1)}}$`,
-  "u",
-);
-const StubCohortPathSchema = z.string().regex(
-  stubCohortPathPattern,
-  "Expected a canonical one- or two-segment cohort path",
-);
-
-/** Complete schema-owned stub creation input. */
-export const StubCommandInputSchema = z.object({
-  name: SlugSchema,
-  commitment: z.enum(["provisional", "planned"]),
-  priority: PrioritySchema,
-  origin: z.string().min(1).optional(),
-  design: z.string().min(1).optional(),
-  cohort: StubCohortPathSchema.optional(),
-  class: WorkClassSchema.optional(),
-}).strict();
-
 /** Schema-owned backlog tier inputs. */
 export const PromoteCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
@@ -515,60 +330,6 @@ export const DemoteCommandInputSchema = z.object({ slug: SlugSchema.optional() }
 
 const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).strict();
 
-/** Decomposition modes consumed by schema exclusivity and machine-readable routing. */
-export const DECOMPOSE_MODE_KEYS = [
-  "preflight",
-  "execute",
-  "extract",
-  "finish",
-  "advanceBase",
-] as const;
-
-/** Mode keys plus non-mode operands that still require machine-readable diagnostics. */
-export const DECOMPOSE_MACHINE_READABLE_KEYS = [
-  ...DECOMPOSE_MODE_KEYS,
-  "apply",
-] as const;
-
-type DecomposeRoutingOptions = Partial<Record<
-  typeof DECOMPOSE_MACHINE_READABLE_KEYS[number],
-  string | boolean
->>;
-
-function decomposeOptionSelected(options: DecomposeRoutingOptions, key: keyof DecomposeRoutingOptions): boolean {
-  const value = options[key];
-  return typeof value === "boolean" ? value : value !== undefined;
-}
-
-/** Whether a decomposition invocation must keep output and parse failures on machine-readable streams. */
-export function isDecomposeMachineReadableInvocation(options: DecomposeRoutingOptions): boolean {
-  return DECOMPOSE_MACHINE_READABLE_KEYS.some((key) => decomposeOptionSelected(options, key));
-}
-
-export const DecomposeCommandInputSchema = z.object({
-  origin: SlugSchema,
-  preflight: z.literal(true).optional(),
-  execute: z.string().trim().min(1).optional(),
-  extract: z.string().trim().min(1).optional(),
-  finish: z.string().trim().min(1).optional(),
-  apply: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
-  advanceBase: z.string().trim().min(1).optional(),
-}).strict().superRefine((value, refinement) => {
-  const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
-  if (modes !== 1) {
-    refinement.addIssue({
-      code: "custom",
-      message: "Exactly one of --preflight, --execute, --extract, --finish, or --advance-base is required.",
-    });
-  }
-  if (value.apply !== undefined && value.finish === undefined) {
-    refinement.addIssue({
-      code: "custom",
-      path: ["apply"],
-      message: "--apply is valid only with --finish.",
-    });
-  }
-});
 export const ParkCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   reason: z.string().trim().min(1).optional(),
@@ -585,7 +346,7 @@ export const AbandonCommandInputSchema = OptionalLifecycleTargetSchema.extend({}
 export const ActivateCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   type: z.string().regex(/^[a-z][a-z0-9-]*$/u),
-  task: z.string().trim().min(1),
+  task: z.string().trim().min(1).optional(),
   action: z.string().trim().min(1),
 }).strict();
 export const PublishCommandInputSchema = z.object({
@@ -605,7 +366,7 @@ export const ArchiveCommandInputSchema = z.object({
   completed: z.iso.date().optional(),
 }).strict();
 export const TeardownCommandInputSchema = z.object({
-  name: SlugSchema.optional(),
+  name: z.union([SlugSchema, z.uuid()]).optional(),
   branch: z.string().regex(
     /^[a-z][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/u,
     "Branch must use a type/slug-safe-name shape.",
@@ -615,59 +376,42 @@ export const TeardownCommandInputSchema = z.object({
     "Husk path must be absolute.",
   ).optional(),
   force: z.boolean().optional(),
+  yes: z.boolean().optional(),
 }).strict().superRefine((value, refinement) => {
   if (value.branch !== undefined && (value.name !== undefined || value.husk !== undefined || value.force === true)) {
     refinement.addIssue({ code: "custom", path: ["branch"], message: "--branch cannot be combined with name, --husk, or --force." });
   }
-  if (value.branch === undefined && value.name === undefined) {
+  if (value.branch === undefined && value.name === undefined && (value.husk !== undefined || value.force === true)) {
     refinement.addIssue({
       code: "custom",
       path: ["name"],
-      message: "`arc teardown <name>` requires the work-unit name to clean up (or pass --branch).",
+      message: "`arc teardown` requires a work-unit name when --husk or --force is supplied.",
     });
   }
 });
+export const SetClassCommandInputSchema = z.strictObject({ workClass: WorkClassSchema, slug: SlugSchema.optional() });
 export const SetStageCommandInputSchema = z.object({
   stage: z.enum(["draft-design", "create-spec", "generate-tasks"]),
   advance: z.boolean().optional(),
 }).strict();
 export const FinalizeCommandInputSchema = z.object({
-  firePoint: z.enum(["create-spec", "generate-tasks"]),
+  firePoint: z.enum(["create-spec", "amend-design", "generate-tasks"]),
   class: WorkClassSchema.optional(),
 }).strict().superRefine((value, refinement) => {
   if (value.class === undefined) {
     refinement.addIssue({ code: "custom", path: ["class"], message: "--class is required at this fire-point." });
   }
 });
-export const AttestCommandInputSchema = z.object({
-  name: SlugSchema,
-  json: z.boolean().optional(),
-  newRoot: z.boolean().optional(),
-  expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
-  expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
-}).strict().superRefine((value, refinement) => {
-  if ((value.expectedCandidate === undefined) !== (value.expectedSubject === undefined)) {
-    refinement.addIssue({
-      code: "custom",
-      path: [value.expectedCandidate === undefined ? "expectedCandidate" : "expectedSubject"],
-      message: "--expected-candidate and --expected-subject must be supplied together.",
-    });
-  }
-  if ((value.expectedCandidate !== undefined || value.expectedSubject !== undefined) && value.newRoot !== true) {
-    refinement.addIssue({
-      code: "custom",
-      path: ["newRoot"],
-      message: "Bound re-root selectors require --new-root.",
-    });
-  }
-});
+
 export const RepointDesignCommandInputSchema = z.object({
   event: z.enum(["draft-created", "spec-finalized"]),
 }).strict();
 export const RenameCommandInputSchema = z.object({
-  slug: SlugSchema,
+  slug: z.union([SlugSchema, z.uuid()]),
   newSlug: SlugSchema,
-}).strict().superRefine((value, refinement) => {
+  json: z.boolean().optional(),
+}).strict();
+const InRepoRenameCommandInputSchema = RenameCommandInputSchema.superRefine((value, refinement) => {
   if (value.slug === value.newSlug) {
     refinement.addIssue({ code: "custom", path: ["newSlug"], message: "The new slug must differ from the current one." });
   }
@@ -675,6 +419,8 @@ export const RenameCommandInputSchema = z.object({
 
 /** Registry contributions owned by lifecycle backlog commands. */
 export const lifecycleCommandInputRegistrations = [
+  ...taskCommandInputRegistrations,
+  ...collaborationCommandInputRegistrations,
   {
     commandPath: "stub",
     schema: StubCommandInputSchema,
@@ -688,19 +434,7 @@ export const lifecycleCommandInputRegistrations = [
       "option.class": "class",
     },
   },
-  {
-    commandPath: "decompose",
-    schema: DecomposeCommandInputSchema,
-    schemaFields: {
-      "operand.origin": "origin",
-      "option.preflight": "preflight",
-      "option.execute": "execute",
-      "option.extract": "extract",
-      "option.finish": "finish",
-      "option.apply": "apply",
-      "option.advance-base": "advanceBase",
-    },
-  },
+
   {
     commandPath: "promote",
     schema: PromoteCommandInputSchema,
@@ -763,7 +497,13 @@ export const lifecycleCommandInputRegistrations = [
       "option.branch": "branch",
       "option.husk": "husk",
       "option.force": "force",
+      "option.yes": "yes",
     },
+  },
+  {
+    commandPath: "set-class",
+    schema: SetClassCommandInputSchema,
+    schemaFields: { "operand.class": "workClass", "operand.slug": "slug" },
   },
   {
     commandPath: "set-stage",
@@ -775,17 +515,7 @@ export const lifecycleCommandInputRegistrations = [
     schema: FinalizeCommandInputSchema,
     schemaFields: { "operand.fire-point": "firePoint", "option.class": "class" },
   },
-  {
-    commandPath: "attest",
-    schema: AttestCommandInputSchema,
-    schemaFields: {
-      "operand.name": "name",
-      "option.json": "json",
-      "option.new-root": "newRoot",
-      "option.expected-candidate": "expectedCandidate",
-      "option.expected-subject": "expectedSubject",
-    },
-  },
+
   {
     commandPath: "repoint-design",
     schema: RepointDesignCommandInputSchema,
@@ -794,45 +524,70 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "rename",
     schema: RenameCommandInputSchema,
-    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug" },
+    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug", "option.json": "json" },
   },
 ] as const satisfies readonly CommandInputRegistration[];
 
+/** Required commitment for a newly authored backlog stub. */
+export const stubCommitmentPromptSite = declarePromptSite("prompt.stub.commitment", "select",
+  { file: "handlers/lifecycle.ts", symbol: "stubCommitmentPromptSite" }, {
+    acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--commitment <tier>"] },
+    mutationBoundary: "stub handler", subprocess: "none",
+  });
+
+/** Required priority for a newly authored backlog stub. */
+export const stubPriorityPromptSite = declarePromptSite("prompt.stub.priority", "select",
+  { file: "handlers/lifecycle.ts", symbol: "stubPriorityPromptSite" }, {
+    acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--priority <priority>"] },
+    mutationBoundary: "stub handler", subprocess: "none",
+  });
+
+/** Resolved work class for promotion of a provisional stub. */
+export const promoteClassPromptSite = declarePromptSite("prompt.promote.class", "select",
+  { file: "handlers/lifecycle.ts", symbol: "promoteClassPromptSite" }, {
+    acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--class <value>"] },
+    mutationBoundary: "promote handler", subprocess: "none",
+  });
+
 /** Interaction policies owned by the lifecycle command adapters. */
 export const lifecycleCommandInputPolicyDeclarations = [
+  { commandPath: "teardown", aliases: [], sites: [declareCliOptionSite("yes", {
+    acquisition: "protected-confirmation", schemaOwnership: "owned", schemaField: "yes", cancellation: "not-applicable",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
+    mutationBoundary: "stamped-husk sweep", subprocess: "none",
+  })] },
+  {
+    commandPath: "rename",
+    aliases: [],
+    sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    })],
+  },
+  {
+    commandPath: "publish",
+    aliases: [],
+    sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    })],
+  },
   {
     commandPath: "stub",
     aliases: [],
-    sites: [
-      declareInteractionSite(
-        { file: "handlers/lifecycle.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
-        {
-          acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
-          automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--commitment <tier>"] },
-          mutationBoundary: "stub handler", subprocess: "none",
-        },
-      ),
-      declareInteractionSite(
-        { file: "handlers/lifecycle.ts", kind: "prompt", callee: "p.select", occurrence: 2 },
-        {
-          acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
-          automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--priority <priority>"] },
-          mutationBoundary: "stub handler", subprocess: "none",
-        },
-      ),
-    ],
+    sites: [stubCommitmentPromptSite, stubPriorityPromptSite],
   },
   {
     commandPath: "promote",
     aliases: [],
-    sites: [declareInteractionSite(
-      { file: "handlers/lifecycle.ts", kind: "prompt", callee: "p.select", occurrence: 3 },
-      {
-        acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--class <value>"] },
-        mutationBoundary: "promote handler", subprocess: "none",
-      },
-    )],
+    sites: [promoteClassPromptSite],
   },
   {
     commandPath: "abandon",
@@ -852,48 +607,34 @@ export const lifecycleCommandInputPolicyDeclarations = [
 export async function handleStub(
   name: string | undefined,
   opts: StubOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
   p.intro("arc stub");
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false, machineReadable: false, yes: "absent",
-  });
   const parsedName = SlugSchema.safeParse(name?.trim());
   if (!parsedName.success) {
     refuse(parsedName.error.issues.map((issue) => issue.message).join("\n"));
     return;
   }
-  let commitment = opts.commitment;
-  let priority = opts.priority;
-  if (context.interaction === "allowed") {
-    if (commitment === undefined) {
-      const answer = await p.select<StubCommitment>({
-        message: "Backlog commitment?",
-        options: [
-          { value: "provisional", label: "Provisional" },
-          { value: "planned", label: "Planned" },
-        ],
-      });
-      if (p.isCancel(answer)) return;
-      commitment = answer;
-    }
-    if (priority === undefined) {
-      const answer = await p.select<z.infer<typeof PrioritySchema>>({
-        message: "Priority?",
-        options: PrioritySchema.options.map((value) => ({ value, label: value })),
-      });
-      if (p.isCancel(answer)) return;
-      priority = answer;
-    }
-  }
+  const commitmentAnswer = await prompt(stubCommitmentPromptSite, context, {
+    message: "Backlog commitment?", explicitAnswer: opts.commitment,
+    options: [{ value: "provisional", label: "Provisional" }, { value: "planned", label: "Planned" }],
+  });
+  if (commitmentAnswer.kind === "cancelled") return;
+  const priorityAnswer = await prompt(stubPriorityPromptSite, context, {
+    message: "Priority?", explicitAnswer: opts.priority,
+    options: PrioritySchema.options.map((value) => ({ value, label: value })),
+  });
+  if (priorityAnswer.kind === "cancelled") return;
   const missing = [
-    ...(commitment === undefined ? ["--commitment <provisional|planned>"] : []),
-    ...(priority === undefined ? ["--priority <P1|P2|P3>"] : []),
+    ...(commitmentAnswer.kind === "refused" ? commitmentAnswer.acceptedSyntax : []),
+    ...(priorityAnswer.kind === "refused" ? priorityAnswer.acceptedSyntax : []),
   ];
   if (missing.length > 0) {
     refuse(`Missing required input: ${missing.join(", ")}`);
     return;
   }
+  const commitment = commitmentAnswer.kind === "answered" ? commitmentAnswer.value : undefined;
+  const priority = priorityAnswer.kind === "answered" ? priorityAnswer.value : undefined;
   const parsed = StubCommandInputSchema.safeParse({
     name: parsedName.data, commitment, priority,
     ...(opts.origin === undefined ? {} : { origin: opts.origin }),
@@ -929,200 +670,35 @@ export async function handleStub(
   reportOutcome("Stubbed", [`Work unit: ${parsed.data.name}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
 
-// ---------------------------------------------------------------------------
-// Composite (fan-out) — `decompose`
-// ---------------------------------------------------------------------------
-
-/** Options for `arc decompose`. */
-export interface DecomposeOptions {
-  /** Emit one exact machine-derived starter map without mutation. */
-  preflight?: true;
-  /** Stage one exact repository result from a canonical completed cut map. */
-  execute?: string;
-  /** Stage one additive result while preserving the source origin. */
-  extract?: string;
-  /** Preview source thinning from one completed extraction map. */
-  finish?: string;
-  /** Apply the exact source-thinning preview authority. */
-  apply?: string;
-  /** Advance one committed full-protection candidate from its canonical completed cut map. */
-  advanceBase?: string;
-}
-
-function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolean {
-  return Object.values(lifecycle.cleanup).some(
-    (projection) => projection.status === "pending" || projection.status === "blocked",
-  );
-}
-
-/**
- * Dispatch one closed v3 decomposition command mode.
- *
- * @param origin - Planning source slug to authenticate and inspect.
- * @param opts - Closed command mode and its exact cut-map operands.
- * @param context - Optional interaction context supplying subprocess execution.
- * @returns A promise that resolves after emitting one canonical result or refusal.
- */
-export async function handleDecompose(
-  origin: string | undefined,
-  opts: DecomposeOptions,
-  context?: InteractionContext,
-): Promise<void> {
-  const parsed = DecomposeCommandInputSchema.safeParse({ origin: origin?.trim(), ...opts });
-  if (!parsed.success) {
-    const diagnostic = z.prettifyError(parsed.error);
-    if (isDecomposeMachineReadableInvocation(opts)) {
-      process.stderr.write(`${diagnostic}\n`);
-      process.exitCode = 1;
-    } else {
-      refuse(diagnostic);
-    }
-    return;
-  }
-  const cwd = resolveArcRoot();
-  if (cwd === null) {
-    process.stderr.write("Not inside an ARC project (no .arc/ directory found walking up from cwd).\n");
-    process.exitCode = 1;
-    return;
-  }
-  try {
-    const { settings, warnings } = await readConfigSettings(cwd);
-    for (const warning of warnings) process.stderr.write(`${warning}\n`);
-    const io = createUserIOContext(context?.subprocess);
-    if (parsed.data.preflight === true) {
-      const result = await createGitV3DecomposePreflight({
-        cwd,
-        exec: io.exec,
-        readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
-      }, settings["branch.base"], parsed.data.origin);
-      if (result.status === "rejected") {
-        const locus = "locus" in result ? result.locus : undefined;
-        process.stderr.write(
-          `${result.reason}${locus === undefined ? "" : `: ${locus}`}\n`,
-        );
-        process.exitCode = 1;
-        return;
-      }
-      process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
-      return;
-    }
-    const cohortTemplate = new Uint8Array(await readFile(join(
-      getArcTemplatePath(),
-      "reference",
-      "templates",
-      "arc",
-      "work-unit",
-      "template-cohort.md",
-    )));
-    const repository = {
-      cwd,
-      exec: io.exec,
-      readBlob: (ref: string, path: string) => readGitBlobBytes(cwd, ref, path),
-      readObject: (oid: string, objectKind: string) => readGitObjectBytes(cwd, oid, objectKind),
-      cohortTemplate,
-    };
-    const protection = settings["branch.protection"] === "full" ? "full" : "partial";
-    if (parsed.data.finish !== undefined) {
-      const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
-        cwd,
-        baseBranch: settings["branch.base"],
-        origin: parsed.data.origin,
-        cutMapPath: parsed.data.finish,
-        applyAuthority: (parsed.data.apply ?? null) as `sha256:${string}` | null,
-      }));
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status === "refused") {
-        process.stderr.write(
-          `${result.reason}${result.locus === undefined ? "" : `: ${result.locus}`}\n`,
-        );
-        process.exitCode = 1;
-      }
-      return;
-    }
-    if (parsed.data.execute !== undefined) {
-      const result = await executeGitV3DecomposeCommand({
-        ...repository,
-        spawningIdentity: await resolveUserIdentity(),
-      }, {
-        protection,
-        baseBranch: settings["branch.base"],
-        origin: parsed.data.origin,
-        cutMapPath: parsed.data.execute,
-      });
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status !== "staged") {
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
-        process.exitCode = 1;
-      }
-      return;
-    }
-    if (parsed.data.extract !== undefined) {
-      const result = await executeGitV3ExtractionCommand({
-        ...repository,
-        spawningIdentity: await resolveUserIdentity(),
-      }, {
-        protection,
-        baseBranch: settings["branch.base"],
-        origin: parsed.data.origin,
-        cutMapPath: parsed.data.extract,
-      });
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status !== "staged") {
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
-        process.exitCode = 1;
-      }
-      return;
-    }
-    if (parsed.data.advanceBase !== undefined) {
-      let completedMap: unknown;
-      try {
-        completedMap = JSON.parse(await readFile(resolve(cwd, parsed.data.advanceBase), "utf8"));
-      } catch {
-        completedMap = null;
-      }
-      const decoded = decodeV3DecomposeCutMap(completedMap);
-      const result = decoded.status === "accepted"
-        && decoded.value.machine.source.origin === parsed.data.origin
-        ? await advanceGitDecomposeTransitionBase(repository, {
-            protection,
-            baseBranch: settings["branch.base"],
-            completedMap: decoded.value,
-          })
-        : { status: "refused" as const, reason: "map:invalid" };
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status === "refused") {
-        process.stderr.write(`${result.reason}\n`);
-        process.exitCode = 1;
-      }
-      return;
-    }
-  } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 1;
-  }
-}
-
-/** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */
+/** `arc rename <slug> <new-slug>` — atomically rename a work unit or cohort and its applicable identities. */
 export async function handleRename(
   sourceSlug: string,
   targetSlug: string,
+  opts: { json?: boolean } = {},
   context?: InteractionContext,
 ): Promise<void> {
-  p.intro("arc rename");
+  if (opts.json !== true) p.intro("arc rename");
   const input = parseLifecycleCommand(RenameCommandInputSchema, {
-    slug: sourceSlug.trim(), newSlug: targetSlug.trim(),
-  }, ["rename"]);
+    slug: sourceSlug.trim(), newSlug: targetSlug.trim(), json: opts.json,
+  }, ["rename"], opts.json === true);
   if (input === null) return;
   const { slug: renameSource, newSlug: renameTarget } = input;
-  const base = await resolveVerbBase(context);
+  const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
-  if (base.io.execInput === undefined) {
-    refuse("remote rename expansion requires stdin-capable Git I/O");
+  const { executor, settings } = await buildExecutor(base);
+  if (!usesOffBranchState(executor.store) && base.io.execInput === undefined) {
+    reportRenameResult(renameSource, renameTarget, { status: "rejected", reason: "remote rename expansion requires stdin-capable Git I/O" }, input.json === true);
     return;
   }
-  const io = { ...base.io, execInput: base.io.execInput };
-  const { settings } = await readConfigSettings(base.cwd);
+  if (!usesOffBranchState(executor.store)) {
+    if (parseLifecycleCommand(InRepoRenameCommandInputSchema, input, ["rename"], input.json === true) === null) return;
+    if (parseLifecycleCommand(SlugSchema, renameSource, ["rename"], input.json === true) === null) return;
+  }
+  const io = base.io;
   const result = await runRenameCommand({
+    store: executor.store,
+    projectId: executor.projectId,
+    locusPorts: executor.locusPorts,
     cwd: base.cwd,
     identity: base.identity,
     baseBranch: settings["branch.base"],
@@ -1130,59 +706,11 @@ export async function handleRename(
     retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
     transitionWriter: terminalTransitionWriter(base),
     onPreparedAdvisories: (advisories) => {
-      for (const advisory of advisories) p.log.warn(advisory);
+      if (input.json !== true) for (const advisory of advisories) p.log.warn(advisory);
       return Promise.resolve();
     },
   }, { sourceSlug: renameSource, targetSlug: renameTarget });
-  if (result.status !== "renamed") {
-    refuse(result.reason);
-    return;
-  }
-  for (const advisory of result.advisories) p.log.warn(advisory);
-  const lines = [
-    `Work unit: ${renameSource} → ${renameTarget}`,
-    `Shape:     ${result.shape}`,
-  ];
-  if (result.pendingIntegration) {
-    lines.push("Visibility: pending integration of the rename branch");
-  }
-  if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
-  if (result.shape === "in-place") {
-    lines.push("Checkout:  unmanaged; no ownership marker was minted");
-    lines.push("Worktree:  unchanged; the primary worktree cannot be moved");
-  }
-  if (result.worktree !== undefined) {
-    if ("mutation" in result.worktree) {
-      if (result.worktree.mutation !== "move") {
-        lines.push("Worktree:  unchanged; rename returned an unexpected worktree result");
-      } else {
-        const notice = result.worktree.followUpNotice;
-        if (notice !== undefined) {
-          lines.push(`Follow-up:  ${notice}`);
-        } else {
-          lines.push(
-            `Worktree:  ${result.worktree.to}`
-            + (result.worktree.locusHopped ? " (process relocated)" : ""),
-          );
-        }
-      }
-    } else if (result.worktree.status === "already-moved") {
-      lines.push(`Worktree:  unchanged; registered path already carries the new slug: ${result.worktree.worktreePath}`);
-    } else if (result.worktree.status === "unmatched") {
-      lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
-    } else if (result.worktree.status === "deferred-self-move") {
-      lines.push(`Worktree:  move deferred; current session remains at ${result.worktree.from}`);
-      if (result.checkout?.kind === "renamed" || result.checkout?.kind === "idempotent") {
-        lines.push(`Follow-up:  from outside it, \`git worktree move ${result.worktree.from} ${result.worktree.to}\``);
-      } else {
-        lines.push(`Checkout:  ${result.checkout?.kind ?? "unavailable"}; no move action projected`);
-      }
-    } else {
-      lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");
-    }
-  }
-  p.note(lines.join("\n"), "Renamed");
-  p.outro("Done.");
+  reportRenameResult(renameSource, renameTarget, result, input.json === true);
 }
 
 // ---------------------------------------------------------------------------
@@ -1201,14 +729,14 @@ async function handleBacklogMove(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport(verb, slug, base.cwd);
+  const target = await resolveVerbTargetOrReport(verb, slug, base.cwd, false, base.store);
   if (target === null) return;
 
   const { executor } = await buildExecutor(base);
   const fs = { readdir: (path: string) => readdir(path), rmdir: (path: string) => rmdir(path) };
   const result = await run({ executor, fs }, { name: target });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal);
     return;
   }
   reportOutcome(label, [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
@@ -1223,35 +751,29 @@ export interface PromoteOptions {
 export async function handlePromote(
   slug: string | undefined,
   opts: PromoteOptions = {},
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
   p.intro("arc promote");
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false, machineReadable: false, yes: "absent",
-  });
   const base = await resolveVerbBase(context);
   if (base === null) return;
-  const target = await resolveVerbTargetOrReport("promote", slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("promote", slug, base.cwd, false, base.store);
   if (target === null) return;
-  const index = await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs });
-  const entry = index.get(target);
-  if (entry === undefined || entry.location !== "provisional") {
-    refuse(`\`${target}\` is not a provisional stub — \`promote\` needs one to raise.`);
-    return;
-  }
-  const recorded = parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).workClass ?? "TBD";
+  const { executor } = await buildExecutor(base);
+  const observation = await recordedPromoteClass(base, executor, target);
+  if (observation.status === "rejected") { refuse(observation.reason, observation.refusal); return; }
+  const recorded = observation.workClass;
   let acquiredClass = opts.class;
-  if (recorded === "TBD" && acquiredClass === undefined && context.interaction === "allowed") {
-    const answer = await p.select<z.infer<typeof WorkClassSchema>>({
-      message: "Resolved Class?",
+  if (recorded === "TBD") {
+    const answer = await prompt(promoteClassPromptSite, context, {
+      message: "Resolved Class?", explicitAnswer: opts.class,
       options: WorkClassSchema.options.map((value) => ({ value, label: value })),
     });
-    if (p.isCancel(answer)) return;
-    acquiredClass = answer;
-  }
-  if (recorded === "TBD" && acquiredClass === undefined) {
-    refuse("Missing required input: --class <Light|Heavy|Novel>");
-    return;
+    if (answer.kind === "cancelled") return;
+    if (answer.kind === "refused") {
+      refuse(`Missing required input: ${answer.acceptedSyntax.join(", ")}`);
+      return;
+    }
+    acquiredClass = answer.value;
   }
   if (acquiredClass !== undefined && !WorkClassSchema.safeParse(acquiredClass).success) {
     refuse("--class must be Light, Heavy, or Novel.");
@@ -1261,14 +783,26 @@ export async function handlePromote(
     refuse(`--class ${acquiredClass} conflicts with recorded Class ${recorded}.`);
     return;
   }
-  const { executor } = await buildExecutor(base);
   const fs = { readdir: (path: string) => readdir(path), rmdir: (path: string) => rmdir(path) };
   const result = await runPromote({ executor, fs }, { name: target, class: acquiredClass });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal);
     return;
   }
   reportOutcome("Promoted", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+async function recordedPromoteClass(base: VerbBase, executor: Awaited<ReturnType<typeof buildExecutor>>["executor"], target: string)
+  : Promise<{ status: "ok"; workClass: string } | { status: "rejected"; reason: string; refusal?: StoreRefusal }> {
+  if (executor.store !== undefined && usesOffBranchState(executor.store)) {
+    const read = await readWorkUnit(executor.store, target);
+    return read.status === "refused" ? { status: "rejected", reason: read.refusal.condition, refusal: read.refusal }
+      : { status: "ok", workClass: ParsedMetaRecordSchema.parse(read.result.fields).workClass ?? "TBD" };
+  }
+  const index = await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs });
+  const entry = index.get(target);
+  if (entry === undefined) return { status: "rejected", reason: `\`${target}\` is not a provisional stub — \`promote\` needs one to raise.` };
+  return { status: "ok", workClass: parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).workClass ?? "TBD" };
 }
 
 /** `arc demote <slug>` — lower a planned stub back to provisional. */
@@ -1310,27 +844,29 @@ export async function handleActivate(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("activate", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("activate", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
   const { type, task, action } = input;
 
-  const { executor } = await buildExecutor(base);
+  const { executor, settings } = await buildExecutor(base);
   const result = await runActivate(executor, {
     name: target,
     toBranch: `${type}/${target}`,
+    baseBranch: settings["branch.base"],
     nextTask: task,
     nextAction: action,
   });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal, result.remedy);
     return;
   }
   if (result.status === "reconcile-failed") {
     refuse(result.reason);
     return;
   }
-  reportOutcome("Activated", [`Work unit: ${target}`, `Branch:    ${type}/${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+  reportOutcome("Activated", [`Work unit: ${target}`, `Branch:    ${result.branch ?? `${type}/${target}`}`, ...(!usesOffBranchState(executor.store) ? [`Meta:      ${result.metaPath}`] : []),
+    ...(result.report ?? []), ...(result.remoteDelete === undefined ? [] : [result.remoteDelete.text])], result.outcome);
 }
 
 /** `arc deactivate [slug]` — undo a premature activation (Active → Planning). */
@@ -1345,18 +881,18 @@ export async function handleDeactivate(slug: string | undefined, context?: Inter
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("deactivate", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("deactivate", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
-  const { executor } = await buildExecutor(base);
-  const result = await runDeactivate(executor, { name: target });
+  const { executor, settings } = await buildExecutor(base);
+  const result = await runDeactivate(executor, { name: target, ...(usesOffBranchState(executor.store) ? { baseBranch: settings["branch.base"] } : {}) });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal, result.remedy);
     return;
   }
   reportOutcome(
     "Deactivated",
-    [`Work unit: ${target}`, `Branch:    plan/${target}`, `Meta:      ${result.metaPath}`],
+    [`Work unit: ${target}`, `Branch:    ${result.branch ?? `plan/${target}`}`, ...(!usesOffBranchState(executor.store) ? [`Meta:      ${result.metaPath}`] : []), ...(result.report ?? [])],
     result.outcome,
   );
 }
@@ -1459,12 +995,16 @@ export async function handlePark(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc park");
-  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts }, ["park"]);
-  if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
+  if (usesOffBranchState(base.store)) {
+    refuse("arc park is unsupported with store-backed state; use arc pause <slug> --reason <text>, or release its checkout through locus.");
+    return;
+  }
+  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts }, ["park"]);
+  if (input === null) return;
 
-  const target = await resolveVerbTargetOrReport("park", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("park", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
   if (input.land !== undefined) {
@@ -1535,6 +1075,9 @@ export async function handlePark(
       executor,
       fs: parkResumeFsSeam(base),
       planningRetirement: createInRepoParkPlanningRetirementContext(directRetirementDeps(base)),
+      removal: { exec: base.io.exec, check: createProjectionRemovalSlots({
+        store: executor.store ?? openDefaultStore(base.cwd, base.io.exec), identity: base.identity,
+      }).check },
     },
     {
       name: target,
@@ -1589,8 +1132,14 @@ export async function handleResume(
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
+  const bound = await buildExecutor(base);
+  if (usesOffBranchState(bound.executor.store)) {
+    await handleStoreResume(base, bound.executor, bound.settings["branch.base"], input.slug, { here: input.here });
+    return;
+  }
 
-  const target = await resolveVerbTargetOrReport("resume", input.slug, base.cwd);
+
+  const target = await resolveVerbTargetOrReport("resume", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
   const { executor, settings } = await buildExecutor(base);
@@ -1634,6 +1183,7 @@ export async function handleResume(
     repo: basename(primaryWorktreePath),
     spawningIdentity: base.identity,
   });
+  warnSpawnLock(result.worktreePath, result.spawnLock);
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
@@ -1653,7 +1203,7 @@ async function resolveMaterializeCandidate(
   base: VerbBase,
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
   slug: string | undefined,
-): Promise<MaterializableWorkUnit | null> {
+): Promise<(MaterializableWorkUnit & { branch: string }) | null> {
   if (base.io.execInput === undefined) {
     refuse("remote materialization discovery requires stdin-capable Git I/O");
     return null;
@@ -1684,7 +1234,8 @@ async function resolveMaterializeCandidate(
     return null;
   }
   const { entries } = result;
-  const { candidates } = findMaterializableWorkUnits({ entries, identity: base.identity });
+  const { candidates: discovered } = findMaterializableWorkUnits({ entries, identity: base.identity });
+  const candidates = discovered.filter((candidate): candidate is MaterializableWorkUnit & { branch: string } => candidate.branch !== undefined);
   if (!target) {
     refuse(`\`arc materialize <slug>\` requires a work-unit name.\n\n${formatMaterializeCandidates(candidates)}`);
     return null;
@@ -1737,6 +1288,10 @@ export async function handleMaterialize(
   if (base === null) return;
 
   const { executor, settings } = await buildExecutor(base);
+  if (usesOffBranchState(executor.store)) {
+    await handleStoreMaterialize({ name: input.slug, here: input.here }, { ...base, executor }, settings);
+    return;
+  }
   const candidate = await resolveMaterializeCandidate(base, settings, input.slug);
   if (candidate === null) return;
 
@@ -1761,6 +1316,7 @@ export async function handleMaterialize(
       name: candidate.name,
       branch: candidate.branch,
       inPlace: true,
+      ...(usesOffBranchState(executor.store) ? { spawningIdentity: base.identity } : {}),
     });
     if (result.status === "rejected") {
       spinner.stop("Materialize failed.");
@@ -1806,6 +1362,7 @@ export async function handleMaterialize(
       return;
     }
     spinner.stop("Worktree ready.");
+    warnSpawnLock(result.worktreePath, result.spawnLock);
     reportMaterializeOutcome(
       "Materialized",
       [
@@ -1857,152 +1414,43 @@ export async function handlePublish(
   const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("publish", input.slug, base.cwd, input.json === true);
+  const { executor } = await buildExecutor(base);
+  const bound = { ...base, store: executor.store };
+  const target = await resolvePublicationTarget(bound, "publish", input.slug, input.json === true);
   if (target === null) return;
 
-  const { lastCompleted, action } = input;
-
-  const { executor, settings } = await buildExecutor(base);
-  const rawGit = createRawGitExec(base.cwd);
-  const readCandidateAuthorization = async () => {
-    const record = await readCandidateRecord(base.cwd, target);
-    if (record === null) return null;
-    const effective = await projectGitCandidateEffectiveTarget({
-      cwd: base.cwd,
-      name: target,
-      baseBranch: settings["branch.base"],
-      record,
-      exec: base.io.exec,
-      rawExec: rawGit,
-    });
-    const candidateSubjectDigest = effective.state === "current"
-      ? effective.recognizedTarget.subject.subjectDigest
-      : effective.state === "changed" || effective.state === "staged-change"
-        ? effective.currentTarget.subject.subjectDigest
-        : effective.currentTarget.subjectDigest;
-    return {
-      record,
-      candidateId: record.attestation.candidateId,
-      candidateSubjectDigest,
-      candidateCurrent: effective.state === "current"
-        && effective.convergenceVerification === "satisfied",
-    };
-  };
-  const candidate = await readCandidateAuthorization();
-  if (candidate === null) {
-    refuseWithRemedy(
-      `Cannot publish \`${target}\`: no managed Candidate record exists.`,
-      spineRemedy(
-        "Submission requires a managed Candidate attestation.",
-        "Attest the candidate",
-        ["arc", "attest", target],
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  const record = candidate.record;
-  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target);
-  const boundary = boundarySnapshot.boundary;
-  if (boundary === null) {
-    refuseWithRemedy(
-      `Cannot publish \`${target}\`: no durable pre-publication boundary exists.`,
-      spineRemedy(
-        "Submission requires a settled pre-publication boundary.",
-        "Resolve the pre-publication lanes",
-        ["arc", "review", "pre-publication", target, "--json"],
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  const result = await runPublish(executor, {
-    name: target,
-    ...(lastCompleted === undefined ? {} : { lastCompleted }),
-    ...(action === undefined ? {} : { nextAction: action }),
-    candidateId: candidate.candidateId,
-    candidateSubjectDigest: candidate.candidateSubjectDigest,
-    candidateCurrent: candidate.candidateCurrent,
-    boundary,
-    refreshCandidateAuthorization: async () => {
-      const refreshed = await readCandidateAuthorization();
-      if (refreshed === null) {
-        return {
-          candidateId: record.attestation.candidateId,
-          candidateSubjectDigest: candidate.candidateSubjectDigest,
-          candidateCurrent: false,
-        };
-      }
-      return refreshed;
-    },
-    claimPublicationBoundary: async (publicationBoundary) => {
-      const boundaryPath = await writeSubmissionBoundary(
-        base.cwd,
-        publicationBoundary,
-        boundarySnapshot.version,
-      );
-      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
-    },
-    ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
-  });
-  if (result.status === "rejected") {
-    refuseWithRemedy(result.reason, result.remedy, input.json === true);
-    return;
-  }
-  if (result.status === "unchanged") {
-    if (canonicalize(result.boundary) !== canonicalize(boundary)) {
-      const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
-      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
-    }
-    if (input.json === true) {
-      process.stdout.write(`${JSON.stringify(result)}\n`);
-    } else {
-      p.note(
-        `Work unit: ${target}\nLocus:     ${result.boundary.locus}\nNext:      ${result.boundary.nextAction.command}`,
-        "Submission unchanged",
-      );
-    }
-    return;
-  }
-  if (result.status === "reconcile-failed") {
-    refuseWithRemedy(result.reason, result.remedy, input.json === true);
-    return;
-  }
-  if (result.status === "reconcile-pending") {
-    if (input.json === true) {
-      process.stdout.write(`${JSON.stringify(result)}\n`);
-      process.exitCode = 1;
-    } else {
-      for (const advisory of result.reconcile.prepared.plan.advisories) {
-        p.log.info(
-          `Reconcile advisory: ${advisory.path}:${advisory.line} — `
-          + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
-          + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
-        );
-      }
-      refuseWithRemedy(result.reason, result.remedy);
-    }
-    return;
-  }
-  if (result.reconcile.status === "pending" && input.json !== true) {
-    for (const advisory of result.reconcile.prepared.plan.advisories) {
-      p.log.info(
-        `Accepted reconcile advisory: ${advisory.path}:${advisory.line} — `
-        + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
-        + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
-      );
-    }
-  }
-  if (input.json === true) {
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    return;
-  }
-  reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+  await publishCandidateWithReviewBoundary(bound, target.name, input, target.record, input.slug === undefined ? undefined : target.record?.reference);
 }
 
 // ---------------------------------------------------------------------------
 // Phase move (withdrawal) — `reopen`
 // ---------------------------------------------------------------------------
+
+type PublicationTarget = { name: string; record?: StoreRecord };
+
+/** Resolve publication through the selected work-unit identity before reading its evidence. */
+export async function resolvePublicationTarget(base: Pick<VerbBase, "cwd" | "store">, verb: "publish" | "reopen", slug?: string, json = false): Promise<PublicationTarget | null> {
+  const store = base.store;
+  if (!usesOffBranchState(store) || store === undefined) {
+    const name = await resolveVerbTargetOrReport(verb, slug, base.cwd, json);
+    return name === null ? null : { name };
+  }
+  if (slug !== undefined) {
+    const read = await readWorkUnit(store, slug);
+    return read.status === "refused" && read.refusal.code === "not-found" ? { name: slug } : publicationRecordTarget(read, json);
+  }
+  const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store });
+  if (current.status === "unbound") { refuseUnboundTarget(current.unbound, json); return null; }
+  if (current.status === "resolved") return publicationRecordTarget(await store.read({ reference: current.candidate.reference }), json);
+  refuseWithRemedy(`Supply a work-unit slug; this checkout's current work unit is ${current.status}.`,
+    spineRemedy("Publication requires one selected work unit", "Inspect the current work unit", ["arc", "status", "--json"]), json);
+  return null;
+}
+function publicationRecordTarget(read: StoreResult<StoreRecord>, json: boolean): PublicationTarget | null {
+  if (read.status === "ok") return { name: read.result.reference.owner.name, record: read.result };
+  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json, read.refusal);
+  return null;
+}
 
 /** Options for `arc reopen`. */
 export interface ReopenOptions {
@@ -2016,13 +1464,19 @@ export interface ReopenOptions {
  * `gh`. Returns `undefined` (unknown) when the branch is unresolved or `gh` / the
  * remote is unavailable; the `pr-unmerged` guard then refuses the reopen rather
  * than risk reopening a WU whose merge state can't be confirmed. Only a
- * positively-unmerged PR (`false`) clears the guard.
+ * positively-unmerged PR (`false`) clears the guard. Native project-identity
+ * failures propagate so the handler can report their condition and remedy.
  */
-async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | undefined> {
+async function resolvePrMerged(base: VerbBase, slug: string, executor: Awaited<ReturnType<typeof buildExecutor>>["executor"], record?: StoreRecord): Promise<boolean | undefined> {
   let branch: string | null;
   try {
-    branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).branch;
-  } catch {
+    if (base.store !== undefined && usesOffBranchState(base.store)) {
+      const read = record === undefined ? await readWorkUnit(base.store, slug) : { status: "ok" as const, result: record };
+      if (read.status === "refused") return undefined;
+      branch = await linkedWorkBranch({ exec: base.io.exec, cwd: base.cwd, projectId: executor.projectId }, read.result);
+    } else branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).branch;
+  } catch (error) {
+    if (error instanceof ProjectIdentityError) throw error;
     return undefined;
   }
   if (branch === null) return undefined;
@@ -2064,53 +1518,29 @@ export async function handleReopen(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("reopen", input.slug, base.cwd);
-  if (target === null) return;
-
   const { executor, settings } = await buildExecutor(base);
-  const metaPath = projectActiveMetaPath(target);
-  let taskListPath: string | null;
-  try {
-    const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
-    taskListPath = resolveTaskListPath(metaPath, meta.taskList);
-  } catch {
-    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
-      + "the active metadata is unavailable.");
-    return;
+  const bound = { ...base, store: executor.store };
+  const selected = await resolvePublicationTarget(bound, "reopen", input.slug);
+  if (selected === null) return;
+  const { name: target, record } = selected;
+  if (executor.store !== undefined && usesOffBranchState(executor.store)) {
+    const pause = await checkAdvancingPause(executor.store, target, record);
+    if (pause.status === "rejected") { refuse(pause.reason, pause.refusal, pause.remedy); return; }
   }
-  if (taskListPath === null) {
-    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
-      + "the canonical task-list binding is unavailable.");
-    return;
-  }
-  let delivery;
-  try {
-    delivery = await inspectRepositoryDeliveryReopen({
-      cwd: base.cwd,
-      taskListPath,
-      workUnitId: target,
-      baseBranch: settings["branch.base"],
-      exec: base.io.exec,
-    });
-  } catch {
-    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
-      + "the plan, state, or transition evidence is unavailable.");
-    return;
-  }
-  if (delivery.status !== "reopen-permitted") {
-    refuse(delivery.recommendedActionText);
-    return;
-  }
+  if (!await permitDeliveryReopen(bound, target, settings, record)) return;
 
-  const prMerged = await resolvePrMerged(base, target);
+  let prMerged: boolean | undefined;
+  try { prMerged = await resolvePrMerged(bound, target, executor, record); }
+  catch (error) { if (!refuseProjectIdentityFailure(error, false)) throw error; return; }
   const result = await runReopen(executor, {
     name: target,
+    ...(input.slug === undefined || record === undefined ? {} : { reference: record.reference }),
     prMerged,
     withdrawMode: input.keepPr === true ? "draft" : "close",
     nextTask: input.task,
   });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal, result.remedy);
     return;
   }
   reportOutcome("Reopened", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
@@ -2148,13 +1578,18 @@ export async function handleAbandon(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("abandon", slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("abandon", slug, base.cwd, false, base.store);
   if (target === null) return;
 
   // Resolve the source state to compose a truthful impact plan — the cascade legs
   // vary by cell (a backlog stub removes only artifacts; a started WU also tears
   // down its branch and worktree; a parked WU deletes its branch but has none).
   const { executor, settings } = await buildExecutor(base);
+  if (usesOffBranchState(executor.store)) {
+    await handleStoreAbandon(base, executor, target, context.confirmation === "accept", settings["branch.base"]);
+    return;
+  }
+
   const composed = await resolveTransformComposition(base, settings);
   const index = composed.index;
   const state = resolveSlugState(index, target);
@@ -2200,6 +1635,9 @@ export async function handleAbandon(
       retirement,
       transitionWriter: terminalTransitionWriter(base),
       composed,
+      removal: { exec: base.io.exec, check: createProjectionRemovalSlots({
+        store: executor.store ?? openDefaultStore(base.cwd, base.io.exec), identity: base.identity,
+      }).check },
     },
     { name: target, confirmed: true },
   );
@@ -2252,7 +1690,7 @@ export async function handleArchive(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("archive", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("archive", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
   const { executor } = await buildExecutor(base);
@@ -2261,7 +1699,8 @@ export async function handleArchive(
     { name: target, prUrl: input.prUrl, completed: input.completed },
   );
   if (result.status === "rejected") {
-    refuse(result.reason);
+    if (result.remedy !== undefined) refuseWithRemedy(result.reason, result.remedy);
+    else refuse(result.reason, result.refusal);
     return;
   }
   for (const warning of result.warnings) p.log.warn(warning);
@@ -2270,11 +1709,16 @@ export async function handleArchive(
   if (result.nestedParentSwept !== null) {
     lines.push(`Cohort:    ${result.nestedParentSwept} (nested parent — last member shipped)`);
   }
+  if (result.continuation !== undefined) {
+    p.log.warn(`Workspace close failed (${result.continuation.reason}); run \`arc user close ${target}\`.`);
+  }
   reportOutcome("Archived", lines, result.outcome);
 }
 
 /** Options for `arc teardown`. */
 export interface TeardownOptions {
+  /** Confirm the no-argument stamped-husk sweep. */
+  yes?: boolean;
   /** Reap a recordless cheap branch by exact name. */
   branch?: string;
   /** Force the un-shipped / `abandoned` mode: cleanup of a retired / parked origin (unmerged branch). */
@@ -2291,6 +1735,15 @@ function describeBranchDeletion(result: { branchDeleted: boolean; remoteBranchDe
 
 type TornDownTeardownResult = Extract<TeardownResult, { status: "torn-down" }>;
 
+function outsideHuskRemovalCommand(husk: NonNullable<TornDownTeardownResult["husk"]>): string {
+  const subject = husk.subject;
+  switch (subject.kind) {
+    case "work-unit": return `arc teardown ${subject.uid ?? subject.name} --husk ${quoteShellArgument(husk.worktreePath)}`;
+    case "branch": return `arc teardown --branch ${subject.ref}`;
+    case "errand": return `arc errand close ${subject.slug}`;
+  }
+}
+
 /** Render the shared branch/worktree disposition for a successful teardown. */
 function reportTeardownResult(
   result: TornDownTeardownResult,
@@ -2299,6 +1752,7 @@ function reportTeardownResult(
     leadingLines?: string[];
     tornDownTitle: string;
     huskedTitle: string;
+    primaryWorktreePath: string | null;
   },
 ): void {
   const liveHusk = result.worktreeRemoved === null ? result.husk : null;
@@ -2315,11 +1769,13 @@ function reportTeardownResult(
   ];
   p.note(lines.join("\n"), liveHusk === null ? options.tornDownTitle : options.huskedTitle);
   if (liveHusk?.stamped === true) {
-    p.log.info("The primary worktree's stale-worktree sweep can offer this disposable husk for removal.");
+    const command = outsideHuskRemovalCommand(liveHusk);
+    p.log.info(`The folder remains at ${liveHusk.worktreePath}; never reuse this detached husk.`);
+    p.log.info(`From the primary checkout${options.primaryWorktreePath === null ? "" : ` ${options.primaryWorktreePath}`}, run: ${command}`);
   }
   for (const notice of result.notices) p.log.warn(notice);
   if (result.suggestion !== null) p.log.info(result.suggestion);
-  p.outro("Done.");
+  p.outro(liveHusk === null ? "Done." : "Teardown finished; the folder remains.");
 }
 
 /**
@@ -2338,8 +1794,7 @@ function reportTeardownResult(
  * worktree hop, and prune mechanics. It is mutually exclusive with `<name>` and
  * `--force`.
  *
- * The WU path requires an explicit name — a retired WU has no `active/` meta to
- * default from.
+ * Without an operand, preview or confirm an outside sweep of stamped husks.
  */
 export async function handleTeardown(
   name: string | undefined,
@@ -2353,7 +1808,9 @@ export async function handleTeardown(
     ["teardown"],
   );
   if (input === null) return;
-  const base = await resolveVerbBase(context);
+  const interaction = context ?? resolveProcessInteractionContext({ noInput: false, machineReadable: false,
+    yes: opts.yes === true ? "authority" : "absent" });
+  const base = await resolveVerbBase(interaction);
   if (base === null) return;
 
   const wuName = input.name;
@@ -2371,9 +1828,6 @@ export async function handleTeardown(
       refuse("`arc teardown --branch <branch>` cannot also select `--husk`.");
       return;
     }
-  } else if (!wuName) {
-    refuse("`arc teardown <name>` requires the work-unit name to clean up.");
-    return;
   }
 
   const { settings } = await readConfigSettings(base.cwd);
@@ -2392,20 +1846,29 @@ export async function handleTeardown(
   // cwd (the dangling-locus failure the out-of-band move exists to avoid).
   let locus = base.cwd;
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
+  const store = base.store ?? openDefaultStore(base.cwd, exec);
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity: base.identity });
   const readTeardownSelection = createNodeTeardownSelectionReader({ exec, identity: base.identity });
-  const teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec, identity: base.identity });
+  const teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec, identity: base.identity, cwd: base.cwd });
+  const selfTeardownMode = (await resolveSelfTeardownMode({ cwd: base.cwd, exec,
+    readFile: path => base.io.readFile(path), warn: message => { p.log.warn(message); } })).value;
+  const operational = branchArg === undefined && usesOffBranchState(base.store) ? await buildExecutor(base) : undefined;
+  const teardownContext: TeardownContext = {
+    store: operational?.executor.store ?? store, projectionRemovalSlots, execInput: base.io.execInput,
+    projectId: operational?.executor.projectId, locusPorts: operational?.executor.locusPorts,
+    cwd: base.cwd, exec, indexFs: lifecycleFs,
+    chdir: (dir) => { process.chdir(dir); locus = dir; }, readCurrentLocus: () => locus,
+    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    readTeardownSelection, teardownWorktree, selfTeardownMode,
+  };
+  if (branchArg === undefined && wuName === undefined) {
+    await handleTeardownHuskSweep(teardownContext, { base: baseBranch,
+      protection: settings["branch.protection"] === "full" ? "full" : "partial", confirmed: interaction.confirmation === "accept" });
+    return;
+  }
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
-      {
-        cwd: base.cwd,
-        exec,
-        indexFs: lifecycleFs,
-        chdir: (dir) => { process.chdir(dir); locus = dir; },
-        readCurrentLocus: () => locus,
-        readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-        readTeardownSelection,
-        teardownWorktree,
-      },
+      teardownContext,
       {
         branch: branchArg,
         base: baseBranch,
@@ -2428,21 +1891,13 @@ export async function handleTeardown(
     reportTeardownResult(result, branchLine, {
       tornDownTitle: "Branch torn down",
       huskedTitle: "Branch worktree husked",
+      primaryWorktreePath: await resolvePrimaryWorktreePath(exec),
     });
     return;
   }
 
-  const result = await runTeardown(
-    {
-      cwd: base.cwd,
-      exec,
-      indexFs: lifecycleFs,
-      chdir: (dir) => { process.chdir(dir); locus = dir; },
-      readCurrentLocus: () => locus,
-      readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-      readTeardownSelection,
-      teardownWorktree,
-    },
+  const result = await runTeardownForOperand(
+    teardownContext,
     {
       name: wuName ?? "",
       base: baseBranch,
@@ -2455,11 +1910,11 @@ export async function handleTeardown(
     if (result.huskRefusal !== undefined) {
       refuse(`Cannot husk: ${result.reason}. The worktree remains branched and unchanged.`);
     } else {
-      refuse(result.reason);
+      refuse(result.reason, result.refusal, result.remedy);
     }
     return;
   }
-  if (result.mode === "abandoned") {
+  if (result.mode === "abandoned" && !usesOffBranchState(base.store)) {
     await runUserClose({ cwd: base.cwd, identity: base.identity, wuName: wuName ?? "" });
   }
 
@@ -2471,6 +1926,7 @@ export async function handleTeardown(
     leadingLines: [`Work unit: ${wuName}`],
     tornDownTitle: "Torn down",
     huskedTitle: "Worktree husked",
+    primaryWorktreePath: await resolvePrimaryWorktreePath(exec),
   });
 }
 
@@ -2489,6 +1945,21 @@ export async function handleTeardown(
  * and (via `runSetStage`) on a non-planning stage. Verb spelling is provisional,
  * pending idiomatic-alignment.
  */
+export async function handleSetClass(workClass: string, slug?: string, context?: InteractionContext): Promise<void> {
+  p.intro("arc set-class");
+  const input = parseLifecycleCommand(SetClassCommandInputSchema, { workClass, slug: slug?.trim() || undefined }, ["set-class"]);
+  if (input === null) return;
+  const base = await resolveVerbBase(context);
+  if (base === null) return;
+  const { executor } = await buildExecutor(base);
+  if (executor.store === undefined) { refuse("The lifecycle executor has no operational store binding."); return; }
+  const result = await runSetClass({ cwd: base.cwd, store: executor.store }, { name: input.slug, workClass: input.workClass });
+  if (result.status === "rejected") { refuse(result.reason, result.refusal); return; }
+  p.note(`Work unit: ${result.name}\nClass: ${result.workClass}`, "Class set");
+  p.outro("Done.");
+}
+
+/** Set the current work unit's planning stage and optional begin pointer. */
 export async function handleSetStage(
   stage: string | undefined,
   opts?: { advance?: boolean },
@@ -2506,16 +1977,13 @@ export async function handleSetStage(
 
   const stageArg = input.stage;
 
-  const slug = await resolveCurrentWuSlug(base.cwd);
-  if (slug === null) {
-    refuse("`arc set-stage` needs exactly one active work unit to target — none resolved in this worktree.");
-    return;
-  }
-
   const { executor } = await buildExecutor(base);
+  const slug = await resolveStageWorkUnit(base, executor.store, "set-stage");
+  if (slug === null) return;
+
   const result = await runSetStage(executor, { name: slug, stage: stageArg, advance: input.advance ?? false });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal, result.remedy);
     return;
   }
   const lines = [
@@ -2536,10 +2004,10 @@ export async function handleSetStage(
  * `arc finalize <fire-point>` — persist a planning ceremony's
  * deterministic finalize facts at its fire-point: the resolved `Class`, the derived
  * `Task List`, and the fixed terminal `Next Action`, per the fire-point's contract
- * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action).
+ * (`create-spec` / `amend-design` → Class; `generate-tasks` → Class + Task List + Next Action).
  * The complement of `set-stage` / `repoint-design` (which
  * own the planning pointers): not a lifecycle transition. `--class` carries the
- * resolved weight, required at both fire-points. Refuses without a single
+ * resolved weight, required at every fire-point. Refuses without a single
  * resolvable active WU.
  */
 export async function handleFinalizeStage(
@@ -2558,13 +2026,10 @@ export async function handleFinalizeStage(
 
   const firePointArg = input.firePoint;
 
-  const slug = await resolveCurrentWuSlug(base.cwd);
-  if (slug === null) {
-    refuse("`arc finalize` needs exactly one active work unit to target — none resolved in this worktree.");
-    return;
-  }
-
   const { executor } = await buildExecutor(base);
+  const slug = await resolveStageWorkUnit(base, executor.store, "finalize");
+  if (slug === null) return;
+
   // `writeClassField` is an optional direct-invoke seam on the executor (like the
   // archive / reconcile seams); the production binder always provides it, so a miss
   // is an internal wiring error, not an operator-facing condition.
@@ -2574,11 +2039,11 @@ export async function handleFinalizeStage(
     return;
   }
   const result = await runFinalizeStage(
-    { writeClassField, writeSoftFields },
+    { cwd: executor.cwd, writeClassField, writeSoftFields, store: executor.store },
     { name: slug, firePoint: firePointArg, workClass: input.class },
   );
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal);
     return;
   }
   const lines = [`Work unit:   ${slug}`, `Fire-point:  ${result.firePoint}`];
@@ -2588,364 +2053,6 @@ export async function handleFinalizeStage(
   lines.push(`Meta:        ${result.metaPath}`);
   p.note(lines.join("\n"), "Finalize facts written");
   p.outro("Done.");
-}
-
-// ---------------------------------------------------------------------------
-// Candidate attestation — `attest`
-// ---------------------------------------------------------------------------
-
-export interface AttestOptions {
-  json?: boolean;
-  newRoot?: boolean;
-  expectedCandidate?: string;
-  expectedSubject?: string;
-}
-
-/** Attest the current verified work-unit subject without changing lifecycle State. */
-export async function handleAttest(
-  name: string | undefined,
-  opts: AttestOptions,
-  context?: InteractionContext,
-): Promise<void> {
-  if (opts.json !== true) p.intro("arc attest");
-  const input = parseLifecycleCommand(
-    AttestCommandInputSchema,
-    {
-      name: name?.trim(),
-      json: opts.json,
-      newRoot: opts.newRoot,
-      expectedCandidate: opts.expectedCandidate,
-      expectedSubject: opts.expectedSubject,
-    },
-    ["attest"],
-    opts.json === true,
-  );
-  if (input === null) return;
-  const base = await resolveVerbBase(context, input.json === true);
-  if (base === null) return;
-  const { settings } = await buildExecutor(base);
-  let metaPath = resolveArcPath({
-    kind: "work-unit-artifact",
-    placement: { kind: "active", scope: { kind: "project" } },
-    slug: input.name,
-    artifact: "meta",
-  });
-  let absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
-  let metaContent: string;
-  try {
-    metaContent = await base.io.readFile(absoluteMetaPath);
-  } catch {
-    const archived = (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(input.name);
-    if (input.newRoot !== true || archived?.location !== "completed") {
-      refuseWithRemedy(
-        `\`arc attest\` requires an active record, or an archived record with \`--new-root\`, for \`${input.name}\`.`,
-        spineRemedy(
-          "Candidate attestation requires a resolvable work-unit record.",
-          "Inspect the work-unit lifecycle state",
-          ["arc", "status", input.name, "--json"],
-        ),
-        input.json === true,
-      );
-      return;
-    }
-    metaPath = validateManagedPath(archived.path);
-    absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
-    metaContent = await base.io.readFile(absoluteMetaPath);
-  }
-  const meta = parseMetaRecord(metaContent);
-  if (meta.state !== "Active" && meta.state !== "Integrating" && !(meta.state === "Shipped" && input.newRoot === true)) {
-    refuseWithRemedy(
-      `\`arc attest\` requires \`${input.name}\` to be Active or Integrating, or Shipped with \`--new-root\`.`,
-      spineRemedy(
-        "Candidate attestation runs only from an active publication lifecycle.",
-        "Inspect the work-unit lifecycle state",
-        ["arc", "status", input.name, "--json"],
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  let lastCompleted: string | null = null;
-  const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
-  if (taskListPath === null) {
-    refuseWithRemedy(
-      `\`arc attest\` requires a canonical task-list binding for \`${input.name}\`.`,
-      spineRemedy(
-        "Candidate attestation requires a resolvable, structurally closed task list.",
-        "Restore the task-list binding and close execution before attesting",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  let taskList: string;
-  try {
-    taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
-  } catch {
-    refuseWithRemedy(
-      `\`arc attest\` requires the canonical task list for \`${input.name}\` to be readable.`,
-      spineRemedy(
-        "Candidate attestation requires a resolvable, structurally closed task list.",
-        "Restore the task list and close execution before attesting",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  const taskCursor = resolveTaskListCursor(taskList);
-  if (taskCursor.status === "malformed") {
-    refuseWithRemedy(
-      `\`arc attest\` cannot use the malformed task list for \`${input.name}\` at line `
-        + `${taskCursor.error.line}: ${taskCursor.error.message}`,
-      spineRemedy(
-        "Candidate attestation requires a structurally closed task list.",
-        "Repair the task-list structure and close execution before attesting",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  if (taskCursor.status === "found") {
-    const current = `Task ${taskCursor.cursor.leaf.id} — ${taskCursor.cursor.leaf.title}`;
-    refuseWithRemedy(
-      `\`arc attest\` cannot attest \`${input.name}\` while task remains open: ${current}.`,
-      spineRemedy(
-        "Candidate attestation begins only after canonical task execution is closed.",
-        "Complete the current task and work-unit verification, then attest",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  const terminal = resolveLastCompletedTask(taskList);
-  if (terminal.status === "found") {
-    lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
-  }
-  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name);
-  let deliveryRenewal: Awaited<ReturnType<typeof inspectRepositoryDeliveryCandidateRenewal>> = {
-    status: "not-applicable",
-  };
-  if (meta.state === "Integrating" || meta.state === "Shipped") {
-    try {
-      deliveryRenewal = await inspectRepositoryDeliveryCandidateRenewal({
-        cwd: base.cwd,
-        taskListPath: validateManagedPath(taskListPath),
-        workUnitId: input.name,
-        baseBranch: settings["branch.base"],
-        exec: base.io.exec,
-        sourceBoundary: boundarySnapshot.boundary,
-      });
-    } catch {
-      deliveryRenewal = { status: "refused", reason: "evidence-unavailable" };
-    }
-    if (deliveryRenewal.status === "refused") {
-      refuseWithRemedy(
-        `\`arc attest\` cannot establish exact public delivery Candidate renewal evidence for \`${input.name}\` `
-          + `(${deliveryRenewal.reason}).`,
-        spineRemedy(
-          "Corrective attestation must preserve the exact public Candidate, plan, state, member, and review binding.",
-          "Restore the exact public delivery continuation before attesting",
-          input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-        ),
-        input.json === true,
-      );
-      return;
-    }
-  }
-
-  const unstaged = await collectUnstagedReviewablePaths({
-    cwd: base.cwd,
-    name: input.name,
-    exec: base.io.exec,
-  });
-  if (unstaged.length > 0) {
-    refuseWithRemedy(
-      `\`arc attest\` attests the staged subject, and ${unstaged.length} reviewable path(s) hold `
-        + `working-tree content the index does not carry: ${summarizePaths(unstaged)}.`,
-      spineRemedy(
-        "A Candidate attests the staged subject, so every verified reviewable change must be staged first.",
-        "Stage the verified content, then re-attest",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-
-  let result: Awaited<ReturnType<typeof runAttest>>;
-  try {
-    result = await runAttest({
-      actor: base.identity,
-      now: () => new Date().toISOString(),
-      verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
-      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
-      currentTarget: (slug) => collectGitCandidateTarget({
-        cwd: base.cwd,
-        name: slug,
-        baseBranch: settings["branch.base"],
-        exec: base.io.exec,
-      }),
-      effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
-        cwd: base.cwd,
-        name: slug,
-        baseBranch: settings["branch.base"],
-        record,
-        exec: base.io.exec,
-        rawExec: createRawGitExec(base.cwd),
-      }),
-      publish: async (publication) => {
-        let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryStatusBoundary> | null = null;
-        if (deliveryRenewal.status === "ready") {
-          const fresh = await inspectRepositoryDeliveryCandidateRenewal({
-            cwd: base.cwd,
-            taskListPath: validateManagedPath(taskListPath),
-            workUnitId: input.name,
-            baseBranch: settings["branch.base"],
-            exec: base.io.exec,
-            sourceBoundary: boundarySnapshot.boundary,
-          });
-          if (fresh.status !== "ready") {
-            throw new DeliveryCandidateRenewalRefusal(
-              fresh.status === "refused" ? fresh.reason : "delivery evidence disappeared",
-            );
-          }
-          if (boundarySnapshot.boundary === null) {
-            throw new DeliveryCandidateRenewalRefusal("public delivery boundary disappeared");
-          }
-          try {
-            deliveryLocus = projectCorrectiveDeliveryStatusBoundary({
-              workUnit: publication.name,
-              candidateId: publication.candidateId,
-              candidateSubjectDigest: publication.candidateSubjectDigest,
-              supersedesCandidateId: publication.record.attestation.supersedes ?? null,
-              sourceBoundary: boundarySnapshot.boundary,
-              deliveryContinuation: fresh.deliveryContinuation,
-            });
-          } catch (error) {
-            throw new DeliveryCandidateRenewalRefusal(
-              error instanceof Error ? error.message : String(error),
-            );
-          }
-        }
-        const recordPath = await writeCandidateRecord(
-          base.cwd,
-          publication.name,
-          publication.record,
-          publication.expectedRecordVersion,
-        );
-        const priorMeta = parseMetaRecord(metaContent);
-        const existingBoundary = boundarySnapshot.boundary;
-        const boundaryMatches = existingBoundary !== null
-          && existingBoundary.candidateId === publication.candidateId
-          && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
-        const convergenceResume = existingBoundary !== null
-          && boundaryMatches
-          && existingBoundary.locus === "candidate-convergence-verification-pending"
-          ? projectCandidateReviewResumeBoundary({
-              workUnit: publication.name,
-              candidateId: publication.candidateId,
-              candidateSubjectDigest: publication.candidateSubjectDigest,
-              reservation: existingBoundary.reservation,
-              terminus: existingBoundary.terminus,
-            })
-          : null;
-        const locus = deliveryLocus ?? convergenceResume
-          ?? (publication.repairCurrent && boundaryMatches
-            ? existingBoundary
-            : projectCandidateReviewBoundary({
-                workUnit: publication.name,
-                candidateId: publication.candidateId,
-                candidateSubjectDigest: publication.candidateSubjectDigest,
-              }));
-        const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
-        const orientation: Record<string, string> = {};
-        if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
-          orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
-        }
-        if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
-          orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
-        }
-        if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
-          orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
-        }
-        if (priorMeta.nextTask !== null) {
-          orientation["Next Task"] = "[none]";
-        }
-        metaContent = Object.keys(orientation).length === 0
-          ? withCandidate
-          : setMetaBulletFields(withCandidate, orientation);
-        const workflowDiagnostics = checkCurrentWorkflowConsistency(parseMetaRecord(metaContent));
-        if (workflowDiagnostics.length > 0) throw new Error(workflowDiagnostics[0]);
-        const boundaryPath = await writeSubmissionBoundary(
-          base.cwd,
-          locus,
-          boundarySnapshot.version,
-        );
-        await base.io.writeFile(absoluteMetaPath, metaContent);
-        await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
-        return { recordPath, metaPath, locus };
-      },
-    }, {
-      name: input.name,
-      lifecycle: meta.state,
-      newRoot: input.newRoot === true,
-      ...(input.expectedCandidate === undefined || input.expectedSubject === undefined
-        ? {}
-        : {
-            expectedBlocked: {
-              candidateId: input.expectedCandidate,
-              subjectDigest: input.expectedSubject,
-            },
-          }),
-    });
-  } catch (error) {
-    if (!(error instanceof DeliveryCandidateRenewalRefusal)) throw error;
-    refuseWithRemedy(
-      `\`arc attest\` refused stale or mismatched public delivery Candidate renewal for \`${input.name}\`: `
-        + error.message,
-      spineRemedy(
-        "Corrective attestation writes only one exact version-bound public member-review continuation.",
-        "Restore the exact public Candidate, plan, state, member, and review evidence, then re-attest",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-
-  if (result.status === "unchanged") {
-    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name);
-    if (currentBoundary.boundary?.candidateId !== result.locus.candidateId
-      || currentBoundary.boundary.candidateSubjectDigest !== result.locus.candidateSubjectDigest) {
-      const boundaryPath = await writeSubmissionBoundary(
-        base.cwd,
-        result.locus,
-        currentBoundary.version,
-      );
-      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
-    }
-  }
-
-  if (input.json === true) {
-    process.stdout.write(`${JSON.stringify(AttestResultSchema.parse(result))}\n`);
-  } else if (result.status === "blocked") {
-    p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
-  } else if (result.status === "refused") {
-    p.log.error(result.recommendedActionText);
-  } else {
-    const lines = [
-      `Work unit: ${result.locus.workUnit}`,
-      `Candidate: ${result.locus.candidateId}`,
-      `Locus:     ${result.locus.locus}`,
-    ];
-    p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
-    p.outro("Done.");
-  }
-  if (result.status === "blocked" || result.status === "refused") process.exitCode = 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -2979,23 +2086,20 @@ export async function handleRepointDesign(
 
   const eventArg = input.event;
 
-  const slug = await resolveCurrentWuSlug(base.cwd);
-  if (slug === null) {
-    refuse("`arc repoint-design` needs exactly one active work unit to target — none resolved in this worktree.");
-    return;
-  }
-
-  const metaPath = materializeActiveMetaPath(base.cwd, slug);
-  const currentDesign = parseMetaRecord(await readFile(metaPath, "utf8")).design;
-
   const { executor } = await buildExecutor(base);
+  const slug = await resolveStageWorkUnit(base, executor.store, "repoint-design");
+  if (slug === null) return;
+
+  const currentDesign = usesOffBranchState(executor.store) ? undefined
+    : parseMetaRecord(await readFile(materializeActiveMetaPath(base.cwd, slug), "utf8")).design;
+
   const result = await runRepointDesign(executor, {
     name: slug,
     event: eventArg satisfies RepointDesignEvent,
     currentDesign,
   });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal);
     return;
   }
   p.note(

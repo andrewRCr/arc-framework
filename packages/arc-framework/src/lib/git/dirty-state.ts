@@ -9,15 +9,19 @@
  * @module
  */
 
+import { z } from "zod";
+
 import type { GitExec } from "./exec.js";
 
-export type DirtyState = "clean" | "dirty";
-
-export interface DirtyStateResult {
-  state: DirtyState;
+/** Complete working-tree dirty-state result. */
+export const DirtyStateResultSchema = z.strictObject({
+  state: z.enum(["clean", "dirty"]),
   /** Number of porcelain entries (modified, staged, untracked). 0 when clean. */
-  fileCount: number;
-}
+  fileCount: z.number().int().nonnegative(),
+});
+
+export type DirtyStateResult = z.infer<typeof DirtyStateResultSchema>;
+export type DirtyState = DirtyStateResult["state"];
 
 export interface RunDirtyStateStatusOptions {
   exec: GitExec;

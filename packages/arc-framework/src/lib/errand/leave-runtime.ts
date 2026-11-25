@@ -1,5 +1,7 @@
 /** Production identity, preservation, and derived-occupancy composition for Errand leave. */
+import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOptions } from "../store/errand-runtime-transactions.js";
 
+import { checkWorktreeRemoval, describeRemovalRefusal, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import { observeExactChangeRequest } from "./change-request-lifecycle.js";
@@ -9,6 +11,7 @@ import {
   type ErrandTerminalSubject,
 } from "./terminal-authority.js";
 import {
+  checkPrimaryProjectionRelease,
   createTerminalOccupancyIO,
   settleTerminalOccupancy,
 } from "./terminal-occupancy.js";
@@ -17,10 +20,10 @@ import {
   type LeaveAuthorization,
   type LeaveCleanupResult,
 } from "./leave.js";
-import { ordinaryErrandTransform, provePauseHead, type OrdinaryErrandRecord } from "./identity-transitions.js";
-import { transactTransientIdentities } from "./identity-transaction.js";
+import { provePauseHead, type OrdinaryErrandRecord } from "./identity-transitions.js";
 
-export interface LeaveOrdinaryErrandRuntimeOptions {
+export interface LeaveOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
+  readonly projectionRemovalSlots?: ProjectionRemovalSlots;
   readonly slug: string;
   readonly state: "paused" | "awaiting-merge";
   readonly protection: "full" | "partial";
@@ -50,17 +53,9 @@ export async function leaveOrdinaryErrandAtRuntime(
     protection: options.protection,
     updatedAt: options.updatedAt,
     dependencies: {
-      readIdentity: () => transactTransientIdentities(identityIO, {
-        remote: "origin",
-        message: `arc: reconcile errand identity ${options.slug}`,
-        transform: (records) => ({ kind: "idempotent", value: records.get(options.slug) ?? null }),
-      }),
+      readIdentity: () => readRuntimeErrand(options, identityIO, options.slug),
       authorize: (record) => authorizePreservation(options, record, occupancyIO),
-      persist: (transition) => transactTransientIdentities(identityIO, {
-        remote: "origin",
-        message: `arc: leave errand ${options.slug} ${options.state}`,
-        transform: ordinaryErrandTransform(transition),
-      }),
+      persist: (transition) => transitionRuntimeErrand(options, identityIO, transition, `arc: leave errand ${options.slug} ${options.state}`),
       cleanup: async (record) => {
         const authority = await readAuthority(options, record);
         if (authority.kind !== "authorized") return authorityFailure(authority);
@@ -68,7 +63,8 @@ export async function leaveOrdinaryErrandAtRuntime(
         if (primaryCheckoutPath === null) {
           return { kind: "refused", reason: "checkout-missing", message: "Primary checkout is unavailable." };
         }
-        const settled = await settleTerminalOccupancy({ authority, primaryCheckoutPath, io: occupancyIO });
+        const settled = await settleTerminalOccupancy({ authority, primaryCheckoutPath, io: occupancyIO,
+          projectionRemovalSlots: options.projectionRemovalSlots });
         if (settled.kind === "refused") {
           return { kind: "refused", reason: "preservation-unproven", message: settled.message };
         }
@@ -89,6 +85,19 @@ function inertDependencies(): Parameters<typeof leaveOrdinaryErrand>[0]["depende
   return { readIdentity: unavailable, authorize: unavailable, persist: unavailable, cleanup: unavailable };
 }
 
+/**
+ * The retirement leave performs once the record is paused must be feasible first: a spawned checkout's removal, or the
+ * primary's projection release, the primary keeping its folder.
+ */
+async function checkLeaveRetirement(options: LeaveOrdinaryErrandRuntimeOptions, checkoutPath: string,
+  primary: boolean): Promise<string | null> {
+  if (primary) return checkPrimaryProjectionRelease(options.exec, checkoutPath, options.projectionRemovalSlots);
+  const check = await checkWorktreeRemoval({ exec: options.exec, checkoutPath, disposition: "remove",
+    check: options.projectionRemovalSlots?.check });
+  if (check.kind === "removable") return null;
+  return check.kind === "refused" ? describeRemovalRefusal(check) : "Errand checkout folder is missing; restore it before leaving.";
+}
+
 async function authorizePreservation(
   options: LeaveOrdinaryErrandRuntimeOptions,
   record: OrdinaryErrandRecord,
@@ -99,7 +108,9 @@ async function authorizePreservation(
   if (authority.row === null || authority.checkoutPath === null) {
     return { kind: "refused", reason: "checkout-missing", message: "Open Errand checkout is absent." };
   }
-  const inspected = await occupancyIO.inspect(authority.checkoutPath);
+  const retirement = await checkLeaveRetirement(options, authority.checkoutPath, authority.row.checkout.primary);
+  if (retirement !== null) return { kind: "refused", reason: "preservation-unproven", message: retirement };
+  const inspected = await occupancyIO.inspect(authority.checkoutPath, { inspectStatus: authority.row.checkout.primary });
   if (inspected.dirty || inspected.branch !== record.branch || inspected.head !== authority.row.checkout.head) {
     return {
       kind: "refused",
@@ -152,7 +163,8 @@ async function readAuthority(
   record: OrdinaryErrandRecord,
 ): Promise<ErrandTerminalAuthority> {
   const subject: ErrandTerminalSubject = { kind: "errand", slug: record.slug, claimId: record.claimId };
-  const authority = authorizeErrandTerminal({
+  const authority = await authorizeErrandTerminal({
+    store: options.store,
     frame: await options.readFrame(),
     operation: "leave",
     subject,

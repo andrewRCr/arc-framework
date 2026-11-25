@@ -1,15 +1,15 @@
 /** Dormant, pure projection of the future unified checkout occupancy marker. */
 
+import { z } from "zod";
+import { isValidOriginBinding, type PartialErrandOriginBinding as OriginBinding } from "./origin-binding.js";
 import { SlugSchema } from "../kernel/index.js";
 import {
   LocusAbsolutePathSchema,
-  LocusDigestSchema,
-  LocusOpaqueTextSchema,
   LocusTokenSchema,
 } from "./schema/limits.js";
 
 export type OccupancySubject =
-  | { readonly kind: "work-unit"; readonly name: string }
+  | { readonly kind: "work-unit"; readonly name: string; readonly uid?: string }
   | { readonly kind: "partial-errand"; readonly slug: string; readonly claimId: null }
   | {
       readonly kind: "errand" | "groom" | "housekeep";
@@ -17,9 +17,6 @@ export type OccupancySubject =
       readonly claimId: string;
     };
 
-type OriginBinding =
-  | { readonly originEntry?: never; readonly originEntrySourceDigest?: never }
-  | { readonly originEntry: string; readonly originEntrySourceDigest: string };
 
 interface TransientOccupancyMarkerBase {
   readonly spawnedByArc: boolean;
@@ -33,6 +30,7 @@ export type TransientOccupancyMarker =
       readonly createdFor: Exclude<OccupancySubject, { kind: "work-unit" | "partial-errand" }>;
       readonly originEntry?: never;
       readonly originEntrySourceDigest?: never;
+      readonly originEntryVersion?: never;
     })
   | (TransientOccupancyMarkerBase & {
       readonly createdFor: Extract<OccupancySubject, { kind: "partial-errand" }>;
@@ -41,12 +39,13 @@ export type TransientOccupancyMarker =
 /** Future marker value; deliberately separate from the selected live marker contract. */
 export type OccupancyMarker =
   | {
-      readonly spawnedByArc: true;
+      readonly spawnedByArc: boolean;
       readonly createdFor: Extract<OccupancySubject, { kind: "work-unit" }>;
       readonly provisioning?: never;
       readonly parentCheckoutPath?: never;
       readonly originEntry?: never;
       readonly originEntrySourceDigest?: never;
+      readonly originEntryVersion?: never;
     }
   | TransientOccupancyMarker;
 
@@ -73,33 +72,25 @@ export function parseOccupancyMarker(content: string): OccupancyMarkerParseResul
     && subject.kind === "partial-errand"
     && SlugSchema.safeParse(subject.slug).success
     && subject.claimId === null;
-  const workUnit = subject !== null
-    && subject.kind === "work-unit"
-    && SlugSchema.safeParse(subject.name).success;
+  const workUnit = isWorkUnitOccupancySubject(subject);
   const hasOriginEntry = value.originEntry !== undefined;
   const hasOriginDigest = value.originEntrySourceDigest !== undefined;
-  const originValid = partial
-    ? hasOriginEntry === hasOriginDigest
-      && (!hasOriginEntry
-        || (LocusOpaqueTextSchema.safeParse(value.originEntry).success
-          && LocusDigestSchema.safeParse(value.originEntrySourceDigest).success))
-    : !hasOriginEntry && !hasOriginDigest;
+  const hasOriginVersion = value.originEntryVersion !== undefined;
+  const originValid = isValidOriginBinding(value, partial);
   const occupancyFieldsValid = workUnit
-    ? value.spawnedByArc === true
-      && value.provisioning === undefined
+    ? value.provisioning === undefined
       && value.parentCheckoutPath === undefined
     : (value.provisioning === "pending" || value.provisioning === "ready")
       && (value.parentCheckoutPath === undefined
         || LocusAbsolutePathSchema.safeParse(value.parentCheckoutPath).success);
-  const subjectKeysValid = subject !== null && keysEqual(
-    subject,
-    workUnit ? ["kind", "name"] : ["claimId", "kind", "slug"],
-  );
+  const subjectKeysValid = workUnit || (subject !== null && keysEqual(subject, ["claimId", "kind", "slug"]));
   const markerKeys = ["createdFor", "spawnedByArc"];
   if (!workUnit) {
     markerKeys.push("provisioning");
     if (value.parentCheckoutPath !== undefined) markerKeys.push("parentCheckoutPath");
-    if (hasOriginEntry) markerKeys.push("originEntry", "originEntrySourceDigest");
+    if (hasOriginEntry) markerKeys.push("originEntry");
+    if (hasOriginDigest) markerKeys.push("originEntrySourceDigest");
+    if (hasOriginVersion) markerKeys.push("originEntryVersion");
   }
   if (typeof value.spawnedByArc !== "boolean"
     || (!identityBacked && !partial && !workUnit)
@@ -110,6 +101,12 @@ export function parseOccupancyMarker(content: string): OccupancyMarkerParseResul
     return { kind: "malformed", message: "Occupancy marker has an invalid shape" };
   }
   return { kind: "valid", marker: value as OccupancyMarker };
+}
+
+function isWorkUnitOccupancySubject(subject: Record<string, unknown> | null): subject is Extract<OccupancySubject, { kind: "work-unit" }> {
+  return subject !== null && subject.kind === "work-unit" && SlugSchema.safeParse(subject.name).success
+    && (subject.uid === undefined || z.uuid().safeParse(subject.uid).success)
+    && keysEqual(subject, subject.uid === undefined ? ["kind", "name"] : ["kind", "name", "uid"]);
 }
 
 /** Serialize one already-validated dormant marker projection. */
@@ -123,7 +120,8 @@ export function validateOccupancyMarkerTopology(
   topology: { readonly primary: boolean },
 ): { readonly kind: "valid"; readonly marker: OccupancyMarker }
   | { readonly kind: "unresolved"; readonly reason: "spawn-topology-mismatch" } {
-  return marker.spawnedByArc === topology.primary
+  return !(marker.createdFor.kind === "work-unit" && !marker.spawnedByArc)
+    && marker.spawnedByArc === topology.primary
     ? { kind: "unresolved", reason: "spawn-topology-mismatch" }
     : { kind: "valid", marker };
 }

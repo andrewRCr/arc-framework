@@ -1,6 +1,7 @@
 /** Zod authority for the logical standard-review delivery contract. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import {
   canonicalize,
@@ -8,7 +9,6 @@ import {
   type KernelRegistry,
 } from "../../../lib/kernel/index.js";
 
-const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const SortedUniqueStringsSchema = z.array(z.string().min(1)).min(1).refine((values) => {
   const keys = values.map(canonicalize);
   return new Set(keys).size === keys.length

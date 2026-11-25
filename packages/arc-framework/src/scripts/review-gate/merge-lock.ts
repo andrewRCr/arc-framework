@@ -20,6 +20,8 @@
 
 import { z } from "zod";
 
+import { ProjectIdentityError } from "../../lib/store/project-identity.js";
+
 import {
   MergeLockHoldEnvelopeSchema,
   MergeLockReleaseEnvelopeSchema,
@@ -62,6 +64,14 @@ export const MergeLockTransitionRequestSchema = z.strictObject({
   vehicle: ReviewVehicleSchema,
 }).readonly();
 export type MergeLockTransitionRequest = z.infer<typeof MergeLockTransitionRequestSchema>;
+type MergeLockTransitionInput = Omit<z.input<typeof MergeLockTransitionRequestSchema>, "vehicle"> & {
+  vehicle: z.input<typeof ReviewVehicleSchema> | {
+    kind: "delivery-member";
+    planId: string;
+    deliverableId: string;
+    workUnitSlug: string;
+  };
+};
 
 /**
  * What the configured `merge.lock` key was found to be. The shared settings
@@ -178,7 +188,7 @@ const TRANSITIONS = {
 
 async function transitionMergeLock(
   kind: keyof typeof TRANSITIONS,
-  input: MergeLockTransitionRequest,
+  input: MergeLockTransitionInput,
   port: MergeLockPort,
 ): Promise<unknown> {
   const request = MergeLockTransitionRequestSchema.parse(input);
@@ -406,10 +416,14 @@ async function gateCandidateReadiness(
       pullRequest: live,
       vehicle: request.vehicle,
     }));
-  } catch {
+  } catch (error) {
+    // Readiness reports a native store's record refusals as facts; only an unavailable project identity is raised, and
+    // it keeps its condition and remedy for the operator.
     return {
       reason: "readiness-failed",
       message: "The lifecycle-readiness result was unavailable or malformed.",
+      ...(error instanceof ProjectIdentityError
+        ? { details: [{ code: "project-identity-unavailable", message: error.message }] } : {}),
     };
   }
   if (
@@ -444,7 +458,7 @@ async function gateCandidateReadiness(
  * @returns A strict held, no-lock, or blocked envelope.
  */
 export async function holdMergeLock(
-  input: MergeLockTransitionRequest,
+  input: MergeLockTransitionInput,
   port: MergeLockPort,
 ): Promise<MergeLockHoldEnvelope> {
   return MergeLockHoldEnvelopeSchema.parse(await transitionMergeLock("hold", input, port));
@@ -459,7 +473,7 @@ export async function holdMergeLock(
  * @returns A strict released, no-lock, or blocked envelope.
  */
 export async function releaseMergeLock(
-  input: MergeLockTransitionRequest,
+  input: MergeLockTransitionInput,
   port: MergeLockPort,
 ): Promise<MergeLockReleaseEnvelope> {
   return MergeLockReleaseEnvelopeSchema.parse(await transitionMergeLock("release", input, port));

@@ -115,6 +115,138 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
   `USER-INBOX § Work Unit`, housekeep drain 2026-06-22; captured during `testing-guidance-apparatus` authoring
   `testing-standards`, the first extend-mode method.)
 
+### `[ ]` **Drop the customization surfaces the storage cutover retires**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: customization-arch-realign`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan realigns four surfaces the storage program changes: the `session-state` method (its
+  document set moves behind the contract and projection), the `plan/` prefix (retired by branchless planning,
+  `storage-contract` C12), `archive.cadence` (removed at the cutover), and `user.notes_push` (retired, C5).
+- _Approach:_ At next planning, drop or re-scope each against the post-cutover design rather than realigning it.
+
+### `[ ]` **Audit whether the `session-state` method still earns its place or should be deprecated**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30);
+  the method is already in this work unit's storage route.
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-30);
+  captured during `compaction-recovery` generate-tasks grounding audit.
+- _Concern:_ `system/methods/session-state.md` is a thin read/write contract over `meta-*`, `SESSION-NOTES`, and
+  git notes, carrying `[No override configured]`. Its override seam may be illusory because ARC hard-assumes those
+  managed-record shapes across `session-init` and `session-handoff`, so an override that changes the shape is not
+  actually viable.
+- _Approach:_ while formalizing managed records, decide whether `session-state` remains useful as a stable method
+  contract, gets narrowed to non-shape guidance, or is deprecated entirely in favor of this WU's managed-record
+  documentation.
+
+### `[ ]` **Consider folding `worktree.harness_dirs` into `.worktreeinclude`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: config-storage-architecture`), housekeep drain (2026-10-11);
+  re-targeted here, as its approach names, since it shapes no storage decision.
+
+- _Shapes:_ § Proposed Principle's decision tree (§ Decision tree update) — whether a value a tool reads is a
+  config key or a convention file the tool ecosystem reads; the mirror of the `worktree.location_template`
+  worked example.
+
+- _Observation:_ two mechanisms copy gitignored local files from the primary checkout into ARC-created worktrees,
+  both through the shared linked-worktree setup: the `worktree.harness_dirs` config key (default
+  `.claude,.codex,.gemini,.opencode`, whole top-level directories) and, once its pending Errand lands, a root
+  `.worktreeinclude` file (the cross-tool convention, gitignore-syntax patterns, gitignored matches only). The
+  Errand keeps both, additively.
+
+- _Approach:_ decide whether the config key retires in favor of the convention file, with `arc init` writing the
+  harness directories into `.worktreeinclude` instead. That trades a config key for a tracked file every supporting
+  tool reads, at the cost of config schema, init recipe, docs, and test changes. Consider only if two mechanisms
+  prove confusing in practice. If it reads as a config-versus-convention boundary call rather than a storage one,
+  re-route to `customization-arch-realign`.
+
+- _Drain note (2026-10-11):_ the `.worktreeinclude` Errand has landed (PR #864), so both mechanisms ship.
+
+- _Captured during:_ `.worktreeinclude` Errand scoping, 2026-10-09.
+
+### `[ ]` **Replace agent-fired extension markers with CLI-fired lifecycle events**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Proposed Principle ("Extensions = hook slots with no ARC opinion"; "Extensions stay as-is"), and the
+  inbound entry "Extension firing-proportionality — a context/scope gate, not just enable/disable".
+
+- _Observation:_ extensions fire through agent instructions at every workflow site — check the active list, run
+  `.actions`, halt on fail, otherwise skip — and a corpus audit (`audit-method-triggers`) requires the instruction at
+  every tagged push site. `pre-push-review`'s own contract names the push wrapper as its fire point, an event the CLI
+  already owns, yet it ships inactive with empty `.actions`: each site checks an empty list, and pushes outside
+  workflows are never covered. This runs against `strategy-knowledge-evolution.md` Principle 3 (anchor triggers to
+  operations, not workflows) and `strategy-procedure-evolution.md` Principles 1 and 2 (the CLI computes what it can;
+  agent-interpreted markup grows no control flow).
+
+- _Approach:_ fire lifecycle events from the CLI verbs that drive each advance. Deterministic hooks run there, mostly
+  as checks the declaration already supports at its commit, push, and merge deadlines; hooks needing agent judgment
+  (an external tracker update after a task) return in the verb's result as precomposed directives, so the agent acts
+  when told rather than remembering at every site.
+
+- _Captured during:_ Errand `disposition-approval-release` (PR #955), whose review fix extended `run-errand`'s
+  push-extension contract, 2026-10-13.
+
+- _Drain note:_ `retire-extension-points` removes today's mechanism first, as this decision's separable part.
+  Consumers of the outcome: `composable-workflows` D1's `extensions` declaration family, and the fire points
+  `release-lifecycle` and `session-retitle` propose.
+
+### `[ ]` **Hold a head-moving push while a hosted review of that head is still pending**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: customization-arch-realign`), housekeep drain (2026-10-15).
+
+- _Shapes:_ its inbound entry "Replace agent-fired extension markers with CLI-fired lifecycle events", as a
+  deterministic pre-push check the CLI fires.
+
+- _Observation:_ a push that moves a pull request's head while a hosted review of it is pending throws that review's
+  result away: `arc review hosted await` reads the head first and returns `stale-target` without looking for the
+  review (`observeHostedReview` in `scripts/review-gate/hosted/await.ts`). On PR #928 a clean Codex result posted
+  as a CI fix was pushed. The `collect-review-before-push` Errand covers it in prose: `run-errand`,
+  `integrate-work-unit`, and `deliver-stack` collect a pending action before any head-moving push, but nothing
+  enforces that.
+
+- _Approach:_ a pre-push lifecycle check in the CLI that finds a pending hosted request whose target is the branch's
+  current remote head, and refuses with a typed remedy: collect it through `arc review hosted await -`, or push
+  anyway on explicit direction, giving the result up. Considered for the Errand and declined there, since an interim
+  guard in `arc release push` would be the redesign's job done early, and raw pushes would pass it.
+
+- _Captured during:_ the `collect-review-before-push` Errand, 2026-10-13.
+
+### `[ ]` **Design lifecycle customization from the extension retirement boundary**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: customization-arch-realign`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Proposed Principle; § Decision tree update; inbound lifecycle-event, firing-proportionality, and
+  workflow-pointer entries.
+
+- _Observation:_ Retirement removes all eleven files, active flags, agent fire points, scanners, and the CLI/probe
+  surfaces. The old “Extensions stay as-is” premise and “adds workflow steps → extension” row cease to describe
+  supported behavior.
+
+- _Approach:_ Design the CLI-fired replacement from the retirement ADR’s event inventory and pre-removal revision.
+  Preserve ordered halt-on-fail, event frequency, opaque PR payloads, retry-safe pre-create, idempotent open-PR
+  re-entry, and no mutation after readiness as inputs to that decision. Re-scope proportionality to the replacement
+  and reconsider the workflow-pointer entry’s assertion that lifecycle extensions already invoke project workflows.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
+### `[ ]` **Keep install class in the claims table when methods gain activation and override-mode axes**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ § Proposed Principle (methods carry `active` and `override-active`), Open Question (a)'s `core: true` flag,
+  and the inbound `override-mode` entry.
+
+- _Observation:_ `adopter-install-authority` makes one claims table in `init-recipe.json` the authority for each shipped
+  file's install class (`draft-adopter-install-authority.md` D1), and its coverage check refuses a file that declares an
+  override contract (`override-active`) under a claim other than Configurable. A method frontmatter axis that implies a
+  different install class — a `core` method projects must not redefine, say — would contradict the table silently unless
+  it lands with its own claim.
+
+- _Approach:_ land any class-changing method axis together with its claim edit, and keep the table as the one class
+  authority. A move toward Framework is held on `arc update` wherever a project edited the file (that unit's D8).
+
+- _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
+
 ---
 
 ## Problem / Motivation
@@ -154,7 +286,7 @@ others. The smell will continue to propagate unless the boundaries are clarified
 Every method ships with concrete default content + `override-active: false` frontmatter:
 
 | Method                  | Default activity                                               | Override surface       |
-|-------------------------|----------------------------------------------------------------|------------------------|
+| ----------------------- | -------------------------------------------------------------- | ---------------------- |
 | `branch-format`         | CB-style type prefix + `plan/` planning prefix                 | Type list override     |
 | `commit-format`         | Conventional commit format                                     | Custom pattern         |
 | `commit-footer`         | Context footer naming deepest spec-shaped artifact             | Custom pattern         |
@@ -175,17 +307,17 @@ Extensions have **one customization axis** (`active`). No defaults to override.
 
 ### Config keys by functional category
 
-| Category                         | Examples                                                  |
-|----------------------------------|-----------------------------------------------------------|
-| Hook enable/disable              | `hooks.pre_commit`, `hooks.commit_msg`                    |
-| Method selector + custom pattern | `commit.format`, `commit.context_footer`                  |
-| Hook validator value             | `hooks.subject_max_length`, `hooks.meta_ref_patterns`     |
-| Structural / setup               | `pm.mode`, `team.mode`                                    |
-| Workflow path selector           | `branch.protection`, `archive.cadence`, `merge.strategy`  |
-| Informational                    | `platform.type`                                           |
-| Session/sync behavior            | `session.*`, `user.notes_push`                            |
-| **Method invocation toggle**     | `review.pre_merge`                                        |
-| **Bare halt toggle (deferred)**  | _(was `review.planning_checkpoint`; deferred from WOR)_   |
+| Category                         | Examples                                                 |
+| -------------------------------- | -------------------------------------------------------- |
+| Hook enable/disable              | `hooks.pre_commit`, `hooks.commit_msg`                   |
+| Method selector + custom pattern | `commit.format`, `commit.context_footer`                 |
+| Hook validator value             | `hooks.subject_max_length`, `hooks.meta_ref_patterns`    |
+| Structural / setup               | `pm.mode`, `team.mode`                                   |
+| Workflow path selector           | `branch.protection`, `archive.cadence`, `merge.strategy` |
+| Informational                    | `platform.type`                                          |
+| Session/sync behavior            | `session.*`, `user.notes_push`                           |
+| **Method invocation toggle**     | `review.pre_merge`                                       |
+| **Bare halt toggle (deferred)**  | _(was `review.planning_checkpoint`; deferred from WOR)_  |
 
 The bottom two rows are the architectural smell. Their existence is a symptom of methods lacking
 an `active` axis.
@@ -216,12 +348,12 @@ Concretely:
 
 The existing "which mechanism do I use?" tree gets a new row:
 
-| Customization shape                                  | Mechanism                                            |
-|------------------------------------------------------|------------------------------------------------------|
-| Changes a value hooks/CLI/structural code reads      | Config                                               |
-| Adds new steps at a workflow point                   | Extension (`active: true` + populate `.actions`)     |
-| Replaces how ARC does an activity                    | Method (`override-active: true` + populate override) |
-| **Disables how ARC does an activity**                | Method (`active: false` in frontmatter)              |
+| Customization shape                             | Mechanism                                            |
+| ----------------------------------------------- | ---------------------------------------------------- |
+| Changes a value hooks/CLI/structural code reads | Config                                               |
+| Adds new steps at a workflow point              | Extension (`active: true` + populate `.actions`)     |
+| Replaces how ARC does an activity               | Method (`override-active: true` + populate override) |
+| **Disables how ARC does an activity**           | Method (`active: false` in frontmatter)              |
 
 ---
 
@@ -252,9 +384,8 @@ execution time. With method `active` flags landing, loading should respect activ
   default. Today this is implicit via the method file's structure (override section comes first
   conceptually); verify in practice with partial-read instructions.
 
-Coordinate with `plan-instruction-optimization` (skill-load caching) and
-`plan-workflow-template-loads` (the `arc.templates` frontmatter category for templates) — all
-three touch the workflow-frontmatter-driven load surface.
+Coordinate with `plan-instruction-optimization` (skill-load caching) and `plan-workflow-template-loads` (the
+`arc.templates` frontmatter category for templates) — all three touch the workflow-frontmatter-driven load surface.
 
 ---
 

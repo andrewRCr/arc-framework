@@ -18,7 +18,10 @@ import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-stat
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { RepositoryDeliveryMemberLookup } from "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { resolveReviewHeadRef } from "../../src/scripts/review-gate/core/review-subject.js";
-import { deliveryPlanFixture } from "../fixtures/delivery-plan.js";
+import {
+  deliveryPlanFixture,
+  deliveryStackPlanWithMemberTitlesFixture,
+} from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
 
@@ -217,6 +220,176 @@ describe("repository delivery member lookup", () => {
       .resolves.toEqual({ status: "unbound" });
   });
 
+  it("resolves a deliverable identity to the member's recorded binding", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    await publish(cwd, deliveryStateFixture(plan));
+
+    await expect(lookup.resolveMemberByIdentity({
+      planId: plan.planId,
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    })).resolves.toEqual({
+      status: "bound",
+      member: {
+        planId: plan.planId,
+        deliverableId: plan.members[0]!.deliverableId,
+        workUnitId: plan.workUnitId,
+        base: "3".repeat(40),
+        baseRef: "delivery-target",
+        headRef: "member-1",
+        head: "4".repeat(40),
+        candidateHead: "5".repeat(40),
+        successorHeads: ["5".repeat(40)],
+        isFinalMember: false,
+      },
+    });
+  });
+
+  /**
+   * Every bound head above a member, in position order — not just the nearest. Their order among themselves is
+   * not guaranteed once a single-member republish has moved one, so a consumer bounding an advance needs all of
+   * them; a member the state leaves unbound records no head and contributes none.
+   */
+  it("carries every bound head above a member, and skips one the state leaves unbound", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryStackPlanWithMemberTitlesFixture(["first", "second", "third"]);
+    const seeded = deliveryStateFixture(plan);
+    const unboundMiddle = {
+      ...seeded,
+      members: seeded.members.map((member, index) => index === 1
+        ? { ...member, coordinates: null }
+        : member),
+    };
+    await publishPlan(cwd, plan);
+    await publish(cwd, seeded);
+
+    const identity = (index: number) => ({
+      planId: plan.planId,
+      deliverableId: plan.members[index]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    });
+    const headOf = (index: number) => seeded.members[index]!.coordinates!.head;
+
+    await expect(lookup.resolveMemberByIdentity(identity(0))).resolves.toMatchObject({
+      status: "bound",
+      member: { successorHeads: [headOf(1), headOf(2)], isFinalMember: false },
+    });
+    await expect(lookup.resolveMemberByIdentity(identity(1))).resolves.toMatchObject({
+      status: "bound",
+      member: { successorHeads: [headOf(2)], isFinalMember: false },
+    });
+    await expect(lookup.resolveMemberByIdentity(identity(2))).resolves.toMatchObject({
+      status: "bound",
+      member: { successorHeads: [], isFinalMember: true },
+    });
+
+    await publish(cwd, unboundMiddle, 1);
+    await expect(lookup.resolveMemberByIdentity(identity(0))).resolves.toMatchObject({
+      status: "bound",
+      member: { successorHeads: [headOf(2)] },
+    });
+  });
+
+  it("reports a work unit no plan carries as a miss rather than an unavailability", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    await publish(cwd, deliveryStateFixture(plan));
+
+    await expect(lookup.resolveMemberByIdentity({
+      planId: plan.planId,
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: "ordinary-work-unit",
+    })).resolves.toEqual({ status: "no-plan" });
+  });
+
+  it("reports a deliverable the resolved plan does not carry as an identity miss", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    await publish(cwd, deliveryStateFixture(plan));
+
+    await expect(lookup.resolveMemberByIdentity({
+      planId: plan.planId,
+      deliverableId: deliveryPlanFixture(OTHER_PLAN_ID).members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    })).resolves.toEqual({ status: "not-in-plan" });
+  });
+
+  it("reports a planned member holding no binding as unbound inside its own plan", async () => {
+    const plan = deliveryPlanFixture();
+    const identity = {
+      planId: plan.planId,
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    };
+
+    const unpublished = await repository();
+    await publishPlan(unpublished.cwd, plan);
+    await expect(unpublished.lookup.resolveMemberByIdentity(identity))
+      .resolves.toEqual({ status: "in-plan-unbound" });
+
+    const uncoordinated = await repository();
+    const partial = deliveryStateFixture(plan);
+    partial.members[0]!.coordinates = null;
+    await publishPlan(uncoordinated.cwd, plan);
+    await publish(uncoordinated.cwd, partial);
+    await expect(uncoordinated.lookup.resolveMemberByIdentity(identity))
+      .resolves.toEqual({ status: "in-plan-unbound" });
+  });
+
+  it("reports several matching plans, an unreadable record, and a bare root as unavailable", async () => {
+    const plan = deliveryPlanFixture();
+    const identity = {
+      planId: plan.planId,
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    };
+
+    const duplicate = await repository();
+    await publishPlan(duplicate.cwd, plan);
+    await publishPlan(duplicate.cwd, deliveryPlanFixture(OTHER_PLAN_ID));
+    await expect(duplicate.lookup.resolveMemberByIdentity(identity))
+      .resolves.toEqual({ status: "unavailable" });
+
+    const unreadable = await repository();
+    await publishPlan(unreadable.cwd, plan);
+    await publish(unreadable.cwd, deliveryStateFixture(plan));
+    await chmod(stateDirectory(unreadable.cwd), 0o000);
+    try {
+      await expect(unreadable.lookup.resolveMemberByIdentity(identity))
+        .resolves.toEqual({ status: "unavailable" });
+    } finally {
+      await chmod(stateDirectory(unreadable.cwd), 0o700);
+    }
+
+    const bare = await mkdtemp(join(tmpdir(), "arc-review-delivery-identity-bare-"));
+    roots.push(bare);
+    const outsideRepository = new RepositoryDeliveryMemberLookup({ exec: makeGitExec(bare), cwd: bare });
+    await expect(outsideRepository.resolveMemberByIdentity(identity))
+      .resolves.toEqual({ status: "unavailable" });
+  });
+
+  it("admits the resolved plan in any case and refuses an asserted plan it is not", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    await publish(cwd, deliveryStateFixture(plan));
+    const member = {
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    };
+
+    await expect(lookup.resolveMemberByIdentity({ ...member, planId: OTHER_PLAN_ID }))
+      .resolves.toEqual({ status: "plan-mismatch" });
+    await expect(lookup.resolveMemberByIdentity({ ...member, planId: plan.planId }))
+      .resolves.toMatchObject({ status: "bound" });
+    await expect(lookup.resolveMemberByIdentity({ ...member, planId: plan.planId.toUpperCase() }))
+      .resolves.toMatchObject({ status: "bound" });
+  });
+
   it("refuses an incomplete target set before resolving every retained member on a later read", async () => {
     const { cwd, lookup } = await repository();
     const plan = deliveryPlanFixture();
@@ -291,6 +464,7 @@ describe("repository delivery member lookup", () => {
         headRef: "delivery/example/member-0",
         head: FIRST_HEAD,
         candidateHead: SECOND_HEAD,
+        successorHeads: [SECOND_HEAD],
         isFinalMember: false,
       },
     });
@@ -312,6 +486,8 @@ describe("repository delivery member lookup", () => {
       member: {
         head: FIRST_HEAD,
         candidateHead: null,
+        // The member above records no head, so it contributes none to stack under either.
+        successorHeads: [],
         isFinalMember: false,
       },
     });

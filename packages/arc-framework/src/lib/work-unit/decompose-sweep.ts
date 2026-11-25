@@ -2,10 +2,8 @@
  * The incoming-edge re-point sweep — the write half of the dependency rewrite a
  * decomposition runs when it retires an origin into its members.
  *
- * {@link "./lifecycle-deps.ts"}'s `resolveReverseDeps` finds the dependents
- * (the discovery half); this rewrites each one's `**Depends On:**` edge from the
- * retired origin to the delivering member(s). The write is greenfield —
- * `lifecycle-deps.ts` is read-only by contract — but reuses the shared meta-field
+ * This rewrites each dependent's `**Depends On:**` edge from the
+ * retired origin to the delivering member(s), using the shared meta-field
  * writer (`setMetaBulletFields`) so it touches only the one bullet and leaves the
  * rest of the meta byte-stable.
  *

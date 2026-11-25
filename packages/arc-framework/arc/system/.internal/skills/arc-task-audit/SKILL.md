@@ -18,8 +18,11 @@ would earn its cost; run it only after an explicit user request or approval, nev
   earlier tasks reshaped the surface), and the remaining tasks need re-validation against current reality before
   proceeding.
 
-A finding that implicates the _design_ rather than a task routes onward to the `arc-design-audit` door — this
-audit checks tasks against code, not the design against its goal.
+A finding that implicates the _design_ rather than a task routes onward, and specificity picks the door, never
+confidence. A finding you can point at — a stated outcome not produced, a task that cannot complete as written, a
+decision that looks falsified — enters [`amend-design`][amend-design], which decides what kind of change it is. A
+broad design implication you cannot yet point at escalates to the `arc-design-audit` door. This audit checks tasks
+against code, not the design against its goal.
 
 **Two caller inputs:**
 
@@ -36,3 +39,4 @@ method's structured findings with its native two-tier disposition — **Fix befo
 context** — and give carry-as-context findings a durable home per the method before closing the audit.
 
 [task-audit-method]: ../../../methods/task-audit.md
+[amend-design]: ../../../workflows/arc/supplemental/amend-design.md

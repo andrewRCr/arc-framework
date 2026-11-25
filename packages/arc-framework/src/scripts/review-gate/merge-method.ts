@@ -2,6 +2,7 @@
 
 import { canonicalDigest } from "../../lib/kernel/canonical/canonical-json.js";
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
 import {
   SpineRemedySchema,
   spineRemedy,
@@ -26,7 +27,7 @@ export interface MergeMethodPolicyPort {
  */
 export function mergeMethodResolveArgv(stackPosition: MergeMethodStackPosition): string[] {
   return stackPosition === "non-delivery"
-    ? ["arc", "review", "merge-method", "resolve", "--json"]
+    ? ["arc", "review", "merge-method", "resolve"]
     : [
         "arc",
         "review",
@@ -34,7 +35,6 @@ export function mergeMethodResolveArgv(stackPosition: MergeMethodStackPosition):
         "resolve",
         "--stack-position",
         stackPosition,
-        "--json",
       ];
 }
 
@@ -52,7 +52,7 @@ export const MergeMethodResolveResultSchema = z.union([
     nextAction: z.literal("use-method"),
     method: MergeMethodSchema,
     allowedMethods: z.array(MergeMethodSchema),
-    policyFingerprint: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+    policyFingerprint: CanonicalDigestSchema,
   }),
   z.strictObject({
     ...MergeMethodResultBaseShape,
@@ -61,7 +61,7 @@ export const MergeMethodResolveResultSchema = z.union([
     reason: z.enum(["invalid-input", "method-disallowed", "policy-unreadable"]),
     configuredMethod: MergeMethodSchema.nullable(),
     allowedMethods: z.array(MergeMethodSchema),
-    policyFingerprint: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+    policyFingerprint: CanonicalDigestSchema.optional(),
     detail: z.string().trim().min(1).optional(),
     remedy: SpineRemedySchema,
   }),

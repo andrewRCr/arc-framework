@@ -1,0 +1,221 @@
+/** Registry completeness and layout authority prevent backend-specific naming. */
+
+import { readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  KIND_REGISTRY, FAMILY_REGISTRY, KIND_SHAPES, FAMILY_IDS, createKindRegistry,
+  MACHINE_LOCAL_PATHS, DERIVED_VIEWS, defineKindRegistration, StateVersionSchema, type KindId,
+} from "../../../../src/lib/store/index.js";
+import { resolveArcPath, ArcLayoutAddressSchema } from "../../../../src/lib/layout/index.js";
+
+function sourceFiles(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const file = join(root, entry.name);
+    return entry.isDirectory() ? sourceFiles(file) : entry.name.endsWith(".ts") ? [file] : [];
+  });
+}
+
+const kinds = Object.values(KIND_REGISTRY);
+
+describe("role-based storage registry", () => {
+  it("names review decisions and gives immutable review facts create-only ownership", () => {
+    expect(Object.keys(KIND_REGISTRY)).toContain("review/decision");
+    for (const id of ["review/outcome", "review/decision", "review/adversarial-pass"]) {
+      expect(Object.values(KIND_REGISTRY).find((kind) => kind.id === id)?.writerRule).toBe("create-only");
+    }
+    expect(KIND_REGISTRY["review/evidence"].writerRule).toBe("single-writer");
+  });
+  it("covers every declared kind once and leaves only reserved families empty", () => {
+    expect(Object.keys(KIND_REGISTRY).sort()).toEqual(Object.keys(KIND_SHAPES).sort());
+    for (const id of FAMILY_IDS) {
+      const members = kinds.filter((kind) => kind.family === id);
+      expect(members.length === 0).toBe(FAMILY_REGISTRY[id].reserved);
+      expect(members.every((kind) => kind.id.startsWith(`${id}/`))).toBe(true);
+    }
+  });
+  it("declares owner cardinality, key shape, and initial format for every record", () => {
+    for (const kind of kinds) {
+      expect(["work-item", "cohort", "project", "person"]).toContain(kind.owner);
+      expect([null, "name", "path", "slug", "id", "pass"]).toContain(kind.key);
+      expect(kind.formatVersion).toBe(1);
+      expect(kind.parser).toBeNull();
+    }
+  });
+  it("preserves conflicts in every unreserved family and routing receipts beside inboxes", () => {
+    for (const family of Object.values(FAMILY_REGISTRY).filter((entry) => !entry.reserved)) {
+      expect(kinds.some((kind) => kind.family === family.id && kind.id.endsWith("/conflict-record"))).toBe(true);
+      if (kinds.some((kind) => kind.family === family.id && kind.id.endsWith("/inbox"))) {
+        expect(kinds.some((kind) => kind.family === family.id && kind.id.endsWith("/routing-receipt"))).toBe(true);
+      }
+    }
+  });
+  it("isolates parser registration without changing storage properties", () => {
+    const parser = (content: string) => ({ success: true as const, data: { text: content } });
+    const check = async () => [];
+    const registered = createKindRegistry([{ kind: "work-item/meta", parser, check, anchorFields: ["anchor"] }]);
+    expect(registered["work-item/meta"].parser?.("bytes")).toEqual({ success: true, data: { text: "bytes" } });
+    expect(registered["work-item/meta"].check).toBe(check);
+    expect(registered["work-item/meta"].anchorFields).toEqual(["anchor"]);
+    expect(KIND_REGISTRY["work-item/meta"].parser).toBeNull();
+    expect(KIND_REGISTRY["work-item/meta"].check).toBeNull();
+    expect(KIND_REGISTRY["work-item/meta"].anchorFields).toEqual([]);
+    expect(registered["work-item/meta"].merge).toBe("single-writer");
+  });
+  it("rejects two registrations for the same kind", () => {
+    expect(() => createKindRegistry([{ kind: "work-item/meta" }, { kind: "work-item/meta" }])).toThrow(/duplicate/iu);
+  });
+  it("checks anchor keys against the parser's output", () => {
+    const parser = () => ({ success: true as const, data: { anchor: StateVersionSchema.parse("state:one"), nullable: null as null, text: "prose" } });
+    const registration = defineKindRegistration({ kind: "work-item/meta", parser, anchorFields: ["anchor", "nullable"] });
+    expect(createKindRegistry([registration])["work-item/meta"].anchorFields).toEqual(["anchor", "nullable"]);
+    // @ts-expect-error A prose string is not an opaque state-version anchor.
+    defineKindRegistration({ kind: "work-item/meta", parser, anchorFields: ["text"] });
+    // @ts-expect-error An anchor must name a key the parser returns.
+    defineKindRegistration({ kind: "work-item/meta", parser, anchorFields: ["missing"] });
+  });
+  it("has a concrete finder or address for each housed record", () => {
+    for (const kind of kinds) {
+      if (kind.inRepo.substrate === "tracked" || kind.inRepo.substrate === "personal") {
+        expect(kind.inRepo.address !== undefined || kind.inRepo.finder !== undefined).toBe(true);
+      }
+    }
+    expect(kinds.some((kind) => kind.inRepo.address?.kind === "pending")).toBe(false);
+    expect(KIND_REGISTRY["work-item/companion"].inRepo.finder).toBe("companions");
+    expect(KIND_REGISTRY["personal/document"].inRepo.finder).toBe("personal-documents");
+    expect(KIND_REGISTRY["personal/session-context"].interim).toBe(true);
+    expect(KIND_REGISTRY["lineage/transition"].writerRule).toBe("create-only");
+  });
+  it("projects declared addresses only through the layout authority", () => {
+    for (const kind of kinds) {
+      for (const candidate of [typeof kind.projection === "object" ? kind.projection : undefined, kind.inRepo.address]) {
+        if (candidate === undefined) continue;
+        let address: unknown;
+        if (candidate.kind === "work-unit-artifact") address = { ...candidate, slug: "example", placement: { kind: "active", scope: { kind: "project" } } };
+        else if (candidate.kind === "cohort-document") address = { kind: "cohort-document", cohort: ["example"], placement: { kind: "planned" } };
+        else if (candidate.kind === "candidate-record" || candidate.kind === "integration-boundary-record") address = { kind: candidate.kind, slug: "example" };
+        else if (candidate.kind === "transition-record") address = { kind: candidate.kind, origin: "example" };
+        else if (candidate.kind === "inbox") address = { kind: candidate.kind, scope: candidate.scope === "project" ? { kind: "project" } : { kind: "identity", identity: "andrew" } };
+        else address = { kind: "user-document", identity: "andrew", document: { kind: candidate.document, ...(candidate.document === "session-notes" ? { workUnit: "example" } : {}) } };
+        expect(resolveArcPath(ArcLayoutAddressSchema.parse(address))).toMatch(/^\.arc\//u);
+      }
+    }
+  });
+  it("assigns entry shapes to housed lists and no pre-flip home to new lists", () => {
+    for (const kind of kinds.filter((entry) => entry.merge === "entry")) {
+      if (kind.inRepo.substrate === "none") continue;
+      expect(kind.entry?.sections.length).toBeGreaterThan(0);
+      expect(["heading", "field-header"]).toContain(kind.entry?.shape);
+    }
+    expect(KIND_REGISTRY["personal/inbox"].entry?.sections).toEqual(["Errand", "Work Unit"]);
+    expect(KIND_REGISTRY["personal/working-memory"].entry?.shape).toBe("field-header");
+  });
+  it("shares ref placement only through a declared subtree", () => {
+    const patterns = Object.values(FAMILY_REGISTRY).flatMap((family) => family.ref !== null && "pattern" in family.ref ? [family.ref.pattern] : []);
+    expect(new Set(patterns).size).toBe(patterns.length);
+    expect(FAMILY_REGISTRY.review.ref).toEqual({ subtreeOf: "work-item", path: "review" });
+    expect(FAMILY_REGISTRY.lineage.ref).toEqual({ subtreeOf: "project-registry", path: "lineage" });
+    expect(FAMILY_REGISTRY["project-machinery"].ref).toBeNull();
+    expect(FAMILY_REGISTRY.constitution.ref).toBeNull();
+  });
+  it("assigns the stored path for every kind with a ref", () => {
+    const paths: Partial<Record<KindId, string>> = {
+      "work-item/cut-map": "cut-map-<uid>.json",
+      "work-item/meta": "meta-<slug>.md",
+      "work-item/task-list": "tasks-<slug>.md",
+      "work-item/record": "errand-<uid>.json",
+      "work-item/draft": "draft-<slug>.md",
+      "work-item/spec": "spec-<slug>.md",
+      "work-item/notes": "notes-<slug>.md",
+      "work-item/companion": "<key>-<slug>.md",
+      "work-item/description": "errand-<slug>.md",
+      "work-item/inbound": "inbound-<slug>.md",
+      "cohort/document": "cohort-<slug>.md",
+      "project-inbox/inbox": "ATOMIC-INBOX.md",
+      "review/candidate": "review/candidate-<uid>.json",
+      "review/integration-boundary": "review/integration-boundary-<uid>.json",
+      "review/evidence": "review/evidence-<key>-<uid>.json",
+      "review/evidence-root-selection": "review/root-selection-<key>-<uid>.json",
+      "review/outcome": "review/outcome-<key>-<uid>.json",
+      "review/decision": "review/decision-<key>-<uid>.json",
+      "review/adversarial-pass": "review/adversarial-pass-<key>-<uid>.json",
+      "project-registry/identity": "identity.json",
+      "project-registry/counter": "counters/<key>.json",
+      "lineage/transition": "lineage/<uid>.json",
+      "personal/inbox": "<person>/USER-INBOX.md.<person>",
+      "personal/working-memory": "<person>/WORKING-MEMORY.md.<person>",
+      "personal/document": "<person>/<key>.<person>",
+      "personal/errand-queue": "<person>/errand-queue-<person>.md.<person>",
+      "personal/session-context": "<person>/<key>/SESSION-NOTES.md.<person>",
+      "claims/groom": "groom-<key>-<person>.json",
+      "claims/housekeep": "housekeep-<key>-<person>.json",
+      "work-item/conflict-record": "conflicts/<key>.json",
+      "cohort/conflict-record": "conflicts/<key>.json",
+      "project-inbox/conflict-record": "conflicts/<key>.json",
+      "review/conflict-record": "review/conflicts/<key>.json",
+      "project-registry/conflict-record": "conflicts/<key>.json",
+      "lineage/conflict-record": "lineage/conflicts/<key>.json",
+      "personal/conflict-record": "<person>/conflicts/<key>.json",
+      "claims/conflict-record": "conflicts/<key>.json",
+      "project-inbox/routing-receipt": "receipts/<key>.json",
+      "personal/routing-receipt": "<person>/receipts/<key>.json"
+};
+    expect(Object.fromEntries(kinds.filter((kind) => FAMILY_REGISTRY[kind.family].ref !== null)
+      .map((kind) => [kind.id, kind.ref?.path]))).toEqual(paths);
+  });
+  it("leaves kinds without a family ref unhomed on refs", () => {
+    for (const kind of kinds.filter((kind) => FAMILY_REGISTRY[kind.family].ref === null)) {
+      expect(kind.ref).toBeUndefined();
+    }
+  });
+  it("uses only placeholders supplied by the kind's owner and key", () => {
+    for (const kind of kinds.filter((kind) => FAMILY_REGISTRY[kind.family].ref !== null)) {
+      const path = kind.ref?.path;
+      expect(path, kind.id).toBeTypeOf("string");
+      const supplied = [
+        ...(kind.owner === "work-item" || kind.owner === "cohort" ? ["slug", "uid"] : []),
+        ...(kind.owner === "person" ? ["person"] : []),
+        ...(kind.key === null ? [] : ["key"]),
+      ];
+      for (const match of path?.matchAll(/<([^>]+)>/gu) ?? []) expect(supplied, kind.id).toContain(match[1]);
+    }
+  });
+  it("changes profile assignment only for the two ghost families", () => {
+    expect(Object.values(FAMILY_REGISTRY).filter((family) => family.profiles.standard !== family.profiles.ghost).map((family) => family.id).sort()).toEqual(["constitution", "project-machinery"]);
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "user", pattern: "<identity>/.internal/**" });
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "user", pattern: "<identity>/*/.internal/**" });
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-common", pattern: "arc/**" });
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-worktree", pattern: "arc-checks/**" });
+    expect(DERIVED_VIEWS).toEqual(["project-status", "identity-status", "archive-index"]);
+  });
+  it("registers the projection's state as machine-local", () => {
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-worktree", pattern: "arc-projection/**" });
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "checkout", pattern: ".arc/system/.local/**" });
+  });
+  it("keeps presentation filenames in the declared storage homes", () => {
+    const root = resolve(import.meta.dirname, "../../../../src/lib/store");
+    const sources = sourceFiles(root).filter((source) => source !== join(root, "registry.ts"));
+    for (const source of sources) expect(readFileSync(source, "utf8")).not.toMatch(/(?:USER-INBOX|WORKING-MEMORY|SESSION-NOTES|ATOMIC-INBOX|ROADMAP|STATUS\.USER)\.(?:md|json)/u);
+  });
+  it("records every interim family substrate explicitly", () => {
+    const unhomed: KindId[] = ["work-item/description", "work-item/inbound", "work-item/cut-map", "personal/errand-queue", "review/evidence", "review/evidence-root-selection", "review/outcome", "review/decision", "review/adversarial-pass", "project-registry/identity", "project-registry/counter", "project-machinery/prose", "constitution/prose"];
+    for (const id of unhomed) expect(KIND_REGISTRY[id].inRepo.substrate).toBe("none");
+    expect(KIND_REGISTRY["work-item/record"].inRepo.substrate).toBe("transient-identity");
+    expect(KIND_REGISTRY["claims/groom"].inRepo.substrate).toBe("transient-identity");
+    expect(KIND_REGISTRY["claims/housekeep"].inRepo.substrate).toBe("transient-identity");
+  });
+});
+
+describe("record role layout descriptors", () => {
+  it.each([
+    ["review/candidate", "tracked", {kind:"candidate-record"}, "never"],
+    ["review/integration-boundary", "tracked", {kind:"integration-boundary-record"}, "never"],
+    ["lineage/transition", "tracked", {kind:"transition-record"}, "never"],
+    ["project-inbox/inbox", "tracked", {kind:"inbox",scope:"project"}, {kind:"inbox",scope:"project"}],
+    ["personal/inbox", "personal", {kind:"inbox",scope:"identity"}, {kind:"inbox",scope:"identity"}],
+  ] as const)("declares a concrete role address and projection for %s", (id,substrate,descriptor,projection) => {
+    expect(KIND_REGISTRY[id].inRepo).toEqual({substrate,address:descriptor});
+    expect(KIND_REGISTRY[id].projection).toEqual(projection);
+    if (typeof projection === "object") expect(projection.scope).toBe(FAMILY_REGISTRY[KIND_REGISTRY[id].family].scope);
+  });
+});

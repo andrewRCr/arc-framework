@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -80,6 +80,7 @@ describe("projectEffectiveCandidateTarget", () => {
       recognition: { kind: "machine", proof: "tree-equality" },
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
     expect(record.transitions).toEqual([]);
   });

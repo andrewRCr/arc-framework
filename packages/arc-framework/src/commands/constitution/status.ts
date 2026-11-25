@@ -17,6 +17,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { z } from "zod";
 
 import { parseDevRulesFrontmatter } from "../../lib/frontmatter/index.js";
 import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
@@ -25,6 +26,13 @@ import type {
   DomainRulesSessionInitOptions,
   DomainRulesSessionInitResult,
 } from "./types.js";
+
+/** Strict session-init domain-rule probe contract. */
+export const DomainRulesSessionInitResultSchema = z.strictObject({
+  mode: z.literal("session-init"),
+  rules: z.array(z.strictObject({ path: z.string(), domain: z.string(), purpose: z.string() })),
+  warnings: z.array(z.string()),
+});
 
 const DEV_RULES_FILENAME_RE = /^DEV-RULES\..+\.md$/;
 const MISSING_BLOCK_ERROR = "missing frontmatter block";

@@ -16,11 +16,18 @@ function canonicalize(value: unknown): string {
 }
 
 function meta(slug: string, branch: string, dependsOn: string): string {
-  return `# Metadata: ${slug}\n\n`
-    + "- **State:** Active\n"
-    + "- **Owner:** test-user\n"
-    + `- **Branch:** \`${branch}\`\n`
-    + `- **Depends On:** ${dependsOn}\n`;
+  return [
+    `# Metadata: ${slug}`,
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| Active | test-user | \`${branch}\` | — | — |`,
+    "",
+    `- **Depends On:** ${dependsOn}`,
+    "",
+    "---",
+    "",
+  ].join("\n");
 }
 
 describe("arc wu reconcile", () => {
@@ -44,17 +51,17 @@ describe("arc wu reconcile", () => {
     );
     await writeFile(
       join(planned, "meta-successor.md"),
-      meta("successor", "[none]", "[none]").replace("- **State:** Active", "- **State:** Planning"),
+      meta("successor", "[none]", "[none]").replace("| Active |", "| Planning |"),
       "utf8",
     );
     transitionRelativePath = join(".arc", "system", ".internal", "transitions", "origin.json");
     transitionPath = join(repo, transitionRelativePath);
     transitionContent = canonicalize({
-      schemaVersion: 1,
-      origin: "origin",
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "rename",
-      successors: ["successor"],
-      edges: [],
+      successors: [{ name: "successor" }],
+      incoming: [],
     });
     await writeFile(transitionPath, transitionContent, "utf8");
     await git(repo, ["add", "--all"]);
@@ -236,7 +243,7 @@ describe("arc wu reconcile", () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
     await writeFile(
       metaPath,
-      meta("dependent", "main", "`origin`").replace("- **State:** Active", "- **State:** Integrating"),
+      meta("dependent", "main", "`origin`").replace("| Active |", "| Integrating |"),
       "utf8",
     );
     await git(repo, ["rm", transitionRelativePath]);
@@ -475,7 +482,7 @@ describe("arc wu reconcile", () => {
     const completedPath = join(completed, "meta-dependent.md");
     await writeFile(
       completedPath,
-      meta("dependent", "[none]", "`origin`").replace("- **State:** Active", "- **State:** Shipped"),
+      meta("dependent", "[none]", "`origin`").replace("| Active |", "| Shipped |"),
       "utf8",
     );
     await git(repo, ["rm", ".arc/active/meta-dependent.md"]);

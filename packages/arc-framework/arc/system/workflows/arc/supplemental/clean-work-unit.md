@@ -111,9 +111,8 @@ For each match: read context, verify it's temporal noise (not substantive), remo
 
 ## Quality Checks
 
-After invoking any section, run the project's markdown lint command on the affected files (see
-[QUICK-REFERENCE][quick-ref] § Quality Gate Commands). Review the diff to ensure no accidental task-checkbox
-edits.
+After invoking any section, request `arc check increment` once over the final cleanup edits. Review the diff to
+ensure no accidental task-checkbox edits.
 
 **Verify temporal noise removed (after § Task List Temporal-Noise Pass):**
 
@@ -129,4 +128,3 @@ grep -in "next step\|resume at\|blocked on" tasks-*.md
 
 [integrate]: ../work-unit-lifecycle/integrate-work-unit.md
 [prepare]: ../work-unit-lifecycle/prepare-work-unit.md
-[quick-ref]: ../../../../reference/QUICK-REFERENCE.md

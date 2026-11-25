@@ -37,15 +37,6 @@ describe("retired review architecture sweep", () => {
     ], /\breview\.pre_merge\b|\bdiff-review\b/u)).resolves.toEqual([]);
   });
 
-  it("limits planned-work references to explicitly historical baselines", async () => {
-    await expect(matchingFiles([
-      ".arc/backlog/planned",
-    ], /\breview\.pre_merge\b|\bdiff-review\b/u)).resolves.toEqual([
-      ".arc/backlog/planned/configuration/config-storage-architecture/draft-config-storage-architecture.md",
-      ".arc/backlog/planned/configuration/customization-arch-realign/draft-customization-arch-realign.md",
-    ]);
-  });
-
   it("retains review-gate/v1 only in the exact legacy parser family", async () => {
     await expect(matchingFiles([
       "packages/arc-framework/src/scripts/review-gate",
@@ -63,7 +54,7 @@ describe("retired review architecture sweep", () => {
 
   it("preserves the public rubric identity while excluding superseded disposition labels", async () => {
     const [independent, triage] = await Promise.all([
-      readFile(resolve(repositoryRoot, "packages/arc-framework/arc/system/methods/standard-review.md"), "utf8"),
+      readFile(resolve(repositoryRoot, "packages/arc-framework/arc/system/methods/code-review-standard.md"), "utf8"),
       readFile(resolve(repositoryRoot, "packages/arc-framework/arc/system/methods/review-triage.md"), "utf8"),
     ]);
     expect(independent).toContain("standard-review/v1");

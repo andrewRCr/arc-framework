@@ -19,6 +19,7 @@
  */
 
 import type { GitExec } from "../git/exec.js";
+import { isGitObjectId } from "../git/object-id.js";
 import { gitFailureText, normalizeGitRejection } from "../git/process-error.js";
 import { uniqueRefToken } from "../git/ref-tree.js";
 import { fetchPrune } from "../work-unit/mutators/fetch-prune.js";
@@ -238,7 +239,7 @@ export async function resolveOptionalCommit(exec: GitExec, ref: string): Promise
   const args = ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`];
   try {
     const oid = (await exec("git", args)).stdout.trim();
-    return /^[0-9a-f]{40}$/u.test(oid) ? { kind: "present", oid } : { kind: "error", message: "Ref resolved to an invalid OID." };
+    return isGitObjectId(oid) ? { kind: "present", oid } : { kind: "error", message: "Ref resolved to an invalid OID." };
   } catch (error) {
     const normalized = normalizeGitRejection(error, { command: "git", args });
     return normalized.exitCode === 1

@@ -1,0 +1,188 @@
+# Draft: CLI Output Contract
+
+- **Origin:** [internal] — minted at the 2026-09-30 housekeep drain from two `USER-INBOX` captures made during the
+  CLI-convention discussion closing the `inbox-refusal-field-naming` Errand (2026-09-18), "Make machine-mode failures
+  machine-readable" and "Replace the `--json` boolean with a declared output mode". Both were returned from
+  `draft-cli-substrate-complete-migration.md`'s inbound buffer on 2026-09-28 as a new CLI output contract, orthogonal
+  to that work unit's mechanical adoption and to the storage program.
+- **Purpose:** Give ARC's CLI one declared output contract: a command in machine mode succeeds and fails in a
+  machine-readable shape, and each command's output mode is announced rather than inferred.
+- **Planning posture:** `P2`; `Class` settles at planning. No active work unit claims the concern
+  (`refusal-contract-and-floor` is a delivery-gate chunk directory, not a work unit).
+
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Assess an explicit agent invocation preset for the CLI output contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Concern 2 — the `--json` boolean hides two output conventions: whether the declared output mode
+  carries an agent invocation preset.
+
+- _Observation:_ ARC is primarily agent-operated while human UX/DX remains a requirement. A runtime invocation
+  preset could spare callers repeatedly selecting compatible output and interaction options. This is distinct
+  from help grouping: an agent can invoke human-facing presentation, and humans can consume structured output.
+
+- _Approach:_ Assess whether an explicit `--agent` preset provides enough benefit over the underlying output and
+  interaction controls. Candidate semantics include noninteractive execution, a declared machine-readable output
+  format, presentation suitable for captured output, and structured results when further input or authorization
+  is required. Specify success and failure behavior together, keep the underlying choices independently usable,
+  and preserve the distinction between suppressing prompts and granting approval.
+
+- _Reference:_ CodeRabbit's current `--agent` mode selects NDJSON review output; headless or agent mode returns a
+  structured action-required result when confirmation is needed. See its [review
+  modes](https://docs.coderabbit.ai/cli#review-modes) and [consent
+  behavior](https://docs.coderabbit.ai/cli#usage-based-reviews-and-consent) for the concrete precedent.
+
+- _Scope:_ An open design question for `cli-output-contract`, not a commitment to add a flag. Preserve human UX/DX;
+  a runtime preset does not itself require separate agent help, a caller-based command partition, or changes in
+  the `cli-help-discovery` work unit.
+
+- _Captured during:_ `cli-help-discovery` draft-design, shared human/agent ergonomics discussion, 2026-10-03.
+
+### `[ ]` **Separate what a command's output says to the Owner from what is record or agent-only**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: cli-output-contract`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Concern 2 (the output conventions), and the inbound entry "Assess an explicit agent invocation preset
+  for the CLI output contract".
+
+- _Observation:_ literal models (GPT, Grok) relay command results verbatim, pasting dense JSON or check listings into
+  the conversation; even in human mode, `arc check increment` lists every not-selected check and then repeats them in
+  a summary line. ARC already separates the Owner-facing part in places — `recommendedPromptText`,
+  `dispositionReportText`, `locusGuidance` ("render verbatim") — but ad hoc, with no common rule, so each agent must
+  judge what to say and literal ones say everything.
+
+- _Approach:_ make audience separation part of the output contract: each result carries one precomposed Owner-facing
+  field (empty when there is nothing to say), and labels everything else as agent continuation or record; workflows
+  then dispatch "relay the report verbatim; never echo the rest". Keep human-mode output to what needs attention —
+  failures and decisions first, clean results collapsed to a count. `autonomy-levels` applies this to its own
+  boundary results (§ What a stop hands the Owner); this entry is the general contract.
+
+- _Captured during:_ `autonomy-levels` grooming (2026-10-13), from the Owner's cross-model observation.
+
+- _Drain note:_ this widens § Purpose from machine-readable shape and announced mode to audience;
+  `draft-autonomy-levels.md` defers the general output contract here. The `arc check` human-output duplication split
+  off as an Errand at the drain.
+
+### `[ ]` **Cut restated procedure from session output; keep state, next step, and recommendations**
+
+- _Routed from:_ `documentation-surface-routing`'s inbound buffer, re-triaged by Errand `session-output-rehome`
+  (2026-10-20); first routed there from `USER-INBOX § Work Unit` at the 2026-10-03 housekeep drain.
+
+- _Shapes:_ § Purpose's audience widening from the entry above — what the Owner-facing field carries, and what an
+  agent may say beside it.
+
+- _Observation:_ ARC workflows and CLI-composed texts have the agent restate policy to the Owner at nearly every
+  gate: "approval is not merge authority", "this does not establish convergence", "a disposition approval grants no
+  next pass", residual-race disclaimers, "completed responses are not re-approved at this gate". Useful on someone's
+  first day, noise ever after. It buries the state and the decision the Owner needs and lengthens every gate. This
+  session's integration interlock, review-stop offer, and disposition reports were each mostly restated policy.
+
+- _Principle (Owner, 2026-10-01):_ session output earns its lines by anchoring current state, naming what is next,
+  or carrying a decision with the agent's recommendation. Restating ARC policy to the user does none of these.
+  Every decision point comes with a recommendation.
+
+- _Approach:_ a pass over the user-facing texts — workflow interlock and offer text (integration interlock,
+  Owner-directed review stop, commit gates) and CLI-composed texts (`dispositionReportText`,
+  `provisionalPassAssessment`, `recommendedPromptText`) — separating what the agent must do or check (stays in the
+  workflow) from what it must say (cut to state, next step, decision, recommendation). The mirror of
+  `agent-context-optimization`'s reading test: every line the agent says should change what the Owner knows or
+  decides. Decide per item whether a disclosure must reach the Owner or only the agent; some, like checks bound to
+  the approved head, may need to stay.
+
+- _Captured during:_ Errand `review-evidence-record`, 2026-10-01.
+
+- _Progress (2026-10-20):_ the `dispositionReportText` slice landed with Errand `disposition-report-trim`. The report
+  now carries the lane position and grade counts, exception-only status lines, a Trend only from the second look,
+  Decisions for real choices, and one CLI-composed approval question naming what approval releases; the advisory
+  disclaimers and provisional and converged markers are gone. Still open: interlock and offer text,
+  `recommendedPromptText`, and `provisionalPassAssessment.summaryText`.
+
+- _Candidate (2026-10-20, Errand `integration-friction-evidence`):_ the Errand integration interlock is the next slice
+  of the same shape. `run-errand`'s interlock lists everything the agent must state, restated policy included, and
+  nearly every fact is deterministic: head, lane, merge method, each lane's review state, required checks, host
+  review, and base movement with its overlap. A CLI-composed report could carry only those, conditional blocks
+  only when they apply, and one closing question naming what approval releases:
+
+  ```text
+  **PR #1069 → main** · eb0dec8 · reviewed lane · merge
+  - Review: frontline clean (CodeRabbit) · standard clean (Codex, pass 1 of 2)
+  - Checks: ci-ok pending
+  - Base: moved to 0bcdbd8 (#1068), no overlapping paths
+
+  Approve: wait for checks → merge eb0dec8?   Redirect: release only
+  ```
+
+  Two constraints shape it. `review-request-contracts` defers any surface over `errandMergeRequest` until its
+  redundant fields are derived. And the report's facts come from several commands, so one field per result cannot
+  carry it: one command has to gather them, as the work-unit integration checkpoint already does. A preview mode of
+  `arc errand merge` that derives the whole request would meet both. The Owner-directed review-stop offer is the third
+  surface this entry names and could ride with it.
+
+---
+
+## Concern 1 — machine-mode failures are prose
+
+- _Observation:_ a command in machine mode still fails in prose. `cli.ts:2003` composes the self-hosting stale-build
+  refusal from a fully typed verdict — `basis`, `distAge`, `newestSrc`, `srcAge` — flattens it into an English
+  sentence, writes it to stderr, and exits 1 **regardless of `--json`**. Observed live 2026-09-18:
+  `npx arc recover audit --json` returned prose, not JSON. `integrateCmd.action` at `cli.ts:409` has the same shape.
+  The typed vocabulary already exists — `lib/**` carries 278 `code: "..."` fields — it simply does not survive the
+  CLI exit.
+- _Why it costs:_ the repository's own governing instruction string-matches an English sentence because no code is
+  exposed. `AGENTS.md:14-17` identifies the refusal by its prose — "the complete self-hosting stale-build refusal
+  (`error: arc dev build is stale (...)`, refusal against stale `dist`, and the `npm run build:fast` remedy)" — to
+  authorize a single rebuild-and-retry. Reword that sentence and the rule silently stops matching. A stable `code`
+  would let the same instruction be exact instead of literary.
+- _Pattern, not an instance:_ the same defect shape as the `effectiveCoverage` finding — ground truth parsed, then
+  discarded at the boundary. Scope the general question (does any `--json` command emit JSON when it fails?) rather
+  than repairing the one site.
+- _Bounding:_ the stale-build guard is dev-only and does not ship, so that particular instance is not
+  adopter-facing. The contract question is. Do not justify the work on the dev-only site alone.
+
+## Concern 2 — the `--json` boolean hides two output conventions
+
+- _Observation:_ ARC carries two output conventions — human-default with a `--json` opt-in (**43** commands) and
+  always-machine-readable (**34**, plus the ~8 required-flag sites) — and membership is announced nowhere. It is
+  discoverable only by reading `machineReadable:` in `cli.ts`. Retiring the no-op flag removes a misleading signal; it
+  does not make the families legible.
+- _The taxonomy is four shapes, not two (measured 2026-09-18):_ `cli.ts` has **78** `--json` declarations in four
+  shapes: (1) opt-in via `withInteractionContext` with `machineReadable: (opts) => opts.json === true` — genuinely
+  load-bearing; (2) opt-in via a **bare `.action()`** whose handler reads `options.json` itself — `arc locus` is the
+  only one, and it is invisible to any `machineReadable` audit; (3) inert with `machineReadable: () => true`; (4) inert
+  with a bare action that never reads the flag. Shapes 2 and 4 are indistinguishable by grep; only the handler body
+  separates them, which is why the original scoping pass mis-derived its own count. Any `--output` design has to
+  classify by _what the handler does_, not by the interaction policy.
+- _A fifth case:_ **8** sites declare `--json` with `.requiredOption`. A required flag is always present, so its
+  predicate is constant — the flag cannot select anything. Retiring those must flip `machineReadable` to
+  `() => true` at the same time, or removing the flag silently turns the command interactive.
+- _Industry idiom (surveyed 2026-09-18):_ the dominant modern shape is one flag with enumerated values and a
+  per-command default — kubectl `-o json|yaml|wide|name`, aws `--output json|table|text|yaml`, docker and podman
+  `--format`, gh `--json <fields>`. It turns "two conventions" into "one convention with different defaults": the
+  flag is never inert, `--help` prints the default, and family membership is announced for free. The closest
+  structural precedent is git's porcelain/plumbing split, whose lesson is that the taxonomy is _documented_ —
+  `git help -a` groups the families and states which output is stable. Reference canon: clig.dev (§ Output,
+  § Arguments and flags) and Heroku's 12 Factor CLI Apps.
+- _Operator declares once:_ aws resolves `--output` flag → `AWS_DEFAULT_OUTPUT` env → config file. Operator kind is
+  stable for a whole session, so a harness exporting `ARC_OUTPUT=json` once would make the per-command distinction
+  stop mattering. The substrate exists — `--no-input` is already a global inherited option, read via
+  `optsWithGlobals` at `interaction-context.ts:143`.
+- _Keep TTY detection out of structure:_ clig.dev endorses TTY detection for presentation (color, pager, progress)
+  and warns against it for structure. ARC gates _interaction_ on TTY and CI while leaving output shape alone
+  (`interaction-context.ts`, `promptOutputIsTTY` → `interaction: forbidden`), which is right under an agent harness
+  where stdout TTY state is unreliable. Keep that boundary deliberately rather than by omission.
+- _Sequencing against the `--json` retirement:_ a global output flag would re-accept `--json` on the 34 commands that
+  Errand strips. Not a collision — the Errand's durable value is removing the false `machineReadable` signal plus the
+  prose and tests that train the habit, not the declarations as permanent API.
+- _Smaller wins, if the whole convention change is not taken:_ state the output shape in each always-JSON command's
+  `.description()`, and group the two families in `--help` the way git and gh do (see `cli-help-discovery`).
+
+## Planning note
+
+The two concerns may land together or split at planning; both are the CLI's output contract, so settle them against
+one design.

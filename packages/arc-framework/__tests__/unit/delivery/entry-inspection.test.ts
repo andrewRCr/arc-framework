@@ -7,10 +7,8 @@ import {
   inspectDeliveryReopen,
   selectOutstandingNonTerminalDeliveryMember,
 } from "../../../src/lib/delivery/entry-inspection.js";
-import {
-  DELIVERY_PLAN_START_SENTINEL,
-  renderDeliveryPlanSection,
-} from "../../../src/lib/delivery/task-list-render.js";
+import { renderDeliveryPlanSection } from "../../../src/lib/delivery/task-list-render.js";
+import { DELIVERY_PLAN_START_SENTINEL } from "../../../src/lib/store/kinds/task-list/index.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import { projectDeliveryPublicReviewContinuation } from
   "../../../src/lib/delivery/public-review-continuation.js";
@@ -26,6 +24,8 @@ import {
   deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
+import { DeliveryStateV1Schema } from "../../../src/lib/delivery/schema.js";
+import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 
 const plan = deliveryStackPlanFixture();
 const prefix = "# Task List\n\n";
@@ -153,7 +153,7 @@ function publicContinuationFixture() {
       },
     },
     changeRequest: null,
-  });
+  }, 1);
   const boundary = projectCorrectiveDeliveryStatusBoundary({
     workUnit: plan.workUnitId,
     candidateId,
@@ -165,7 +165,7 @@ function publicContinuationFixture() {
   if (boundary.locus !== "delivery-status-required") {
     throw new Error("fixture boundary must resume delivery review");
   }
-  return { state, stateRevision, candidateId, candidateSubjectDigest, boundary };
+  return { state, stateRevision, candidateId, candidateSubjectDigest, source, boundary };
 }
 
 function stateWithActiveCorrection() {
@@ -350,6 +350,27 @@ describe("delivery entry inspection", () => {
     });
   });
 
+  it("uses an exact publication receipt to finish canonicalization", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    const entryDependencies = dependencies({
+      taskList,
+      resolvedPlan: plan,
+      authoring: "match",
+      authoringPlanDigest: plan.planDigest,
+    });
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "execution",
+    }, entryDependencies)).resolves.toMatchObject({
+      status: "canonicalize-provisional",
+      nextAction: "canonicalize-provisional",
+      authoringMapId: "map-1",
+      recommendedActionText: expect.stringContaining("matching authoring receipt"),
+    });
+    expect(entryDependencies.readState).toHaveBeenCalledOnce();
+  });
+
   it("consumes an exact pending publication action before bound position routing", async () => {
     const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
     const boundary = projectPublicationBoundary({
@@ -359,7 +380,7 @@ describe("delivery entry inspection", () => {
       candidateSubjectDigest: `sha256:${"b".repeat(64)}`,
       reservation: null,
       changeRequest: null,
-    });
+    }, 1);
     await expect(inspectDeliveryEntry({
       workUnitId: plan.workUnitId,
       entryMode: "integrating",
@@ -411,7 +432,7 @@ describe("delivery entry inspection", () => {
         },
       },
       changeRequest: null,
-    });
+    }, 1);
     const boundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId,
@@ -667,7 +688,7 @@ describe("delivery entry inspection", () => {
         },
       },
       changeRequest: null,
-    });
+    }, 1);
 
     await expect(inspectDeliveryCandidateRenewal(
       plan.workUnitId,
@@ -731,10 +752,10 @@ describe("delivery entry inspection", () => {
     const memberDeliverableIds = [selectedDeliverableId, multiPlan.members[1]!.deliverableId];
     const initialState = deliveryStateFixture(multiPlan);
     const terminal = initialState.members.at(-1)!.coordinates!;
-    const state = {
+    const state = DeliveryStateV1Schema.parse({
       ...initialState,
       pendingReviewFixVerification: { selectedDeliverableId, memberDeliverableIds },
-    } as unknown as ReturnType<typeof deliveryStateFixture>;
+    });
     const taskList = `${prefix}${renderDeliveryPlanSection(multiPlan)}`
       + "## **Phase 1:** Build\n\n### `[ ]` **1.1 Work**\n";
 
@@ -750,9 +771,9 @@ describe("delivery entry inspection", () => {
         selectedDeliverableId,
         verification: {
           memberDeliverableIds,
-          tier1Required: true,
+          commitGateRequired: true,
           target: { head: terminal.head, tree: terminal.tree },
-          tier1Reuse: {
+          commitGateReuseCriteria: {
             kind: "exact-tree",
             targetTree: terminal.tree,
             requiredResult: "passed",
@@ -949,6 +970,93 @@ describe("delivery entry inspection", () => {
   });
 });
 
+/** Throw a native store refusal from one read until the store is repaired, then read as before. */
+function refusing<D extends object>(source: D, read: keyof D) {
+  const refusal = nativeListingRefusal();
+  const original = source[read] as (...args: unknown[]) => Promise<unknown>;
+  let repaired = false;
+  const refusingDependencies = { ...source, [read]: async (...args: unknown[]) => {
+    if (!repaired) throw refusal;
+    return original(...args);
+  } } as D;
+  return { dependencies: refusingDependencies, refusal, repair: () => { repaired = true; } };
+}
+
+describe("delivery entry inspection over a native store refusal", () => {
+  function integrating(boundary: "continuation" | "acknowledged") {
+    const fixture = publicContinuationFixture();
+    const { deliveryContinuation: _omitted, ...acknowledged } = fixture.boundary;
+    void _omitted;
+    return dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision + 1,
+      integrationBoundary: boundary === "continuation" ? fixture.boundary : acknowledged,
+      candidate: {
+        candidateId: fixture.candidateId,
+        subjectDigest: `sha256:${"1".repeat(64)}`,
+        verificationResponseCurrent: true,
+      },
+    });
+  }
+
+  it.each([
+    ["task list", "readTaskList", "continuation"],
+    ["integration boundary", "readIntegrationBoundary", "continuation"],
+    ["Candidate", "readCandidate", "continuation"],
+    ["Candidate behind an acknowledged continuation", "readCandidate", "acknowledged"],
+  ] as const)("names a refused %s read's own remedy, and routes once the store is repaired", async (
+    _name, read, boundary,
+  ) => {
+    const input = { workUnitId: plan.workUnitId, entryMode: "integrating" } as const;
+    const { dependencies: refusingDependencies, refusal, repair } = refusing(integrating(boundary), read);
+
+    if (read === "readTaskList") await expect(inspectDeliveryEntry(input, refusingDependencies)).rejects.toBe(refusal);
+    else await expect(inspectDeliveryEntry(input, refusingDependencies)).resolves.toEqual({
+      status: "refused",
+      nextAction: "stop",
+      reason: "evidence-unavailable",
+      recommendedActionText: refusal.message,
+    });
+    repair();
+    await expect(inspectDeliveryEntry(input, refusingDependencies)).resolves.toMatchObject({
+      status: "candidate-renewal-required",
+      nextAction: "renew-public-continuation",
+    });
+  });
+
+  it("keeps its own remedy when a read fails without a native refusal", async () => {
+    const source = integrating("continuation");
+    await expect(inspectDeliveryEntry({ workUnitId: plan.workUnitId, entryMode: "integrating" }, {
+      ...source,
+      readIntegrationBoundary: async () => { throw new Error("unreadable boundary"); },
+    })).resolves.toEqual({
+      status: "refused",
+      nextAction: "stop",
+      reason: "evidence-unavailable",
+      recommendedActionText:
+        "Resolve the delivery plan, authoring, task-list, and state evidence conflict before entering delivery.",
+    });
+  });
+
+  it("raises a refused task-list read from Candidate renewal whole, and prepares the continuation once repaired", async () => {
+    const fixture = publicContinuationFixture();
+    const { dependencies: refusingDependencies, refusal, repair } = refusing(dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision,
+    }), "readTaskList");
+
+    await expect(inspectDeliveryCandidateRenewal(plan.workUnitId, fixture.source, refusingDependencies))
+      .rejects.toBe(refusal);
+    repair();
+    await expect(inspectDeliveryCandidateRenewal(plan.workUnitId, fixture.source, refusingDependencies))
+      .resolves.toMatchObject({ status: "ready", planId: plan.planId, stateRevision: fixture.stateRevision });
+  });
+});
+
 describe("selectOutstandingNonTerminalDeliveryMember", () => {
   function bind(
     boundPlan: ReturnType<typeof deliveryThreeMemberStackPlanFixture>,
@@ -1110,7 +1218,7 @@ describe("inspectDeliveryEntry — non-current Candidate classification", () => 
         {
           kind: "member-correction",
           nextAction: "plan-review-fix",
-          command: "arc delivery review-fix continue - --json",
+          command: "arc delivery review-fix continue -",
         },
       ],
     });
@@ -1123,7 +1231,7 @@ describe("inspectDeliveryEntry — non-current Candidate classification", () => 
       recommendedActionText: expect.stringContaining("verification closeout"),
     });
     expect(result).toMatchObject({
-      recommendedActionText: expect.stringContaining("arc delivery review-fix continue - --json"),
+      recommendedActionText: expect.stringContaining("arc delivery review-fix continue -"),
     });
   });
 

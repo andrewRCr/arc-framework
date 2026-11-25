@@ -5,12 +5,10 @@ import type { ProvisionTransientLocusOptions, ProvisioningProposal } from "./pro
 
 export type ProvisioningAuthority =
   | { readonly kind: "identity"; readonly identity: LocusIdentityV1 }
-  | {
-      readonly kind: "partial-errand";
-      readonly key: string;
-      readonly originEntry: string | null;
-      readonly originEntrySourceDigest: string | null;
-    }
+  | ({ readonly kind: "partial-errand"; readonly key: string } & (
+      | { readonly originEntry: string | null; readonly originEntrySourceDigest: string | null; readonly originEntryVersion?: never }
+      | { readonly originEntry: string; readonly originEntryVersion: string; readonly originEntrySourceDigest?: null }
+    ))
   | { readonly kind: "partial-housekeep"; readonly key: string };
 
 /** Resolve only an authority generation that exactly matches the allocation proposal. */

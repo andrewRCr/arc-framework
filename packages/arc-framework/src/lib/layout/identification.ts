@@ -11,6 +11,9 @@
 import { SlugSchema, type Slug } from "../kernel/index.js";
 import { resolveArcPath } from "./projection.js";
 import {
+  ArcLayoutAddressSchema,
+  companionFileKey,
+  type ArcLayoutAddress,
   ArchiveQuarterSchema,
   ArchiveSequenceSchema,
   ProjectDocumentKindSchema,
@@ -24,6 +27,12 @@ export interface IdentifiedWorkUnitArtifact {
   readonly placement: WorkUnitPlacement;
   readonly slug: Slug;
   readonly artifact: WorkUnitArtifactKind;
+}
+
+/** Checkout facts required to interpret its own active folder without reading local state. */
+export interface ActiveLayoutContext {
+  readonly claim: Slug | null;
+  readonly layoutActive: "nested" | "flat";
 }
 
 const PROJECT_DOCUMENT_PATHS: ReadonlySet<string> = new Set(
@@ -50,13 +59,10 @@ function parseArtifactFilename(file: string): { slug: Slug; artifact: WorkUnitAr
  * Every candidate is a guess the projection then accepts or rejects, so a shape that resembles two
  * placements costs one extra comparison rather than an ambiguity the caller has to resolve.
  */
-function candidatePlacements(directory: readonly string[]): WorkUnitPlacement[] {
+function candidatePlacements(directory: readonly string[], active?: ActiveLayoutContext): WorkUnitPlacement[] {
   const [root, ...rest] = directory;
   if (root !== ".arc") return [];
-  const candidates: WorkUnitPlacement[] = [];
-  if (rest.length === 1 && rest[0] === "active") {
-    candidates.push({ kind: "active", scope: { kind: "project" } });
-  }
+  const candidates = activePlacements(rest, active);
   if (rest.length === 3 && rest[0] === "user" && rest[2] === "active") {
     const identity = SlugSchema.safeParse(rest[1]);
     if (identity.success) {
@@ -81,19 +87,33 @@ function candidatePlacements(directory: readonly string[]): WorkUnitPlacement[] 
   return candidates;
 }
 
+function activePlacements(directory: readonly string[], context?: ActiveLayoutContext): WorkUnitPlacement[] {
+  if (directory[0] !== "active") return [];
+  if (directory.length === 3 && directory[1] === "in-flight") {
+    return [{ kind: "active", scope: { kind: "project", location: { kind: "another" } } }];
+  }
+  if (context === undefined) return directory.length === 1 ? [{ kind: "active", scope: { kind: "project" } }] : [];
+  if (context.claim === null) return [];
+  const matches = context.layoutActive === "flat" ? directory.length === 1 : directory.length === 2 && directory[1] === "current";
+  return matches ? [{ kind: "active", scope: { kind: "project", location: {
+    kind: "own", claim: context.claim, layoutActive: context.layoutActive,
+  } } }] : [];
+}
+
 /**
  * Recognize one managed path as a work-unit artifact.
  *
  * @param path - Repository-relative POSIX path to recognize.
+ * @param active - Explicit checkout context; omission retains the legacy flat project layout.
  * @returns The artifact's placement, slug, and kind, or `null` when the path is not one.
  */
-export function identifyWorkUnitArtifactPath(path: string): IdentifiedWorkUnitArtifact | null {
+export function identifyWorkUnitArtifactPath(path: string, active?: ActiveLayoutContext): IdentifiedWorkUnitArtifact | null {
   const segments = path.split("/");
   const file = segments.pop();
   if (file === undefined) return null;
   const parsed = parseArtifactFilename(file);
   if (parsed === null) return null;
-  for (const placement of candidatePlacements(segments)) {
+  for (const placement of candidatePlacements(segments, active)) {
     const address = { kind: "work-unit-artifact", placement, ...parsed } as const;
     let projected: string;
     try {
@@ -104,4 +124,31 @@ export function identifyWorkUnitArtifactPath(path: string): IdentifiedWorkUnitAr
     if (projected === path) return { placement, slug: parsed.slug, artifact: parsed.artifact };
   }
   return null;
+}
+
+/** Recognize a file strictly within the work-item container established by the caller. */
+export function identifyWorkUnitFileAddress(path: string,
+  container: Extract<ArcLayoutAddress, { kind: "work-unit-container" }>): ArcLayoutAddress | null {
+  const prefix = `${resolveArcPath(container)}/`;
+  if (!path.startsWith(prefix)) return null;
+  const relative = path.slice(prefix.length);
+  const copy = /^cohort-([^/]+)\.md$/u.exec(relative);
+  const placement = container.placement;
+  const location = placement.kind === "active" && placement.scope.kind === "project" ? placement.scope.location : undefined;
+  const coordinates = workItemFileCoordinates(relative, container.slug);
+  const parsed = ArcLayoutAddressSchema.safeParse(copy !== null && location?.kind === "own"
+    ? { kind: "cohort-copy", cohort: copy[1], location }
+    : coordinates === null ? null : { ...coordinates, placement, slug: container.slug });
+  return parsed.success && resolveArcPath(parsed.data) === path ? parsed.data : null;
+}
+
+function workItemFileCoordinates(relative: string, slug: Slug): Record<string, unknown> | null {
+  const artifact = parseArtifactFilename(relative);
+  if (artifact !== null && artifact.slug === slug) return { kind: "work-unit-artifact", artifact: artifact.artifact };
+  if (relative === `spec-${slug}-prd.md`) return { kind: "work-unit-spec-part", part: "prd" };
+  if (relative === `spec-${slug}-rfc.md`) return { kind: "work-unit-spec-part", part: "rfc" };
+  if (relative === `inbound-${slug}.md`) return { kind: "work-unit-inbound" };
+  if (relative === `errand-${slug}.md`) return { kind: "errand-description" };
+  const key = companionFileKey(relative, slug);
+  return key === null ? null : { kind: "work-unit-companion", key };
 }

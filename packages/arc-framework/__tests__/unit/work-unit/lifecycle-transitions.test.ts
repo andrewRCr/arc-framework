@@ -100,7 +100,6 @@ function deriveExpectedMutators(
     const toBranch = et?.branch ?? "none";
     if (fromBranch !== toBranch) {
       if (fromBranch === "none") spec.reconcileBranch = "create";
-      else if (toBranch === "none") spec.reconcileBranch = "delete";
       else spec.reconcileBranch = "rename";
     }
 
@@ -115,9 +114,10 @@ function deriveExpectedMutators(
   // (a scaffold establishes the State fresh; a remove deletes it).
   if (ef !== null && et !== null && ef.metaState !== et.metaState) spec.setPhase = true;
 
-  // Activation exits planning, publication projects its live workflow, and the
-  // completed sink must not retain a stale workflow pointer.
-  if (verb === "activate" || et?.dirTier === "completed") spec.clearCurrentWorkflowField = true;
+  // Activation and publication project their live workflow, and the completed
+  // sink must not retain a stale workflow pointer.
+  if (et?.dirTier === "completed") spec.clearCurrentWorkflowField = true;
+  if (verb === "activate") spec.setCurrentWorkflowField = "process-task-loop";
   if (verb === "publish") spec.setCurrentWorkflowField = "integrate-work-unit";
   if (verb === "reopen") spec.setCurrentWorkflowField = "prepare-work-unit";
 
@@ -202,15 +202,6 @@ describe("lifecycle transition table — encoding consistency", () => {
     }
   });
 
-  it("guards every worktree-teardown edge with worktree-clean", () => {
-    for (const edge of TRANSITIONS) {
-      if (edge.encodingUpdates.reconcileWorkUnitWorktree !== "teardown") continue;
-      expect(
-        edge.guards.includes("worktree-clean"),
-        `${edge.verb}(${posKey(edge.from)}→${posKey(edge.to)}) tears down a worktree without the worktree-clean guard`,
-      ).toBe(true);
-    }
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -242,7 +233,7 @@ function branchCategory(position: LifecyclePosition | null): BranchCategory {
 /**
  * Synthesize the branch-affecting `inputs` a verb handler would supply for an edge,
  * with each leg carrying its endpoint category's representative branch — a `rename`
- * rotates the source branch onto the *target* branch, a `delete` names the source,
+ * rotates the source branch onto the *target* branch,
  * a worktree `spawn` carries the *target* branch (graduate/resume birth/attach). The
  * names encode the category so `establishedBranch` is checked against the *target's*
  * expected branch, catching a projection that echoes the source instead.
@@ -254,7 +245,6 @@ function synthBranchInputs(edge: TransitionRecord): TransitionInputs {
   const inputs: TransitionInputs = {};
 
   if (e.reconcileBranch === "rename") inputs.branchOp = { mutation: "rename", branch: fromBranch, toBranch };
-  else if (e.reconcileBranch === "delete") inputs.branchOp = { mutation: "delete", branch: fromBranch };
   else if (e.reconcileBranch === "create") inputs.branchOp = { mutation: "create" };
 
   if (e.reconcileWorkUnitWorktree === "spawn") {
@@ -285,7 +275,6 @@ function expectedBranchField(edge: TransitionRecord): string | null {
   if (edge.from === null || edge.to === null) return null;
   const e = edge.encodingUpdates;
   if (e.clearBranchField) return NONE_BRANCH;
-  if (e.reconcileBranch === "delete") return NONE_BRANCH;
   if (e.reconcileBranch === "rename") return categoryBranch(branchCategory(edge.to));
   if (e.reconcileWorkUnitWorktree === "spawn") return categoryBranch(branchCategory(edge.to));
   return null;

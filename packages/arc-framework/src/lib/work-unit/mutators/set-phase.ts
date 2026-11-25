@@ -16,7 +16,7 @@
  */
 
 import { setMetaState } from "../../active/meta-reader.js";
-import { validateState, type WorkUnitState } from "../../../commands/active/types.js";
+import { validateState, type WorkUnitState } from "../../kernel/schema/vocabulary.js";
 import type { ReadFileFn, WriteFileFn } from "../../template/files.js";
 
 /** Filesystem seams for {@link setPhase} — injected for unit testing. */

@@ -35,7 +35,9 @@ export async function readGitDeliveryLifecycleArtifactsAtRef(
   exec: GitExec,
   ref: string,
   workUnitId: string,
+  stateOffBranch = false,
 ): Promise<readonly ManagedPath[]> {
+  if (stateOffBranch) return [];
   const { stdout } = await exec("git", [
     "ls-tree", "--full-tree", "-r", "-z", "--name-only", ref, "--",
     ".arc/active", ".arc/backlog/planned", ".arc/backlog/provisional", ".arc/completed",
@@ -55,6 +57,7 @@ export async function readGitDeliveryLifecycleArtifactsAtRef(
  */
 export async function classifyGitDeliveryTerminalDelta(input: {
   readonly exec: GitExec;
+  readonly stateOffBranch?: boolean;
   readonly workUnitId: string;
   readonly activeMetaPath: ManagedPath;
   readonly protectedBaseRef: string;
@@ -70,6 +73,7 @@ export async function classifyGitDeliveryTerminalDelta(input: {
 }): Promise<DeliveryTerminalDeltaClassification | null> {
   try {
     const resolved = await new CurrentDeliveryLifecycleContributionPathSource({
+      stateOffBranch: input.stateOffBranch,
       readDirectory: input.readDirectory,
       ...(input.readArtifactsAtRef === undefined
         ? {}
@@ -99,22 +103,28 @@ export async function classifyGitDeliveryTerminalDelta(input: {
 export async function revalidateDeliveryLifecycleContribution(input: {
   readonly exec: GitExec;
   readonly protectedBaseRef: string;
+  readonly chainBaseRef: string;
   readonly candidateRef: string;
   readonly paths: readonly string[];
+  readonly regenerablePaths: readonly string[];
 }): Promise<DeliveryLifecycleContributionRevalidation> {
   const paths = [...new Set(input.paths)].sort(byteSort);
-  const [protectedBase, candidate] = await Promise.all([
+  const [protectedBase, chainBase, candidate] = await Promise.all([
     readEntries(input.exec, input.protectedBaseRef, paths),
+    readEntries(input.exec, input.chainBaseRef, paths),
     readEntries(input.exec, input.candidateRef, paths),
   ]);
-  const unavailable = paths.filter((path) => protectedBase.get(path) === false || candidate.get(path) === false);
+  const unavailable = paths.filter((path) => protectedBase.get(path) === false
+    || chainBase.get(path) === false || candidate.get(path) === false);
   if (unavailable.length > 0) {
     return { status: "refused", reason: "entry-unavailable", paths: unavailable };
   }
   const comparison = compareDeliveryLifecycleContribution({
     paths,
     protectedBase: protectedBase as DeliveryLifecycleTreeState,
+    chainBase: chainBase as DeliveryLifecycleTreeState,
     candidate: candidate as DeliveryLifecycleTreeState,
+    regenerablePaths: input.regenerablePaths,
   });
   return comparison.status === "match"
     ? { status: "ok" }

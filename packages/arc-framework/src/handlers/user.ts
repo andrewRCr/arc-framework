@@ -4,10 +4,23 @@
  * @module
  */
 
+import { openDefaultStore } from "./lifecycle-shared.js";
+import { handleStoreInboxRemove } from "./user-inbox-remove-store.js";
+import { runLegacyStoreUserReferenceReconcile } from "./user-reference-legacy-store.js";
+import { resolvePersonalPaths } from "../lib/personal-paths.js";
+import { runStoreUserReferenceReconcileCommand } from "./user-reference-store.js";
+import type { StoreRefusal } from "../lib/store/refusal.js";
+
+
+import { createStore, createDefaultStorePorts } from "../lib/store/index.js";
+import { inboxOutput, type InboxHandlerPorts } from "./inbox-runtime.js";
 import { access, readFile } from "node:fs/promises";
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { z } from "zod";
+import { UserInboxRemoveInputSchema, type UserInboxRemoveOptions } from "./user-inbox-remove-input.js";
+
+export { UserInboxRemoveInputSchema, type UserInboxRemoveOptions } from "./user-inbox-remove-input.js";
 
 import {
   findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir,
@@ -27,43 +40,42 @@ import {
 } from "../commands/user.js";
 import { isRefusalCondition } from "../lib/git/index.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
-import { SlugSchema } from "../lib/kernel/index.js";
+import { assertNever, CanonicalDigestSchema, SlugSchema } from "../lib/kernel/index.js";
 import {
   declareCliOperandSite,
   declareCliOptionSite,
   declareInteractionSite,
+  declarePromptSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
+import { prompt } from "../lib/command-input/prompter.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
+import { resolveReconcileCurrentWorkUnit } from "./user-reference-current-work-unit.js";
+import type { Store } from "../lib/store/contract.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
-import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
+import { formatError, UserFacingError } from "../lib/errors.js";
+import { type ArcErrorCode } from "../lib/kernel/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
-import { createRawGitExec, createUserIOContext } from "../lib/io-context.js";
-import { atomicWriteFile } from "../lib/fs.js";
+import { createGitExec, createRawGitExec, createUserIOContext } from "../lib/io-context.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { userAddIdentityInUsePromptSite } from "../prompts/identity-prompt-sites.js";
+import { confirmPersonalIdentity } from "./identity-setup.js";
 import {
   enumerateGitTransitionRecords,
 } from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
+  hasUserReferenceRepairs,
   materializeUserReferenceAuthority,
   planUserReferenceReconcile,
-  runUserReferenceReconcile,
-  type PlanUserReferenceReconcileInput,
   type UserReferenceEvidenceAuthorityResult,
 } from "../lib/user-reference-reconcile.js";
 import type { GitExec } from "../lib/git/exec.js";
-import {
-  acquireAdvisoryLock,
-  releaseAdvisoryLock,
-} from "../lib/advisory-lock.js";
-import { getNotesLockPath } from "../lib/user-sync/notes-lock.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import { gitFailureText } from "../lib/git/process-error.js";
 import {
@@ -86,71 +98,45 @@ export interface UserReconcileReferencesOptions {
 export async function handleUserReconcileReferences(
   opts: UserReconcileReferencesOptions,
   context?: InteractionContext,
+  selectedStore?: Store,
 ): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const identity = SlugSchema.parse(await resolveUserIdentity());
+  const identity = SlugSchema.parse(await resolveUserIdentity(createGitExec()));
   const io = createUserIOContext(context?.subprocess);
   const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { ...options, cwd });
+  const store = selectedStore ?? openDefaultStore(cwd, exec);
+  if (store.capabilities.stateOffBranch) {
+    const current = await resolveReconcileCurrentWorkUnit(cwd, exec, store);
+    const result = await runStoreUserReferenceReconcileCommand({ cwd, identity, exec, store, workUnit: current.workUnit, apply: opts.apply === true });
+    emitUserReferenceResult(opts, result, current.warning);
+    if (result.status === "refused" || result.authority.status !== "ready") process.exitCode = 1;
+    return;
+  }
   const transitionExec = createRawGitExec(cwd);
-  const [{ settings }, surfaces, currentWuName] = await Promise.all([
+  const [{ settings }, surfaces, current] = await Promise.all([
     readConfigSettings(cwd),
-    resolveUserSurfaceResolver({ cwd, identity, exec }),
-    resolveCurrentWuName(cwd, io.exec),
+    resolvePersonalPaths({ cwd, identity, exec }),
+    resolveReconcileCurrentWorkUnit(cwd, exec, store),
   ]);
   const authority = await materializeUserReferenceAuthority({
+    store,
     exec,
     protection: settings["branch.protection"] === "full" ? "full" : "partial",
     baseBranch: settings["branch.base"],
     enumerateAt: (ref) => enumerateGitTransitionRecords(transitionExec, ref),
   });
   if (authority.status !== "ready") {
-    emitUserReferenceResult(opts, { status: authority.status, authority, plan: null });
+    emitUserReferenceResult(opts, { status: authority.status, authority, plan: null }, current.warning);
     process.exitCode = 1;
     return;
   }
-  const readSurfaces = async (): Promise<Omit<PlanUserReferenceReconcileInput, "transitions">> => ({
-    userInbox: {
-      path: surfaces.identityGlobalDisplayPath("USER-INBOX.md"),
-      content: await readOptional(io, surfaces.identityGlobalPath("USER-INBOX.md")),
-    },
-    workingMemory: {
-      path: surfaces.workingMemoryDisplayPath,
-      content: await readOptional(io, surfaces.workingMemoryPath),
-    },
-    ...(currentWuName === undefined
-      ? {}
-      : {
-          sessionNotes: {
-            path: surfaces.sessionNotesPath(SlugSchema.parse(currentWuName)),
-            content: await readOptional(io, surfaces.sessionNotesPath(SlugSchema.parse(currentWuName))),
-          },
-        }),
-  });
-  const lockPath = await getNotesLockPath(exec, cwd, identity);
-  const result = await runUserReferenceReconcile({
-    transitions: authority.transitions,
-    apply: opts.apply === true,
-    readSurfaces,
-    acquireLock: () => acquireAdvisoryLock(lockPath),
-    releaseLock: (handle) =>
-      releaseAdvisoryLock(handle as Awaited<ReturnType<typeof acquireAdvisoryLock>>),
-    atomicWrite: (path, content) => {
-      const inboxDisplay = surfaces.identityGlobalDisplayPath("USER-INBOX.md");
-      if (path !== inboxDisplay) throw new Error(`Refusing undeclared user-reference path: ${path}`);
-      return atomicWriteFile(surfaces.identityGlobalPath("USER-INBOX.md"), content);
-    },
-  });
-  emitUserReferenceResult(opts, { status: result.status, authority, plan: result.plan });
-}
-
-async function readOptional(io: UserIOContext, path: string): Promise<string> {
-  try {
-    return await io.readFile(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return "";
-  }
+  const result = await runLegacyStoreUserReferenceReconcile({ cwd, identity, exec, store, paths: surfaces,
+    workUnit: current.workUnit, transitions: authority.transitions, apply: opts.apply === true });
+  emitUserReferenceResult(opts, { status: result.status, authority, plan: result.plan,
+    ...(result.status === "refused" ? { refusal: result.refusal } : {}),
+  }, current.warning);
+  if (result.status === "refused") process.exitCode = 1;
 }
 
 function emitUserReferenceResult(
@@ -159,12 +145,14 @@ function emitUserReferenceResult(
     status: string;
     authority: UserReferenceEvidenceAuthorityResult;
     plan: ReturnType<typeof planUserReferenceReconcile> | null;
+    refusal?: StoreRefusal;
   },
+  warning?: string,
 ): void {
   const envelope = {
     schemaVersion: 1,
     ...result,
-    recommendedCommand: result.status === "pending" && result.plan?.edits.length
+    recommendedCommand: result.status === "pending" && result.plan !== null && hasUserReferenceRepairs(result.plan)
       ? ["arc", "user", "reconcile-references", "--apply", "--json"]
       : null,
   };
@@ -172,13 +160,19 @@ function emitUserReferenceResult(
     process.stdout.write(`${JSON.stringify(envelope)}\n`);
     return;
   }
+  if (warning !== undefined) p.log.warn(warning);
   if (result.authority.status !== "ready") {
-    p.log.warn(`User-reference authority is ${result.authority.status} at \`${result.authority.ref}\`.`);
+    p.log.warn(result.authority.status === "unavailable" && result.authority.remoteEvidence === "not-applicable" && result.authority.reason === "state-unavailable"
+      ? `${result.authority.condition} ${result.authority.remedy.text}` : `User-reference authority is ${result.authority.status} at \`${result.authority.ref}\`.`);
+    return;
+  }
+  if (result.refusal !== undefined) {
+    p.log.error(`${result.refusal.condition} ${result.refusal.remedy.text}`);
     return;
   }
   p.log.info(
     `${result.status}: ${result.plan?.edits.length ?? 0} managed edit(s), `
-    + `${result.plan?.advisories.length ?? 0} advisory finding(s).`,
+    + `${(result.plan?.advisories.length ?? 0) + (result.plan?.scratch?.advisories.length ?? 0)} advisory finding(s).`,
   );
 }
 
@@ -214,7 +208,8 @@ export async function handleUserAdd(
     await runWithSpinner(
       output,
       `Creating user directory for ${identity}...`,
-      () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath() }),
+      () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(),
+        confirmIdentityInUse: confirmPersonalIdentity(userAddIdentityInUsePromptSite, context) }),
       `User directory created for ${identity}.`,
     );
   } catch (err) {
@@ -239,11 +234,9 @@ export async function handleUserAdd(
  */
 export async function handleUserOpen(
   wuName: string,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
+  selectedStore?: Store,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false, machineReadable: false, yes: "absent",
-  });
   p.intro("arc user open");
   const output = createSyncOutput(false);
   const target = SlugSchema.safeParse(wuName);
@@ -255,7 +248,7 @@ export async function handleUserOpen(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -264,6 +257,13 @@ export async function handleUserOpen(
   const io = createUserIOContext(context.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+
+  const store = selectedStore ?? openDefaultStore(cwd, io.exec);
+  if (store.capabilities.stateOffBranch) {
+    p.log.error("unsupported: use the work unit's meta session context, which arc handoff write writes.");
+    process.exitCode = 1;
+    return;
+  }
 
   const reconciled = await reconcileRetiredSubdirsStandalone({ cwd, io, identity });
   for (const subdir of reconciled) {
@@ -308,25 +308,23 @@ async function resolveResidualStaleSubdir(options: {
 }): Promise<void> {
   const { cwd, io, identity, stale, context } = options;
 
-  // Non-interactive: keep silently. A clack prompt would auto-cancel here and,
-  // pre-fix, abort the whole open — so skip to the safe default instead.
   if (context.interaction === "forbidden") {
     p.log.info(`Keeping stale subdir user/${identity}/${stale}/ (non-interactive).`);
-    return;
   }
 
   for (;;) {
-    const choice = await p.select({
+    const answer = await prompt(staleSubdirPromptSite, context, {
       message: `Stale subdir user/${identity}/${stale}/ from prior WU.`,
       initialValue: "keep",
+      runtimeDefault: "keep",
       options: [
         { value: "keep", label: "keep — leave it in place" },
         { value: "remove", label: "remove — delete the subdir" },
         { value: "inspect", label: "inspect — list subdir contents" },
       ],
     });
-    // A cancel (ctrl-C) resolves to the non-destructive default, never an abort.
-    if (p.isCancel(choice) || choice === "keep") return;
+    if (answer.kind !== "answered" || answer.value === "keep") return;
+    const choice = answer.value;
     if (choice === "remove") {
       await removeStaleUserWuSubdir({ cwd, identity, subdir: stale });
       return;
@@ -361,7 +359,7 @@ export async function handleUserClose(wuName: string): Promise<void> {
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -385,35 +383,20 @@ export async function handleUserClose(wuName: string): Promise<void> {
   p.outro("Done.");
 }
 
+export { handleUserInboxList, type UserInboxListCommandOptions } from "./user-inbox-list.js";
+
 /**
  * Drop the slug-matched entry from the developer's `USER-INBOX`. Idempotent —
  * an absent entry or a missing inbox reports a clean no-op rather than failing,
  * so the errand-completion / drain / finalize call sites can replay it freely.
  */
-/** Options for the `arc user inbox-remove` subcommand. */
-export interface UserInboxRemoveOptions {
-  /** UTF-8 file containing the capture's inner bold title, or `-` for stdin. */
-  inboxTitleFile?: string;
-  /** Compatibility alias of `inboxTitleFile`. */
-  inboxEntryFile?: string;
-}
-
-/** Validated, mutually exclusive title sources for inbox removal. */
-export const UserInboxRemoveInputSchema = z.object({
-  literal: z.string().min(1).optional(),
-  inboxTitleFile: z.string().min(1).optional(),
-  inboxEntryFile: z.string().min(1).optional(),
-}).strict().superRefine((value, refinement) => {
-  const count = [value.literal, value.inboxTitleFile, value.inboxEntryFile]
-    .filter((candidate) => candidate !== undefined).length;
-  if (count !== 1) refinement.addIssue({ code: "custom", message: "Provide exactly one inbox title source." });
-});
-
 export async function handleUserInboxRemove(
   literal: string | undefined,
   opts: UserInboxRemoveOptions,
   context?: InteractionContext,
+  ports: InboxHandlerPorts = {},
 ): Promise<void> {
+  if (await handleStoreInboxRemove(literal, opts, context, ports)) return;
   p.intro("arc user inbox-remove");
 
   const parsed = UserInboxRemoveInputSchema.safeParse({ literal, ...opts });
@@ -437,7 +420,7 @@ export async function handleUserInboxRemove(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec(context?.subprocess));
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -489,7 +472,7 @@ export const UserInboxMarkExecuteBoundResultSchema = z.discriminatedUnion("state
       changed: z.boolean(),
       orderedTitles: z.array(z.string().min(1)).min(1),
       outcomes: z.array(InboxMutationOutcomeSchema).min(1),
-      postImageDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+      postImageDigest: CanonicalDigestSchema,
     }),
   }),
   z.strictObject({
@@ -504,6 +487,7 @@ export const UserInboxMarkExecuteBoundResultSchema = z.discriminatedUnion("state
     schemaVersion: z.literal(1),
     mode: z.literal("user-inbox-mark-execute-bound"),
     state: z.literal("refused"),
+    code: z.literal("unsupported").optional(),
     nextAction: z.literal("stop"),
     diagnostics: z.array(z.string()).min(1),
     payload: z.null(),
@@ -516,7 +500,15 @@ type UserInboxMarkExecuteBoundResult = z.infer<typeof UserInboxMarkExecuteBoundR
 export async function handleUserInboxMarkExecuteBound(
   input: string,
   context?: InteractionContext,
+  ports: InboxHandlerPorts = {},
 ): Promise<void> {
+  const store = ports.store ?? createStore(createDefaultStorePorts({ checkoutRoot: ports.cwd ?? process.cwd(), exec: createGitExec(context?.subprocess) }));
+  if (store.capabilities.stateOffBranch) {
+    const result = { schemaVersion: 1, mode: "user-inbox-mark-execute-bound", state: "refused", nextAction: "stop", code: "unsupported", diagnostics: ["This title-keyed queue write is unsupported; use arc errand queue set."], payload: null };
+    const output = inboxOutput(ports);
+    output.exit(1); output.stdout(`${JSON.stringify(UserInboxMarkExecuteBoundResultSchema.parse(result))}\n`);
+    return;
+  }
   const operand = UserInboxMarkExecuteBoundCommandInputSchema.safeParse({ input });
   if (!operand.success) {
     emitUserInboxMarkExecuteBound({
@@ -562,7 +554,7 @@ export async function handleUserInboxMarkExecuteBound(
   }
 
   try {
-    const identity = await resolveUserIdentity();
+    const identity = await resolveUserIdentity(createGitExec(context?.subprocess));
     const result = await markCurrentInboxEntriesExecuteBound({
       cwd,
       io: createUserIOContext(context?.subprocess),
@@ -620,7 +612,7 @@ export async function handleUserSave(): Promise<void> {
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -672,7 +664,7 @@ export async function handleUserLoad(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -748,7 +740,7 @@ export async function handleUserPush(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -855,7 +847,7 @@ export async function handleUserFetch(
     p.log.info(`Fetching notes for identity: ${identity}`);
   } else {
     try {
-      identity = await resolveUserIdentity();
+      identity = await resolveUserIdentity(createGitExec());
     } catch (err) {
       if (isHandledError(err)) return;
       throw err;
@@ -866,7 +858,7 @@ export async function handleUserFetch(
   const spinner = output.spinner();
   spinner.start("Fetching user notes...");
 
-  const result = await runUserFetch({ io, identity });
+  const result = await runUserFetch({ cwd: resolveArcRoot(process.cwd()) ?? process.cwd(), io, identity });
   if (!isUserFetchSuccess(result)) {
     spinner.stop(result.kind === "remote-unavailable" ? "Fetch failed." : "Fetch skipped.");
     reportUserFetchOutcome(result, identity, "fetch");
@@ -912,6 +904,8 @@ export const userCommandInputRegistrations = [
     schema: UserInboxRemoveInputSchema,
     schemaFields: {
       "operand.slug": "literal",
+      "option.id": "id",
+      "option.expected-version": "expectedVersion",
       "option.inbox-title-file": "inboxTitleFile",
       "option.inbox-entry-file": "inboxEntryFile",
     },
@@ -920,13 +914,17 @@ export const userCommandInputRegistrations = [
   { commandPath: "user pull", schema: UserPullInputSchema, schemaFields: { "option.identity": "identity" } },
 ] as const satisfies readonly CommandInputRegistration[];
 
-/** Command-owned policy that syntax cannot express for user-state acquisition. */
-export const userCommandInputPolicyDeclarations = [{
-  commandPath: "user open",
-  aliases: [],
-  sites: [declareInteractionSite(
-    { file: "handlers/user.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
-    {
+/** Authority required before replacing local user notes. */
+export const userPullOverwritePromptSite = declarePromptSite("prompt.user-pull.overwrite", "confirm",
+  { file: "handlers/user.ts", symbol: "userPullOverwritePromptSite" }, {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+    mutationBoundary: "local notes overwrite", subprocess: "none",
+  });
+
+/** Non-destructive disposition of a residual stale user workspace. */
+export const staleSubdirPromptSite = declarePromptSite("prompt.stale-subdir", "select",
+  { file: "handlers/user.ts", symbol: "staleSubdirPromptSite" }, {
     acquisition: "safe-default",
     schemaOwnership: "none",
     defaultSource: "keep",
@@ -934,8 +932,15 @@ export const userCommandInputPolicyDeclarations = [{
     automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
     mutationBoundary: "stale user subdirectory removal",
     subprocess: "none",
-    },
-  )],
+  });
+
+/** Command-owned policy that syntax cannot express for user-state acquisition. */
+export const userCommandInputPolicyDeclarations = [{
+  commandPath: "user add", aliases: [], sites: [userAddIdentityInUsePromptSite],
+}, {
+  commandPath: "user open",
+  aliases: [],
+  sites: [staleSubdirPromptSite],
 }, {
   commandPath: "user inbox-mark-execute-bound",
   aliases: [],
@@ -968,17 +973,7 @@ export const userCommandInputPolicyDeclarations = [{
     acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "not-applicable",
     automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
     mutationBoundary: "user pull handler", subprocess: "none",
-  }), declareInteractionSite(
-    { file: "handlers/user.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
-    {
-      acquisition: "protected-confirmation",
-      schemaOwnership: "none",
-      cancellation: "stop",
-      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-      mutationBoundary: "local notes overwrite",
-      subprocess: "none",
-    },
-  )],
+  }), userPullOverwritePromptSite],
 }, {
   commandPath: "user compact",
   aliases: [],
@@ -1007,13 +1002,8 @@ export const userCommandInputPolicyDeclarations = [{
 
 export async function handleUserPull(
   opts: UserPullOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "authority" : "absent",
-  });
   p.intro("arc user pull");
   const output = createSyncOutput(false);
 
@@ -1030,7 +1020,7 @@ export async function handleUserPull(
     p.log.info(`Pulling notes for identity: ${identity}`);
   } else {
     try {
-      identity = await resolveUserIdentity();
+      identity = await resolveUserIdentity(createGitExec());
     } catch (err) {
       if (isHandledError(err)) return;
       throw err;
@@ -1042,17 +1032,16 @@ export async function handleUserPull(
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
-  if (hasLocal && context.confirmation !== "accept") {
-    if (context.interaction === "forbidden") {
+  if (hasLocal) {
+    const answer = await prompt(userPullOverwritePromptSite, context, {
+      message: OVERWRITE_CONFIRM_MESSAGE, initialValue: true,
+    });
+    if (answer.kind === "refused") {
       p.log.error("Local notes would be overwritten; re-run with --yes to authorize the pull.");
       process.exitCode = 1;
       return;
     }
-    const proceed = await p.confirm({
-      message: OVERWRITE_CONFIRM_MESSAGE,
-      initialValue: true,
-    });
-    if (p.isCancel(proceed) || !proceed) {
+    if (answer.kind !== "answered" || !answer.value) {
       p.log.info("Pull cancelled.");
       return;
     }
@@ -1113,7 +1102,7 @@ export async function handleUserCompact(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (err instanceof UserFacingError) {
       emitStatusError(json, output, err.code, err.message, err);
@@ -1178,10 +1167,8 @@ function toJsonSafeCompactResult(result: UserCompactResult): object {
     case "nothing-to-prune":
     case "conflict":
       return result;
-    default: {
-      const _exhaustive: never = result;
-      return _exhaustive;
-    }
+    default:
+      return assertNever(result);
   }
 }
 
@@ -1205,7 +1192,7 @@ export async function handleUserStatus(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (err instanceof UserFacingError) {
       emitStatusError(json, output, err.code, err.message, err);

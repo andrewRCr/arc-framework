@@ -1,5 +1,5 @@
 /**
- * Integration tests for validate-cohort-consistency.ts — pre-commit CHECK 18.
+ * Integration tests for validate-cohort-consistency.ts — pre-commit CHECK[cohort-consistency].
  *
  * Exercises the validator the way the hook invokes it: via Node's TypeScript loader against
  * on-disk fixture metas and cohort docs under real `.arc/backlog/planned/`
@@ -41,7 +41,7 @@ async function runValidator(
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
       ["--import", tsxLoader, SCRIPT_PATH, ...absPaths],
-      { cwd: REPO_ROOT },
+      { cwd: REPO_ROOT, env: { ...process.env, FORCE_COLOR: undefined } },
     );
     return { code: 0, stdout, stderr };
   } catch (err) {
@@ -61,7 +61,10 @@ function metaFixture(cohort: string, state = "Planning"): string {
   return [
     `# Metadata: widget`,
     "",
-    `- **State:** ${state}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
     `- **Cohort:** ${cohort}`,
     "",
     "---",
@@ -84,7 +87,7 @@ function cohortDocFixture(
   return lines.join("\n");
 }
 
-describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
+describe("validate-cohort-consistency.ts (pre-commit CHECK[cohort-consistency])", () => {
   let tmp: string;
 
   beforeAll(async () => {

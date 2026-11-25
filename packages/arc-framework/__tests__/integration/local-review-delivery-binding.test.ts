@@ -89,8 +89,8 @@ interface Stack {
   predecessorSha: string;
   memberSha: string;
   successorSha: string;
-  deliverableId: string;
-  terminalDeliverableId: string;
+  deliverableId: `sha256:${string}`;
+  terminalDeliverableId: `sha256:${string}`;
 }
 
 function state(
@@ -265,6 +265,7 @@ describe("local review delivery binding at its composition root", () => {
         },
         vehicle,
         pass: 1,
+        requestedCoverage: "complete",
       },
     )).resolves.toMatchObject({
       authority: { vehicle: { kind: "delivery-member", identity: vehicle.deliverableId } },

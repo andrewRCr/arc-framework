@@ -1,7 +1,7 @@
 /**
  * Interactive prompts for `arc init`.
  *
- * Four-prompt sequence using @clack/prompts:
+ * Four declared questions:
  * 1. project_name — text input, defaults to basename of cwd
  * 2. tools — autocomplete multiselect of AI development tools
  * 3. pm_mode — note preamble + select for Project Management approach
@@ -11,7 +11,11 @@
  * {@link InstallConfig}, token map, and condition config.
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
+import { declarePromptSite, type PromptSite } from "../lib/command-input/declaration.js";
+import { prompt } from "../lib/command-input/prompter.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+
 import { basename } from "node:path";
 
 /**
@@ -52,14 +56,6 @@ export interface InitPromptResult {
   team_mode: boolean;
 }
 
-/** Convert a slug like "my-cool-app" to title case "My Cool App". */
-function titleCase(slug: string): string {
-  return slug
-    .split(/[-_\s]+/)
-    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
-    .join(" ");
-}
-
 /** Cancel the prompt sequence and display a cancellation message. */
 function cancelAndThrow(sentinel: symbol): never {
   p.cancel("Setup cancelled.");
@@ -70,29 +66,41 @@ function cancelAndThrow(sentinel: symbol): never {
 /**
  * Display the tools preamble note and run the tools prompt.
  *
- * Shared between fresh, join, and arc join modes.
+ * Shared between fresh and join modes.
+ * @param site - Caller-owned tools declaration
+ * @param context - Invocation interaction and authority
+ * @param sentinel - Caller-owned cancellation sentinel
+ * @param initialValues - Current tools and forbidden-mode default
+ * @param explicitAnswer - Explicit tools from command input
+ * @returns Selected tools
  */
-export async function promptTools(sentinel: symbol, initialValues?: string[]): Promise<string[]> {
-  p.note(
-    "ARC installs Skills as triggers for common workflows (commits,\n" +
-      "handoffs, etc.) into your tools' skill directories.\n" +
-      "\n" +
-      "Most tools share .agents/skills/, but existing tool-native\n" +
-      "directories are respected. Some tools require their own\n" +
-      "(shown in hints).",
-    "Skill installation",
-  );
+export async function promptTools(site: PromptSite<"multiselect">, context: InteractionContext,
+  sentinel: symbol, initialValues: string[] = [], explicitAnswer?: string[]): Promise<string[]> {
+  if (context.interaction === "allowed" && explicitAnswer === undefined) {
+    p.note(
+      "ARC installs Skills as triggers for common workflows (commits,\n" +
+        "handoffs, etc.) into your tools' skill directories.\n" +
+        "\n" +
+        "Most tools share .agents/skills/, but existing tool-native\n" +
+        "directories are respected. Some tools require their own\n" +
+        "(shown in hints).",
+      "Skill installation",
+    );
 
-  const tools = await p.autocompleteMultiselect({
+  }
+
+  const answer = await prompt(site, context, {
     message: "Which AI tools will you use in this repo? (type to search)",
     options: TOOL_OPTIONS,
     maxItems: 8,
-    ...(initialValues && initialValues.length > 0 ? { initialValues } : {}),
+    ...(initialValues.length > 0 ? { initialValues } : {}),
+    runtimeDefault: initialValues,
+    explicitAnswer,
   });
-  if (p.isCancel(tools)) cancelAndThrow(sentinel);
-  const selected = tools;
+  if (answer.kind !== "answered") cancelAndThrow(sentinel);
+  const selected = answer.value;
 
-  if (selected.length > 0) {
+  if (context.interaction === "allowed" && explicitAnswer === undefined && selected.length > 0) {
     const labels = selected.map(
       (v) => TOOL_OPTIONS.find((o) => o.value === v)?.label ?? v,
     );
@@ -108,10 +116,13 @@ export async function promptTools(sentinel: symbol, initialValues?: string[]): P
  * Prompts for project name, tools, PM mode, and team mode.
  *
  * @param cwd - Working directory (used to derive default project name)
+ * @param context - Invocation interaction and authority
+ * @param supplied - Explicit values supplied by the command adapter
  * @returns Prompt results, or `null` if the user cancelled
  */
 export async function runInitPrompts(
   cwd: string,
+  context: InteractionContext,
   supplied: {
     readonly name?: string;
     readonly tools?: readonly string[];
@@ -125,26 +136,30 @@ export async function runInitPrompts(
 
     // 1. Project name
     const dirName = basename(cwd);
-    const defaultName = titleCase(dirName);
+    const defaultName = dirName;
 
-    p.note(
+    if (context.interaction === "allowed") p.note(
       "Used in documentation headers and project references.\n" +
         "Any casing is fine \u2014 this is a display name, not a slug.",
       "Project name",
     );
 
-    const project_name = supplied.name ?? await p.text({
+    const nameAnswer = await prompt(initNamePromptSite, context, {
         message: "Project name?",
         defaultValue: defaultName,
         placeholder: defaultName,
+        runtimeDefault: defaultName,
+        explicitAnswer: supplied.name,
       });
-    if (p.isCancel(project_name)) cancelAndThrow(sentinel);
+    if (nameAnswer.kind !== "answered") cancelAndThrow(sentinel);
+    const project_name = nameAnswer.value;
 
     // 2. Tools
-    const tools = supplied.tools === undefined ? await promptTools(sentinel) : [...supplied.tools];
+    const tools = await promptTools(initToolsPromptSite, context, sentinel, [],
+      supplied.tools === undefined ? undefined : [...supplied.tools]);
 
     // 3. PM mode — note preamble with descriptions, then clean select
-    p.note(
+    if (context.interaction === "allowed") p.note(
       "ARC Core\n" +
         "  Structured methodology: session continuity across tools and\n" +
         "  machines, task execution workflows, configurable codified\n" +
@@ -160,20 +175,26 @@ export async function runInitPrompts(
       "Project Management options",
     );
 
-    const pm_mode = supplied.pmMode ?? await p.select({
+    const pmAnswer = await prompt(initPmPromptSite, context, {
         message: "Project management approach?",
         options: PM_MODE_OPTIONS,
         initialValue: "none",
+        runtimeDefault: "none",
+        explicitAnswer: supplied.pmMode,
       });
-    if (p.isCancel(pm_mode)) cancelAndThrow(sentinel);
+    if (pmAnswer.kind !== "answered") cancelAndThrow(sentinel);
+    const pm_mode = pmAnswer.value;
 
     // 4. Team mode
-    const team_mode = supplied.teamMode ?? await p.confirm({
+    const teamAnswer = await prompt(initTeamPromptSite, context, {
         message:
           "Enable multi-developer coordination? (ARC Team Mode: task ownership, team handoffs, team branching)",
         initialValue: false,
+        runtimeDefault: false,
+        explicitAnswer: supplied.teamMode,
       });
-    if (p.isCancel(team_mode)) cancelAndThrow(sentinel);
+    if (teamAnswer.kind !== "answered") cancelAndThrow(sentinel);
+    const team_mode = teamAnswer.value;
 
     return {
       project_name: project_name,
@@ -186,3 +207,71 @@ export async function runInitPrompts(
     throw err;
   }
 }
+
+/** Declared acquisition policy for init tools selection. */
+export const initToolsPromptSite = declarePromptSite("prompt.init.tools", "multiselect",
+  { file: "prompts/init-prompts.ts", symbol: "initToolsPromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "owned",
+    schemaField: "tools",
+    defaultSource: "empty or current tool list",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: ["--tools"],
+      acceptedSyntax: ["--tools <list>"]
+    },
+    mutationBoundary: "installation tool selection",
+    subprocess: "none"
+  });
+
+/** Declared acquisition policy for init name selection. */
+export const initNamePromptSite = declarePromptSite("prompt.init.name", "text",
+  { file: "prompts/init-prompts.ts", symbol: "initNamePromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "owned",
+    schemaField: "projectName",
+    defaultSource: "current directory name",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: ["--name"],
+      acceptedSyntax: ["--name <name>"]
+    },
+    mutationBoundary: "installation project configuration",
+    subprocess: "none"
+  });
+
+/** Declared acquisition policy for init pm-mode selection. */
+export const initPmPromptSite = declarePromptSite("prompt.init.pm-mode", "select",
+  { file: "prompts/init-prompts.ts", symbol: "initPmPromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "owned",
+    schemaField: "pmMode",
+    defaultSource: "none",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: ["--pm-mode"],
+      acceptedSyntax: ["--pm-mode <mode>"]
+    },
+    mutationBoundary: "installation project configuration",
+    subprocess: "none"
+  });
+
+/** Declared acquisition policy for init team selection. */
+export const initTeamPromptSite = declarePromptSite("prompt.init.team", "confirm",
+  { file: "prompts/init-prompts.ts", symbol: "initTeamPromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "owned",
+    schemaField: "teamMode",
+    defaultSource: "disabled",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: ["--team"],
+      acceptedSyntax: ["--team"]
+    },
+    mutationBoundary: "installation project configuration",
+    subprocess: "none"
+  });

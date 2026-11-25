@@ -1,33 +1,142 @@
 /** Settlement plan composed from one Candidate lineage's approved responses. */
 
+import { createReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
+import type { ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
+import type { ReviewInFlightPort, ReviewResultReader } from "../review-gate/core/ports.js";
+import { createRepositoryReviewResultReader } from "../review-gate/hosts/local/review-result-reader-composition.js";
+import { validateApprovedDispositionRecordForResult } from "../review-gate/core/review-result-disposition.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
-import type { GitExec } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { readCandidateRecord } from "../../lib/store/kinds/review/candidate/access.js";
 import { candidateReviewResponses } from "../../lib/work-unit/candidate-attestation.js";
 import {
   projectGitCandidateEffectiveTarget,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
-import type { ApprovedDispositionRecord } from "../review-gate/core/advisory-records.js";
+import {
+  currentApprovedDispositionNode,
+  type ApprovedDispositionRecord,
+} from "../review-gate/core/advisory-records.js";
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { composeReviewResponseSettlementAction } from "../review-gate/core/response-plan.js";
-import { parseReviewSourceReference } from "../review-gate/core/review-source-reference.js";
-import {
-  LocalApprovedDispositionRecordStore,
-} from "../review-gate/hosts/local/disposition-record-store.js";
+import { parseReviewSourceReferenceForInvocation } from "../review-gate/runtime/source-invocation.js";
 import { LocalFrontlineOutcomeStore } from "../review-gate/hosts/local/frontline-outcome-store.js";
 import { resolveRepositoryIdentity } from "../review-gate/hosts/local/git-common-state.js";
-import {
-  LocalReviewOperationStateStore,
-} from "../review-gate/hosts/local/operation-state-store.js";
 import { deriveLocalReviewTarget } from "../review-gate/hosts/local/repository-target.js";
+import {
+  composeCandidateResponseConfirmation,
+  readCandidateSpan,
+} from "./candidate-response-confirmation.js";
+import type { CandidateResponseConfirmationAction } from "./settlement-plan.js";
 import type { SettlementAction } from "./settlement-plan.js";
 
 /** The settlement actions one Candidate span composes, with the approved sets they were built from. */
 export interface LineageReviewComposition {
   dispositionIds: string[];
   actions: SettlementAction[];
+}
+
+async function resolveApprovedOriginTarget(input: ReviewInvocationInput, record: ApprovedDispositionRecord,
+  required: boolean, operationStore: Pick<ReviewInFlightPort, "readOperation">, outcomeStore: LocalFrontlineOutcomeStore,
+  resultReader: ReviewResultReader | null): Promise<ReviewTarget | null> {
+  if (resultReader === null) return readRepositoryApprovedOriginTarget(input, record, required, operationStore, outcomeStore);
+  const result = await resultReader.readResult(record.operationId);
+  validateApprovedDispositionRecordForResult(record, result);
+  return result.target;
+}
+
+async function readRepositoryApprovedOriginTarget(
+  input: ReviewInvocationInput,
+  record: ApprovedDispositionRecord,
+  required: boolean,
+  operationStore: Pick<ReviewInFlightPort, "readOperation">,
+  outcomeStore: LocalFrontlineOutcomeStore,
+): Promise<ReviewTarget | null> {
+  let resolved: ReviewTarget | null;
+  if (record.source.kind === "attested-local") {
+    const { state } = await operationStore.readOperation(record.operationId);
+    resolved = state !== null && state.kind === "local-review" ? state.target : null;
+  } else if (record.source.kind === "frontline") {
+    const { record: outcome } = await outcomeStore.readOutcome(record.operationId);
+    resolved = outcome?.outcome.target ?? null;
+  } else {
+    const reference = await parseReviewSourceReferenceForInvocation(input, record.source.attemptRef, "hosted");
+    if (reference.durableRef !== record.operationId) {
+      throw new Error("The hosted review source reference moved attempt.");
+    }
+    const { state } = await operationStore.readOperation(reference.operationId);
+    const attempt = state !== null && state.kind === "lane-progress"
+      ? state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
+      : undefined;
+    resolved = attempt?.hosted?.reviewTarget ?? null;
+  }
+  if (resolved === null) {
+    if (!required) return null;
+    throw new Error(`The review operation behind approved dispositions ${record.operationId} is unavailable.`);
+  }
+  if (resolved.targetId
+    !== currentApprovedDispositionNode(record).approvedDisposition.dispositionSet.targetId) {
+    if (!required) return null;
+    throw new Error(`The review operation behind approved dispositions ${record.operationId} moved target.`);
+  }
+  return resolved;
+}
+
+async function deriveApprovedSettledTarget(
+  input: ReviewInvocationInput,
+  publisher: RepositoryGitCommonStatePublisher,
+  approvedHead: string,
+): Promise<ReviewTarget> {
+  const { settings } = await readConfigSettings(input.cwd);
+  const target = await deriveLocalReviewTarget({
+    exec: input.exec,
+    cwd: input.cwd,
+    baseRef: settings["branch.base"],
+    repositoryId: await resolveRepositoryIdentity(publisher, undefined, input),
+  });
+  if (target.headSha !== approvedHead) {
+    throw new Error("The current change set does not bind the approved head.");
+  }
+  return target;
+}
+
+function composeApprovedSettlementAction(input: {
+  approved: ApprovedDispositionRecord;
+  origin: ReviewTarget;
+  privateAction: CandidateResponseConfirmationAction | null;
+  fixTarget: ReviewTarget;
+}): SettlementAction {
+  if (input.privateAction !== null) return input.privateAction;
+  const current = currentApprovedDispositionNode(input.approved);
+  if (current.policyProjectionPending === true) {
+    throw new Error(
+      `The approved response ${input.approved.currentDispositionSetId} still needs policy projection; replay its approved review response before checkpointing.`,
+    );
+  }
+  const dispositions = current.approvedDisposition;
+  const hasFix = dispositions.dispositionSet.findings.some(({ disposition }) => disposition === "fix");
+  return composeReviewResponseSettlementAction({
+    originTarget: input.origin,
+    fixTarget: !hasFix && input.origin.kind === "delivery-member" ? input.origin : input.fixTarget,
+    request: {
+      schemaVersion: 1,
+      source: input.approved.source.kind === "attested-local"
+        ? { kind: "attested-local", receiptRef: input.approved.source.receiptRef }
+        : input.approved.source.kind === "frontline"
+          ? { kind: "frontline", outcomeRef: input.approved.source.outcomeRef }
+          : { kind: "hosted", attemptRef: input.approved.source.attemptRef },
+      policyRequest: current.responsePolicyRequest,
+      dispositions,
+    },
+  });
+}
+
+function createLineageReviewContext(options: ReviewInvocationInput) {
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  return { ...context, input, dispositionIndex: context.family.ports.dispositions,
+    operationStore: context.family.ports.inFlight, outcomeStore: new LocalFrontlineOutcomeStore(context.publisher),
+    resultReader: context.family.mode === "stored" ? createRepositoryReviewResultReader(context.publisher, input) : null };
 }
 
 /**
@@ -46,97 +155,24 @@ export interface LineageReviewComposition {
  * records remain unavailable at the completeness check below, while a readable record whose originating
  * operation is unavailable cannot be placed in any span and is left out when it is unrelated.
  *
- * @param input - The repository root and its Git boundary.
+ * @param options - The repository root and its Git boundary.
  * @returns A composer memoized per work unit, approved head, and checkpoint-validated base.
  */
-export function createLineageReviewComposer(input: {
-  cwd: string;
-  exec: GitExec;
-}): (
+export function createLineageReviewComposer(options: ReviewInvocationInput): (
   workUnit: string,
   approvedHead: string,
   approvedBase: string,
 ) => Promise<LineageReviewComposition> {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const dispositionIndex = new LocalApprovedDispositionRecordStore(publisher);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
-  const outcomeStore = new LocalFrontlineOutcomeStore(publisher);
+  const { input, store: reviewRecordStore, publisher, dispositionIndex, operationStore, outcomeStore, resultReader } =
+    createLineageReviewContext(options);
   const compositions = new Map<string, Promise<LineageReviewComposition>>();
-
-  // `required` marks a record the Candidate lineage names: those refuse, while a record enumeration
-  // merely surfaced resolves to null so an unrelated work unit's residue cannot block this one.
-  const originTarget = async (
-    record: ApprovedDispositionRecord,
-    required: boolean,
-  ): Promise<ReviewTarget | null> => {
-    let resolved: ReviewTarget | null;
-    if (record.source.kind === "attested-local") {
-      const { state } = await operationStore.readOperation(record.operationId);
-      resolved = state !== null && state.kind === "local-review" ? state.target : null;
-    } else if (record.source.kind === "frontline") {
-      const { record: outcome } = await outcomeStore.readOutcome(record.operationId);
-      resolved = outcome?.outcome.target ?? null;
-    } else {
-      const reference = parseReviewSourceReference(record.source.attemptRef, "hosted");
-      if (reference.durableRef !== record.operationId) {
-        throw new Error("The hosted review source reference moved attempt.");
-      }
-      const { state } = await operationStore.readOperation(reference.operationId);
-      const attempt = state !== null && state.kind === "lane-progress"
-        ? state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
-        : undefined;
-      resolved = attempt?.hosted?.reviewTarget ?? null;
-    }
-    if (resolved === null) {
-      if (!required) return null;
-      throw new Error(`The review operation behind approved dispositions ${record.operationId} is unavailable.`);
-    }
-    if (resolved.targetId !== record.approvedDisposition.dispositionSet.targetId) {
-      if (!required) return null;
-      throw new Error(`The review operation behind approved dispositions ${record.operationId} moved target.`);
-    }
-    return resolved;
-  };
-
-  // Revisions the Candidate covers, indexed oldest-first so the plan follows the work's own order.
-  const candidateSpan = async (baseRevision: string, approvedHead: string): Promise<Map<string, number>> => {
-    const { stdout } = await input.exec("git", ["rev-list", `${baseRevision}..${approvedHead}`], {
-      cwd: input.cwd,
-      objectAccess: "local-only",
-    });
-    const order = new Map<string, number>();
-    order.set(baseRevision, -1);
-    stdout.trim().split("\n").filter((line) => line !== "").reverse().forEach((revision, index) => {
-      order.set(revision, index);
-    });
-    return order;
-  };
-
-  // Fix-bearing responses in the lineage settle at the head the checkpoint approves, so one
-  // derivation of the current change set serves those actions. A no-fix member-shaped response
-  // instead retains its exact origin: the terminal Candidate is a different target kind even when
-  // both targets name the same commit. Refusing a different checkpoint head keeps composition bound
-  // to the exact revision the reducer validated.
-  const settledTarget = async (approvedHead: string): Promise<ReviewTarget> => {
-    const { settings } = await readConfigSettings(input.cwd);
-    const target = await deriveLocalReviewTarget({
-      exec: input.exec,
-      cwd: input.cwd,
-      baseRef: settings["branch.base"],
-      repositoryId: await resolveRepositoryIdentity(publisher),
-    });
-    if (target.headSha !== approvedHead) {
-      throw new Error("The current change set does not bind the approved head.");
-    }
-    return target;
-  };
 
   const compose = async (
     workUnit: string,
     approvedHead: string,
     approvedBase: string,
   ): Promise<LineageReviewComposition> => {
-    const record = await readCandidateRecord(input.cwd, workUnit);
+    const record = await readCandidateRecord(input.cwd, workUnit, { store: reviewRecordStore, owner: input.workItem });
     if (record === null) {
       throw new Error("The managed Candidate record disappeared during checkpoint composition.");
     }
@@ -155,22 +191,50 @@ export function createLineageReviewComposer(input: {
     }
     const named = new Set(candidateReviewResponses(record).map(({ dispositionId }) => dispositionId));
     const [span, enumerated] = await Promise.all([
-      candidateSpan(record.attestation.baseRevision, approvedHead),
+      readCandidateSpan(input, record.attestation.baseRevision, approvedHead),
       dispositionIndex.listDispositionRecords(),
     ]);
 
-    const covered = new Map<string, { approved: ApprovedDispositionRecord; origin: ReviewTarget }>();
+    const covered = new Map<string, {
+      approved: ApprovedDispositionRecord;
+      origin: ReviewTarget;
+      order: number;
+      privateAction: CandidateResponseConfirmationAction | null;
+    }>();
     for (const approved of enumerated) {
-      const dispositionId = approved.approvedDisposition.dispositionSet.dispositionSetId;
+      const dispositionId = approved.currentDispositionSetId;
       const required = approved.candidate !== null
         && approved.candidate.workUnit === workUnit
         && approved.candidate.candidateId === record.attestation.candidateId;
       if (!required) continue;
-      const origin = await originTarget(approved, required);
-      if (origin === null || !span.has(origin.headSha)) {
+      const origin = await resolveApprovedOriginTarget(input, approved, required, operationStore, outcomeStore, resultReader);
+      if (origin === null) {
         throw new Error(`The approved disposition record ${dispositionId} is outside the Candidate span.`);
       }
-      if (!covered.has(dispositionId)) covered.set(dispositionId, { approved, origin });
+      const ordinaryOrder = span.get(origin.headSha);
+      const privateProof = ordinaryOrder === undefined
+        ? await composeCandidateResponseConfirmation({
+            ...input,
+            store: reviewRecordStore,
+            workUnit,
+            approvedHead,
+            approvedBase,
+            approved,
+          })
+        : null;
+      const order = ordinaryOrder ?? privateProof?.order;
+      if (order === undefined) {
+        throw new Error(`The approved disposition record ${dispositionId} is outside the Candidate span.`);
+      }
+      if (covered.has(dispositionId)) {
+        throw new Error(`The approved disposition record ${dispositionId} has ambiguous Candidate origins.`);
+      }
+      covered.set(dispositionId, {
+        approved,
+        origin,
+        order,
+        privateAction: privateProof?.action ?? null,
+      });
     }
     for (const dispositionId of named) {
       if (!covered.has(dispositionId)) {
@@ -182,28 +246,13 @@ export function createLineageReviewComposer(input: {
     // Lineage order no longer supplies a composition order, so span position — tiebroken by the
     // disposition identity — supplies one that two runs at the same head reproduce exactly.
     const scoped = [...covered].sort(([leftId, left], [rightId, right]) => (
-      (span.get(left.origin.headSha) ?? Number.MAX_SAFE_INTEGER)
-        - (span.get(right.origin.headSha) ?? Number.MAX_SAFE_INTEGER)
-      || leftId.localeCompare(rightId)
+      left.order - right.order || leftId.localeCompare(rightId)
     ));
-    const fixTarget = await settledTarget(approvedHead);
-    const actions = scoped.map(([, { approved, origin }]) => {
-      const dispositions = approved.approvedDisposition;
-      const hasFix = dispositions.dispositionSet.findings.some(({ disposition }) => disposition === "fix");
-      return composeReviewResponseSettlementAction({
-        originTarget: origin,
-        fixTarget: !hasFix && origin.kind === "delivery-member" ? origin : fixTarget,
-        request: {
-          schemaVersion: 1,
-          source: approved.source.kind === "attested-local"
-            ? { kind: "attested-local", receiptRef: approved.source.receiptRef }
-            : approved.source.kind === "frontline"
-              ? { kind: "frontline", outcomeRef: approved.source.outcomeRef }
-              : { kind: "hosted", attemptRef: approved.source.attemptRef },
-          dispositions,
-        },
-      });
-    });
+    // Fix-bearing responses settle at the approved head. A no-fix member response keeps its
+    // exact origin target, which the action helper selects before constructing settlement.
+    const fixTarget = await deriveApprovedSettledTarget(input, publisher, approvedHead);
+    const actions = scoped.map(([, { approved, origin, privateAction }]) =>
+      composeApprovedSettlementAction({ approved, origin, privateAction, fixTarget }));
     return { dispositionIds: scoped.map(([dispositionId]) => dispositionId), actions };
   };
 

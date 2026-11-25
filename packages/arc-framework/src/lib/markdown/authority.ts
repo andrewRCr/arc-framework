@@ -4,8 +4,9 @@ import { join } from "node:path";
 
 import { classifyFile, resolveFileList } from "../classification.js";
 import { buildConfigMap } from "../config/index.js";
+import { INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME } from "../constants.js";
 import { ArcError, validateManagedPath, type ManagedPath } from "../kernel/index.js";
-import { resolveTemplateOutputPath } from "../layout/index.js";
+import { resolveArcPath, resolveTemplateOutputPath } from "../layout/index.js";
 import { readManifest, validateManifest } from "../manifest/index.js";
 import { loadRecipeFile, validateRecipe } from "../template/recipe.js";
 import type { Classification, Manifest, Recipe } from "../types.js";
@@ -229,7 +230,12 @@ export function createMarkdownAuthority(options: CreateMarkdownAuthorityOptions)
 export async function loadMarkdownAuthorityContext(
   options: LoadMarkdownAuthorityOptions,
 ): Promise<LoadedMarkdownAuthority> {
-  const manifestPath = join(options.root, ".arc/system/.internal/manifest.json");
+  const manifestPath = join(
+    options.root,
+    resolveArcPath({ kind: "arc-root" }),
+    ...INTERNAL_DIR_SEGMENTS,
+    MANIFEST_FILENAME,
+  );
   let manifest: Manifest | null;
   try {
     manifest = await readManifest(manifestPath, options.readFile);

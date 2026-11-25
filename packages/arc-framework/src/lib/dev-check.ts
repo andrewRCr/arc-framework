@@ -1,58 +1,41 @@
-/**
- * Dev-mode stale-build check for the self-hosting repo.
- *
- * In this repo, `npx arc` resolves through the workspace symlink to
- * `packages/arc-framework/dist/cli.js`. `dist/` is gitignored, so after a
- * `git pull` or local source edit, `dist/cli.js` can lag behind `src/`.
- * No command can afford to run against stale dist: a stale build silently
- * produces wrong answers, and the ones that drive cross-machine state write
- * those answers down.
- *
- * Staleness is scoped to the bundle's real input graph, read from the esbuild
- * metafile tsup emits: only files that actually feed `dist/cli.js` count.
- * Editing a non-bundled tree — the standalone review-gate scripts, tests —
- * cannot change the artifact, so it no longer forces a rebuild. The scope
- * fails safe: a missing or unusable metafile falls back to a full `src/` walk.
- *
- * Content, not mtime, is authoritative when a build stamp is present: the
- * build writes `dist/dev-build-stamp.json` with a hash of the bundled source
- * inputs, and the check treats matching hashes as fresh even when a tool has
- * bumped mtimes without editing content. When the stamp is missing (legacy
- * dist, or a partial build), the check falls back to the mtime comparison.
- *
- * Neither adopters nor a run from source ever see the check. Two conditions
- * gate it: the running entry is the built bundle (a `.js` file inside a
- * `dist/` directory), and `src/` sits beside that directory. Published
- * installs fail the second — they don't carry `src/`, which the package's
- * `files` array excludes — and a source entry fails the first. Either way the
- * helper returns `{ kind: "skip" }` and the CLI proceeds as normal.
- *
- * The pure verdict and post-command refresh functions take injected
- * boundaries so tests can pin each shape without touching the real
- * filesystem. Refusal, the single compaction-seed exception, and refresh
- * eligibility live at the cli.ts action-hook boundary.
- *
- * @module
- */
-
+/** Compiler-free self-hosting freshness checks, rebuild-and-rerun admission and isolated owned refresh. */
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { constants } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
+import { selectFirstPartyInputs } from "./build-inputs.js";
+import { DEV_BUILD_STAMP_NAME, parseBuildEvidence } from "./build-evidence.js";
+import { readBuildQualification, type BuildQualification } from "./build-qualification.js";
+import { classifyAdvisoryLockRead, type AdvisoryLockReadResult } from "./advisory-lock.js";
+import { BUILD_ARTIFACT_LOCK_NAME, TEST_CONTROLLER_TOKEN_ENV } from "./build-ownership.js";
+
+/**
+ * Decide whether this child is pinned to a live managed test controller's artifacts.
+ * @param token - Controller token inherited by this process
+ * @param holder - Classification of one lockfile observation
+ * @param now - Current time in milliseconds
+ * @returns Whether the owning test run makes another freshness check redundant
+ */
+export function shouldSkipDevBuildStaleness(
+  token: string | undefined, holder: AdvisoryLockReadResult, now: number,
+): boolean {
+  if (!token || typeof holder === "string" || holder.token !== token
+    || holder.leaseUntil === undefined || holder.leaseUntil <= now) return false;
+  const metadata = holder.metadata;
+  return typeof metadata === "object" && metadata !== null && "operation" in metadata
+    && typeof metadata.operation === "string" && /^tests \([^)]+\)$/u.test(metadata.operation);
+}
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
-export const DEV_BUILD_STAMP_NAME = "dev-build-stamp.json";
+export { DEV_BUILD_STAMP_NAME };
 
 /**
  * Whether the running entry is the built bundle rather than TypeScript source.
  *
- * The verdict compares `src/` against a `dist/` output, which means nothing
- * when the entry is the source itself — there the check reads `src/` as its own
- * output directory, finds no stamp, and falls back to comparing source mtimes
- * against the entry point, a verdict that is stale by construction. Keyed on
- * the extension and the parent directory name rather than the filename, which
- * the build config owns.
+ * Only a JavaScript entry inside `dist` can represent a published development
+ * build; source execution does not consume those artifacts. The build config
+ * owns the filename, so this discriminator uses extension and parent directory.
  *
  * @param entryPath - Absolute path of the running CLI entry
  * @returns `true` when the entry is a `.js` file directly inside a `dist/` directory
@@ -65,23 +48,27 @@ export function isBuiltBundleEntry(entryPath: string): boolean {
 export type DevCheckResult =
   | { kind: "skip" }
   | { kind: "fresh" }
-  | {
+  | ({
       kind: "stale";
-      /** Evidence that established staleness. */
-      basis: "content-hash" | "missing-dist" | "mtime";
       /** Seconds since the newest src change. */
       srcAge: number;
       /** Seconds since dist/cli.js was built. `null` when dist is missing. */
       distAge: number | null;
       /** Repo-relative path of the newest src file. */
       newestSrc: string;
-    };
+    } & (
+      | { basis: "missing-dist" }
+      | { basis: "content-hash"; qualificationReason: string }
+    ));
 
 /** Exact developer command that regenerates the self-hosting runtime bundle. */
 export const DEV_BUILD_REFRESH_COMMAND = "npm run build:fast";
 
 /** Internal build-time override used to direct a fast build into a staging directory. */
 export const DEV_BUILD_OUTPUT_DIRECTORY_ENV = "ARC_DEV_BUILD_OUT_DIR";
+
+/** Marks the one re-run of a command after its stale build was rebuilt, which refuses rather than rebuilding again. */
+export const DEV_BUILD_RERUN_ENV = "ARC_DEV_BUILD_RERUN";
 
 /** Command families whose successful action may change the running development bundle's inputs. */
 export const DEV_BUILD_REFRESH_COMMAND_PATHS = Object.freeze([
@@ -138,23 +125,238 @@ export interface DevCheckDeps {
   distMtimeMs: () => number | null;
   /** Current time in ms — injectable for deterministic age calculations. */
   now: () => number;
-  /**
-   * Content hash of the current bundle inputs, or `null` when not computable.
-   * When both this and {@link stampedInputsHash} are non-null, content wins
-   * over mtime.
-   */
-  currentInputsHash?: () => string | null;
-  /**
-   * Content hash recorded beside dist at the last successful build, or `null`
-   * when the stamp is missing/unreadable (legacy dist → mtime fallback).
-   */
-  stampedInputsHash?: () => string | null;
+  /** Qualification of current runtime inputs and live output, retaining any refusal reason. */
+  runtimeQualification: () => { status: "qualified" } | Extract<BuildQualification, { status: "unqualified" }>;
+}
+
+/** Synchronous command identity and the sole stale-build continuation exception. */
+export interface DevBuildGuardInput {
+  readonly commandPath: string;
+  readonly writeCompactionSeed?: boolean;
+}
+
+/** Independent lease, freshness, rebuild and process-output boundaries for command admission. */
+export interface DevBuildGuardDeps {
+  readonly token: string | undefined;
+  readonly readHolder: () => AdvisoryLockReadResult;
+  readonly now: () => number;
+  readonly freshness: DevCheckDeps;
+  /** Whether this process is the re-run of a command whose stale build was already rebuilt. */
+  readonly rerunning: boolean;
+  /** Bring the runtime build current under checkout ownership. */
+  readonly rebuild: DevBuildRefreshDeps["rebuild"];
+  readonly writeStderr: (message: string) => void;
+  readonly exit: (code: number) => void;
+}
+
+/** What a command does once the development build guard admits it. */
+export type DevBuildAdmission =
+  | { readonly kind: "run"; readonly refreshEligible: boolean }
+  | { readonly kind: "rerun" };
+
+const RUN_WITHOUT_REFRESH: DevBuildAdmission = { kind: "run", refreshEligible: false };
+
+/**
+ * Admit a command against the live controller lease or ordinary build qualification.
+ *
+ * This process has already loaded the bundle it checks, so a stale build is rebuilt and the command runs again on the
+ * new bundle. A failed rebuild, a rebuild that leaves the bundle stale, and the re-run itself refuse instead.
+ * @param input - Command path and compaction-seed exception
+ * @param deps - Holder, freshness, rebuild and process boundaries
+ * @returns Whether to run the command here and refresh the build after it, or to run it again on the rebuilt bundle
+ */
+export async function runDevBuildGuard(
+  input: DevBuildGuardInput, deps: DevBuildGuardDeps,
+): Promise<DevBuildAdmission> {
+  if (shouldSkipDevBuildStaleness(deps.token, deps.readHolder(), deps.now())) return RUN_WITHOUT_REFRESH;
+  const verdict = checkDevBuildStaleness(deps.freshness);
+  if (verdict.kind === "skip") return RUN_WITHOUT_REFRESH;
+  if (verdict.kind === "fresh") {
+    return { kind: "run", refreshEligible: isDevBuildRefreshCommandPath(input.commandPath) };
+  }
+  const staleness = describeStaleness(verdict);
+  // A stale seed is revalidated during recovery and is preferable to no seed.
+  if (input.writeCompactionSeed === true) {
+    deps.writeStderr(`warn: arc dev build is stale (${staleness}). Run \`npm run build:fast\` before relying on output.\n`);
+    return RUN_WITHOUT_REFRESH;
+  }
+  if (!deps.rerunning) {
+    deps.writeStderr(`info: rebuilding the stale arc dev build (${staleness}), `
+      + `then running \`${input.commandPath}\` again.\n`);
+    const refreshed = await refreshStaleDevBuild({
+      check: () => checkDevBuildStaleness(deps.freshness), rebuild: deps.rebuild,
+    });
+    if (refreshed.kind !== "failed") return { kind: "rerun" };
+    deps.writeStderr(`error: arc could not rebuild the dev build (${refreshed.message}).\n`);
+  }
+  deps.writeStderr(`error: arc dev build is stale (${staleness}). Refusing \`${input.commandPath}\` against stale `
+    + "dist; run `npm run build:fast`, then retry.\n");
+  deps.exit(1);
+  return RUN_WITHOUT_REFRESH;
+}
+
+function describeStaleness(verdict: Extract<DevCheckResult, { kind: "stale" }>): string {
+  const distAgeText = verdict.distAge === null ? "dist/cli.js missing"
+    : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
+  const staleCause = verdict.basis === "content-hash"
+    ? verdict.qualificationReason
+    : `${verdict.newestSrc} changed ${formatAge(verdict.srcAge)} ago`;
+  return `${staleCause}; ${distAgeText}`;
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86_400)}d`;
+}
+
+/**
+ * Bind command admission to the running entry, its one holder read and process output.
+ * @param cliJsPath - Absolute running CLI entry path
+ * @returns Native synchronous dependencies without performing a freshness read
+ */
+export function createDevBuildGuardDeps(cliJsPath: string): DevBuildGuardDeps {
+  const packageRoot = dirname(dirname(cliJsPath));
+  const rerunning = process.env[DEV_BUILD_RERUN_ENV] === "1";
+  // Commands this one starts check their own build rather than inheriting its single re-run.
+  Reflect.deleteProperty(process.env, DEV_BUILD_RERUN_ENV);
+  return {
+    token: process.env[TEST_CONTROLLER_TOKEN_ENV], now: () => Date.now(),
+    readHolder: () => {
+      try {
+        return classifyAdvisoryLockRead({ text: readFileSync(join(packageRoot, BUILD_ARTIFACT_LOCK_NAME), "utf8") });
+      } catch (error) { return classifyAdvisoryLockRead({ error }); }
+    },
+    freshness: createDevCheckDeps(cliJsPath),
+    rerunning,
+    rebuild: () => prepareDevBuild(packageRoot),
+    writeStderr: (message) => { process.stderr.write(message); },
+    exit: (code) => { process.exit(code); },
+  };
+}
+
+/**
+ * Build the runtime under checkout ownership only if it is still unqualified once owned, so commands that found the
+ * same stale build wait for one build instead of each publishing their own. A wait for another owner and any build
+ * error show on this process's standard error; standard output stays the command's. A command cancelled during the
+ * build ends the build, then ends as asked rather than refusing.
+ */
+async function prepareDevBuild(packageRoot: string): Promise<{ kind: "completed" } | { kind: "failed"; message: string }> {
+  // On POSIX the build leads its own process group, so a signal reaches it only through this process, once, and
+  // ends the compiler it starts as well. Windows' console signals every attached process directly.
+  const ownGroup = process.platform !== "win32";
+  const child = spawn(process.execPath,
+    ["--import", "tsx", join(packageRoot, "src/scripts/run-build.ts"), "prepare"],
+    { cwd: packageRoot, env: process.env, stdio: ["ignore", "ignore", "inherit"], detached: ownGroup });
+  const ended = await superviseChild(child, ownGroup ? (signal) => { signalGroup(child, signal); } : undefined);
+  if (ended.kind === "unstarted") return { kind: "failed", message: ended.message };
+  if (ended.received !== null) endBySignal(ended.received);
+  return ended.code === 0 ? { kind: "completed" }
+    : { kind: "failed", message: `the build exited with ${ended.signal ?? `code ${String(ended.code)}`}` };
+}
+
+/**
+ * Run this command again on the rebuilt bundle, ending this process with the re-run's status.
+ *
+ * On POSIX the re-run replaces this process, keeping its process ID, process group and standard streams, so every
+ * signal reaches the re-run directly and exactly once, and input this process never read stays unread for it. On
+ * Windows the re-run is a child that inherits the standard streams, and the console signals both directly.
+ * @returns Never: the re-run replaces this process, or this process exits with its exit code or by its signal
+ */
+export async function rerunDevCommand(): Promise<never> {
+  const args = [...process.execArgv, ...process.argv.slice(1)];
+  const env = { ...process.env, [DEV_BUILD_RERUN_ENV]: "1" };
+  if (process.platform !== "win32" && typeof process.execve === "function") {
+    // Nothing after the replacement runs, so output already written must leave this process first, and the
+    // descriptors it shares with its caller must be back in blocking mode, as Node's own exit would leave them.
+    await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
+    for (const stream of [process.stdin, process.stdout, process.stderr]) restoreBlockingMode(stream);
+    try {
+      process.execve(process.execPath, [process.execPath, ...args], env);
+    } catch (error) {
+      reportUnstartedRerun(error instanceof Error ? error.message : String(error));
+    }
+  }
+  const ended = await superviseChild(spawn(process.execPath, args, { stdio: "inherit", env }));
+  if (ended.kind === "unstarted") reportUnstartedRerun(ended.message);
+  if (ended.signal !== null) endBySignal(ended.signal);
+  process.exit(ended.code ?? 1);
+}
+
+function reportUnstartedRerun(message: string): never {
+  process.stderr.write(`error: arc could not run the command again on the rebuilt dev build (${message}).\n`);
+  process.exit(1);
+}
+
+/** Resolve once output already written to a stream has been handed to the system, or the stream has failed. */
+async function flushed(stream: NodeJS.WriteStream): Promise<void> {
+  await new Promise<void>((settle) => { stream.write("", () => { settle(); }); });
+}
+
+/**
+ * Return a standard stream's descriptor to blocking mode. Node opens a pipe or socket for a standard stream in
+ * non-blocking mode, whichever module first touches it, and restores the mode only on exit, which a replaced process
+ * never reaches; the mode belongs to the descriptor the caller shares. Node offers no public control for it, so this
+ * uses the stream's own handle. A file has no handle and is never switched, and opening a stream here does not read it.
+ */
+function restoreBlockingMode(stream: NodeJS.ReadStream | NodeJS.WriteStream): void {
+  const handle = (stream as { _handle?: { setBlocking?: (blocking: boolean) => number } | null })._handle;
+  handle?.setBlocking?.(true);
+}
+
+/** How a supervised child ended, and the first signal this process received while it ran. */
+type SupervisedEnd =
+  | { readonly kind: "exited"; readonly code: number | null; readonly signal: NodeJS.Signals | null;
+      readonly received: NodeJS.Signals | null }
+  | { readonly kind: "unstarted"; readonly message: string };
+
+/** Signals that end a command, as a POSIX supervisor or terminal may send them and as Windows' console raises them. */
+const SUPERVISED_SIGNALS: readonly NodeJS.Signals[] = process.platform === "win32"
+  ? ["SIGINT", "SIGHUP"]
+  : ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"];
+
+/**
+ * Wait for a child of this process, recording the first ending signal this process receives meanwhile and handing
+ * each one to `passOn`. Without `passOn` the child is signalled only directly, so this process outlasts the signal.
+ */
+async function superviseChild(
+  child: ChildProcess, passOn?: (signal: NodeJS.Signals) => void,
+): Promise<SupervisedEnd> {
+  let received: NodeJS.Signals | null = null;
+  const handle = (signal: NodeJS.Signals): void => { received ??= signal; passOn?.(signal); };
+  for (const signal of SUPERVISED_SIGNALS) process.on(signal, handle);
+  const detach = (): void => { for (const signal of SUPERVISED_SIGNALS) process.off(signal, handle); };
+  return await new Promise((settle) => {
+    child.on("error", (error) => {
+      // A started child reports its end through `exit`; only a launch failure settles here.
+      if (child.pid !== undefined) return;
+      detach();
+      settle({ kind: "unstarted", message: error.message });
+    });
+    child.once("exit", (code, signal) => { detach(); settle({ kind: "exited", code, signal, received }); });
+  });
+}
+
+/** Signal every process in the group a child leads, including any it started; a group already ended is left alone. */
+function signalGroup(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (child.pid === undefined) return;
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    // Every process in the group has already ended.
+  }
+}
+
+/** End this process by a signal, or by its conventional status where the signal is ignored here. */
+function endBySignal(signal: NodeJS.Signals): never {
+  process.kill(process.pid, signal);
+  process.exit(128 + constants.signals[signal]);
 }
 
 /**
  * Pure verdict function. Returns `skip` for adopters, `stale` when source
- * content (or mtime, when no stamp is available) is ahead of dist or dist is
- * missing, `fresh` otherwise.
+ * inputs or required qualification do not match, `fresh` otherwise.
  */
 export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
   const newest = deps.newestSrc();
@@ -170,22 +372,10 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
 
   const distAge = Math.max(0, Math.floor((now - distMtimeMs) / 1000));
 
-  // Content stamp is authoritative when both sides are available: an mtime-only
-  // bump (tooling, checkout, multi-subagent reads) must not refuse handoff or
-  // warn, while a real content edit (or pull of newer sources) still does.
-  const currentHash = deps.currentInputsHash?.() ?? null;
-  const stampedHash = deps.stampedInputsHash?.() ?? null;
-  if (currentHash !== null && stampedHash !== null) {
-    if (currentHash === stampedHash) return { kind: "fresh" };
-    return { kind: "stale", basis: "content-hash", srcAge, distAge, newestSrc: newest.path };
-  }
-
-  // Legacy / stamp-less fallback: mtime comparison.
-  if (newest.mtimeMs > distMtimeMs) {
-    return { kind: "stale", basis: "mtime", srcAge, distAge, newestSrc: newest.path };
-  }
-
-  return { kind: "fresh" };
+  const qualification = deps.runtimeQualification();
+  if (qualification.status === "qualified") return { kind: "fresh" };
+  return { kind: "stale", basis: "content-hash", qualificationReason: qualification.reason,
+    srcAge, distAge, newestSrc: newest.path };
 }
 
 /**
@@ -229,111 +419,30 @@ export async function refreshDevBuildAfterAction(
 ): Promise<DevBuildRefreshResult> {
   const check = (): DevCheckResult => checkDevBuildStaleness(createDevCheckDeps(cliJsPath));
   const packageRoot = dirname(dirname(cliJsPath));
-  const repositoryRoot = resolve(packageRoot, "..", "..");
   return refreshStaleDevBuild({
     check,
-    rebuild: () => runFastDevBuild(repositoryRoot, dirname(cliJsPath)),
+    rebuild: () => runFastDevBuild(packageRoot),
   });
 }
 
-async function runFastDevBuild(cwd: string, distDir: string): Promise<
-  { kind: "completed" }
-  | { kind: "failed"; message: string }
+async function runFastDevBuild(packageRoot: string): Promise<
+  { kind: "completed" } | { kind: "failed"; message: string }
 > {
-  const packageRoot = dirname(distDir);
-  let stagingDir: string;
-  try {
-    stagingDir = await mkdtemp(join(packageRoot, ".arc-dev-build-"));
-  } catch (error) {
-    return {
-      kind: "failed",
-      message: `could not prepare a staged development build: ${errorMessage(error)}`,
-    };
-  }
-
-  const executable = process.platform === "win32" ? "npm.cmd" : "npm";
-  const build = await new Promise<{ kind: "completed" } | { kind: "failed"; message: string }>((settle) => {
-    const child = execFile(executable, ["run", "build:fast"], {
-      cwd,
-      env: { ...process.env, [DEV_BUILD_OUTPUT_DIRECTORY_ENV]: stagingDir },
-    }, (error) => {
-      settle(error === null
-        ? { kind: "completed" }
-        : { kind: "failed", message: error.message });
-    });
+  return await new Promise((settle) => {
+    const child = execFile(process.execPath,
+      ["--import", "tsx", join(packageRoot, "src/scripts/run-build.ts"), "fast"],
+      { cwd: packageRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 }, (error) => {
+        settle(error === null ? { kind: "completed" } : { kind: "failed", message: error.message });
+      });
     child.stdin?.end();
   });
-
-  if (build.kind === "failed") {
-    await rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
-    return build;
-  }
-
-  try {
-    await promoteStagedDevBuild(stagingDir, distDir);
-    await rm(stagingDir, { recursive: true, force: true });
-  } catch (error) {
-    await rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
-    return {
-      kind: "failed",
-      message: `the build completed but its staged output could not be promoted: ${errorMessage(error)}`,
-    };
-  }
-  return build;
-}
-
-async function promoteStagedDevBuild(stagingDir: string, distDir: string): Promise<void> {
-  const stagedFiles = await listRelativeFiles(stagingDir);
-  const liveFiles = await listRelativeFiles(distDir);
-  const entry = "cli.js";
-  const stamp = DEV_BUILD_STAMP_NAME;
-  if (!stagedFiles.includes(entry) || !stagedFiles.includes(stamp)) {
-    throw new Error("staged build did not produce cli.js and its freshness stamp");
-  }
-
-  for (const file of stagedFiles.filter((candidate) => candidate !== entry && candidate !== stamp)) {
-    const destination = join(distDir, file);
-    await mkdir(dirname(destination), { recursive: true });
-    await rename(join(stagingDir, file), destination);
-  }
-
-  // The package bin always resolves this path. Replacing the file by rename keeps
-  // either the old or new complete entry visible to concurrent invocations.
-  await rename(join(stagingDir, entry), join(distDir, entry));
-
-  // Publish freshness only after the new entry is live. Any earlier promotion
-  // failure therefore leaves the old stamp to fail closed against changed source.
-  await rename(join(stagingDir, stamp), join(distDir, stamp));
-
-  const stagedFileSet = new Set(stagedFiles);
-  await Promise.all(liveFiles
-    .filter((file) => !stagedFileSet.has(file))
-    .map((file) => rm(join(distDir, file), { force: true })));
-}
-
-async function listRelativeFiles(root: string, current = root): Promise<string[]> {
-  const files: string[] = [];
-  for (const entry of await readdir(current, { withFileTypes: true })) {
-    const path = join(current, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...await listRelativeFiles(root, path));
-    } else {
-      files.push(relative(root, path));
-    }
-  }
-  return files.sort();
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**
  * Build production-mode dependencies for the running `dist/cli.js` location.
  *
- * Resolves the bundle input graph, `dist/cli.js` mtime, and the content-hash
- * stamp. Returns `null` for `newestSrc` when either half of the dev-mode
- * discriminator fails — the entry is not the built bundle, or `src/` is absent.
+ * Reads recorded runtime inputs and complete qualification; mtimes supply ages only.
+ * Returns `null` for `newestSrc` when the entry is not a bundle or `src/` is absent.
  */
 export function createDevCheckDeps(cliJsPath: string): DevCheckDeps {
   const distDir = dirname(cliJsPath);
@@ -341,66 +450,29 @@ export function createDevCheckDeps(cliJsPath: string): DevCheckDeps {
   const srcDir = join(pkgDir, "src");
 
   const resolveInputFiles = (): string[] | null => {
-    if (!isBuiltBundleEntry(cliJsPath)) return null;
-    if (!existsSync(srcDir)) return null;
-
-    // Prefer the bundle's real input graph: editing a non-bundled tree
-    // (standalone scripts, tests) cannot change dist/cli.js, so it must not
-    // read as stale. Fall back to a full src walk when the metafile is
-    // absent or unusable — conservative (a false positive at worst, never a
-    // false negative that would let genuinely stale dist through).
-    const inputs = readMetafileInputs(distDir, pkgDir);
-    if (inputs !== null && inputs.length > 0) return inputs;
-
-    const all: string[] = [];
-    walkTsFiles(srcDir, (file) => all.push(file));
-    return all.length > 0 ? all : null;
+    if (!isBuiltBundleEntry(cliJsPath) || !existsSync(srcDir)) return null;
+    try {
+      const evidence = parseBuildEvidence(JSON.parse(readFileSync(join(distDir, DEV_BUILD_STAMP_NAME), "utf8")));
+      if (evidence !== null) {
+        const root = resolve(pkgDir, "../..");
+        return [...new Set([...evidence.graphs.cli, ...evidence.graphs.controls, ...evidence.configurationInputs])]
+          .map((key) => join(root, key));
+      }
+    } catch { /* Unqualified evidence still receives source-age diagnostics. */ }
+    const files: string[] = [];
+    walkTsFiles(srcDir, (file) => files.push(file));
+    return files;
   };
-
   return {
     newestSrc: () => {
       const files = resolveInputFiles();
       if (files === null) return null;
-      return newestFile(files, pkgDir);
+      return newestFile(files, pkgDir) ?? { mtimeMs: 0, path: "src" };
     },
-    distMtimeMs: () => {
-      if (!existsSync(cliJsPath)) return null;
-      return statSync(cliJsPath).mtimeMs;
-    },
+    distMtimeMs: () => existsSync(cliJsPath) ? statSync(cliJsPath).mtimeMs : null,
     now: () => Date.now(),
-    currentInputsHash: () => {
-      const files = resolveInputFiles();
-      if (files === null) return null;
-      return hashSourceInputs(files, pkgDir);
-    },
-    stampedInputsHash: () => readDevBuildStamp(distDir),
+    runtimeQualification: () => readBuildQualification(pkgDir, "runtime"),
   };
-}
-
-/**
- * Write the content-hash stamp for the just-built bundle. Called from the
- * package's tsup `onSuccess` so every successful build leaves a stamp the
- * runtime check can compare against.
- *
- * @param distDir - Absolute path to the package `dist/` directory
- * @param pkgDir - Absolute path to the package root (tsup cwd)
- * @returns The written hash, or `null` when no src inputs could be resolved
- */
-export function writeDevBuildStamp(distDir: string, pkgDir: string): string | null {
-  const inputs = readMetafileInputs(distDir, pkgDir);
-  const files = inputs ?? (() => {
-    const srcDir = join(pkgDir, "src");
-    if (!existsSync(srcDir)) return null;
-    const all: string[] = [];
-    walkTsFiles(srcDir, (file) => all.push(file));
-    return all.length > 0 ? all : null;
-  })();
-  if (files === null) return null;
-
-  const inputsHash = hashSourceInputs(files, pkgDir);
-  const stamp = { schemaVersion: 1 as const, inputsHash };
-  writeFileSync(join(distDir, DEV_BUILD_STAMP_NAME), `${JSON.stringify(stamp)}\n`, "utf8");
-  return inputsHash;
 }
 
 /**
@@ -463,58 +535,15 @@ function walkTsFiles(dir: string, visit: (file: string) => void): void {
 }
 
 /**
- * Select the `src/**\/*.ts` inputs of the bundle from a parsed esbuild
- * metafile, returned as absolute paths under `pkgDir`. Returns `null` when the
- * metafile shape is unusable or lists no src inputs, signalling the caller to
- * fall back to a full src walk. Non-src inputs (node_modules, generated files)
- * are excluded — only first-party sources can make dist stale.
+ * Select first-party TS, JS, and JSON inputs from actual compiler metadata.
+ * @param metafile - Parsed esbuild metadata
+ * @param pkgDir - Compiler working directory
+ * @returns Normalized absolute inputs, or null for unusable or empty metadata
  */
 export function selectBundleInputs(metafile: unknown, pkgDir: string): string[] | null {
   if (metafile === null || typeof metafile !== "object" || !("inputs" in metafile)) return null;
   const inputs: unknown = metafile.inputs;
-  if (inputs === null || typeof inputs !== "object") return null;
-
-  const paths: string[] = [];
-  for (const key of Object.keys(inputs)) {
-    // esbuild keys are forward-slash paths relative to the build cwd (the
-    // package dir); first-party sources live under `src/`.
-    if (key.startsWith("src/") && key.endsWith(".ts")) {
-      paths.push(join(pkgDir, key));
-    }
-  }
+  if (inputs === null || typeof inputs !== "object" || Array.isArray(inputs)) return null;
+  const paths = selectFirstPartyInputs(Object.keys(inputs), pkgDir);
   return paths.length > 0 ? paths : null;
-}
-
-/**
- * Read the esbuild metafile tsup emits beside the bundle and select its src
- * inputs. Returns `null` on a missing, unreadable, malformed, or input-less
- * metafile (caller falls back to a full src walk).
- */
-function readMetafileInputs(distDir: string, pkgDir: string): string[] | null {
-  const metafilePath = join(distDir, "metafile-esm.json");
-  if (!existsSync(metafilePath)) return null;
-  try {
-    const raw: unknown = JSON.parse(readFileSync(metafilePath, "utf8"));
-    return selectBundleInputs(raw, pkgDir);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Read the stamped inputs hash from `dist/dev-build-stamp.json`, or `null`
- * when the stamp is missing, unreadable, or malformed.
- */
-function readDevBuildStamp(distDir: string): string | null {
-  const stampPath = join(distDir, DEV_BUILD_STAMP_NAME);
-  if (!existsSync(stampPath)) return null;
-  try {
-    const raw: unknown = JSON.parse(readFileSync(stampPath, "utf8"));
-    if (raw === null || typeof raw !== "object") return null;
-    const record = raw as Record<string, unknown>;
-    if (record.schemaVersion !== 1 || typeof record.inputsHash !== "string") return null;
-    return record.inputsHash.length > 0 ? record.inputsHash : null;
-  } catch {
-    return null;
-  }
 }

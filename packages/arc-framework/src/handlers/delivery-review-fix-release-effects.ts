@@ -8,7 +8,10 @@ import { resolveAllSettings } from "../lib/config/resolved-settings.js";
 import type { ResolvedSettingsResult } from "../lib/config/resolved-settings.js";
 import type { DeliveryReviewFixRecordEffectPorts } from
   "../lib/delivery/review-fix-record-effects.js";
-import { deliveryReviewFixRecordDigest } from
+import {
+  deliveryReviewFixRecordCommitMessagesMatch,
+  deliveryReviewFixRecordDigest,
+} from
   "../lib/delivery/review-fix-record-effects.js";
 import { canonicalize, sortByCanonicalBytes } from "../lib/kernel/index.js";
 import { observeDeliveryRemoteRef } from "../lib/delivery/git-materialization.js";
@@ -27,11 +30,10 @@ import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { renderCommitMessageRemedy } from "../lib/release/commit-message-remedy.js";
 import { createCommitMessagePreflight } from "./release/commit-message-preflight.js";
 import {
-  cleanupRealConsumedMessageRetry,
   createRealCommitMessageSnapshot,
+  createRealCommitMessageRetryStore,
+  createRemoteRefsContainingHead,
   createSpawnGit,
-  persistRealCommitMessageRetry,
-  readRealCommitMessageFileWithIdentity,
 } from "./release/commit-cli.js";
 import { runReleaseCommit } from "./release/commit.js";
 import { runReleasePush, type SpawnPush } from "./release/push.js";
@@ -111,10 +113,12 @@ async function runRecordCommit(input: {
     readFile: (path) => readFile(path, "utf8"),
   }));
   const baseSpawn = createSpawnGit(input.interaction, false);
+  const retryStore = createRealCommitMessageRetryStore(input.exec);
+  const argv = ["--only", "-m", input.message, "--", ...input.paths];
   const result = await runReleaseCommit({
     cwd: input.cwd,
     identity: input.identity,
-    argv: ["--only", "-m", input.message, "--", ...input.paths],
+    argv,
     settings,
     currentBranch: branch,
     spawnGit: async (options) => {
@@ -125,15 +129,16 @@ async function runRecordCommit(input: {
     resolveHead: async ({ cwd }) => (
       await input.exec("git", ["rev-parse", "HEAD"], { cwd })
     ).stdout.trim(),
-    createMessageSnapshot: createRealCommitMessageSnapshot,
-    persistMessageRetry: persistRealCommitMessageRetry,
-    cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
-    preflightRemedy: renderCommitMessageRemedy(),
+    createMessageSnapshot: createRealCommitMessageSnapshot(input.exec),
+    persistMessageRetry: retryStore.persist,
+    cleanupConsumedMessageRetry: retryStore.cleanup,
+    listRemoteRefsContainingHead: createRemoteRefsContainingHead(input.exec),
+    preflightRemedy: renderCommitMessageRemedy(argv),
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: false,
       interactionAllowed: false,
       readFile: (path) => readFile(path),
-      readFileWithIdentity: readRealCommitMessageFileWithIdentity,
+      readFileWithIdentity: retryStore.readFileWithIdentity,
       readStdin: () => Promise.reject(
         new Error("machine-owned correction commits never read stdin"),
       ),
@@ -301,7 +306,8 @@ export function createDeliveryReviewFixReleaseEffectPorts(input: {
       const paths = sortByCanonicalBytes(pathsResult.stdout.split("\0").filter((path) => path !== ""));
       const message = messageResult.stdout.trimEnd();
       const matches = candidates.filter((candidate) =>
-        canonicalize(candidate.paths) === canonicalize(paths) && candidate.message === message);
+        canonicalize(candidate.paths) === canonicalize(paths)
+        && deliveryReviewFixRecordCommitMessagesMatch({ observed: message, expected: candidate.message }));
       if (matches.length > 1) {
         return { status: "refused" as const, reason: "record-effect-recovery-ambiguous" };
       }

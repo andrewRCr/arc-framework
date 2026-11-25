@@ -38,7 +38,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [
       {
         chunkKey: "first",
@@ -46,7 +46,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         contract: "Publish the first contract.",
         taskIds: ["1.1", "1.2"],
         designElementIds: ["detailed:core-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
       {
         chunkKey: "second",
@@ -54,7 +54,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         contract: "Publish the second contract.",
         taskIds: ["1.3", "1.4"],
         designElementIds: ["detailed:support-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
       {
         chunkKey: "third",
@@ -62,7 +62,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         contract: "Publish the third contract.",
         taskIds: ["1.5", "1.6"],
         designElementIds: ["detailed:tail-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
     ],
     seams: [],
@@ -230,7 +230,7 @@ describe("classifyDeliveryPlanAmendment", () => {
     });
   });
 
-  it("routes member and projection changes by current bound and landed position", () => {
+  it("routes member changes by current bound and landed position", () => {
     const current = constructPlan(null);
     const [firstId, secondId, thirdId] = current.members.map((member) => member.deliverableId) as [
       CanonicalDigest,
@@ -298,19 +298,6 @@ describe("classifyDeliveryPlanAmendment", () => {
       reason: "landed-member-changed",
     });
 
-    const projected = successor(current, (authoring) => {
-      authoring.projection = { kind: "stack-to-main" };
-      for (const member of authoring.members) member.mainlineLandability = "independently-landable";
-    });
-    expect(classify({ current, proposed: projected })).toEqual({ status: "accepted" });
-    expect(classify({ current, proposed: projected, bound: [secondId] })).toEqual({
-      status: "replacement-required",
-      affectedDeliverableIds: [secondId],
-    });
-    expect(classify({ current, proposed: projected, bound: [firstId], landed: [firstId] })).toEqual({
-      status: "refused",
-      reason: "landed-projection-changed",
-    });
   });
 
   it("preserves landed-side seam obligations while allowing proportionate suffix replacement", () => {

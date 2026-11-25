@@ -6,6 +6,8 @@ import {
   deriveDerivedLocusSessionGuidance,
   deriveRecoveryLocusSessionGuidance,
 } from "../../../src/lib/locus/session-guidance.js";
+import { LocusSessionGuidanceSchema } from "../../../src/lib/locus/session-guidance.js";
+import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
 
 function primaryFrame(kind: "free-primary" | "unresolved-checkout"): DerivedLocusFrame {
@@ -13,6 +15,7 @@ function primaryFrame(kind: "free-primary" | "unresolved-checkout"): DerivedLocu
   const row = {
     kind,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "main",
@@ -80,6 +83,50 @@ describe("deriveDerivedLocusSessionGuidance", () => {
       cleanup: ["Cleanup is available for retired checkout /repo/old."],
     });
   });
+
+  it("does not narrate an active foreign checkout with Candidate schema skew", () => {
+    const frame = primaryFrame("free-primary");
+    const skewed = {
+      ...frame.roster[0]!,
+      kind: "unresolved-checkout" as const,
+      checkout: { ...frame.roster[0]!.checkout, path: "/repo/active", primary: false },
+      subject: { kind: "work-unit" as const, key: "active" },
+      lifecycleLocation: "active" as const,
+      diagnostics: [{
+        code: "candidate-record-schema-skew",
+        message: "Use the checkout-local ARC CLI from /repo/active.",
+      }],
+    };
+    const value: DerivedLocusFrame = { ...frame, roster: [...frame.roster, skewed] };
+
+    expect(deriveDerivedLocusSessionGuidance({ ok: true, value })).toMatchObject({
+      kind: "ready",
+      cleanup: [],
+      diagnostics: [],
+    });
+  });
+
+  it("keeps entering-row diagnostics and omits sibling unresolved inspect-cleanup", () => {
+    const frame = primaryFrame("free-primary");
+    const sibling = {
+      ...frame.roster[0]!,
+      kind: "unresolved-checkout" as const,
+      checkout: { ...frame.roster[0]!.checkout, path: "/repo/other", primary: false },
+      subject: { kind: "work-unit" as const, key: "other" },
+      lifecycleLocation: "active" as const,
+      diagnostics: [{
+        code: "subject-unresolved",
+        message: "current meta is unreadable",
+      }],
+    };
+    const value: DerivedLocusFrame = { ...frame, roster: [...frame.roster, sibling] };
+
+    expect(deriveDerivedLocusSessionGuidance({ ok: true, value })).toMatchObject({
+      kind: "ready",
+      cleanup: [],
+      diagnostics: [],
+    });
+  });
 });
 
 describe("deriveRecoveryLocusSessionGuidance", () => {
@@ -104,4 +151,18 @@ describe("deriveRecoveryLocusSessionGuidance", () => {
       recovery: "Parent checkout /repo/missing-parent was not found; return to base /repo.",
     });
   });
+});
+
+it("renders a paused work unit's reason and resume notes before entering work", () => {
+  const base = primaryFrame("free-primary");
+  const row = DerivedCheckoutRowSchema.parse({ ...base.roster[0], kind: "work-unit", subject: { kind: "work-unit", key: "demo" },
+    context: { kind: "resolved", metaPath: ".arc/active/meta-demo.md", owner: "andrew", branch: null,
+      sessionType: "planning", workflow: "draft-design", stage: "draft-design", taskListPath: null, taskCursor: null,
+      cohortDocPath: null, loadSet: { manifestVersion: 1, entries: [] }, integrationBoundary: null,
+      pause: { pausedBy: "andrew", since: "2026-10-01T12:00:00Z", reason: "Waiting on a decision", waitsOn: null,
+        resumeNotes: "Read the response first", open: false } } });
+  const frame: DerivedLocusFrame = { ...base, roster: [row], entering: { kind: "selected", row } };
+  const guidance = deriveDerivedLocusSessionGuidance({ ok: true, value: frame });
+  expect(guidance).toMatchObject({ kind: "ready", pause: expect.stringMatching(/paused.*Waiting on a decision.*Read the response first.*arc resume demo/su) });
+  expect(LocusSessionGuidanceSchema.parse(guidance)).toEqual(guidance);
 });

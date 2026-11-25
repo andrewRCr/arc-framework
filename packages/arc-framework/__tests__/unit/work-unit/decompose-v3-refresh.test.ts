@@ -41,6 +41,52 @@ function withPreflightId(machine: V3DecomposeMachine): V3DecomposeMachine {
 }
 
 describe("refreshV3ExtractionCutMap", () => {
+  it("carries the recorded and refreshed operands for scalar machine bindings", () => {
+    const sourceMap = extractionMap();
+    const sourceMachine = structuredClone(sourceMap.machine);
+    sourceMachine.source.ref = "refs/heads/plan/other";
+    const refreshedSource = withPreflightId(sourceMachine);
+    expect(refreshV3ExtractionCutMap(sourceMap, preflight(refreshedSource))).toEqual({
+      status: "reauthor",
+      reason: "source-identity",
+      locus: "machine.source",
+      evidence: {
+        expected: {
+          origin: sourceMap.machine.source.origin,
+          logicalBranch: sourceMap.machine.source.logicalBranch,
+          ref: sourceMap.machine.source.ref,
+        },
+        actual: {
+          origin: refreshedSource.source.origin,
+          logicalBranch: refreshedSource.source.logicalBranch,
+          ref: refreshedSource.source.ref,
+        },
+      },
+    });
+
+    const baseMap = extractionMap();
+    const baseMachine = structuredClone(baseMap.machine);
+    baseMachine.resultBase.head = "c".repeat(40);
+    const refreshedBase = withPreflightId(baseMachine);
+    expect(refreshV3ExtractionCutMap(baseMap, preflight(refreshedBase))).toEqual({
+      status: "reauthor",
+      reason: "result-base",
+      locus: "machine.resultBase",
+      evidence: { expected: baseMap.machine.resultBase, actual: refreshedBase.resultBase },
+    });
+
+    const profileMap = extractionMap();
+    const profileMachine = structuredClone(profileMap.machine);
+    profileMachine.planningProfile = { kind: "single-spec", sourceDesign: ["spec-origin.md"] };
+    const refreshedProfile = withPreflightId(profileMachine);
+    expect(refreshV3ExtractionCutMap(profileMap, preflight(refreshedProfile))).toEqual({
+      status: "reauthor",
+      reason: "planning-profile",
+      locus: "machine.planningProfile",
+      evidence: { expected: profileMap.machine.planningProfile, actual: refreshedProfile.planningProfile },
+    });
+  });
+
   it("requires reauthoring when transferred source bytes change", () => {
     const map = extractionMap();
     const machine = structuredClone(map.machine);
@@ -54,6 +100,10 @@ describe("refreshV3ExtractionCutMap", () => {
       status: "reauthor",
       reason: "source-units",
       locus: "machine.sourceUnits.0.contentDigest",
+      evidence: {
+        expected: map.machine.sourceUnits[0]!.contentDigest,
+        actual: refreshedMachine.sourceUnits[0]!.contentDigest,
+      },
     });
     expect(map.machine.source.head).toBe("a".repeat(40));
   });
@@ -175,23 +225,35 @@ describe("refreshV3ExtractionCutMap", () => {
         occurrence: 0,
       };
       unit.sourceId = v3SourceId({ sourcePath: unit.sourcePath, sourceLocator: unit.sourceLocator });
-    }],
-    ["added or removed units", "source-units", "machine.sourceUnits", (machine: V3DecomposeMachine) => {
+    }, (prior: V3DecomposeMachine, current: V3DecomposeMachine) => ({
+      expected: prior.sourceUnits[0]!,
+      actual: current.sourceUnits[0]!,
+    })],
+    ["added or removed units", "source-units", "machine.sourceUnits.0", (machine: V3DecomposeMachine) => {
       machine.sourceUnits = [];
-    }],
-    ["incoming dependency changes", "incoming-edges", "machine.incomingEdges",
+    }, (prior: V3DecomposeMachine) => ({
+      expected: prior.sourceUnits[0]!,
+      actual: { kind: "absent" },
+    })],
+    ["incoming dependency changes", "incoming-edges", "machine.incomingEdges.0",
       (machine: V3DecomposeMachine) => {
         machine.incomingEdges = [];
-      }],
-    ["outgoing dependency changes", "outgoing-edges", "machine.outgoingEdges",
+      }, (prior: V3DecomposeMachine) => ({
+        expected: prior.incomingEdges[0]!,
+        actual: { kind: "absent" },
+      })],
+    ["outgoing dependency changes", "outgoing-edges", "machine.outgoingEdges.0",
       (machine: V3DecomposeMachine) => {
         const prerequisite = "foundation";
         machine.outgoingEdges = [{
           edgeId: v3OutgoingEdgeId({ prerequisite }),
           prerequisite,
         }];
-      }],
-  ] as const)("requires reauthoring after %s", (_label, reason, locus, change) => {
+      }, (_prior: V3DecomposeMachine, current: V3DecomposeMachine) => ({
+        expected: { kind: "absent" },
+        actual: current.outgoingEdges[0]!,
+      })],
+  ] as const)("requires reauthoring after %s", (_label, reason, locus, change, evidence) => {
     const map = extractionMap();
     const machine = structuredClone(map.machine);
     change(machine);
@@ -201,6 +263,7 @@ describe("refreshV3ExtractionCutMap", () => {
       status: "reauthor",
       reason,
       locus,
+      evidence: evidence(map.machine, refreshedMachine),
     });
   });
 });

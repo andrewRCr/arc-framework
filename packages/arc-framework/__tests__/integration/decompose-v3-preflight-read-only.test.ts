@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { revalidateV3DecomposeExecutionPreflight } from "../../src/lib/work-unit/decompose-v3-execution-preflight.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
@@ -121,6 +121,7 @@ describe("v3 decomposition preflight read-only boundary", () => {
           { kind: "new-member" as const, destinationId: "member-b", slug: "member-b", workClass: "Light" as const },
         ],
         internalEdges: [],
+        externalEdges: [],
         sourceAllocations: machine.sourceUnits.map(({ sourceId }) => ({
           sourceId,
           ownership: "destination-owned" as const,
@@ -140,6 +141,7 @@ describe("v3 decomposition preflight read-only boundary", () => {
     await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
     await git(sourceWorktree, "add", ".arc/active/draft-origin.md");
     await git(sourceWorktree, "commit", "-m", "move source after preflight");
+    const movedSourceHead = (await git(sourceWorktree, "rev-parse", "HEAD")).trim();
     const changedBefore = await repositoryState(repo, sourceWorktree);
 
     const stale = await revalidateV3DecomposeExecutionPreflight({
@@ -155,6 +157,10 @@ describe("v3 decomposition preflight read-only boundary", () => {
       status: "stale",
       reason: "source-head",
       locus: "machine.source.head",
+      evidence: {
+        expected: machine.source.head,
+        actual: movedSourceHead,
+      },
     });
     expect(await repositoryState(repo, sourceWorktree)).toEqual(changedBefore);
   });

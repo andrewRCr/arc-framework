@@ -1,0 +1,80 @@
+/** Retain native local review ownership across preparation and operation-based re-entry. */
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
+import type { ReviewGrantReferences } from "../policy/review-grant-references.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
+import { createReviewCompositionContext } from "./composition-context.js";
+import { LocalAttestCommandError, LocalAttestRequestSchema } from "./local-attest-command.js";
+import { LocalResumeCommandError, LocalResumeRequestSchema } from "./local-resume-command.js";
+import { LocalCancelCommandError, LocalCancelRequestSchema } from "./local-cancel-command.js";
+import { resolveReviewOperationInvocation } from "./continuation-invocation.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationContext } from "./invocation.js";
+import { readLocalReviewLiveContext, corroborateLocalReviewOwner, type ResolvedLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { resolveLocalReviewVehicle } from "../hosts/local/review-authority.js";
+
+/** Invocation authority with the production selection retained for the command's subsequent checks. */
+export interface LocalReviewInvocationInput extends ReviewInvocationInput {
+  localLiveContext?: Promise<ResolvedLocalReviewLiveContext>;
+  rawGit?: RawGitExec;
+}
+
+/** Retain the current primary for policy reads while leaving vehicle admission with its existing consumer. */
+export async function resolveReviewPolicyInvocation(options: ReviewInvocationInput, references?: ReviewGrantReferences): Promise<ReviewInvocationInput & ReviewInvocationContext> {
+  const input = { ...options, ...resolveReviewInvocation(options, references) };
+  if (!input.store.capabilities.stateOffBranch) return input;
+  await input.projectId();
+  const live = await readLocalReviewLiveContext(input);
+  if (input.workItem !== undefined && live.workItem === undefined) return input;
+  return { ...input, workItem: corroborateLocalReviewOwner(input.workItem, live) };
+}
+
+/** Resolve the current local vehicle and corroborate any bound owner before native fact access. */
+export async function resolveLocalReviewInvocation(options: LocalReviewInvocationInput): Promise<LocalReviewInvocationInput> {
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  if (!input.store.capabilities.stateOffBranch) return input;
+  const live = await readLocalReviewLiveContext(input);
+  const workItem = corroborateLocalReviewOwner(input.workItem, live);
+  await resolveLocalReviewVehicle({}, { readLiveContext: () => Promise.resolve(live.context) });
+  return { ...input, workItem, localLiveContext: Promise.resolve(live) };
+}
+
+async function requireLocalReviewOperation(input: LocalReviewInvocationInput, operationId: string,
+  failure: (message: string) => Error): Promise<void> {
+  const operations = createReviewCompositionContext(input).family.ports.inFlight;
+  const { state } = await operations.readOperation(operationId).catch((error: unknown) => {
+    rethrowNativeRefusal(error);
+    throw failure(`Restore the pending local review record and retry: ${error instanceof Error ? error.message : String(error)}`);
+  });
+  if (state !== null && (state.kind !== "local-review" || state.operationId !== operationId)) {
+    throw failure("local review operation is unavailable");
+  }
+}
+
+/** Bind a saved local operation's owner from its produced locator, refusing a locator naming another work item. */
+async function resolveSavedLocalReviewInvocation(options: LocalReviewInvocationInput,
+  request: { operationId: string; operationRef?: string }, failure: (message: string) => Error): Promise<LocalReviewInvocationInput> {
+  const input = { ...options, ...await resolveReviewOperationInvocation(options, request, "arc review local prepare") };
+  if (!input.store?.capabilities.stateOffBranch || (options.workItem !== undefined && request.operationRef === undefined)) return input;
+  await requireLocalReviewOperation(input, request.operationId, failure);
+  return input;
+}
+
+/** Bind resume from its produced locator, retaining pending-state validation without selecting a checkout vehicle. */
+export async function resolveLocalReviewResumeInvocation(options: LocalReviewInvocationInput,
+  requestInput: unknown): Promise<LocalReviewInvocationInput> {
+  return resolveSavedLocalReviewInvocation(options, LocalResumeRequestSchema.parse(requestInput),
+    message => new LocalResumeCommandError(message));
+}
+
+/** Bind attestation from its produced locator before opening its review family. */
+export async function resolveLocalReviewAttestInvocation(options: LocalReviewInvocationInput,
+  requestInput: unknown): Promise<LocalReviewInvocationInput> {
+  return resolveSavedLocalReviewInvocation(options, LocalAttestRequestSchema.parse(requestInput),
+    message => new LocalAttestCommandError("corrupt-state", message));
+}
+
+/** Bind cancellation from its produced locator before opening its review family. */
+export async function resolveLocalReviewCancelInvocation(options: LocalReviewInvocationInput,
+  requestInput: unknown): Promise<LocalReviewInvocationInput> {
+  return resolveSavedLocalReviewInvocation(options, LocalCancelRequestSchema.parse(requestInput),
+    message => new LocalCancelCommandError(message));
+}

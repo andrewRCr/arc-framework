@@ -40,6 +40,13 @@ export const recoveryCompleteBanner = "=== ARC post-compaction recovery: COMPLET
 // key the marker on one identifier all of them can see — the scope then matches
 // across separately-spawned hook processes, which a ppid-derived scope never could.
 //
+// A hook that runs inside a subagent carries the parent's `session_id` together
+// with the subagent's `agent_id` and `agent_type`; a primary session's payload
+// carries neither (verified on Claude Code 2.1.294 and Codex 0.160.1). Recovery
+// belongs to the session that compacted, so every recovery hook ignores a payload
+// naming an agent: a subagent never seeds, arms, claims, or receives its parent's
+// recovery.
+//
 // Reading the payload also drains stdin: hook payloads (PostToolUse carries full
 // tool output) can exceed the pipe buffer, and exiting without draining breaks the
 // harness's write and fails the hook. Every hook entrypoint reads before exiting.
@@ -51,15 +58,19 @@ export function readHookInput() {
     // A closed or TTY stdin has nothing to read.
   }
   let sessionId = null;
+  let agentId = null;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.session_id === "string" && parsed.session_id.trim().length > 0) {
-      sessionId = parsed.session_id.trim();
-    }
+    sessionId = nonEmptyString(parsed?.session_id);
+    agentId = nonEmptyString(parsed?.agent_id);
   } catch {
     // Empty or non-JSON stdin — degrade to the sessionless scope below.
   }
-  return { sessionId, raw };
+  return { sessionId, agentId, raw };
+}
+
+function nonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
 /**

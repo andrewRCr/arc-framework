@@ -6,19 +6,19 @@ import {
   affectedPaths,
   resolveChangeSet,
   type ChangeSet,
-  type RawGitExec,
 } from "../change-facts.js";
 import { ChangeSetSchema } from "../change-facts.schema.js";
+import type { RawGitExec } from "../git/exec.js";
 import {
   supportsMergeTreeWriteTree,
   type MergeTreeCapabilityRefusalReason,
 } from "../git/merge-tree-capability.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import { parseCommitMessage } from "../commit-check/parser.js";
 import {
   isTaskNonReferenceContext,
   parseTaskReference,
-  type ParsedTaskReference,
-  type ParsedTaskReferenceItem,
+  expandTaskReference,
 } from "../commit-check/task-reference.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 import {
@@ -287,7 +287,7 @@ export async function inspectDeliveryBranch(input: {
     });
   }
   const boundary = steps[0];
-  if (boundary === undefined || !await isAncestor(input.exec, boundary.predecessor, base)) {
+  if (boundary === undefined || await isAncestor(input.exec, boundary.predecessor, base) !== true) {
     return { status: "refused", reason: "divergence-boundary-missing" };
   }
   if (boundary.commit !== commits[0]) {
@@ -662,26 +662,6 @@ function taskListIds(content: string): string[] {
   ));
 }
 
-function expandTaskReference(
-  reference: ParsedTaskReference,
-  orderedTaskIds: readonly string[],
-): string[] {
-  const expanded = reference.items.flatMap((item) => expandTaskReferenceItem(item, orderedTaskIds));
-  return [...new Set(expanded)];
-}
-
-function expandTaskReferenceItem(
-  item: ParsedTaskReferenceItem,
-  orderedTaskIds: readonly string[],
-): string[] {
-  if (item.kind === "single") return [item.taskId];
-  const start = orderedTaskIds.indexOf(item.startTaskId);
-  const end = orderedTaskIds.indexOf(item.endTaskId);
-  return start !== -1 && end >= start
-    ? orderedTaskIds.slice(start, end + 1)
-    : [item.startTaskId, item.endTaskId];
-}
-
 function resolveToParentInventory(
   taskIds: readonly string[],
   parentTaskIds: readonly string[],
@@ -729,7 +709,10 @@ async function classifyStep(
   if (parents.length === 1) return { status: "classified", value: "contribution" };
   if (parents.length !== 2) return { status: "refused", reason: "ambient-purity-unproven" };
   const secondParent = parents[1];
-  if (secondParent === undefined || !await isAncestor(exec, secondParent, base)) {
+  if (secondParent === undefined) return { status: "refused", reason: "ambient-purity-unproven" };
+  const ancestry = await isAncestor(exec, secondParent, base);
+  if (ancestry === null) return { status: "refused", reason: "ambient-purity-unproven" };
+  if (!ancestry) {
     return { status: "classified", value: "contribution" };
   }
   if (!await supportsMergeTreeWriteTree(exec, parents[0])) {
@@ -749,12 +732,16 @@ async function classifyStep(
   }
 }
 
-async function isAncestor(exec: RawGitExec, ancestor: string, descendant: string): Promise<boolean> {
+async function isAncestor(exec: RawGitExec, ancestor: string, descendant: string): Promise<boolean | null> {
+  const args = ["merge-base", "--is-ancestor", ancestor, descendant];
   try {
-    await exec(["merge-base", "--is-ancestor", ancestor, descendant]);
+    await exec(args);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    return failure.kind === "nonzero-exit" && failure.exitCode === 1 && failure.stderr.trim() === ""
+      ? false
+      : null;
   }
 }
 

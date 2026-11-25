@@ -1,7 +1,9 @@
 /** Delivery landing admission over existing exact-target review authority. */
 
 import type { ChangeRequestTargetRef } from "./change-request.js";
+import { selectDischargedDeliveryMember } from "./status.js";
 import type { RoutedReviewObligation, ReviewStatusPort } from "./status.js";
+import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
 
 export type DeliveryLandingReviewReadiness =
   | { readonly status: "ready" }
@@ -18,7 +20,7 @@ export type DeliveryLandingReviewReadiness =
  *
  * @param target - Exact delivery-member change-request target selected for landing.
  * @param port - Existing production review-status observation boundary.
- * @returns Ready only for the same observed head with settled review authority and passing checks.
+ * @returns Ready only for the same observed head with discharged member review and passing checks.
  */
 export async function assessDeliveryLandingReviewReadiness(
   target: ChangeRequestTargetRef,
@@ -27,13 +29,18 @@ export async function assessDeliveryLandingReviewReadiness(
   let observation: Awaited<ReturnType<ReviewStatusPort["observe"]>>;
   try {
     observation = await port.observe(target);
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return { status: "refused", reason: "status-unavailable" };
   }
   if (observation.actualHeadSha !== target.headSha) {
     return { status: "refused", reason: "stale-target" };
   }
-  if (observation.routedObligation.state !== "settled") {
+  const obligation = observation.routedObligation;
+  const reviewDischarged = "conjunction" in obligation
+    ? selectDischargedDeliveryMember(target, obligation.conjunction) !== null
+    : obligation.state === "settled";
+  if (!reviewDischarged) {
     return { status: "refused", reason: "review-unsettled" };
   }
   if (observation.requiredChecks !== "green" && observation.requiredChecks !== "not-required") {
@@ -67,7 +74,8 @@ export function createDeliveryLandingSetReviewReadiness(
         target,
         memberStatus(target, observation.routedObligation),
       );
-    } catch {
+    } catch (error) {
+      rethrowNativeRefusal(error);
       return { status: "refused", reason: "status-unavailable" };
     }
   };

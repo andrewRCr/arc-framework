@@ -52,9 +52,33 @@ export async function readConfiguredIdentity(exec: GitExec, cwd?: string): Promi
   if (terminal < 0 || stdout.charCodeAt(terminal) !== 0 || stdout.indexOf("\0") !== terminal) {
     throw invalidConfiguredIdentity();
   }
-  const parsed = SlugSchema.safeParse(stdout.slice(0, terminal));
-  if (!parsed.success) throw invalidConfiguredIdentity();
-  return parsed.data;
+  const resolved = resolveIdentityFromValues({ arcIdentity: stdout.slice(0, terminal) });
+  if (resolved.status !== "identified") throw invalidConfiguredIdentity();
+  return resolved.identity;
+}
+
+/** What already-read `arc.identity` and `user.name` values yield by the identity rule. */
+export type IdentityFromValues =
+  | { readonly status: "identified"; readonly identity: Slug; readonly source: "arc.identity" | "user.name" }
+  | { readonly status: "unset" }
+  | { readonly status: "invalid" };
+
+/**
+ * Apply the identity rule to values already read: `arc.identity` validated where it is set, else `user.name`
+ * slugified. Every reader of identity resolves through this one rule.
+ *
+ * @param values - `arc.identity` (null where it is set with no value) and `user.name`, each undefined where unset
+ * @returns The identity and its source, or that none is set, or that `arc.identity` is invalid
+ */
+export function resolveIdentityFromValues(values: {
+  readonly arcIdentity?: string | null; readonly userName?: string | null;
+}): IdentityFromValues {
+  if (values.arcIdentity !== undefined) {
+    const parsed = SlugSchema.safeParse(values.arcIdentity);
+    return parsed.success ? { status: "identified", identity: parsed.data, source: "arc.identity" } : { status: "invalid" };
+  }
+  const slug = SlugSchema.safeParse(values.userName ? slugifyIdentity(values.userName) : "");
+  return slug.success ? { status: "identified", identity: slug.data, source: "user.name" } : { status: "unset" };
 }
 
 /**
@@ -100,12 +124,12 @@ export async function resolveIdentity(
   if (existing !== null) return existing;
 
   // 2. Fall back to slugified user.name
-  const userName = await gitConfigGet(options.exec, "user.name");
-  const suggested = userName ? slugifyIdentity(userName) : undefined;
+  const fromName = resolveIdentityFromValues({ userName: await gitConfigGet(options.exec, "user.name") });
+  const suggested = fromName.status === "identified" ? fromName.identity : undefined;
 
   // If we have a suggestion and no prompt function, use the suggestion directly
   if (suggested && !options.prompt) {
-    return SlugSchema.parse(suggested);
+    return suggested;
   }
 
   // 3. Prompt if available

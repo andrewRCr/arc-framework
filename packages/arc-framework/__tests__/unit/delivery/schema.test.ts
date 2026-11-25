@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { resolveSchemaReference } from "../../helpers/schema-reference.js";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   DeliveryDeliverableIdPreimageSchema,
@@ -46,7 +48,7 @@ function validPlan(): Record<string, unknown> {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [{
       chunkKey: "record-substrate",
       deliverableId: digest,
@@ -78,7 +80,7 @@ function validAuthoringInput(): Record<string, unknown> {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [{
       chunkKey: "record-substrate",
       title: "Record substrate",
@@ -108,17 +110,17 @@ describe("DeliveryPlanV1Schema", () => {
     ]) {
       const plan = validPlan();
       plan[forbidden] = "not plan intent";
-      expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+      assertSchemaRefuses(DeliveryPlanV1Schema, plan);
     }
 
     const plan = validPlan();
     const [member] = plan.members as Array<Record<string, unknown>>;
     member!.providerBinding = { provider: "github" };
-    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanV1Schema, plan);
   });
 
   it("refuses removed provider-position and assurance-subject fields", () => {
-    expect(DeliveryPlanV1Schema.safeParse(validPlan()).success).toBe(true);
+    assertSchemaAccepts(DeliveryPlanV1Schema, validPlan());
 
     for (const [target, field] of [
       ["member", "status"],
@@ -141,13 +143,13 @@ describe("DeliveryPlanV1Schema", () => {
           [field]: digest,
         }];
       }
-      expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+      assertSchemaRefuses(DeliveryPlanV1Schema, plan);
     }
 
     const input = validAuthoringInput();
     const [member] = input.members as Array<Record<string, unknown>>;
     member!.status = "live";
-    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanAuthoringInputV1Schema, input);
   });
 
   it("requires every seam to name at least two distinct incident deliverables", () => {
@@ -161,26 +163,26 @@ describe("DeliveryPlanV1Schema", () => {
       designElementIds: [],
       semanticFingerprint: digest,
     }];
-    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanV1Schema, plan);
 
     const [seam] = plan.seams as Array<Record<string, unknown>>;
     seam!.incidentDeliverableIds = [digest];
-    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanV1Schema, plan);
   });
 
   it("accepts an omitted project identity and refuses an empty one", () => {
-    expect(DeliveryPlanV1Schema.safeParse(validPlan()).success).toBe(true);
+    assertSchemaAccepts(DeliveryPlanV1Schema, validPlan());
 
     const plan = validPlan();
     plan.projectId = "";
-    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanV1Schema, plan);
   });
 
   it("requires every member to carry its mainline landability assertion", () => {
     const plan = validPlan();
     const [member] = plan.members as Array<Record<string, unknown>>;
     delete member!.mainlineLandability;
-    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanV1Schema, plan);
   });
 
   it("requires one or two design artifacts in persisted plans and their JSON Schema", () => {
@@ -191,10 +193,10 @@ describe("DeliveryPlanV1Schema", () => {
         { length: count },
         (_, index) => ({ ...artifact, artifactId: `spec-${String(index)}.md` }),
       );
-      expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+      assertSchemaRefuses(DeliveryPlanV1Schema, plan);
     }
 
-    const projection = projectKernelSchemas(registerDeliveryDomainSchemas(createKernelRegistry()));
+    const projection = projectKernelSchemas("output", registerDeliveryDomainSchemas(createKernelRegistry()));
     const deliveryPlan = projection.schemas["delivery-plan"] as {
       properties?: { design?: { properties?: { artifacts?: unknown } } };
     };
@@ -207,21 +209,38 @@ describe("DeliveryPlanV1Schema", () => {
   it("requires at least one member across persisted, authored, and projected schemas", () => {
     const plan = validPlan();
     plan.members = [];
-    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanV1Schema, plan);
 
     const input = validAuthoringInput();
     input.members = [];
-    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanAuthoringInputV1Schema, input);
 
-    const projection = projectKernelSchemas(registerDeliveryDomainSchemas(createKernelRegistry()));
+    const projection = projectKernelSchemas("output", registerDeliveryDomainSchemas(createKernelRegistry()));
     for (const schemaId of ["delivery-plan", "delivery-plan-authoring-input"]) {
-      const schema = projection.schemas[schemaId] as { properties?: { members?: unknown } };
-      expect(schema.properties?.members).toMatchObject({ minItems: 1 });
+      const schema = projection.schemas[schemaId];
+      expect(resolveSchemaReference(projection, schema?.properties?.members)).toMatchObject({ minItems: 1 });
     }
   });
 });
 
 describe("DeliveryPlanAuthoringInputV1Schema", () => {
+  it("refuses retired projections in persisted and authored plans", () => {
+    assertSchemaAccepts(DeliveryPlanV1Schema, validPlan());
+
+    const retiredPlan = validPlan();
+    retiredPlan.projection = { kind: "wu-integration-target" };
+    assertSchemaRefuses(DeliveryPlanV1Schema, retiredPlan);
+
+    const retired = validAuthoringInput();
+    retired.projection = { kind: "wu-integration-target" };
+    assertSchemaRefuses(DeliveryPlanAuthoringInputV1Schema, retired);
+
+    const integrationOnly = validAuthoringInput();
+    const [member] = integrationOnly.members as Array<Record<string, unknown>>;
+    member!.mainlineLandability = "integration-only";
+    assertSchemaRefuses(DeliveryPlanAuthoringInputV1Schema, integrationOnly);
+  });
+
   it("refuses every derived identity, owner, fingerprint, and digest", () => {
     const derivedFields: Array<readonly [readonly (string | number)[], unknown]> = [
       [["planId"], "123e4567-e89b-42d3-a456-426614174000"],
@@ -264,18 +283,18 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
       taskId: "1.2",
       role: { kind: "verification", scope: "future-boundary" },
     });
-    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanAuthoringInputV1Schema, input);
   });
 
   it("protects semantic digests by verification role", () => {
     const plan = validPlan();
     const planParents = (plan.tasks as { parents: Array<Record<string, unknown>> }).parents;
     planParents[0]!.semanticDigest = null;
-    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanV1Schema, plan);
 
     planParents[0]!.semanticDigest = digest;
     planParents[1]!.semanticDigest = digest;
-    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanV1Schema, plan);
   });
 
   it.each([
@@ -284,16 +303,16 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
     [{ kind: "verification", scope: "member" }, digest, null],
     [{ kind: "verification", scope: "work-unit" }, null, digest],
   ] as const)("binds semantic digest presence for role $0", (role, acceptedDigest, refusedDigest) => {
-    expect(DeliveryTaskInventoryParentV1Schema.safeParse({
+    assertSchemaAccepts(DeliveryTaskInventoryParentV1Schema, {
       taskId: "1.1",
       semanticDigest: acceptedDigest,
       role,
-    }).success).toBe(true);
-    expect(DeliveryTaskInventoryParentV1Schema.safeParse({
+    });
+    assertSchemaRefuses(DeliveryTaskInventoryParentV1Schema, {
       taskId: "1.1",
       semanticDigest: refusedDigest,
       role,
-    }).success).toBe(false);
+    });
   });
 
   it("refuses derived seam incidence, ownership, identity, and fingerprints", () => {
@@ -356,27 +375,27 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
 
     const [seam] = input.seams as Array<Record<string, unknown>>;
     seam!.incidentChunkKeys = ["record-substrate", "missing-member"];
-    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(false);
+    assertSchemaRefuses(DeliveryPlanAuthoringInputV1Schema, input);
   });
 });
 
 describe("delivery schema registration", () => {
   it("pins the exact domain-separated identity preimages", () => {
     const planId = "123e4567-e89b-42d3-a456-426614174000";
-    expect(DeliveryDeliverableIdPreimageSchema.safeParse({
+    assertSchemaAccepts(DeliveryDeliverableIdPreimageSchema, {
       domain: "arc.delivery.deliverable-id/v1",
       schemaVersion: 1,
       semanticsVersion: "delivery-plan/v1",
       planId,
       chunkKey: "record-substrate",
-    }).success).toBe(true);
-    expect(DeliveryDeliverableIdPreimageSchema.safeParse({
+    });
+    assertSchemaRefuses(DeliveryDeliverableIdPreimageSchema, {
       domain: "arc.delivery.deliverable/v1",
       schemaVersion: 1,
       semanticsVersion: "delivery-plan/v1",
       planId,
       chunkKey: "record-substrate",
-    }).success).toBe(false);
+    });
 
   });
 
@@ -402,7 +421,7 @@ describe("delivery schema registration", () => {
   it("projects byte-identical JSON Schema across repeated composition", () => {
     const first = registerDeliveryDomainSchemas(createKernelRegistry());
     const second = registerDeliveryDomainSchemas(createKernelRegistry());
-    expect(serializeKernelSchemaBundle(projectKernelSchemas(first)))
-      .toBe(serializeKernelSchemaBundle(projectKernelSchemas(second)));
+    expect(serializeKernelSchemaBundle(projectKernelSchemas("output", first)))
+      .toBe(serializeKernelSchemaBundle(projectKernelSchemas("output", second)));
   });
 });

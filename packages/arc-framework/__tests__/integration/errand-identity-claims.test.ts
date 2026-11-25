@@ -7,13 +7,13 @@ import {
   groomClaimTransform,
   housekeepClaimTransform,
   pinRemoteBaseHead,
-  readTransientIdentitySnapshot,
   rollbackIdentityClaim,
-  transactTransientIdentities,
   type ErrandRecordIO,
   type GroomIdentityRecord,
   type HousekeepIdentityRecord,
 } from "../../src/lib/errand/index.js";
+import { readTransientIdentitySnapshot } from "../../src/lib/errand/identity-snapshot.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import {
   addBareRemote,
   cleanupTempDir,
@@ -79,7 +79,7 @@ describe("identity claim races", () => {
   beforeEach(async () => {
     dir = await createTempRepo();
     initialHead = await makeCommit(dir, "init");
-    remoteDir = await addBareRemote(dir);
+    remoteDir = await addBareRemote(dir, { callerOwnsCleanup: true });
   });
 
   afterEach(async () => {

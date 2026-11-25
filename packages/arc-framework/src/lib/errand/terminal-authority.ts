@@ -1,5 +1,7 @@
 /** Subject-scoped authority for Errand terminal operations. */
 
+import type { Store } from "../store/contract.js";
+import { readStoreTerminalBasis } from "./store-terminal-basis.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 
@@ -34,15 +36,26 @@ export interface AuthorizeErrandTerminalOptions {
   readonly frame: DerivedLocusFrame;
   readonly operation: ErrandTerminalOperation;
   readonly subject: ErrandTerminalSubject;
+  readonly operand?: string;
   readonly confirmForeignGeneration?: string;
   readonly retryArguments?: readonly string[];
 }
 
-/** Authorize one terminal act from the exact derived checkout subject. */
-export function authorizeErrandTerminal(
-  options: AuthorizeErrandTerminalOptions,
-): ErrandTerminalAuthority {
-  if (options.subject.kind === "errand"
+/** Authorize legacy callers synchronously and selected-store callers with exact record proof. */
+export function authorizeErrandTerminal(options: AuthorizeErrandTerminalOptions & { store: Store }): Promise<ErrandTerminalAuthority>;
+export function authorizeErrandTerminal(options: AuthorizeErrandTerminalOptions & { store?: undefined }): ErrandTerminalAuthority;
+export function authorizeErrandTerminal(options: AuthorizeErrandTerminalOptions & { store?: Store }): ErrandTerminalAuthority | Promise<ErrandTerminalAuthority>;
+export function authorizeErrandTerminal(options: AuthorizeErrandTerminalOptions & { store?: Store }): ErrandTerminalAuthority | Promise<ErrandTerminalAuthority> {
+  return options.store === undefined ? authorizeFromCheckout(options) : authorizeWithStore(options, options.store);
+}
+async function authorizeWithStore(options: AuthorizeErrandTerminalOptions, store: Store): Promise<ErrandTerminalAuthority> {
+  if (!store.capabilities.stateOffBranch || options.subject.kind !== "errand") return authorizeFromCheckout(options);
+  if (options.frame.identityDiscovery.kind !== "store") return { kind: "refused", reason: "identity-conflict", message: "Independent Store Errands and claims acquisitions are unavailable." };
+  const basis = await readStoreTerminalBasis({ store, discovery: options.frame.identityDiscovery, subject: options.subject });
+  return basis.kind === "refused" ? { kind: "refused", reason: "identity-conflict", message: basis.message } : authorizeFromCheckout(options, true);
+}
+function authorizeFromCheckout(options: AuthorizeErrandTerminalOptions, storeBasis = false): ErrandTerminalAuthority {
+  if (options.subject.kind === "errand" && !storeBasis
     && (options.frame.identityDiscovery.kind !== "complete"
       || options.frame.identityDiscovery.diagnostics.length > 0)) {
     return {
@@ -61,10 +74,14 @@ export function authorizeErrandTerminal(
   }
   const row = matches.length === 1 ? matches[0] : undefined;
   if (row === undefined) {
-    return authorizeIdentityOnly(options);
+    return authorizeIdentityOnly(options, storeBasis);
   }
   if (row.kind !== "transient") {
-    return { kind: "refused", reason: "authority-unresolved", message: "Terminal authority is unavailable." };
+    return {
+      kind: "refused",
+      reason: "authority-unresolved",
+      message: renderOffBranchRefusal(options, row) ?? "Terminal authority is unavailable.",
+    };
   }
   const generation = terminalGeneration(row, options.subject);
   if (generation === null) {
@@ -112,8 +129,11 @@ export function authorizeErrandTerminal(
   };
 }
 
-function authorizeIdentityOnly(options: AuthorizeErrandTerminalOptions): ErrandTerminalAuthority {
-  if (options.subject.kind !== "errand" || options.frame.identityDiscovery.kind !== "complete") {
+function authorizeIdentityOnly(options: AuthorizeErrandTerminalOptions, storeBasis: boolean): ErrandTerminalAuthority {
+  const discovery = options.frame.identityDiscovery;
+  const inventory = discovery.kind === "complete" ? discovery.identities
+    : storeBasis && discovery.kind === "store" && discovery.errands.kind === "complete" ? discovery.errands.identities : null;
+  if (options.subject.kind !== "errand" || inventory === null) {
     return { kind: "refused", reason: "authority-unresolved", message: "Terminal authority is unavailable." };
   }
   const enteringMarkerUnreadable = options.frame.entering.kind === "selected"
@@ -126,7 +146,7 @@ function authorizeIdentityOnly(options: AuthorizeErrandTerminalOptions): ErrandT
       message: "The entering checkout cannot prove terminal absence.",
     };
   }
-  const identities = options.frame.identityDiscovery.identities.filter((identity) =>
+  const identities = inventory.filter((identity) =>
     identity.kind === "errand"
     && identity.purpose === "errand"
     && identity.key === options.subject.slug
@@ -176,6 +196,22 @@ function terminalGeneration(row: DerivedCheckoutRow, subject: ErrandTerminalSubj
     : row.markerGeneration;
 }
 
+function renderOffBranchRefusal(
+  options: AuthorizeErrandTerminalOptions,
+  row: DerivedCheckoutRow,
+): string | null {
+  if (options.operation !== "close"
+    || options.subject.kind !== "errand"
+    || row.identity?.kind !== "errand"
+    || row.checkout.branch === row.identity.branch) return null;
+  const observedBranch = row.checkout.branch === null
+    ? "at a detached HEAD"
+    : `on branch '${row.checkout.branch}'`;
+  return `Errand '${options.subject.slug}' remains assigned to checkout ${row.checkout.path}, but that checkout is `
+    + `${observedBranch} instead of '${row.identity.branch}'. Restore ${row.checkout.path} to `
+    + `'${row.identity.branch}', then retry arc errand close ${options.operand ?? options.subject.slug} from that checkout.`;
+}
+
 function destructiveEffect(operation: ErrandTerminalOperation): string {
   switch (operation) {
     case "close": return "close and retire this Errand";
@@ -190,7 +226,7 @@ function renderRetry(options: AuthorizeErrandTerminalOptions, generation: string
     "arc",
     "errand",
     options.operation,
-    options.subject.slug,
+    options.operand ?? options.subject.slug,
     ...(options.retryArguments ?? []),
     "--confirm-foreign-generation",
     generation,

@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 
 import type {
   ExecuteTransitionContext,
@@ -66,7 +67,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   for (const meta of metas) {
     const filename = `meta-${meta.slug}.md`;
     const taskListName = meta.taskList === undefined ? "[none]" : `tasks-${meta.slug}.md`;
-    entries.push({ name: filename, isDirectory: () => false });
+    entries.push({ name: filename, isDirectory: () => false, isFile: () => true });
     if (meta.taskList !== undefined) files.set(`${activeDir}/${taskListName}`, meta.taskList);
     files.set(
       `${activeDir}/${filename}`,
@@ -84,9 +85,9 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) =>
-      path === activeDir ? Promise.resolve(entries) : Promise.reject(new Error(`ENOENT: ${path}`)),
+      fixturePath(path) === activeDir ? Promise.resolve(entries) : Promise.reject(new Error(`ENOENT: ${path}`)),
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
     },
   };
@@ -189,11 +190,11 @@ const ACTIVE_WITH_TASKS: MetaSpec = { ...ACTIVE, taskList: TASK_LIST };
 const PUBLICATION_POINTER =
   "Resume publication at the idempotent push, then resolve or open the change request.";
 
-const CANDIDATE_ID = `sha256:${"a".repeat(64)}`;
-const CANDIDATE_SUBJECT = `sha256:${"b".repeat(64)}`;
-const OTHER_SUBJECT = `sha256:${"c".repeat(64)}`;
+const CANDIDATE_ID = `sha256:${"a".repeat(64)}` as const;
+const CANDIDATE_SUBJECT = `sha256:${"b".repeat(64)}` as const;
+const OTHER_SUBJECT = `sha256:${"c".repeat(64)}` as const;
 const WORK_UNIT = SlugSchema.parse("foo");
-const BASE: PublishParams = {
+const BASE: PublishParams & { boundary: IntegrationBoundaryLocus } = {
   name: "foo",
   lastCompleted: "Phase 7 — verification",
   nextAction: "open the PR",
@@ -205,6 +206,7 @@ const BASE: PublishParams = {
     candidateSubjectDigest: CANDIDATE_SUBJECT,
     candidateCurrent: true,
   }),
+  readStandardLaneOwnerVersion: async () => 0,
   claimPublicationBoundary: async () => {},
   boundary: {
     schemaVersion: 1,
@@ -213,6 +215,7 @@ const BASE: PublishParams = {
     candidateId: CANDIDATE_ID,
     candidateSubjectDigest: CANDIDATE_SUBJECT,
     locus: "candidate-publish-ready",
+    standardLaneOwnerVersion: 0,
     nextAction: {
       kind: "publish-candidate",
       command: "arc publish foo --json",
@@ -233,9 +236,10 @@ function publicationBoundary(
     branch: "feat/foo",
     candidateId: CANDIDATE_ID,
     candidateSubjectDigest: CANDIDATE_SUBJECT,
+    standardLaneOwnerVersion: 0,
     reservation,
     changeRequest: null,
-  });
+  }, 1);
 }
 
 /** The same submission with neither orientation override supplied. */
@@ -245,11 +249,24 @@ const DERIVED: PublishParams = {
   candidateSubjectDigest: BASE.candidateSubjectDigest,
   candidateCurrent: BASE.candidateCurrent,
   refreshCandidateAuthorization: BASE.refreshCandidateAuthorization,
+  readStandardLaneOwnerVersion: BASE.readStandardLaneOwnerVersion,
   claimPublicationBoundary: BASE.claimPublicationBoundary,
   boundary: BASE.boundary,
 };
 
 describe("authorizeSubmission", () => {
+  it("refuses readiness when a later same-head standard pass changed the lane owner", () => {
+    expect(authorizeSubmission({
+      expectedCandidateId: CANDIDATE_ID,
+      expectedCandidateSubjectDigest: CANDIDATE_SUBJECT,
+      boundary: BASE.boundary,
+      currentStandardLaneOwnerVersion: 1,
+    })).toEqual({
+      status: "refused",
+      reason: "Standard review progress changed after publication readiness was recorded.",
+    });
+  });
+
   it("refuses an open non-reserved pre-publication obligation", () => {
     expect(authorizeSubmission({
       expectedCandidateId: `sha256:${"a".repeat(64)}`,
@@ -263,7 +280,7 @@ describe("authorizeSubmission", () => {
         locus: "candidate-review-pending",
         nextAction: {
           kind: "continue-pre-publication-review",
-          command: "arc review pre-publication foo --json",
+          command: "arc review pre-publication foo",
           interactionText: "Continue the open standard-review obligation.",
         },
         policy: null,
@@ -278,7 +295,7 @@ describe("authorizeSubmission", () => {
   });
 
   it("carries the exact hosted-first reservation without settling or erasing it", () => {
-    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"a".repeat(64)}` as const;
     const reservation = createStandardReviewReservation({
       candidateId,
       sourceId: "codex-pr",
@@ -330,6 +347,31 @@ describe("authorizeSubmission", () => {
 });
 
 describe("runPublish — the set-phase-only move", () => {
+  it("refuses the transition when a same-head review changed ready lane progress", async () => {
+    const { ctx } = buildCtx([ACTIVE]);
+    const result = await runPublish(ctx, {
+      ...BASE,
+      readStandardLaneOwnerVersion: async () => 1,
+    });
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining("Standard review progress changed"),
+    });
+  });
+
+  it("refuses an Active publication-claim retry after later review progress", async () => {
+    const { ctx } = buildCtx([ACTIVE]);
+    const result = await runPublish(ctx, {
+      ...BASE,
+      boundary: publicationBoundary(),
+      readStandardLaneOwnerVersion: async () => 1,
+    });
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining("Standard review progress changed after the publication claim"),
+    });
+  });
+
   it("flips Active to Integrating with no location move and no branch rotation", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
@@ -365,7 +407,7 @@ describe("runPublish — the set-phase-only move", () => {
 
   it("preserves the Owner-accepted conclusion in the publication claim", async () => {
     const { ctx } = buildCtx([ACTIVE]);
-    let claimed: IntegrationBoundaryLocus | null = null;
+    let claimed: PublishParams["boundary"] | null = null;
     const boundary = CandidatePublishReadyBoundarySchema.parse({
       ...BASE.boundary,
       terminus: OWNER_ACCEPTED_TERMINUS,
@@ -423,7 +465,7 @@ describe("runPublish — the set-phase-only move", () => {
     expect(result).toMatchObject({
       status: "rejected",
       reason: "Cannot publish `foo`: Submission boundary was written for different reviewable content.",
-      remedy: { argv: ["arc", "review", "pre-publication", "foo", "--json"] },
+      remedy: { argv: ["arc", "review", "pre-publication", "foo"] },
     });
     expect(calls).not.toContain("reconcile:prepare");
     expect(calls.some((call) => call.startsWith("setPhase:"))).toBe(false);

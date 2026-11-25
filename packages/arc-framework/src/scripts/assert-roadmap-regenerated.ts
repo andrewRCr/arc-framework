@@ -8,12 +8,13 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
 
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
+import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import {
   ROADMAP_PATH,
   ROADMAP_RERENDER_INSTRUCTION,
@@ -124,7 +125,7 @@ const rawGitExec: GitExec = async (cmd, args, options) => {
     cwd: options?.cwd,
     signal: options?.signal,
     encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
     timeout: 15_000,
   });
   return { stdout, stderr };
@@ -147,6 +148,6 @@ async function main(): Promise<void> {
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   void main();
 }

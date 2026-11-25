@@ -1,6 +1,7 @@
 /** Unit coverage for semantic work-unit metadata schemas. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   META_FIELD_KEYS,
@@ -35,45 +36,76 @@ function validRecord(): Record<string, unknown> {
   };
 }
 
+const handoffDefaults = {
+  stateAtHandoff: null, commitAtHandoff: null, sessionType: null,
+  sessionContext: null, pause: null, completionNotes: [], releaseNotesEntry: [],
+};
+
+describe("meta handoff schema fields", () => {
+  it.each([MetaRecordSchema, ParsedMetaRecordSchema])("defaults absent handoff and section keys", (schema) => {
+    expect(schema.parse(validRecord())).toEqual({ ...validRecord(), ...handoffDefaults });
+  });
+
+  it.each([MetaRecordSchema, ParsedMetaRecordSchema])("accepts handoff anchors and empty section bodies", (schema) => {
+    const record = { ...validRecord(), stateAtHandoff: "state-version", commitAtHandoff: "abc123",
+      sessionType: "planning", sessionContext: "", pause: null, completionNotes: ["", "Done"], releaseNotesEntry: [""] };
+    expect(schema.parse(record)).toEqual(record);
+  });
+
+  it("preserves unknown session types only in the tolerant schema", () => {
+    const record = { ...validRecord(), ...handoffDefaults, sessionType: "Investigating" };
+    expect(ParsedMetaRecordSchema.parse(record).sessionType).toBe("Investigating");
+    const result = MetaRecordSchema.safeParse(record);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.map((issue) => issue.path)).toContainEqual(["sessionType"]);
+  });
+
+  it("admits and defaults the handoff projection labels", () => {
+    const projection = Object.fromEntries(META_FIELD_KEYS.map(({ name }) => [name, null]));
+    const labels = { "State at Handoff": "state-version", "Commit at Handoff": "abc123", "Session Type": "Planning" };
+    expect(MetaProjectionRecordSchema.parse({ ...projection, ...labels })).toEqual({ ...projection, ...labels });
+  });
+});
+
 describe("MetaRecordSchema", () => {
   it("accepts a complete semantic record", () => {
     const record = validRecord();
 
-    expect(MetaRecordSchema.parse(record)).toEqual(record);
+    expect(MetaRecordSchema.parse(record)).toEqual({ ...record, ...handoffDefaults });
   });
 
   it.each(["Planning", "Active", "Integrating", "Shipped"])(
     "accepts work-unit state %s",
     (state) => {
-      expect(MetaRecordSchema.safeParse({ ...validRecord(), state }).success).toBe(true);
+      assertSchemaAccepts(MetaRecordSchema, { ...validRecord(), state });
     },
   );
 
   it.each(["Light", "Heavy", "Novel", "TBD"])("accepts work class %s", (workClass) => {
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), workClass }).success).toBe(true);
+    assertSchemaAccepts(MetaRecordSchema, { ...validRecord(), workClass });
   });
 
   it.each(["P1", "P2", "P3", "TBD"])("accepts priority %s", (priority) => {
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), priority }).success).toBe(true);
+    assertSchemaAccepts(MetaRecordSchema, { ...validRecord(), priority });
   });
 
   it("accepts only a canonical optional promotion receipt", () => {
     const canonical = `errand-v1/repair/${"a".repeat(32)}`;
 
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), promotionReceipt: canonical }).success).toBe(true);
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), promotionReceipt: null }).success).toBe(true);
+    assertSchemaAccepts(MetaRecordSchema, { ...validRecord(), promotionReceipt: canonical });
+    assertSchemaAccepts(MetaRecordSchema, { ...validRecord(), promotionReceipt: null });
     for (const malformed of ["errand-v1/Repair/" + "a".repeat(32), "errand-v1/repair/stale", "repair"]) {
-      expect(MetaRecordSchema.safeParse({ ...validRecord(), promotionReceipt: malformed }).success).toBe(false);
+      assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), promotionReceipt: malformed });
     }
   });
 
   it("accepts only a canonical nullable Candidate identity", () => {
     const candidateId = `sha256:${"a".repeat(64)}`;
 
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), candidateId }).success).toBe(true);
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), candidateId: null }).success).toBe(true);
+    assertSchemaAccepts(MetaRecordSchema, { ...validRecord(), candidateId });
+    assertSchemaAccepts(MetaRecordSchema, { ...validRecord(), candidateId: null });
     for (const malformed of ["candidate", "sha256:stale", "a".repeat(64)]) {
-      expect(MetaRecordSchema.safeParse({ ...validRecord(), candidateId: malformed }).success).toBe(false);
+      assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), candidateId: malformed });
     }
   });
 
@@ -83,28 +115,28 @@ describe("MetaRecordSchema", () => {
       const missing = Object.fromEntries(
         Object.entries(validRecord()).filter(([key]) => key !== field),
       );
-      expect(MetaRecordSchema.safeParse(missing).success).toBe(false);
-      expect(MetaRecordSchema.safeParse({ ...validRecord(), [field]: null }).success).toBe(false);
+      assertSchemaRefuses(MetaRecordSchema, missing);
+      assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), [field]: null });
     },
   );
 
   it("rejects unknown keys", () => {
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), unknown: "value" }).success).toBe(false);
+    assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), unknown: "value" });
   });
 
   it.each(["", "—", "[none]", "[internal]", "[TBD]"])(
     "rejects display or empty token %j in open semantic fields",
     (value) => {
-      expect(MetaRecordSchema.safeParse({ ...validRecord(), owner: value }).success).toBe(false);
-      expect(MetaRecordSchema.safeParse({ ...validRecord(), branch: value }).success).toBe(false);
-      expect(MetaRecordSchema.safeParse({ ...validRecord(), origin: value }).success).toBe(false);
+      assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), owner: value });
+      assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), branch: value });
+      assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), origin: value });
     },
   );
 
   it("rejects malformed identifier arrays", () => {
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), dependsOn: "kernel" }).success).toBe(false);
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), design: ["spec.md", null] }).success).toBe(false);
-    expect(MetaRecordSchema.safeParse({ ...validRecord(), design: [""] }).success).toBe(false);
+    assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), dependsOn: "kernel" });
+    assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), design: ["spec.md", null] });
+    assertSchemaRefuses(MetaRecordSchema, { ...validRecord(), design: [""] });
   });
 
   it("keeps null, empty lists, TBD, and internal as distinct semantic values", () => {
@@ -165,7 +197,7 @@ describe("MetaProjectionRecordSchema", () => {
       Completed: null,
     };
 
-    expect(MetaProjectionRecordSchema.parse(projection)).toEqual(projection);
+    expect(MetaProjectionRecordSchema.parse(projection)).toEqual({ ...projection, "State at Handoff": null, "Commit at Handoff": null, "Session Type": null });
   });
 
   it("keeps the descriptor semantic keys aligned with the projection authority", () => {
@@ -179,11 +211,11 @@ describe("MetaProjectionRecordSchema", () => {
       Object.entries(complete).filter(([name]) => name !== "Promotion Receipt"),
     );
 
-    expect(Object.keys(complete)).toHaveLength(20);
+    expect(Object.keys(complete)).toHaveLength(23);
     expect(MetaProjectionRecordSchema.parse(historical)["Promotion Receipt"]).toBeNull();
-    expect(MetaProjectionRecordSchema.safeParse(missing).success).toBe(false);
-    expect(MetaProjectionRecordSchema.safeParse({ ...complete, Extra: null }).success).toBe(false);
-    expect(MetaProjectionRecordSchema.safeParse({ ...complete, State: 42 }).success).toBe(false);
+    assertSchemaRefuses(MetaProjectionRecordSchema, missing);
+    assertSchemaRefuses(MetaProjectionRecordSchema, { ...complete, Extra: null });
+    assertSchemaRefuses(MetaProjectionRecordSchema, { ...complete, State: 42 });
   });
 });
 
@@ -199,7 +231,7 @@ describe("ParsedMetaRecordSchema", () => {
       design: [],
     };
 
-    expect(ParsedMetaRecordSchema.parse(parsed)).toEqual(parsed);
+    expect(ParsedMetaRecordSchema.parse(parsed)).toEqual({ ...parsed, ...handoffDefaults });
   });
 
   it("preserves independent fields when another token is absent or invalid", () => {
@@ -218,6 +250,6 @@ describe("ParsedMetaRecordSchema", () => {
   });
 
   it("rejects empty present adapter values", () => {
-    expect(ParsedMetaRecordSchema.safeParse({ ...validRecord(), state: "" }).success).toBe(false);
+    assertSchemaRefuses(ParsedMetaRecordSchema, { ...validRecord(), state: "" });
   });
 });

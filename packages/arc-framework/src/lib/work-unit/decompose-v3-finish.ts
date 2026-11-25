@@ -2,8 +2,9 @@
 
 import { z } from "zod";
 
-import { isCanonicalDigest } from "../canonical/canonical-json.js";
-import { isManagedPath } from "../canonical/managed-path.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
+import { isManagedPath } from "../kernel/canonical/managed-path.js";
+import { V3DecomposeCoreRefusalSchema } from "./decompose-v3-refusal.js";
 import { V3DecomposeLocatorSchema } from "./decompose-v3-schema.js";
 
 const GitObjectIdSchema = z.string().regex(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u);
@@ -12,7 +13,7 @@ const ManagedPathSchema = z.string().refine(
   "must be a managed repository-relative path",
 );
 const ModeSchema = z.enum(["100644", "100755"]);
-const DigestSchema = z.string().refine(isCanonicalDigest, "must be a canonical digest");
+const DigestSchema = CanonicalDigestSchema;
 const Base64Schema = z.string().refine(
   (value) => Buffer.from(value, "base64").toString("base64") === value,
   "must be canonical base64",
@@ -34,6 +35,7 @@ export const V3ExtractionFinishEvidenceSchema = z.strictObject({
     before: z.strictObject({
       mode: ModeSchema,
       contentDigest: DigestSchema,
+      byteLength: z.number().int().nonnegative(),
     }),
     after: z.discriminatedUnion("kind", [
       z.strictObject({ kind: z.literal("absent") }),
@@ -66,11 +68,7 @@ export const V3ExtractionFinishResultSchema = z.discriminatedUnion("status", [
   }),
   z.strictObject({ status: z.literal("finished") }),
   z.strictObject({ status: z.literal("already-finished") }),
-  z.strictObject({
-    status: z.literal("refused"),
-    reason: z.string().min(1),
-    locus: z.string().min(1).optional(),
-  }),
+  V3DecomposeCoreRefusalSchema,
 ]);
 
 /** Canonical machine result emitted by the extraction finish command. */

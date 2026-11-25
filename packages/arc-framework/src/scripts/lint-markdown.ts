@@ -1,11 +1,12 @@
 /** Ordered composition for repository worktree Markdown checks. */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { spawn } from "node:child_process";
 import { realpath } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 import { formatUnexpectedError } from "../lib/errors.js";
 import { gitExec } from "../lib/io-context.js";
+import type { GitExec } from "../lib/git/index.js";
 import {
   findStagedMarkdownWorktreeDrift,
   formatStagedMarkdownWorktreeDriftMessage,
@@ -34,8 +35,10 @@ export async function enforceStagedMarkdownWorktreeAlignment(
   write: (message: string) => void = (message) => { process.stderr.write(`${message}\n`); },
 ): Promise<number> {
   try {
-    const root = await resolveMarkdownRepositoryRoot({ cwd, exec: gitExec, realpath });
-    const drifted = await findStagedMarkdownWorktreeDrift({ root, exec: gitExec });
+    const indexFile = process.env.GIT_INDEX_FILE;
+    const indexedExec: GitExec = (command, args, options) => gitExec(command, args, { ...options, indexFile });
+    const root = await resolveMarkdownRepositoryRoot({ cwd, exec: indexedExec, realpath });
+    const drifted = await findStagedMarkdownWorktreeDrift({ root, exec: indexedExec });
     if (drifted.length === 0) return 0;
     write(formatStagedMarkdownWorktreeDriftMessage(drifted));
     return 1;
@@ -63,4 +66,4 @@ export async function main(): Promise<number> {
   return enforceStagedMarkdownWorktreeAlignment();
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main();
+if (await isMainModule(import.meta, process.argv[1])) process.exitCode = await main();

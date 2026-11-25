@@ -6,6 +6,11 @@ const fixtureUrl = new URL(
   "../../../../../fixtures/coderabbit-frontline/observations.json",
   import.meta.url,
 );
+const capturedReviews = [
+  ["agent-0.8.1-findings.ndjson", ["review_context", "finding", "complete"]],
+  ["agent-0.9.2-binary-exclusion.ndjson", ["review_context", "complete"]],
+] as const;
+const credentialPattern = /(?:api[_-]?key|authorization|bearer|token)["':=\s]+[A-Za-z0-9_-]{8,}/iu;
 
 describe("CodeRabbit frontline qualification fixtures", () => {
   it("records bounded live observations and synthetic non-success cases without credentials", async () => {
@@ -31,6 +36,21 @@ describe("CodeRabbit frontline qualification fixtures", () => {
       "refusal",
       "process-failure",
     ]);
-    expect(raw).not.toMatch(/(?:api[_-]?key|authorization|bearer|token)["':=\s]+[A-Za-z0-9_-]{8,}/iu);
+    expect(raw).not.toMatch(credentialPattern);
+  });
+
+  it.each(capturedReviews)("records live agent-mode stream %s without credentials or local home paths", async (
+    name,
+    eventTypes,
+  ) => {
+    const raw = await readFile(new URL(`../../../../../fixtures/coderabbit-frontline/${name}`, import.meta.url), "utf8");
+    const types = raw.split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => (JSON.parse(line) as { type: string }).type);
+
+    expect(types).toEqual(expect.arrayContaining([...eventTypes]));
+    expect(types.at(-1)).toBe("complete");
+    expect(raw).not.toMatch(credentialPattern);
+    expect(raw).not.toMatch(/\/home\/|\/Users\/|[A-Za-z]:\\\\Users/u);
   });
 });

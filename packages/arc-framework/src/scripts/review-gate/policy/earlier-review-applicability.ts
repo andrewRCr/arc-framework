@@ -1,6 +1,6 @@
 /** Compose earlier-attempt discovery, D4 projection, and canonical Candidate authority. */
-
-import type { RawGitExec } from "../../../lib/change-facts.js";
+import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import {
   candidateReviewApplicabilitySelections,
   type CandidateManagedRecordV1,
@@ -16,17 +16,26 @@ import {
 import { projectGitReviewContributionApplicability } from
   "./git-review-contribution-applicability.js";
 import {
+  gitCandidateRecordAtHead,
+  projectMechanicalReviewApplicabilityCarry,
+} from "./mechanical-review-applicability-carry.js";
+import {
   reduceReviewApplicabilityAuthority,
   reduceReviewApplicabilityAuthorityWithMechanicalCarry,
   reviewApplicabilityConsumerAction,
   type ReviewApplicabilityConsumerAction,
 } from "./review-applicability-authority.js";
-import type { ApprovedDispositionRecord } from "../core/advisory-records.js";
+import {
+  currentApprovedDispositionNode,
+  type ApprovedDispositionLineageNode,
+  type ApprovedDispositionRecord,
+} from "../core/advisory-records.js";
 import type {
   ReviewContributionApplicabilityResult,
 } from "./review-contribution-applicability.js";
-import { bindReviewSourceReference, parseReviewSourceReference } from "../core/review-source-reference.js";
+import { bindReviewSourceReference, parseReviewSourceReferenceForOwner, type ReviewSourceReferenceOwner } from "../core/review-source-reference.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
+import { projectHostedFinding } from "../hosted/await.js";
 
 export type EarlierHostedAttemptApplicabilityRead =
   | {
@@ -34,17 +43,23 @@ export type EarlierHostedAttemptApplicabilityRead =
     readonly attempts: readonly {
       readonly operationId: string;
       readonly attemptId: string;
+      readonly attemptIndex?: number;
+      readonly logicalPass: number;
       readonly updatedAt: string;
       readonly sourceId: string;
       readonly outcome: string;
       readonly requestedCoverage: "complete" | "incremental";
       readonly effectiveCoverage: "complete" | "incremental" | null;
+      readonly scopeMode: "whole-target" | "chunked";
+      readonly chunkSeriesComplete?: boolean;
+      readonly producerTarget?: EarlierReviewAttemptCandidate["reviewTarget"];
+      readonly hosted?: EarlierReviewAttemptCandidate["hosted"];
       readonly applicability: ReviewApplicabilityConsumerAction;
       readonly retentionBasis?: "verified-fix-response";
       readonly projection?: ReviewContributionApplicabilityResult;
       readonly authorityState?: "decision-required" | "blocked";
       readonly responsePlan?: HostedFindingsResponsePlan;
-      readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
+      readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string; readonly operationRef?: string };
     }[];
   }
   | { readonly status: "not-found" }
@@ -60,6 +75,8 @@ export function earlierAttemptRetainsReservationPosition(outcome: string): boole
 }
 
 export interface EarlierReviewApplicabilityInput {
+  readonly stateOffBranch?: boolean;
+  readonly sourceOwner?: ReviewSourceReferenceOwner;
   readonly query: EarlierReviewAttemptQuery;
   readonly currentBase: string;
   readonly snapshot: ReviewOperationStateSnapshot;
@@ -75,27 +92,27 @@ export interface EarlierReviewApplicabilityInput {
 }
 
 function verifiedDeliveryMemberFixResponse(input: {
+  readonly sourceOwner?: ReviewSourceReferenceOwner;
   readonly record: ApprovedDispositionRecord | null;
   readonly candidate: EarlierReviewAttemptCandidate;
   readonly query: EarlierReviewAttemptQuery;
-}): NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]> | null {
+}): NonNullable<ApprovedDispositionLineageNode["deliveryMemberFixResponse"]> | null {
   const { record, candidate, query } = input;
   const priorVehicle = candidate.priorVehicle;
   const currentVehicle = query.currentVehicle;
-  const response = record?.deliveryMemberFixResponse;
+  const response = record === null ? null : currentApprovedDispositionNode(record).deliveryMemberFixResponse;
   if (candidate.outcome !== "settled-findings"
     || record?.operationId !== candidate.attemptId
     || record.source.kind === "frontline"
     || record.deliveryMember === null
     || priorVehicle === undefined
     || currentVehicle === undefined
-    || response === null
-    || response === undefined) return null;
+    || response === null) return null;
   let sourceReference;
   try {
     sourceReference = record.source.kind === "hosted"
-      ? parseReviewSourceReference(record.source.attemptRef, "hosted")
-      : parseReviewSourceReference(record.source.receiptRef, "attested-local");
+      ? parseReviewSourceReferenceForOwner(record.source.attemptRef, "hosted", input.sourceOwner)
+      : parseReviewSourceReferenceForOwner(record.source.receiptRef, "attested-local", input.sourceOwner);
   } catch {
     return null;
   }
@@ -142,23 +159,55 @@ export function candidateExpectsEarlierReviewAttempt(
   ));
 }
 
+function earlierResponseRoutes(candidate: EarlierReviewAttemptCandidate, sourceOwner?: ReviewSourceReferenceOwner) {
+  return {
+    ...(candidate.outcome !== "findings" || candidate.findings.length === 0
+      ? {}
+      : {
+          responsePlan: {
+            schemaVersion: 1 as const,
+            target: candidate.reviewTarget,
+            source: {
+              kind: "hosted" as const,
+              attemptRef: bindReviewSourceReference({ ...sourceOwner,
+                kind: "hosted",
+                operationId: candidate.operationId,
+                durableRef: candidate.attemptId,
+              }),
+            },
+            findings: candidate.findings.map(projectHostedFinding),
+          },
+        }),
+    ...(candidate.sourceKind === "local" && candidate.outcome === "findings"
+      ? { localResumeAction: { schemaVersion: 1 as const, operationId: candidate.attemptId,
+          ...(sourceOwner === undefined ? {} : { operationRef: bindNativeReviewOperationReference({
+            ...sourceOwner, operationId: candidate.attemptId,
+          }) }) } }
+      : {}),
+  };
+}
+
 /** Project every exact earlier candidate without reading or writing authority outside the Candidate. */
 export async function projectEarlierReviewApplicability(
   input: EarlierReviewApplicabilityInput,
 ): Promise<EarlierHostedAttemptApplicabilityRead> {
   const query = EarlierReviewAttemptQuerySchema.parse(input.query);
+  const sourceOwner = input.sourceOwner;
   const queried = queryEarlierReviewAttempts(query, input.snapshot);
   if (queried.status === "unavailable") {
     if (queried.reason === "no-matching-attempt") return { status: "not-found" };
     return { status: "unavailable", detail: queried.detail };
   }
   const selections = candidateReviewApplicabilitySelections(input.candidate);
+  const ownRecord = input.stateOffBranch === true ? undefined
+    : gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit);
   const attempts = await Promise.all(queried.candidates.map(async (candidate) => {
     const dispositionRecord = candidate.outcome === "settled-findings"
       && input.readDispositionRecord !== undefined
       ? await input.readDispositionRecord(candidate.attemptId)
       : null;
     const fixResponse = verifiedDeliveryMemberFixResponse({
+      sourceOwner,
       record: dispositionRecord,
       candidate,
       query,
@@ -202,43 +251,26 @@ export async function projectEarlierReviewApplicability(
       ? projectGitReviewContributionApplicability({
           selector: value,
           exec: input.exec,
-          observeEndpoints: () => input.observeEndpoints(value),
+          observeEndpoints: async () => {
+            const observed = await input.observeEndpoints(selector);
+            // The A→B decision is historical. Check live C for movement before and
+            // after each Git read, then prove the pinned historical endpoint.
+            if (observed.head !== selector.currentHead || observed.base !== selector.currentBase) {
+              throw new Error("The hosted review target moved during historical contribution proof.");
+            }
+            return { head: value.currentHead, base: value.currentBase };
+          },
         })
       : input.projectApplicability(value);
     const carried = projection?.state !== "decision-required"
       ? []
-      : (await Promise.all(selections.map(async (selection) => {
-          const selected = selection.selector;
-          if (selection.candidateId !== input.candidate.attestation.candidateId
-            || selected.repositoryId !== selector.repositoryId
-            || selected.repository !== selector.repository
-            || selected.pullRequest !== selector.pullRequest
-            || selected.sourceId !== selector.sourceId
-            || selected.priorAttemptId !== selector.priorAttemptId
-            || selected.priorHead !== selector.priorHead
-            || selected.priorBase !== selector.priorBase
-            || selected.currentHead === selector.currentHead) return null;
-          const selectedVehicle = selected.currentVehicle;
-          const currentVehicle = selector.currentVehicle;
-          if ((selectedVehicle === undefined) !== (currentVehicle === undefined)
-            || (selectedVehicle !== undefined && currentVehicle !== undefined
-              && (selectedVehicle.planId !== currentVehicle.planId
-                || selectedVehicle.deliverableId !== currentVehicle.deliverableId
-                || selectedVehicle.workUnitId !== currentVehicle.workUnitId))) return null;
-          const selectedProjection = await projectSelector(selected);
-          const mechanicalProjection = await projectSelector({
-            ...selector,
-            priorHead: selected.currentHead,
-            priorBase: selected.currentBase,
-            ...(selectedVehicle === undefined || currentVehicle === undefined
-              ? {}
-              : { priorVehicle: selectedVehicle, currentVehicle }),
-          });
-          return selectedProjection.state === "decision-required"
-            && mechanicalProjection.state === "applicable"
-            ? { selection, selectedProjection, mechanicalProjection }
-            : null;
-        }))).filter((value) => value !== null);
+      : await projectMechanicalReviewApplicabilityCarry({
+          candidateId: input.candidate.attestation.candidateId,
+          projection,
+          selections,
+          projectSelector,
+          ownRecord,
+        });
     const authority = projection === undefined
       ? null
       : carried.length === 0
@@ -256,41 +288,25 @@ export async function projectEarlierReviewApplicability(
     return {
       operationId: candidate.operationId,
       attemptId: candidate.attemptId,
+      attemptIndex: candidate.attemptIndex,
+      logicalPass: candidate.logicalPass,
       updatedAt: candidate.updatedAt,
       sourceId: candidate.sourceId,
       outcome: candidate.outcome,
       requestedCoverage: candidate.requestedCoverage,
       effectiveCoverage: candidate.effectiveCoverage,
+      scopeMode: candidate.scopeMode,
+      ...(candidate.chunkSeriesComplete === undefined
+        ? {}
+        : { chunkSeriesComplete: candidate.chunkSeriesComplete }),
+      producerTarget: candidate.reviewTarget,
+      ...(candidate.hosted === undefined ? {} : { hosted: candidate.hosted }),
       applicability: authority === null
         ? "retain-prior-attempt" as const
         : reviewApplicabilityConsumerAction(authority),
       ...(retainedByFixResponse ? { retentionBasis: "verified-fix-response" as const } : {}),
       ...(authority === null ? {} : { projection: authority.projection }),
-      ...(candidate.outcome !== "findings" || candidate.findings.length === 0
-        ? {}
-        : {
-            responsePlan: {
-              schemaVersion: 1 as const,
-              target: candidate.reviewTarget,
-              source: {
-                kind: "hosted" as const,
-                attemptRef: bindReviewSourceReference({
-                  kind: "hosted",
-                  operationId: candidate.operationId,
-                  durableRef: candidate.attemptId,
-                }),
-              },
-              findings: candidate.findings.map((finding) => ({
-                findingId: finding.findingId,
-                severity: finding.severity,
-                locus: finding.locus,
-                evidenceUrlOrId: finding.url,
-              })),
-            },
-          }),
-      ...(candidate.sourceKind === "local" && candidate.outcome === "findings"
-        ? { localResumeAction: { schemaVersion: 1 as const, operationId: candidate.attemptId } }
-        : {}),
+      ...earlierResponseRoutes(candidate, sourceOwner),
       ...(authority !== null && (authority.state === "decision-required" || authority.state === "blocked")
         ? { authorityState: authority.state }
         : {}),

@@ -15,10 +15,7 @@ const SLOTS_START = "<!-- arc:delivery-authoring-slots:start -->";
 const SLOTS_END = "<!-- arc:delivery-authoring-slots:end -->";
 
 const NonEmptyTextSchema = z.string().trim().min(1);
-const ProjectionSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("wu-integration-target") }),
-  z.strictObject({ kind: z.literal("stack-to-main") }),
-]);
+const ProjectionSchema = z.strictObject({ kind: z.literal("stack-to-main") });
 const BoundarySchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("phase-aligned") }),
   z.strictObject({
@@ -34,7 +31,7 @@ const MemberSlotSchema = z.strictObject({
   title: NonEmptyTextSchema,
   contract: NonEmptyTextSchema,
   designElementIds: z.array(DeliveryOpaqueIdSchema),
-  mainlineLandability: z.enum(["independently-landable", "integration-only"]),
+  mainlineLandability: z.literal("independently-landable"),
 });
 const SeamSlotSchema = z.strictObject({
   seamKey: SlugSchema,
@@ -118,6 +115,7 @@ export function renderDeliveryAuthoringMap(
     "# Delivery Plan Authoring Map",
     "",
     "The machine section is CLI-owned. Edit only the author slots, then run `arc delivery compose`.",
+    "Use only `stack-to-main`; every member must be `independently-landable` on main.",
     "",
     jsonBlock(MACHINE_START, machineMaterial(snapshot), MACHINE_END),
     "",

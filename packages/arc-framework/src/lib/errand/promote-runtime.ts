@@ -1,4 +1,11 @@
 /** Production local-frame transaction for ordinary Errand promotion. */
+import type { Store } from "../store/contract.js";
+import type { StoreSyncPort } from "../store/operational-sync.js";
+import type { LocusPorts } from "../work-unit/locus-ports.js";
+import { createLocusPorts } from "../locus/lifecycle-ports.js";
+import { readCheckoutLayoutContext } from "../store/checkout-layout.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
+import { promoteStoreErrandAtRuntime } from "./promote-store-runtime.js";
 
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -36,6 +43,14 @@ import {
 } from "./promote.js";
 
 export interface PromoteOrdinaryErrandRuntimeOptions {
+  /** Optional operational store injected by the lifecycle caller. */
+  store?: Store;
+  /** Optional synchronization bound to that same operational store. */
+  sync?: StoreSyncPort;
+  /** Where the pull's notices are written; standard error by default. */
+  writeNotice?: (line: string) => void;
+  projectId?: () => Promise<string>;
+  locusPorts?: LocusPorts;
   readonly slug: string;
   readonly name: string;
   readonly type: string;
@@ -70,6 +85,7 @@ export type PromotionInboxSettlementResult =
 export async function promoteOrdinaryErrandAtRuntime(
   options: PromoteOrdinaryErrandRuntimeOptions,
 ): Promise<ErrandPromotionResult> {
+  if (options.store?.capabilities.stateOffBranch) return promoteStoreErrandAtRuntime(options, (frame) => settlePromotedOccupancy(options, frame));
   const io = { exec: options.exec, execInput: options.execInput, identity: options.identity };
   const remote = await configuredIdentityRemote(options.exec);
   return promoteOrdinaryErrand({
@@ -122,7 +138,8 @@ async function replaceLocalFrame(
   }
   const normalized = await normalizePromotionWindow(frame, record, branch, metaPath, expectedMeta);
   if (normalized.kind === "refused" || normalized.kind === "error") return normalized;
-  const authority = authorizeErrandTerminal({
+  const authority = await authorizeErrandTerminal({
+    store: options.store,
     frame: normalized.frame,
     operation: "promote",
     subject: { kind: "errand", slug: record.slug, claimId: record.claimId },
@@ -272,6 +289,7 @@ async function convertSpawnedMarker(
   checkoutPath: string,
   record: { slug: string; claimId: string },
   name: string,
+  uid?: string,
 ): Promise<{ kind: "applied" | "idempotent" } | Extract<PromotionFrameResult, { kind: "refused" | "error" }>> {
   const generation = await readWorktreeMarkerGeneration(checkoutPath);
   if (generation.kind !== "present") return refused("role-conflict", "Spawned promotion marker is missing or malformed.");
@@ -287,7 +305,7 @@ async function convertSpawnedMarker(
   const marker: WorktreeMarker = {
     spawnedByArc: generation.marker.spawnedByArc,
     wuName: name,
-    createdFor: { kind: "work-unit", name },
+    createdFor: { kind: "work-unit", name, ...(uid === undefined ? {} : { uid }) },
     spawningIdentity: generation.marker.spawningIdentity,
     createdAt: generation.marker.createdAt,
   };
@@ -379,19 +397,43 @@ async function settlePromotedOccupancy(
   options: PromoteOrdinaryErrandRuntimeOptions,
   frame: PromotionFrameReceipt,
 ): Promise<PromotionFrameResult> {
-  const marker = frame.allocation === "primary"
+  const marker = frame.allocation === "primary" && options.store?.capabilities.stateOffBranch
+    ? await anchorPromotedMarker(options, frame)
+    : frame.allocation === "primary"
     ? await removePrimaryTransientOccupancy(frame.checkoutPath, {
         kind: "errand", slug: frame.subject.slug, claimId: frame.subject.claimId,
       })
-    : await convertSpawnedMarker(frame.checkoutPath, frame.subject, options.name);
+    : await convertSpawnedMarker(frame.checkoutPath, frame.subject, options.name, frame.uid);
   if (marker.kind === "refused") return refused("role-conflict", "Promotion marker generation changed.");
   if (marker.kind === "error") return marker;
   const markerApplied = marker.kind === "applied" || marker.kind === "removed";
+  let metaPath = frame.metaPath;
+  if (options.store?.capabilities.stateOffBranch) {
+    await readCheckoutLayoutContext(frame.checkoutPath, { fresh: true });
+    metaPath = await workItemArtifactPath(frame.checkoutPath, options.name, "meta", { kind: "active" }, null);
+  }
   return {
     ...frame,
     kind: frame.kind === "applied" || markerApplied ? "applied" : "idempotent",
+    metaPath,
     parentCheckoutPath: null,
   };
+}
+
+async function anchorPromotedMarker(options: PromoteOrdinaryErrandRuntimeOptions, frame: PromotionFrameReceipt) {
+  if (options.store === undefined) return { kind: "refused" as const };
+  const generation = await readWorktreeMarkerGeneration(frame.checkoutPath);
+  if (generation.kind !== "present") return { kind: "refused" as const };
+  const ownership = decodeWorktreeMarkerOwnership(generation.marker);
+  if (ownership.kind === "current" && ownership.subject.kind === "work-unit" && ownership.subject.name === options.name) return { kind: "idempotent" as const };
+  if (ownership.kind !== "current" || ownership.subject.kind !== "errand" || ownership.subject.slug !== frame.subject.slug
+    || ownership.subject.claimId !== frame.subject.claimId) return { kind: "refused" as const };
+  const marker = { spawnedByArc: false, spawningIdentity: options.identity, createdAt: generation.marker.createdAt,
+    wuName: options.name, createdFor: { kind: "work-unit" as const, name: options.name,
+      ...(frame.uid === undefined ? {} : { uid: frame.uid }) } };
+  const ports = options.locusPorts ?? createLocusPorts({ cwd: frame.checkoutPath, exec: options.exec, store: options.store });
+  const written = await ports.writeAnchoredMarker(frame.checkoutPath, marker, { expected: generation.bytes });
+  return written.kind === "replaced" || written.kind === "created" ? { kind: "applied" as const } : { kind: "refused" as const };
 }
 
 async function inspectCheckout(

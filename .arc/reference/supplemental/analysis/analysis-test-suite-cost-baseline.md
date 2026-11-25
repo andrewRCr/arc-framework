@@ -1,0 +1,1178 @@
+# Test Suite Cost Baseline
+
+Instrument-produced baseline of the CLI package's test-suite cost, taken 2026-09-11 during
+`test-suite-right-sizing` execution. It grounds every later target in retained measurement rather than projection.
+
+**Status: schema-v4 corrected baseline; schema-v3 first baseline retained historically.** The figures below the correction
+notice are medians of three complete retained runs captured at `3548ac2ca` with the repository-owned
+`benchmark:test-cost` entry after the member-boundary review corrections. Fixture-build and CLI-startup figures below
+are standalone probes; CI figures come from workflow runs. Every schema-v3 record carries a successful outcome
+established from Vitest's completed module states and empty run-level unhandled-error set; raw runs remain regenerable
+and gitignored, while the normalized evidence below is the durable record.
+
+## Contents
+
+- [Schema-v4 metric correction](#schema-v4-metric-correction)
+- [Warm-run measurement practice](#warm-run-measurement-practice)
+- [Method and its limits](#method-and-its-limits)
+- [Diagnosing a wall-clock change](#diagnosing-a-wall-clock-change)
+- [Tracing which tests read a file](#tracing-which-tests-read-a-file)
+- [Routed check capture cost](#routed-check-capture-cost)
+- [Store-suite process cost](#store-suite-process-cost)
+- [Tier baselines](#tier-baselines)
+- [Post-cost baseline](#post-cost-baseline)
+- [Where the time concentrates](#where-the-time-concentrates)
+- [Historical E2E shard membership](#historical-e2e-shard-membership)
+- [Timeout, admission, and substrate signals](#timeout-admission-and-substrate-signals)
+- [CLI startup cost](#cli-startup-cost)
+- [CI on the mini](#ci-on-the-mini)
+- [Derived targets](#derived-targets)
+- [Levers measured](#levers-measured)
+- [Alternatives closed by measurement or source](#alternatives-closed-by-measurement-or-source)
+
+---
+
+## Schema-v4 metric correction
+
+_Amended 2026-09-13 after member-boundary review._ Vitest reports `environmentSetupDuration` and
+`prepareDuration` separately from collection, setup, and module duration. Schema v4 includes both exactly once:
+per-file cost is `environmentSetupDuration + prepareDuration + collectDuration + setupDuration + module duration`.
+The module duration includes tests and hooks; neither individual test durations nor `importDurations` are added.
+Schema-v3 raw runs remain historical observations under their old arithmetic. The normalizer now refuses them,
+so they cannot be combined with schema-v4 runs or used as the before side of a new summed-cost comparison.
+
+Three successful schema-v4 runs at the same tier-isolated / 12-worker mode establish the corrected local baselines
+available so far. Runs were taken serially on the member-2 review-fix tree on 2026-09-13; the table is a median
+of complete retained records, not an arithmetic update to old measurements.
+
+| Project set           | Wall clock | Summed file time | Files | Executed cases |
+| --------------------- | ---------- | ---------------- | ----- | -------------- |
+| `unit` + `unit-mocks` | 23.984 s   | 142.375 s        | 698   | 9,998          |
+| `integration`         | 44.151 s   | 383.972 s        | 137   | 1,254          |
+| Routine lane (no E2E) | 57.063 s   | 544.918 s        | 835   | 11,252         |
+| `e2e`                 | 279.810 s  | 1,706.160 s      | 54    | 537            |
+
+The added environment/preparation terms have median tier totals of 0.293 s, 0.661 s, 1.017 s, and 0.285 s
+respectively. Those are within-run term totals, **not** differences from schema v3: code and host conditions also
+changed. The new integration ranking starts with `decompose-v3-repository-plan.test.ts` (42.572 s), `user.test.ts`
+(42.264 s), `config-validate.test.ts` (41.455 s), and `review-fan-out-lifecycle.test.ts` (38.462 s). Later target
+scoring that uses summed or maximum-file cost needs both sides captured under schema v4 in the same mode.
+
+Two earlier E2E attempts failed and produced no eligible retained run. The fully captured second attempt timed
+out one `delivery-position.e2e.test.ts` case at Vitest's 30-second default; the first attempt's detailed
+diagnostic was not retained. Giving that case a 60-second limit allowed three complete successful samples. The
+new E2E ranking starts with `candidate-lineage.e2e.test.ts` (269.163 s), `delivery-position.e2e.test.ts` (164.487 s),
+`command-input-no-input.e2e.test.ts` (144.544 s), and `errand.e2e.test.ts` (127.953 s). Its schema-v3 ranking, substrate
+share, and summed-time figures below remain historical and cannot be promoted to schema-v4 evidence. Wall-clock and
+CI-job observations are not arithmetically changed by this metric correction.
+
+---
+
+## Warm-run measurement practice
+
+Current local captures use schema v5 and require one successful discarded warm-up before each retained sample. The
+`benchmark:test-cost` entry runs the same project set with the same resolved worker sizing twice in the same checkout.
+Both controllers complete setup, execution, teardown, and closing; only the second run's timings, files, and test
+counts enter the retained JSON. The retained clock starts after the warm-up releases its ownership, and its CPU
+admission wait remains separate from measured cost. A failed or incomplete warm-up stops before the retained run.
+
+Prepare dependencies and CLI artifacts before collecting a baseline, keep the declared measurement condition stable,
+and collect retained samples in the same complete mode for normalization. Every invocation warms itself;
+exclude warm-up output from normalization and comparison. Warm-up is a procedure for reducing cold-cache effects,
+not proof that every dependency, transform, or filesystem cache is warm.
+
+Readers, normalization, and comparison require schema v5. Earlier records do not establish this protocol and must
+be remeasured with a schema-v5 entry; never upgrade them by changing their version field. Schema v5 preserves the
+schema-v4 cost arithmetic and identifies the complete discarded warm-up before each retained sample.
+
+For measurements at named refs, prepare and warm each ref's checkout separately with the same project set, worker
+sizing, and host conditions. Each ref needs a schema-v5 measurement entry that completes the discarded warm-up before
+retaining each sample. `benchmark:test-cost --ref <ref>` does this for a commit whose `package-lock.json` matches the
+current checkout's: it runs that commit's own entry in a temporary detached checkout that shares this checkout's
+dependencies, retains the run here, stamps the summary with the resolved commit, and removes the checkout. The
+summary's budget standing reads that commit's own budget record. If its entry predates that protocol, apply the same
+measurement instrumentation to the checkout before collecting new samples. A manually discarded run does not make an
+older record eligible. The comparison command analyzes retained files and does not prepare or warm refs. Never mix
+cold and warmed samples in one baseline or lever comparison.
+
+The numerical baselines below are historical observations; this procedure does not refresh or relabel them.
+
+## Method and its limits
+
+The following method and rankings describe the historical schema-v3 baseline. The corrected metric and its
+current evidence boundary are recorded above.
+
+Environment: WSL2 on Linux 5.15, Node 26.3.0, ext4 on a virtual disk, `/tmp` on that same ext4 filesystem,
+`/dev/shm` a tmpfs with ~7.8 GB free. Warm caches throughout.
+
+Commands, run from `packages/arc-framework/`:
+
+```bash
+npm run -s benchmark:test-cost -- --condition tier-isolated --project-set unit --workers 12
+npm run -s benchmark:test-cost -- --condition tier-isolated --project-set lane --workers 12
+npm run -s benchmark:test-cost -- --condition tier-isolated --project-set integration --workers 12
+npm run -s benchmark:test-cost -- --condition tier-isolated --project-set e2e --workers 12
+npm run -s benchmark:test-cost:normalize -- .test-cost-runs/<same-mode-run>...
+npm run -s benchmark:test-cost:compare -- <comparison-request.json>
+```
+
+Per-file cost is `collectDuration + setupDuration + module duration` from Vitest's completed reported task graph.
+The module duration includes all tests and hooks; individual test durations are retained separately and are not
+added again. `collectDuration` already includes imports, so `importDurations` is never added either. "Summed" adds
+those complete file costs and exceeds wall clock because files run in parallel; wall clock is measured around the
+in-process Vitest action and excludes admission wait.
+
+The superseded hand baseline used a test-time-only reporter window, so its summed figures were lower bounds. The
+reporter derives that old window from test results alone — `min(start)` to `max(start + duration)` — so a file's
+transform, module import, and file-level hooks fall outside it, and the window sums to the file's test durations. On one
+unit-tier run the summed window was 123.5 s against the same run's reported 78.8 s of transform and 131.3 s of import.
+The omission matters most for levers that act on that fixed term: module-registry reuse across files moves almost
+nothing else, and splitting a file re-pays it once per new file. A per-file figure that counts it is
+`collectDuration + setupDuration + duration`, read from the run's file task rather than the JSON payload — `duration`
+includes the file's tests and hooks, `collectDuration` already includes its import time, and the payload carries no
+run-level end time, so wall clock has to be taken from the run itself. The instrument implements that complete metric
+directly.
+
+**Five measurement conditions, and their complete modes are not interchangeable.** Every retained mode also
+names its project set and worker sizing. Mixing modes produced two wrong conclusions during planning.
+
+- **single-file** — one file, nothing else running. `config-validate.test.ts` measures 23.5 s this way.
+- **tier-isolated** — one whole tier, quiet machine. The same file measures 37–40 s this way, because files within
+  the tier contend.
+- **under load** — full suite, or a tier running while other work competes for the machine. The same file measured
+  4.4 s per test in an earlier under-load run against 1.8 s per test tier-isolated, a 2.4× spread.
+- **standalone probe** — one non-tier process measurement, used for CLI startup.
+- **CI job** — hosted or self-hosted workflow-job duration, which no local condition describes.
+
+Every figure below is **tier-isolated on a quiet machine** unless stated otherwise.
+
+Normalization is the median. A single retained run stays labeled `single-run`; only multiple exact-mode samples
+are `median`. The noise band is an absolute change below 10% over the before value, with exactly 10% treated as
+established. The comparison entry refuses a lever when condition, project set, or worker sizing differs, and exposes
+deliberate worker variation only through its distinct sizing-sweep operation.
+
+One raw JSON payload per run is retained under package-local `.test-cost-runs/`, whose ignore rule was verified
+with `git check-ignore`. What is committed here is the normalized ranking, mode, and derivation.
+
+Only successful captures are eligible. Before persistence, every reported module must be terminal (`passed` or
+`skipped`) and `ok()`, and Vitest must report no run-level unhandled errors. The JSON normalizer refuses legacy
+records or any record without schema v3's explicit `outcome: "passed"` and zero-error stamps.
+
+## Diagnosing a wall-clock change
+
+A 2026-10-20 investigation at `b83a37f45` asked why heavy checks had slowed since the 2026-10-07 closing capture
+(`closing-local-a12/`). The readings below separated test growth from a per-operation regression and apply to any
+later slowdown; the figures in them are that day's observations.
+
+### Compare like with like
+
+- **Worker sizing differs by entry point.** Outside CI, gate commands — `npm run test:unit`, `test:integration`,
+  `arc check` — size workers through `vitest-worker-policy.ts`: half the available parallelism, at most eight. That is
+  eight on this host and five on the `arc-gates` VM, since `remote-check` sets no `CI` variable. Under CI, Vitest
+  sizes workers natively. `VITEST_MAX_WORKERS` overrides either, and `benchmark:test-cost --workers <n>` fixes the
+  count for a capture. Compare a capture only with one at the same sizing; efficiency computed against the wrong count
+  reads a work-bound tier as idle.
+- **Both sides need the same protocol and sample count.** Compare schema-v5 warmed captures only with schema-v5
+  warmed captures, and a median only with a median of as many runs. Records from before the warm-run protocol of
+  2026-10-09 cannot be normalized or compared, and a single retained run is a `single-run`, not a median.
+- **The benchmark takes about twice its retained wall clock.** Each invocation completes a discarded warm-up first.
+- **One flake discards the capture.** Only fully passed runs are retained, so an intermittent failure costs the whole
+  run; rerun it rather than reading partial output.
+- **Direct runs bypass `remote-check`.** `benchmark:test-cost`, run from `packages/arc-framework/`, and `test:file`,
+  run from the repository root, execute on the invoking host whatever `remote-check`'s mode says, and take that
+  host's heavy-test slot; unit-only runs take no slot.
+
+### Tell growth from regression
+
+Two readings over a pair of retained per-file captures screen it, and the narrowing steps below confirm what they
+suggest:
+
+- **Parallel efficiency** — summed file time over workers times wall clock. Near 1 means the tier is work-bound:
+  ordering, placement, and splitting have nothing to take, and only less work or more capacity moves it. A single
+  file gates the tier only when its own duration approaches the tier's wall clock.
+- **Unchanged files** — restrict the comparison to test files present at both refs that
+  `git diff --name-only <old> <new> -- packages/arc-framework/__tests__` does not list, so both captures ran the same
+  test file. The reading holds only when shared helpers, global setup, the test runner, and dependency versions are
+  unchanged too, or their changes are ruled out; the same diff lists changed helpers, `package-lock.json` shows
+  runner and dependency changes, and `packages/arc-framework/vitest.config.ts` shows how each tier runs. When one ref
+  is unavailable, matching test counts, and for E2E matching CLI spawn counts, are a weaker stand-in, since a file can
+  change and keep its counts.
+
+Then read where the added time sits. Time on new files is growth. A rise in the unchanged files' summed time beyond
+the noise band is a per-operation cost, and their median ratio says how broad the rise is. A per-operation cost
+inflates new and changed files too, so its share of the added time, measured on unchanged files, is a lower bound on
+what fixing it recovers. A tier can show both.
+
+The 2026-10-20 readings break the comparison rule above. The 2026-10-07 baseline is schema-v4 three-run medians
+captured without a warm-up, and the 2026-10-20 side is single schema-v5 warmed runs, both at 12 workers,
+tier-isolated. A cold baseline understates a rise, so the readings served as a screen, and the narrowing steps
+confirmed the cause.
+
+On that basis the integration tier was mostly growth: efficiency 0.97 then 0.98, and 1,245 s carried by 136 new
+files. Its 165 Git-unchanged files rose 9.3% in summed time (875 s to 956 s), inside the noise band, with a median
+ratio of 1.15: a broad rise, not established as a per-operation cost. The 31 Git-unchanged E2E files rose 44% (513 s
+to 738 s, median ratio 1.31), the regression signature, and Git-changed E2E files rose 87%. Shared helpers changed
+between the refs, including the CLI entry, which moved to the compile-cache launcher, and Vitest moved from 4.1.8 to
+4.1.11. The launcher starts faster, and the in-process timer in step 3 below placed the rise inside the CLI, so
+neither explains it.
+
+### Narrow a per-operation regression
+
+Run each step at both refs, interleaved, on an idle host:
+
+1. **One Git-unchanged file alone**, through `npm run test:file` from the repository root. A difference that persists
+   solo is in the work the commands do. A larger in-suite difference points to contention, though a solo run also
+   changes worker count and cache state, so it is evidence rather than proof.
+2. **Git calls**, through a `git` shim first on `PATH` that logs each call's duration and arguments. Tests resolve Git
+   from `PATH`, so the shim sees fixture and CLI calls alike.
+3. **CLI processes from inside.** The E2E helpers spawn the CLI through `process.execPath`, while `runCli` spawns
+   `node` from `PATH`, so a `node` shim on `PATH` sees only some spawns. A `NODE_OPTIONS="--require <file>"` preload
+   that appends `performance.now()` on `exit`, when `process.argv[1]` is the CLI entry, gives each verb's in-process
+   time in every spawn that does not set its own `NODE_OPTIONS`. `materializing-fetch.e2e.test.ts` and
+   `one-shot-script-entrypoints.test.ts` set their own for some spawns, so the preload misses those.
+4. **One verb profiled**, with `node --cpu-prof --cpu-prof-dir=<dir> <cli> <verb>`, then self and inclusive time
+   aggregated by named frame. Profile a real verb; `--version` loads no handler.
+
+For whole tiers at another commit, `benchmark:test-cost --ref <ref>` measures that commit in a temporary checkout
+when its lockfile matches; otherwise use a detached worktree with its own `npm ci` and `npm run build:fast`. A ref
+from before the warm-run protocol needs the current measurement instrumentation applied first, as described above,
+or its captures cannot be compared.
+
+The integration IO context (`makeIOContext` in `__tests__/helpers/integration.ts`) stubs the editor-document writer
+for commands that take it from that context — init, join, and update — so their provisioning cost shows only in
+E2E. Start and cold start, worktree spawn, locus provisioning, and decompose's candidate occupation take the writer
+from their own context or dependencies, and reach the real writer in integration tests that leave it unset.
+
+### Placement and host
+
+| Gate command, quiet host | VM, 5 workers | This host, 8 workers |
+| ------------------------ | ------------- | -------------------- |
+| `test:unit`              | 34 s          | 35 s                 |
+| `test:integration`       | 415 s         | 391 s                |
+
+The VM is `arc-gates`: 10 cores and 12 GB on the Mac mini. This host is an i9-12900K under WSL2, with 24 threads and
+15 GB. Per test the VM is about 1.5× faster — integration summed test time 1,835 s against 2,715 s — so its five
+workers roughly match this host's eight. Under suite load this host spends about as much CPU time in the kernel as in
+user space, at about 130,000 context switches per second. Through the compile-cache launcher, a current-build CLI
+start measured 143 ms for `--version` and about 400 ms for `status --json`.
+
+### CI data
+
+- **Per-file durations** — the shared setup job restores the duration cache and uploads it as the
+  `test-duration-input` artifact: per-file durations for unit, integration, and E2E in Vitest's results format, the
+  sequencer's input. Only a scheduled or dispatched run whose three test tiers all succeed saves that cache, so the
+  artifact holds the last such run's durations rather than the uploading run's own, and holds empty files when no
+  cache was restored. A run whose classification or setup fails, or a duplicate push run, uploads none. Scheduled
+  and dispatched runs also upload their own `duration-results-<tier>-<shard>` artifacts. Retrieve either with
+  `gh run download <run> -n <artifact>`.
+- **Job timings** — `gh run view <run> --json jobs` gives each job's start and end. Integration and E2E jobs run on
+  every scheduled or dispatched run, and on a pull-request run only when it takes the reviewed lane with a heavy or
+  integration-targeted change; pushes to `main` skip them.
+- **Span** — a run spends about 90 s on classification, shared setup, and build before its test shards start, then
+  waits on the slowest of the four integration and four E2E shards. On 2026-10-20 no single file gated a shard, and
+  the fastest and slowest shards of one run differed by 150–170 s.
+
+## Tracing which tests read a file
+
+Tests read ARC Markdown from disk, so no import graph shows which ones a Markdown change can break, and a content
+tier's inputs have to come from observation. A 2026-10-27 trace at `7fa6db8ce` recorded which tests read which `.arc/`
+files. The method below repeats it for any later selection question; the result is that day's observation.
+
+### Method
+
+Preload a tracer into every Node process a tier spawns, then run the tier's ordinary command through `nicecap`:
+
+```bash
+. ~/.memcap.sh && NODE_OPTIONS="--import <tracer.mjs>" TRACE_ROOT="$PWD/.arc/" TRACE_OUT=<log-dir> \
+  nicecap -n 19 -r 8 npm run -s test:integration
+```
+
+The tracer wraps the read, list, stat, open, and copy functions of `node:fs` and `node:fs/promises`, appends each
+distinct `<operation> <path>` under `TRACE_ROOT` to one log per process, and calls `syncBuiltinESMExports()` so ESM
+importers see the wrappers:
+
+```js
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
+import { resolve } from "node:path";
+
+const { TRACE_ROOT: root, TRACE_OUT: out, TRACE_STACK: stackMatch } = process.env;
+if (root && out) {
+  const log = `${out}/${process.pid}.log`;
+  const append = fs.appendFileSync.bind(fs);
+  const seen = new Set();
+  const note = (op, p) => {
+    try {
+      const s = typeof p === "string" ? p : p instanceof URL ? p.pathname : Buffer.isBuffer(p) ? p.toString() : null;
+      if (s === null) return;
+      const abs = resolve(s);
+      if (!abs.startsWith(root) || seen.has(`${op} ${abs}`)) return;
+      seen.add(`${op} ${abs}`);
+      append(log, `${op} ${abs}\n`);
+      if (stackMatch && abs.includes(stackMatch) && !seen.has("stack")) {
+        seen.add("stack");
+        const frames = (new Error().stack ?? "").split("\n").filter((l) => l.includes("__tests__") || l.includes("/src/"));
+        append(log, `STACK\n${frames.slice(0, 12).join("\n")}\n`);
+      }
+    } catch { /* tracing never fails the run */ }
+  };
+  const wrap = (obj, name, op) => {
+    const fn = obj[name];
+    if (typeof fn !== "function") return;
+    const wrapped = function (...args) { note(op, args[0]); return fn.apply(this, args); };
+    Object.assign(wrapped, fn);
+    obj[name] = wrapped;
+  };
+  const ops = { read: ["readFile", "createReadStream"], list: ["readdir", "opendir"], open: ["open"],
+    stat: ["stat", "lstat", "access", "realpath", "exists"], copy: ["copyFile", "cp"] };
+  for (const [op, names] of Object.entries(ops)) {
+    for (const name of names) { wrap(fs, name, op); wrap(fs, `${name}Sync`, op); wrap(fsp, name, op); }
+  }
+  syncBuiltinESMExports();
+}
+```
+
+Three details carry the method:
+
+- **Keep the wrapped function's properties.** Vite calls `fs.realpathSync.native`; a wrapper without
+  `Object.assign(wrapped, fn)` drops it and the run fails at startup.
+- **A process log does not name a test file.** Vitest reuses worker processes across files. Set `TRACE_STACK` to a
+  path substring, and each process records one stack for its first matching access; the `__tests__` frame names the
+  reading file and line.
+- **Match the trace to the declaration.** Diff the logged reads against the tracked files the tier's inputs select;
+  a selected file nothing reads marks an input the tier can drop, and a read file outside the inputs marks a gap.
+
+### Blind spots
+
+The tracer sees only Node `fs` calls under its root. It misses reads by shell scripts (`cat`, `grep`, `find`),
+reads of Git objects, and reads inside a temporary copy of the tree. Cover those by reading source: list the tests
+that run a script or a copy with the live repository as working directory, and read what each script reads. At the
+trace date, only `verify-integrity.test.ts` ran a script against the live repository; every other script and hook
+test built a temporary repository first.
+
+### Result at `7fa6db8ce`
+
+- **Integration** (4,280 cases): all 229 tracked Markdown files the content tier then selected were read. Decision
+  records and supplemental research and analysis were read only by two contract tests that walked every file under
+  `.arc/system` and `.arc/reference`, and neither asserted anything that depended on a record.
+- **E2E** (1,222 cases): three repository `.arc/` paths, none of them Markdown — its tests run against fixtures.
+
+The content tier's and CI's exclusion of those records rests on this result. A test that starts reading a record
+needs the exclusion revisited, and the parity test between the two lists will not notice.
+
+## Routed check capture cost
+
+A check routed to a runner first captures its source on this host: ARC copies every selected file into a private
+directory, gives the copy a self-contained Git history, and only then starts the adapter. A 2026-10-28 profile at
+`8cad4cecf` split that span. The method below repeats it for any later question about capture cost; the results are
+that day's observations.
+
+### Capture method
+
+- **Spans** — import the capture modules from a checkout's `src` with `tsx` and time the calls the check runner makes,
+  in order: `acquireSourceBoundary`, `freezeSelectedSource`, `addSourceGitMetadata`, then the boundary's `recheck`.
+  The request needs only the tree, HEAD evidence, the base, and an empty merged list. Use the Node source IO and the
+  `process-executor` Git executors; the copy lands under the system temporary directory and is removed afterwards.
+- **Git steps** — run what `addSourceGitMetadata` runs by hand, into a fresh scratch repository:
+  `pack-objects --revs --stdout` fed the tree, HEAD and base, then `index-pack --stdin`, `read-tree`, and
+  `fsck --connectivity-only`. With `--progress`, `pack-objects` reports how many objects it compresses afresh
+  rather than reusing a stored delta.
+- **Whole path** — under a temporary `HOME`, point `checks.runner` at a stub adapter that records its start time and
+  exits non-zero, then time `arc check run typecheck` from launch to the stub's timestamp. The stub never proves
+  closure, so ARC retains each run's captured inputs under the system temporary directory and names them in its
+  retry text; remove them afterwards.
+- **Quiet host** — measure with little else running. Concurrent captures share the CPU, and `pack-objects` uses every
+  core it is given.
+
+### Result at `8cad4cecf`
+
+| One capture, quiet host        | Before repack | After repack |
+| ------------------------------ | ------------- | ------------ |
+| `pack-objects`                 | 8.3–9.6 s     | 1.1 s        |
+| Git metadata, all steps        | 10.8–11.4 s   | 3.9 s        |
+| File freeze, 5,262 files       | 3.8–4.5 s     | 3.8–4.4 s    |
+| Capture total                  | 14.8–15.7 s   | 7.8–8.6 s    |
+| CLI start to adapter start     | 17.2–18.3 s   | 10.3–10.4 s  |
+
+- **Freeze** — the per-file copy took 3.0–3.2 s one file at a time, and 1.5 s at every width from four to 32 files
+  at once: the limit of Node's four-thread I/O pool. Spelling resolution took 0.23 s.
+- **Git metadata after the repack** — `index-pack` takes 2.4 s and `fsck` 0.4 s. Both verify the whole reachable
+  history, which a self-contained copy needs.
+- **The rest of ARC's path** — startup, selection, planning, and launch take about 2.5 s.
+- **Past adapter start** — a merge gate the same day, with five routed plans in flight, measured about 1.9 s to the
+  adapter's local materialization, 4.7 s materializing and verifying, 4.5 s uploading, and 1.2 s on the runner
+  before the backend started.
+
+### Pack state decides `pack-objects`
+
+`pack-objects` reuses deltas already stored in packs and compresses every other object afresh. On 2026-10-28 the
+repository held 133,690 loose objects in 58 packs, and each capture compressed 86,622 of the 177,308 objects
+reachable from HEAD. A fully packed copy of the same history built the same pack in 0.96–1.05 s. Turning delta
+search off made it slower (`--window=0`: 16.3 s and a 290 MB pack), because the larger pack costs more to write.
+
+Automatic maintenance had not run since 2026-08-26. A commit inside a Codex command started Git's automatic
+maintenance, which takes `objects/maintenance.lock` and then detaches. The Codex sandbox runs each command in its own
+process namespace, so the kernel killed the detached process when the command returned, and the lock stayed. While
+that lock exists, automatic maintenance and a manual `git maintenance run` both exit 0 without doing or printing
+anything. Scheduled maintenance (`git maintenance start`) runs from the scheduler, outside any sandbox, and turns off
+commit-triggered maintenance for the repository. Read `git count-objects -v` and look for that lock before
+attributing a capture or fetch slowdown to ARC.
+
+## Store-suite process cost
+
+The store suites (`test:store`, the 321 `store-ref-*` integration files) ran in CI as four shards, which took 13–22
+minutes each on the ref backend's last three branch runs. A 2026-10-29 measurement at `f663af671` found where the ten
+slowest files spend their time. The method below repeats it; the results are that day's observations.
+
+### Process measurement method
+
+- **Runs** — run each file alone under `nicecap -n 19 -r 8`, with a preload in every Node process, and keep the JSON
+  report, which gives each case's duration:
+
+  ```bash
+  . ~/.memcap.sh && NODE_OPTIONS="--import <preload.mjs>" SPAWN_LOG=<dir>/spawn.log nicecap -n 19 -r 8 \
+    npm run -s test:file -- <file> --reporter=json --outputFile=<dir>/vitest.json
+  ```
+
+- **Spawn timing** — the preload wraps `ChildProcess.prototype.spawn` and logs, for each call, how long the call
+  blocks its caller, the time until the child's `exit`, and the child's working directory and first arguments:
+
+  ```js
+  import cp from "node:child_process";
+  import { appendFileSync } from "node:fs";
+
+  const proto = cp.ChildProcess.prototype, original = proto.spawn;
+  proto.spawn = function timedSpawn(options) {
+    const t0 = performance.now();
+    try { return original.call(this, options); }
+    finally {
+      const blocked = performance.now() - t0;
+      const args = options.args.slice(1, 7).join(" ");
+      this.once("exit", () => appendFileSync(process.env.SPAWN_LOG,
+        `${process.pid}\t${blocked}\t${performance.now() - t0}\t${options.cwd}\t${args}\n`));
+    }
+  };
+  ```
+
+- **Attribution** — a second run of the same files uses a preload that calls `Error.captureStackTrace` at each spawn
+  and keeps the first source frames outside the Git execution plumbing (`lib/git/process-executor.ts`,
+  `process-cancellation.ts`, `batch-reader.ts`, `version-floor.ts`, `exec.ts`, and the ref context's wrappers).
+- **Git's own run time** — a `git` shim first on `PATH` logs each call's start and end from `$EPOCHREALTIME`, forwards
+  `TERM`, `INT` and `HUP` to Git, and re-raises a fatal signal so the caller sees the same exit. It adds about 1.8 ms
+  a call, so use it for Git's run time and counts, not for wall time.
+- **CPU profiles** — Vitest's default `forks` pool stops its workers before `--cpu-prof` writes their profiles.
+  `--pool=threads` writes one per worker thread, but a thread worker lives in Vitest's main process, so its spawn cost
+  is not the `forks` worker's.
+
+### Result at `f663af671`
+
+| File                          | Cases | Case time | Git processes | Per case | Blocked in spawn |
+| ----------------------------- | ----: | --------: | ------------: | -------: | ---------------: |
+| `cleanup-report`              |    30 |   140.9 s |        18,320 |      611 |              60% |
+| `conformance-reads`           |   558 |    99.7 s |        18,690 |       33 |              43% |
+| `conformance-sync`            |   139 |   193.1 s |        29,037 |      209 |              48% |
+| `follow-copy-handoff`         |    24 |   147.2 s |        24,605 |    1,025 |              58% |
+| `follow-restart`              |    29 |   131.7 s |        24,642 |      850 |              58% |
+| `import-errands`              |    60 |   171.0 s |        21,525 |      359 |              54% |
+| `import-observation-failures` |    48 |   307.8 s |        42,416 |      884 |              63% |
+| `remote-delete`               |    40 |   163.6 s |        21,046 |      526 |              59% |
+| `separate-conformance-reads`  |   558 |   215.7 s |        19,282 |       35 |              41% |
+| `withdraw-entry-inverse`      |    92 |   188.9 s |        47,612 |      518 |              45% |
+| All ten                       | 1,578 | 1,759.6 s |       267,175 |      169 |              53% |
+
+- **Process cost dominates.** In the `forks` worker a spawn blocks its caller for a median 3.2 ms; from a bare Node
+  process it blocks for 1.1–1.9 ms at heaps up to 1 GB. Git itself runs for about 2 ms a call. From spawn to exit,
+  child processes account for about 86% of case time, an upper bound since concurrent calls count twice. JavaScript
+  takes the rest.
+- **Subcommands** — `for-each-ref` 71,440, `config` 40,362, `cat-file` 32,854, `update-ref` 17,778, `ls-tree` 14,485,
+  `diff-tree` 12,097, `remote` 10,547, `show` 10,202.
+- **Per-file outliers** — the import files read the old layout: in a 12-case sample of `import-observation-failures`,
+  about 70% of processes come from `store/in-repo/meta.ts`, which scans every branch through `remote-ref-reader.ts`
+  (29%), lists worktrees (15%), and snapshots Errand identity (7%) on each meta read.
+
+### Where the processes come from
+
+Attribution over the nine files other than `import-observation-failures`, 224,996 processes:
+
+| Source                    |     Share | What it runs                                                     |
+| ------------------------- | --------: | ---------------------------------------------------------------- |
+| `store/ref/batch-read.ts` |     23.5% | per read: a tips `for-each-ref`, `cat-file --batch`, `diff-tree` |
+| `store/ref/sync-graph.ts` |     19.9% | a `readSyncRefs` capture per reconciliation step                 |
+| Config and remote lookups | about 19% | `config` (34k), `remote show -n` (9k), re-read per call          |
+| Writes                    | about 16% | `update-ref`, `hash-object`, `mktree`, `commit-tree`             |
+| Test assertions, fixtures |     10.6% | reading state back to check it                                   |
+| `store/in-repo/`          |      3.3% | meta reads and file listings                                     |
+
+- **Already batched within a read** — `batch-read.ts` sends each read's objects through one `cat-file --batch`; the
+  cost is that every read starts its own listing and reader.
+- **Exact by design** — `readSyncRefs` captures the ref set fresh at each reconciliation step, which reconciliation's
+  correctness relies on.
+- **Re-read per call** — configuration, remote transport, designation and identity are read again for each call
+  within one operation.
+
+### Blind spots
+
+- **Callers past the first store module** — async stack traces drop a caller that returns a promise without awaiting
+  it, so about 37,800 `readSyncRefs` and 22,000 transport calls show no source caller beyond their own module.
+- **Host** — local runs at niceness 19 beside other work; CI runs each shard on a hosted Linux runner.
+- **Later codecs** — the measurement predates any change to the store's codec registry; codecs added to it later add
+  parse cost to every read and listing they decode.
+
+### Shard balance
+
+On run `40928051907` (2026-10-29, four shards), the 319 store files that ran took 197.9 minutes of file time between
+them. CI's duration input held a recorded duration for 175 of them, and their measured times ran a median 1.31 times
+the recorded ones (10th percentile 0.84, 90th 2.15). The shards carried 41.3, 43.5, 53.7 and 59.5 minutes of file
+time, 79 or 80 files each, and their jobs took 17.6, 16.2, 19.6 and 21.7 minutes.
+
+Placed on those measured durations, longest first onto the lightest shard, the heaviest shard carries 49.5 minutes of
+file time at four shards, 39.6 at five, 33.0 at six and 24.7 at eight. At four shards the total alone sets that
+49.5-minute floor, so balancing cannot go below it. A straight-line fit of the run's four jobs against their file time
+puts a 33-minute shard at about 14.5 minutes of job time.
+
+### Repeated sync-ref captures
+
+`readSyncRefs` (`store/ref/sync-graph.ts`) lists a ref namespace with one `for-each-ref`, and 37 store modules call it,
+the pull lifecycle at each reconciliation step among them. A 2026-10-31 measurement at `9d3c77b56` counted how often a
+capture repeats one the same public call already holds, with nothing between them that could have moved its refs.
+
+- **Instrumentation** — three temporary additions, none committed: `withOperationIdentity` gives each public store
+  call a number and logs its ARC lock acquisitions and releases; `readSyncRefs` logs each capture's call, patterns,
+  first five stack frames and rows; and a Node preload wraps `ChildProcess.prototype.spawn` to log the start and exit
+  of every Git command that can move a ref (`update-ref`, `fetch`, `push`, `symbolic-ref`, `pack-refs`, a `config`
+  write, and others) with its working directory. All three append to one file per test file.
+- **Rule** — a capture is reusable when an earlier capture by the same call, on the same checkout, covers all of its
+  patterns, returned the same rows, ended before it began, and no ref-moving Git command overlapped the gap and no ARC
+  lock taken in the gap is still held at the later capture. That is the lock rule `store-operation-git-access`'s
+  operation scope applies to configuration answers.
+- **Files** — `withdraw-entry-inverse`, `conformance-sync`, `cleanup-report` and `follow-restart`, each run alone
+  under `nicecap -n 19 -r 8`; all 290 cases passed.
+
+A row starting "In a call" or "Outside a call" counts captures within the group row above it. Neither counts the 87
+such repeats whose earlier capture sits in the other group.
+
+| Class                                                                          | Captures | Share |
+| ------------------------------------------------------------------------------ | -------: | ----: |
+| All captures                                                                   |   29,713 |  100% |
+| Inside a push or pull call                                                     |   16,004 |   54% |
+| In a call: reusable, by the rule above                                         |    3,718 |   13% |
+| In a call: same rows, but after a lock still held                              |    4,150 |   14% |
+| In a call: same rows as an earlier call's, no ref-moving Git command between   |      163 |  0.5% |
+| Outside any public call (migration, follow, cleanup)                           |   13,709 |   46% |
+| Outside a call: same rows as an earlier one, no ref-moving Git command between |    2,696 |    9% |
+
+- **Per call** — a push took 16.2 captures (10,280 over 635 calls), 5.2 of them reusable; a pull took 11.5 (5,724 over
+  498), 0.8 of them reusable. A push runs the pull lifecycle, then lists its refs and observes the layout separately.
+- **Where the reusable ones repeat** — the pull lifecycle's own captures (`sync-pull-lifecycle.ts`'s
+  `captureMergeRefs`, 1,562), then push's listing after the lifecycle (`push-listing.ts`, 632), after the fetch's
+  tracking capture (`fetch.ts`, 544), and around the layout observation (`layout-state.ts`, 834 both ways).
+- **Saving** — at the per-process cost measured at `f663af671` (a 3.2 ms spawn plus about 2 ms of Git), 3,718
+  processes are about 19 s of these four files' 655 s of case time, about 3%. That is an estimate from counts, not a
+  timed run.
+- **Limits** — a single test process shows no other writer, so an unchanged repeat says only that nothing moved here.
+  Reusing one also needs the source read to confirm that the later decision relies on no freshness the earlier
+  capture lacks; a later write's compare-and-swap expected value is what makes a stale capture restart rather than
+  write wrongly. The 2,696 repeats outside a public call have no call to share; reusing them needs a scope around the
+  migration, follow, and cleanup flows, where no lock was logged. 282 captures changed with no logged Git write, from a
+  fixture writing ref files directly, for instance.
+
+## Tier baselines
+
+| Project set           | Wall clock | Summed file time | Files | Executed cases | Mode                              |
+| --------------------- | ---------- | ---------------- | ----- | -------------- | --------------------------------- |
+| `unit` + `unit-mocks` | 23.47 s    | 141.02 s         | 697   | 9,916          | tier-isolated / unit / 12 workers |
+| `integration`         | 42.63 s    | 361.01 s         | 137   | 1,247          | tier-isolated / integration / 12  |
+| Routine lane (no E2E) | 57.33 s    | 548.18 s         | 834   | 11,163         | tier-isolated / lane / 12         |
+| `e2e`                 | 257.56 s   | 1,624.01 s       | 53    | 528            | tier-isolated / e2e / 12          |
+
+Every row is a three-run median. The lane is one admitted combined invocation, not unit plus integration
+arithmetic; its projects interleave in one worker pool. Executed-case counts exclude the one environment-gated
+skipped case; the file count and summed time retain that file's collection/setup cost.
+
+**Wall clock is floored by the longest file.** Files run in parallel and tests within a file run sequentially, so
+no tier finishes before its longest file. Integration's median wall is 42.63 s against `user.test.ts` at 41.10 s,
+while its 361.01 s summed time over 12 workers is a 30.08 s arithmetic floor. Unit's 23.47 s wall is floored by
+`classify-change.test.ts` at 22.70 s. Reducing summed time does not move these tiers' wall clock until the longest
+files shrink or split.
+
+`build:fast`, which the integration global setup runs on every invocation, costs 1.2 s warm.
+
+## Post-cost baseline
+
+The post-Phase 5 baseline was captured at `8f6d655c5` on the same WSL2 host and with the same local mode as the
+first instrument baseline. Each local row is the median of three successful retained schema-v3 runs; one E2E
+sample waited 9.85 s for admission, and that wait remains separate from its timed window.
+
+| Project set           | Wall clock | Summed file time | Files | Executed cases | Change from first baseline |
+| --------------------- | ---------- | ---------------- | ----- | -------------- | -------------------------- |
+| `unit` + `unit-mocks` | 11.12 s    | 112.50 s         | 696   | 9,766          | -52.6% wall / -20.2% sum   |
+| `integration`         | 40.04 s    | 338.72 s         | 138   | 1,379          | -6.1% wall / -6.2% sum     |
+| Routine lane (no E2E) | 44.93 s    | 457.99 s         | 834   | 11,145         | -21.6% wall / -16.5% sum   |
+| `e2e`                 | 215.31 s   | 1,248.16 s       | 55    | 563            | -16.4% wall / -23.1% sum   |
+
+The tier moves explain the changed file and case populations. Integration's movement is inside the 10% noise
+band and is not claimed as a separate lever. The routine lane is above the earlier 44 s bar by 0.93 s; worker
+sizing is deliberately unsettled at this point, so the sizing sweep must resolve the scored bar before the member
+closes.
+
+### Post-cost concentration and audit work order
+
+The tables below are the cost-ranked audit's descending work order from the retained post-cost baseline. Each
+extends beyond the top decile through the first three consecutive files whose entire share is under 2% of the
+tier's normalized summed time. Even total removal of each such file would yield less than the stop threshold, so
+the recorded order is long enough to close the audit without reopening the baseline. The unit tier is out of scope.
+
+| Integration file                        | Seconds | Cases | Share |
+| --------------------------------------- | ------- | ----- | ----- |
+| `decompose-v3-repository-plan.test.ts`  | 38.35   | 53    | 11.3% |
+| `review-fan-out-lifecycle.test.ts`      | 35.34   | 15    | 10.4% |
+| `user.test.ts`                          | 34.81   | 94    | 10.3% |
+| `classify-change.test.ts`               | 27.43   | 122   | 8.1%  |
+| `harness-hooks/codex-cli.test.ts`       | 18.92   | 37    | 5.6%  |
+| `delivery-field-runs.test.ts`           | 11.21   | 9     | 3.3%  |
+| `init.test.ts`                          | 10.22   | 39    | 3.0%  |
+| `github-provider-refresh.test.ts`       | 8.27    | 5     | 2.4%  |
+| `user-notes-compaction.test.ts`         | 7.84    | 18    | 2.3%  |
+| `teardown.test.ts`                      | 7.10    | 22    | 2.1%  |
+| `notes-export-state-coherence.test.ts`  | 7.09    | 13    | 2.1%  |
+| `one-shot-script-entrypoints.test.ts`   | 6.86    | 3     | 2.0%  |
+| `command-surface-documentation.test.ts` | 4.95    | 8     | 1.5%  |
+| `delivery-member-six-lifecycle.test.ts` | 4.81    | 7     | 1.4%  |
+| `start-dispatch.test.ts`                | 4.78    | 17    | 1.4%  |
+
+| E2E file                                 | Seconds | Cases | Share |
+| ---------------------------------------- | ------- | ----- | ----- |
+| `candidate-lineage.e2e.test.ts`          | 204.77  | 33    | 16.4% |
+| `delivery-position.e2e.test.ts`          | 122.64  | 23    | 9.8%  |
+| `command-input-no-input.e2e.test.ts`     | 99.55   | 77    | 8.0%  |
+| `errand.e2e.test.ts`                     | 90.85   | 47    | 7.3%  |
+| `lifecycle-exit.e2e.test.ts`             | 90.41   | 24    | 7.2%  |
+| `delivery-plan.e2e.test.ts`              | 78.60   | 18    | 6.3%  |
+| `session-init.e2e.test.ts`               | 65.88   | 29    | 5.3%  |
+| `review-protocol.e2e.test.ts`            | 38.82   | 8     | 3.1%  |
+| `delivery-terminal-recovery.e2e.test.ts` | 35.67   | 18    | 2.9%  |
+| `publication-spine.e2e.test.ts`          | 26.22   | 7     | 2.1%  |
+| `rename.e2e.test.ts`                     | 25.52   | 8     | 2.0%  |
+| `delivery-authoring.e2e.test.ts`         | 22.07   | 4     | 1.8%  |
+| `user.e2e.test.ts`                       | 21.22   | 13    | 1.7%  |
+| `locus-errand-roundtrip.e2e.test.ts`     | 20.77   | 7     | 1.7%  |
+| `decompose-command-modes.e2e.test.ts`    | 19.49   | 4     | 1.6%  |
+
+The top four E2E files remain `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand`.
+`lifecycle-exit` is fifth by 0.44 s, so the measured anchor correction remains the one identified by the first
+baseline.
+
+### Ranked audit dispositions
+
+The audit applied the per-test rubric in the fixed order above. Integration reached its stop after ranks 13–15;
+each file's whole baseline share was already below 2%, so no later integration file could yield the threshold.
+
+1. `decompose-v3-repository-plan.test.ts` — **retain**: real Git transition, race, and rollback behavior.
+2. `review-fan-out-lifecycle.test.ts` — **retain**: already uses handler seams over real durable review stores.
+3. `user.test.ts` — **retain**: concurrency-sensitive notes mutation; prepared repositories already share setup.
+4. `classify-change.test.ts` — **retain**: the shell classifier and verified Git history are the boundary.
+5. `harness-hooks/codex-cli.test.ts` — **retain**: generated hooks, process environment, and shell output are real.
+6. `delivery-field-runs.test.ts` — **retain**: historical plans and refusal conservation need repository state.
+7. `init.test.ts` — **retain**: recipe rendering, pristine copies, and manifest integrity use real files and Git.
+8. `github-provider-refresh.test.ts` — **retain**: fork recovery and conflict continuation operate on real Git.
+9. `user-notes-compaction.test.ts` — **retain**: lock, notes-tree, and cumulative-prune behavior is mutation proof.
+10. `teardown.test.ts` — **retain**: branch and worktree deletion is a destructive real-repository boundary.
+11. `notes-export-state-coherence.test.ts` — **retain**: divergence classification spans actual refs and notes.
+12. `one-shot-script-entrypoints.test.ts` — **retain**: loader output and exit status are the package-script seam.
+13. `command-surface-documentation.test.ts` — **retain; stop 1/3**: derived docs/source/Commander agreement.
+14. `delivery-member-six-lifecycle.test.ts` — **retain; stop 2/3**: handler seam already drives real state stores.
+15. `start-dispatch.test.ts` — **retain; stop 3/3**: real worktree mutation; output capture now uses the shared
+    handler runner.
+
+E2E reached its stop after ranks 12–14. The two conversions preserve their complete assertion sets; no deletion
+was made, so no mutation-testing decision was needed.
+
+1. `candidate-lineage.e2e.test.ts` — **convert** the five highest-yield semantic cases to one integration file
+   through CLI-validated handler inputs; retain the other 28 cases at the real CLI. The first nine-file split kept
+   every arrival below the per-file floor but repeated the large fixture enough to raise the complete integration
+   tier to 52.83 s, so it was rejected. The corrected single arrival stays below the 38.35 s floor while the
+   retained file continues to protect parsing, dispatch, and public review choreography.
+2. `delivery-position.e2e.test.ts` — **convert** 20 semantic cases to `delivery-position.test.ts`; retain the three
+   long correction/rebind cases as real-CLI orchestration smokes because their handlers intentionally launch nested
+   public commands. Other verb protectors remain in the E2E files named above plus
+   `delivery-terminal-recovery.e2e.test.ts`. The first 22-case arrival exceeded the tier floor under the complete
+   integration load; retaining the two nested-effect cases returned the arrival below it.
+3. `command-input-no-input.e2e.test.ts` — **retain**: non-TTY, CI, `--no-input`, stdin, parsing, and dispatch are
+   entry behavior.
+4. `errand.e2e.test.ts` — **retain**: close, abandon, promote, checkout, and branch teardown are destructive.
+5. `lifecycle-exit.e2e.test.ts` — **retain**: park, abandon, teardown, and remote-ref deletion are destructive.
+6. `delivery-plan.e2e.test.ts` — **retain**: documented parsing, public choreography, and destructive closeout.
+7. `session-init.e2e.test.ts` — **retain**: entry composition, environment, output, and recovery dispatch.
+8. `review-protocol.e2e.test.ts` — **retain**: public-verb replay and concurrent serialization are the subject.
+9. `delivery-terminal-recovery.e2e.test.ts` — **retain**: effect-driver recovery spans nested public commands.
+10. `publication-spine.e2e.test.ts` — **retain**: cross-command publication entry choreography is the subject.
+11. `rename.e2e.test.ts` — **retain**: branch, worktree, identity, and remote rename mutation is destructive.
+12. `delivery-authoring.e2e.test.ts` — **retain; stop 1/3**: authoring write verbs mutate Candidate refs.
+13. `user.e2e.test.ts` — **retain; stop 2/3**: save/push/clone/pull portability needs process isolation.
+14. `locus-errand-roundtrip.e2e.test.ts` — **retain; stop 3/3**: promotion and capture settlement are destructive.
+
+The audit stopped before `decompose-command-modes.e2e.test.ts`, as required: three consecutive sub-2% files had
+already yielded less than the threshold. Prepared initialized repositories consolidate repeated setup for both
+worked suites, and `handler.ts` is the single stdout, stderr, exit-code, cwd, and environment capture path.
+
+### Post-audit baseline
+
+The final Phase 7 tree was re-measured in the same tier-isolated mode at 12 workers. Every row is the median of
+three successful retained schema-v3 runs; one E2E sample waited 433.96 s for local admission, outside its timed
+window. These are historical, same-schema measurements of directional improvement. The later schema-v4 correction
+does not change their wall-clock observations, but these summed costs, per-file floors, and rankings do not certify
+the final tree under the current schema-v4 metric; no schema-v4 post-audit comparison was recorded.
+
+| Project set           | Wall clock | Summed file time | Files | Executed cases | CLI spawns |
+| --------------------- | ---------- | ---------------- | ----- | -------------- | ---------- |
+| `integration`         | 44.84 s    | 415.50 s         | 140   | 1,405          | 2          |
+| Routine lane (no E2E) | 48.79 s    | 529.55 s         | 838   | 11,178         | 2          |
+| `e2e`                 | 189.25 s   | 1,211.11 s       | 55    | 538            | 1,665      |
+
+The integration summed-time floor is 34.62 s at 12 workers. The two arrivals remain under it:
+`candidate-lineage.test.ts` is 31.60 s and `delivery-position.test.ts` is 25.75 s. The routine lane is 14.9%
+faster than the 57.33 s first baseline, clearing the directional bar's 10% reduction while absorbing the cheaper
+handler-seam coverage. E2E is 12.1% faster than its 215.31 s post-cost baseline.
+
+The final E2E top four are `candidate-lineage` (175.97 s), `command-input-no-input` (101.36 s), `errand`
+(93.68 s), and `lifecycle-exit` (93.09 s). The final CI workflow pins `errand`, `candidate-lineage`,
+`command-input-no-input`, and `lifecycle-exit` on legs 1–4 respectively; `delivery-plan` (80.85 s) and the
+three-case `delivery-position` smoke (76.06 s) follow in the historical ranking.
+
+### Worker sizing sweep
+
+The lane was measured in three-run alternating samples at 50%, 75%, and native sizing. On this 24-logical-CPU
+host, those modes resolved to 12, 18, and 23 workers respectively.
+
+| Requested sizing | Effective workers | Wall clock | Summed file time | Wall change from 50% |
+| ---------------- | ----------------- | ---------- | ---------------- | -------------------- |
+| 50%              | 12                | 44.93 s    | 457.99 s         | baseline             |
+| 75%              | 18                | 45.13 s    | 573.62 s         | +0.5%                |
+| native           | 23                | 46.12 s    | 701.69 s         | +2.7%                |
+
+Neither raised setting improves wall clock, and both increase the work performed as contention grows. Because no
+candidate cleared the 10% adoption band, the conditional sibling-session degradation probe did not fire. The
+local runner keeps the configuration's 50% default, no runner-only override is added, and the CI cap remains
+unchanged.
+
+### Post-cost CI run
+
+Workflow dispatch `34651274160` ran successfully on the two-slot `arc-ci-mini` at the same exact head. This is one
+CI-job sample rather than a median; the dispatch exercises every heavy job but skips the PR-only `ci-ok` and
+`merge-ok` rollups.
+
+This and the later pre-correction dispatch `34654605367` repeated each pinned E2E anchor in its remainder shard.
+Vitest's CLI normally normalizes `exclude` to `cliExclude` before calling `startVitest`; the programmatic local-tier
+adapter skipped that private normalization, so its parsed exclusions never reached config resolution. These runs
+remain useful historical timing and budget-reporter observations, but they do not evidence the final anchor topology
+or score the heavy-lane target.
+
+| Job                                | Seconds   |
+| ---------------------------------- | --------- |
+| Classify lane & weight             | 7         |
+| Shared setup                       | 18        |
+| Lint & Typecheck                   | 66        |
+| Unit Tests                         | 40        |
+| Integration Tests                  | 186       |
+| E2E Tests (1)                      | 151       |
+| E2E Tests (2)                      | 221       |
+| E2E Tests (3)                      | 268       |
+| E2E Tests (4)                      | 154       |
+| Portability (concurrency guards)   | 20        |
+| **Summed successful job duration** | **1,131** |
+
+Against the six-run 1,377 s first baseline, the observed reduction is 246 job-seconds (17.9%). The run therefore
+misses the derived 1,077 s bar by 54 s. That difference is recorded as measured rather than attributed to a lever
+from one CI sample; later member validation must resolve the criterion from the evidence then available.
+
+### Recorded budgets
+
+The [test-cost budget record][test-cost-budgets] is the single tracked source for the instrument and CI. Each
+`budgets` entry records its observed baseline in `baselineMs` and limit in `budgetMs`, both in milliseconds; the
+record's `allowanceFraction` names the allowance applied when setting those limits.
+
+Match observations by `tier`, `metric`, and the complete `mode` (`condition`, `projectSet`, and `workerSizing`),
+plus `ciJob` where present. Complete measurement modes keep local and CI observations disjoint, and `ciJob`
+distinguishes CI shard jobs.
+
+### Budget exercise
+
+A settled 12-worker lane run at `0668989f1` completed in 43.718 s with 443.569 s of summed file time. The
+instrument matched the tier-isolated lane record and reported `within`, with 5.700 s remaining against the
+49.418 s local budget.
+
+Workflow dispatch `34654605367` exercised the corrected epoch-seconds reporter, but its E2E jobs exposed the
+programmatic exclusion defect described above: each anchor ran in both the anchor and remainder steps. The reporter
+still matched every test job to its own one-worker CI-job record, but the run's 1,170 job-seconds are not a valid
+score for the intended anchor topology.
+
+After the local-tier adapter normalized forwarded exclusions, exact-head dispatch `34657372996` exercised the
+corrected path. Every test job completed within budget:
+
+| CI job      | Observed  | Budget    | Remaining |
+| ----------- | --------- | --------- | --------- |
+| Unit        | 37.114 s  | 44.0 s    | 6.886 s   |
+| Integration | 174.065 s | 204.6 s   | 30.535 s  |
+| E2E 1       | 145.882 s | 160.471 s | 14.589 s  |
+| E2E 2       | 173.512 s | 190.864 s | 17.352 s  |
+| E2E 3       | 127.090 s | 139.799 s | 12.709 s  |
+| E2E 4       | 107.591 s | 118.351 s | 10.760 s  |
+
+The raw E2E logs show one anchor file on each leg, a 13/13/13/12 split of the 51-file remainder, and no anchor
+result in any remainder step. The run's ten successful job durations sum to 913 s. Against the six-run 1,377 s
+first baseline, that is a 464 job-second reduction (33.7%), clearing the fixed 300 job-second target by 164 s. After
+the corrected E2E baselines were recorded, a synthetic E2E 4 overage reported 137.892 s against 118.351 s, wrote a
+19.541 s advisory warning, and exited successfully.
+
+After the ranked conversions, exact-head dispatch `34666114866` completed every heavy job successfully. Its ten
+successful job durations sum to 887 s, 490 job-seconds (35.6%) below the 1,377 s first baseline and 190 s below the
+fixed target. The reporter windows below are the refreshed affected CI-job baselines; E2E 3's 140.095 s observation
+was 0.296 s over its pre-conversion budget, illustrating why the accepted redistribution needed a new record.
+
+| CI job      | Reporter window | Refreshed budget |
+| ----------- | --------------- | ---------------- |
+| Integration | 194.067 s       | 213.474 s        |
+| E2E 1       | 125.854 s       | 138.440 s        |
+| E2E 2       | 147.918 s       | 162.710 s        |
+| E2E 3       | 140.095 s       | 154.105 s        |
+| E2E 4       | 100.962 s       | 111.059 s        |
+
+## Where the time concentrates
+
+Cumulative share is of that tier's summed file time.
+
+### `unit` — 141.02 s over 697 files
+
+| File                                         | Seconds | Cases | Cumulative |
+| -------------------------------------------- | ------- | ----- | ---------- |
+| `classify-change.test.ts`                    | 22.70   | 122   | 16%        |
+| `harness-hooks/codex-cli.test.ts`            | 17.99   | 37    | 29%        |
+| `command-input/repository-inventory.test.ts` | 8.82    | 15    | 35%        |
+| `command-input/registry.test.ts`             | 8.82    | 4     | 41%        |
+| `decompose-v3-authority-boundary.test.ts`    | 2.82    | 5     | 43%        |
+| `kernel/import-boundary.test.ts`             | 2.78    | 8     | 45%        |
+| `meta-reader-inventory.test.ts`              | 2.61    | 1     | 47%        |
+| `user-status.test.ts`                        | 2.52    | 172   | 49%        |
+
+The first two files are 29% of the complete-cost tier. Neither spawns the ARC CLI: `classify-change` drives
+`classify-change.sh` through `bash`, and `codex-cli` spawns `git` 18 times and `sh` once. Both use `it.each`, so static
+`it(` counts understate their case counts — `classify-change` declares 63 `it(` calls but executes 122 cases.
+
+### `integration` — 361.01 s over 137 files
+
+| File                                   | Seconds | Cases | Cumulative |
+| -------------------------------------- | ------- | ----- | ---------- |
+| `user.test.ts`                         | 41.10   | 94    | 11%        |
+| `decompose-v3-repository-plan.test.ts` | 41.05   | 53    | 23%        |
+| `review-fan-out-lifecycle.test.ts`     | 36.80   | 15    | 33%        |
+| `config-validate.test.ts`              | 33.88   | 13    | 42%        |
+| `review-cli-surfaces.test.ts`          | 14.89   | 22    | 46%        |
+| `init.test.ts`                         | 11.95   | 39    | 50%        |
+| `delivery-field-runs.test.ts`          | 11.47   | 9     | 53%        |
+| `github-provider-refresh.test.ts`      | 9.00    | 5     | 55%        |
+| `user-notes-compaction.test.ts`        | 8.50    | 18    | 58%        |
+| `teardown.test.ts`                     | 7.90    | 22    | 60%        |
+| `one-shot-script-entrypoints.test.ts`  | 7.69    | 3     | 62%        |
+| `notes-export-state-coherence.test.ts` | 7.65    | 13    | 64%        |
+
+**Only four files in this tier spawn the ARC CLI at all** — `config-validate`, `review-cli-surfaces`,
+`decompose-v3-repository-plan`, and `scripts/remedy-roadmap-conflict`. They hold about 90.2 s, or **25.0%** of tier
+cost. The other 133 files hold about 270.8 s (**75.0%**), and their dominant term is git fixture construction: 112
+of the 137 files carry a repo-building signal. Any lever aimed at CLI startup reaches at most the 25.0%.
+
+`config-validate` is the exception that pays a different tax: it spawns the CLI from TypeScript source through the
+`tsx` loader, at ~1.4 spawns per test.
+
+### Fixture construction probe (`user.test.ts`, `init.test.ts`)
+
+Both files build one fixture per test through `__tests__/helpers/integration.ts`, which delegates repository
+creation to `createTempRepoCore` in `temp-repo.ts`. Spawn counts were verified with a logging `git` shim on
+`PATH`; timings are ten sequential builds on an idle machine (mode: **single**, not comparable to in-tier figures)
+under the config's hermetic environment (`GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`).
+
+| Fixture shape                               | git spawns | Mean build | Used by                        |
+| ------------------------------------------- | ---------- | ---------- | ------------------------------ |
+| `createTempRepo` only                       | 4          | 9.5 ms     | `init` — 5 cases               |
+| `createTempRepo` + `runInit`                | 9          | 106.4 ms   | `init` — 34 cases; `user` — 12 |
+| `initInTempRepo` + `makeCommit`             | 11         | 110.5 ms   | `user` — 33 cases              |
+| `initInTempRepo` + commit + `addBareRemote` | 14         | 137.6 ms   | `user` — 48 cases              |
+| `fs.cpSync` of a built `user` fixture       | 0          | 7.3 ms     | 3.5 MB, 187 files              |
+
+The listed `user` shape counts total 93 against 94 reported cases. They omit an unmeasured remote-before-init path
+(`createTempRepo` + `makeCommit` + `addBareRemote` + `runInit`), so the shape table is not exhaustive for that file.
+
+A single `git --version` costs 2.4 ms and `git init -q` 4.5 ms, so the nine spawns in the `runInit` path are
+~24 ms of its ~106 ms; the remainder is the init command writing the `.arc/` tree. Spawn batching is therefore not
+a lever; a template copy may be, but only a complete fixture share can bound its benefit.
+
+| File           | Instrument baseline | Cases | Timed fixture cost | Share of new baseline |
+| -------------- | ------------------- | ----- | ------------------ | --------------------- |
+| `user.test.ts` | 41.10 s             | 94    | 11.53 s            | 28.1%                 |
+| `init.test.ts` | 11.95 s             | 39    | 3.67 s             | 30.7%                 |
+
+The `user` subtotal excludes the unmeasured shape and is not an upper bound on total fixture cost or template-copy
+savings.
+
+**Absolute-path audit.** A built `initInTempRepo` + `makeCommit` fixture contains no occurrence of its own
+absolute path anywhere, `.git/` included. The `addBareRemote` shape does: `.git/config` records the remote's
+absolute `/tmp/arc-remote-*` path, and the remote is a sibling temp directory, not nested in the fixture. Note
+that `ugrep`-backed `grep` functions skip hidden files under `-r` and return a false clean; use `/usr/bin/grep`.
+
+**Remote leak.** `addBareRemote` returns its temp directory and leaves removal to the caller. Eleven integration
+files call it and effectively all of them clean up — via `afterEach`, a cleanup set, or per-test removal. Exactly
+two call sites discard the return and therefore cannot: one in `user.test.ts`, one in `sync-state-ref.test.ts`.
+The removal primitive throws after its retries rather than failing quietly, so silent teardown failure is not a
+further cause. The measuring machine held 1,210 leaked `arc-remote-*` directories (213 MB) from prior runs —
+those two sites across many runs, plus runs killed at a timeout before teardown.
+
+### `e2e` — 1,624.01 s over 53 files
+
+| File                                     | Seconds | Cases | Cumulative |
+| ---------------------------------------- | ------- | ----- | ---------- |
+| `candidate-lineage.e2e.test.ts`          | 246.80  | 33    | 15%        |
+| `delivery-position.e2e.test.ts`          | 151.29  | 23    | 25%        |
+| `command-input-no-input.e2e.test.ts`     | 137.16  | 77    | 33%        |
+| `errand.e2e.test.ts`                     | 123.60  | 47    | 41%        |
+| `lifecycle-exit.e2e.test.ts`             | 116.95  | 24    | 48%        |
+| `delivery-plan.e2e.test.ts`              | 107.47  | 18    | 54%        |
+| `session-init.e2e.test.ts`               | 87.69   | 29    | 60%        |
+| `review-protocol.e2e.test.ts`            | 48.58   | 8     | 63%        |
+| `delivery-terminal-recovery.e2e.test.ts` | 44.88   | 18    | 66%        |
+| `rename.e2e.test.ts`                     | 34.04   | 8     | 68%        |
+| `publication-spine.e2e.test.ts`          | 32.69   | 7     | 70%        |
+| `user.e2e.test.ts`                       | 31.75   | 13    | 72%        |
+
+**Anchor-set gap.** At the first baseline, CI pinned four anchor files per leg and sharded the remainder by path
+hash. The pinned set was `candidate-lineage`, `errand`, `command-input-no-input`, and `lifecycle-exit`. Measured,
+the four largest were `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand` — so
+`delivery-position` (2nd, 151.29 s) was unpinned while `lifecycle-exit` (5th, 116.95 s) was pinned.
+
+This ranking is mode-sensitive: an earlier under-load run put `command-input-no-input` 7th rather than 3rd. Anchor
+selection must be made from tier-isolated data.
+
+## Historical E2E shard membership
+
+At exact-head dispatch `34657372996`, `benchmark:test-cost:shards` read the then-current ordered anchor assignment
+and four workflow exclusions, then asked Vitest's collecting `list --json` form for the filtered tier and each
+`--shard` leg. The 51-file remainder partitions exactly once, 13/13/13/12; each complete leg below is its pinned
+anchor plus that remainder. The instrument used Vitest's CLI while the test scripts used an in-process adapter.
+The dispatch's four remainder logs nevertheless report 13/13/13/12 files and no anchor result, confirming the
+historical executed topology. This table is not the final workflow's shard membership map; its fourth anchor
+changed to `lifecycle-exit`.
+
+| Leg | Pinned anchor            | Vitest-derived remainder                                                                                                                                                                                                                               |
+| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1/4 | `errand`                 | `delivery-authoring`, `lifecycle-exit`, `log`, `publication-spine`, `reconfigure`, `review-chunking`, `review-protocol`, `session-init-remote-boundary`, `smoke`, `sync-inbound`, `sync-state-producer`, `teardown`, `wu-reconcile`                    |
+| 2/4 | `candidate-lineage`      | `anchored-sequence`, `attest`, `base-sync`, `commit-message-consumers`, `housekeep`, `plan`, `pre-push`, `rename`, `schema-artifact`, `session-envelope-compat`, `session-init`, `status-lifecycle`, `sync-purity`                                     |
+| 3/4 | `command-input-no-input` | `base-drift`, `decompose-command-modes`, `delivery-plan`, `delivery-transfer`, `health-diff`, `lifecycle`, `locus-errand-roundtrip`, `markdown-formatting`, `precompact-locus-anchor`, `release-commit`, `state-ref-race`, `user-inbox-remove`, `user` |
+| 4/4 | `delivery-position`      | `base-merge`, `candidate-applicability`, `commit-msg`, `config-validate`, `delivery-terminal-recovery`, `init`, `review-cli-surfaces`, `run-cli`, `stale-build-guard`, `update`, `user-inbox-mark-execute-bound`, `view`                               |
+
+Names omit the common `.e2e.test.ts` suffix. The instrument refuses a different anchor count, duplicate or
+non-contiguous leg assignments, or any mismatch between the mapped anchors and the exclusion set.
+
+## Timeout, admission, and substrate signals
+
+The instrument resolves whole-test headroom from the Vitest task timeout. A `runCli` timeout is retained separately:
+it bounds one subprocess invocation, not fixture work or several sequential invocations within the same test.
+The table uses each test's median duration across the three exact-mode runs, then selects the tightest fraction.
+
+| Project set | Tightest observed headroom                                             | Effective ceiling | Remaining headroom |
+| ----------- | ---------------------------------------------------------------------- | ----------------- | ------------------ |
+| Unit        | `harness-hooks/codex-cli.test.ts` valid seed command case, 15.33 s     | 30 s              | 14.67 s (48.9%)    |
+| Lane        | same unit case, 15.33 s                                                | 30 s              | 14.67 s (48.9%)    |
+| Integration | `review-fan-out-lifecycle.test.ts` eight-member conjunction, 10.97 s   | 30 s              | 19.03 s (63.4%)    |
+| E2E         | `delivery-position.e2e.test.ts` review-correction progression, 62.30 s | 90 s              | 27.70 s (30.8%)    |
+
+Admission wait ends when the lock is acquired and is excluded from wall and summed time. Eleven schema-v3 baseline
+runs acquired immediately and omit the optional field. One E2E run waited 305.24 s behind another worktree's full
+test run, then recorded its uncontended run cost and the wait separately.
+
+The settled substrate rule matches user, the complete user-sync family, user-notes, notes publication/export,
+sync-state, selected sync E2E, and multi-clone families, while excluding unrelated `framework-sync` files.
+
+| Project set | Substrate-bound summed time | Share of tier |
+| ----------- | --------------------------- | ------------- |
+| Unit        | 1.03 s                      | 0.73%         |
+| Integration | 73.95 s                     | 20.49%        |
+| Lane        | 85.96 s                     | 15.77%        |
+| E2E         | 36.49 s                     | 2.23%         |
+
+Companion post-instrument captures counted 29 built CLI invocations in integration and 1,815 in E2E. Those counts
+are annotations on the same helpers used by the duration runs; they are not inferred from static source calls.
+
+## CLI startup cost
+
+Per-spawn fixed cost, warm, minimum of 5–7 runs. "Real verb" means a command that loads a handler.
+
+| Configuration                             | `--version` | `view`  | `status` | RSS     |
+| ----------------------------------------- | ----------- | ------- | -------- | ------- |
+| Built bundle as shipped today             | 0.38 s      | ~0.36 s | 0.36 s   | 205 MB  |
+| Built bundle + `NODE_COMPILE_CACHE`       | 0.29 s      | —       | —        | —       |
+| Lazy handlers, `splitting: false`         | 0.14 s      | 0.21 s  | 0.25 s   | ~100 MB |
+| Lazy handlers, code splitting on          | 0.03 s      | 0.19 s  | 0.23 s   | ~55 MB  |
+| External dependencies alone, nothing else | 0.12 s      | —       | —        | 78 MB   |
+| Bare `node -e ""`                         | 0.01 s      | —       | —        | 46 MB   |
+| Spawned via `tsx` from TypeScript source  | 1.23 s      | —       | —        | —       |
+
+**The 0.12 s dependency floor is structural.** `dist/cli.js` carries 532 top-level `import` statements — the nine
+npm dependencies are external, not inlined — and ES module semantics evaluate hoisted imports before any importing
+module's body runs. Deferring handler bodies cannot defer them.
+
+**Code splitting's apparent advantage is a `--version` artifact.** It is worth 0.11 s on a `--version`-class path
+but only ~0.02 s on a real verb, because a handler chunk pulls the dependency floor in regardless. The test suite
+spawns real verbs, never `--version`.
+
+`tsup` defaults `splitting` to `true` for ESM output and `tsup.config.ts` sets no `splitting` key, so today's
+single-file `dist/` is a consequence of the bundle having no dynamic imports rather than a configured contract.
+Keeping one output file once dynamic imports exist requires setting `splitting: false` explicitly.
+
+## CI on the mini
+
+The self-hosted runner is a Linux guest on an M4 Mac mini with two runner slots at one Vitest worker each; the
+slot decision and its saturation evidence belong to `local-ci-capacity-qualification`. This baseline is the median
+of six comparable successful heavy-lane workflow runs routed to `arc-ci-mini` (condition: **CI job**). The older
+1,054-job-second capacity-qualification run used a different tree/run series and is not mixed into this baseline.
+
+| Workflow run  | Total job-seconds |
+| ------------- | ----------------- |
+| `34498802526` | 1,364             |
+| `34512577885` | 1,390             |
+| `34548112571` | 1,358             |
+| `34551373916` | 1,329             |
+| `34558187114` | 1,414             |
+| `34563562971` | 1,397             |
+
+The median total is **1,377 job-seconds**, with a 1,329–1,414 range. Component medians are shown below; their
+sum is 1,376 s because the median of each component need not equal the median of the row totals.
+
+| Job                    | Median seconds |
+| ---------------------- | -------------- |
+| Classify lane & weight | 7              |
+| Shared setup           | 18             |
+| Lint & Typecheck       | 66             |
+| Unit Tests             | 74             |
+| Integration Tests      | 173.5          |
+| E2E Tests (1)          | 206            |
+| E2E Tests (2)          | 280            |
+| E2E Tests (3)          | 334            |
+| E2E Tests (4)          | 189.5          |
+| Portability (linux)    | 22             |
+| ci-ok, merge-ok        | 6              |
+
+With two slots, total job-seconds divided by two plus the serial head is only a lower-bound heuristic for wall
+time. Dispatch order and the critical path determine makespan: savings on schedule-sensitive work can reduce it,
+while savings elsewhere may leave it unchanged.
+
+## Derived targets
+
+These bars are fixed before any optimizing phase scores them. Every input is either the retained first baseline or
+a standalone probe on the artifact the later phase changes; re-tiering itself is not counted as a CI saving because
+moving work between heavy jobs does not reduce total job-seconds.
+
+### Integration summed file time: reduce by at least 15 seconds
+
+The timed `user` fixture shapes account for 11.53 s, or 28.6% of the old 40.3 s file; the omitted
+remote-before-init shape is not included. The `init` fixtures account for 3.67 s, or 31.6% of the old 11.6 s file.
+Using only these measured costs yields the 15.19 s fixture-cost input to the target projection:
+
+```text
+(40.3 s × 28.6%) + (11.6 s × 31.6%) = 15.19 s
+```
+
+The instrument moved the file baselines to 41.10 s and 11.95 s, making those timed fixture costs 28.1% and 30.7%
+of the new readings. The target retains the projected reduction from measured shapes and rounds down to **15 s**,
+or 4.2% of the 361.01 s integration baseline. It is not an observed saving or a complete fixture-cost bound.
+
+### Routine lane wall clock: at most 44 seconds at 12 workers
+
+The lane's 548.18 s summed baseline loses the two all-spawn files that re-tier to E2E (`config-validate`, 37.80 s;
+`review-cli-surfaces`, 15.70 s) and the projected 15.19 s fixture reduction:
+
+```text
+548.18 s - 37.80 s - 15.70 s - 15.19 s = 479.49 s
+479.49 s / 12 workers = 39.96 s inclusive summed-time floor
+39.96 s × 1.10 noise allowance = 43.96 s → 44 s bar
+```
+
+The file-splitting work must put every remaining file under that floor, so the post-work longest-file floor cannot
+be larger. The resulting bar is **≤44 s at 12 workers**, the larger-floor rule plus the full 10% noise allowance,
+rounded upward. If the later sizing sweep adopts a different worker count, it must forward-amend this bar before
+scoring against it.
+
+At member closure, the authorized spec amendment preserves that absolute derivation but supersedes it as the score.
+The normalized 44.925 s final median misses the projection by 0.925 s (2.1%), which the instrument classifies as
+noise, while improving 21.6% from the 57.33 s first baseline. The replacement therefore uses the already-established
+same-mode 10% directional bar rather than claiming precision the measurement rule rejects.
+
+### CI heavy lane: reduce by at least 300 job-seconds
+
+The conservative projection counts only fixed-cost changes with measured rates:
+
+```text
+E2E built CLI:       1,815 spawns × (0.36 s - 0.21 s) = 272.25 s
+Integration built:     29 spawns × (0.36 s - 0.21 s) =   4.35 s
+config-validate:       21 spawns × (1.23 s - 0.21 s) =  21.42 s
+fixture sharing:                                           15.19 s
+projected total:                                          313.21 s
+```
+
+The fixed target rounds that projection down to **300 job-seconds**, 21.8% of the 1,377-job-second CI baseline.
+It excludes any anchor-balance benefit, any file-deletion/consolidation benefit, and the tier move itself, avoiding
+double counting and leaving those later measurements as upside rather than prerequisites.
+
+## Levers measured
+
+| Lever                                      | Effect                                  | Confidence                       |
+| ------------------------------------------ | --------------------------------------- | -------------------------------- |
+| Taking E2E off the routine local path      | full local 297.67 s → 58.21 s (**80%**) | High — clean-tree paired runs    |
+| Lazy-loading CLI handler modules           | per-spawn 0.36 s → 0.21 s (**42%**)     | High — probe on real handlers    |
+| `tsx` → built bundle for `config-validate` | ~1.0 s per spawn on ~21 spawns          | High — direct measurement        |
+| tmpfs fixture root, `integration`          | 47.4 s → 43.1 s (~9%)                   | **Low — within noise band**      |
+| `--no-isolate`, `integration`              | ~6–12%, all 1,248 cases passed          | **Low — within noise band**      |
+| tmpfs fixture root, `e2e`                  | 280.3 s → 278.9 s (**0.5%**)            | High — effectively nil           |
+| CI anchor re-selection                     | ~25 s of critical path                  | Medium — from tier-isolated rank |
+| Code splitting, on top of lazy loading     | ~0.02 s per real-verb spawn             | High — direct measurement        |
+| Running the lane as one command            | 68.2 s → 55.5 s (**~15%**)              | High — same-session pair         |
+| Fixture template copy, `user` / `init`     | `user` bound unknown; `init` ≤30.7%     | Incomplete user data             |
+| Skipping `build:fast` when `dist/` fresh   | 1.2 s                                   | High — effectively nil           |
+| Batching git spawns per fixture            | ~24 ms of ~106 ms per build             | High — effectively nil           |
+
+The preliminary hand baseline put a sequential full-local run at ~353 s and measured the one-command routine
+lane at 55.5–58.3 s, implying roughly 83–84% less wall time on that basis. The retained 80% result above comes
+from paired clean-tree runs and is the comparable outcome measurement.
+
+The two low-confidence rows are the reason the variance caveat matters: both sit at or below the ~8% run-to-run
+spread and neither is established by the single runs recorded here.
+
+Fixtures already root on `/tmp`, which is ext4 on WSL2's native virtual disk — **not** the `/mnt/*` 9p bridge that
+would dominate everything else. That failure mode is already avoided.
+
+`--no-isolate` passed all 1,248 integration cases including the three files using `vi.mock`, which suggests the
+quarantine the unit tier applies may be unnecessary here. Mock-state leakage is order-sensitive, so one green run
+is not proof.
+
+## Alternatives closed by measurement or source
+
+- **Node startup snapshots and Single Executable Applications** — not viable for this CLI's shape. An ESM entry
+  point throws `SyntaxError` outright; the snapshot builder loads built-ins "but not additional user-land
+  modules", which excludes externalized npm dependencies; `node:child_process` is unsupported and `execa` depends
+  on it; the blob is locked to an exact Node version, architecture, and platform; and SEA cannot back an npm `bin`
+  that must remain a `.js` file. The tracking issues for lifting the user-land-module restriction
+  (`nodejs/node#44277`, `nodejs/help#3981`) are both closed "not planned".
+- **`NODE_COMPILE_CACHE`** — caches compilation, not module evaluation, so it cannot touch the evaluation half of
+  the dependency floor. Measured 0.38 s → 0.29 s standalone; published comparators sit at 6–20%. Its benefit also
+  largely disappears once lazy loading removes the modules it was caching.
+- **Code splitting** — measured above at ~0.02 s per real-verb spawn, against a `dist/` layout change.
+- **Duration-aware CI shard membership** — Vitest 4.1.8 derives shard membership from `hash("sha1", specPath)`,
+  sorted and sliced, with no duration input. Filters apply before sharding, so an explicit file argument cannot
+  compose with `--shard`: `vitest list --project unit classify-change --shard=1/4` fails with
+  `--shard <count> must be a smaller than count of test files`. Duration-aware membership would require a custom
+  `sequence.sequencer`.
+
+---
+
+_This is the authoritative schema-v3 first instrument baseline. Later comparisons must preserve its complete mode
+stamps and normalization discipline._
+
+[test-cost-budgets]: ../../../../packages/arc-framework/test-cost-budgets.json

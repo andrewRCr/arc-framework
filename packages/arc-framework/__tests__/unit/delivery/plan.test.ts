@@ -37,7 +37,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [
       {
         chunkKey: "first",
@@ -53,7 +53,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         contract: "Publish the second contract.",
         taskIds: ["1.3", "1.4"],
         designElementIds: ["detailed:R2"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
     ],
     seams: [],
@@ -323,7 +323,7 @@ describe("validateDeliveryPlanRevision", () => {
       .toMatchObject({ status: "valid" });
 
     const notLandable = structuredClone(constructedPlan());
-    notLandable.projection = { kind: "stack-to-main" };
+    notLandable.members[1]!.mainlineLandability = "integration-only";
     expectIssue(redigest(notLandable), "stack-member-not-landable");
   });
 

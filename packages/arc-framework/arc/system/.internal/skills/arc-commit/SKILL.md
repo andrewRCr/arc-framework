@@ -37,13 +37,10 @@ disable-model-invocation: false
 4. Execute the chosen path.
 
    - **Simple path:** stage only files for one logical change — no unrelated files. If
-     separation is unclear at staging time, stop and re-check file-level intent. Pre-commit
-     review extension (`#pre-commit-review`): if `pre-commit-review` appears in the
-     active-extensions list established at session init, load and execute its `.actions`
-     before commit. Halt-on-fail surfaces actionable message; user can fix and retry or
-     explicit-invoke bypass. Otherwise, skip. Run `git diff --cached --stat` to verify
-     staging matches intent — pre-staged files can silently slip in; intended files can be
-     left out. Commit using the loaded format guidance. Class-tag routing (`taskCommit` /
+     separation is unclear at staging time, stop and re-check file-level intent. Run
+     `git diff --cached --stat` to verify staging matches intent — pre-staged files can
+     silently slip in; intended files can be left out. Commit using the loaded format guidance.
+     Class-tag routing (`taskCommit` /
      `workflowCommit` / raw) depends on the invoking context — per DEV-RULES.ARC § Commit
      Discipline → Commit control.
    - **Complex path:** follow

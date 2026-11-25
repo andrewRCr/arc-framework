@@ -1,21 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
 import {
   HostedAwaitResultSchema,
+  HostedReviewBodyFindingSchema,
+  HostedThreadFindingSchema,
   awaitHostedReview,
   type HostedAwaitClock,
   type HostedReviewObserver,
 } from "../../../../../src/scripts/review-gate/hosted/await.js";
-import type { HostedRequestHandle } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { HostedGitHubReadError } from "../../../../../src/scripts/review-gate/hosted/github.js";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 const HEAD = "a".repeat(40);
-const handle: HostedRequestHandle = {
-  schemaVersion: 1,
-  provider: "coderabbit-pr",
-  requestedCoverage: "complete",
-  effectiveCoverage: "complete",
+const handle = createHostedHandleFixture({
   target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
   artifact: {
     kind: "issue-comment",
@@ -23,16 +23,40 @@ const handle: HostedRequestHandle = {
     url: "https://github.com/owner/repo/pull/42#issuecomment-1",
     createdAt: "2026-07-23T12:00:00.000Z",
   },
-};
-const deliveryHandle: HostedRequestHandle = {
-  ...handle,
-  vehicle: DeliveryReviewMemberVehicleSchema.parse({
+});
+const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
     kind: "delivery-member",
     planId: "123e4567-e89b-12d3-a456-426614174000",
     deliverableId: `sha256:${"d".repeat(64)}`,
     workUnitId: "example",
     head: HEAD,
-  }),
+});
+const deliveryHandle = createHostedHandleFixture({
+  target: handle.target,
+  artifact: handle.artifact,
+  vehicle: deliveryVehicle,
+});
+const incrementalHandle = createHostedHandleFixture({
+  requestedCoverage: "incremental",
+  target: handle.target,
+  artifact: handle.artifact,
+});
+const nativeCoverageEvidence = {
+  schemaVersion: 1 as const,
+  kind: "provider-native-incremental" as const,
+  sourceId: "coderabbit-pr" as const,
+  requestArtifactId: handle.artifact.id,
+  status: "established" as const,
+  baselineSha: incrementalHandle.admission.correctionScope!.predecessorHeadSha,
+  headSha: HEAD,
+  providerGeneration: {
+    artifactId: "IC_SUMMARY",
+    url: "https://github.com/owner/repo/pull/42#issuecomment-summary",
+    createdAt: "2026-07-23T11:00:00.000Z",
+    updatedAt: "2026-07-23T12:05:00.000Z",
+    actorIdentity: "136622811" as const,
+    appId: "347564" as const,
+  },
 };
 
 const CREATED_AT_MS = Date.parse(handle.artifact.createdAt);
@@ -58,8 +82,59 @@ function observer(observe: HostedReviewObserver["observe"]): HostedReviewObserve
 }
 
 describe("hosted review await", () => {
+  it.each([
+    { boundary: "timeout", startAge: 0 },
+    { boundary: "attention", startAge: ATTENTION_AFTER_MS - 2_000 },
+  ].flatMap(timing => [
+    { ...timing, state: "clean" as const },
+    { ...timing, state: "findings" as const },
+  ]))("observes a $state review posted during the final sleep at the $boundary boundary", async ({ startAge, state }) => {
+    const time = clock(CREATED_AT_MS + startAge);
+    const result = await awaitHostedReview({ schemaVersion: 1, handle, timeoutMs: 2_000, pollIntervalMs: 500 }, {
+      clock: time, attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(async (_handle, options) => {
+        if (time.now() < CREATED_AT_MS + startAge + 2_000) return { kind: "pending" };
+        await new Promise(resolve => setTimeout(resolve, 1));
+        options?.signal?.throwIfAborted();
+        const reviewUrl = "https://github.com/owner/repo/pull/42#pullrequestreview-late";
+        return state === "clean" ? { kind: "clean", reviewUrl } : { kind: "findings", reviewUrl,
+          findings: [{ findingId: "late-finding", origin: "review-thread", commentId: "late-comment",
+            threadId: "late-thread", settlement: "reply-and-resolve", severity: "major", locus: "src/a.ts:7",
+            url: "https://github.com/owner/repo/pull/42#discussion-late", sourceOrdinal: 1 }] };
+      })],
+    });
+    expect(result).toMatchObject({ state, nextAction: state === "clean" ? "complete" : "triage", handle,
+      reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-late" });
+  });
+
+  it("carries authenticated provider-native coverage evidence into the terminal result", async () => {
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle: incrementalHandle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      clock: clock(),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(() => Promise.resolve({
+        kind: "clean",
+        reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+        coverageEvidence: nativeCoverageEvidence,
+      }))],
+    });
+
+    expect(result).toMatchObject({
+      state: "clean",
+      coverageEvidence: nativeCoverageEvidence,
+    });
+    assertSchemaRefuses(HostedAwaitResultSchema, {
+      ...result,
+      coverageEvidence: undefined,
+    });
+  });
+
   it("accepts the durable response source attached to a findings result", () => {
-    expect(HostedAwaitResultSchema.safeParse({
+    assertSchemaAccepts(HostedAwaitResultSchema, {
       schemaVersion: 1,
       mode: "review-hosted-await",
       handle,
@@ -75,13 +150,65 @@ describe("hosted review await", () => {
         severity: "major",
         locus: "src/index.ts:7",
         url: "https://github.com/owner/repo/pull/42#discussion_r1",
+        sourceOrdinal: 1,
       }],
       responseSourceRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
-    }).success).toBe(true);
+    });
+  });
+
+  it("rejects hosted findings whose ordinals do not match final combined order", () => {
+    assertSchemaRefuses(HostedAwaitResultSchema, {
+      schemaVersion: 1,
+      mode: "review-hosted-await",
+      handle,
+      state: "findings",
+      nextAction: "triage",
+      reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+      findings: [{
+        findingId: "PRRT_1",
+        origin: "review-thread",
+        commentId: "PRRC_1",
+        threadId: "PRRT_1",
+        settlement: "reply-and-resolve",
+        severity: "major",
+        locus: "src/index.ts:7",
+        url: "https://github.com/owner/repo/pull/42#discussion_r1",
+        sourceOrdinal: 2,
+      }],
+    });
+  });
+
+  it.each([
+    [HostedThreadFindingSchema, {
+      findingId: "PRRT_1",
+      origin: "review-thread",
+      commentId: "PRRC_1",
+      threadId: "PRRT_1",
+      settlement: "reply-and-resolve",
+      locus: "src/index.ts:7",
+      url: "https://github.com/owner/repo/pull/42#discussion_r1",
+      sourceOrdinal: 1,
+    }],
+    [HostedReviewBodyFindingSchema, {
+      findingId: "PRR_1:0",
+      origin: "review-body",
+      reviewId: "PRR_1",
+      fingerprint: "finding-fingerprint",
+      settlement: "not-applicable",
+      locus: "src/index.ts:7",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+      body: "Finding body",
+      sourceOrdinal: 1,
+    }],
+  ] as const)("accepts critical and rejects retired blocker in hosted finding schemas", (schema, finding) => {
+    assertSchemaAccepts(schema, { ...finding, severity: "critical" });
+    assertSchemaRefuses(schema, { ...finding, severity: "blocker" });
+    assertSchemaAccepts(schema, { ...finding, severity: "minor", nit: true });
+    assertSchemaRefuses(schema, { ...finding, severity: "major", nit: true });
   });
 
   it("accepts a pending result that asks for inspection or an explicit extension", () => {
-    expect(HostedAwaitResultSchema.safeParse({
+    assertSchemaAccepts(HostedAwaitResultSchema, {
       schemaVersion: 1,
       mode: "review-hosted-await",
       handle,
@@ -90,7 +217,7 @@ describe("hosted review await", () => {
       nextAction: "inspect-or-extend",
       ageMs: ATTENTION_AFTER_MS,
       attentionAfterMs: ATTENTION_AFTER_MS,
-    }).success).toBe(true);
+    });
   });
 
   it("returns a resumable pending state at the bounded deadline", async () => {
@@ -128,6 +255,7 @@ describe("hosted review await", () => {
         severity: "major",
         locus: "src/a.ts:7",
         url: "https://github.com/owner/repo/pull/42#discussion_r1",
+        sourceOrdinal: 1,
       }],
     }],
     ["rate-limited", { kind: "rate-limited" }],
@@ -163,6 +291,118 @@ describe("hosted review await", () => {
       nextAction: "stop",
       expectedHeadSha: HEAD,
       actualHeadSha: "b".repeat(40),
+    });
+  });
+
+  it("keeps polling through a failed GitHub read and reports it while the review is pending", async () => {
+    const observe = vi.fn<HostedReviewObserver["observe"]>()
+      .mockRejectedValue(new HostedGitHubReadError("transient-unavailable", "HTTP 502: Bad Gateway"));
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [observer(observe)] });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "await",
+      action: { schemaVersion: 1, handle },
+      readFailure: { kind: "transient-unavailable", detail: "HTTP 502: Bad Gateway" },
+    });
+    expect(observe.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("takes a review that lands after a failed GitHub read", async () => {
+    const observe = vi.fn<HostedReviewObserver["observe"]>()
+      .mockRejectedValueOnce(new HostedGitHubReadError("transient-unavailable", "timed out"))
+      .mockResolvedValue({ kind: "clean", reviewUrl: "https://example.com/review" });
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [observer(observe)] });
+
+    expect(result).toMatchObject({ state: "clean", nextAction: "complete" });
+  });
+
+  it("drops a read failure once a later poll reads the review", async () => {
+    const observe = vi.fn<HostedReviewObserver["observe"]>()
+      .mockRejectedValueOnce(new HostedGitHubReadError("transient-unavailable", "timed out"))
+      .mockResolvedValue({ kind: "pending" });
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [observer(observe)] });
+
+    expect(result).toMatchObject({ state: "pending", nextAction: "await" });
+    expect(result).not.toHaveProperty("readFailure");
+  });
+
+  it("keeps the last failed read when the deadline cuts off the next one", async () => {
+    const observe = vi.fn<HostedReviewObserver["observe"]>()
+      .mockRejectedValueOnce(new HostedGitHubReadError("transient-unavailable", "timed out"))
+      .mockImplementation((_handle, options) => new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => reject(options.signal?.reason));
+      }));
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 200,
+      pollIntervalMs: 100,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [observer(observe)] });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "await",
+      readFailure: { kind: "transient-unavailable", detail: "timed out" },
+    });
+    expect(observe).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a rate-limited head read as a failed read, not the provider's outcome", async () => {
+    const limited = observer(() => Promise.resolve({ kind: "pending" }));
+    limited.readHead = () => Promise.reject(new HostedGitHubReadError("rate-limited", "HTTP 429: rate limit exceeded"));
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [limited] });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "await",
+      readFailure: { kind: "rate-limited", detail: "HTTP 429: rate limit exceeded" },
+    });
+  });
+
+  it("reports a failed GitHub read when unattended waiting reaches its attention threshold", async () => {
+    const failing = observer(() => Promise.reject(new HostedGitHubReadError("transient-unavailable", "timed out")));
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      clock: clock(CREATED_AT_MS + ATTENTION_AFTER_MS),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [failing],
+    });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "inspect-or-extend",
+      readFailure: { kind: "transient-unavailable", detail: "timed out" },
     });
   });
 
@@ -292,7 +532,7 @@ describe("hosted review await", () => {
       nextAction: "inspect-or-extend",
       ageMs: ATTENTION_AFTER_MS,
     });
-    expect(observe).toHaveBeenCalledOnce();
+    expect(observe).toHaveBeenCalledTimes(2);
   });
 
   it("allows one explicitly extended bounded call without resetting request identity", async () => {
@@ -315,6 +555,6 @@ describe("hosted review await", () => {
       handle,
       ageMs: ATTENTION_AFTER_MS + 2_000,
     });
-    expect(observe).toHaveBeenCalledTimes(3);
+    expect(observe).toHaveBeenCalledTimes(4);
   });
 });

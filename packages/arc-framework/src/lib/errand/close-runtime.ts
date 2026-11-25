@@ -1,5 +1,11 @@
 /** Production ports for exact ordinary-v3 Errand completion. */
+import { describeErrandBranchOccupant, findErrandBranchOccupant } from "./branch-occupancy.js";
+import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOptions } from "../store/errand-runtime-transactions.js";
 
+import type { RawGitExec } from "../git/exec.js";
+import { readCloseLandingCommit } from "./close-store-landing.js";
+import { guardCloseSubjectBranch } from "./close-subject-branch.js";
+import type { ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
@@ -30,13 +36,14 @@ import {
   type CloseTargetResolution,
   type CloseTargetRetentionResult,
 } from "./close-locus.js";
-import { ordinaryErrandTransform, type OrdinaryErrandRecord } from "./identity-transitions.js";
-import { transactTransientIdentities } from "./identity-transaction.js";
+import { type OrdinaryErrandTransition, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { authorizeErrandTerminal } from "./terminal-authority.js";
 import { createTerminalOccupancyIO, settleTerminalOccupancy } from "./terminal-occupancy.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import { deserializeTransientIdentityRecord, type TransientIdentityRecord } from "./identity-record.js";
 
-export interface CloseOrdinaryErrandRuntimeOptions {
+export interface CloseOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
+  readonly projectionRemovalSlots?: ProjectionRemovalSlots;
+  readonly execRaw?: RawGitExec;
   readonly slug: string;
   readonly base: string;
   readonly protection: "full" | "partial";
@@ -45,7 +52,11 @@ export interface CloseOrdinaryErrandRuntimeOptions {
   readonly execInput: GitExecInput;
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
-  readonly onAuthority?: (authority: ReturnType<typeof authorizeErrandTerminal>) => void;
+  readonly onAuthority?: (authority: Awaited<ReturnType<typeof authorizeErrandTerminal>>) => void;
+  /** Read-only inbox readiness after authority, before checkout or ref cleanup. */
+  readonly prepareInbox?: (parentCheckoutPath: string | null) => Promise<
+    { kind: "ready" } | Extract<CloseInboxResult, { kind: "refused" | "error" }>
+  >;
   readonly removeInbox: (
     record: OrdinaryErrandRecord,
     parentCheckoutPath: string | null,
@@ -74,16 +85,17 @@ export async function closeOrdinaryErrandAtRuntime(
   });
   const runtimeOptions = { ...options, exec };
   const identityIO = { exec, execInput, identity: options.identity };
-  const lifecyclePort = createGhChangeRequestLifecyclePort(exec);
+  const lifecyclePort = createGhChangeRequestLifecyclePort(exec, undefined, options.store?.capabilities.stateOffBranch);
   const remote = await configuredIdentityRemote(exec);
   const dependencies: CloseOrdinaryErrandDependencies = {
-    readIdentity: () => readReconciledCloseIdentity(identityIO, options.slug, remote),
-    resolveTarget: (record) => resolveCloseChangeRequest(runtimeOptions, record),
+    readIdentity: () => readReconciledCloseIdentity(identityIO, options.slug, remote, options),
+    resolveTarget: async (record) => await guardCloseSubjectBranch(runtimeOptions, record)
+      ?? resolveCloseChangeRequest(runtimeOptions, record),
     readLifecycle: (target) => target.kind === "merged"
       ? lifecyclePort.read(target.changeRequest, target.changeRequest)
       : Promise.reject(new Error("An unchanged-base close has no change request lifecycle.")),
     readOccupancy: (target) => readCloseOccupancy(runtimeOptions, target, (path) => { fallbackCwd = path; }),
-    retainTarget: (target) => retainCloseTarget(identityIO, options.base, remote, target),
+    retainTarget: (target) => retainCloseTarget(identityIO, options.base, remote, target, options),
     cleanupRefs: (target, guard) => cleanupOrdinaryErrandRefs(
       exec,
       target,
@@ -95,19 +107,19 @@ export async function closeOrdinaryErrandAtRuntime(
     ),
     removeInbox: options.removeInbox,
     retire: async (target, lifecycle) => {
-      let transform: ReturnType<typeof ordinaryErrandTransform>;
+      let transition: OrdinaryErrandTransition;
       if (target.kind === "unchanged-base") {
-        transform = ordinaryErrandTransform({
+        transition = {
           kind: "retire",
           previous: target.record,
           reason: "close",
           authorization: "unchanged-base",
-        });
+        };
       } else {
         if (lifecycle === null) {
           return { kind: "error", message: "Merged Errand close is missing lifecycle evidence." };
         }
-        transform = ordinaryErrandTransform({
+        transition = {
           kind: "retire",
           previous: target.record,
           reason: "close",
@@ -116,13 +128,11 @@ export async function closeOrdinaryErrandAtRuntime(
           ...(target.recordedHeadAncestry === undefined
             ? {}
             : { recordedHeadAncestry: target.recordedHeadAncestry }),
-        });
+        };
       }
-      const result = await transactTransientIdentities(identityIO, {
-        remote,
-        message: `arc: finalize errand ${options.slug}`,
-        transform,
-      });
+      const landing = await readCloseLandingCommit({ ...options, exec }, target, lifecycle);
+      if (landing.kind === "refused") return landing;
+      const result = await transitionRuntimeErrand(options, identityIO, transition, `arc: finalize errand ${options.slug}`, remote, landing.capture);
       if (result.kind === "applied" || result.kind === "idempotent") return { kind: result.kind };
       return result.kind === "refused"
         ? { kind: "refused", reason: result.reason }
@@ -141,6 +151,7 @@ async function retainCloseTarget(
   base: string,
   remote: "origin" | null,
   target: CloseTarget,
+  options: ErrandRuntimeStorageOptions,
 ): Promise<CloseTargetRetentionResult> {
   if (target.kind === "unchanged-base" || target.record.state === "awaiting-merge") {
     return { kind: "idempotent", target };
@@ -153,18 +164,14 @@ async function retainCloseTarget(
       message: "Origin repository coordinates are unsupported.",
     };
   }
-  const result = await transactTransientIdentities(io, {
-    remote,
-    message: `arc: retain errand close target ${target.record.slug}`,
-    transform: ordinaryErrandTransform({
+  const result = await transitionRuntimeErrand(options, io, {
       kind: "await-merge",
       previous: target.record,
       changeRequest: target.changeRequest,
       configured,
       observed: target.changeRequest,
       updatedAt: nextIdentityTimestamp(target.record.updatedAt),
-    }),
-  });
+    }, `arc: retain errand close target ${target.record.slug}`, remote);
   if (result.kind === "refused") {
     return { kind: "refused", reason: "identity-conflict", message: result.reason };
   }
@@ -188,17 +195,17 @@ async function readReconciledCloseIdentity(
   io: { exec: GitExec; execInput: GitExecInput; identity: string },
   slug: string,
   remote: "origin" | null,
+  options: ErrandRuntimeStorageOptions,
 ): Promise<CloseIdentityRuntimeRead> {
-  const result = await transactTransientIdentities(io, {
-    remote,
-    message: `arc: reconcile errand identity ${slug}`,
-    transform: (records) => ({ kind: "idempotent", value: records.get(slug) ?? null }),
-  });
+  const result = await readRuntimeErrand(options, io, slug, remote);
   if (result.kind === "applied" || result.kind === "idempotent") {
     if (result.value === null) {
+      const selected = finalizedCloseClaim(options, slug);
+      if (selected.kind === "refused") return selected;
       const recovery = await recoverFinalizedErrandCloseHeadLock({
         exec: io.exec,
         slug,
+        claimId: selected.claimId,
       });
       if (recovery.kind === "blocked") return { kind: "refused", reason: recovery.message };
       if (recovery.kind === "error") return recovery;
@@ -210,15 +217,26 @@ async function readReconciledCloseIdentity(
     : { kind: "error", message: result.message };
 }
 
+function finalizedCloseClaim(options: ErrandRuntimeStorageOptions, slug: string):
+  { kind: "ready"; claimId?: string } | Extract<CloseIdentityRuntimeRead, { kind: "refused" }> {
+  if (options.selectedRecord === undefined) return { kind: "ready" };
+  const selected = deserializeTransientIdentityRecord(options.selectedRecord.content, slug);
+  return selected.kind !== "valid" || selected.record.kind !== "errand" || selected.record.purpose !== "errand"
+    ? { kind: "refused", reason: "The selected Errand has no valid finalized claim. Repair its record before recovering close locks." }
+    : { kind: "ready", claimId: selected.record.claimId };
+}
+
 async function readCloseOccupancy(
   options: CloseOrdinaryErrandRuntimeOptions,
   target: CloseTarget,
   setFallbackCwd: (path: string) => void,
 ): Promise<CloseOccupancyResult> {
   const frame = await options.readFrame();
-  const authority = authorizeErrandTerminal({
+  const authority = await authorizeErrandTerminal({
+    store: options.store,
     frame,
     operation: "close",
+    operand: options.operand,
     subject: { kind: "errand", slug: target.record.slug, claimId: target.record.claimId },
     confirmForeignGeneration: options.confirmForeignGeneration,
   });
@@ -238,10 +256,14 @@ async function readCloseOccupancy(
   if (primaryCheckoutPath === null) {
     return { kind: "refused", reason: "checkout-missing", message: "Primary checkout is unavailable." };
   }
+  const inbox = await options.prepareInbox?.(authority.parentCheckoutPath);
+  if (inbox?.kind === "refused") return { kind: "refused", reason: "identity-conflict", message: inbox.reason };
+  if (inbox?.kind === "error") return inbox;
   return {
     kind: "clear",
     settle: async (): Promise<CloseLocusSettlementResult> => {
       const settled = await settleTerminalOccupancy({
+        projectionRemovalSlots: options.projectionRemovalSlots,
         authority,
         primaryCheckoutPath,
         io: createTerminalOccupancyIO(options.exec, { restorePrimaryTo: options.base }),
@@ -364,10 +386,10 @@ export async function cleanupOrdinaryErrandRefs(
       if (!roster.ok) {
         return { kind: "refused" as const, message: `Local Errand branch occupancy cannot be proven: ${roster.message}` };
       }
-      const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
+      const occupied = findErrandBranchOccupant(roster.worktrees, target.record.branch);
       return occupied === undefined
         ? { kind: "authorized" as const }
-        : { kind: "refused" as const, message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.` };
+        : { kind: "refused" as const, message: describeErrandBranchOccupant(occupied) };
     },
     acquireLocalDelete,
     ...(guard === null ? {} : {
@@ -404,13 +426,13 @@ function createPostSettlementCloseGuard(
   const revalidate: CloseAuthorityGuard["revalidate"] = async () => {
     const roster = await scanRegisteredWorktrees(exec);
     if (!roster.ok) return { kind: "error", message: roster.message };
-    const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
+    const occupied = findErrandBranchOccupant(roster.worktrees, target.record.branch);
     return occupied === undefined
       ? { kind: "valid" }
       : {
           kind: "refused",
           reason: "role-conflict",
-          message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
+          message: describeErrandBranchOccupant(occupied),
         };
   };
   return {

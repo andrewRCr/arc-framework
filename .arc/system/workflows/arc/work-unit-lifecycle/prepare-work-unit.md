@@ -3,14 +3,9 @@ purpose: Prepare a verified Candidate for publication through private review, co
 audience: agent
 arc:
   methods:
-    - self-review
-    - frontline-review
-    - standard-review
-    - review-chunking
-    - review-triage
-    - review-response
+    - code-review
+    - classify-review-risk
     - commit-footer
-    - quality-gate-commands
 ---
 
 # Workflow: Prepare Work Unit for Publication
@@ -36,7 +31,7 @@ recovery project this state as `sessionType: prepublication` with `workflow: pre
 Before composing review, inspect whether the Candidate has plan-owned private member targets:
 
 ```bash
-printf '%s\n' '{"entryMode":"prepublication"}' | arc delivery entry inspect --input - --json
+printf '%s\n' '{"entryMode":"prepublication"}' | arc delivery entry inspect -
 ```
 
 Dispatch only on the typed result. `not-applicable` continues ordinary singleton preparation.
@@ -57,85 +52,161 @@ ownership, and surface authority — as the author judgment the repository canno
 routed `standardReview` projection, the work unit's `Class`, and each lane's effective method activity are composed
 from repository state by the command below; never assemble or restate them here.
 
-Invoke `arc review pre-publication <wu> --json`, carrying the routing facts as `--change-set`, each lane's scope
+**Method fire-point** · [`classify-review-risk`][classify-review-risk]: Load and apply it to set the risk fact.
+
+**Size every call before it runs.** Before the initial invocation and before invoking each carrier,
+run [code-review's chunk gate][code-chunk-gate] and carry its selected frontline/standard scope through `--lanes`. The
+initial invocation saves each lane's scope mode in the Candidate boundary as author judgment, so size it over the
+exact target the command composes: `kind: change-set`, `baseRef` the configured `branch.base`, `diffBaseSha` the sole
+merge base of `refs/heads/<branch.base>` and `HEAD`, and `headSha` `HEAD`. Size each carrier over the envelope's exact
+`target` (below), chosen coverage, and any correction scope.
+
+Invoke `arc review pre-publication <wu>`, carrying the routing facts as `--change-set`, each lane's scope
 mode and one-run invocation override, and any approved ceiling override as `--lanes`, and a
 completed author self-review as `--self-review settled` only when the effective method is active and ran; omit the
 option when the method is inactive. A user-directed skip of an enabled frontline lane is
 `lanes.frontline.invocation: { mode: "skip" }`; it cannot suppress the standard lane. An explicit Owner selection
-of a configured standard source is
-`lanes.standard.invocation: { mode: "force", sourceId: "<source-id>" }`; configured order remains the default when
-it is absent. After the active Work Unit Owner explicitly accepts the current review terminus, carry
-`lanes.standard.terminus: { mode: "owner-accepted" }`. The command authenticates that Owner and reports a distinct
-`owner-accepted / none` conclusion; it never means clean, converged, no-op, or evaluator-satisfied. The Owner's
-decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains current.
+of a configured standard source is `lanes.standard.invocation: { mode: "force", sourceId: "<source-id>" }`; configured
+order remains the default when it is absent. After the active Work Unit Owner explicitly accepts the current review
+terminus, carry `lanes.standard.terminus: { mode: "owner-accepted" }`. The command authenticates that Owner and reports
+a distinct `owner-accepted / none` conclusion; it never means clean, converged, no-op, or evaluator-satisfied. The
+Owner's decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains
+current.
+
+For a singleton Candidate lineage, frontline is an opening phase. Its configured allowance applies while that phase is
+open. An accepted initial skip or durable standard admission closes it; changed heads and validated Candidate
+supersession do not reopen it. Follow the typed pre-publication continuation across a re-root: inherited complete
+standard-review passes still count toward the ceiling, while older producer evidence remains bound to its original
+target.
+
+Apply [code-review's convergence procedure][code-convergence] to each concluded look or eligible plain commit.
+For an explicitly authorized additional complete pass, carry the exact authorization as
+`lanes.standard.additionalPassAuthorization` in `--lanes`.
 
 Supply `--change-set`, `--lanes`, and `--self-review` on the initial invocation and whenever the procedure explicitly
-requests new author judgment. After every lane operation, re-enter through the exact command returned by the envelope:
-its opaque resume carries judgment the repository cannot recover and confines a one-pass Frontline ceiling approval
-to its selected exact head. It drops
+requests new author judgment. After every lane operation, re-enter through the envelope's typed pre-publication
+continuation. For `ready / run-frontline`, `nextAction.command` advances into the frontline resolver; retain
+`nextAction.request` and `nextAction.authorizationRequest`, submit the initial request as JSON stdin to that command,
+and retain `nextAction.resumeCommand`. Submit the authorization request only after explicit approval of an
+`offered / obtain-authorization` result. Invoke the resume after the frontline operation's typed protocol completes.
+For every other policy action, `nextAction.command` is the continuation. The opaque resume carries judgment the
+repository cannot recover and confines a one-pass frontline ceiling approval to its selected exact head. It drops
 `standard.terminus` after `candidate-fix-pending`, because the response changes the reviewable Candidate subject and
 requires fresh Owner direction. Once `owner-accepted` lands, the durable boundary carries it through convergence; do
 not restate it. For a canonical delivery, each re-invocation recomposes the first outstanding exact member in plan
 order. Follow the returned exact target and policy action; never enumerate members or preserve a separate review
 cursor in prose.
 
+A `candidate-unexplained-delta` refusal names the Candidate's continuation. When it carries `applicability`, the
+current subject holds a delta no recorded response explains: render `applicability.selectionOfferText`,
+`applicability.recommendedActionText`, and `applicability.selectionPromptText` verbatim, then stop for the named
+authority's explicit `covered`, `targeted-check`, or `changed` choice. Do not infer a selection from the
+recommendation. Compose the strict input from `applicability.resolutionSelector`, adding `selectedBy` (the selecting
+actor) and `choice`; for `targeted-check`, also add `targetedEvidenceRef`, the completed check's evidence reference.
+Then invoke `arc candidate applicability resolve {name} -` with that input. For `covered` or `targeted-check`,
+`resolved / commit-selection` and `exact-replay / commit-selection` leave the Candidate selection staged. Request
+`arc check gate commit` over that selection, then commit:
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): record Candidate applicability for {name}
+
+Context: meta-{name}.md (prepublication)
+```
+
+Re-enter pre-publication. `resolved / continue` and `exact-replay / continue` mean the selection is already durable;
+re-enter without a commit. Only `resolved / establish-new-root` or `exact-replay / establish-new-root`, produced by an
+explicit `changed` choice, follows ordinary scope selection, completed verification, and
+`arc attest {name} --new-root --json` before re-entry. Every stale, conflicting, invalid, or unavailable resolution
+follows its typed next action without substituting a selection in prose. A refusal without `applicability` renders
+`remedy.text` and invokes `remedy.argv` unchanged once the condition it names is met.
+
 The envelope's `target` is the exact target every exact-target operation below binds against. A null `target`
 means the checkout could not compose one; resolve the returned advisory before invoking any operation. The lane
 `target` inside `policy` routes lanes and does not identify a review.
 
-Before invoking or rendering review attention for each new target, read the latest planning decision prose for the
-selected `assess-boundary-fit` outcome and its evidence basis. A recorded `stays one WU` decision stays silent while
-evidence is semantically unchanged; invocation, elapsed time, and restatement are not material deltas. Otherwise
-invoke `arc review chunking resolve -` with the envelope's `target` projected to
-`{ kind, baseRef, diffBaseSha, headSha }` and any exact-target `scopeSelection` projected the same way, then
-dispatch only on its typed state/action pair:
+At `candidate-fix-pending` with `nextAction.command: arc review respond -`, the pass may already be `pass-complete`,
+`owner-accepted`, or `coverage-required`, but its current findings response is still unfinished. Use
+`nextAction.responseOperationId` and `nextAction.responseSource` to resume that exact producer through the typed `arc
+review respond -` action and [code-review's findings round][code-findings-round]. Reconstruct a lost proposal from this
+bound source and obtain any approval still required; continue an existing approved response from its durable
+disposition. Re-enter pre-publication only after durable response completion. The pass conclusion does not authorize
+publication while this response remains pending.
 
-- `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
-  `evidence-unavailable / continue-review` — continue without attention text.
-- `consider-chunks / select-review-scope` — render `recommendedActionText` verbatim, then apply
-  [`review-chunking`][review-chunking].
-- `delivery-bound / continue-review` — render `recommendedActionText` verbatim and use the bound delivery plan;
-  never also offer chunked review.
+**After a converged fix check.** Before `arc review local prepare` or a hosted request admits the next look, and when a
+non-null `reservation` appears at convergence verification or publication, run [code-review's successor
+decision][code-successor-decision]. This caller's available stop re-enters with
+`lanes.standard.terminus: { mode: "owner-accepted" }`; keep an unchanged accepted decision on re-entry.
 
-Select whole-target or chunked scope separately for frontline and standard review. Carry a selection by
-re-invoking the procedure with it in `--lanes`; never recompute thresholds in prose.
+The non-null `reservation` is the driver's `awaiting-change-request / open-change-request` continuation. Retain the
+hosted-first reservation when continuing review and follow the envelope through `candidate-publish-ready`.
 
 A null `policy` means no lane operation is open — follow the envelope's `nextAction.kind`, one of
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 state/action pair:
 
+For `run-self-review`, run [code-review's author check][code-author-check] before re-entry. Carry
+`--self-review settled` only when the effective enabled check ran; omit it when inactive.
+
+For `run-convergence-verification`, use only the typed action's `nextAction.requiredScope`: `focused` requests
+`arc check gate push --range --force`; `full` requests `arc check gate merge --force`. Retain
+`nextAction.verificationKind`, obtain a fresh verification evidence reference, replace only the
+`{verificationEvidenceRef}` operand in `nextAction.attestArgv`, and invoke that exact argv. Never select a
+verification scope in prose or substitute the Candidate root task-list reference. Complete the final forced merge
+check without an intervening commit. Keep every projection staged while the returned action re-enters prepublication,
+through `candidate-publish-ready`; the publication transition in Step 3 is the single lifecycle projection commit.
+
 - `skipped | no-op | pass-complete / none` — lane complete.
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
-- `awaiting-change-request / open-change-request` — retain the hosted-first reservation and complete at
-  `candidate-publish-ready`.
-- `ready / run-frontline` — invoke `arc review frontline resolve -`, then `arc review frontline run -` with the
-  ready resolution and the target's `{ kind, baseRef, diffBaseSha, headSha }` projection.
-- `ready / local-prepare` — invoke `arc review local prepare -`.
+- `ready / run-frontline` — submit the envelope's `nextAction.request` as JSON stdin to `nextAction.command` and
+  retain both `nextAction.authorizationRequest` and `nextAction.resumeCommand`. On
+  `offered / obtain-authorization`, surface the exact one-pass consequence and ask `Approve (or redirect)?`; only
+  approval submits `nextAction.authorizationRequest` to the same command. Continue only from
+  `ready / run-frontline`, then run `arc review frontline run -` with that resolution, the target's
+  `{ kind, baseRef, diffBaseSha, headSha }` projection, and `responseBinding` when the pre-publication envelope
+  supplies it. Invoke the retained resume only after the frontline operation's typed protocol completes.
+- `ready / local-prepare` — invoke `arc review local prepare -`, carrying the chunk gate's selected scope as
+  `policyJudgment.scopeMode`, as well as in the procedure's `--lanes` on re-entry.
+- `coverage-required / select-coverage` — apply [code-review's coverage selection][code-coverage-selection] with
+  `policy.payload.responseRequired` and this caller's Owner-stop continuation.
 - `findings / respond` — enter the disposition protocol below.
-- `approval-required / obtain-ceiling-override` — surface the exact consequence and `Approve (or redirect)?`.
+- `approval-required / obtain-ceiling-override` — apply [code-review's ceiling override][code-ceiling-override],
+  retaining this procedure's exact lane request and continuation.
 - `chunk-pending / continue-chunks` — continue the selected local chunk series.
 - `stale-target / select-scope` — rerun chunking against the current target.
 - `blocked | unavailable | invalid-override / stop` — surface diagnostics and stop.
 
-Dispatch local operations only through public typed actions. The evaluator submits status, result, findings, and
-run identity to `arc review local attest -`; runtime-owned bindings come from the immutable operation. Resume with
-`arc review local resume -`, reduce with `arc review reduce -`, and submit approved dispositions with
-`arc review respond -`. A command error envelope carries no dispatchable state.
+When local prepare returns `coverage-required / select-coverage`, apply [code-review's coverage
+selection][code-coverage-selection], including its range measure and selected lane scope.
 
-For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present one
-unqualified severity when the reviewer and ARC grades agree, label both only when they differ, and include the source
-locus plus a discrete `Recommended disposition:` line. Approval of the complete unchanged surfaced set is required
-before any mutation or commitment; the approver need not repeat its canonical digest. Approved fixes run Tier 1
-gates ([`quality-gate-commands`][arc-methods-qg]), commit
-atomically, and produce a new target. Disclose review applicability from the exact delta: `targeted` for confidently
-narrow non-interacting record or lifecycle changes, `focused` for a bounded interaction, and `full` for behavioral,
-authority, contract, materially interacting, or uncertain changes. Clearance never carries.
-After the fix commit, re-invoke the same approved `arc review respond -` request with `verifiedFix` carrying the
-selected applicability and verification evidence. Require `candidate-advanced / continue-review` or idempotent
-`candidate-current / continue-review`, then commit its staged Candidate response under the same approved increment
-before any Candidate-currentness or delivery-preparation read.
+Apply [code-review's local operation][code-local-operation] to launch/attest, resume/reduce, command remedies, and
+frontline operator-repair, retaining the pre-publication command's opaque resume and exact operation bindings.
+
+For every durable producer findings action, run [code-review's findings round][code-findings-round] with its exact
+source and the following Candidate-owned verification/authoring continuation.
+
+When an approved fix includes authored state text the Markdown checks read, run `arc check increment` before its
+commit; ordinary corrections and spec-changing amendments use this same request.
+
+Approved fixes request `arc check gate commit`. Before their `verifiedFix` replay, a `focused` scope also requests
+`arc check gate push --range --force`, and `full` requests `arc check gate merge --force` over the new target; Candidate
+convergence verification repeats it. Disclose applicability from the actual delta: `targeted` for confidently narrow
+non-interacting record/lifecycle changes, `focused` for a bounded interaction, and `full` for behavioral, authority,
+contract, materially interacting, or uncertain changes. The approved scope does not select fewer checks.
+
+A `ready-to-fix / apply-fix` response carrying `payload.authoring` binds a Candidate private-member fix. Author only in
+its exact `authoring.checkoutPath`, `authoring.ref`, and `authoring.head`; a missing or different locus stops before
+mutation. Never author it in the disposable member checkout. The shared committed `verifiedFix` replay must return
+`candidate-advanced / continue-review` or idempotent `candidate-current / continue-review`. Commit its staged Candidate
+response as `taskCommit` under the same approved increment before any Candidate-currentness or delivery-preparation
+read.
+
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
-§ Prepare private delivery candidates when directed before re-invoking pre-publication review.
+§ Prepare private delivery candidates when directed before re-invoking pre-publication review. For a response
+carrying `authoring`, its `deliverySuffixReconstruction: after-candidate-advance` value requires that reconstruction
+to wait until the Candidate response has advanced.
 
 Proceed only from `candidate-publish-ready`; its durable boundary carries any hosted-first reservation or exact
 Owner-accepted terminus into publication without classifying either as settled, no-op, or clean.
@@ -150,9 +221,9 @@ The verb reads `Next Action` from the boundary it writes and `Last Completed` fr
 `--last-completed "{work}"` or `--action "{pointer}"` only when that read refuses or is wrong.
 
 The executor fires `Active → Integrating`, writes the composed orientation, regenerates ROADMAP, and stages the
-publication boundary with any reservation. An advisory-only reconcile stops before transition; edit and rerun, or
-obtain explicit direction to retain all advisories and use `--allow-advisories`. Confirm ROADMAP changed only for
-the state flip.
+publication boundary with any reservation. An advisory-only reconcile stops before transition; edit, run
+`arc check increment`, and rerun `arc publish`, or obtain explicit direction to retain all advisories and use
+`--allow-advisories`. Confirm ROADMAP changed only for the state flip.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -178,8 +249,14 @@ push and change-request creation; do not push from this workflow.
 
 ---
 
-[review-chunking]: ../../../methods/review-chunking.md
-[review-triage]: ../../../methods/review-triage.md
-[review-response]: ../../../methods/review-response.md
-[arc-methods-qg]: ../../../methods/quality-gate-commands.md
+[classify-review-risk]: ../../../methods/classify-review-risk.md
 [deliver-stack]: ../supplemental/deliver-stack.md
+
+[code-author-check]: ../../../methods/code-review.md#author-check
+[code-convergence]: ../../../methods/code-review.md#convergence
+[code-successor-decision]: ../../../methods/code-review.md#successor-decision
+[code-coverage-selection]: ../../../methods/code-review.md#coverage-selection
+[code-chunk-gate]: ../../../methods/code-review.md#chunk-gate
+[code-ceiling-override]: ../../../methods/code-review.md#ceiling-override
+[code-findings-round]: ../../../methods/code-review.md#findings-round
+[code-local-operation]: ../../../methods/code-review.md#local-operation

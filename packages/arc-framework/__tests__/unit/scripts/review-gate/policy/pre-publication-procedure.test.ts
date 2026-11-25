@@ -2,14 +2,17 @@
 
 import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
-import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
-import { createKernelRegistry } from "../../../../../src/lib/kernel/index.js";
+import { canonicalDigest } from "../../../../../src/lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema, createKernelRegistry } from "../../../../../src/lib/kernel/index.js";
 import {
   registerReviewDomainSchemas,
 } from "../../../../../src/scripts/review-gate/core/register-review-schemas.js";
 import {
   createStandardReviewReservation,
+  CandidateConvergenceBoundarySchema,
+  ContinuePrePublicationActionSchema,
   IntegrationBoundaryLocusSchema,
   parseIntegrationBoundaryLocus,
   projectCandidateFixResumeBoundary,
@@ -19,6 +22,8 @@ import {
   projectPublicationBoundary,
   recoverIntegratingBoundary,
   recoverPublicationBoundary,
+  RunConvergenceVerificationActionSchema,
+  createRunConvergenceVerificationAction,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   createCandidateAttestation,
@@ -27,6 +32,7 @@ import {
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   prePublicationBoundary,
+  PrePublicationReviewRequestSchema,
   PrePublicationReviewEnvelopeSchema,
   projectCandidateDeltaVerification,
   projectPrePublicationReview,
@@ -42,6 +48,16 @@ const target = {
 
 const SUBJECT_DIGEST = `sha256:${"e".repeat(64)}`;
 
+const postAttestContinuation = {
+  reviewedHead: target.headSha,
+  nextAction: {
+    kind: "continue-pre-publication-review" as const,
+    command: "arc review pre-publication example --resume opaque-review-judgment",
+    interactionText: "Resume pre-publication review over the converged Candidate.",
+  },
+  projectionDisposition: "keep-staged-until-publication" as const,
+};
+
 const ownerAcceptedTerminus = {
   schemaVersion: 1 as const,
   semanticsVersion: "review-terminus/v1" as const,
@@ -55,9 +71,21 @@ const standardReview = {
   obligation: "required" as const,
   reasons: ["sensitive-change-set"] as const,
   rubricVersion: "standard-review/v1",
-  rubricDigest: `sha256:${"b".repeat(64)}`,
+  rubricDigest: CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`),
   retrigger: "full-final" as const,
   count: 1 as const,
+};
+
+const routingFacts = {
+  schemaVersion: 1 as const,
+  changeSetState: "known" as const,
+  contentKind: "code-bearing" as const,
+  reviewRisk: "routine" as const,
+  changeDeterminacy: "atomic" as const,
+  ownership: "self" as const,
+  surfaceAuthority: "ordinary" as const,
+  assurance: { workContext: "work-unit" as const, workClass: "Light" as const },
+  activity: { selfReview: true, frontlineReview: true },
 };
 
 describe("integration boundary locus", () => {
@@ -77,7 +105,7 @@ describe("integration boundary locus", () => {
       locus: "candidate-fix-pending",
       nextAction: {
         kind: "continue-pre-publication-review",
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
         interactionText: "Resume the approved Candidate review fix response.",
       },
       policy: null,
@@ -94,7 +122,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: null,
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    })).toMatchObject({
+    }, 1)).toMatchObject({
       locus: "publication-pending",
       nextAction: {
         kind: "continue-publication",
@@ -110,7 +138,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: reservation(),
       changeRequest: null,
-    })).toMatchObject({
+    }, 1)).toMatchObject({
       locus: "publication-pending",
       nextAction: { kind: "continue-publication" },
     });
@@ -123,11 +151,11 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: reservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    })).toMatchObject({
+    }, 1)).toMatchObject({
       locus: "hosted-review-pending",
       nextAction: {
         kind: "continue-pre-publication-review",
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
       },
     });
   });
@@ -139,24 +167,24 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    })).toMatchObject({
+    }, 1)).toMatchObject({
       locus: "delivery-status-required",
       nextAction: {
         kind: "resolve-delivery-status",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
       },
     });
   });
 
-  it("normalizes the exact legacy delivery placeholder during a persisted-boundary read", () => {
+  it("refuses the retired delivery placeholder during a persisted-boundary read", () => {
     const current = projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
+    }, 1);
     if (current.nextAction.kind !== "resolve-delivery-status") {
       throw new Error("expected delivery status");
     }
@@ -170,25 +198,18 @@ describe("integration boundary locus", () => {
       },
     };
 
-    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
-      locus: "delivery-status-required",
-      nextAction: {
-        kind: "resolve-delivery-status",
-        workUnitId: "example",
-        command: "arc review status --work-unit example --json",
-        interactionText: "Resolve the retained delivery status.",
-      },
-    });
+    expect(() => parseIntegrationBoundaryLocus(legacy)).toThrow();
+    expect(parseIntegrationBoundaryLocus(current)).toEqual(current);
   });
 
-  it("normalizes the former work-unit delivery action without admitting it as a canonical boundary", () => {
+  it("refuses the former work-unit delivery action through both parser entry points", () => {
     const current = projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
+    }, 1);
     const legacy = {
       ...current,
       locus: "hosted-review-pending" as const,
@@ -199,14 +220,9 @@ describe("integration boundary locus", () => {
       },
     };
 
-    expect(IntegrationBoundaryLocusSchema.safeParse(legacy).success).toBe(false);
-    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
-      locus: "delivery-status-required",
-      nextAction: {
-        kind: "resolve-delivery-status",
-        interactionText: "Resolve the retained delivery status.",
-      },
-    });
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, legacy);
+    expect(() => parseIntegrationBoundaryLocus(legacy)).toThrow();
+    expect(parseIntegrationBoundaryLocus(current)).toEqual(current);
   });
 
   it("rebinds the carried public delivery reservation to one exact renewed-Candidate continuation", () => {
@@ -230,22 +246,22 @@ describe("integration boundary locus", () => {
         branch: "feat/example",
         reservation: deliveryReservation(),
         changeRequest: null,
-      }),
+      }, 1),
       deliveryReviewTermini: [memberTerminus],
     });
-    expect(IntegrationBoundaryLocusSchema.safeParse({
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...source,
       deliveryReviewTermini: [memberTerminus, memberTerminus],
-    }).success).toBe(false);
+    });
     const deliveryContinuation = {
       schemaVersion: 1 as const,
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
       planId: "11111111-1111-4111-8111-111111111111",
       planRevision: 1,
-      planDigest: `sha256:${"1".repeat(64)}`,
+      planDigest: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
       stateRevision: 7,
-      stateDigest: `sha256:${"2".repeat(64)}`,
-      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+      stateDigest: CanonicalDigestSchema.parse(`sha256:${"2".repeat(64)}`),
+      memberEvidenceDigest: CanonicalDigestSchema.parse(`sha256:${"3".repeat(64)}`),
     };
 
     expect(projectCorrectiveDeliveryStatusBoundary({
@@ -265,7 +281,7 @@ describe("integration boundary locus", () => {
       nextAction: {
         kind: "resolve-delivery-status",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
         interactionText: "Resolve the retained delivery status.",
       },
       policy: null,
@@ -285,16 +301,16 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: null,
-    });
+    }, 1);
     const firstContinuation = {
       schemaVersion: 1 as const,
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
       planId: "11111111-1111-4111-8111-111111111111",
       planRevision: 1,
-      planDigest: `sha256:${"1".repeat(64)}`,
+      planDigest: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
       stateRevision: 7,
-      stateDigest: `sha256:${"2".repeat(64)}`,
-      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+      stateDigest: CanonicalDigestSchema.parse(`sha256:${"2".repeat(64)}`),
+      memberEvidenceDigest: CanonicalDigestSchema.parse(`sha256:${"3".repeat(64)}`),
     };
     const carried = projectCorrectiveDeliveryStatusBoundary({
       workUnit: "example",
@@ -307,8 +323,8 @@ describe("integration boundary locus", () => {
     const refreshedContinuation = {
       ...firstContinuation,
       stateRevision: 8,
-      stateDigest: `sha256:${"4".repeat(64)}`,
-      memberEvidenceDigest: `sha256:${"5".repeat(64)}`,
+      stateDigest: CanonicalDigestSchema.parse(`sha256:${"4".repeat(64)}`),
+      memberEvidenceDigest: CanonicalDigestSchema.parse(`sha256:${"5".repeat(64)}`),
     };
 
     expect(projectCorrectiveDeliveryStatusBoundary({
@@ -336,7 +352,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: reservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
+    }, 1);
 
     expect(recoverPublicationBoundary({
       stored: carried,
@@ -375,6 +391,7 @@ describe("integration boundary locus", () => {
       candidateSubjectDigest: SUBJECT_DIGEST,
       reservation: null,
       terminus: ownerAcceptedTerminus,
+      postAttestContinuation,
     });
     expect(resumed).toMatchObject({ terminus: ownerAcceptedTerminus });
 
@@ -386,7 +403,7 @@ describe("integration boundary locus", () => {
       reservation: null,
       terminus: ownerAcceptedTerminus,
       changeRequest: null,
-    });
+    }, 1);
     expect(published).toMatchObject({
       locus: "publication-pending",
       terminus: ownerAcceptedTerminus,
@@ -398,17 +415,17 @@ describe("integration boundary locus", () => {
     "continue-standard-review",
     "respond-to-findings",
   ])("rejects removed next-action kind %s", (kind) => {
-    expect(IntegrationBoundaryLocusSchema.safeParse({
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...projectCandidateReviewBoundary({
         workUnit: "example",
         candidateId: `sha256:${"c".repeat(64)}`,
       }),
       nextAction: {
         kind,
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
         interactionText: "Continue review.",
       },
-    }).success).toBe(false);
+    });
   });
 
   it("rejects hosted-review actions that disagree with the reservation target kind", () => {
@@ -418,17 +435,17 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: reservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
+    }, 1);
 
-    expect(IntegrationBoundaryLocusSchema.safeParse({
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...singleton,
       nextAction: {
         kind: "continue-hosted-review",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
         interactionText: "Resume hosted review.",
       },
-    }).success).toBe(false);
+    });
 
     const delivery = projectPublicationBoundary({
       workUnit: "example",
@@ -436,22 +453,22 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
-    expect(IntegrationBoundaryLocusSchema.safeParse({
+    }, 1);
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...delivery,
       nextAction: {
         kind: "continue-pre-publication-review",
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
         interactionText: "Continue review.",
       },
-    }).success).toBe(false);
+    });
   });
 
   it("rejects a deferred reservation outside candidate publish readiness", () => {
     const ready = projectPrePublicationReview(request({
       selfReview: "settled",
       frontline: { ...request().frontline, frontlineActive: false, sources: [] },
-    }));
+    }), postAttestContinuation);
     expect(ready.reservation).not.toBeNull();
     expect(() => IntegrationBoundaryLocusSchema.parse({
       ...ready,
@@ -467,15 +484,41 @@ describe("integration boundary locus", () => {
       candidateId: `sha256:${"c".repeat(64)}`,
       candidateSubjectDigest: SUBJECT_DIGEST,
       reservation: carried,
+      postAttestContinuation,
     })).toMatchObject({
       locus: "candidate-review-pending",
       candidateSubjectDigest: SUBJECT_DIGEST,
       reservation: carried,
       nextAction: {
         kind: "continue-pre-publication-review",
-        command: "arc review pre-publication example --json",
+        command: postAttestContinuation.nextAction.command,
+      },
+      postAttestContinuation,
+    });
+  });
+
+  it("rejects a convergence boundary without exact post-attest continuation", () => {
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
+      ...projectCandidateReviewBoundary({
+        workUnit: "example",
+        candidateId: `sha256:${"c".repeat(64)}`,
+        candidateSubjectDigest: SUBJECT_DIGEST,
+      }),
+      locus: "candidate-convergence-verification-pending",
+      nextAction: {
+        kind: "run-convergence-verification",
+        command: "arc attest example --json",
+        interactionText: "Run convergence verification.",
       },
     });
+  });
+
+  it("keeps initial Candidate review entry free of reviewed-head continuation evidence", () => {
+    expect(projectCandidateReviewBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+    })).not.toHaveProperty("postAttestContinuation");
   });
 });
 
@@ -514,6 +557,18 @@ function request(overrides: Record<string, unknown> = {}) {
       headSha: target.headSha,
     },
     selfReview: "pending",
+    target: createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: target.repository,
+      baseRef: "main",
+      diffBaseSha: "b".repeat(40),
+      diffBaseTree: "c".repeat(40),
+      headSha: target.headSha,
+      headTree: "d".repeat(40),
+    }),
+    routingFacts,
     frontline: {
       schemaVersion: 1,
       target,
@@ -529,18 +584,207 @@ function request(overrides: Record<string, unknown> = {}) {
       schemaVersion: 1,
       target,
       lane: "standard",
+      nextPassContext: { completePasses: 0, convergence: "none", responseDue: false, incremental: null },
       standardReview,
       sources: ["codex-pr", "delegated-agent"],
       completedPasses: 0,
       maxPasses: 2,
       attempts: [],
     },
-    candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: false, convergenceVerification: "satisfied" },
+    pendingResponse: { frontline: null, standard: null },
+    candidate: {
+      subjectDigest: SUBJECT_DIGEST,
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
+    },
     ...overrides,
   };
 }
 
 describe("projectPrePublicationReview", () => {
+  it("keeps an Owner-authorized post-convergence pass in review instead of publishing", () => {
+    const base = request({ selfReview: "settled" });
+    const standard = {
+      ...(base.standard as Record<string, unknown>),
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/clean-1" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/clean-1",
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        materialFix: false,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
+      },
+    };
+    const input = {
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false, sources: [] },
+      standard,
+    };
+    expect(projectPrePublicationReview(input, postAttestContinuation)).toMatchObject({
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
+    });
+    expect(projectPrePublicationReview({
+      ...input,
+      standard: {
+        ...standard,
+        additionalPassAuthorization: {
+          target, lane: "standard", precedingProducerId: "local/clean-1",
+          completedPasses: 1, nextPass: 2,
+        },
+      },
+    }, postAttestContinuation)).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: { state: "ready", nextAction: "local-prepare", payload: { pass: 2 } },
+    });
+  });
+  it("keeps minor findings at the response boundary until the approved fix is performed", () => {
+    const base = request({ selfReview: "settled" });
+    const standard = {
+      ...(base.standard as Record<string, unknown>),
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      attempts: [{ sourceId: "delegated-agent", outcome: "findings", reviewOperationId: "minor-attempt" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "minor-attempt",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "minor",
+        materialFix: false,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
+      },
+    };
+    const pending = projectPrePublicationReview({
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false },
+      standard,
+      pendingResponse: { frontline: null, standard: { kind: "attested-local", receiptRef: "minor-source" } },
+    }, postAttestContinuation);
+    expect(pending).toMatchObject({
+      locus: "candidate-fix-pending",
+      policy: { state: "pass-complete" },
+      nextAction: {
+        command: "arc review respond -",
+        responseOperationId: "minor-attempt",
+        responseSource: { kind: "attested-local", receiptRef: "minor-source" },
+      },
+    });
+    const performed = projectPrePublicationReview({
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false },
+      standard,
+      pendingResponse: { frontline: null, standard: null },
+    }, postAttestContinuation);
+    expect(performed).toMatchObject({
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
+    });
+  });
+
+  it("routes an unchanged-head settled material response to the next pass", () => {
+    const base = request({ selfReview: "settled" });
+    const standard = {
+      ...(base.standard as Record<string, unknown>),
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      attempts: [{ sourceId: "delegated-agent", outcome: "findings", reviewOperationId: "material-attempt" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "material-attempt",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major",
+        materialFix: true,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
+      },
+      terminalResponseSettled: true,
+    };
+    expect(projectPrePublicationReview({
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false },
+      standard,
+      pendingResponse: { frontline: null, standard: null },
+    }, postAttestContinuation)).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: { state: "ready", nextAction: "local-prepare", payload: { pass: 2 } },
+    });
+  });
+
+  it("keeps a minor frontline response pending before standard review", () => {
+    const base = request({ selfReview: "settled" });
+    const frontline = {
+      ...(base.frontline as Record<string, unknown>),
+      completedPasses: 1,
+      attempts: [{ sourceId: "coderabbit-cli", outcome: "findings", reviewOperationId: "frontline-minor" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "frontline-minor",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "minor",
+        materialFix: false,
+        effectiveCoverage: "complete" as const, coverageAdequate: true,
+      },
+    };
+    const pending = projectPrePublicationReview({
+      ...base,
+      frontline,
+      pendingResponse: { frontline: { kind: "frontline", outcomeRef: "frontline-source" }, standard: null },
+    }, postAttestContinuation);
+    expect(pending).toMatchObject({
+      locus: "candidate-fix-pending",
+      policy: { state: "pass-complete" },
+      nextAction: {
+        command: "arc review respond -",
+        responseOperationId: "frontline-minor",
+        responseSource: { kind: "frontline", outcomeRef: "frontline-source" },
+      },
+    });
+    expect(pending.nextAction.interactionText).toContain("frontline");
+  });
+
+  it("rejects a frontline authorization request that changes more than invocation mode", () => {
+    const exact = request().target as { kind: string; baseRef: string; diffBaseSha: string; headSha: string };
+    const initialRequest = {
+      schemaVersion: 1 as const,
+      changeSet: routingFacts,
+      invocation: { mode: "inherit" as const, sourceId: "coderabbit-cli" },
+      target: {
+        kind: exact.kind,
+        baseRef: exact.baseRef,
+        diffBaseSha: exact.diffBaseSha,
+        headSha: exact.headSha,
+      },
+    };
+    assertSchemaRefuses(ContinuePrePublicationActionSchema, {
+      kind: "continue-pre-publication-review",
+      command: "arc review frontline resolve -",
+      request: initialRequest,
+      authorizationRequest: {
+        ...initialRequest,
+        invocation: { mode: "force", sourceId: "another-source" },
+      },
+      interactionText: "Continue frontline review.",
+    });
+  });
+
+  it("rejects impossible convergence status and scope pairs", () => {
+    assertSchemaRefuses(PrePublicationReviewRequestSchema, request({
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "satisfied",
+        convergenceScope: "focused",
+      },
+    }));
+    assertSchemaRefuses(PrePublicationReviewRequestSchema, request({
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "pending",
+        convergenceScope: null,
+      },
+    }));
+  });
+
   it("carries the exact target through to every locus that routes to an exact-target operation", () => {
     const exact = createReviewTarget({
       schemaVersion: 2,
@@ -554,25 +798,129 @@ describe("projectPrePublicationReview", () => {
       headTree: "d".repeat(40),
     });
 
-    const pending = projectPrePublicationReview(request({ target: exact }));
-    const settled = projectPrePublicationReview(request({ target: exact, selfReview: "settled" }));
+    const pending = projectPrePublicationReview(request({ target: exact }), postAttestContinuation);
+    const settled = projectPrePublicationReview(request({ target: exact, selfReview: "settled" }), postAttestContinuation);
 
     expect(pending.target).toEqual(exact);
     expect(settled.target).toEqual(exact);
     // The boundary is keyed to the reviewable subject; a live target would go stale under it.
     expect(prePublicationBoundary(settled)).not.toHaveProperty("target");
-    expect(IntegrationBoundaryLocusSchema.safeParse(prePublicationBoundary(settled)).success).toBe(true);
+    assertSchemaAccepts(IntegrationBoundaryLocusSchema, prePublicationBoundary(settled));
   });
 
   it("projects a null exact target when the checkout could not compose one", () => {
-    expect(projectPrePublicationReview(request()).target).toBeNull();
+    expect(projectPrePublicationReview(request({ target: null }), postAttestContinuation).target).toBeNull();
   });
 
   it("runs active author self-review before either configured lane", () => {
-    expect(projectPrePublicationReview(request())).toMatchObject({
+    expect(projectPrePublicationReview(request(), postAttestContinuation)).toMatchObject({
       locus: "candidate-review-pending",
       nextAction: { kind: "run-self-review" },
     });
+  });
+
+  it("names the frontline resolver when that policy action is ready", () => {
+    expect(projectPrePublicationReview(request({ selfReview: "settled" }), postAttestContinuation)).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: { state: "ready", nextAction: "run-frontline" },
+      nextAction: {
+        kind: "continue-pre-publication-review",
+        command: "arc review frontline resolve -",
+        request: {
+          schemaVersion: 1,
+          changeSet: routingFacts,
+          invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+          target: {
+            kind: "change-set",
+            baseRef: "main",
+            diffBaseSha: "b".repeat(40),
+            headSha: target.headSha,
+          },
+        },
+        authorizationRequest: {
+          schemaVersion: 1,
+          changeSet: routingFacts,
+          invocation: { mode: "force", sourceId: "coderabbit-cli" },
+          target: {
+            kind: "change-set",
+            baseRef: "main",
+            diffBaseSha: "b".repeat(40),
+            headSha: target.headSha,
+          },
+        },
+      },
+    });
+  });
+
+  it("carries a private member and ceiling approval in both public resolver requests", () => {
+    const memberHead = target.headSha;
+    const vehicle = {
+      kind: "delivery-member" as const,
+      planId: "11111111-1111-4111-8111-111111111111",
+      deliverableId: `sha256:${"1".repeat(64)}`,
+      workUnitId: "example",
+      head: memberHead,
+    };
+    const exact = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: target.repository,
+      baseRef: "main",
+      diffBaseSha: "b".repeat(40),
+      diffBaseTree: "c".repeat(40),
+      headSha: memberHead,
+      headTree: "d".repeat(40),
+    });
+    const base = request({ selfReview: "settled" });
+    const projected = projectPrePublicationReview({
+      ...base,
+      target: exact,
+      responseBinding: {
+        candidate: {
+          workUnit: "example",
+          candidateId: base.candidateId,
+          head: "f".repeat(40),
+        },
+        deliveryMember: vehicle,
+      },
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        completedPasses: 2,
+        ceilingOverride: {
+          target: { ...target },
+          lane: "frontline",
+          exhaustedPassCount: 2,
+          nextPass: 3,
+          conditionalPassAuthorizationId: `sha256:${"e".repeat(64)}`,
+        },
+      },
+    }, postAttestContinuation);
+    expect(projected.nextAction).toMatchObject({
+      request: {
+        target: { kind: "delivery-member", headSha: memberHead },
+        vehicle,
+        policyJudgment: {
+          ceilingOverride: {
+            exhaustedPassCount: 2,
+            nextPass: 3,
+            conditionalPassAuthorizationId: `sha256:${"e".repeat(64)}`,
+          },
+        },
+      },
+      authorizationRequest: {
+        target: { kind: "delivery-member", headSha: memberHead },
+        vehicle,
+        policyJudgment: {
+          ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+        },
+      },
+    });
+    if (projected.nextAction.kind !== "continue-pre-publication-review") {
+      throw new Error("expected frontline continuation");
+    }
+    expect(projected.nextAction.request).not.toHaveProperty("pass");
+    expect(projected.nextAction.request).not.toHaveProperty("maxPasses");
   });
 
   it("runs frontline before standard and preserves a hosted-first reservation", () => {
@@ -584,14 +932,25 @@ describe("projectPrePublicationReview", () => {
       frontline: {
         ...frontline,
         completedPasses: 1,
-        attempts: [{ sourceId: "coderabbit-cli", outcome: "clean" }],
+        attempts: [{
+          sourceId: "coderabbit-cli",
+          outcome: "clean",
+          reviewOperationId: "frontline/attempt-1",
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: "frontline/attempt-1",
+          confirmedFindingCount: 0,
+          maxConfirmedSeverity: null,
+          materialFix: false,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
+        },
       },
       standard: {
         ...standard,
         sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
         invocation: { mode: "force", sourceId: "codex-pr" },
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-publish-ready",
@@ -623,7 +982,7 @@ describe("projectPrePublicationReview", () => {
           retrigger: "none",
         },
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-publish-ready",
@@ -631,6 +990,25 @@ describe("projectPrePublicationReview", () => {
       reservation: null,
       nextAction: { kind: "publish-candidate" },
     });
+  });
+
+  it("carries Owner acceptance after a clean converged fix check into publication", () => {
+    const base = request({ selfReview: "settled" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false, sources: [] },
+      standard: {
+        ...(base.standard as Record<string, unknown>),
+        completedPasses: ownerAcceptedTerminus.completedPasses,
+        attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/fix-check" }],
+        nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
+        verifiedTerminalSignal: { reviewOperationId: "local/fix-check", confirmedFindingCount: 0,
+          maxConfirmedSeverity: null, materialFix: false, effectiveCoverage: "incremental" as const, coverageAdequate: false },
+        terminus: ownerAcceptedTerminus,
+      },
+    }, postAttestContinuation);
+    expect(result).toMatchObject({ locus: "candidate-publish-ready", policy: null, reservation: null,
+      terminus: ownerAcceptedTerminus, nextAction: { kind: "publish-candidate" } });
   });
 
   it("projects Owner acceptance as publish-ready without claiming a clean or converged policy result", () => {
@@ -648,7 +1026,7 @@ describe("projectPrePublicationReview", () => {
         attempts: [],
         terminus: ownerAcceptedTerminus,
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-publish-ready",
@@ -672,7 +1050,7 @@ describe("projectPrePublicationReview", () => {
         ...(base.standard as Record<string, unknown>),
         scopeSelection: { mode: "chunked", target },
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-review-pending",
@@ -703,7 +1081,7 @@ describe("projectPrePublicationReview", () => {
         ...(base.standard as Record<string, unknown>),
         target: hostedTarget,
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-review-pending",
@@ -728,9 +1106,20 @@ describe("projectPrePublicationReview", () => {
         ...(base.standard as Record<string, unknown>),
         sources: ["delegated-agent", "codex-pr"],
         completedPasses: 1,
-        attempts: [{ sourceId: "delegated-agent", outcome: "clean" }],
+        attempts: [{
+          sourceId: "delegated-agent",
+          outcome: "clean",
+          reviewOperationId: "local/attempt-1",
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: "local/attempt-1",
+          confirmedFindingCount: 0,
+          maxConfirmedSeverity: null,
+          materialFix: false,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
+        },
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-publish-ready",
@@ -746,9 +1135,20 @@ describe("projectPrePublicationReview", () => {
       frontline: {
         ...(base.frontline as Record<string, unknown>),
         completedPasses: 1,
-        attempts: [{ sourceId: "coderabbit-cli", outcome: "findings" }],
+        attempts: [{
+          sourceId: "coderabbit-cli",
+          outcome: "findings",
+          reviewOperationId: "frontline/attempt-1",
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: "frontline/attempt-1",
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "major",
+          materialFix: true,
+          effectiveCoverage: "complete" as const, coverageAdequate: true,
+        },
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-fix-pending",
@@ -760,7 +1160,12 @@ describe("projectPrePublicationReview", () => {
   it("requires one final convergence verification only after the review obligations settle", () => {
     const base = request({
       selfReview: "settled",
-      candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: true, convergenceVerification: "pending" },
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "pending",
+        convergenceScope: "full",
+      },
     });
     const result = projectPrePublicationReview({
       ...base,
@@ -768,22 +1173,35 @@ describe("projectPrePublicationReview", () => {
         ...(base.frontline as Record<string, unknown>),
         frontlineActive: false,
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-convergence-verification-pending",
       reservation: { sources: ["codex-pr", "delegated-agent"] },
       nextAction: {
         kind: "run-convergence-verification",
-        command: "arc attest example --json",
+        postAttestContinuation,
+        requiredScope: "full",
+        verificationKind: "tier-3",
+        verificationEvidenceRefRequired: true,
+        command: "arc attest example --scope full --verification-evidence-ref {verificationEvidenceRef} --json",
+        attestArgv: [
+          "arc", "attest", "example", "--scope", "full",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
       },
     });
   });
 
-  it("submits a converged implementation-changing lineage after full verification", () => {
+  it("projects the bounded verification and exact attest action for focused convergence", () => {
     const base = request({
       selfReview: "settled",
-      candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: true, convergenceVerification: "satisfied" },
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "pending",
+        convergenceScope: "focused",
+      },
     });
     const result = projectPrePublicationReview({
       ...base,
@@ -791,7 +1209,98 @@ describe("projectPrePublicationReview", () => {
         ...(base.frontline as Record<string, unknown>),
         frontlineActive: false,
       },
+    }, postAttestContinuation);
+
+    expect(result).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      nextAction: {
+        kind: "run-convergence-verification",
+        requiredScope: "focused",
+        verificationKind: "focused",
+        verificationEvidenceRefRequired: true,
+        attestArgv: [
+          "arc", "attest", "example", "--scope", "focused",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
     });
+  });
+
+  it("routes pending convergence through verification even when implementationChanged is false", () => {
+    const base = request({
+      selfReview: "settled",
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: false,
+        convergenceVerification: "pending",
+        convergenceScope: "focused",
+      },
+    });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+    }, postAttestContinuation);
+
+    expect(result).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      nextAction: {
+        kind: "run-convergence-verification",
+        requiredScope: "focused",
+        verificationKind: "focused",
+      },
+    });
+  });
+
+  it("binds convergence kind, argv, and displayed command with a valid post-attest continuation", () => {
+    const action = createRunConvergenceVerificationAction("example", "focused", postAttestContinuation);
+    assertSchemaAccepts(RunConvergenceVerificationActionSchema, action);
+    for (const invalid of [
+      { ...action, verificationKind: "tier-3" },
+      { ...action, requiredScope: "full" },
+      { ...action, attestArgv: [...action.attestArgv.slice(0, 4), "full", ...action.attestArgv.slice(5)] },
+      { ...action, attestArgv: [...action.attestArgv.slice(0, 6), "invented-evidence", "--json"] },
+      { ...action, command: "arc attest example --scope full --verification-evidence-ref ref --json" },
+    ]) {
+      assertSchemaRefuses(RunConvergenceVerificationActionSchema, invalid);
+    }
+  });
+
+  it("rejects a convergence action for another boundary work unit", () => {
+    assertSchemaRefuses(CandidateConvergenceBoundarySchema, {
+      schemaVersion: 1,
+      mode: "pre-publication-review",
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      terminus: null,
+      deliveryReviewTermini: [],
+      locus: "candidate-convergence-verification-pending",
+      nextAction: createRunConvergenceVerificationAction("other", "focused", postAttestContinuation),
+      policy: null,
+      reservation: null,
+    });
+  });
+
+  it("submits a converged implementation-changing lineage after full verification", () => {
+    const base = request({
+      selfReview: "settled",
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "satisfied",
+        convergenceScope: null,
+      },
+    });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-publish-ready",
@@ -808,7 +1317,7 @@ describe("projectPrePublicationReview", () => {
         ...(base.frontline as Record<string, unknown>),
         frontlineActive: false,
       },
-    });
+    }, postAttestContinuation);
     const accepted = projectPrePublicationReview({
       ...base,
       frontline: {
@@ -820,7 +1329,7 @@ describe("projectPrePublicationReview", () => {
         completedPasses: 5,
         terminus: ownerAcceptedTerminus,
       },
-    });
+    }, postAttestContinuation);
     expect(accepted).toMatchObject({
       locus: "candidate-publish-ready",
       reservation: null,
@@ -834,16 +1343,15 @@ describe("projectPrePublicationReview", () => {
         candidateId: valid.candidateId,
         candidateSubjectDigest: valid.candidateSubjectDigest,
         reservation: valid.reservation,
+        postAttestContinuation,
       }),
       target: valid.target,
     };
 
-    const bundle = registerReviewDomainSchemas(createKernelRegistry()).toJSONSchema();
-    // The composed registry includes unrelated tuple projections that older Ajv rejects at registration.
-    // Compile this target with schema self-validation disabled; acceptance still runs in strict mode.
-    const ajv = new Ajv2020({ allErrors: true, strict: true, validateSchema: false });
+    const bundle = registerReviewDomainSchemas(createKernelRegistry()).toJSONSchema({ io: "output" });
+    const ajv = new Ajv2020({ allErrors: true, strict: true, validateFormats: false });
     for (const schema of Object.values(bundle.schemas)) ajv.addSchema(schema as AnySchema);
-    const projected = ajv.getSchema("review-pre-publication-envelope.schema.json");
+    const projected = ajv.getSchema("urn:arc:schema:review-pre-publication-envelope");
     if (projected === undefined) throw new Error("missing projected pre-publication validator");
 
     const corpus = [{
@@ -865,7 +1373,7 @@ describe("projectPrePublicationReview", () => {
         locus: "candidate-review-pending",
         nextAction: {
           kind: "run-self-review",
-          command: "arc review pre-publication example --json",
+          command: "arc review pre-publication example",
           interactionText: "Run self-review.",
         },
       },
@@ -894,8 +1402,15 @@ describe("projectPrePublicationReview", () => {
       accepted: false,
     }];
     for (const example of corpus) {
-      expect(PrePublicationReviewEnvelopeSchema.safeParse(example.value).success, `${example.label}: runtime`)
-        .toBe(example.accepted);
+      try {
+        if (example.accepted) {
+          assertSchemaAccepts(PrePublicationReviewEnvelopeSchema, example.value);
+        } else {
+          assertSchemaRefuses(PrePublicationReviewEnvelopeSchema, example.value);
+        }
+      } catch (error) {
+        throw new Error(`${example.label}: runtime schema verdict failed`, { cause: error });
+      }
       expect(projected(example.value), `${example.label}: ${JSON.stringify(projected.errors)}`)
         .toBe(example.accepted);
     }
@@ -910,7 +1425,7 @@ describe("projectPrePublicationReview", () => {
         ...(base.frontline as Record<string, unknown>),
         scopeSelection: { mode: "whole-target", target: oldTarget },
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-review-pending",
@@ -927,7 +1442,7 @@ describe("projectPrePublicationReview", () => {
         ...(base.frontline as Record<string, unknown>),
         completedPasses: 2,
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-review-pending",
@@ -966,7 +1481,7 @@ function candidateRecord(): CandidateManagedRecordV1 {
 }
 
 describe("Candidate delta verification", () => {
-  it("supplies exact delta and prior evidence while the primary selects applicability", () => {
+  it("supplies exact delta and prior evidence while carrying the approved verification scope", () => {
     const record = candidateRecord();
     const projection = projectCandidateDeltaVerification({
       record,
@@ -985,6 +1500,7 @@ describe("Candidate delta verification", () => {
       dispositionId: canonicalDigest({ disposition: "approved" }),
       approvedBy: "andrew",
       appliedBy: "codex",
+      approvedVerification: "targeted",
       applicability: "focused",
       verificationEvidenceRefs: ["test://focused"],
     })).toMatchObject({

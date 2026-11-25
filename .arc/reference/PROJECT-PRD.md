@@ -51,7 +51,7 @@ human involvement.
 - **The methodology for the execution pair** — how a developer and an agent work through
   implementation together: planning, execution, verification, and context preservation. The
   governance unit is one developer + one agent + one work unit at a time.
-- **Configurable conventions over fixed shape** — config values, methods, extensions, and strong
+- **Configurable conventions over fixed shape** — config values, check declarations, method overrides, and strong
   defaults that teams replace at convention level. Principles are non-negotiable; everything else
   adapts.
 - **Workflows for the full work-unit lifecycle** — specification generation, task decomposition,
@@ -120,7 +120,7 @@ software development.
 
 - **Configurability with strong defaults over a fixed shape**: Chose adaptable conventions + a
   non-negotiable principle core over a single prescribed methodology. Cost: steeper initial
-  learning curve (principles, conventions, methods, extensions); larger documentation surface;
+  learning curve (principles, conventions, methods, checks); larger documentation surface;
   more decisions to make at adoption time.
 
 - **Co-development primacy over universal agent compatibility**: Chose in-flight, shared-context

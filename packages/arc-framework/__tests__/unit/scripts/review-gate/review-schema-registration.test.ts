@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import {
@@ -47,13 +48,13 @@ const reviewIdentities = [
   "disposition-set-state",
   "finding-classification",
   "finding-disposition",
-  "finding-settlement",
   "fix-authorization",
   "fix-authorization-consumption",
   "fix-authorization-preimage",
   "frontline-execution-outcome",
   "frontline-outcome-digest-preimage",
   "frontline-outcome-record",
+  "frontline-phase-state",
   "review-frontline-run-request",
   "frontline-run-state",
   "lane-progress-state",
@@ -72,24 +73,37 @@ const reviewIdentities = [
   "project-routing-promotion",
   "proposed-disposition-set",
   "normalized-review-finding",
-  "review-applicability",
-  "review-applicability-id-preimage",
+  "review-adversarial-record-envelope",
   "review-command-error-envelope",
   "review-chunking-resolve-envelope",
+  "review-adversarial-record-request",
   "review-chunking-resolve-request",
   "review-change-request-resolve-result",
   "review-checks-await-result",
   "review-frontline-resolve-envelope",
+  "review-frontline-resolve-request",
   "review-frontline-run-envelope",
   "review-hosted-await-envelope",
+  "review-hosted-await-request",
+  "review-hosted-dismiss-envelope",
+  "review-hosted-dismiss-request",
   "review-hosted-request-envelope",
+  "review-hosted-request-request",
   "review-hosted-settle-envelope",
+  "review-hosted-settle-request",
   "review-local-attest-envelope",
+  "review-local-attest-request",
+  "review-local-cancel-envelope",
+  "review-local-cancel-request",
   "review-local-prepare-envelope",
+  "review-local-prepare-request",
   "review-local-resume-envelope",
+  "review-local-resume-request",
   "review-merge-method-resolve-result",
   "review-reduce-envelope",
+  "review-reduce-request",
   "review-respond-envelope",
+  "review-respond-request",
   "review-assurance-input",
   "review-guidance-digest-preimage",
   "review-lifecycle-tail-proof",
@@ -99,7 +113,10 @@ const reviewIdentities = [
   "review-planning-grooming-resolve-request",
   "review-policy-version-preimage",
   "review-pre-publication-envelope",
+  "review-lane-read-envelope",
+  "review-lane-read-request",
   "review-readiness-envelope",
+  "review-readiness-request",
   "review-receipt",
   "review-receipt-ledger",
   "review-request",
@@ -108,6 +125,7 @@ const reviewIdentities = [
   "review-requirement",
   "review-requirement-id-preimage",
   "review-resolve-envelope",
+  "review-resolve-request",
   "review-response-input",
   "review-response-plan",
   "review-rubric-overlay-resolution",
@@ -118,6 +136,7 @@ const reviewIdentities = [
   "review-status-result",
   "review-target",
   "review-target-id-preimage",
+  "review-terminus-accept-request",
   "severity-gating-policy",
   "work-unit-review-assurance",
 ];
@@ -143,7 +162,6 @@ describe("review schema registration", () => {
     expect(registry.meta("review-policy-version-preimage")?.version).toBe(2);
     expect(registry.meta("review-lifecycle-tail-proof")?.version).toBe(2);
     expect(registry.meta("review-response-plan")?.version).toBe(2);
-    expect(registry.meta("review-applicability")?.version).toBe(2);
     expect(registry.meta("canonical-change-set")?.version).toBe(1);
   });
 
@@ -200,7 +218,7 @@ describe("review schema registration", () => {
       expect(canonicalDigest(preimage)).toBe(targetId);
     }
 
-    expect(targetSchema.safeParse({
+    assertSchemaRefuses(targetSchema, {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       kind: "delivery-slice",
@@ -211,7 +229,7 @@ describe("review schema registration", () => {
       headSha: "c".repeat(40),
       headTree: "d".repeat(40),
       targetId: canonicalDigest({ target: "unrecognized-kind" }),
-    }).success).toBe(false);
+    });
     expect(registry.meta("review-target")?.version).toBe(2);
     expect(registry.meta("review-target-id-preimage")?.version).toBe(2);
   });
@@ -241,18 +259,24 @@ describe("review schema registration", () => {
       target: coordinates,
       scopeSelection: { mode: "chunked", target: coordinates },
     })).toMatchObject({ scopeSelection: { mode: "chunked", target: coordinates } });
-    expect(ReviewChunkingResolveRequestSchema.safeParse({
+    assertSchemaRefuses(ReviewChunkingResolveRequestSchema, {
       schemaVersion: 1,
       target: coordinates,
       workUnitId: "delivery-stack-topology",
-    }).success).toBe(false);
-    expect(ReviewChunkingResolveRequestSchema.safeParse({
+    });
+    assertSchemaRefuses(ReviewChunkingResolveRequestSchema, {
       schemaVersion: 1,
       target,
-    }).success).toBe(false);
+    });
   });
 
   it("registers only caller-held coordinates for the two public exact-target requests", () => {
+    const registry = createKernelRegistry();
+    registerReviewDomainSchemas(registry);
+    const frontlineResolve = registry.get("review-frontline-resolve-request");
+    if (frontlineResolve === undefined) {
+      throw new Error("expected review-frontline-resolve-request to be registered");
+    }
     const coordinates = {
       kind: "change-set" as const,
       baseRef: "main",
@@ -294,22 +318,59 @@ describe("review schema registration", () => {
       },
     };
 
+    const resolveRequest = {
+      schemaVersion: 1,
+      changeSet: facts,
+      invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+      target: coordinates,
+    };
+    assertSchemaAccepts(frontlineResolve, resolveRequest);
+    const member = {
+      ...resolveRequest,
+      target: { ...coordinates, kind: "delivery-member" },
+      vehicle: {
+        kind: "delivery-member",
+        planId: "11111111-1111-4111-8111-111111111111",
+        deliverableId: `sha256:${"1".repeat(64)}`,
+        workUnitId: "example",
+        head: coordinates.headSha,
+      },
+    };
+    assertSchemaAccepts(frontlineResolve, member);
+    assertSchemaRefuses(frontlineResolve, { ...member, vehicle: undefined });
+    assertSchemaRefuses(frontlineResolve, { ...resolveRequest, maxPasses: 2 });
+    assertSchemaRefuses(frontlineResolve, {
+      ...resolveRequest, target: { ...coordinates, headTree: "d".repeat(40) },
+    });
+
     expect(FrontlineRunRequestSchema.parse({
       schemaVersion: 1,
       target: coordinates,
       resolution,
     })).toMatchObject({ target: coordinates });
+    expect(FrontlineRunRequestSchema.parse({
+      schemaVersion: 1,
+      target: coordinates,
+      resolution,
+      retryOfOperationId: `sha256:${"a".repeat(64)}`,
+    })).toMatchObject({ retryOfOperationId: `sha256:${"a".repeat(64)}` });
+    assertSchemaRefuses(FrontlineRunRequestSchema, {
+      schemaVersion: 1,
+      target: coordinates,
+      resolution,
+      retryOfOperationId: "previous-run",
+    });
     for (const extra of [
       { repositoryId: "repo-1" },
       { diffBaseTree: "b".repeat(40) },
       { headTree: "d".repeat(40) },
       { targetId: `sha256:${"e".repeat(64)}` },
     ]) {
-      expect(FrontlineRunRequestSchema.safeParse({
+      assertSchemaRefuses(FrontlineRunRequestSchema, {
         schemaVersion: 1,
         target: { ...coordinates, ...extra },
         resolution,
-      }).success).toBe(false);
+      });
     }
   });
 

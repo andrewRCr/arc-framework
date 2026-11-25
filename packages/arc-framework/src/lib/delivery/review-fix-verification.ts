@@ -1,6 +1,6 @@
 /** Shared installation and projection of one recoverable delivery review-fix verification continuation. */
 
-import { canonicalDigest, canonicalize } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "./schema.js";
 
@@ -10,7 +10,7 @@ export interface DeliveryReviewFixVerificationAcknowledgementInput {
   readonly selectedDeliverableId: string;
   readonly memberDeliverableIds: readonly string[];
   readonly expectedStateRevision: number;
-  readonly continuationDigest: string;
+  readonly continuationDigest: CanonicalDigest;
 }
 
 /** Provider-neutral verification work projected after a review-fix mutation settles. */
@@ -19,12 +19,12 @@ export interface DeliveryReviewFixVerificationContinuation {
   readonly nextAction: "verify-review-fix";
   readonly verification: {
     readonly memberDeliverableIds: readonly string[];
-    readonly tier1Required: true;
+    readonly commitGateRequired: true;
     readonly target: {
       readonly head: string;
       readonly tree: string;
     };
-    readonly tier1Reuse: {
+    readonly commitGateReuseCriteria: {
       readonly kind: "exact-tree";
       readonly targetTree: string;
       readonly requiredResult: "passed";
@@ -71,9 +71,9 @@ export function projectDeliveryReviewFixVerificationContinuation(input: {
     nextAction: "verify-review-fix",
     verification: {
       memberDeliverableIds: pending.memberDeliverableIds,
-      tier1Required: true,
+      commitGateRequired: true,
       target: { head: terminal.head, tree: terminal.tree },
-      tier1Reuse: {
+      commitGateReuseCriteria: {
         kind: "exact-tree",
         targetTree: terminal.tree,
         requiredResult: "passed",

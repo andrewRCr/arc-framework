@@ -12,9 +12,11 @@
  * @module
  */
 
-import { matchInboxEntryTitle } from "./parser.js";
+import { PERSONAL_INBOX_LABEL } from "../store/kinds/personal-inbox.js";
+import { matchInboxEntryTitle } from "../store/kinds/entry-fields.js";
 import { contentDigest } from "../canonical/content-digest.js";
 import type { CanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import { managedFieldValue } from "../session-init/managed-field.js";
 
 /** Sections whose H3 children are routable inbox entries. */
 const ENTRY_SECTIONS = ["Errand", "Work Unit"];
@@ -84,6 +86,10 @@ interface LocatedInboxEntry {
 
 const DISPOSITION_LINE = "- _Disposition:_ `execute-bound`";
 
+function withoutTrailingCarriageReturn(line: string): string {
+  return line.replace(/\r$/u, "");
+}
+
 /**
  * Locate entries without letting one malformed heading discard the rest.
  *
@@ -102,7 +108,7 @@ function locateInboxEntriesResilient(
     const next = headings[offset + 1];
     while (end < lines.length && end !== next?.index && !isSectionBoundary(lines[end] ?? "")) end++;
     if (title === null) {
-      diagnostics.push(`Malformed USER-INBOX entry heading: ${heading.line.trim()}`);
+      diagnostics.push(`Malformed ${PERSONAL_INBOX_LABEL} entry heading: ${heading.line.trim()}`);
       continue;
     }
     entries.push({ start: heading.index, end, title, section: heading.section });
@@ -116,6 +122,66 @@ function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
   const first = located.diagnostics[0];
   if (first !== undefined) throw new Error(first);
   return located.entries;
+}
+
+/** The `_Key:_` an entry-body descriptor line declares, or null when the line declares none. */
+function descriptorKey(line: string | undefined): string | null {
+  return /^- (_[^_]+:_)/u.exec(line ?? "")?.[1] ?? null;
+}
+
+function managedDescriptorValue(line: string, field: string): string | undefined {
+  const value = withoutTrailingCarriageReturn(line);
+  return descriptorKey(value) === `_${field}:_` ? managedFieldValue(value, field) : undefined;
+}
+
+/** Render one body line for a diagnostic, bounding an arbitrarily long descriptor. */
+function describeLine(line: string | undefined): string {
+  if (line === undefined) return "nothing";
+  const trimmed = line.trim();
+  if (trimmed === "") return "a blank line";
+  return `'${trimmed.length > 60 ? `${trimmed.slice(0, 57)}...` : trimmed}'`;
+}
+
+/**
+ * Name the single grammar rule an entry's disposition block violates.
+ *
+ * The caller has already established that the block is non-empty and malformed; this only decides
+ * which rule to report. Each branch names the offending descriptor and the correction, because the
+ * bare state is not actionable from the refusal alone.
+ *
+ * @param body - Entry body lines, excluding the heading.
+ * @param dispositionIndices - Body indices of every `- _Disposition:_` line.
+ * @param dispatchIndices - Body indices of every `- _Dispatch:_` line.
+ * @returns One sentence naming the violated rule and its correction.
+ */
+function dispositionDefect(
+  body: readonly string[],
+  dispositionIndices: readonly number[],
+  dispatchIndices: readonly number[],
+): string {
+  if (dispositionIndices.length > 1) {
+    return `'_Disposition:_' appears ${dispositionIndices.length} times at body lines `
+      + `${dispositionIndices.join(", ")}; keep exactly one`;
+  }
+  if (dispatchIndices.length !== 0) {
+    return dispositionIndices.length === 0
+      ? `'_Dispatch:_' at body line ${dispatchIndices[0]} is a retired field with no '_Disposition:_'; `
+        + `replace it with ${DISPOSITION_LINE}`
+      : `'_Dispatch:_' at body line ${dispatchIndices[0]} cannot accompany '_Disposition:_'; remove it`;
+  }
+  if (body[0] !== "") {
+    return `the heading must be followed by one blank line, but body line 0 is ${describeLine(body[0])}`;
+  }
+  const dispositionIndex = dispositionIndices[0] as number;
+  if (dispositionIndex !== 1) {
+    const displacing = descriptorKey(body[1]);
+    return displacing === null
+      ? `'_Disposition:_' must be the first descriptor, at body line 1, but sits at line ${dispositionIndex} `
+        + `behind ${describeLine(body[1])}`
+      : `descriptor '${displacing}' precedes '_Disposition:_' at body line 1; `
+        + `move '${displacing}' after the disposition`;
+  }
+  return `'_Disposition:_' must read exactly ${DISPOSITION_LINE}, but body line 1 is ${describeLine(body[1])}`;
 }
 
 function executeBoundMark(
@@ -134,9 +200,29 @@ function executeBoundMark(
     || body[0] !== ""
     || body[1] !== DISPOSITION_LINE
   ) {
-    throw new Error(`Malformed USER-INBOX disposition fields for '${entry.title}'.`);
+    throw new Error(
+      `Malformed ${PERSONAL_INBOX_LABEL} disposition fields for '${entry.title}': `
+      + `${dispositionDefect(body, dispositionIndices, dispatchIndices)}.`,
+    );
   }
   return { insertedLineCount: 2 };
+}
+
+/** Remove the retain envelope that an execute-bound disposition supersedes. */
+function normalizeRetainedEntryForExecution(block: readonly string[]): string[] {
+  if (!block.some((line) => managedDescriptorValue(line, "Hold") === "true")) return [...block];
+  const preserveCreated = block.some((line) => managedDescriptorValue(line, "Remind") === "true");
+  const normalized = block.filter((line) =>
+    managedDescriptorValue(line, "Hold") !== "true"
+    && (preserveCreated || managedDescriptorValue(line, "Created") === undefined));
+  if (
+    !preserveCreated
+    && withoutTrailingCarriageReturn(normalized[1] ?? "") === ""
+    && withoutTrailingCarriageReturn(normalized[2] ?? "") === ""
+  ) {
+    normalized.splice(2, 1);
+  }
+  return normalized;
 }
 
 /** Whether one parsed inbox entry carries the canonical execute-bound disposition. */
@@ -161,9 +247,9 @@ function unboundEntryLines(lines: readonly string[], entry: LocatedInboxEntry): 
 }
 
 function unboundDigest(lines: readonly string[], entry: LocatedInboxEntry): CanonicalDigest {
-  const unbound = unboundEntryLines(lines, entry);
+  const unbound = normalizeRetainedEntryForExecution(unboundEntryLines(lines, entry));
   const normalized = unbound
-    .map((line) => line.replace(/\r$/u, ""))
+    .map(withoutTrailingCarriageReturn)
     .join("\n")
     .replace(/\n*$/u, "") + "\n";
   return contentDigest(Buffer.from(normalized, "utf8"));
@@ -175,8 +261,8 @@ export function inboxEntrySourceDigest(content: string, title: string): Canonica
   const matches = locateInboxEntries(lines).filter((entry) => entry.title === title.trim());
   if (matches.length !== 1) {
     throw new Error(matches.length === 0
-      ? `Missing USER-INBOX entry '${title.trim()}'.`
-      : `Duplicate USER-INBOX entry title '${title.trim()}'.`);
+      ? `Missing ${PERSONAL_INBOX_LABEL} entry '${title.trim()}'.`
+      : `Duplicate ${PERSONAL_INBOX_LABEL} entry title '${title.trim()}'.`);
   }
   return unboundDigest(lines, matches[0] as LocatedInboxEntry);
 }
@@ -188,8 +274,8 @@ export function inspectInboxEntry(content: string, title: string): InspectedInbo
   const matches = locateInboxEntries(lines).filter((entry) => entry.title === normalizedTitle);
   if (matches.length !== 1) {
     throw new Error(matches.length === 0
-      ? `Missing USER-INBOX entry '${normalizedTitle}'.`
-      : `Duplicate USER-INBOX entry title '${normalizedTitle}'.`);
+      ? `Missing ${PERSONAL_INBOX_LABEL} entry '${normalizedTitle}'.`
+      : `Duplicate ${PERSONAL_INBOX_LABEL} entry title '${normalizedTitle}'.`);
   }
   const entry = matches[0] as LocatedInboxEntry;
   return {
@@ -262,8 +348,8 @@ export function markInboxEntriesExecuteBoundInOrder(
     const matches = entries.filter((entry) => entry.title === title);
     if (matches.length !== 1) {
       throw new Error(matches.length === 0
-        ? `Missing USER-INBOX entry '${title}'.`
-        : `Duplicate USER-INBOX entry title '${title}'.`);
+        ? `Missing ${PERSONAL_INBOX_LABEL} entry '${title}'.`
+        : `Duplicate ${PERSONAL_INBOX_LABEL} entry title '${title}'.`);
     }
     const entry = matches[0] as LocatedInboxEntry;
     if (entry.section !== "Errand") {
@@ -333,12 +419,12 @@ export function mutateInboxEntries(
         outcomes.push({ title, state: "already-applied" });
         continue;
       }
-      throw new Error(`Missing USER-INBOX entry '${title}'.`);
+      throw new Error(`Missing ${PERSONAL_INBOX_LABEL} entry '${title}'.`);
     }
     if (matches.length !== 1) {
       throw new InboxMutationConflictError(
         "duplicate-entry-title",
-        `Duplicate USER-INBOX entry title '${title}'.`,
+        `Duplicate ${PERSONAL_INBOX_LABEL} entry title '${title}'.`,
       );
     }
     const entry = matches[0] as LocatedInboxEntry;
@@ -366,7 +452,9 @@ export function mutateInboxEntries(
 
   for (const { entry, mutation, mark } of actions.sort((left, right) => right.entry.start - left.entry.start)) {
     if (mutation.kind === "mark") {
-      lines.splice(entry.start + 1, 0, "", DISPOSITION_LINE);
+      const normalized = normalizeRetainedEntryForExecution(lines.slice(entry.start, entry.end));
+      normalized.splice(1, 0, "", DISPOSITION_LINE);
+      lines.splice(entry.start, entry.end - entry.start, ...normalized);
     } else if (mutation.kind === "unmark") {
       lines.splice(entry.start + 1, mark?.insertedLineCount ?? 0);
     } else {
@@ -498,7 +586,7 @@ function removeInboxEntryGeneration(
   if (expectedSourceDigest !== undefined) {
     const matches = locateInboxEntries(lines).filter((entry) => entry.title === target);
     if (matches.length === 0) return { content, removed: false };
-    if (matches.length !== 1) throw new Error(`Duplicate USER-INBOX entry title '${target}'.`);
+    if (matches.length !== 1) throw new Error(`Duplicate ${PERSONAL_INBOX_LABEL} entry title '${target}'.`);
     const entry = matches[0] as LocatedInboxEntry;
     if (unboundDigest(lines, entry) !== expectedSourceDigest) {
       throw new Error(`USER-INBOX source digest changed for '${target}'.`);

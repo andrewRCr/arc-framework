@@ -16,7 +16,16 @@
  * @module
  */
 
+import { z } from "zod";
+
+/** Strict physical-worktree identity shared by session envelope slots. */
+export const WorktreeIdentitySchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("primary") }),
+  z.strictObject({ kind: z.literal("linked"), path: z.string().min(1) }),
+]);
+
 import type { GitExec } from "./exec.js";
+import { nativeGitPath } from "../local-path-identity.js";
 
 /**
  * Which physical worktree the session is in.
@@ -25,9 +34,7 @@ import type { GitExec } from "./exec.js";
  * - `linked` — an added worktree; `path` is its absolute working-tree root,
  *   the datum orientation renders (e.g. `worktree: ../arc-wu-b`).
  */
-export type WorktreeIdentity =
-  | { kind: "primary" }
-  | { kind: "linked"; path: string };
+export type WorktreeIdentity = z.infer<typeof WorktreeIdentitySchema>;
 
 /**
  * Resolve whether the current session is in the primary or a linked worktree.
@@ -49,7 +56,7 @@ export async function resolveWorktreeIdentity(exec: GitExec): Promise<WorktreeId
 
   const toplevel = await revParse(exec, "--show-toplevel");
   if (toplevel === null) return { kind: "primary" };
-  return { kind: "linked", path: toplevel };
+  return { kind: "linked", path: nativeGitPath(toplevel) };
 }
 
 /** Run `git rev-parse <flag>` and return the trimmed value, or `null` on failure/empty. */

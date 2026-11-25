@@ -1,3 +1,4 @@
+import { LineageRecordSchema } from "../../../../src/lib/store/kinds/lineage/index.js";
 /**
  * Unit tests for the `discharge-dep-edges` side-effect — the write half of
  * dep-edge discharge, fired at `activate`.
@@ -14,27 +15,40 @@
 
 import { describe, it, expect } from "vitest";
 
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { parseMetaProjectionRecord } from "../../../../src/lib/active/meta-reader.js";
+import type { MetaRenderOverrides } from "../../../../src/lib/active/meta-reader.js";
 import { buildLifecycleIndexFromMetas } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type {
   TransitionRecordEnumerationResult,
 } from "../../../../src/lib/work-unit/transition-record-enumeration.js";
 import type { TransitionDispositionQueryResult } from "../../../../src/lib/work-unit/transition-disposition-query.js";
 import {
-  dischargeDepEdges,
   planDependencyReconcile,
   runCurrentWuReconcile,
-  type DischargeDepEdgesContext,
 } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 
-/** Minimal valid meta — H1 plus the flat-bullet `State` and an optional `Depends On` edge list. */
-function meta(state: string, dependsOn?: string[]): string {
-  const lines = ["# Metadata: x", "", `- **State:** ${state}`];
+/** Valid metadata for the surviving dependency verdict and planning cases. */
+function meta(state: NonNullable<MetaRenderOverrides["state"]>, dependsOn: string[] = []): string {
+  return makeMetaFixture("x", { state, dependsOn });
+}
+
+/** Keep independently authored projection values for the carved current-WU apply cases. */
+function legacyMeta(state: string, dependsOn?: string[]): string {
+  const lines = [
+    "# Metadata: x",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
+  ];
   if (dependsOn !== undefined) {
     const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
     lines.push(`- **Depends On:** ${value}`);
   }
-  return `${lines.join("\n")}\n`;
+  lines.push("", "---", "");
+  return lines.join("\n");
 }
 
 const DEPENDENT_PATH = ".arc/active/meta-dependent.md";
@@ -53,104 +67,64 @@ function renameEnumeration(
     status: "valid",
     groups: [{
       origin: retiredSubject,
-      records: [{
-        schemaVersion: 1,
-        origin: retiredSubject,
+      records: [LineageRecordSchema.parse({
+        schemaVersion: 2,
+        origin: { name: retiredSubject },
         kind: "rename",
-        successors: [targetSlug],
-        edges: [],
-      }],
+        successors: [{ name: targetSlug }],
+        incoming: [],
+      })],
     }],
   };
 }
 
-/**
- * Build a discharge context over an index of one dependent plus dependencies in
- * the named states, with an in-memory meta read/write keyed on path.
- */
-function buildCtx(dependsOn: string[]): { ctx: DischargeDepEdgesContext; writes: string[] } {
-  const metas = [
-    { path: DEPENDENT_PATH, content: meta("Active", dependsOn) },
-    { path: ".arc/completed/2026-q2/01_shipped-dep/meta-shipped-dep.md", content: meta("Shipped") },
-    { path: ".arc/active/meta-integrating-dep.md", content: meta("Integrating") },
-    { path: ".arc/active/meta-active-dep.md", content: meta("Active") },
-    { path: ".arc/backlog/planned/planned-dep/meta-planned-dep.md", content: meta("Planning") },
-    { path: ".arc/backlog/planned/parked-dep/meta-parked-dep.md", content: meta("Active") },
-  ];
-  const files = new Map(metas.map((m) => [m.path, m.content]));
-  const writes: string[] = [];
-
-  const ctx: DischargeDepEdgesContext = {
-    index: buildLifecycleIndexFromMetas(metas),
-    readMeta: (path) => {
-      const content = files.get(path);
-      return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
-    },
-    writeMeta: (path, content) => {
-      files.set(path, content);
-      writes.push(content);
-      return Promise.resolve();
-    },
-  };
-
-  return { ctx, writes };
+/** Build the production planner input for the readiness verdict. */
+function readinessPlan(edges: string[]) {
+  return planDependencyReconcile({
+    index: buildLifecycleIndexFromMetas([
+      { path: DEPENDENT_PATH, content: meta("Active", edges) },
+      { path: ".arc/completed/2026-q2/01_shipped-dep/meta-shipped-dep.md", content: meta("Shipped") },
+      { path: ".arc/active/meta-integrating-dep.md", content: meta("Integrating") },
+      { path: ".arc/active/meta-active-dep.md", content: meta("Active") },
+      { path: ".arc/backlog/planned/planned-dep/meta-planned-dep.md", content: meta("Planning") },
+      { path: ".arc/backlog/planned/parked-dep/meta-parked-dep.md", content: meta("Active") },
+    ]),
+    dependentSlug: "dependent",
+    edges,
+    queryDisposition: async () => ({ status: "absent" }),
+  });
 }
 
-describe("dischargeDepEdges — the readiness verdict (shipped ∨ integrating)", () => {
-  it("discharges a shipped (landed) dependency off the gate", async () => {
-    const { ctx, writes } = buildCtx(["shipped-dep", "active-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual(["shipped-dep"]);
-    expect(result.live).toEqual(["active-dep"]);
-    // The gate is rewritten to the live set only.
-    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+describe("dependency reconcile readiness verdict", () => {
+  it.each(["shipped-dep", "integrating-dep"])("discharges a satisfied %s and keeps live edges", async (dependency) => {
+    const result = await readinessPlan([dependency, "active-dep"]);
+    expect(result.status).toBe("ready");
+    expect(result.dependency.discharged).toEqual([dependency]);
+    expect(result.dependency.after).toEqual(["active-dep"]);
+    expect(result.dependency.live).toEqual(["active-dep"]);
   });
 
-  it("discharges an integrating dependency too (the team-review-latency case)", async () => {
-    const { ctx, writes } = buildCtx(["integrating-dep", "active-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual(["integrating-dep"]);
-    expect(result.live).toEqual(["active-dep"]);
-    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+  it("clears the gate when every edge is satisfied", async () => {
+    const result = await readinessPlan(["shipped-dep", "integrating-dep"]);
+    expect(result.dependency.discharged).toEqual(["integrating-dep", "shipped-dep"]);
+    expect(result.dependency.after).toEqual([]);
+    expect(result.dependency.live).toEqual([]);
   });
 
-  it("clears the gate to [none] when every edge is satisfied", async () => {
-    const { ctx, writes } = buildCtx(["shipped-dep", "integrating-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual(["integrating-dep", "shipped-dep"]);
-    expect(result.live).toEqual([]);
-    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("[none]");
-  });
-});
-
-describe("dischargeDepEdges — live edges stay", () => {
-  it("leaves an only-planning/active dependency on the gate, writing nothing", async () => {
-    const { ctx, writes } = buildCtx(["active-dep", "parked-dep", "planned-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual([]);
-    expect(result.live).toEqual(["active-dep", "parked-dep", "planned-dep"]);
-    // Nothing satisfied → no meta rewrite.
-    expect(writes).toEqual([]);
+  it("keeps planning and active dependencies live", async () => {
+    const edges = ["active-dep", "parked-dep", "planned-dep"];
+    const result = await readinessPlan(edges);
+    expect(result.dependency.discharged).toEqual([]);
+    expect(result.dependency.after).toEqual(edges);
+    expect(result.dependency.live).toEqual(edges);
   });
 
-  it("returns a non-overlapping conservative projection when any edge conflicts", async () => {
-    const { ctx, writes } = buildCtx(["shipped-dep", "missing-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result).toEqual({
-      discharged: [],
-      live: ["missing-dep", "shipped-dep"],
-    });
-    expect(writes).toEqual([]);
+  it("keeps every edge live and discharges none when any edge conflicts", async () => {
+    const result = await readinessPlan(["shipped-dep", "missing-dep"]);
+    expect(result.status).toBe("conflict");
+    expect(result.dependency.discharged).toEqual([]);
+    expect(result.dependency.after).toEqual(["missing-dep", "shipped-dep"]);
+    expect(result.dependency.live).toEqual(["missing-dep", "shipped-dep"]);
   });
 });
 
@@ -522,10 +496,10 @@ describe("current-WU dependency reconcile apply", () => {
     commit: () => Promise.resolve(),
     rollback: () => Promise.resolve(),
   });
-  const original = meta("Active", ["origin"]);
+  const original = legacyMeta("Active", ["origin"]);
   const index = buildLifecycleIndexFromMetas([
     { path: DEPENDENT_PATH, content: original },
-    { path: ".arc/active/meta-successor.md", content: meta("Active") },
+    { path: ".arc/active/meta-successor.md", content: legacyMeta("Active") },
   ]);
   const queryDisposition = queryResults({
     origin: {
@@ -583,7 +557,7 @@ describe("current-WU dependency reconcile apply", () => {
     const result = await runCurrentWuReconcile({
       index,
       queryDisposition,
-      readFile: async () => reads++ === 0 ? original : meta("Active", ["changed"]),
+      readFile: async () => reads++ === 0 ? original : legacyMeta("Active", ["changed"]),
       writeFile: async (_path, content) => { writes.push(content); },
       stagePaths: async (paths) => { stages.push(paths); },
       captureIndexState: captureCleanIndex,
@@ -595,7 +569,7 @@ describe("current-WU dependency reconcile apply", () => {
   });
 
   it("discovers a structured reference transition without a Depends On edge", async () => {
-    const metaContent = meta("Active", []);
+    const metaContent = legacyMeta("Active", []);
     const specPath = ".arc/active/spec-dependent.md";
     const specContent = "See `spec-origin.md`.\n";
     const files = new Map([[DEPENDENT_PATH, metaContent], [specPath, specContent]]);
@@ -628,7 +602,7 @@ describe("current-WU dependency reconcile apply", () => {
   });
 
   it("guards every scanned artifact before writing or staging the bounded batch", async () => {
-    const metaContent = meta("Active", []);
+    const metaContent = legacyMeta("Active", []);
     const specPath = ".arc/active/spec-dependent.md";
     const specContent = "See `spec-origin.md`.\n";
     const reads = new Map<string, number>();
@@ -660,7 +634,7 @@ describe("current-WU dependency reconcile apply", () => {
   it.each(["write", "stage"] as const)(
     "rolls back a partial multi-file %s failure so the exact plan can retry",
     async (failurePoint) => {
-      const metaContent = meta("Active", ["origin"]);
+      const metaContent = legacyMeta("Active", ["origin"]);
       const specPath = ".arc/active/spec-dependent.md";
       const specContent = "See `spec-origin.md`.\n";
       const files = new Map([[DEPENDENT_PATH, metaContent], [specPath, specContent]]);
@@ -736,7 +710,7 @@ describe("current-WU dependency reconcile apply", () => {
   );
 
   it("preserves an advisory-only plan when apply has no mechanical edits", async () => {
-    const metaContent = meta("Active", []);
+    const metaContent = legacyMeta("Active", []);
     const notesPath = ".arc/active/notes-dependent.md";
     const notesContent = "The origin remains relevant context.\n";
     const files = new Map([[DEPENDENT_PATH, metaContent], [notesPath, notesContent]]);

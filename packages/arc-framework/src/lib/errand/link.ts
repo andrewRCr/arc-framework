@@ -12,7 +12,7 @@ import {
   createErrandOperationResult,
   type ErrandOperationResult,
 } from "./operation-result.js";
-import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import { SlugSchema } from "../kernel/index.js";
 
 type LinkTransition = Extract<OrdinaryErrandTransition, { kind: "link" }>;
@@ -26,7 +26,7 @@ export interface LinkOrdinaryErrandDependencies {
 /** Complete v3 late-link request after the live inbox entry has been inspected under lock. */
 export interface LinkOrdinaryErrandOptions {
   slug: string;
-  inbox: InspectedInboxEntry;
+  inbox: ErrandInboxOrigin;
   updatedAt: string;
   dependencies: LinkOrdinaryErrandDependencies;
 }

@@ -2,9 +2,8 @@
 
 import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
-import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 import { listCurrentWuArtifactPaths } from "../work-unit/reference-reconcile.js";
-import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
 
 /** Repository paths through which one work unit can contribute lifecycle state. */
 export interface DeliveryLifecycleContributionPaths {
@@ -71,13 +70,19 @@ export function classifyDeliveryTerminalDelta(input: {
 }
 
 /** Compare exact entry identities only at the supplied lifecycle-contribution paths. */
-export function compareDeliveryLifecycleContribution(_input: {
+export function compareDeliveryLifecycleContribution(input: {
   readonly paths: readonly string[];
   readonly protectedBase: DeliveryLifecycleTreeState;
+  readonly chainBase: DeliveryLifecycleTreeState;
   readonly candidate: DeliveryLifecycleTreeState;
+  readonly regenerablePaths: readonly string[];
 }): DeliveryLifecycleContributionComparison {
-  const mismatchedPaths = [...new Set(_input.paths)]
-    .filter((path) => !sameEntry(_input.protectedBase.get(path), _input.candidate.get(path)))
+  const regenerable = new Set(input.regenerablePaths);
+  const mismatchedPaths = [...new Set(input.paths)]
+    .filter((path) => !sameEntry(
+      (regenerable.has(path) ? input.chainBase : input.protectedBase).get(path),
+      input.candidate.get(path),
+    ))
     .sort(byteSort);
   return mismatchedPaths.length === 0
     ? { status: "match", mismatchedPaths }
@@ -87,9 +92,11 @@ export function compareDeliveryLifecycleContribution(_input: {
 /** Exact normalized completeness comparison for a final disposable candidate tree. */
 export function compareNormalizedDeliveryTree(input: {
   readonly protectedBase: DeliveryLifecycleTreeState;
+  readonly chainBase: DeliveryLifecycleTreeState;
   readonly top: DeliveryLifecycleTreeState;
   readonly finalCandidate: DeliveryLifecycleTreeState;
   readonly lifecyclePaths: readonly string[];
+  readonly regenerablePaths: readonly string[];
 }):
   | { readonly status: "match" }
   | {
@@ -99,8 +106,9 @@ export function compareNormalizedDeliveryTree(input: {
       readonly mismatchedPaths: readonly string[];
     } {
   const expected = new Map(input.top);
+  const regenerable = new Set(input.regenerablePaths);
   for (const path of input.lifecyclePaths) {
-    const baseEntry = input.protectedBase.get(path);
+    const baseEntry = (regenerable.has(path) ? input.chainBase : input.protectedBase).get(path);
     if (baseEntry == null) expected.delete(path);
     else expected.set(path, baseEntry);
   }
@@ -136,6 +144,7 @@ function byteSort(left: string, right: string): number {
 export class CurrentDeliveryLifecycleContributionPathSource
 implements DeliveryLifecycleContributionPathSource {
   constructor(private readonly input: {
+    readonly stateOffBranch?: boolean;
     readonly readDirectory: (path: string) => Promise<readonly string[]>;
     readonly readArtifactsAtRef?: (
       ref: string,
@@ -150,6 +159,7 @@ implements DeliveryLifecycleContributionPathSource {
     readonly protectedBaseRef?: string;
     readonly topRef?: string;
   }): Promise<DeliveryLifecycleContributionPaths> {
+    if (this.input.stateOffBranch === true) return { paths: [] };
     const currentArtifacts = await listCurrentWuArtifactPaths(
       input.workUnitId,
       input.activeMetaPath,

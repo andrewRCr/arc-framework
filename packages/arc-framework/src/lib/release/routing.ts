@@ -9,23 +9,31 @@
  * @module
  */
 
+import { z } from "zod";
+
+const ReleaseRouteSchema = z.enum(["wrapper", "raw"]);
+const ReleaseRoutingRationaleSchema = z.strictObject({
+  releaseOptedIn: z.boolean(),
+  commitInterlock: z.string(),
+  pushInterlock: z.string(),
+});
+
+/** Full strict routing decision, including diagnostic inputs. */
+export const ReleaseRoutingValueSchema = z.strictObject({
+  taskCommit: ReleaseRouteSchema,
+  workflowCommit: ReleaseRouteSchema,
+  workflowPush: ReleaseRouteSchema,
+  rationale: ReleaseRoutingRationaleSchema,
+});
+
 /** Route selected for a workflow or task fire site. */
-export type ReleaseRoute = "wrapper" | "raw";
+export type ReleaseRoute = z.infer<typeof ReleaseRouteSchema>;
 
 /** Inputs captured alongside the route result for diagnostics. */
-export interface ReleaseRoutingRationale {
-  releaseOptedIn: boolean;
-  commitInterlock: string;
-  pushInterlock: string;
-}
+export type ReleaseRoutingRationale = z.infer<typeof ReleaseRoutingRationaleSchema>;
 
 /** Resolved routing decision for every release-wrapper fire-site class. */
-export interface ReleaseRoutingValue {
-  taskCommit: ReleaseRoute;
-  workflowCommit: ReleaseRoute;
-  workflowPush: ReleaseRoute;
-  rationale: ReleaseRoutingRationale;
-}
+export type ReleaseRoutingValue = z.infer<typeof ReleaseRoutingValueSchema>;
 
 /** Status-envelope slot shape for the release-routing probe. */
 export type ReleaseRoutingSlot =

@@ -15,6 +15,8 @@ import type {
   CloseAuthorityResult,
 } from "./close-locus.js";
 
+import { describeErrandBranchOccupant, findErrandBranchOccupant } from "./branch-occupancy.js";
+
 const RECEIPT_KIND = "arc-errand-close-head-lock";
 const CLAIM_ID_PATTERN = /^[0-9a-f]{32}$/u;
 
@@ -129,12 +131,13 @@ export async function acquireErrandCloseHeadLock(options: {
 /**
  * Remove an exact ARC-owned close lock after terminal identity absence.
  *
- * @param options - Repository, finalized Errand slug, and optional file boundary.
+ * @param options - Repository, finalized Errand slug, optional exact claim, and file boundary.
  * @returns Whether no matching receipt existed, it was recovered, or cleanup failed.
  */
 export async function recoverFinalizedErrandCloseHeadLock(options: {
   exec: GitExec;
   slug: string;
+  claimId?: string;
   fileIO?: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const fileIO = options.fileIO ?? NODE_FILE_IO;
@@ -143,6 +146,7 @@ export async function recoverFinalizedErrandCloseHeadLock(options: {
 
   let recovered = false;
   for (const worktree of roster.worktrees) {
+    if (!worktree.folderPresent) continue;
     const result = await recoverCheckoutHeadLock({
       ...options,
       checkoutPath: worktree.path,
@@ -235,12 +239,15 @@ async function readBranchDeletionAuthority(options: {
   if (!roster.ok) {
     return { kind: "error", message: `Local Errand branch occupancy cannot be proven: ${roster.message}` };
   }
-  const occupied = roster.worktrees.find((worktree) => worktree.branch === options.branch);
+  // Absent locked registrations hold their branch but need no HEAD lock.
+  // Comparing the physical path set still refuses a folder restored mid-lock.
+  const worktrees = roster.worktrees.filter((worktree) => worktree.folderPresent);
+  const occupied = findErrandBranchOccupant(roster.worktrees, options.branch);
   return occupied === undefined
-    ? { kind: "ready", worktrees: roster.worktrees }
+    ? { kind: "ready", worktrees }
     : {
         kind: "refused",
-        message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
+        message: describeErrandBranchOccupant(occupied),
       };
 }
 
@@ -277,6 +284,7 @@ async function recoverCheckoutHeadLock(options: {
   exec: GitExec;
   checkoutPath: string;
   slug: string;
+  claimId?: string;
   fileIO: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const lockPath = await resolveHeadLockPath(options.exec, options.checkoutPath);
@@ -292,6 +300,7 @@ async function recoverCheckoutHeadLock(options: {
   const receipt = parseReceipt(bytes);
   if (receipt === null
     || receipt.slug !== options.slug
+    || (options.claimId !== undefined && receipt.claimId !== options.claimId)
     || receipt.checkoutPath !== options.checkoutPath) {
     return { kind: "absent" };
   }
@@ -320,13 +329,15 @@ async function resolveHeadLockPath(
   exec: GitExec,
   checkoutPath: string,
 ): Promise<{ kind: "ready"; path: string } | { kind: "error"; message: string }> {
+  const remedy = "Inspect git worktree list --porcelain; if the folder is gone, prune its stale registration "
+    + "with git worktree prune, otherwise repair the checkout, then retry.";
   let gitHeadPath: string;
   try {
     gitHeadPath = (await exec("git", ["rev-parse", "--git-path", "HEAD"], { cwd: checkoutPath })).stdout.trim();
   } catch (error) {
-    return { kind: "error", message: errorMessage(error) };
+    return { kind: "error", message: `Cannot resolve checkout HEAD at '${checkoutPath}': ${errorMessage(error)}. ${remedy}` };
   }
-  if (gitHeadPath === "") return { kind: "error", message: "Git returned no checkout HEAD path." };
+  if (gitHeadPath === "") return { kind: "error", message: `Git returned no checkout HEAD path at '${checkoutPath}'. ${remedy}` };
   const path = isAbsolute(gitHeadPath) ? gitHeadPath : resolve(checkoutPath, gitHeadPath);
   return { kind: "ready", path: `${path}.lock` };
 }

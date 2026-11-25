@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
 import { SlugSchema } from "../kernel/index.js";
+import { ERRAND_BRANCH_TYPES } from "./branch-type.js";
 import {
   LocusChangeRequestV1Schema,
   LocusDigestSchema,
@@ -28,6 +29,7 @@ const OrdinaryBaseShape = {
   kind: z.literal("errand"),
   purpose: z.literal("errand"),
   intent: z.string().max(4_096),
+  owner: SlugSchema.optional(),
   branch: LocusOpaqueTextSchema,
 };
 const DescriptionOriginShape = {
@@ -37,7 +39,7 @@ const DescriptionOriginShape = {
 const InboxOriginShape = {
   origin: z.literal("inbox"),
   originEntry: LocusOpaqueTextSchema,
-  originEntrySourceDigest: LocusDigestSchema,
+  originEntrySourceDigest: LocusDigestSchema.nullable(),
 };
 const OpenStateShape = { state: z.literal("open"), savedHead: z.null(), changeRequest: z.null() };
 const PausedStateShape = { state: z.literal("paused"), savedHead: LocusGitOidSchema, changeRequest: z.null() };
@@ -220,7 +222,9 @@ function validateOrdinaryNamespace(
   if (value.slug.startsWith("groom-")) {
     context.addIssue({ code: "custom", path: ["slug"], message: "groom-* namespace is reserved" });
   }
-  validateErrandBranch(value, context);
+  if (!ERRAND_BRANCH_TYPES.some((type) => value.branch === `${type}/${value.slug}`)) {
+    context.addIssue({ code: "custom", path: ["branch"], message: "Branch must derive from slug and an admitted Errand type" });
+  }
 }
 
 function validateErrandBranch(

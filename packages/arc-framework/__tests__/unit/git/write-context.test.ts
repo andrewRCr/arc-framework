@@ -8,19 +8,17 @@ import {
 } from "../../../src/lib/git/write-context.js";
 import type { WriteContext } from "../../../src/lib/git/write-context.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 /** Keyed mock exec — matches a prefix of the invocation's args (`*` wildcards). */
 function buildExec(responses: Record<string, ExecResult>): GitExec {
-  return async (cmd, args) => {
-    for (const key of Object.keys(responses)) {
-      const tokens = key.split(" ");
-      if (tokens.every((t, i) => t === "*" || args[i] === t)) {
-        return responses[key] as ExecResult;
-      }
-    }
-    throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
-  };
+  return scriptGitExec(Object.entries(responses).map(([key, response]) => ({
+    match: { predicate: (args) => key.split(" ").every(
+      (token, index) => token === "*" || args[index] === token,
+    ) },
+    responses: [response],
+  }))).exec;
 }
 
 describe("classifyWriteContext", () => {

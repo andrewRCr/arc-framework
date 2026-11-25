@@ -17,6 +17,14 @@ import type {
   ChangeRequestLifecycleTruth,
 } from "../../src/lib/errand/change-request-lifecycle.js";
 
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
 const createdAt = "2026-07-18T00:00:00.000Z";
 const updatedAt = "2026-07-18T00:01:00.000Z";
 const claimId = "0123456789abcdef0123456789abcdef";
@@ -32,7 +40,7 @@ const changeRequest = {
 };
 
 function open(overrides: Record<string, unknown> = {}): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     kind: "errand",
     slug: "fix-output",
@@ -48,7 +56,7 @@ function open(overrides: Record<string, unknown> = {}): OrdinaryErrandRecord {
     createdAt,
     updatedAt: createdAt,
     ...overrides,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function apply(
@@ -386,4 +394,13 @@ describe("ordinary Errand identity transitions", () => {
       updatedAt: previous.updatedAt,
     })).toMatchObject({ kind: "refused" });
   });
+});
+
+it("links a qualified inbox origin with a null digest and recognizes its exact rerun", () => {
+  const previous = open();
+  const request = { kind: "link" as const, previous, originEntry: "personal:abcd1234", originEntrySourceDigest: null, updatedAt };
+  const result = apply(new Map([[previous.slug, previous]]), request);
+  expect(result).toMatchObject({ kind: "applied", value: { origin: "inbox", originEntrySourceDigest: null } });
+  if (result.kind !== "applied") throw new Error("Expected link write");
+  expect(apply(result.records, request)).toMatchObject({ kind: "idempotent", value: { originEntrySourceDigest: null } });
 });

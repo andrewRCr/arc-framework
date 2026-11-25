@@ -352,7 +352,9 @@ function identitySubject(identity: LocusIdentityV1): Exclude<DerivedTransientSub
 
 function markerSubject(subject: OccupancyMarker["createdFor"]):
   DerivedWorkUnitSubject | DerivedTransientSubject {
-  if (subject.kind === "work-unit") return { kind: "work-unit", key: subject.name };
+  if (subject.kind === "work-unit") {
+    return { kind: "work-unit", key: subject.name, ...(subject.uid === undefined ? {} : { uid: subject.uid }) };
+  }
   if (subject.kind === "partial-errand") {
     return { kind: "partial-errand", key: subject.slug, claimId: null };
   }

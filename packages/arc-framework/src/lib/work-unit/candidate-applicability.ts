@@ -2,45 +2,39 @@
 
 import { z } from "zod";
 
-import { canonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
+import {
+  BoundedEvidenceResidualSchema,
+  MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
+  MAX_EVIDENCE_APPLICABILITY_PATHS,
+} from "../evidence-applicability/schema.js";
+import {
+  boundApplicabilityResidual,
+  type ApplicabilityResidual,
+} from "../evidence-applicability/applicability-residual.js";
+import {
+  composeEvidenceDelta,
+  EvidenceApplicabilityResultSchema,
+  reduceEvidenceApplicability,
+} from "../evidence-applicability/index.js";
 import {
   DeliveryContributionEndpointsSchema,
   DeliveryContributionProofResultSchema,
 } from "../delivery/contribution-proof.js";
-import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { CandidateLineageTargetSchema } from "./candidate-attestation.js";
 
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const ApplicabilityPathSchema = z.string().min(1).refine(isManagedPath, "must be a managed repository path");
+const DigestSchema = CanonicalDigestSchema;
 
-export const MAX_CANDIDATE_APPLICABILITY_PATHS = 200;
-export const MAX_CANDIDATE_APPLICABILITY_PATH_BYTES = 16_384;
+export const MAX_CANDIDATE_APPLICABILITY_PATHS = MAX_EVIDENCE_APPLICABILITY_PATHS;
+export const MAX_CANDIDATE_APPLICABILITY_PATH_BYTES = MAX_EVIDENCE_APPLICABILITY_PATH_BYTES;
 export const CANDIDATE_APPLICABILITY_CHOICES = ["covered", "targeted-check", "changed"] as const;
 export const CandidateApplicabilityChoicesSchema = z.tuple([
   z.literal("covered"),
   z.literal("targeted-check"),
   z.literal("changed"),
 ]);
-
-const BoundedApplicabilityPathsSchema = z.array(ApplicabilityPathSchema)
-  .min(1)
-  .max(MAX_CANDIDATE_APPLICABILITY_PATHS)
-  .superRefine((paths, context) => {
-    const bytes = new TextEncoder().encode(paths.join("\0")).byteLength;
-    if (bytes > MAX_CANDIDATE_APPLICABILITY_PATH_BYTES) {
-      context.addIssue({ code: "custom", message: "path evidence exceeds the byte bound" });
-    }
-    let previous: string | undefined;
-    const notStrictlyIncreasing = paths.some((path) => {
-      const invalid = previous !== undefined && path <= previous;
-      previous = path;
-      return invalid;
-    });
-    if (new Set(paths).size !== paths.length || notStrictlyIncreasing) {
-      context.addIssue({ code: "custom", message: "path evidence must be sorted and unique" });
-    }
-  });
 
 export const CandidateApplicabilityRequestSchema = z.strictObject({
   candidateId: DigestSchema,
@@ -64,6 +58,22 @@ export type CandidateApplicabilityStructuralFacts = z.infer<
   typeof CandidateApplicabilityStructuralFactsSchema
 >;
 
+/**
+ * The one route out of an ambiguous pinned pair: re-pin the baseline.
+ *
+ * It carries no command to run because merging is the remedy this pair cannot take. Both elements are fixed —
+ * the baseline is reduced from a durable record and the base is observed — so an append-only merge advances the
+ * branch and leaves the compared revisions, and their two best ancestors, exactly where they were. Clearing it
+ * takes a fresh authority transition that pins a new baseline, which is a ceremony rather than a command this
+ * reader can name.
+ */
+export const CandidateRebaselineRemedySchema = z.strictObject({
+  kind: z.literal("candidate-rebaseline-required"),
+  /** The clearing act in the operator's own terms, for a reader that renders this rather than branching on it. */
+  text: z.string().min(1),
+});
+export type CandidateRebaselineRemedy = z.infer<typeof CandidateRebaselineRemedySchema>;
+
 const ResultCommon = {
   schemaVersion: z.literal(1),
   mode: z.literal("candidate-applicability"),
@@ -83,8 +93,9 @@ export const CandidateApplicabilityDecisionResultSchema = z.strictObject({
   state: z.literal("decision-required"),
   nextAction: z.literal("request-authority"),
   verdict: z.enum(["clean-divergence", "interaction"]),
+  applicability: EvidenceApplicabilityResultSchema,
   projection: DeliveryContributionEndpointsSchema,
-  paths: BoundedApplicabilityPathsSchema,
+  paths: BoundedEvidenceResidualSchema,
   choices: CandidateApplicabilityChoicesSchema,
   selectionOfferText: z.string().min(1),
   recommendedActionText: z.string().min(1),
@@ -140,11 +151,20 @@ export const CandidateApplicabilityResultSchema = z.union([
     nextAction: z.literal("stop"),
     reason: z.enum([
       "merge-base-missing",
-      "merge-base-ambiguous",
       "residual-empty",
       "residual-unbounded",
     ]),
     detail: z.string().min(1),
+  }),
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("classification-unavailable"),
+    nextAction: z.literal("stop"),
+    reason: z.literal("merge-base-ambiguous"),
+    detail: z.string().min(1),
+    /** How many best common ancestors the pair has. Its own arm, so a refusal cannot ship without it. */
+    mergeBaseCount: z.number().int().min(2),
+    remedy: CandidateRebaselineRemedySchema,
   }),
 ]);
 export type CandidateApplicabilityResult = z.infer<typeof CandidateApplicabilityResultSchema>;
@@ -194,6 +214,33 @@ export function candidateApplicabilityResultBase(request: CandidateApplicability
   };
 }
 
+/** State a residual the applicability bounds refused, in the Candidate's own terms. */
+function residualRefusal(residual: Exclude<ApplicabilityResidual, { status: "bounded" }>) {
+  switch (residual.status) {
+    case "empty":
+      return {
+        state: "classification-unavailable",
+        nextAction: "stop",
+        reason: "residual-empty",
+        detail: "D4 returned a non-mechanical result without path evidence.",
+      } as const;
+    case "unbounded":
+      return {
+        state: "classification-unavailable",
+        nextAction: "stop",
+        reason: "residual-unbounded",
+        detail: "D4 path evidence exceeds the Candidate applicability bound.",
+      } as const;
+    case "malformed":
+      return {
+        state: "classification-failed",
+        nextAction: "stop",
+        reason: "malformed-evidence",
+        detail: residual.issues,
+      } as const;
+  }
+}
+
 /** Classify one exact Candidate projection from already-derived structural facts. */
 export function classifyCandidateApplicability(
   input: CandidateApplicabilityRequest,
@@ -241,7 +288,7 @@ export function classifyCandidateApplicability(
       );
       const reviewableResidual = structural.proof.paths.filter((path) =>
         treatments.get(path) === "reviewable" || !treatments.has(path));
-      // Candidate-owned projections and other operational entries deliberately do not participate
+      // Candidate-owned projections and other evidence-neutral entries deliberately do not participate
       // in the reviewable subject. D4 still compares complete Git trees, so its exact tree residual
       // can contain those post-attestation writes even when the reapplied reviewable contribution is
       // identical. Unknown paths remain substantive and therefore fail closed into the judgment arm.
@@ -268,51 +315,33 @@ export function classifyCandidateApplicability(
       const verdict = structural.proof.reason === "contribution-diverged"
         ? "clean-divergence" as const
         : "interaction" as const;
-      const paths = reviewableDivergence ?? structural.proof.paths;
-      if (paths.length === 0) {
+      const residual = boundApplicabilityResidual(reviewableDivergence ?? structural.proof.paths);
+      if (residual.status !== "bounded") {
         return CandidateApplicabilityResultSchema.parse({
           ...candidateApplicabilityResultBase(request),
-          state: "classification-unavailable",
-          nextAction: "stop",
-          reason: "residual-empty",
-          detail: "D4 returned a non-mechanical result without path evidence.",
-        });
-      }
-      const pathBytes = new TextEncoder().encode(paths.join("\0")).byteLength;
-      if (paths.length > MAX_CANDIDATE_APPLICABILITY_PATHS
-        || pathBytes > MAX_CANDIDATE_APPLICABILITY_PATH_BYTES) {
-        return CandidateApplicabilityResultSchema.parse({
-          ...candidateApplicabilityResultBase(request),
-          state: "classification-unavailable",
-          nextAction: "stop",
-          reason: "residual-unbounded",
-          detail: "D4 path evidence exceeds the Candidate applicability bound.",
-        });
-      }
-      const bounded = BoundedApplicabilityPathsSchema.safeParse(paths);
-      if (!bounded.success) {
-        return CandidateApplicabilityResultSchema.parse({
-          ...candidateApplicabilityResultBase(request),
-          state: "classification-failed",
-          nextAction: "stop",
-          reason: "malformed-evidence",
-          detail: bounded.error.issues.map(({ message }) => message).join("; "),
+          ...residualRefusal(residual),
         });
       }
       const digests = candidateApplicabilityDigests({
         request,
         projection: structural.endpoints,
         verdict,
-        paths: bounded.data,
+        paths: residual.paths,
       });
-      const presentation = decisionPresentation({ request, verdict, paths: bounded.data, ...digests });
+      const applicability = reduceEvidenceApplicability(composeEvidenceDelta({
+        cause: "member-rewrite",
+        endpoints: structural.endpoints,
+        proof: { ...structural.proof, paths: residual.paths },
+      }), "review-clearance");
+      const presentation = decisionPresentation({ request, verdict, paths: residual.paths, ...digests });
       return CandidateApplicabilityResultSchema.parse({
         ...candidateApplicabilityResultBase(request),
         state: "decision-required",
         nextAction: "request-authority",
         verdict,
+        applicability,
         projection: structural.endpoints,
-        paths: bounded.data,
+        paths: residual.paths,
         choices: CANDIDATE_APPLICABILITY_CHOICES,
         ...digests,
         ...presentation,
@@ -358,7 +387,7 @@ export function candidateApplicabilityDigests(input: {
   projection: z.infer<typeof DeliveryContributionEndpointsSchema> | null;
   verdict: string;
   paths: readonly string[];
-}): { projectionDigest: string; residualDigest: string } {
+}): { projectionDigest: CanonicalDigest; residualDigest: CanonicalDigest } {
   const projectionDigest = canonicalDigest({
     domain: "arc.candidate.applicability.projection/v1",
     candidateId: input.request.candidateId,

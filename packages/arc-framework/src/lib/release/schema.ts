@@ -4,8 +4,8 @@ import { z } from "zod";
 
 import { createResolvedConfigOverrideSchema } from "../config/resolve-override.js";
 
-const CommitInterlockSchema = z.enum(["manual", "on-task-approval", "on-workflow"]);
-const PushInterlockSchema = z.enum(["manual", "on-sync", "on-workflow"]);
+export const CommitInterlockSchema = z.enum(["manual", "on-task-approval", "on-workflow"]);
+export const PushInterlockSchema = z.enum(["manual", "on-sync", "on-workflow"]);
 const SyncInterlockSchema = z.enum(["manual", "on-handoff", "on-workflow"]);
 const NotesPushPolicySchema = z.enum(["manual", "prompt", "on-sync"]);
 
@@ -21,6 +21,7 @@ export const RefusalCodeSchema = z.union([
   z.literal(14),
   z.literal(15),
   z.literal(16),
+  z.literal(17),
 ]);
 
 /** Active-work-unit identity persisted with an audit entry. */
@@ -70,6 +71,7 @@ const PreflightFailedOutcomeSchema = z.strictObject({
   kind: z.literal("preflight-failed"),
   reason: z.enum(["validation", "input"]),
 });
+const ClosePrecheckFailedOutcomeSchema = z.strictObject({ kind: z.literal("close-precheck-failed"), check: z.string().min(1) });
 const RefusedOutcomeSchema = z.strictObject({ kind: z.literal("refused") });
 
 /** Outcome variants represented in the version-2 audit log. */
@@ -79,6 +81,7 @@ export const AuditOutcomeSchema = z.discriminatedUnion("kind", [
   SyncOutcomeSchema,
   HookFailedOutcomeSchema,
   PreflightFailedOutcomeSchema,
+  ClosePrecheckFailedOutcomeSchema,
   RefusedOutcomeSchema,
 ]);
 
@@ -136,6 +139,9 @@ export const AuditEntrySchema = z.union([
     outcome: PreflightFailedOutcomeSchema,
   }),
   z.strictObject({
+    ...commitShape, decision: z.literal("refused"), refusalCode: z.literal(17), outcome: ClosePrecheckFailedOutcomeSchema,
+  }),
+  z.strictObject({
     ...pushShape,
     decision: z.literal("proceeded"),
     refusalCode: z.null(),
@@ -162,6 +168,19 @@ export const AuditEntrySchema = z.union([
 ]);
 
 export type AuditCommand = z.infer<typeof AuditCommandSchema>;
+
+/**
+ * Numeric exit code emitted on refusal. Stable surface: test suites,
+ * harness gates, and downstream tooling match on these values.
+ *
+ * Code 15 (`arg-grammar-fallthrough`) is runtime-emitted by `arc release
+ * push` when positional `<remote> <branch>` arguments do not match the
+ * wrapper's fixed target (`origin <current-branch>`). The detail payload
+ * carries the attempted and expected refs so the refusal message can name
+ * both. Arg-grammar issues outside this narrow check still fall through to
+ * git's parser; the code's name preserves the broader category for future
+ * detections.
+ */
 export type RefusalCode = z.infer<typeof RefusalCodeSchema>;
 export type AuditWorkUnit = z.infer<typeof AuditWorkUnitSchema>;
 export type AuditInterlockState = z.infer<typeof AuditInterlockStateSchema>;

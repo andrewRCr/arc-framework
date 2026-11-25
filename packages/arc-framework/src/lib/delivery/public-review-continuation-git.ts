@@ -6,7 +6,7 @@ import type { CandidateEffectiveCurrentProjection } from
   "../work-unit/candidate-effective-target.js";
 import { readAncestry, readCommit } from "../work-unit/git-decomposition-object-readers.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   resolveGitCandidateBaseRevision,
 } from "../work-unit/git-candidate-subject.js";
 import type { DeliveryTerminalCoordinateAdvanceProof } from
@@ -25,6 +25,7 @@ export function deliveryTerminalRecordAdvanceIsRepresented(input: {
 
 /** Prove one terminal movement contains only Candidate-represented operational records. */
 export async function projectGitDeliveryTerminalRecordAdvance(input: {
+  readonly stateOffBranch?: boolean;
   readonly cwd: string;
   readonly exec: GitExec;
   readonly workUnitId: string;
@@ -32,7 +33,7 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
   readonly priorHead: string;
   readonly currentHead: string;
 }): Promise<DeliveryTerminalCoordinateAdvanceProof | undefined> {
-  if (input.priorHead === input.currentHead) return undefined;
+  if (input.stateOffBranch === true || input.priorHead === input.currentHead) return undefined;
   const localExec: GitExec = (command, args, options) => input.exec(command, args, {
     ...options,
     cwd: input.cwd,
@@ -45,8 +46,8 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
     baseBranch: input.baseBranch,
     exec: localExec,
   });
-  const [priorTarget, currentTarget, priorTree, currentTree] = await Promise.all([
-    collectGitCandidateTarget({
+  const [priorSubject, currentSubject, priorTree, currentTree] = await Promise.all([
+    collectGitCandidateSubject({
       cwd: input.cwd,
       name: input.workUnitId,
       baseBranch: input.baseBranch,
@@ -54,7 +55,7 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
       revision: input.priorHead,
       exec: localExec,
     }),
-    collectGitCandidateTarget({
+    collectGitCandidateSubject({
       cwd: input.cwd,
       name: input.workUnitId,
       baseBranch: input.baseBranch,
@@ -65,10 +66,13 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
     localExec("git", ["rev-parse", `${input.priorHead}^{tree}`]),
     localExec("git", ["rev-parse", `${input.currentHead}^{tree}`]),
   ]);
+  // A subject that could not be collected proves no advance, and this arm carries a proof or it carries
+  // nothing at all — there is no slot on it for the reason one was not established.
+  if (priorSubject.status !== "collected" || currentSubject.status !== "collected") return undefined;
   if (!deliveryTerminalRecordAdvanceIsRepresented({
     ancestry,
-    priorSubjectDigest: priorTarget.subject.subjectDigest,
-    currentSubjectDigest: currentTarget.subject.subjectDigest,
+    priorSubjectDigest: priorSubject.target.subject.subjectDigest,
+    currentSubjectDigest: currentSubject.target.subject.subjectDigest,
   })) return undefined;
   const resolvedPriorTree = priorTree.stdout.trim();
   const resolvedCurrentTree = currentTree.stdout.trim();
@@ -84,6 +88,7 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
 
 /** Prove one strict-ancestor terminal advance already accepted by Candidate currentness. */
 export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
+  readonly stateOffBranch?: boolean;
   readonly cwd: string;
   readonly exec: GitExec;
   readonly candidate: CandidateEffectiveCurrentProjection;
@@ -126,6 +131,7 @@ export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
       };
     }
     const stateAdvance = await projectGitDeliveryTerminalRecordAdvance({
+      stateOffBranch: input.stateOffBranch,
       cwd: input.cwd,
       exec: input.exec,
       workUnitId: input.workUnitId,
@@ -152,6 +158,7 @@ export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
   const immediateAdvance = immediateParent === undefined || immediateParent === priorHead
     ? undefined
     : await projectGitDeliveryTerminalRecordAdvance({
+        stateOffBranch: input.stateOffBranch,
         cwd: input.cwd,
         exec: input.exec,
         workUnitId: input.workUnitId,

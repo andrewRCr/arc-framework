@@ -3,14 +3,22 @@ import { describe, it, expect } from "vitest";
 import { buildLifecycleIndexFromMetas } from "../../../src/lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery } from "../../../src/lib/work-unit/lifecycle-query.js";
 
-/** Minimal valid meta — H1 plus the flat-bullet `State` and an optional `Depends On` edge list. */
+/** Minimal valid meta — core table with `State` and an optional `Depends On` edge list. */
 function meta(state: string, dependsOn?: string[]): string {
-  const lines = ["# Metadata: x", "", `- **State:** ${state}`];
+  const lines = [
+    "# Metadata: x",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
+  ];
   if (dependsOn !== undefined) {
     const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
     lines.push(`- **Depends On:** ${value}`);
   }
-  return `${lines.join("\n")}\n`;
+  lines.push("", "---", "");
+  return lines.join("\n");
 }
 
 const index = buildLifecycleIndexFromMetas([

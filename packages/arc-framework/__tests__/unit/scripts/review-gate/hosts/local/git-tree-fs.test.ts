@@ -3,8 +3,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { GitExec } from "../../../../../../src/lib/git/exec.js";
+import type { ProjectViewFs } from "../../../../../../src/lib/status/project-view.js";
 import { createGitTreeReadFs } from "../../../../../../src/scripts/review-gate/hosts/local/git-tree-fs.js";
 import { evaluateReviewReadiness } from "../../../../../../src/scripts/review-gate/readiness.js";
+import { makeGitProcessError } from "../../../../../helpers/git-exec-fake.js";
 
 const revision = "a".repeat(40);
 const tree = "b".repeat(40);
@@ -38,7 +40,8 @@ describe("Git-tree filesystem", () => {
   });
 
   it("maps an absent or malformed root tree to ENOENT", async () => {
-    const absent: GitExec = async () => { throw new Error("bad object"); };
+    const absent: GitExec = async () => { throw makeGitProcessError({ command: "git", args: ["rev-parse", "--verify", `${revision}^{tree}`],
+      exitCode: 128, stderr: "bad object" }); };
     const malformed: GitExec = async () => ({ stdout: "HEAD\n" });
 
     await expect(createGitTreeReadFs({ cwd: "/repo", revision, exec: absent }).stat("/repo"))
@@ -62,9 +65,32 @@ describe("Git-tree filesystem", () => {
     await expect(fs.readdir("/other")).rejects.toThrow("escaped the repository root");
   });
 
+  it("reports a regular blob as a file and a symlink blob as neither file nor directory", async () => {
+    const oid = "c".repeat(40);
+    const rows = [
+      `100644 blob ${oid}\tmeta-plain.md`,
+      `100755 blob ${oid}\tmeta-exec.md`,
+      `120000 blob ${oid}\tmeta-link.md`,
+      `040000 tree ${oid}\tnested`,
+    ];
+    const exec: GitExec = async () => ({ stdout: `${rows.join("\0")}\0` });
+    const fs: ProjectViewFs = createGitTreeReadFs({ cwd: "/repo", revision, exec });
+
+    const entries = await fs.readdir("/repo/.arc/active");
+
+    expect(entries.map((entry) => [entry.name, entry.isFile(), entry.isDirectory()])).toEqual([
+      ["meta-plain.md", true, false],
+      ["meta-exec.md", true, false],
+      ["meta-link.md", false, false],
+      ["nested", false, true],
+    ]);
+  });
+
   it("makes root-only readiness depend on the exact revision", async () => {
     const validExec = vi.fn<GitExec>(async () => ({ stdout: tree }));
-    const missingExec: GitExec = async () => { throw new Error("unknown revision"); };
+    const missingExec: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "unknown revision" });
+    };
 
     await expect(evaluateReviewReadiness(errandRequest, {
       fs: createGitTreeReadFs({ cwd: "/repo", revision, exec: validExec }),

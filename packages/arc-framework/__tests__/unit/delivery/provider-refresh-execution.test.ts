@@ -5,7 +5,12 @@ import {
   deriveDeliveryProviderRefreshCandidates,
   executeDeliveryProviderRefresh,
 } from "../../../src/lib/delivery/provider-refresh-execution.js";
-import type { DeliveryOperationSnapshotV1, DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
+import {
+  DeliveryCanonicalDigestSchema,
+  type DeliveryOperationSnapshotV1,
+  type DeliveryStateV1,
+} from "../../../src/lib/delivery/schema.js";
+import type { DeliveryPositionFactsV1 } from "../../../src/lib/delivery/position.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import { deriveDeliveryProviderRefreshSubject } from
   "../../../src/lib/delivery/provider-refresh-observation.js";
@@ -20,7 +25,10 @@ const exactTargetAncestry = async (
 const readyTop = async () => ({ status: "ready" as const });
 const clearMemberRefCheckouts = async () => ({ status: "observed" as const, checkouts: [] });
 
-function positionFacts(state: ReturnType<typeof deliveryStateFixture>, landedDeliverableIds: string[] = []) {
+function positionFacts(
+  state: ReturnType<typeof deliveryStateFixture>,
+  landedDeliverableIds: DeliveryPositionFactsV1["landedDeliverableIds"] = [],
+): DeliveryPositionFactsV1 {
   return { target: state.target, members: state.members, landedDeliverableIds };
 }
 
@@ -31,7 +39,7 @@ function snapshot(heads: readonly string[]): DeliveryOperationSnapshotV1 {
       coordinates: { head: oid("1"), tree: oid("2") },
     },
     members: heads.map((head, index) => ({
-      deliverableId: `sha256:${String(index + 1).repeat(64)}`,
+      deliverableId: DeliveryCanonicalDigestSchema.parse(`sha256:${String(index + 1).repeat(64)}`),
       ref: `refs/heads/delivery/example/member-${index + 1}`,
       changeRequest: { providerId: "github", changeRequestId: String(100 + index) },
       coordinates: {
@@ -882,6 +890,49 @@ describe("provider refresh publication classification", () => {
         },
       },
     });
+  });
+
+  it("keeps landed M1 outside the pending selector when executing M2 refresh", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(800 + index) },
+        coordinates: {
+          ...member.coordinates!,
+          base: index === 0 ? fixture.target!.coordinates!.head
+            : index === 1 ? oid("e") : members[index - 1]!.coordinates!.head,
+          head: index === 1 ? oid("f") : member.coordinates!.head,
+        },
+      })),
+    };
+    const selectedDeliverableId = plan.members[1]!.deliverableId;
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix", selectedDeliverableId },
+      facts: positionFacts(state, [plan.members[0]!.deliverableId]),
+    }, {
+      preparation: { prepare: async () => ({ status: "refused", reason: "provider-unavailable" }) },
+      preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
+      observePublishedHeads: async () => { throw new Error("must not observe publication"); },
+      rewriteMemberRef: async () => { throw new Error("must not rewrite"); },
+      observeResult: async () => { throw new Error("must not observe result"); },
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite locally"); },
+      cleanupPreparedCandidates: async () => { throw new Error("must not clean up"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "provider-unavailable" });
   });
 
   it("refuses dependent refresh when the selected member has not published a correction", async () => {

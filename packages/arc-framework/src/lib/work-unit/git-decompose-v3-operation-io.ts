@@ -11,8 +11,8 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, resolve } from "node:path";
 
-import { digestBytes } from "../canonical/canonical-json.js";
-import { validateManagedPath } from "../canonical/managed-path.js";
+import { digestBytes } from "../kernel/canonical/canonical-json.js";
+import { validateManagedPath } from "../kernel/canonical/managed-path.js";
 import { atomicWriteFile } from "../fs.js";
 import type { GitExec } from "../git/exec.js";
 import {

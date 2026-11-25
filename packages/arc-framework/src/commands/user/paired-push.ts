@@ -87,7 +87,7 @@ export async function runPairedPush(
 ): Promise<PairedPushResult> {
   const {
     io, identity, cwd, access, branch, worktreeSyncState, pushNotes,
-    publishMarker, setUpstream = false, notesRetryConfig, sleep,
+    publishMarker, setUpstream = false, pushGateId, notesRetryConfig, sleep,
     planNotesExport = defaultPlanNotesExport,
   } = options;
 
@@ -136,6 +136,7 @@ export async function runPairedPush(
     exec: io.exec,
     branch,
     args: setUpstream ? ["-u"] : [],
+    ...(pushGateId === undefined ? {} : { pushGateId }),
   });
   if (worktree.status === "failed") {
     return {

@@ -1,6 +1,6 @@
 /** Exact, byte-preserving Git object readers shared by decomposition authorities. */
 
-import { digestBytes } from "../canonical/canonical-json.js";
+import { digestBytes } from "../kernel/canonical/canonical-json.js";
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import type { V3PlanCanonicalPathState } from "./decompose-v3-plan.js";

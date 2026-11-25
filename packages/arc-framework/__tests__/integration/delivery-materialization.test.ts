@@ -70,12 +70,15 @@ describe("delivery materialization against a bare remote", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: "refs/heads/main", ...base },
+      chainBase: base,
+      predecessorRelation: { kind: "advanced", observedTip: base.head, chainBase: base.head },
       top: { ref: "refs/heads/feat/example", ...second },
       members: [
         { deliverableId: plan.members[0]!.deliverableId, ref: "refs/heads/candidate-first", ...first },
         { deliverableId: plan.members[1]!.deliverableId, ref: "refs/heads/candidate-second", ...second },
       ],
       lifecyclePaths: [],
+      regenerablePaths: [],
     });
     if (derived.status !== "derived") throw new Error("expected exact materialization plan");
     const stateStore = new RepositoryDeliveryStateStore(

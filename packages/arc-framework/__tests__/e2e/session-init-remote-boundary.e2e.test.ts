@@ -5,6 +5,7 @@
  * linked-worktree, promisor-clone, and shallow-history behavior.
  */
 
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -65,22 +66,9 @@ async function configureClone(repository: string): Promise<void> {
 
 async function writeWorkUnitMeta(repository: string, slug: string, branch: string): Promise<void> {
   await mkdir(join(repository, ".arc", "active"), { recursive: true });
-  await writeFile(join(repository, ".arc", "active", `meta-${slug}.md`), [
-    `# Metadata: ${slug}`,
-    "",
-    "- **State:** Active",
-    "- **Owner:** test-user",
-    `- **Branch:** ${branch}`,
-    "- **Class:** Light",
-    "- **Cohort:** [none]",
-    "- **Task List:** [none]",
-    "- **Current Workflow:** [none]",
-    "- **Last Completed:** [none]",
-    "- **Next Task:** [none]",
-    "- **Blockers:** [none]",
-    "- **Next Action:** Continue execution",
-    "",
-  ].join("\n"), "utf8");
+  await writeFile(join(repository, ".arc", "active", `meta-${slug}.md`), makeMetaFixture(slug, {
+    owner: "test-user", branch, workClass: "Light", nextAction: "Continue execution",
+  }), "utf8");
 }
 
 async function objectInventory(repository: string): Promise<string[]> {
@@ -287,7 +275,16 @@ describe("session-init E2E — real remote-access boundaries", () => {
 
         const completedPath = ".arc/completed/2026-q3/shipped-widget/meta-shipped-widget.md";
         await mkdir(join(publisher, ".arc", "completed", "2026-q3", "shipped-widget"), { recursive: true });
-        await writeFile(join(publisher, completedPath), "# Metadata: shipped-widget\n", "utf8");
+        await writeFile(join(publisher, completedPath), [
+          "# Metadata: shipped-widget",
+          "",
+          "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+          "| --------- | --------- | ---------- | --------- | ------------ |",
+          "| Shipped | — | — | — | — |",
+          "",
+          "---",
+          "",
+        ].join("\n"), "utf8");
         await git(publisher, ["add", completedPath]);
         await git(publisher, ["commit", "-m", "record shipped widget"]);
         const baseProofOid = await git(publisher, ["rev-parse", "HEAD"]);

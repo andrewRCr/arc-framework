@@ -23,6 +23,7 @@ import { resolveCandidateRecordRelativePath } from "../../src/lib/work-unit/cand
 import { resolveSubmissionBoundaryPath } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { parseIntegrationBoundaryLocus } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -231,11 +232,12 @@ describe("delivery terminal recovery", () => {
   async function reserveInterruptedTopRemedy(fixture: {
     readonly statePath: string;
   }): Promise<void> {
-    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       planId: string;
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const envelope = { ...rawEnvelope, value: DeliveryStateV1Schema.parse(rawEnvelope.value) };
     const trigger = envelope.value.members.at(-2)!;
     const terminal = envelope.value.members.at(-1)!;
     const before = { target: envelope.value.target, members: [terminal] };
@@ -276,11 +278,12 @@ describe("delivery terminal recovery", () => {
     fixture: { readonly statePath: string },
     phase: "prepared" | "submitting" | "identified",
   ): Promise<void> {
-    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       planId: string;
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const envelope = { ...rawEnvelope, value: DeliveryStateV1Schema.parse(rawEnvelope.value) };
     const plan = deliveryStackPlanFixture();
     const members = envelope.value.members.slice(0, -1);
     const top = members.at(-1);
@@ -349,6 +352,13 @@ describe("delivery terminal recovery", () => {
     readonly reviewFix?: boolean;
     readonly settledRecord?: boolean;
     readonly staleTargetRef?: boolean;
+    /**
+     * Bind the terminal to the head the record write advanced past, rather than to the record itself.
+     *
+     * Without this the terminal always binds the post-record head, so an advance made only of record
+     * writes cannot arise — the one arrangement this file otherwise cannot express.
+     */
+    readonly recordOnlyMovement?: boolean;
   } = {}): Promise<{
     readonly fixture: Awaited<ReturnType<typeof installFixture>>;
     readonly envelope: { readonly revision: number };
@@ -360,11 +370,12 @@ describe("delivery terminal recovery", () => {
   }> {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
     const plan = deliveryStackPlanFixture();
-    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       planId: string;
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const envelope = { ...rawEnvelope, value: DeliveryStateV1Schema.parse(rawEnvelope.value) };
     const terminal = envelope.value.members.at(-1)!;
     const candidateHead = await git(repository, ["rev-parse", "HEAD"]);
     const subject = createCandidateSubjectSnapshot([]);
@@ -445,7 +456,9 @@ describe("delivery terminal recovery", () => {
             coordinates: {
               ...member.coordinates!,
               base: fixture.triggerHead,
-              head: recordHead ?? (input.reviewFix === true ? candidateHead : fixture.triggerHead),
+              head: input.recordOnlyMovement === true
+                ? candidateHead
+                : recordHead ?? (input.reviewFix === true ? candidateHead : fixture.triggerHead),
             },
           }
         : member),
@@ -469,7 +482,7 @@ describe("delivery terminal recovery", () => {
   it("applies the top remedy while its exact triggering member ref is present", async () => {
     const fixture = await installFixture({ triggerPresent: true, teardownReserved: false });
     const result = await runArcWithStdin(
-      ["delivery", "top-remedy", "-", "--json"],
+      ["delivery", "top-remedy", "-"],
       repository,
       `${JSON.stringify({
         planId: fixture.planId,
@@ -492,7 +505,7 @@ describe("delivery terminal recovery", () => {
   it("returns exact restoration coordinates instead of mutating after trigger deletion", async () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
     const result = await runArcWithStdin(
-      ["delivery", "top-remedy", "-", "--json"],
+      ["delivery", "top-remedy", "-"],
       repository,
       `${JSON.stringify({
         planId: fixture.planId,
@@ -519,16 +532,17 @@ describe("delivery terminal recovery", () => {
 
   it("settles a reopened top whose host view refreshes without adopting the new head", async () => {
     const fixture = await installFixture({ triggerPresent: true, teardownReserved: false });
-    const before = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawBefore = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const before = { ...rawBefore, value: DeliveryStateV1Schema.parse(rawBefore.value) };
     const retainedHead = before.value.members.at(-1)!.coordinates!.head;
     await git(repository, ["commit", "--allow-empty", "-m", "advance terminal authoring"]);
     const advancedHead = await git(repository, ["rev-parse", "HEAD"]);
     await git(repository, ["push", "origin", `${advancedHead}:refs/heads/member-2`]);
     const refreshedHead = "f".repeat(40);
     const result = await runArcWithStdin(
-      ["delivery", "top-remedy", "-", "--json"],
+      ["delivery", "top-remedy", "-"],
       repository,
       `${JSON.stringify({
         planId: fixture.planId,
@@ -549,9 +563,10 @@ describe("delivery terminal recovery", () => {
       state: { value: { activeOperation: null } },
     });
     expect(JSON.parse(result.stdout)).not.toHaveProperty("top");
-    const after = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawAfter = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const after = { ...rawAfter, value: DeliveryStateV1Schema.parse(rawAfter.value) };
     expect(after.value.members.at(-1)!.coordinates!.head).toBe(retainedHead);
     expect(after.value.members.at(-1)!.coordinates!.head).not.toBe(refreshedHead);
   });
@@ -564,7 +579,7 @@ describe("delivery terminal recovery", () => {
       remote: "origin",
     })}\n`;
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+      ["delivery", "reconcile", "-"], repository, request, { env: fixture.env },
     );
 
     expect(result.exitCode, result.stderr).toBe(0);
@@ -585,9 +600,10 @@ describe("delivery terminal recovery", () => {
       state: { value: { activeOperation: null } },
     });
 
-    const restored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRestored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const restored = { ...rawRestored, value: DeliveryStateV1Schema.parse(rawRestored.value) };
     expect(restored.value.members[0]).toMatchObject({
       ref: "refs/heads/delivery/member-1",
       coordinates: { head: fixture.triggerHead },
@@ -595,7 +611,7 @@ describe("delivery terminal recovery", () => {
     });
 
     const remedy = await runArcWithStdin(
-      ["delivery", "top-remedy", "-", "--json"],
+      ["delivery", "top-remedy", "-"],
       repository,
       `${JSON.stringify({
         planId: fixture.planId,
@@ -621,7 +637,7 @@ describe("delivery terminal recovery", () => {
   it("preserves an exact unperformed teardown for its ordinary rerun", async () => {
     const fixture = await installFixture({ triggerPresent: true, teardownReserved: true });
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -644,9 +660,10 @@ describe("delivery terminal recovery", () => {
       recommendedActionText:
         "Rerun `arc delivery teardown` for the exact teardown reservation subject.",
     });
-    const restored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRestored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const restored = { ...rawRestored, value: DeliveryStateV1Schema.parse(rawRestored.value) };
     expect(restored.value.activeOperation).toMatchObject({
       operationId: "teardown-recovery",
       kind: "teardown",
@@ -656,7 +673,7 @@ describe("delivery terminal recovery", () => {
       .resolves.toContain(fixture.triggerHead);
 
     const teardown = await runArcWithStdin(
-      ["delivery", "teardown", "-", "--json"],
+      ["delivery", "teardown", "-"],
       repository,
       `${JSON.stringify({
         planId: fixture.planId,
@@ -693,7 +710,7 @@ describe("delivery terminal recovery", () => {
     })}\n`;
 
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"], repository, readPositionRequest, { env: fixture.env },
+      ["delivery", "reconcile", "-"], repository, readPositionRequest, { env: fixture.env },
     );
 
     expect(result.exitCode, result.stderr).toBe(0);
@@ -715,7 +732,7 @@ describe("delivery terminal recovery", () => {
     });
 
     const replay = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+      ["delivery", "reconcile", "-"], repository, request, { env: fixture.env },
     );
     expect(replay.exitCode, replay.stderr).toBe(0);
     expect(JSON.parse(replay.stdout)).toMatchObject({
@@ -736,7 +753,7 @@ describe("delivery terminal recovery", () => {
     } = await installTerminalRebindFixture({ requestBase: "predecessor" });
 
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+      ["delivery", "reconcile", "-"], repository, request, { env: fixture.env },
     );
 
     expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
@@ -768,7 +785,7 @@ describe("delivery terminal recovery", () => {
     } = await installTerminalRebindFixture({ settledRecord: true, staleTargetRef: true });
 
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+      ["delivery", "reconcile", "-"], repository, request, { env: fixture.env },
     );
 
     expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
@@ -801,7 +818,7 @@ describe("delivery terminal recovery", () => {
     );
 
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+      ["delivery", "reconcile", "-"], repository, request, { env: fixture.env },
     );
 
     expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(1);
@@ -834,7 +851,7 @@ describe("delivery terminal recovery", () => {
       remote: "origin",
     };
     const positioned = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       repository,
       `${JSON.stringify(positionInput)}\n`,
       { env: fixture.env },
@@ -848,7 +865,7 @@ describe("delivery terminal recovery", () => {
     });
 
     const tornDown = await runArcWithStdin(
-      ["delivery", "teardown", "-", "--json"],
+      ["delivery", "teardown", "-"],
       repository,
       `${JSON.stringify({
         ...positionInput,
@@ -918,10 +935,11 @@ describe("delivery terminal recovery", () => {
       fakeGhPath,
       (await readFile(fakeGhPath, "utf8")).replaceAll(fixture.terminalHead, recordHead),
     );
-    const stateEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawStateEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const stateEnvelope = { ...rawStateEnvelope, value: DeliveryStateV1Schema.parse(rawStateEnvelope.value) };
     await writeFile(fixture.statePath, `${JSON.stringify({
       ...stateEnvelope,
       value: {
@@ -931,7 +949,7 @@ describe("delivery terminal recovery", () => {
     })}\n`);
 
     const rebound = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify(positionInput)}\n`,
       { env: fixture.env },
@@ -960,7 +978,7 @@ describe("delivery terminal recovery", () => {
     } = await installTerminalRebindFixture({ reviewFix: true });
     const selectedDeliverableId = deliveryStackPlanFixture().members.at(-1)!.deliverableId;
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({
         ...(JSON.parse(request) as Record<string, unknown>),
@@ -976,7 +994,7 @@ describe("delivery terminal recovery", () => {
       status: "rebound",
       selectedDeliverableId,
       nextAction: "verify-review-fix",
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true },
       acknowledgementInput: {
         planId: fixture.planId,
         selectedDeliverableId,
@@ -1003,7 +1021,7 @@ describe("delivery terminal recovery", () => {
     });
     const selectedDeliverableId = deliveryStackPlanFixture().members.at(-1)!.deliverableId;
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({
         ...(JSON.parse(request) as Record<string, unknown>),
@@ -1033,6 +1051,46 @@ describe("delivery terminal recovery", () => {
     });
   });
 
+  it("routes a record-only advance past the head the terminal binds", async () => {
+    const { fixture, request } = await installTerminalRebindFixture({
+      settledRecord: true,
+      recordOnlyMovement: true,
+    });
+    const selectedDeliverableId = deliveryStackPlanFixture().members.at(-1)!.deliverableId;
+
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-"],
+      repository,
+      `${JSON.stringify({
+        ...(JSON.parse(request) as Record<string, unknown>),
+        continuation: "read-position",
+        reviewFixSelectedDeliverableId: selectedDeliverableId,
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expectPinnedObservation(JSON.parse(result.stdout), {
+      behavior: "An advance made only of the ceremony's own record writes adds no authored change to review, "
+        + "so resuming over it should return the caller to position rather than raise a verification task "
+        + "against a fix nobody wrote.",
+      observed: { status: "rebound", nextAction: "verify-review-fix" },
+      target: { nextAction: "read-position" },
+    });
+    // Part of the held result rather than a property worth keeping: the task is not merely signalled, it is
+    // persisted against a member, so whatever retires the hold above has to clear this record as well.
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      state: {
+        value: {
+          pendingReviewFixVerification: {
+            selectedDeliverableId,
+            memberDeliverableIds: [selectedDeliverableId],
+          },
+        },
+      },
+    });
+  });
+
   it("surfaces repository-state access denial while persisting a terminal rebind", async () => {
     const { fixture, request } = await installTerminalRebindFixture();
     const stateDirectory = dirname(fixture.statePath);
@@ -1040,7 +1098,7 @@ describe("delivery terminal recovery", () => {
     let result: Awaited<ReturnType<typeof runArcWithStdin>>;
     try {
       result = await runArcWithStdin(
-        ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+        ["delivery", "reconcile", "-"], repository, request, { env: fixture.env },
       );
     } finally {
       await chmod(stateDirectory, 0o755);
@@ -1066,7 +1124,7 @@ describe("delivery terminal recovery", () => {
       remote: "origin",
     })}\n`;
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+      ["delivery", "reconcile", "-"], repository, request, { env: fixture.env },
     );
 
     expect(result.exitCode, result.stderr).toBe(0);
@@ -1086,14 +1144,15 @@ describe("delivery terminal recovery", () => {
       recommendedActionText:
         "Rerun `arc delivery top-remedy` for the exact top-remedy reservation subject.",
     });
-    const cleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawCleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const cleared = { ...rawCleared, value: DeliveryStateV1Schema.parse(rawCleared.value) };
     expect(cleared.value.activeOperation).toBeNull();
 
     const replay = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+      ["delivery", "reconcile", "-"], repository, request, { env: fixture.env },
     );
     expect(replay.exitCode, replay.stderr).toBe(1);
     const replayResult = JSON.parse(replay.stdout) as Record<string, unknown>;
@@ -1104,14 +1163,15 @@ describe("delivery terminal recovery", () => {
     });
     expect(replayResult).not.toHaveProperty("action");
     expect(replayResult).not.toHaveProperty("selector");
-    const replayedState = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawReplayedState = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const replayedState = { ...rawReplayedState, value: DeliveryStateV1Schema.parse(rawReplayedState.value) };
     expect(replayedState).toEqual(cleared);
 
     const remedy = await runArcWithStdin(
-      ["delivery", "top-remedy", "-", "--json"],
+      ["delivery", "top-remedy", "-"],
       repository,
       `${JSON.stringify({
         planId: fixture.planId,
@@ -1134,7 +1194,7 @@ describe("delivery terminal recovery", () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
     await reserveInterruptedNativeLanding(fixture, "submitting");
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
       { env: { ...fixture.env, ARC_FAKE_NATIVE_NONE: "1" } },
@@ -1146,9 +1206,10 @@ describe("delivery terminal recovery", () => {
       status: "blocked",
       reason: "submission-before-persist-unresolved",
     });
-    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRetained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const retained = { ...rawRetained, value: DeliveryStateV1Schema.parse(rawRetained.value) };
     expect(retained.value.activeOperation).toMatchObject({
       operationId: "native-landing-recovery",
       kind: "land",
@@ -1161,7 +1222,7 @@ describe("delivery terminal recovery", () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
     await reserveInterruptedNativeLanding(fixture, "identified");
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
       { env: { ...fixture.env, ARC_FAKE_NATIVE_NONE: "1" } },
@@ -1180,9 +1241,10 @@ describe("delivery terminal recovery", () => {
         mode: "native",
       },
     });
-    const cleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawCleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const cleared = { ...rawCleared, value: DeliveryStateV1Schema.parse(rawCleared.value) };
     expect(cleared.value.activeOperation).toBeNull();
   });
 
@@ -1190,7 +1252,7 @@ describe("delivery terminal recovery", () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
     await reserveInterruptedNativeLanding(fixture, "identified");
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
       { env: { ...fixture.env, ARC_FAKE_NATIVE_MERGED: "1", ARC_FAKE_WRONG_HEAD: "1" } },
@@ -1202,9 +1264,10 @@ describe("delivery terminal recovery", () => {
       status: "blocked",
       reason: "ambiguous-result",
     });
-    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRetained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const retained = { ...rawRetained, value: DeliveryStateV1Schema.parse(rawRetained.value) };
     expect(retained.value.activeOperation).toMatchObject({
       operationId: "native-landing-recovery",
       effectIdentity: { providerId: "github", effectId: "native-effect-1" },
@@ -1215,7 +1278,7 @@ describe("delivery terminal recovery", () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
     await reserveInterruptedNativeLanding(fixture, "identified");
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
       { env: {
@@ -1226,9 +1289,10 @@ describe("delivery terminal recovery", () => {
     );
 
     expect(result.exitCode, result.stderr).toBe(0);
-    const settled = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawSettled = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const settled = { ...rawSettled, value: DeliveryStateV1Schema.parse(rawSettled.value) };
     expect(settled.value.target?.coordinates?.head).toBe(fixture.nativeMergeHead);
     expect(settled.value.target?.coordinates?.head).not.toBe(fixture.externalTargetHead);
   });
@@ -1236,7 +1300,7 @@ describe("delivery terminal recovery", () => {
   it("retains an interrupted teardown reservation when the request head moved", async () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: true });
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
       { env: { ...fixture.env, ARC_FAKE_WRONG_HEAD: "1" } },
@@ -1251,9 +1315,10 @@ describe("delivery terminal recovery", () => {
     expect(recovery).not.toHaveProperty("action");
     expect(recovery).not.toHaveProperty("selector");
     expect(recovery).toHaveProperty("recommendedActionText");
-    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRetained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const retained = { ...rawRetained, value: DeliveryStateV1Schema.parse(rawRetained.value) };
     expect(retained.value.activeOperation).toMatchObject({ kind: "teardown" });
   });
 
@@ -1261,7 +1326,7 @@ describe("delivery terminal recovery", () => {
     const fixture = await installFixture({ triggerPresent: true, teardownReserved: false });
     await reserveInterruptedTopRemedy(fixture);
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -1274,9 +1339,10 @@ describe("delivery terminal recovery", () => {
       transition: "cleared",
       action: "delivery-top-remedy",
     });
-    const cleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawCleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const cleared = { ...rawCleared, value: DeliveryStateV1Schema.parse(rawCleared.value) };
     expect(cleared.value.activeOperation).toBeNull();
   });
 
@@ -1284,7 +1350,7 @@ describe("delivery terminal recovery", () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
     await reserveInterruptedTopRemedy(fixture);
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "missing" })}\n`,
       { env: fixture.env },
@@ -1295,7 +1361,8 @@ describe("delivery terminal recovery", () => {
       command: "delivery reconcile",
       status: "blocked",
     });
-    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as { value: DeliveryStateV1 };
+    const rawRetained = JSON.parse(await readFile(fixture.statePath, "utf8")) as { value: unknown };
+    const retained = { ...rawRetained, value: DeliveryStateV1Schema.parse(rawRetained.value) };
     expect(retained.value.activeOperation).toMatchObject({ kind: "top-remedy" });
   });
 });

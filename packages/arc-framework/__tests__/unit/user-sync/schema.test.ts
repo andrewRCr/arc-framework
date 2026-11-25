@@ -1,6 +1,7 @@
 /** Unit coverage for persisted and normalized local sync-state schemas. */
 
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import {
@@ -35,7 +36,7 @@ describe("CrossWuEntrySchema", () => {
     { section: "Memories", key: "entry", raw: "" },
     { section: "Memories", key: "entry", raw: "preserved block", extra: true },
   ])("rejects an invalid entry %#", (value) => {
-    expect(CrossWuEntrySchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(CrossWuEntrySchema, value);
   });
 });
 
@@ -57,7 +58,7 @@ describe("CrossWuEntryParseSchema", () => {
     { ok: false, reason: "" },
     { ok: false, reason: "malformed entry", extra: true },
   ])("rejects an invalid parse outcome %#", (value) => {
-    expect(CrossWuEntryParseSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(CrossWuEntryParseSchema, value);
   });
 
   it("derives the public adapter types", () => {

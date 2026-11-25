@@ -14,7 +14,7 @@ import {
   type SkipWarning,
   type SyncManifest,
 } from "../../lib/git/index.js";
-import { runWorktreeRoster } from "../../lib/git/worktree-roster.js";
+import { isInFlightWorkUnitRosterEntry, runWorktreeRoster } from "../../lib/git/worktree-roster.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
   acquireAdvisoryLock,
@@ -59,6 +59,7 @@ import {
 } from "../../lib/user-sync/notes-ref.js";
 import { removeStaleUserWuSubdir } from "./open.js";
 import { notesRef } from "./shared.js";
+import { refuseWriteIfStoreImported } from "../../lib/store/store-imported.js";
 import {
   BACKUP_FILENAME,
   UserLoadVerificationError,
@@ -116,6 +117,7 @@ export async function runUserSave(
   options: UserSaveOptions,
 ): Promise<UserSaveResult> {
   const { cwd, io, identity } = options;
+  await refuseWriteIfStoreImported(cwd, io.exec);
   const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
 
   // `git notes add` does its own unguarded read-modify-write on the notes tree,
@@ -123,13 +125,10 @@ export async function runUserSave(
   // the tombstone basis is also a repo-shared disk snapshot. Serialize the HEAD
   // resolution, disk read, tombstone apply, write, verification, and baseline
   // stamp together so every diff input belongs to the same locked view.
-  const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
-  let saved: LockedUserSave;
-  try {
-    saved = await saveUserDirectoryUnderHeldLock(options, currentWuName);
-  } finally {
-    await releaseAdvisoryLock(lock);
-  }
+  const saved = await (options.withNotesLock ?? (async <T>(operation: () => Promise<T>): Promise<T> => {
+    const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
+    try { return await operation(); } finally { await releaseAdvisoryLock(lock); }
+  }))(() => saveUserDirectoryUnderHeldLock(options, currentWuName));
   return finishUserSave(options, saved);
 }
 
@@ -157,7 +156,7 @@ async function saveUserDirectoryUnderHeldLock(
   });
 
   if (Object.keys(result.manifest.files).length === 0) {
-    throw new UserSaveError("No eligible files found in user directory to save.");
+    throw new UserSaveError("No eligible files found in user directory to save.", "no-eligible-files");
   }
 
   const baseline = await readMaterializedBaselineStamp(io.exec, cwd, identity);
@@ -248,6 +247,7 @@ const nodeRenameUserWorkspaceFs: RenameUserWorkspaceFs = {
 export async function runUserRenameWorkspace(
   options: UserRenameWorkspaceOptions,
 ): Promise<UserRenameWorkspaceResult> {
+  await refuseWriteIfStoreImported(options.cwd, options.io.exec);
   const oldWuName = SlugSchema.parse(options.oldWuName);
   const newWuName = SlugSchema.parse(options.newWuName);
   const resolver = await resolveUserSurfaceResolver({
@@ -289,6 +289,7 @@ export async function runUserLoad(
   options: UserLoadOptions,
 ): Promise<UserLoadOutcome | null> {
   const { cwd, io, identity } = options;
+  await refuseWriteIfStoreImported(cwd, io.exec);
   const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
   const resolver = await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
   const snapshot = await buildUserLoadManifestSnapshot({
@@ -326,6 +327,7 @@ export async function runUserLoad(
         join(resolver.identityGlobalRoot, ".internal"),
         io,
         backupManifest,
+        await getNotesLockPath(io.exec, cwd, identity),
       );
     }
 
@@ -652,7 +654,7 @@ async function parseResolvedNoteManifest(
  * (recency order preserved), so entries authored in parallel worktrees survive
  * rather than being clobbered by the most-recent note.
  */
-function mergeCrossWuFromNotes(
+export function mergeCrossWuFromNotes(
   recentNotes: readonly RecentNote[],
 ): { files: Record<string, string>; warnings: string[] } {
   const perNoteFiles = recentNotes.map((note) => parseManifestFiles(note.content) ?? {});
@@ -729,16 +731,26 @@ function buildBackupManifest(
   };
 }
 
+/**
+ * Write one timestamped backup and prune older ones under the notes lock, so concurrent writers sharing the
+ * backup directory never select the same name or prune around each other.
+ */
 async function writeTimestampedBackup(
   internalDir: string,
   io: UserIOContext,
   manifest: SyncManifest,
+  lockPath: string,
 ): Promise<string> {
-  const backupFilename = createTimestampedBackupFilename();
   await ensureDir(internalDir, io.mkdir);
-  await io.writeFile(join(internalDir, backupFilename), JSON.stringify(manifest));
-  await pruneTimestampedBackups(internalDir, io.readDir);
-  return backupFilename;
+  const lock = await acquireAdvisoryLock(lockPath);
+  try {
+    const backupFilename = await nextTimestampedBackupFilename(internalDir, io.readDir);
+    await io.writeFile(join(internalDir, backupFilename), JSON.stringify(manifest));
+    await pruneTimestampedBackups(internalDir, io.readDir);
+    return backupFilename;
+  } finally {
+    await releaseAdvisoryLock(lock);
+  }
 }
 
 async function verifyMaterializedSplitUserManifest(
@@ -1126,8 +1138,8 @@ async function resolveSameMachineInFlightSubdirs(
   }
 
   for (const entry of roster.entries) {
-    if (entry.metaFilePath === undefined || entry.state === "Shipped") continue;
-    const wuName = wuNameFromMetaFilePath(entry.metaFilePath);
+    if (!isInFlightWorkUnitRosterEntry(entry) || entry.state === "Shipped") continue;
+    const wuName = entry.workUnit ?? (entry.metaFilePath === undefined ? null : wuNameFromMetaFilePath(entry.metaFilePath));
     if (wuName !== null && candidates.has(wuName)) inFlight.add(wuName);
   }
 
@@ -1188,10 +1200,12 @@ export async function reconcileRetiredSubdirsStandalone(params: {
 
   // Back up only once a removal is pending: the snapshot exists to make the
   // reconcile recoverable, so a no-op open writes nothing.
-  const internalDir = getUserInternalDir(cwd, identity);
-  await ensureDir(internalDir, io.mkdir);
-  await io.writeFile(join(internalDir, createTimestampedBackupFilename()), JSON.stringify(localManifest));
-  await pruneTimestampedBackups(internalDir, io.readDir);
+  await writeTimestampedBackup(
+    getUserInternalDir(cwd, identity),
+    io,
+    localManifest,
+    await getNotesLockPath(io.exec, cwd, identity),
+  );
 
   return removeReconciledSubdirs({ cwd, identity, reconcile });
 }
@@ -1274,9 +1288,30 @@ function uniquePaths(paths: readonly string[]): string[] {
   return [...new Set(paths)];
 }
 
-function createTimestampedBackupFilename(): string {
-  const timestamp = new Date().toISOString().replaceAll(":", "-");
+function createTimestampedBackupFilename(at: Date = new Date()): string {
+  const timestamp = at.toISOString().replaceAll(":", "-");
   return `${BACKUP_TIMESTAMPED_PREFIX}${timestamp}${BACKUP_TIMESTAMPED_SUFFIX}`;
+}
+
+function timestampedBackupMs(name: string): number | null {
+  const stamp = name.slice(BACKUP_TIMESTAMPED_PREFIX.length, -BACKUP_TIMESTAMPED_SUFFIX.length)
+    .replace(/T(\d{2})-(\d{2})-(\d{2})/u, "T$1:$2:$3");
+  const ms = Date.parse(stamp);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * Name a new backup strictly after every timestamped backup already in `dir`.
+ *
+ * Two writes within one millisecond would otherwise share a name, so the later silently replaces the earlier and
+ * pruning keeps an older snapshot; a name one millisecond past the newest keeps each write distinct and in order.
+ */
+async function nextTimestampedBackupFilename(dir: string, readDir: UserIOContext["readDir"]): Promise<string> {
+  const newest = (await readBackupNames(dir, readDir))
+    .filter(isTimestampedBackupFile)
+    .map(timestampedBackupMs)
+    .reduce<number>((latest, ms) => ms === null ? latest : Math.max(latest, ms), Number.NEGATIVE_INFINITY);
+  return createTimestampedBackupFilename(new Date(Math.max(Date.now(), newest + 1)));
 }
 
 function isTimestampedBackupFile(name: string): boolean {

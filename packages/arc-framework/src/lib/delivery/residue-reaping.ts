@@ -3,6 +3,7 @@
 import { isAbsolute, join, resolve } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
+import type { CanonicalDigest } from "../kernel/index.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import {
   reserveDeliveryOperation,
@@ -17,7 +18,7 @@ import {
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 export interface DeliveryResidueLocator {
-  readonly deliverableId: string;
+  readonly deliverableId: CanonicalDigest;
   readonly candidateRef: string;
   readonly gatePath: string;
 }

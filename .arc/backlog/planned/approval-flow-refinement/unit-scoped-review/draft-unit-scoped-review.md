@@ -78,11 +78,10 @@ whose weight is _scale_ rather than _derivation_ — where the design is fully s
 list is concrete (three phases, not seven; no investigation/spike tasks), it is reasonable to say: "unless
 something unexpected comes up, implement this and let me review it in one pass." Crucially, the
 review-increment invariant (DEV-RULES.ARC § Review-Increment Invariant) is **not** violated — it is applied at a
-wider boundary; the
-spec-directed discipline is **unchanged** (and is the most important part); and ARC's agent-side execution
-protocol (process-task-loop, quality gates, commit discipline) holds identically. ARC has also gotten much
-better at keeping WUs right-sized and single-concern, so reviewing a whole WU at once — once near-absurd — is
-far less so now.
+wider boundary; the spec-directed discipline is **unchanged** (and is the most important part); and ARC's agent-side
+execution protocol (process-task-loop, quality gates, commit discipline) holds identically. ARC has also gotten much
+better at keeping WUs right-sized and single-concern, so reviewing a whole WU at once — once near-absurd — is far less
+so now.
 
 **b) Realistic idiom.** Much of the industry has moved this way, to varying degrees of autonomy; many bypass
 human review entirely (including the PR). ARC won't do that. But offering a _governed_ middle ground — the

@@ -10,7 +10,7 @@ describe("Markdown display width", () => {
     ["e\u0301", 1],
     ["✈️", 2],
     ["👩‍💻", 2],
-    ["1\u20e3", 1],
+    ["1\u20e3", 2],
     ["क\u093e", 1],
   ])("measures %s with the linter's display semantics", (value, expected) => {
     expect(displayWidth(value)).toBe(expected);

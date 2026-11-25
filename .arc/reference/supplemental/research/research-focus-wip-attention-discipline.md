@@ -36,8 +36,8 @@ variability [Reinertsen's Chapter 1](http://lpd2.com/wp-content/uploads/2013/06/
 ### 1.2 Agile Swarming
 
 Swarming is a team collaboration pattern where multiple developers focus on a single high-priority work item
-until complete—the opposite of parallel solo tracks
-[Nulab swarming guide](https://nulab.com/learn/project-management/swarming-a-team-based-way-to-power-through-work/).
+until complete—the opposite of parallel solo tracks [Nulab swarming
+guide](https://nulab.com/learn/project-management/swarming-a-team-based-way-to-power-through-work/).
 
 **Key principle:** "Quit starting, and start finishing." Rather than individuals working on separate tasks,
 the team concentrates capacity on one item [Scrum.org swarming](https://agilesm.net/swarming.html).
@@ -63,8 +63,8 @@ unambiguous: one task at a time for cognitive work.
 
 David Allen's GTD system organizes work into Projects (multi-step outcomes) and assigns each a single "Next
 Action" [GettingThingsDone.com](https://gettingthingsdone.com/). The system uses "Contexts" (tags for
-location, tools, energy level) to batch actionable items
-[Todoist GTD methodology](https://www.todoist.com/productivity-methods/getting-things-done).
+location, tools, energy level) to batch actionable items [Todoist GTD
+methodology](https://www.todoist.com/productivity-methods/getting-things-done).
 
 **Key discipline:** One next action per context. This enforces serial execution within a role/context, not
 parallel execution. The Weekly Review is the prescribed boundary for re-prioritizing and shifting focus
@@ -105,15 +105,14 @@ or "blocked on design," not "focus roles."
 
 Francesco Cirillo's Pomodoro Technique uses 25-minute intervals with 5–10-minute breaks. Recent meta-analysis
 finds that time-structured Pomodoro interventions improve focus and reduce mental fatigue, outperforming
-self-paced breaks [Pomofocus.io](https://pomofocus.io/);
-[LifeAt Pomodoro science](https://lifeat.io/blog/the-science-behind-the-pomodoro-timer-method-why-it-works-for-deep-focus).
+self-paced breaks [Pomofocus.io](https://pomofocus.io/); [LifeAt Pomodoro
+science](https://lifeat.io/blog/the-science-behind-the-pomodoro-timer-method-why-it-works-for-deep-focus).
 
 **Attention span baseline:** Research suggests the brain maintains optimal focus for 20–45 minutes before
 fatigue [BetterUp Pomodoro guide](https://www.betterup.com/blog/pomodoro-technique).
 
 **Time-blocking** allows flexible task structuring based on complexity; Pomodoro uses fixed intervals.
-Combining both is effective
-[Timely time-blocking guide](https://www.timely.com/blog/4-time-blocking-techniques).
+Combining both is effective [Timely time-blocking guide](https://www.timely.com/blog/4-time-blocking-techniques).
 
 **Implication:** These techniques support single-task focus within bounded time. They don't address managing
 multiple concurrent work units.
@@ -121,8 +120,8 @@ multiple concurrent work units.
 ### 1.8 Pair Programming and Attention Discipline
 
 Pair programming assigns distinct roles: the driver operates the keyboard while the navigator observes,
-searches alternatives, and contributes
-[Stanford PearProgramming paper](https://web.stanford.edu/~cpiech/bio/papers/pearProgramming.pdf).
+searches alternatives, and contributes [Stanford PearProgramming
+paper](https://web.stanford.edu/~cpiech/bio/papers/pearProgramming.pdf).
 
 **Cognitive load research:** Eye-tracking studies measure joint visual attention (JVA) and joint mental effort
 (JME) to assess collaboration quality
@@ -166,8 +165,8 @@ expensive cognitively.
 task.
 
 **Primary Role / Secondary Role** (task management): Used in Responsibility Assignment Matrices (RAMs) to
-indicate who is accountable vs. consulted vs. informed
-[Creately RAM guide](https://creately.com/guides/responsibility-assignment-matrix/).
+indicate who is accountable vs. consulted vs. informed [Creately RAM
+guide](https://creately.com/guides/responsibility-assignment-matrix/).
 
 The "primary/secondary" terminology in task management refers to **hierarchical responsibility** (who is
 accountable), not to temporal **focus prioritization** (which task gets attention first).

@@ -14,6 +14,7 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 type DeliveryPlanRead =
   | { readonly status: "absent" }
@@ -54,6 +55,7 @@ export type PreBindingDeliveryReviewTargets =
       readonly status: "refused";
       readonly reason: string;
       readonly deliverableId?: string;
+      readonly detail?: string;
     };
 
 /** Compose every exact private member target, or refuse without a whole-work-unit fallback. */
@@ -138,7 +140,16 @@ export async function composePreBindingDeliveryReviewTargets(
       });
     }
     return { status: "composed", planId: plan.planId, targets };
-  } catch {
-    return { status: "refused", reason: "evidence-unavailable" };
+  } catch (error) {
+    rethrowNativeRefusal(error);
+    const detail = (error instanceof Error ? error.message : String(error))
+      .replace(/\s+/gu, " ")
+      .trim()
+      .slice(0, 1_000);
+    return {
+      status: "refused",
+      reason: "evidence-unavailable",
+      detail: detail === "" ? "Delivery evidence could not be read." : detail,
+    };
   }
 }

@@ -1,9 +1,12 @@
+import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
+import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Unit coverage for ordered hosted-review admission. */
 
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from
-  "../../../../../src/lib/canonical/canonical-json.js";
+  "../../../../../src/lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
 import {
@@ -12,6 +15,10 @@ import {
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type { ReviewOperationStateSnapshot } from
   "../../../../../src/scripts/review-gate/core/ports.js";
+import type { ReviewResult } from
+  "../../../../../src/scripts/review-gate/core/review-result.js";
+import { createHostedAdmission } from
+  "../../../../../src/scripts/review-gate/hosted/request.js";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -23,6 +30,7 @@ import {
   firstAdmissibleHostedSource,
   hostedReservationAttemptsForTarget,
   projectHostedReservationPolicyProgress,
+  resolveEvidenceBoundHostedReservationPolicy,
   resolveHostedReservationPolicy,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-admission.js";
 import { projectHostedReservationDischarge } from
@@ -67,13 +75,14 @@ const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
   workUnitId: "example",
   head: "f".repeat(40),
 });
-const delegatedAdmission = (vehicle: typeof deliveryVehicle) => ({
+const delegatedAdmission = (vehicle: typeof deliveryVehicle, pullRequest = 42) => ({
   schemaVersion: 1 as const,
   sourceId: "delegated-agent" as const,
   statusTarget: { repository: "owner/repo", headRef: "feature", headSha: vehicle.head },
-  target: { repository: "owner/repo", pullRequest: 42, headSha: vehicle.head },
+  target: { repository: "owner/repo", pullRequest, headSha: vehicle.head },
   vehicle,
   pass: 1,
+  requestedCoverage: "complete" as const,
 });
 const binding = {
   boundary: { candidateId: CANDIDATE_ID, candidateSubjectDigest: SUBJECT_DIGEST },
@@ -95,6 +104,8 @@ function hostedProgressAttempt(input: {
   vehicle: typeof deliveryVehicle;
   requestedCoverage?: "complete" | "incremental";
   effectiveCoverage?: "complete" | "incremental" | null;
+  logicalPass?: number;
+  pullRequest?: number;
 }) {
   const reviewTarget = createReviewTarget({
     schemaVersion: 2,
@@ -124,22 +135,86 @@ function hostedProgressAttempt(input: {
     locus: "src/index.ts:1",
     url: "https://example.test/finding-1",
   };
+  const requestedCoverage = input.requestedCoverage ?? "complete";
+  const target = { repository: "owner/repo", pullRequest: input.pullRequest ?? 42, headSha: input.vehicle.head };
+  const admission = createHostedAdmission({
+    schemaVersion: 1,
+    repositoryId: "repo-1",
+    lineage: {
+      kind: "delivery-member",
+      planId: input.vehicle.planId,
+      workUnitId: input.vehicle.workUnitId,
+      deliverableId: input.vehicle.deliverableId,
+    },
+    logicalPass: input.logicalPass ?? 1,
+    sourceId: input.sourceId,
+    target,
+    requestedCoverage,
+    ...(requestedCoverage === "incremental"
+      ? {
+          correctionScope: {
+            schemaVersion: 1 as const,
+            predecessorProducerId: "prior-review",
+            predecessorHeadSha: "9".repeat(40),
+            basisHeadSha: "9".repeat(40),
+            headSha: target.headSha,
+            requiredFindings: [],
+          },
+        }
+      : {}),
+    vehicle: input.vehicle,
+    reviewTarget,
+    requirement,
+    actorIdentity: "reviewer-1",
+  });
   return {
     attemptId: input.attemptId,
+    logicalPass: input.logicalPass ?? 1,
+    retryGeneration: 0,
+    changeRequestId: `pull/${target.pullRequest}`,
+    headSha: input.vehicle.head,
+    terminalProducer: input.outcome !== "rate-limited",
     sourceId: input.sourceId,
     outcome: input.outcome,
     hosted: {
-      target: { repository: "owner/repo", pullRequest: 42, headSha: input.vehicle.head },
-      requestedCoverage: input.requestedCoverage ?? "complete",
+      admission,
+      target,
+      requestedCoverage,
       effectiveCoverage: input.effectiveCoverage
         ?? (input.outcome === "rate-limited" ? null : "complete"),
       vehicle: input.vehicle,
       reviewTarget,
       requirement,
       actorIdentity: "reviewer-1",
+      requestFailureReason: null,
       findings: input.outcome === "settled-findings" ? [finding] : [],
       dispositionSetId: input.outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
+      dispositionSetLineage: input.outcome === "settled-findings" ? [{
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+        findingActions: [{
+          findingId: finding.findingId,
+          disposition: "reject" as const,
+          channelAction: "reply-and-resolve" as const,
+        }],
+      }] : [],
       settledFindingIds: input.outcome === "settled-findings" ? [finding.findingId] : [],
+      settlementEvidence: input.outcome === "settled-findings" ? [{
+        findingId: finding.findingId,
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        disposition: "reject" as const,
+        channelAction: "reply-and-resolve" as const,
+        actorIdentity: admission.actorIdentity,
+        target,
+        fixTarget: null,
+        commentId: finding.commentId,
+        threadId: finding.threadId,
+        replyDigest: canonicalDigest({ reply: 1 }),
+        replyId: "reply-1",
+        performedAt: "2026-08-31T12:01:00Z",
+        carriedFromDispositionSetId: null,
+      }] : [],
     },
   };
 }
@@ -148,7 +223,7 @@ function memberProgressSnapshot(): ReviewOperationStateSnapshot {
   const priorVehicle = { ...deliveryVehicle, head: "d".repeat(40) };
   const unrelatedVehicle = {
     ...priorVehicle,
-    deliverableId: `sha256:${"1".repeat(64)}`,
+    deliverableId: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
   };
   return {
     status: "complete",
@@ -163,9 +238,13 @@ function memberProgressSnapshot(): ReviewOperationStateSnapshot {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: priorVehicle.head,
-          completedPasses: 2,
+          lineage: {
+            kind: "delivery-member",
+            planId: priorVehicle.planId,
+            workUnitId: priorVehicle.workUnitId,
+            deliverableId: priorVehicle.deliverableId,
+          },
+          completedPasses: 1,
           attempts: [
             hostedProgressAttempt({
               attemptId: "attempt-prior",
@@ -192,8 +271,12 @@ function memberProgressSnapshot(): ReviewOperationStateSnapshot {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: deliveryVehicle.head,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
           completedPasses: 0,
           attempts: [hostedProgressAttempt({
             attemptId: "attempt-current",
@@ -208,6 +291,35 @@ function memberProgressSnapshot(): ReviewOperationStateSnapshot {
 }
 
 describe("hosted reservation admission", () => {
+  it("retains a member pass after its pull request is replaced", () => {
+    const snapshot = memberProgressSnapshot();
+    if (snapshot.status !== "complete") throw new Error("expected complete snapshot");
+    const prior = snapshot.records[0];
+    if (prior?.state.kind !== "lane-progress") throw new Error("expected prior member progress");
+    const replaced: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        ...prior,
+        state: {
+          ...prior.state,
+          attempts: [hostedProgressAttempt({
+            attemptId: "attempt-prior",
+            sourceId: "coderabbit-pr",
+            outcome: "clean",
+            vehicle: { ...deliveryVehicle, head: "d".repeat(40) },
+            pullRequest: 41,
+          })],
+        },
+      }],
+    };
+    expect(projectHostedReservationPolicyProgress({
+      snapshot: replaced,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toMatchObject({ completedPasses: 1, completePasses: 1, attempts: [] });
+  });
+
   it("counts exact member passes across heads without borrowing coincident progress", () => {
     expect(projectHostedReservationPolicyProgress({
       snapshot: memberProgressSnapshot(),
@@ -216,7 +328,9 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
     })).toEqual({
       status: "complete",
+      predecessorProducerId: "attempt-prior",
       completedPasses: 1,
+      completePasses: 1,
       attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
       attemptHistory: [
         expect.objectContaining({
@@ -235,7 +349,7 @@ describe("hosted reservation admission", () => {
     });
   });
 
-  it("requests a pass-three ceiling override after two findings passes settle without convergence", () => {
+  it("counts two incremental findings passes while projecting only the newest", () => {
     const snapshot: ReviewOperationStateSnapshot = {
       status: "complete",
       records: [{
@@ -248,8 +362,12 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: deliveryVehicle.head,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
           completedPasses: 2,
           attempts: [
             hostedProgressAttempt({
@@ -257,12 +375,18 @@ describe("hosted reservation admission", () => {
               sourceId: "coderabbit-pr",
               outcome: "settled-findings",
               vehicle: deliveryVehicle,
+              requestedCoverage: "incremental",
+              effectiveCoverage: "incremental",
+              logicalPass: 1,
             }),
             hostedProgressAttempt({
               attemptId: "attempt-pass-2",
               sourceId: "coderabbit-pr",
               outcome: "settled-findings",
               vehicle: deliveryVehicle,
+              requestedCoverage: "incremental",
+              effectiveCoverage: "incremental",
+              logicalPass: 2,
             }),
           ],
         },
@@ -277,33 +401,18 @@ describe("hosted reservation admission", () => {
     })).toMatchObject({
       status: "complete",
       completedPasses: 2,
-      attempts: [],
+      completePasses: 0,
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "findings",
+        reviewOperationId: "attempt-pass-2",
+      }],
       attemptHistory: [
         { sourceId: "coderabbit-pr", outcome: "settled-findings" },
         { sourceId: "coderabbit-pr", outcome: "settled-findings" },
       ],
     });
 
-    expect(resolveHostedReservationPolicy({
-      reservation: deliveryReservation,
-      snapshot,
-      repositoryId: "repo-1",
-      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
-      vehicle: deliveryVehicle,
-      maxPasses: 2,
-    })).toMatchObject({
-      status: "resolved",
-      policy: {
-        state: "approval-required",
-        nextAction: "obtain-ceiling-override",
-        payload: {
-          consequence: {
-            exhaustedPassCount: 2,
-            nextPass: 3,
-          },
-        },
-      },
-    });
   });
 
   it("derives the active pass tail from durable time rather than snapshot record order", () => {
@@ -320,8 +429,12 @@ describe("hosted reservation admission", () => {
             kind: "lane-progress",
             lane: "standard",
             repositoryId: "repo-1",
-            changeRequestId: "pull/42",
-            headSha: deliveryVehicle.head,
+            lineage: {
+              kind: "delivery-member",
+              planId: deliveryVehicle.planId,
+              workUnitId: deliveryVehicle.workUnitId,
+              deliverableId: deliveryVehicle.deliverableId,
+            },
             completedPasses: 1,
             attempts: [hostedProgressAttempt({
               attemptId: "attempt-settled",
@@ -341,8 +454,12 @@ describe("hosted reservation admission", () => {
             kind: "lane-progress",
             lane: "standard",
             repositoryId: "repo-1",
-            changeRequestId: "pull/42",
-            headSha: deliveryVehicle.head,
+            lineage: {
+              kind: "delivery-member",
+              planId: deliveryVehicle.planId,
+              workUnitId: deliveryVehicle.workUnitId,
+              deliverableId: deliveryVehicle.deliverableId,
+            },
             completedPasses: 0,
             attempts: [hostedProgressAttempt({
               attemptId: "attempt-unavailable",
@@ -363,7 +480,15 @@ describe("hosted reservation admission", () => {
     })).toMatchObject({
       status: "complete",
       completedPasses: 1,
-      attempts: [],
+      completePasses: 1,
+      attempts: [
+        { sourceId: "coderabbit-pr", outcome: "rate-limited" },
+        {
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: "attempt-settled",
+        },
+      ],
       attemptHistory: [
         { updatedAt: "2026-08-27T12:01:00.000Z", outcome: "rate-limited" },
         { updatedAt: "2026-08-27T12:02:00.000Z", outcome: "settled-findings" },
@@ -371,7 +496,7 @@ describe("hosted reservation admission", () => {
     });
   });
 
-  it("counts the exact member's delegated-agent pass across head movement", () => {
+  it("retains delegated-agent coverage across a replacement PR and moved head", () => {
     const priorHead = "d".repeat(40);
     const localTarget = createReviewTarget({
       schemaVersion: 2,
@@ -396,20 +521,34 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: null,
-          headSha: priorHead,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
           completedPasses: 1,
           attempts: [{
             attemptId: "local-review-1",
+            logicalPass: 1,
+            retryGeneration: 0,
+            changeRequestId: null,
+            headSha: priorHead,
+            terminalProducer: true,
             sourceId: "delegated-agent",
             outcome: "clean",
             local: {
+              operationId: "local-review-1",
+              requestId: canonicalDigest({ request: "local-review-1" }),
               vehicle: { kind: "delivery-member", identity: deliveryVehicle.deliverableId },
               target: localTarget,
+              requestedCoverage: "incremental",
+              effectiveCoverage: "incremental",
+              scopeMode: "whole-target",
               deliveryAdmission: delegatedAdmission(DeliveryReviewMemberVehicleSchema.parse({
                 ...deliveryVehicle,
                 head: priorHead,
-              })),
+              }), 41),
             },
           }],
         },
@@ -423,13 +562,17 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
     })).toEqual({
       status: "complete",
+      predecessorProducerId: "local-review-1",
       completedPasses: 1,
+      completePasses: 0,
       attempts: [],
       attemptHistory: [expect.objectContaining({
         updatedAt: "2026-08-27T12:00:00.000Z",
         headSha: priorHead,
         sourceId: "delegated-agent",
         outcome: "clean",
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
       })],
     });
   });
@@ -447,8 +590,12 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: deliveryVehicle.head,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
           completedPasses: 1,
           attempts: [hostedProgressAttempt({
             attemptId: "attempt-upgraded",
@@ -469,8 +616,14 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
     })).toEqual({
       status: "complete",
+      predecessorProducerId: "attempt-upgraded",
       completedPasses: 1,
-      attempts: [{ sourceId: "coderabbit-pr", outcome: "clean" }],
+      completePasses: 1,
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "clean",
+        reviewOperationId: "attempt-upgraded",
+      }],
       attemptHistory: [expect.objectContaining({
         updatedAt: "2026-08-27T12:00:00.000Z",
         headSha: deliveryVehicle.head,
@@ -482,7 +635,7 @@ describe("hosted reservation admission", () => {
     });
   });
 
-  it("retains a pure supplemental review in member history without steering the complete lane", () => {
+  it("counts an incremental review separately from complete member coverage", () => {
     const snapshot: ReviewOperationStateSnapshot = {
       status: "complete",
       records: [{
@@ -495,9 +648,13 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: deliveryVehicle.head,
-          completedPasses: 0,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
+          completedPasses: 1,
           attempts: [hostedProgressAttempt({
             attemptId: "attempt-incremental",
             sourceId: "coderabbit-pr",
@@ -517,8 +674,14 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
     })).toEqual({
       status: "complete",
-      completedPasses: 0,
-      attempts: [],
+      predecessorProducerId: "attempt-incremental",
+      completedPasses: 1,
+      completePasses: 0,
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "clean",
+        reviewOperationId: "attempt-incremental",
+      }],
       attemptHistory: [expect.objectContaining({
         updatedAt: "2026-08-31T18:00:00.000Z",
         headSha: deliveryVehicle.head,
@@ -530,15 +693,259 @@ describe("hosted reservation admission", () => {
     });
   });
 
+  it("projects only the newest logical pass when same-head material review changes source", () => {
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/multi-source-passes",
+          updatedAt: "2026-08-31T18:02:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
+          completedPasses: 2,
+          attempts: [
+            hostedProgressAttempt({
+              attemptId: "attempt-codex-pass-1",
+              logicalPass: 1,
+              sourceId: "codex-pr",
+              outcome: "settled-findings",
+              vehicle: deliveryVehicle,
+            }),
+            hostedProgressAttempt({
+              attemptId: "attempt-coderabbit-pass-2",
+              logicalPass: 2,
+              sourceId: "coderabbit-pr",
+              outcome: "clean",
+              vehicle: deliveryVehicle,
+            }),
+          ],
+        },
+      }],
+    };
+
+    expect(projectHostedReservationPolicyProgress({
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toMatchObject({
+      status: "complete",
+      completedPasses: 2,
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "clean",
+        reviewOperationId: "attempt-coderabbit-pass-2",
+      }],
+      attemptHistory: [
+        { sourceId: "codex-pr", outcome: "settled-findings" },
+        { sourceId: "coderabbit-pr", outcome: "clean" },
+      ],
+    });
+  });
+
+  it("binds multi-source terminal evidence to the newest same-head logical pass", async () => {
+    const passOne = hostedProgressAttempt({
+      attemptId: "attempt-codex-pass-1",
+      logicalPass: 1,
+      sourceId: "codex-pr",
+      outcome: "settled-findings",
+      vehicle: deliveryVehicle,
+    });
+    const passTwo = hostedProgressAttempt({
+      attemptId: "attempt-coderabbit-pass-2",
+      logicalPass: 2,
+      sourceId: "coderabbit-pr",
+      outcome: "clean",
+      vehicle: deliveryVehicle,
+    });
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/multi-source-evidence",
+          updatedAt: "2026-08-31T18:02:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          lineage: passTwo.hosted.admission.lineage,
+          completedPasses: 2,
+          attempts: [passOne, passTwo],
+        },
+      }],
+    };
+    const terminalResult: ReviewResult = {
+      kind: "hosted",
+      producerId: passTwo.attemptId,
+      repositoryId: "repo-1",
+      target: passTwo.hosted.reviewTarget,
+      sourceIdentity: passTwo.sourceId,
+      originalOutcome: "clean",
+      findings: [],
+      resultDigest: canonicalDigest({ attemptId: passTwo.attemptId }),
+      admission: {
+        lineage: passTwo.hosted.admission.lineage,
+        logicalPass: passTwo.logicalPass,
+        retryGeneration: passTwo.retryGeneration,
+        requestedCoverage: passTwo.hosted.requestedCoverage,
+        effectiveCoverage: "complete",
+        scopeMode: "whole-target",
+        policyVersion: passTwo.hosted.requirement.policyVersion,
+      },
+      laneOperationId: "lane-progress/multi-source-evidence",
+      actorIdentity: passTwo.hosted.actorIdentity,
+      hostedTarget: passTwo.hosted.target,
+      requirement: passTwo.hosted.requirement,
+      vehicle: passTwo.hosted.vehicle,
+      hostSettlementFindingIds: [],
+      noHostSettlementFindingIds: [],
+      settled: false,
+    };
+
+    await expect(resolveEvidenceBoundHostedReservationPolicy({
+      reservation: deliveryReservation,
+      snapshot,
+      repositoryId: "repo-1",
+      target: passTwo.hosted.target,
+      vehicle: deliveryVehicle,
+      maxPasses: 3,
+    }, {
+      resultReader: {
+        readResult: (producerId) => producerId === terminalResult.producerId
+          ? Promise.resolve(terminalResult)
+          : Promise.reject(new Error(`unexpected producer ${producerId}`)),
+      },
+      dispositionStore: {
+        readDispositionRecord: () => Promise.resolve(null),
+      },
+      confirmTarget: () => Promise.resolve(terminalResult.target),
+    })).resolves.toMatchObject({
+      status: "resolved",
+      policy: {
+        state: "pass-complete",
+        nextAction: "none",
+        payload: {
+          verifiedTerminalSignal: {
+            reviewOperationId: passTwo.attemptId,
+          },
+        },
+      },
+    });
+  });
+
+  it("retains hosted fallback and local terminal history for one logical pass", () => {
+    const localTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: deliveryVehicle.head,
+      headTree: "c".repeat(40),
+    });
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/mixed-fallback",
+          updatedAt: "2026-08-31T18:05:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
+          completedPasses: 1,
+          attempts: [
+            hostedProgressAttempt({
+              attemptId: "attempt-hosted-unavailable",
+              sourceId: "coderabbit-pr",
+              outcome: "rate-limited",
+              vehicle: deliveryVehicle,
+            }),
+            {
+              attemptId: "attempt-local-clean",
+              logicalPass: 1,
+              retryGeneration: 0,
+              changeRequestId: null,
+              headSha: deliveryVehicle.head,
+              terminalProducer: true,
+              sourceId: "delegated-agent",
+              outcome: "clean",
+              local: {
+                operationId: "attempt-local-clean",
+                requestId: canonicalDigest({ request: "attempt-local-clean" }),
+                vehicle: { kind: "delivery-member", identity: deliveryVehicle.deliverableId },
+                target: localTarget,
+                requestedCoverage: "incremental",
+                effectiveCoverage: "incremental",
+                scopeMode: "whole-target",
+                deliveryAdmission: delegatedAdmission(deliveryVehicle),
+              },
+            },
+          ],
+        },
+      }],
+    };
+
+    expect(projectHostedReservationPolicyProgress({
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toMatchObject({
+      status: "complete",
+      completedPasses: 1,
+      completePasses: 0,
+      attempts: [
+        { sourceId: "coderabbit-pr", outcome: "rate-limited" },
+        {
+          sourceId: "delegated-agent",
+          outcome: "clean",
+          reviewOperationId: "attempt-local-clean",
+        },
+      ],
+      attemptHistory: [
+        { sourceId: "coderabbit-pr", outcome: "rate-limited" },
+        {
+          sourceId: "delegated-agent",
+          outcome: "clean",
+          requestedCoverage: "incremental",
+          effectiveCoverage: "incremental",
+        },
+      ],
+    });
+  });
+
   it("admits the next member pass from selector-qualified lineage progress", () => {
-    const result = resolveHostedReservationPolicy({
+    const result = resolveHostedReservationPolicy(withReviewNextPassContext({
       reservation: deliveryReservation,
       snapshot: memberProgressSnapshot(),
       repositoryId: "repo-1",
       target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
       vehicle: deliveryVehicle,
       maxPasses: 2,
-    });
+    }));
 
     expect(result).toMatchObject({
       status: "resolved",
@@ -552,7 +959,7 @@ describe("hosted reservation admission", () => {
 
   it("selects the delegated carrier for an exact chunked member scope", () => {
     const target = { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head };
-    const result = resolveHostedReservationPolicy({
+    const result = resolveHostedReservationPolicy(withReviewNextPassContext({
       reservation: {
         ...deliveryReservation,
         sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
@@ -563,7 +970,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
       maxPasses: 2,
       scopeSelection: { mode: "chunked", target },
-    });
+    }));
 
     expect(result).toMatchObject({
       status: "resolved",
@@ -581,7 +988,7 @@ describe("hosted reservation admission", () => {
 
   it("retains a whole-target refusal while starting the selected chunked carrier", () => {
     const target = { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head };
-    const result = resolveHostedReservationPolicy({
+    const result = resolveHostedReservationPolicy(withReviewNextPassContext({
       reservation: {
         ...deliveryReservation,
         sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
@@ -592,7 +999,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
       maxPasses: 2,
       scopeSelection: { mode: "chunked", target },
-    });
+    }));
 
     expect(result).toMatchObject({
       status: "resolved",
@@ -620,10 +1027,10 @@ describe("hosted reservation admission", () => {
       maxPasses: 2,
     };
 
-    expect(resolveHostedReservationPolicy({
+    expect(resolveHostedReservationPolicy(withReviewNextPassContext({
       ...input,
       invocation: { mode: "force", sourceId: "codex-pr" },
-    })).toMatchObject({
+    }))).toMatchObject({
       status: "resolved",
       policy: {
         state: "ready",
@@ -631,7 +1038,7 @@ describe("hosted reservation admission", () => {
         payload: { sourceId: "codex-pr" },
       },
     });
-    expect(resolveHostedReservationPolicy(input)).toMatchObject({
+    expect(resolveHostedReservationPolicy(withReviewNextPassContext(input))).toMatchObject({
       status: "resolved",
       policy: {
         state: "ready",
@@ -651,15 +1058,15 @@ describe("hosted reservation admission", () => {
       maxPasses: 2,
     };
 
-    expect(() => resolveHostedReservationPolicy({
+    expect(() => resolveHostedReservationPolicy(withReviewNextPassContext({
       ...input,
       invocation: { mode: "force", sourceId: "other-pr" },
-    })).toThrow(/configured standard-review source/u);
-    expect(() => resolveHostedReservationPolicy({
+    }))).toThrow(/configured standard-review source/u);
+    expect(() => resolveHostedReservationPolicy(withReviewNextPassContext({
       ...input,
       requestAttempts: [{ sourceId: "codex-pr", outcome: "rate-limited" }],
       invocation: { mode: "force", sourceId: "coderabbit-pr" },
-    })).toThrow(/cannot precede recorded source progress/u);
+    }))).toThrow(/cannot precede recorded source progress/u);
   });
 
   it("preserves an applicable safe-unavailability prefix when the member head moves", async () => {
@@ -676,8 +1083,12 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: priorVehicle.head,
+          lineage: {
+            kind: "delivery-member",
+            planId: priorVehicle.planId,
+            workUnitId: priorVehicle.workUnitId,
+            deliverableId: priorVehicle.deliverableId,
+          },
           completedPasses: 0,
           attempts: [hostedProgressAttempt({
             attemptId: "attempt-prior-unavailable",
@@ -704,17 +1115,25 @@ describe("hosted reservation admission", () => {
             attempts: [{
               operationId: "lane-progress/prior-safe-unavailability",
               attemptId: "attempt-prior-unavailable",
+              logicalPass: 1,
               updatedAt: "2026-08-27T12:00:00.000Z",
               sourceId,
               outcome: "rate-limited",
               requestedCoverage: "complete",
               effectiveCoverage: null,
+              scopeMode: "whole-target",
               applicability: "retain-prior-attempt",
             }],
           }
         : { status: "not-found" },
+      resolveTerminalPolicy: async () => {
+        throw new Error("not reached");
+      },
+      resolveEarlierTerminalPolicy: async () => {
+        throw new Error("not reached");
+      },
     });
-    const result = resolveHostedReservationPolicy({
+    const result = resolveHostedReservationPolicy(withReviewNextPassContext({
       reservation: deliveryReservation,
       snapshot,
       repositoryId: "repo-1",
@@ -722,7 +1141,7 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
       maxPasses: 2,
       requestAttempts: discharge.requestAttempts,
-    });
+    }));
 
     expect(discharge).toMatchObject({
       discharged: false,
@@ -741,17 +1160,19 @@ describe("hosted reservation admission", () => {
 
   it("rechecks the member pass ceiling immediately before hosted capacity is spent", () => {
     const input = {
+      nextPassContext: { ...firstReviewNextPassContext, completePasses: 1 },
       reservation: deliveryReservation,
       snapshot: memberProgressSnapshot(),
       repositoryId: "repo-1",
       target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
       vehicle: deliveryVehicle,
       provider: "codex-pr",
+      coverage: "complete" as const,
       maxPasses: 1,
     };
 
-    expect(() => assertHostedReservationPolicyAdmission(input)).toThrow(/approval-required/u);
-    expect(() => assertHostedReservationPolicyAdmission({
+    expect(() => assertHostedReservationPolicyAdmission(withReviewNextPassContext(input))).toThrow(/approval-required/u);
+    expect(() => assertHostedReservationPolicyAdmission(withReviewNextPassContext({
       ...input,
       ceilingOverride: {
         target: input.target,
@@ -759,7 +1180,7 @@ describe("hosted reservation admission", () => {
         exhaustedPassCount: 1,
         nextPass: 2,
       },
-    })).not.toThrow();
+    }))).not.toThrow();
   });
 
   it("admits the preferred source before any attempt", () => {
@@ -844,7 +1265,7 @@ describe("hosted reservation admission", () => {
   it("keeps safe-unavailability progress independent for each exact delivery member", () => {
     const otherVehicle = {
       ...deliveryVehicle,
-      deliverableId: `sha256:${"1".repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
     };
     const attempts = [{
       sourceId: "coderabbit-pr",
@@ -927,6 +1348,25 @@ describe("hosted reservation admission", () => {
       attempts: [],
       ...binding,
     })).toThrow(/requires `coderabbit-pr` next/u);
+  });
+
+  it.each([
+    { provider: "codex-pr", sourceId: "codex-pr", refusal: null },
+    { provider: "unknown-provider", sourceId: "unknown-provider", refusal: /not a configured/u },
+    { provider: "coderabbit-pr", sourceId: "codex-pr", refusal: /requires `codex-pr` next/u },
+  ])("validates explicit singleton selection $sourceId for provider $provider", ({ provider, sourceId, refusal }) => {
+    const admit = () => assertHostedReservationAdmission({
+      reservation,
+      provider,
+      repository: "owner/repo",
+      headSha: CURRENT_HEAD,
+      targetKind: "change-set",
+      attempts: [],
+      ...binding,
+      invocation: { mode: "force", sourceId },
+    });
+    if (refusal === null) expect(admit).not.toThrow();
+    else expect(admit).toThrow(refusal);
   });
 
   it("admits a carried reservation after an approved Candidate subject advance", () => {

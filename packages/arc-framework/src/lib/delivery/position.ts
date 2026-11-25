@@ -158,12 +158,12 @@ export function deriveDeliveryPosition(
   }
 
   const landedCount = parsedFacts.data.landedDeliverableIds.length;
-  const landedPrefix = planDeliverableIds.slice(0, landedCount) as CanonicalDigest[];
-  const firstUnlanded = planDeliverableIds[landedCount] as CanonicalDigest | undefined;
+  const landedPrefix = planDeliverableIds.slice(0, landedCount);
+  const firstUnlanded = planDeliverableIds[landedCount];
   const boundSuffix = parsedState.data.members
     .slice(landedCount)
     .filter((member) => member.ref !== null || member.changeRequest !== null || member.coordinates !== null)
-    .map((member) => member.deliverableId as CanonicalDigest);
+    .map((member) => member.deliverableId);
   return {
     status: "derived",
     position: {
@@ -212,7 +212,7 @@ export function routeDeliveryPosition(
       status: "position",
       position: derived.position,
       nextAction: "teardown-member",
-      selectedDeliverableId: highest.deliverableId as CanonicalDigest,
+      selectedDeliverableId: highest.deliverableId,
       ...disclosedRefresh,
     };
   }
@@ -299,7 +299,7 @@ export function recognizeDeliverySuffixRetarget(
   };
   return {
     status: "recognized",
-    deliverableId: candidate.deliverableId as CanonicalDigest,
+    deliverableId: candidate.deliverableId,
     before,
     requested,
   };

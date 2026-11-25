@@ -2,11 +2,11 @@
 
 import { z } from "zod";
 
-import { canonicalize, SlugSchema, type KernelRegistry } from "../kernel/index.js";
+import { canonicalize, CanonicalDigestSchema, SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { ParentTaskIdSchema } from "../task-list/scanner.js";
 
 /** Runtime authority for delivery-domain canonical digests. */
-export const DeliveryCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+export const DeliveryCanonicalDigestSchema = CanonicalDigestSchema;
 /** Minted stable identity for one delivery plan across all revisions. */
 export const DeliveryPlanIdSchema = z.string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu)
@@ -60,17 +60,26 @@ const DeliveryPlanAuthoringTaskParentV1Schema = z.strictObject({
   role: DeliveryTaskRoleV1Schema,
 });
 
-const AuthoredDeliveryPlanMemberShape = {
+const DeliveryPlanMemberIntentShape = {
   chunkKey: SlugSchema,
   title: NonEmptyTextSchema,
   contract: NonEmptyTextSchema,
   taskIds: z.array(ParentTaskIdSchema),
   designElementIds: z.array(DeliveryOpaqueIdSchema),
+};
+
+const AuthoredDeliveryPlanMemberShape = {
+  ...DeliveryPlanMemberIntentShape,
+  mainlineLandability: z.literal("independently-landable"),
+};
+
+const PersistedDeliveryPlanMemberShape = {
+  ...DeliveryPlanMemberIntentShape,
   mainlineLandability: z.enum(["independently-landable", "integration-only"]),
 };
 
 const DeliveryPlanMemberShape = {
-  ...AuthoredDeliveryPlanMemberShape,
+  ...PersistedDeliveryPlanMemberShape,
   deliverableId: DeliveryCanonicalDigestSchema,
   semanticFingerprint: DeliveryCanonicalDigestSchema,
 };
@@ -118,10 +127,7 @@ export const DeliveryPlanV1Schema = z.strictObject({
     parents: z.array(DeliveryTaskInventoryParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
-  projection: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("wu-integration-target") }),
-    z.strictObject({ kind: z.literal("stack-to-main") }),
-  ]),
+  projection: z.strictObject({ kind: z.literal("stack-to-main") }),
   members: z.array(DeliveryPlanMemberV1Schema).min(1),
   seams: z.array(DeliveryPlanSeamV1Schema),
   planDigest: DeliveryCanonicalDigestSchema,
@@ -142,10 +148,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
     parents: z.array(DeliveryPlanAuthoringTaskParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
-  projection: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("wu-integration-target") }),
-    z.strictObject({ kind: z.literal("stack-to-main") }),
-  ]),
+  projection: z.strictObject({ kind: z.literal("stack-to-main") }),
   members: z.array(z.strictObject(AuthoredDeliveryPlanMemberShape)).min(1),
   seams: z.array(z.strictObject({
     seamKey: SlugSchema,
@@ -264,6 +267,14 @@ export const DeliveryMergePolicyBindingV1Schema = z.strictObject({
 });
 export type DeliveryMergePolicyBindingV1 = z.infer<typeof DeliveryMergePolicyBindingV1Schema>;
 
+/** One remaining suffix member as freshly observed before its local ref was rewritten. */
+export const DeliveryNativeObservedSuffixMemberV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  ref: DeliveryOpaqueIdSchema,
+  coordinates: DeliveryMemberCoordinatesV1Schema,
+});
+export type DeliveryNativeObservedSuffixMemberV1 = z.infer<typeof DeliveryNativeObservedSuffixMemberV1Schema>;
+
 export const DeliveryLandEffectV1Schema = z.strictObject({
   providerId: DeliveryOpaqueIdSchema,
   repository: DeliveryOpaqueIdSchema,
@@ -341,7 +352,8 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
     mode: z.enum(["sequential", "native"]),
     native: z.strictObject({
       arm: z.enum(["linked-single", "linked-atomic"]),
-      phase: z.enum(["prepared", "submitting"]),
+      phase: z.enum(["prepared", "submitting", "settling"]),
+      observedSuffix: z.array(DeliveryNativeObservedSuffixMemberV1Schema).min(1).optional(),
     }).nullable(),
     effect: DeliveryLandEffectV1Schema,
     effectIdentity: DeliveryHostEffectIdentityV1Schema.nullable(),

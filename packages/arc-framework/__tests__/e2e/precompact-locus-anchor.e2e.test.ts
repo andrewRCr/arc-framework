@@ -312,7 +312,7 @@ describe("PreCompact locus anchor", () => {
   );
 
   it.runIf(process.platform === "linux")(
-    "refuses a work-unit branch carrier while Codex remains anchored to the marker-owned origin",
+    "keeps unresolved work-unit recovery anchored to the marker-owned origin",
     async () => {
       const remote = await createBareRemote(repository);
       const harness = await createCodexHarness();
@@ -418,6 +418,22 @@ describe("PreCompact locus anchor", () => {
 
         await execFileAsync("bash", ["-lc", hookCommand], { cwd: original, timeout: 60_000 });
 
+        const originalSeedPath = join(
+          original,
+          ".arc",
+          "user",
+          "test-user",
+          ".internal",
+          "compaction-seed.json",
+        );
+        const markerPath = join(
+          repository,
+          ".arc",
+          "user",
+          "test-user",
+          ".internal",
+          `codex-compaction-recovery-pending-${sessionId}.json`,
+        );
         const replacementSeedPath = join(
           replacement,
           ".arc",
@@ -426,19 +442,43 @@ describe("PreCompact locus anchor", () => {
           ".internal",
           "compaction-seed.json",
         );
-        const fallbackPath = join(
-          repository,
-          ".arc",
-          "user",
-          ".internal",
-          `codex-compaction-recovery-pending-${sessionId}.json`,
-        );
-        const marker = JSON.parse(await readFile(fallbackPath, "utf8")) as Record<string, unknown>;
+        const marker = JSON.parse(await readFile(markerPath, "utf8")) as Record<string, unknown>;
         expect(marker).toMatchObject({
-          fallback: true,
-          seedPath: null,
+          fallback: false,
+          seedPath: originalSeedPath,
         });
-        expect(String(marker.reason)).toContain("unresolved");
+
+        const seed = JSON.parse(await readFile(originalSeedPath, "utf8")) as Record<string, unknown>;
+        expect(seed).toMatchObject({
+          repoRoot: original,
+          activeWorkUnit: null,
+          metaPath: null,
+          sessionType: null,
+          currentWorkflow: null,
+          taskCursor: null,
+          locus: { checkoutPath: original, parentCheckoutPath: null },
+        });
+
+        const audit = await runArc([
+          "recover",
+          "audit",
+          "--seed-path",
+          originalSeedPath,
+          "--json",
+        ], repository, { timeout: 90_000 });
+        expect(audit.exitCode, audit.stderr || audit.stdout).toBe(0);
+        expect(JSON.parse(audit.stdout)).toMatchObject({
+          mode: "recover-audit",
+          seedPath: originalSeedPath,
+          verdict: {
+            status: "stop",
+            locusHint: {
+              expected: { checkoutPath: original, parentCheckoutPath: null },
+              actual: { checkoutPath: original, parentCheckoutPath: null },
+              match: false,
+            },
+          },
+        });
         await expect(readFile(replacementSeedPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
       } finally {
         await git(repository, ["worktree", "remove", "--force", replacement]).catch(() => undefined);

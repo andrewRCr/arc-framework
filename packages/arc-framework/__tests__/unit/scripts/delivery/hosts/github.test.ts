@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { GhDeliveryHostPort } from "../../../../../src/scripts/delivery/hosts/github.js";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import type { DeliveryNativeStackInput } from "../../../../../src/lib/delivery/native-stack.js";
 import { HostedProcessError } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
 import type { HostedProcessRunner } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
@@ -12,7 +13,7 @@ const mergePolicy = {
   stackPosition: "intermediate" as const,
   method: "merge" as const,
   allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
-  policyFingerprint: `sha256:${"a".repeat(64)}`,
+  policyFingerprint: CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`),
 };
 
 function pull(overrides: Record<string, unknown> = {}) {
@@ -46,8 +47,8 @@ describe("GhDeliveryHostPort", () => {
   const nativeInput: DeliveryNativeStackInput = {
     repository,
     members: [
-      { deliverableId: `sha256:${"1".repeat(64)}`, changeRequestId: "401", headRef: "delivery/example/first", headSha, baseRef: "main" },
-      { deliverableId: `sha256:${"2".repeat(64)}`, changeRequestId: "402", headRef: "delivery/example/second", headSha: "b".repeat(40), baseRef: "delivery/example/first" },
+      { deliverableId: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`), changeRequestId: "401", headRef: "delivery/example/first", headSha, baseRef: "main" },
+      { deliverableId: CanonicalDigestSchema.parse(`sha256:${"2".repeat(64)}`), changeRequestId: "402", headRef: "delivery/example/second", headSha: "b".repeat(40), baseRef: "delivery/example/first" },
     ],
   };
 
@@ -95,6 +96,54 @@ describe("GhDeliveryHostPort", () => {
 
     await expect(new GhDeliveryHostPort(runner(response)).observe(nativeInput))
       .resolves.toEqual({ status: "registered", stackNumber: 9 });
+  });
+
+  it("recognizes the registered unlanded suffix after GitHub retains a merged prefix", async () => {
+    const second = nativeInput.members[1]!;
+    const remaining: DeliveryNativeStackInput = {
+      repository,
+      members: [{ ...second, baseRef: "main" }],
+    };
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, state: "closed", merged_at: "2026-09-14T04:06:01Z",
+          head: { ref: "delivery/example/first", sha: headSha } },
+        { number: 402, state: "open", merged_at: null,
+          head: { ref: second.headRef, sha: second.headSha } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(remaining))
+      .resolves.toEqual({ status: "registered", stackNumber: 9 });
+  });
+
+  it.each([
+    { label: "an invalid head SHA", prefix: { number: 401, head: { ref: "delivery/example/first", sha: "invalid" } } },
+    { label: "a nonpositive PR number", prefix: { number: 0, head: { ref: "delivery/example/first", sha: headSha } } },
+    { label: "an invalid merge timestamp", prefix: { number: 401,
+      head: { ref: "delivery/example/first", sha: headSha }, merged_at: "invalid" } },
+  ])("does not discard a merged prefix with $label", async ({ prefix }) => {
+    const second = nativeInput.members[1]!;
+    const remaining: DeliveryNativeStackInput = {
+      repository,
+      members: [{ ...second, baseRef: "main" }],
+    };
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { state: "closed", merged_at: "2026-09-14T04:06:01Z", ...prefix },
+        { number: 402, state: "open", merged_at: null,
+          head: { ref: second.headRef, sha: second.headSha } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(remaining)).resolves.toEqual({
+      status: "partial",
+      affectedDeliverableIds: [second.deliverableId],
+    });
   });
 
   it("excludes a chained dependent request from the registered-member predicate", async () => {
@@ -399,7 +448,47 @@ describe("GhDeliveryHostPort", () => {
       throw new HostedProcessError("validation failed", "gh: Validation Failed (HTTP 422)", 1, 422);
     } };
     await expect(new GhDeliveryHostPort(genericValidation).mergeRequest(effect))
-      .resolves.toEqual({ status: "refused", reason: "unavailable" });
+      .resolves.toEqual({
+        status: "refused",
+        reason: "unavailable",
+        provider: { kind: "http", status: 422, exitCode: 1 },
+      });
+
+    const conflict: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the merge commit cannot be cleanly created.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(conflict).mergeRequest(effect))
+      .resolves.toEqual({ status: "refused", reason: "conflict" });
+
+    const branchPolicy: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the base branch policy prohibits the merge.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(branchPolicy).mergeRequest(effect))
+      .resolves.toEqual({
+        status: "refused",
+        reason: "unavailable",
+        provider: { kind: "command-failed", exitCode: 1 },
+      });
+
+    const commandFailure: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError("merge failed", "credential-bearing provider output", 2);
+    } };
+    const refused = await new GhDeliveryHostPort(commandFailure).mergeRequest(effect);
+    expect(refused).toEqual({
+      status: "refused",
+      reason: "unavailable",
+      provider: { kind: "command-failed", exitCode: 2 },
+    });
+    expect(refused).not.toHaveProperty("stderr");
+    expect(refused).not.toHaveProperty("stdout");
   });
 
   it("reopens a closed terminal request before retargeting it through supported GitHub mutations", async () => {
@@ -526,6 +615,10 @@ describe("GhDeliveryHostPort", () => {
       targetRef: "refs/heads/main",
       strategy: "merge",
       mergePolicy,
-    })).resolves.toEqual({ status: "refused", reason: "unavailable" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "unavailable",
+      provider: { kind: "unexpected" },
+    });
   });
 });

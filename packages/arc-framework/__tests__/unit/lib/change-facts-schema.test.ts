@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   CanonicalChangeSchema,
@@ -44,49 +45,49 @@ describe("canonical change schemas", () => {
       changeSet: "unknown",
       changes: [],
     });
-    expect(ChangeSetSchema.safeParse({ changeSet: "known", changes: [] }).success).toBe(false);
-    expect(ChangeSetSchema.safeParse({ changeSet: "unknown", changes: [change] }).success).toBe(false);
-    expect(ChangePathSetSchema.safeParse({ changeSet: "known", changes: [] }).success).toBe(false);
+    assertSchemaRefuses(ChangeSetSchema, { changeSet: "known", changes: [] });
+    assertSchemaRefuses(ChangeSetSchema, { changeSet: "unknown", changes: [change] });
+    assertSchemaRefuses(ChangePathSetSchema, { changeSet: "known", changes: [] });
   });
 
   it("rejects unknown fields and invalid endpoint or mode combinations", () => {
-    expect(CanonicalChangeSchema.safeParse({
+    assertSchemaRefuses(CanonicalChangeSchema, {
       status: "added",
       path: "new",
       oldMode: "100644",
       newMode: "100644",
-    }).success).toBe(false);
-    expect(CanonicalChangeSchema.safeParse({
+    });
+    assertSchemaRefuses(CanonicalChangeSchema, {
       status: "renamed",
       path: "new",
       oldMode: "100644",
       newMode: "100644",
-    }).success).toBe(false);
-    expect(CanonicalChangeSchema.safeParse({
+    });
+    assertSchemaRefuses(CanonicalChangeSchema, {
       status: "modified",
       path: "changed",
       previousPath: undefined,
       oldMode: "100644",
       newMode: "100644",
-    }).success).toBe(false);
-    expect(CanonicalChangeSchema.safeParse({
+    });
+    assertSchemaRefuses(CanonicalChangeSchema, {
       status: "modified",
       path: "changed",
       oldMode: "100644",
       newMode: "120000",
-    }).success).toBe(false);
-    expect(CanonicalChangeSchema.safeParse({
+    });
+    assertSchemaRefuses(CanonicalChangeSchema, {
       status: "added",
       path: "new",
       oldMode: "000000",
       newMode: "100644",
       score: 100,
-    }).success).toBe(false);
-    expect(ChangePathFactSchema.safeParse({
+    });
+    assertSchemaRefuses(ChangePathFactSchema, {
       status: "copied",
       path: "same",
       previousPath: "same",
-    }).success).toBe(false);
+    });
   });
 
   it("exports its structural type from the schema", () => {

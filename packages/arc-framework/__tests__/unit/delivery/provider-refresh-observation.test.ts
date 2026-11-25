@@ -4,10 +4,14 @@ import {
   deriveDeliveryProviderRefreshSubject,
   observeDeliveryProviderRefresh,
 } from "../../../src/lib/delivery/provider-refresh-observation.js";
+import type { DeliveryPositionFactsV1 } from "../../../src/lib/delivery/position.js";
 import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
-function positionFacts(state: ReturnType<typeof deliveryStateFixture>, landedDeliverableIds: string[] = []) {
+function positionFacts(
+  state: ReturnType<typeof deliveryStateFixture>,
+  landedDeliverableIds: DeliveryPositionFactsV1["landedDeliverableIds"] = [],
+): DeliveryPositionFactsV1 {
   return { target: state.target, members: state.members, landedDeliverableIds };
 }
 

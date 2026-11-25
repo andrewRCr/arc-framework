@@ -25,8 +25,9 @@ export const SpineRemedySchema = z.strictObject({
 });
 export type SpineRemedy = z.infer<typeof SpineRemedySchema>;
 
-function renderArgument(argument: string): string {
-  if (/^[A-Za-z0-9_./:@+-]+$/u.test(argument)) return argument;
+/** Quote one supplied corrective command argument for shell display. */
+export function renderRemedyArgument(argument: string): string {
+  if (/^[A-Za-z0-9_./:@+{}-]+$/u.test(argument)) return argument;
   return `'${argument.replaceAll("'", `'"'"'`)}'`;
 }
 
@@ -47,7 +48,7 @@ export function spineRemedy(
   return SpineRemedySchema.parse({
     invariant,
     text: `${invariant} ${correction}${stdin === undefined ? "" : " with the carried stdin request"}: `
-      + `\`${argv.map(renderArgument).join(" ")}\`.`,
+      + `\`${argv.map(renderRemedyArgument).join(" ")}\`.`,
     argv: [...argv],
     ...(stdin === undefined ? {} : { stdin }),
   });
@@ -55,12 +56,24 @@ export function spineRemedy(
 
 /** The idempotent checkpoint re-attempt — the resume point for a hand-satisfied invariant. */
 export function checkpointResumeArgv(workUnit: string): readonly string[] {
-  return ["arc", "integrate", "checkpoint", workUnit, "--json"];
+  return ["arc", "integrate", "checkpoint", workUnit];
 }
 
 /** The Candidate re-attestation verb. */
 export function attestArgv(workUnit: string): readonly string[] {
   return ["arc", "attest", workUnit];
+}
+
+/** The convergence attestation bound to a fresh focused or full verification reference. */
+export function attestConvergenceArgv(
+  workUnit: string,
+  scope: "focused" | "full",
+  verificationEvidenceRef: string,
+): readonly string[] {
+  return [
+    "arc", "attest", workUnit, "--scope", scope,
+    "--verification-evidence-ref", verificationEvidenceRef, "--json",
+  ];
 }
 
 /**

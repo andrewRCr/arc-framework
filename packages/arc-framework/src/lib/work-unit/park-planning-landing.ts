@@ -10,19 +10,20 @@ import { posix, join, resolve } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
-import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   deleteOperation,
   writeOperation,
   type PatchOperation,
 } from "../canonical/content-digest.js";
-import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
+import { validateManagedPath, type ManagedPath } from "../kernel/canonical/managed-path.js";
 import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
+import { retryTransientFileSystemRefusal } from "../fs.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import { isSlugSafe } from "./slug.js";
+import { isSlugSafe } from "../kernel/schema/slug.js";
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 const LIFECYCLE_ROOTS = [
@@ -386,6 +387,7 @@ async function stageExactFiles(
   const ordered = [...files].sort((left, right) => compareUtf8(left.path, right.path));
   const created: string[] = [];
   let installed = false;
+  let indexLockOwned = false;
   let indexLock = "";
   let baseLease: { release(): Promise<void> } | null = null;
   let sourceLease: { release(): Promise<void> } | null = null;
@@ -402,6 +404,7 @@ async function stageExactFiles(
     const sourceRefusal = await currentParkSourceRefusal(deps, name, transitionCommit);
     if (sourceRefusal !== null) return { status: "rejected", reason: sourceRefusal };
     await deps.fs.writeFile(indexLock, beforeLock, { flag: "wx" });
+    indexLockOwned = true;
     const afterLock = await deps.fs.readFile(indexPath);
     if (!Buffer.from(beforeLock).equals(Buffer.from(afterLock))) {
       return { status: "rejected", reason: "The base changed during park landing; retry from the fresh base." };
@@ -432,7 +435,13 @@ async function stageExactFiles(
     sourceLease = await deps.prepareRefVerification(`refs/heads/plan/${name}`, transitionCommit);
     const finalSourceRefusal = await currentParkSourceRefusal(deps, name, transitionCommit);
     if (finalSourceRefusal !== null) return { status: "rejected", reason: finalSourceRefusal };
-    await deps.fs.rename(indexLock, indexPath);
+    await retryTransientFileSystemRefusal(async () => {
+      const currentIndex = await deps.fs.readFile(indexPath);
+      if (!Buffer.from(currentIndex).equals(Buffer.from(beforeLock))) {
+        throw new Error("The base changed during park landing; retry from the fresh base.");
+      }
+      await deps.fs.rename(indexLock, indexPath);
+    });
     installed = true;
     return { status: "staged" };
   } catch (err) {
@@ -445,9 +454,8 @@ async function stageExactFiles(
     await baseLease?.release().catch(() => undefined);
     if (!installed) {
       await Promise.all(created.map((path) => deps.fs.rm(path, { force: true }).catch(() => undefined)));
-      if (indexLock !== "") await deps.fs.rm(indexLock, { force: true }).catch(() => undefined);
+      if (indexLockOwned) await deps.fs.rm(indexLock, { force: true }).catch(() => undefined);
     }
-    if (indexLock !== "") await deps.fs.rm(`${indexLock}.lock`, { force: true }).catch(() => undefined);
   }
 }
 

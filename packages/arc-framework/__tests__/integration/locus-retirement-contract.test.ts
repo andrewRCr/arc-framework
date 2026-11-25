@@ -107,22 +107,22 @@ describe("retired locus authority closure", () => {
 
     expect(probe.match(/acquireDerivedLocusEvidence\(/gu)).toHaveLength(1);
     expect(probe).toContain("evidence.topology.worktrees.find");
-    expect(probe).toContain("createUserSurfaceResolver");
+    expect(probe).toContain('resolveArcPath({ kind: "user-root", identity })');
+    expect(probe).not.toContain("createUserSurfaceResolver");
     expect(probe).not.toContain("resolveUserSurfaceResolver");
   });
 
-  it("threads the fresh active-extension set through recovery composition", async () => {
+  it("composes recovery without retired active-name inputs", async () => {
     const [run, context, emitter] = await Promise.all([
       readFile(resolve(sourceRoot, "commands/status/run.ts"), "utf8"),
       readFile(resolve(sourceRoot, "lib/recover/locus-context.ts"), "utf8"),
       readFile(resolve(sourceRoot, "lib/compaction-seed/emitter.ts"), "utf8"),
     ]);
 
-    expect(run).toContain("activeExtensions: extensions.isOk() ? extensions.value.active : []");
-    expect(context).toContain("activeExtensions: options.activeExtensions");
-    expect(emitter).toContain(
-      "activeExtensions: options.envelope.extensions.ok ? options.envelope.extensions.value.active : []",
-    );
+    for (const source of [run, context, emitter]) {
+      expect(source).not.toContain("activeExtensions");
+    }
+
   });
 });
 

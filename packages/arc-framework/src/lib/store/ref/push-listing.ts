@@ -1,0 +1,82 @@
+/** Capture changed state refs under a stable, globally ordered local lock set. */
+
+import type { PushRefChange } from "../../git/push.js";
+import { HistoryRefSchema, type HistoryRef } from "../refusal.js";
+import type { RefBackendContext } from "./context.js";
+import { isStateRef } from "./manifest.js";
+import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
+import { withRefLocks } from "./write-locks.js";
+import { readPendingRefEnds } from "./sync-lifecycle.js";
+
+/** Immutable source and tracking tips read while the selected refs were locked. */
+export interface RefPushListing {
+  local: Map<string, string>; tracking: Map<string, string>; changes: PushRefChange[];
+  pending: Set<string>;
+  /** The last tip seen of each ref the remote pruned, which bounds what this clone has yet to publish on it. */
+  kept: Map<string, string>;
+}
+
+/** Release and retake the whole lock set whenever the locked listing gains a ref. */
+export async function capturePushListing(context: RefBackendContext, remote: string, identity: string | null,
+  diverged: ReadonlySet<string> = new Set(), blocked: ReadonlySet<string> = new Set()): Promise<RefPushListing> {
+  for (;;) {
+    const initial = await readPushListing(context, remote, identity, { diverged, blocked });
+    const locked = new Set([...initial.changes.map(({ ref }) => ref), ...initial.pending]);
+    const result = await withRefLocks(context, locked, async () => {
+      const current = await readPushListing(context, remote, identity, { diverged, blocked });
+      return [...current.changes.map(({ ref }) => ref), ...current.pending].some((ref) => !locked.has(ref)) ? null : current;
+    });
+    if (result) return result;
+  }
+}
+
+/** Name pending history creates, updates, and deletes for the push loop's next fetch. */
+export async function readPushHistoryRefs(context: RefBackendContext, remote: string, identity: string | null): Promise<HistoryRef[]> {
+  // End eligibility filters live refs only; history selection acquires evidence before those decisions.
+  const listing = await readPushListing(context, remote, identity, { detectEnds: false });
+  return listing.changes.flatMap(({ ref }) => {
+    const history = HistoryRefSchema.safeParse(ref);
+    return history.success ? [history.data] : [];
+  });
+}
+
+/** A shared tracking advance can lift a lease only after the captured local tip includes it. */
+export async function pushListingIncludesTracking(context: RefBackendContext, listing: RefPushListing,
+  merged: ReadonlyMap<string, string>): Promise<boolean> {
+  for (const { ref, next } of listing.changes) {
+    const tracking = listing.tracking.get(ref);
+    if (tracking === merged.get(ref)) continue;
+    if (!tracking || !next || !await syncRefIsAncestor(context, tracking, next)) return false;
+  }
+  return true;
+}
+
+async function readPushListing(context: RefBackendContext, remote: string, identity: string | null,
+  { diverged = new Set(), blocked = new Set(), detectEnds = true }: {
+    diverged?: ReadonlySet<string>; blocked?: ReadonlySet<string>; detectEnds?: boolean;
+  } = {}): Promise<RefPushListing> {
+  const prefix = `refs/arc-remotes/${remote}/`, seenPrefix = `refs/arc/tmp/seen/${remote}/`;
+  const [allLocal, allTracking] = await Promise.all([readSyncRefs(context, "refs/arc/"), readSyncRefs(context, [seenPrefix, prefix])]);
+  const local = new Map([...allLocal].filter(([ref]) => publishableRef(ref, identity)));
+  const tracking = new Map([...allTracking].filter(([ref]) => ref.startsWith(prefix)).map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
+  const seen = new Map([...allTracking].filter(([ref]) => ref.startsWith(seenPrefix)).map(([ref, tip]) => [`refs/arc/${ref.slice(seenPrefix.length)}`, tip]));
+  const kept = new Map([...seen].filter(([ref]) => !tracking.has(ref)));
+  const basis = new Map([...seen].filter(([ref]) => diverged.has(ref)));
+  for (const [ref, tip] of tracking) basis.set(ref, tip);
+  const pending = detectEnds && [...local].some(([ref, tip]) => /^refs\/arc\/(work|cohort)\//u.test(ref) && tracking.get(ref) !== tip)
+    ? new Set((await readPendingRefEnds(context, local, local, tracking, undefined, blocked)).filter(({ ownReopen }) => !ownReopen).map(({ live }) => live)) : new Set<string>();
+  const changes: PushRefChange[] = [...local].filter(([ref, tip]) => !pending.has(ref) && basis.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
+  for (const ref of tracking.keys()) {
+    if (local.has(ref)) continue;
+    const counterpart = ref.startsWith("refs/arc/history/") ? ref.replace("refs/arc/history/", "refs/arc/")
+      : /^refs\/arc\/(work|cohort)\//u.test(ref) ? ref.replace("refs/arc/", "refs/arc/history/") : null;
+    if (counterpart && local.has(counterpart)) changes.push({ ref, next: null });
+  }
+  return { local, tracking, changes, pending, kept };
+}
+
+function publishableRef(ref: string, identity: string | null): boolean {
+  if (!isStateRef(ref)) return false;
+  return !ref.startsWith("refs/arc/user/") || identity !== null
+    && (ref === `refs/arc/user/${identity}/personal` || ref === `refs/arc/user/${identity}/claims`);
+}

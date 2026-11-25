@@ -1,12 +1,12 @@
 #!/bin/bash
-# Git pre-push hook — advisory force-push warning.
+# Git pre-push hook — declared push gate and advisory force-push warning.
 # Location: .arc/system/.internal/githooks/pre-push
 #
 # Surfaces an advisory warning before a force-push that would rewrite published
 # history — when the remote tip being replaced is not an ancestor of the commit
 # being pushed. This is the append-only backstop: it makes a silent clobber of a
 # shared branch loud, so overwritten commits can still be recovered from the
-# reflog. It is advisory ONLY and NEVER blocks the push (always exits 0).
+# reflog. The warning is advisory; declared push checks can block the push.
 #
 # Scope note: a pre-push hook sees only the ref OIDs, not whether the branch is
 # shared with others, so it warns on every non-ancestor overwrite (the
@@ -16,9 +16,8 @@
 # Setup: git config core.hooksPath .arc/system/.internal/githooks
 # NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
 
-# Deliberately no `set -e`: a pre-push hook must never abort the push on an
-# internal hiccup — it is advisory. `git merge-base --is-ancestor` also exits
-# non-zero by design (the not-an-ancestor signal), which `set -e` would trap.
+# Deliberately no `set -e`: advisory Git probes may fail without blocking.
+# Gate dispatch below returns its own status explicitly.
 
 # Source shared library (config reader, colors)
 . "$(dirname "$0")/../scripts/arc-lib.sh"
@@ -31,17 +30,52 @@ if [ "$hook_enabled" = "disabled" ]; then
     exit 0
 fi
 
-remote_name="$1"
-zero="0000000000000000000000000000000000000000"
+remote_name="${1:-}"
+remote_url="${2:-}"
+ref_lines=$(cat)
+
+# Prove excluded events before requiring a CLI. Unknown or malformed input
+# continues to the CLI's validation and declaration-present refusal.
+excluded_push_event() {
+    local lines="$ref_lines" local_ref local_oid remote_ref remote_oid extra
+    if [ -z "$lines" ] && [ -n "${PRE_COMMIT_LOCAL_BRANCH:-}" ]; then
+        if [ -n "${PRE_COMMIT_FROM_REF:-}${PRE_COMMIT_TO_REF:-}" ]; then
+            [[ "${PRE_COMMIT_FROM_REF:-}" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]] || return 1
+            [[ "${PRE_COMMIT_TO_REF:-}" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]] || return 1
+        fi
+        case "${PRE_COMMIT_LOCAL_BRANCH}:${PRE_COMMIT_REMOTE_BRANCH:-}" in
+            refs/arc/*:*|*:refs/arc/*) return 0 ;;
+        esac
+        [[ "${PRE_COMMIT_TO_REF:-}" =~ ^(0{40}|0{64})$ ]] && return 0
+        return 1
+    fi
+    while read -r local_ref local_oid remote_ref remote_oid extra; do
+        [ -z "$local_ref$local_oid$remote_ref$remote_oid$extra" ] && continue
+        [ -n "$local_ref" ] && [ -n "$remote_ref" ] && [ -z "$extra" ] || return 1
+        [[ "$local_oid" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]] || return 1
+        [[ "$remote_oid" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]] || return 1
+        case "$local_ref:$remote_ref" in
+            refs/arc/*:*|*:refs/arc/*) continue ;;
+        esac
+        [[ "$local_oid" =~ ^(0{40}|0{64})$ ]] || return 1
+    done <<< "$lines"
+    return 0
+}
+if excluded_push_event; then
+    exit 0
+fi
 
 # stdin carries one line per ref being pushed:
 #   <local_ref> <local_oid> <remote_ref> <remote_oid>
-# shellcheck disable=SC2034  # local_ref is part of the protocol line; unused here.
 while read -r local_ref local_oid remote_ref remote_oid; do
+    [ -z "$local_ref" ] && continue
+    case "$local_ref:$remote_ref" in
+        refs/arc/*:*|*:refs/arc/*) continue ;;
+    esac
     # A branch deletion (local all-zero) or a brand-new remote branch (remote
     # all-zero) overwrites no existing remote commit — nothing to warn about.
-    [ "$local_oid" = "$zero" ] && continue
-    [ "$remote_oid" = "$zero" ] && continue
+    [[ "$local_oid" =~ ^0+$ ]] && continue
+    [[ "$remote_oid" =~ ^0+$ ]] && continue
 
     # Fast-forward: the remote tip is already an ancestor of what we are pushing,
     # so no remote commit is dropped. Stay silent.
@@ -57,7 +91,36 @@ while read -r local_ref local_oid remote_ref remote_oid; do
 
     echo -e "${YELLOW}Warning: force-push rewrites published history on '${remote_name}/${branch}'.${NC}" >&2
     echo -e "${YELLOW}  Remote tip ${short_remote} is not an ancestor of the pushed commit; ${dropped} commit(s) present only on the remote would be dropped.${NC}" >&2
-    echo -e "${YELLOW}  Advisory — push proceeding. If unintended, recover the overwritten commits from the remote reflog before they expire.${NC}" >&2
-done
+    echo -e "${YELLOW}  Advisory — this warning does not block. If unintended, recover the overwritten commits from the remote reflog before they expire.${NC}" >&2
+done <<< "$ref_lines"
 
+if ! repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+    echo "error: ARC push gate could not resolve the Git repository root." >&2
+    exit 1
+fi
+local_arc="$repo_root/node_modules/.bin/arc"
+gate_cli=""
+if [ -x "$local_arc" ]; then
+    gate_cli="$local_arc"
+elif command -v arc >/dev/null 2>&1; then
+    gate_cli="arc"
+fi
+
+if [ -n "$gate_cli" ]; then
+    printf '%s\n' "$ref_lines" | "$gate_cli" check pre-push "$remote_name" "$remote_url"
+    exit $?
+elif [ -f "$repo_root/.arc/system/arc-checks.yml" ]; then
+    cat >&2 <<EOF
+error: ARC push gate is enabled, but the ARC CLI could not be resolved.
+
+Expected repository-local executable:
+  $local_arc
+
+Install @arc-framework/cli in this repository, or install it globally and make
+the global arc executable available in non-interactive shells. GUI Git clients
+and IDE-integrated pushes often use a restricted PATH; version manager shims
+must also be initialized for that environment.
+EOF
+    exit 1
+fi
 exit 0

@@ -1,8 +1,11 @@
 /** Provider-neutral routing and selected-member publication for delivery review fixes. */
 
-import { canonicalDigest, canonicalize } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
-import type { DeliveryEligibilityCoordinates } from "./eligibility.js";
+import {
+  deriveDeliveryRewriteLifecycleRevalidation,
+  type DeliveryEligibilityCoordinates,
+} from "./eligibility.js";
 import type { DeliveryNativeStackObservation } from "./native-stack.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import {
@@ -21,10 +24,11 @@ import type {
 } from "./review-fix-verification.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 import { projectDeliveryPublicReviewContinuation } from "./public-review-continuation.js";
-import type { IntegrationBoundaryLocus } from
+import type { PublishedIntegrationBoundaryLocus } from
   "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   ApprovedDispositionRecordSchema,
+  currentApprovedDispositionNode,
   type ApprovedDispositionRecord,
 } from "../../scripts/review-gate/core/advisory-records.js";
 import { consumeFixAuthorization } from
@@ -49,6 +53,12 @@ import {
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
+const verificationApplicabilityRank: Record<CandidateVerificationApplicability, number> = {
+  targeted: 0,
+  focused: 1,
+  full: 2,
+};
+
 export type DeliveryReviewFixResponseAdvanceResult =
   | {
       readonly status: "recorded" | "already-recorded";
@@ -70,14 +80,20 @@ export function advanceDeliveryReviewFixResponse(input: {
   readonly verifiedAt: string;
 }): DeliveryReviewFixResponseAdvanceResult {
   const record = ApprovedDispositionRecordSchema.safeParse(input.record);
-  if (!record.success || record.data.deliveryMember === null || record.data.fixAuthorization === null
+  if (!record.success) return { status: "refused", reason: "review-fix-response-invalid" };
+  const current = currentApprovedDispositionNode(record.data);
+  if (record.data.deliveryMember === null || current.fixAuthorization === null
     || record.data.source.kind === "frontline" || input.oldTarget.kind !== "delivery-member"
-    || input.oldTarget.targetId !== record.data.approvedDisposition.dispositionSet.targetId
+    || input.oldTarget.targetId !== current.approvedDisposition.dispositionSet.targetId
     || input.oldTarget.headSha !== record.data.deliveryMember.head
     || (record.data.source.kind === "hosted") !== (input.hostedTarget !== null)
     || (input.hostedTarget !== null && input.hostedTarget.headSha !== input.oldTarget.headSha)
     || input.verificationEvidenceRefs.length === 0) {
     return { status: "refused", reason: "review-fix-response-invalid" };
+  }
+  if (verificationApplicabilityRank[input.applicability]
+    < verificationApplicabilityRank[current.fixAuthorization.approvedVerification]) {
+    return { status: "refused", reason: "review-fix-verification-insufficient" };
   }
   let newTarget: ReviewTarget;
   try {
@@ -98,7 +114,7 @@ export function advanceDeliveryReviewFixResponse(input: {
   const hostedFixTarget = input.hostedTarget === null
     ? null
     : { ...input.hostedTarget, headSha: input.currentHead };
-  const existing = record.data.deliveryMemberFixResponse;
+  const existing = current.deliveryMemberFixResponse;
   if (existing !== null) {
     return canonicalize({
       oldTarget: existing.oldTarget,
@@ -120,24 +136,31 @@ export function advanceDeliveryReviewFixResponse(input: {
   }
   try {
     const fixConsumption = consumeFixAuthorization({
-      authorization: record.data.fixAuthorization,
+      authorization: current.fixAuthorization,
       oldTarget: input.oldTarget,
       newTarget,
-      appliedBy: record.data.approvedDisposition.dispositionSet.proposedBy,
+      appliedBy: current.approvedDisposition.dispositionSet.proposedBy,
       consumedAt: input.verifiedAt,
       verificationRefs: [...input.verificationEvidenceRefs],
       priorConsumptions: [],
     });
     const advanced = ApprovedDispositionRecordSchema.parse({
       ...record.data,
-      deliveryMemberFixResponse: {
-        oldTarget: input.oldTarget,
-        newTarget,
-        applicability: input.applicability,
-        fixConsumption,
-        hostedTarget: input.hostedTarget,
-        hostedFixTarget,
-      },
+      approvedDispositionLineage: record.data.approvedDispositionLineage.map((node) => (
+        node.approvedDisposition.dispositionSet.dispositionSetId === record.data.currentDispositionSetId
+          ? {
+              ...node,
+              deliveryMemberFixResponse: {
+                oldTarget: input.oldTarget,
+                newTarget,
+                applicability: input.applicability,
+                fixConsumption,
+                hostedTarget: input.hostedTarget,
+                hostedFixTarget,
+              },
+            }
+          : node
+      )),
     });
     return { status: "recorded", record: advanced, newTarget, hostedFixTarget };
   } catch {
@@ -145,24 +168,24 @@ export function advanceDeliveryReviewFixResponse(input: {
   }
 }
 
-export type DeliveryReviewFixBoundaryCarryResult =
+export type DeliveryReviewFixBoundaryCarryResult<TBoundary extends PublishedIntegrationBoundaryLocus = PublishedIntegrationBoundaryLocus> =
   | {
       readonly status: "carried";
-      readonly boundary: IntegrationBoundaryLocus;
-      readonly candidateId: string;
+      readonly boundary: TBoundary;
+      readonly candidateId: CanonicalDigest;
       readonly stateRevision: number;
     }
   | { readonly status: "refused"; readonly reason: string };
 
 /** Carry one Candidate identity's public review boundary across a proven correction response. */
-export function carryDeliveryReviewFixPublicBoundary(input: {
+export function carryDeliveryReviewFixPublicBoundary<TBoundary extends PublishedIntegrationBoundaryLocus>(input: {
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
-  readonly boundary: IntegrationBoundaryLocus;
-  readonly candidateId: string;
+  readonly boundary: TBoundary;
+  readonly candidateId: CanonicalDigest;
   readonly sourceCandidateSubjectDigest: string;
-  readonly candidateSubjectDigest: string;
-}): DeliveryReviewFixBoundaryCarryResult {
+  readonly candidateSubjectDigest: CanonicalDigest;
+}): DeliveryReviewFixBoundaryCarryResult<TBoundary> {
   const boundary = input.boundary;
   if (boundary.mode !== "integration-boundary"
     || boundary.locus !== "delivery-status-required"
@@ -473,6 +496,7 @@ export type DeliveryReviewFixCandidateVerificationResult =
 
 /** Advance the existing Candidate through one exact acknowledged delivery-correction verification. */
 export function recordDeliveryReviewFixCandidateVerification(input: {
+  readonly stateOffBranch?: boolean;
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly acknowledgement: Omit<DeliveryReviewFixVerificationAcknowledgementInput, "planId">;
@@ -514,23 +538,9 @@ export function recordDeliveryReviewFixCandidateVerification(input: {
   if (!pendingMatches && !acknowledgedReplay) {
     return { status: "refused", reason: "candidate-verification-continuation-mismatch" };
   }
-  const committedPredecessor = CandidateManagedRecordV1Schema.safeParse(input.committedPredecessorRecord);
-  if (!committedPredecessor.success) {
-    return { status: "refused", reason: "candidate-verification-predecessor-unavailable" };
-  }
-  const recordMatchesPredecessor = canonicalize(record.data) === canonicalize(committedPredecessor.data);
-  const retainedTransition = record.data.transitions.at(-1);
-  const recordIsAuthorizedAppend = record.data.transitions.length
-      === committedPredecessor.data.transitions.length + 1
-    && retainedTransition?.transitionKind === "verification-response"
-    && retainedTransition.authorityRef === input.acknowledgement.continuationDigest
-    && canonicalize(committedPredecessor.data) === canonicalize({
-      ...record.data,
-      transitions: record.data.transitions.slice(0, -1),
-    });
-  if ((!pendingMatches || !recordMatchesPredecessor) && !recordIsAuthorizedAppend) {
-    return { status: "refused", reason: "candidate-verification-replay-unproven" };
-  }
+  const predecessor = proveVerificationPredecessor({ record: record.data, committed: input.committedPredecessorRecord,
+    stateOffBranch: input.stateOffBranch === true, authorityRef: input.acknowledgement.continuationDigest, pendingMatches });
+  if (predecessor.status === "refused") return predecessor;
   const terminalHead = state.data.members.at(-1)?.coordinates?.head;
   if (terminalHead === undefined || terminalHead !== currentTarget.data.revision) {
     return { status: "refused", reason: "candidate-verification-target-mismatch" };
@@ -543,7 +553,7 @@ export function recordDeliveryReviewFixCandidateVerification(input: {
   if (existing.length > 1) {
     return { status: "refused", reason: "candidate-verification-duplicated" };
   }
-  if (recordMatchesPredecessor && existing.length > 0) {
+  if (predecessor.matchesCommitted && existing.length > 0) {
     return { status: "refused", reason: "candidate-verification-replay-unproven" };
   }
   const retained = existing[0];
@@ -611,6 +621,28 @@ export function recordDeliveryReviewFixCandidateVerification(input: {
     transition,
     nextAction: "renew-public-continuation",
   };
+}
+
+function proveVerificationPredecessor(input: {
+  record: CandidateManagedRecordV1; committed?: CandidateManagedRecordV1; stateOffBranch: boolean;
+  authorityRef: CanonicalDigest; pendingMatches: boolean;
+}): { status: "ready"; matchesCommitted: boolean } | { status: "refused"; reason: string } {
+  const tail = input.record.transitions.at(-1);
+  const authorizedTail = tail?.transitionKind === "verification-response" && tail.authorityRef === input.authorityRef;
+  const refused = { status: "refused" as const, reason: "candidate-verification-replay-unproven" };
+  if (input.stateOffBranch) {
+    const hasAuthority = input.record.transitions.some(transition => transition.transitionKind === "verification-response"
+      && transition.authorityRef === input.authorityRef);
+    if ((!input.pendingMatches || hasAuthority) && !authorizedTail) return refused;
+    return { status: "ready", matchesCommitted: false };
+  }
+  const committed = CandidateManagedRecordV1Schema.safeParse(input.committed);
+  if (!committed.success) return { status: "refused", reason: "candidate-verification-predecessor-unavailable" };
+  const matchesCommitted = canonicalize(input.record) === canonicalize(committed.data);
+  const authorizedAppend = authorizedTail && input.record.transitions.length === committed.data.transitions.length + 1
+    && canonicalize(committed.data) === canonicalize({ ...input.record, transitions: input.record.transitions.slice(0, -1) });
+  return (!input.pendingMatches || !matchesCommitted) && !authorizedAppend
+    ? refused : { status: "ready", matchesCommitted };
 }
 
 function sameCandidateTargetIdentity(
@@ -720,11 +752,35 @@ export type DeliveryReviewFixPublicationResult =
       readonly nextAction: "execute-provider-refresh";
       readonly verification: {
         readonly memberDeliverableIds: readonly string[];
-        readonly tier1Required: true;
+        readonly commitGateRequired: true;
       };
       readonly recommendedActionText: string;
     }
   | { readonly status: "refused"; readonly reason: string };
+
+/**
+ * Bind a selected review-fix publication to its recorded chain predecessor.
+ *
+ * @param input - Current delivery state, selected member, candidate ref, and lifecycle paths.
+ * @returns The registry-aware lifecycle comparison input, or null when the selected member is unbound.
+ */
+export function deriveDeliveryReviewFixLifecycleRevalidation(input: {
+  readonly state: DeliveryStateV1;
+  readonly selectedDeliverableId: string;
+  readonly candidateRef: string;
+  readonly lifecyclePaths: readonly string[];
+}): ReturnType<typeof deriveDeliveryRewriteLifecycleRevalidation> | null {
+  const member = input.state.members.find(({ deliverableId }) => deliverableId === input.selectedDeliverableId);
+  const protectedBaseRef = input.state.target?.ref;
+  if (member?.coordinates === null || member?.coordinates === undefined || protectedBaseRef === undefined) return null;
+  return deriveDeliveryRewriteLifecycleRevalidation({
+    protectedBaseRef,
+    requestedPredecessorHead: member.coordinates.base,
+    candidateRef: input.candidateRef,
+    lifecyclePaths: input.lifecyclePaths,
+    workUnitId: input.state.workUnitId,
+  });
+}
 
 /** Validate and publish only the selected member before provider-native suffix refresh execution. */
 export async function publishSelectedDeliveryReviewFix(input: {
@@ -770,7 +826,7 @@ export async function publishSelectedDeliveryReviewFix(input: {
     selectedDeliverableId: input.selectedDeliverableId,
     affectedDeliverableIds,
     nextAction: "execute-provider-refresh",
-    verification: { memberDeliverableIds: [input.selectedDeliverableId], tier1Required: true },
+    verification: { memberDeliverableIds: [input.selectedDeliverableId], commitGateRequired: true },
     recommendedActionText:
       "Run provider-native refresh execution for the selected member; ARC will publish any dependent rewrites "
       + "and absorb the resulting highest member into the top.",

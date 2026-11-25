@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
 interface AuthoringFixture {
@@ -81,20 +82,14 @@ describe("delivery authoring write verbs", () => {
         "",
       ].join("\n"));
     }
-    await writeFile(join(activeDir, `meta-${plan.workUnitId}.md`), [
-      `# Metadata: ${plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      "- **Branch:** delivery/second",
-      `- **Task List:** \`tasks-${plan.workUnitId}.md\``,
-      "- **Candidate:** [none]",
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Finish the correction",
-      "",
-    ].join("\n"));
+    await writeFile(join(activeDir, `meta-${plan.workUnitId}.md`), makeMetaFixture(plan.workUnitId, {
+      state: "Integrating",
+      owner: "test-user",
+      branch: "delivery/second",
+      taskList: `tasks-${plan.workUnitId}.md`,
+      currentWorkflow: "integrate-work-unit",
+      nextAction: "Finish the correction",
+    }));
     await git(repository, ["add", "-A"]);
     await git(repository, ["commit", "--no-verify", "-m", "install authoring fixture"]);
 
@@ -177,7 +172,7 @@ describe("delivery authoring write verbs", () => {
     await chmod(fakeGh, 0o755);
 
     const located = await runArcWithStdin(
-      ["delivery", "authoring", "locate", "-", "--json"],
+      ["delivery", "authoring", "locate", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId })}\n`,
     );
@@ -236,7 +231,7 @@ describe("delivery authoring write verbs", () => {
     overrides: Record<string, unknown> = {},
   ) {
     return runArcWithStdin(
-      ["delivery", "authoring", "rematerialize", "-", "--json"],
+      ["delivery", "authoring", "rematerialize", "-"],
       repository,
       rematerializeRequest(fixture, expectedStateRevision, overrides),
       { env: fixture.env },
@@ -273,7 +268,7 @@ describe("delivery authoring write verbs", () => {
     const omittedFindingPaths = JSON.parse(rematerializeRequest(fixture)) as Record<string, unknown>;
     delete omittedFindingPaths.requiredFindingPaths;
     const omitted = await runArcWithStdin(
-      ["delivery", "authoring", "rematerialize", "-", "--json"],
+      ["delivery", "authoring", "rematerialize", "-"],
       repository,
       `${JSON.stringify(omittedFindingPaths)}\n`,
       { env: fixture.env },
@@ -351,7 +346,7 @@ describe("delivery authoring write verbs", () => {
       ...overrides,
     })}\n`;
     const rebind = (input: string) => runArcWithStdin(
-      ["delivery", "authoring", "rebind", "-", "--json"],
+      ["delivery", "authoring", "rebind", "-"],
       repository,
       input,
       { env: fixture.env },

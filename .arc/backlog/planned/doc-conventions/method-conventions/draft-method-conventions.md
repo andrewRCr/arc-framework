@@ -7,6 +7,34 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration. Integrate — or_
+> _consciously reject — each one._
+
+### `[ ]` **Retire the `related:` frontmatter field**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: method-conventions`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Candidate Direction — "Choose one authoritative relatedness declaration and derive or remove duplicate
+  projections."
+
+- _Drain note:_ extension frontmatter no longer has a schema since `retire-extension-points`; 20 method files still
+  carry `related:` (2026-10-15).
+
+- _Observation:_ every method carrying `arc.methods` repeats the same names in `related:`, and
+  `strategy-session-operations.md` defines `related` only as coupled names whose override should prompt a look at the
+  others; nothing found reads it beyond schema validation. The Owner's position (2026-10-13): it serves no real
+  purpose and should go. The duplication also inflates the frontmatter that `verify-integrity.sh`'s 20-line window
+  measures: `adversarial-review`'s repeats three of its declared methods there.
+
+- _Approach:_ settle the candidate direction as removal: drop `related` from the method and extension frontmatter
+  schema, the corpus, the strategy's field list, and the frontmatter validator, and confirm no reader depends on it.
+
+- _Captured during:_ the `review-nonconvergence` Errand's merge gate, 2026-10-13.
+
+---
+
 ## Problem / Motivation
 
 The method corpus stores the same structural ideas inconsistently. Call-shaped methods sometimes expose a

@@ -4,17 +4,17 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   createInRepoTerminalTransitionRecordWriter,
 } from "../../../src/lib/work-unit/terminal-transition-record-writer.js";
-import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { resolveTransitionRecordRelativePath } from "../../../src/lib/work-unit/transition-record-store.js";
 
-function record(): TransitionRecord {
-  return {
-    schemaVersion: 1,
-    origin: "retired-origin",
+function record(): LineageRecord {
+  return LineageRecordSchema.parse({
+    schemaVersion: 2,
+    origin: { name: "retired-origin" },
     kind: "abandon",
     successors: [],
-    edges: [],
-  };
+    incoming: [],
+  });
 }
 
 function harness(options: {
@@ -57,8 +57,8 @@ function harness(options: {
       if (options.createFailure !== undefined) {
         throw Object.assign(new Error(options.createFailure), { code: options.createFailure });
       }
-      if (files.has(candidate.origin)) throw Object.assign(new Error("occupied"), { code: "EEXIST" });
-      files.add(candidate.origin);
+      if (files.has(candidate.origin.name)) throw Object.assign(new Error("occupied"), { code: "EEXIST" });
+      files.add(candidate.origin.name);
     },
     removeRecord: async (origin) => {
       if (recordRemovalFailures > 0) {

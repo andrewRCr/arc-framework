@@ -11,8 +11,26 @@ import {
   git,
   runArc,
 } from "./helpers.js";
+import { advanceBase, movementPaths } from "../helpers/base-advance.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
-async function createAttestFixture(): Promise<string> {
+/**
+ * Give the fixture a base it can actually move: a bare repository reached through a host-shaped URL, so the
+ * origin both parses as an owner-and-repository coordinate and pushes somewhere real. It lives inside the
+ * fixture so one cleanup reaches it, and outside Git's view so it never reads as reviewable content.
+ */
+async function attachOrigin(repository: string): Promise<void> {
+  const remote = join(repository, ".arc-fixture", "origin.git");
+  await mkdir(join(repository, ".arc-fixture"), { recursive: true });
+  await writeFile(join(repository, ".git", "info", "exclude"), ".arc-fixture/\n", { flag: "a" });
+  await git(repository, ["init", "--bare", "--initial-branch=main", remote]);
+  await git(repository, ["remote", "add", "origin", remote]);
+  await git(repository, ["config", `url.${remote}.insteadOf`, "git@github.com:owner/repo.git"]);
+  await git(repository, ["remote", "set-url", "origin", "git@github.com:owner/repo.git"]);
+  await git(repository, ["push", "origin", "main"]);
+}
+
+async function createAttestFixture(options: { readonly origin?: boolean } = {}): Promise<string> {
   const repository = await createTempRepo();
   await mkdir(join(repository, ".arc", "system"), { recursive: true });
   await writeFile(join(repository, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
@@ -24,35 +42,11 @@ async function createAttestFixture(): Promise<string> {
   await mkdir(join(repository, "src"), { recursive: true });
   await writeFile(
     join(repository, ".arc", "active", "meta-example.md"),
-    [
-      "# Metadata: example",
-      "",
-      "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-      "| --------- | ----------- | -------------- | --------- | ------------ |",
-      "| `Active`  | `test-user` | `feat/example` | `Light`   | `P2`         |",
-      "",
-      "- **Cohort:** [none]",
-      "- **Depends On:** [none]",
-      "",
-      "- **Origin:** [internal]",
-      "- **Design:** [none]",
-      "- **Task List:** `tasks-example.md`",
-      "- **Review Rubric:** [none]",
-      "- **Promotion Receipt:** [none]",
-      "",
-      "- **Current Workflow:** [none]",
-      "- **Last Completed:** verification",
-      "- **Next Task:** Task 1.1 — Verification complete",
-      "- **Blockers:** [none]",
-      "",
-      "- **Next Action:** verification complete",
-      "",
-      "- **PR URL:** [none]",
-      "- **Completed:** [none]",
-      "",
-      "---",
-      "",
-    ].join("\n"),
+    makeMetaFixture("example", {
+      owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
+      taskList: "tasks-example.md", lastCompleted: "verification",
+      nextTask: "Task 1.1 — Verification complete", nextAction: "verification complete",
+    }),
   );
   await writeFile(join(repository, "src", "example.ts"), "export const example = true;\n");
   await git(repository, ["add", "-A"]);
@@ -62,6 +56,7 @@ async function createAttestFixture(): Promise<string> {
     "# Task List: Example\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Verification complete**\n",
   );
   await git(repository, ["add", ".arc/active/tasks-example.md"]);
+  if (options.origin === true) await attachOrigin(repository);
   return repository;
 }
 
@@ -94,8 +89,39 @@ describe("arc attest", () => {
       "utf8",
     )) as { subject: { entries: Array<{ path: string; treatment: string }> } };
     expect(record.subject.entries).toEqual(expect.arrayContaining([
-      expect.objectContaining({ path: ".arc/active/tasks-example.md", treatment: "reviewable" }),
+      expect.objectContaining({ path: ".arc/active/tasks-example.md", treatment: "evidence-neutral" }),
     ]));
+    expect((await git(repository, ["diff", "--cached", "--name-only"])).split("\n").sort()).toEqual([
+      ".arc/active/meta-example.md",
+      ".arc/active/tasks-example.md",
+      ".arc/system/.internal/candidates/example.boundary.json",
+      ".arc/system/.internal/candidates/example.json",
+    ]);
+  });
+
+  it("stages the same Candidate evidence after a base advance sharing none of its paths", async () => {
+    repository = await createAttestFixture({ origin: true });
+    const advanced = movementPaths("disjoint", "example").base;
+    const advance = await advanceBase({ cwd: repository, paths: advanced });
+    expect(await git(repository, ["rev-parse", "refs/remotes/origin/main"])).toBe(advance.head);
+
+    const result = await runArc(["attest", "example", "--json"], repository);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "attested",
+      operation: "root",
+      locus: { locus: "candidate-review-pending", workUnit: "example" },
+    });
+    const record = JSON.parse(await readFile(
+      join(repository, ".arc", "system", ".internal", "candidates", "example.json"),
+      "utf8",
+    )) as { subject: { entries: Array<{ path: string; treatment: string }> } };
+    expect(record.subject.entries.map((entry) => entry.path).sort()).toEqual([
+      ".arc/active/meta-example.md",
+      ".arc/active/tasks-example.md",
+      "src/example.ts",
+    ]);
     expect((await git(repository, ["diff", "--cached", "--name-only"])).split("\n").sort()).toEqual([
       ".arc/active/meta-example.md",
       ".arc/active/tasks-example.md",

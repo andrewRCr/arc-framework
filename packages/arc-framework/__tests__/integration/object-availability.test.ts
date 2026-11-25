@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { execa } from "execa";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createRawGitExec as createSpawnRawGitExec } from "../../src/lib/change-facts.js";
+import { createSpawnRawGitExec } from "../../src/lib/change-facts.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
 import { readObjectAvailability } from "../../src/lib/git/object-availability.js";
 import type { GitExecInput } from "../../src/lib/git/exec.js";

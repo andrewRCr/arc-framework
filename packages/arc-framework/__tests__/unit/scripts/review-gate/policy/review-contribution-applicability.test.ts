@@ -46,19 +46,28 @@ function movedSelector() {
 }
 
 describe("review contribution applicability", () => {
-  it("keeps an unmoved retargeted head applicable while reporting base movement separately", () => {
-    expect(classifyReviewContributionApplicability(selector(), null)).toMatchObject({
+  it("uses the head shortcut only when the reviewed base is unchanged", () => {
+    const unchanged = { ...selector(), currentBase: selector().priorBase };
+    expect(classifyReviewContributionApplicability(unchanged, null)).toMatchObject({
       schemaVersion: 1,
       mode: "review-contribution-applicability",
-      selector: selector(),
+      selector: unchanged,
       state: "applicable",
       nextAction: "recognize-prior-review",
       proof: "head-unchanged",
-      baseMoved: true,
+      baseMoved: false,
       contributionChanged: false,
       projection: null,
       paths: [],
     });
+    expect(classifyReviewContributionApplicability(selector(), null)).toMatchObject({
+      state: "classification-unavailable",
+      reason: "projection-evidence-missing",
+    });
+    expect(classifyReviewContributionApplicability(selector(), {
+      endpoints: endpoints(),
+      proof: { status: "refused", reason: "contribution-diverged", paths: ["src/index.ts"] },
+    })).toMatchObject({ state: "decision-required", baseMoved: true });
   });
 
   it("preserves an ordinary work-unit review only when D4 proves the moved contribution", () => {
@@ -97,6 +106,12 @@ describe("review contribution applicability", () => {
       state: "decision-required",
       nextAction: "request-authority",
       verdict: "clean-divergence",
+      applicability: {
+        verdict: "supplemental",
+        residual: paths,
+        reason: "bounded-clean-divergence",
+        judgmentRequired: true,
+      },
       projection: endpoints(),
       paths,
       baseMoved: true,
@@ -155,6 +170,24 @@ describe("review contribution applicability", () => {
         reason: "contribution-conflicted",
         paths: ["packages/arc-framework/src/b.ts", "packages/arc-framework/src/a.ts"],
       },
+    })).toMatchObject({ state: "classification-failed", reason: "malformed-evidence" });
+  });
+
+  /**
+   * A private-use BMP character sorts after an astral one by UTF-16 code units but before it by UTF-8 bytes,
+   * so only this pair tells the residual's canonical order apart from JavaScript's default string order.
+   */
+  it("holds residual paths to their UTF-8 byte order", () => {
+    const input = movedSelector();
+    const bmpPath = "packages/arc-framework/src/\uE000.ts";
+    const astralPath = "packages/arc-framework/src/\u{10000}.ts";
+    expect(classifyReviewContributionApplicability(input, {
+      endpoints: endpoints(),
+      proof: { status: "refused", reason: "contribution-diverged", paths: [bmpPath, astralPath] },
+    })).toMatchObject({ state: "decision-required", paths: [bmpPath, astralPath] });
+    expect(classifyReviewContributionApplicability(input, {
+      endpoints: endpoints(),
+      proof: { status: "refused", reason: "contribution-diverged", paths: [astralPath, bmpPath] },
     })).toMatchObject({ state: "classification-failed", reason: "malformed-evidence" });
   });
 

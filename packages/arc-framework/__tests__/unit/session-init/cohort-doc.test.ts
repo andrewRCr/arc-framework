@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
 import {
   resolveActiveCohortDocPath,
@@ -16,17 +17,14 @@ const CWD = "/repo";
 
 /** A meta file body carrying the given `Cohort` value (omitted when undefined). */
 function meta(cohort?: string): string {
-  const cohortLine = cohort === undefined ? "" : `\n- **Cohort:** \`${cohort}\`\n`;
-  return [
-    "# Metadata: foo",
-    "",
-    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-    "|---|---|---|---|---|",
-    "| `Active` | `andrew` | `feat/foo` | `Light` | `P2` |",
-    cohortLine,
-    "---",
-    "",
-  ].join("\n");
+  const fixture = makeMetaFixture("foo", {
+    owner: "andrew",
+    branch: "feat/foo",
+    workClass: "Light",
+    priority: "P2",
+    cohort: cohort === "[none]" ? null : cohort ?? null,
+  });
+  return cohort === undefined ? fixture.replace("- **Cohort:** [none]\n", "") : fixture;
 }
 
 /** Stub fs: `metaContent` answers the meta read; `existing` is the set of present paths. */

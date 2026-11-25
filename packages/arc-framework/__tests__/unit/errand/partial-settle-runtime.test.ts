@@ -1,8 +1,15 @@
 /** Partial Errand terminal absence and authority boundaries. */
 
-import { describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { digestBytes } from "../../../src/lib/kernel/index.js";
+import { writeWorktreeMarker, readWorktreeMarker, readWorktreeMarkerGeneration } from "../../../src/lib/git/worktree-marker.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { settlePartialErrandAtRuntime } from "../../../src/lib/errand/partial-settle-runtime.js";
+import { passingProjectionRemovalSlots } from "../../../src/lib/git/worktree-removal.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 
@@ -10,6 +17,7 @@ function primaryRow(kind: "free-primary" | "unresolved-checkout" = "free-primary
   return {
     kind,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "main",
@@ -45,6 +53,7 @@ function unresolvedSibling(): DerivedCheckoutRow {
   return {
     ...primaryRow("unresolved-checkout"),
     checkout: {
+      folderPresent: true,
       path: "/repo/sibling",
       head: "b".repeat(40),
       branch: "chore/other",
@@ -80,4 +89,57 @@ describe("partial Errand settlement", () => {
     const result = await settlePartialErrandAtRuntime(options(frame(primaryRow("unresolved-checkout"))));
     expect(result).toMatchObject({ outcome: "refused", reason: "authority-unresolved" });
   });
+});
+
+async function versionBoundPartial() {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-partial-origin-"));
+  onTestFinished(() => rm(cwd, { recursive: true, force: true }));
+  const entry = "personal:abcd1234", version = "v1:0123456789abcdef", head = "a".repeat(40);
+  await writeWorktreeMarker(cwd, { spawnedByArc: false,
+    createdFor: { kind: "partial-errand", slug: "direct-fix", claimId: null }, provisioning: "ready",
+    originEntry: entry, originEntryVersion: version, spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00.000Z" });
+  const marker = await readWorktreeMarkerGeneration(cwd);
+  if (marker.kind !== "present") throw new Error("Missing fixture marker");
+  const occupied: DerivedCheckoutRow = { ...primaryRow(), kind: "transient",
+    checkout: { ...primaryRow().checkout, path: cwd }, subject: { kind: "partial-errand", key: "direct-fix", claimId: null },
+    markerGeneration: digestBytes(marker.bytes), origin: { entry, version } };
+  const entries = new Map([[entry, version]]);
+  const exec: GitExec = async (_command, args) => {
+    if (args[0] === "rev-parse") return { stdout: args[1] === "--abbrev-ref" ? "main" : head };
+    if (["check-ref-format", "fetch", "update-ref", "status"].includes(args[0] ?? "")) return { stdout: "" };
+    throw new Error(`Unexpected Git command: ${args.join(" ")}`);
+  };
+  const settle = { ...options(frame(occupied)), exec,
+    settleInbox: async (binding: { originEntry: string | null; originEntryVersion?: string }) => {
+      if (binding.originEntry === null || entries.get(binding.originEntry) !== binding.originEntryVersion)
+        return { kind: "refused" as const, reason: "The capture version changed." };
+      entries.delete(binding.originEntry);
+      return { kind: "applied" as const, nextOffer: null };
+    },
+  };
+  return { cwd, entry, entries, settle };
+}
+
+it("settles a version-bound capture before releasing the partial marker", async () => {
+  const h = await versionBoundPartial();
+  const result = await settlePartialErrandAtRuntime(h.settle);
+  expect(result).toMatchObject({ outcome: "applied" });
+  expect(h.entries.has(h.entry)).toBe(false);
+  expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
+});
+
+it("refuses before settling its capture while the primary's projection release would refuse, then closes", async () => {
+  const h = await versionBoundPartial();
+  let held = true;
+  const slots = { ...passingProjectionRemovalSlots, check: async (...args: Parameters<typeof passingProjectionRemovalSlots.check>) =>
+    held ? { kind: "would-refuse" as const, remedy: { text: "Save the held edit, then retry." } } : passingProjectionRemovalSlots.check(...args) };
+  const refused = await settlePartialErrandAtRuntime({ ...h.settle, projectionRemovalSlots: slots });
+  expect(refused).toMatchObject({ outcome: "refused", reason: "preservation-unproven",
+    recommendedPromptText: expect.stringContaining("Save the held edit, then retry.") });
+  expect(h.entries.has(h.entry)).toBe(true);
+  expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present" });
+  held = false;
+  expect(await settlePartialErrandAtRuntime({ ...h.settle, projectionRemovalSlots: slots })).toMatchObject({ outcome: "applied" });
+  expect(h.entries.has(h.entry)).toBe(false);
+  expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
 });

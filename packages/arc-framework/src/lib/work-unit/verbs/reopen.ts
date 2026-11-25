@@ -20,6 +20,10 @@
  * @module
  */
 
+import type { RecordReference } from "../../store/identity.js";
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import type { StoreRefusal, Remedy } from "../../store/refusal.js";
+import { runStoreReopen } from "./reopen-store.js";
 import { join } from "node:path";
 
 import {
@@ -37,6 +41,8 @@ import { resolveTaskListCursor } from "../../task-list/cursor.js";
 
 /** The inputs a `reopen` supplies. */
 export interface ReopenParams {
+  /** Exact already-selected subject, when the caller holds one. */
+  reference?: RecordReference;
   /** Target WU name (the CLI defaults this to the current Integrating WU). */
   name: string;
   /** Whether the WU's PR has merged — the `pr-unmerged` guard input (caller resolves via `gh`). */
@@ -49,7 +55,7 @@ export interface ReopenParams {
 
 /** The outcome of a `reopen` attempt — a rejection, or the re-activated meta path. */
 export type ReopenResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }
   | { status: "reopened"; outcome: TransitionOutcome; metaPath: string };
 
 /**
@@ -66,6 +72,7 @@ export async function runReopen(
   ctx: ExecuteTransitionContext,
   params: ReopenParams,
 ): Promise<ReopenResult> {
+  if (ctx.store !== undefined && usesOffBranchState(ctx.store)) return runStoreReopen({ ...ctx, store: ctx.store }, params);
   const { name, prMerged, withdrawMode, nextTask } = params;
   const executionTask = nextTask?.trim();
   if (nextTask !== undefined && executionTask === "") {
@@ -79,7 +86,7 @@ export async function runReopen(
   const inputs = {
     prMerged,
     prWithdrawMode: withdrawMode ?? "close",
-    currentWorkflowOverride: executionTask === undefined ? undefined : "[none]",
+    currentWorkflowOverride: executionTask === undefined ? undefined : "process-task-loop",
     softFields: { nextTask: executionTask ?? "[none]" },
   };
 

@@ -12,6 +12,8 @@ import {
   deliveryFiveMemberStackPlanFixture,
   deliveryFourMemberStackPlanFixture,
   deliverySingleMemberStackPlanFixture,
+  deliveryStackPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -166,6 +168,69 @@ describe("native delivery stack", () => {
       status: "refused",
       reason: "registration-scope-mismatch",
     });
+  });
+
+  it("validates an opt-in-free subject before resolving the registration choice", async () => {
+    const bindRequests = (plan: ReturnType<typeof deliveryStackPlanFixture>) => {
+      const fixture = deliveryStateFixture(plan);
+      return {
+        ...fixture,
+        members: fixture.members.map((member, index) => ({
+          ...member,
+          changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+        })),
+      };
+    };
+    const singletonPlan = deliveryStackPlanFixture();
+    const singletonState = bindRequests(singletonPlan);
+    const singleton = deriveDeliveryNativeRegistrationInput({
+      plan: singletonPlan,
+      state: singletonState,
+      repository: "o/r",
+      baseRef: singletonState.target!.ref,
+    });
+    if (singleton.status !== "derived") throw new Error("singleton registration subject must derive");
+    const eligiblePlan = deliveryThreeMemberStackPlanFixture();
+    const eligibleState = bindRequests(eligiblePlan);
+    const eligible = deriveDeliveryNativeRegistrationInput({
+      plan: eligiblePlan,
+      state: eligibleState,
+      repository: "o/r",
+      baseRef: eligibleState.target!.ref,
+    });
+    if (eligible.status !== "derived") throw new Error("eligible registration subject must derive");
+    const port = {
+      observe: vi.fn(async () => { throw new Error("choice resolution reached provider observation"); }),
+      link: vi.fn(async () => { throw new Error("choice resolution reached provider mutation"); }),
+    };
+
+    await expect(linkPlannedDeliveryNativeStack({
+      plan: singletonPlan,
+      state: singletonState,
+      repository: "o/r",
+      baseRef: singletonState.target!.ref,
+      members: singleton.input.members,
+    }, port)).resolves.toEqual({
+      status: "unlinked",
+      recommendedActionText:
+        "Native registration needs at least two non-terminal members; continue through the unlinked executor.",
+    });
+    await expect(linkPlannedDeliveryNativeStack({
+      plan: eligiblePlan,
+      state: eligibleState,
+      repository: "o/r",
+      baseRef: eligibleState.target!.ref,
+      members: singleton.input.members,
+    }, port)).resolves.toMatchObject({ status: "refused", reason: "registration-scope-mismatch" });
+    await expect(linkPlannedDeliveryNativeStack({
+      plan: eligiblePlan,
+      state: eligibleState,
+      repository: "o/r",
+      baseRef: eligibleState.target!.ref,
+      members: eligible.input.members,
+    }, port)).resolves.toMatchObject({ status: "decision-required" });
+    expect(port.observe).not.toHaveBeenCalled();
+    expect(port.link).not.toHaveBeenCalled();
   });
 
   it("refuses a caller-selected registration base before provider access", async () => {

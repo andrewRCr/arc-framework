@@ -9,7 +9,7 @@ import {
   createDeliveryAuthoringSnapshot,
   type DeliveryAuthoringSnapshotV1,
 } from "../../../src/lib/delivery/authoring-schema.js";
-import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
 
 function snapshot(): DeliveryAuthoringSnapshotV1 {
   const firstTask = canonicalDigest({ goal: "First" });
@@ -112,6 +112,30 @@ describe("delivery authoring map", () => {
     });
   });
 
+  it("refuses retired projections and integration-only members", () => {
+    const proposed = snapshot();
+    const retiredProjection = {
+      ...filledSlots,
+      projection: { kind: "wu-integration-target" },
+    } as const;
+    expect(validateDeliveryAuthoringMap(
+      renderDeliveryAuthoringMap(proposed, retiredProjection),
+      proposed,
+    )).toEqual({ status: "refused", reason: "map-malformed" });
+
+    const integrationOnly = {
+      ...filledSlots,
+      members: [{
+        ...filledSlots.members[0],
+        mainlineLandability: "integration-only",
+      }],
+    } as const;
+    expect(validateDeliveryAuthoringMap(
+      renderDeliveryAuthoringMap(proposed, integrationOnly),
+      proposed,
+    )).toEqual({ status: "refused", reason: "map-malformed" });
+  });
+
   it("refuses a mutated derived value", () => {
     const proposed = snapshot();
     const mutated = renderDeliveryAuthoringMap(proposed, filledSlots)
@@ -139,7 +163,7 @@ describe("delivery authoring map", () => {
     const proposed = snapshot();
     const editedSnapshot = {
       ...proposed,
-      originalWorkUnitId: "renamed-unit" as typeof proposed.originalWorkUnitId,
+      originalWorkUnitId: SlugSchema.parse("renamed-unit"),
     };
     expect(validateDeliveryAuthoringMap(
       renderDeliveryAuthoringMap(proposed, filledSlots),

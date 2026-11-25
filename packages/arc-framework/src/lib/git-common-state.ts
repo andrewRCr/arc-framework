@@ -5,13 +5,12 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
-import { atomicWriteFile } from "./fs.js";
-import type { GitExec } from "./git/exec.js";
+import { atomicWriteFile, classifyFilesystemAccessFault, type FilesystemAccessFault } from "./fs.js";
+import { resolveGitCommonDir, type GitExec } from "./git/exec.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock.js";
-import { resolveGitCommonDir } from "./user-sync/repo-shared-paths.js";
 
 /** Closed review-state namespace vocabulary. */
-export type ReviewStateNamespace = "evidence" | "identity" | "operations" | "outcomes" | "sources";
+export type ReviewStateNamespace = "evidence" | "identity" | "in-flight" | "operations" | "outcomes" | "sources";
 
 /** Closed delivery-state namespace vocabulary. */
 export type DeliveryStateNamespace = "plans" | "state" | "authoring";
@@ -20,7 +19,7 @@ export type DeliveryStateNamespace = "plans" | "state" | "authoring";
 export const GitCommonStateLocationSchema = z.discriminatedUnion("root", [
   z.strictObject({
     root: z.literal("review-gate"),
-    namespace: z.enum(["evidence", "identity", "operations", "outcomes", "sources"]),
+    namespace: z.enum(["evidence", "identity", "in-flight", "operations", "outcomes", "sources"]),
   }),
   z.strictObject({
     root: z.literal("delivery"),
@@ -45,7 +44,7 @@ export interface GitCommonStatePublisherIO {
 export class GitCommonStateAccessError extends Error {
   constructor(
     public readonly access: "read" | "write",
-    public readonly failureCause: "permission-denied" | "read-only-filesystem",
+    public readonly failureCause: FilesystemAccessFault,
   ) {
     super(`Repository-common state ${access} failed: ${failureCause}`);
     this.name = "GitCommonStateAccessError";
@@ -59,16 +58,8 @@ async function withGitCommonStateAccessFailure<T>(
   try {
     return await operation();
   } catch (error) {
-    const code = typeof error === "object" && error !== null && "code" in error
-      && typeof error.code === "string"
-      ? error.code
-      : undefined;
-    if (code === "EROFS") {
-      throw new GitCommonStateAccessError(access, "read-only-filesystem");
-    }
-    if (code === "EACCES" || code === "EPERM") {
-      throw new GitCommonStateAccessError(access, "permission-denied");
-    }
+    const fault = classifyFilesystemAccessFault(error);
+    if (fault !== undefined) throw new GitCommonStateAccessError(access, fault);
     throw error;
   }
 }
@@ -140,6 +131,7 @@ function parseAddress(location: unknown, recordName: string): GitCommonStateLoca
 export class RepositoryGitCommonStatePublisher implements GitCommonStatePublisher {
   private readonly writeFile: typeof atomicWriteFile;
   private readonly removeFile: (path: string) => Promise<void>;
+  private commonDir: Promise<string> | undefined;
 
   constructor(
     private readonly exec: GitExec,
@@ -326,7 +318,16 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
   }
 
   private async namespaceRoot(location: GitCommonStateLocation): Promise<string> {
-    return join(await resolveGitCommonDir(this.exec, this.cwd), "arc", location.root, location.namespace);
+    return join(await this.resolveCommonDir(), "arc", location.root, location.namespace);
+  }
+
+  /** The checkout's Git common directory, resolved once per publisher; a failed resolution is retried. */
+  private resolveCommonDir(): Promise<string> {
+    this.commonDir ??= resolveGitCommonDir(this.exec, this.cwd).catch((error: unknown) => {
+      this.commonDir = undefined;
+      throw error;
+    });
+    return this.commonDir;
   }
 
   private async recordPath(location: GitCommonStateLocation, recordName: string): Promise<string> {

@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { handleDeliveryExecution } from "../../src/handlers/delivery-execution.js";
-import type { RawGitExec } from "../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../src/lib/git/exec.js";
 import {
   absorbGitDeliveryChain,
   preflightGitDeliveryChainAbsorption,
@@ -39,6 +39,7 @@ import {
 } from "../../src/lib/delivery/provider-refresh-execution.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "../../src/lib/delivery/position.js";
 import {
+  DeliveryCanonicalDigestSchema,
   DeliveryStateV1Schema,
   type DeliveryStateV1,
 } from "../../src/lib/delivery/schema.js";
@@ -519,7 +520,7 @@ describe("member-six refresh adoption lifecycle", () => {
       });
 
       let output = "";
-      await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      await handleDeliveryExecution("refresh-adopt", { input: "-" }, undefined, {
         readText: async () => JSON.stringify({
           planId: fixture.plan.planId,
           repository: "owner/repo",
@@ -540,9 +541,16 @@ describe("member-six refresh adoption lifecycle", () => {
         write: (text) => { output = text; },
         setExitCode: () => { throw new Error("successful recovery must not set a failure exit code"); },
       });
-      const result = JSON.parse(output) as {
+      const rawResult = JSON.parse(output) as {
         readonly status: string;
-        readonly state?: { readonly revision: number; readonly value: DeliveryStateV1 };
+        readonly state?: { readonly revision: number; readonly value: unknown };
+      };
+      const { state: rawResultState, ...rawResultFields } = rawResult;
+      const result = {
+        ...rawResultFields,
+        ...(rawResultState === undefined ? {} : { state: {
+          ...rawResultState, value: DeliveryStateV1Schema.parse(rawResultState.value),
+        } }),
       };
       expect(result.status).toBe("applied");
       expect(result.state).toEqual(records.current());
@@ -631,7 +639,7 @@ describe("member-six semantic native fallback lifecycle", () => {
       stackPosition: "intermediate" as const,
       method: "merge" as const,
       allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
-      policyFingerprint: `sha256:${"a".repeat(64)}`,
+      policyFingerprint: DeliveryCanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`),
     };
     const exactRequest = async () => ({
       status: "observed" as const,
@@ -682,11 +690,12 @@ describe("member-six semantic native fallback lifecycle", () => {
         snapshot: { target: initial.target, members: [member] },
       }),
       observeLandedResult: async () => null,
+      readMemberBase: async () => null,
       proveLandedContribution: async () => ({ status: "accepted" as const, proof: "tree-equality" as const }),
     };
 
     let applyOutput = "";
-    await handleDeliveryExecution("land-apply", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("land-apply", { input: "-" }, undefined, {
       readText: async () => JSON.stringify({
         planId: plan.planId,
         approved: prepared.presentation,
@@ -728,7 +737,7 @@ describe("member-six semantic native fallback lifecycle", () => {
       explicitAtomic: true,
     } as const;
     let executedRequest: unknown;
-    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-land-select", { input: "-" }, undefined, {
       readText: async () => JSON.stringify(selectRequest),
       execute: async (_command, request) => {
         executedRequest = request;

@@ -1,6 +1,6 @@
 /** Bounded Git and host observations for session-init delivery orientation. */
 
-import { canonicalize } from "../kernel/index.js";
+import { canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import type { GitExec } from "../git/exec.js";
 import { observeDeliveryEligibilityRef } from "../delivery/git-eligibility.js";
 import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../delivery/host.js";
@@ -325,8 +325,16 @@ async function observeOperation(
         strategy: operation.effect.strategy,
         beforeMember,
       });
-      if (landed === null || (await dependencies.proveContribution({
-        before: { predecessor: beforeTarget, member: beforeMember },
+      if (landed === null) return null;
+      const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+        ...options,
+        cwd: dependencies.cwd,
+        objectAccess: "local-only",
+      });
+      const memberBase = await observeDeliveryEligibilityRef(localOnlyExec, beforeMember.base);
+      if (memberBase === null || memberBase.head !== beforeMember.base) return null;
+      if ((await dependencies.proveContribution({
+        before: { predecessor: memberBase, member: beforeMember },
         after: landed,
       })).status !== "accepted") return null;
       observation = {
@@ -432,7 +440,7 @@ async function observeFacts(
   if (members.some((member) => !member.exact)) return null;
   const terminalAuthoringMovement = members[terminalIndex]?.terminalAuthoringMovement;
 
-  const landedDeliverableIds: string[] = [];
+  const landedDeliverableIds: CanonicalDigest[] = [];
   let unlandedSeen = false;
   const nonTerminalCleared = state.members.slice(0, -1).every((member) => (
     member.ref === null && member.changeRequest === null && member.coordinates === null

@@ -14,11 +14,14 @@
  *    model — `draft-design` / `create-spec` keep `Design` on the draft (or
  *    `[none]` before one exists), and the `draft → spec` repoint rides
  *    create-spec finalization, so `generate-tasks` implies a `spec-*` `Design`.
- *  - Under `State: Active`, `[none]` represents task execution and
- *    `prepare-work-unit` represents a Candidate in private preparation.
+ *  - Under `State: Active`, `process-task-loop` names task execution and
+ *    `prepare-work-unit` names a Candidate in private preparation. Verification
+ *    closeout stays inside the `process-task-loop` stage: the resolver derives
+ *    `verify-work-unit` from the task cursor, and nothing stores it.
  *  - Under `State: Integrating`, `integrate-work-unit` represents public
- *    integration. Other non-planning states carry `[none]` (or an absent legacy
- *    field).
+ *    integration.
+ *  - Any non-planning state may carry `[none]` (or an absent legacy field) when
+ *    no lifecycle workflow is live, such as a parked work unit's pointer-record.
  *
  * Pure over its parsed-tuple input (no fs/git side effects): callers parse the
  * meta and pass the three field values. Mirrors {@link checkCohortConsistency}'s
@@ -35,6 +38,7 @@ const PLANNING_STATE = "Planning";
 const NONE_SENTINEL = "[none]";
 
 /** The lifecycle workflows carried outside planning. */
+const TASK_EXECUTION_WORKFLOW = "process-task-loop";
 const PREPUBLICATION_WORKFLOW = "prepare-work-unit";
 const INTEGRATION_WORKFLOW = "integrate-work-unit";
 
@@ -102,6 +106,7 @@ export function checkCurrentWorkflowConsistency(input: CurrentWorkflowConsistenc
   if (state !== PLANNING_STATE) {
     const allowed = currentWorkflow === null
       || currentWorkflow === NONE_SENTINEL
+      || (state === "Active" && currentWorkflow === TASK_EXECUTION_WORKFLOW)
       || (state === "Active" && currentWorkflow === PREPUBLICATION_WORKFLOW)
       || (state === "Integrating" && currentWorkflow === INTEGRATION_WORKFLOW);
     if (!allowed) {

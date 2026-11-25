@@ -17,6 +17,7 @@ import {
   rewriteDeliveryRemoteRef,
 } from "../../../src/lib/delivery/git-materialization.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 const ref = "refs/heads/delivery/example/first";
 const head = "a".repeat(40);
@@ -46,7 +47,7 @@ describe("delivery remote-ref leases", () => {
     const exec: GitExec = async (_command, args) => {
       if (args[0] === "rev-parse") {
         if (localHead === null) {
-          throw Object.assign(new Error("missing"), { exitCode: 1, stdout: "", stderr: "" });
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stdout: "", stderr: "" });
         }
         return { stdout: `${localHead}\n` };
       }
@@ -90,12 +91,11 @@ describe("delivery remote-ref leases", () => {
   it("refuses a divergent local member ref before publishing remotely", async () => {
     const foreignHead = "b".repeat(40);
     let remoteMutation = false;
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "rev-parse") return { stdout: `${foreignHead}\n` };
-      if (args[0] === "ls-remote") return { stdout: "" };
-      remoteMutation = true;
-      return { stdout: "" };
-    };
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: `${foreignHead}\n` }] },
+      { match: { prefix: ["ls-remote"] }, responses: [{ stdout: "" }] },
+      { match: { prefix: [] }, responses: [() => { remoteMutation = true; return { stdout: "" }; }] },
+    ]);
 
     await expect(publishDeliveryMemberRef({ exec, remote: "origin", ref, head }))
       .resolves.toEqual({ status: "refused", reason: "collision" });
@@ -112,7 +112,8 @@ describe("delivery remote-ref leases", () => {
       if (args[0] === "ls-remote") return { stdout: `${remoteHead}\t${topRef}\n` };
       mutations.push(args);
       remoteHead = requestedHead;
-      throw new Error("connection dropped after push");
+      throw makeGitProcessError({ command: "git", args, exitCode: 128,
+        stderr: "connection dropped after push" });
     };
 
     await expect(publishDeliveryTopRef({
@@ -150,16 +151,23 @@ describe("delivery remote-ref leases", () => {
   });
 
   it("classifies publication failure from the exact reobserved remote state", async () => {
-    const afterFailure = (observed: string | null | "unavailable"): GitExec => {
+    const afterFailure = (observed: string | null): GitExec => scriptGitExec([
+      { match: { prefix: ["ls-remote"] }, responses: [
+        { stdout: "" },
+        { stdout: observed === null ? "" : `${observed}\t${ref}\n` },
+      ] },
+      { match: { predicate: (args) => args[0] !== "ls-remote" },
+        responses: [{ failure: { exitCode: 1, stderr: "push failed" } }] },
+    ]).exec;
+    const unavailableAfterFailure = (): GitExec => {
       let reads = 0;
       return async (_command, args) => {
         if (args[0] === "ls-remote") {
           reads += 1;
           if (reads === 1) return { stdout: "" };
-          if (observed === "unavailable") throw new Error("offline");
-          return { stdout: observed === null ? "" : `${observed}\t${ref}\n` };
+          throw new Error("offline");
         }
-        throw new Error("push failed");
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "push failed" });
       };
     };
     await expect(publishDeliveryRemoteRef({ exec: afterFailure(head), remote: "origin", ref, head }))
@@ -168,7 +176,8 @@ describe("delivery remote-ref leases", () => {
       exec: afterFailure("b".repeat(40)), remote: "origin", ref, head,
     })).resolves.toEqual({ status: "refused", reason: "stale-lease" });
     for (const observed of [null, "unavailable"] as const) {
-      await expect(publishDeliveryRemoteRef({ exec: afterFailure(observed), remote: "origin", ref, head }))
+      const exec = observed === "unavailable" ? unavailableAfterFailure() : afterFailure(observed);
+      await expect(publishDeliveryRemoteRef({ exec, remote: "origin", ref, head }))
         .resolves.toEqual({ status: "refused", reason: "unavailable" });
     }
   });
@@ -181,12 +190,12 @@ describe("delivery remote-ref leases", () => {
 
   it("reports a stale lease when a successful push leaves a foreign head", async () => {
     const foreignHead = "b".repeat(40);
-    let reads = 0;
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] !== "ls-remote") return { stdout: "" };
-      reads += 1;
-      return { stdout: reads === 1 ? "" : `${foreignHead}\t${ref}\n` };
-    };
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["ls-remote"] }, responses: [
+        { stdout: "" }, { stdout: `${foreignHead}\t${ref}\n` },
+      ] },
+      { match: { predicate: (args) => args[0] !== "ls-remote" }, responses: [{ stdout: "" }] },
+    ]);
     await expect(publishDeliveryRemoteRef({ exec, remote: "origin", ref, head }))
       .resolves.toEqual({ status: "refused", reason: "stale-lease" });
   });
@@ -268,7 +277,7 @@ describe("delivery remote-ref leases", () => {
     const exec: GitExec = async (_command, args) => {
       if (args[0] === "rev-parse") {
         if (localHead === null) {
-          throw Object.assign(new Error("missing"), { code: 1, exitCode: 1, stderr: "" });
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "" });
         }
         return { stdout: `${localHead}\n` };
       }
@@ -293,7 +302,7 @@ describe("delivery remote-ref leases", () => {
     const exec: GitExec = async (_command, args) => {
       if (args[0] === "rev-parse") {
         if (localHead === null) {
-          throw Object.assign(new Error("missing"), { code: 1, exitCode: 1, stderr: "" });
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "" });
         }
         return { stdout: `${localHead}\n` };
       }
@@ -327,7 +336,7 @@ describe("delivery remote-ref leases", () => {
       if (args[0] === "for-each-ref") return { stdout: `${refreshRef} ${head}\n` };
       if (args[0] === "rev-parse") {
         if (localHead === null) {
-          throw Object.assign(new Error("missing"), { code: 1, exitCode: 1, stderr: "" });
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "" });
         }
         return { stdout: `${localHead}\n` };
       }
