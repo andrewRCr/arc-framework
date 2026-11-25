@@ -2459,6 +2459,20 @@ characters fails the line-length check the author runs next; `arc delivery plan 
 `--design-inventory` without naming it; and a projected companion file deleted and saved appeared to leave its record,
 seen once and not reproduced.
 
+#### Delivery authoring on a flipped copy (a probe beside Stage 2, 11-25)
+
+Asked whether delivery has a real issue on the store or only edge cases: its first authoring step does not run there.
+On a flipped copy, in a work unit started for the probe with a spec, a task list holding a provisional `## Delivery
+Plan` section, and its meta pointing at both, `arc delivery plan from-tasks` refused `substrate-unreachable`, with and
+without `--task-list`, carrying no condition and no remedy. Authoring first resolves an existing plan through the
+rename transition source, which § 4.3 makes refuse on an off-branch store whose ref holds no transition folder; every
+flipped checkout is in that state, so the refusal meets every authoring, not only a plan stored under a former name.
+`arc delivery entry inspect` still answers `not-applicable` in a unit with no plan section, so sessions that are not
+delivering are unaffected, and the inventory schema command runs. The end-to-end suite states the same boundary: its
+authoring, entry, closeout and landing-readiness cases run only over the in-repo store. Native delivery therefore
+starts again with `delivery-rebuild-continuity`, as § 2.3 and § 4.3 leave it, and no stacked delivery can be authored
+between the window and that unit's landing.
+
 ## The parallel run from 11-24
 
 A draft for the Owner's approval on Tuesday 11-24. The Owner decided at 9:04 pm on 11-20 that the flip runs in parallel
