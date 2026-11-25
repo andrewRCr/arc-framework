@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "returned-copy-last-alias",
+  "claimId": "5eb50505b1f3feeab74d29f556da2304",
+  "createdAt": "2026-11-25T13:38:17.013Z",
+  "updatedAt": "2026-11-25T13:38:17.013Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "returned-copy-last-alias",
+  "branch": "chore/returned-copy-last-alias",
+  "origin": "inbox",
+  "originEntry": "Reproduce, then fix, returned-copy cleanup unlinking the last copy of a saved edit",
+  "originEntrySourceDigest": "sha256:7d3ea3a669de8c0cf211746c40db469541044faa56336e65ee83ea463df54e5e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
