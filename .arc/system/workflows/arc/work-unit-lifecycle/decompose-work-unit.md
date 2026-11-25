@@ -51,8 +51,9 @@ The read-only result binds the origin by its source units' digests and its depen
 profile from the origin's `Design`. Successful preflight writes the starter map alone; refusal follows the common
 envelope and never emits a partial starter map. On `cut-in-flight`, the refusal names the stored cut's continuations.
 To recover the allocations, run the reported `--revise` without a map. This read-only command returns either
-`carried` or `reauthor`. Use `carried.map` for destination authoring in step 4. For `reauthor`, use the fresh starter
-and `storedAuthoring` to prepare a revised map and follow step 5's revision preview and approval before applying it.
+`carried` or `reauthor`. Use `carried.map` and `previousMaps` for destination authoring in step 4. For `reauthor`,
+use the fresh starter and `storedAuthoring` to prepare a revised map and follow step 5's revision preview and
+approval before applying it.
 
 For other preflight refusals, stop and follow the reported remedy. Do not substitute working-tree bytes, select
 another source, or hand-author missing machine fields.
@@ -124,6 +125,10 @@ to its destination and its source unit by the map's IDs, and use their reported 
 - complete each created cohort document and the cohort coordination the map allocates to;
 - apply every reported existing-home edit; and
 - keep each member's seeded `Cohort` and `Depends On`, which the terminal batch checks.
+
+Compare the allocations in `previousMaps` with the current map. Inspect the reported former locators and remove
+withdrawn obligations only from surviving former destinations. Skip removed destinations and any replacement record
+that merely reused a former name. Author the replacement allocation from the current map.
 
 Do not add unreported destinations, topology changes, or dependency edits.
 
@@ -210,9 +215,9 @@ After a discard, report `leftEdited` as the surviving destinations targeted by t
 known surviving authoring edits, including edits to former targets, and dependency settlements identified from the
 additive report's `records`. The cut has ended.
 
-After a revision, resume step 4 from the approved revised map and compare it with the previous allocations. Carry
-added or changed units into their destinations and remove withdrawn obligations from retained destinations.
-For reassignments, update both destinations. Review, check, and save the affected documents in step 4.
+After a revision, rerun the read-only `--revise` from step 1 to recover `previousMaps`. On `carried`, resume step 4
+from the approved revised map and the earlier allocations. Review, check, and save the affected documents in step 4.
+For `reauthor`, follow step 1's revision path.
 
 ## 6. Apply the terminal batch
 

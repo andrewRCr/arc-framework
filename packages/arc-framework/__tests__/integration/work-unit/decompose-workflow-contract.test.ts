@@ -5,8 +5,12 @@ import { acquireDecomposeOrigin } from "../../../src/lib/decompose/acquire-origi
 import { runStoreDecomposeFinish } from "../../../src/lib/decompose/finish.js";
 import { runStoreDecomposePreflight } from "../../../src/lib/decompose/preflight.js";
 import { runStoreDecomposeRevisionStarter } from "../../../src/lib/decompose/revision-starter.js";
+import { runStoreDecomposeRevision } from "../../../src/lib/decompose/revision.js";
 import { copyDecomposeArtifact } from "../../../src/lib/decompose/scaffold-copy.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
+import { readWorkUnit } from "../../../src/lib/store/lifecycle-write.js";
+import { createDefaultLocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
+import type { CutMap } from "../../../src/lib/decompose/cut-map-schema.js";
 import { decomposeContext } from "../../fixtures/decompose-context.js";
 import { createDecomposeExtractionFixture } from "../../fixtures/decompose-extraction.js";
 import { createDecomposeOriginFixture } from "../../fixtures/decompose-origin.js";
@@ -29,6 +33,14 @@ const REVISION_PREVIEW = "`arc decompose <origin> --revise <revised-map>`";
 
 function section(start: string, end: string): string {
   return workflow.slice(workflow.indexOf(start), workflow.indexOf(end));
+}
+
+async function applyRevision(ctx: ReturnType<typeof decomposeContext>, map: CutMap): Promise<void> {
+  const input = { cutMap: map, cutMapPath: "revised.json" };
+  const preview = await runStoreDecomposeRevision(ctx, "origin", input);
+  if (preview.status === "refused" || preview.result.kind !== "preview") throw new Error(JSON.stringify(preview));
+  expect(await runStoreDecomposeRevision(ctx, "origin", input, { applyAuthority: preview.result.applyAuthority }))
+    .toMatchObject({ status: "ok", result: { kind: "revised" } });
 }
 
 describe("decompose workflow contract", () => {
@@ -100,6 +112,37 @@ describe("decompose workflow contract", () => {
     expect(resume).toMatch(softWrappedPattern(/`carried\.map`[^.]*step\s+4/u));
     expect(resume).toMatch(softWrappedPattern(/`reauthor`[^.]*`storedAuthoring`/u));
     expect(resume).toMatch(softWrappedPattern(/revision\s+preview\s+and\s+approval/u));
+  });
+
+  it("recovers a withdrawn home allocation after successive revisions and a session restart", async () => {
+    const h = await createDecomposeTerminalFixture({ withHome: true });
+    const home = lifecycleSuccess(await readWorkUnit(h.store, "home"));
+    const reference = recordReferences["work-item/draft"](home.reference.owner);
+    const before = lifecycleSuccess(await h.store.read({ reference }));
+    const authored = await h.handEdit(before, `${before.content}\n## Scope\n\nOwned work.\n`);
+    const revised = structuredClone(h.map);
+    revised.authoring.shape = "symmetric";
+    revised.authoring.destinations = revised.authoring.destinations.filter(destination => destination.destinationId !== "z-home");
+    revised.authoring.sourceAllocations[0]!.disposition = { kind: "drop", reason: "The existing home owns none of this cut." };
+    await applyRevision(h.ctx, revised);
+    await applyRevision(h.ctx, revised);
+    expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(authored);
+
+    const fresh = decomposeContext(h.store);
+    fresh.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" }) };
+    const starter = await runStoreDecomposeRevisionStarter(fresh, "origin");
+    if (starter.status === "refused") throw new Error(JSON.stringify(starter));
+    expect(JSON.parse(starter.result)).toMatchObject({ status: "carried", map: revised, previousMaps: [h.map] });
+    const authoring = section("## 4. Author every reported destination", "## 5. Preview and approve the distribution");
+    expect(authoring).toMatch(softWrappedPattern(/compare[^.]*`previousMaps`[^.]*current\s+map/iu));
+    expect(authoring).toMatch(softWrappedPattern(/remove[^.]*withdrawn\s+obligations[^.]*surviving\s+former\s+destinations/iu));
+
+    await h.handEdit(authored, before.content);
+    const finish = await runStoreDecomposeFinish(fresh, "origin");
+    if (finish.status === "refused" || finish.result.kind !== "preview") throw new Error(JSON.stringify(finish));
+    expect(await runStoreDecomposeFinish(fresh, "origin", { applyAuthority: finish.result.applyAuthority }))
+      .toMatchObject({ status: "ok", result: { kind: "applied" } });
+    expect(lifecycleSuccess(await h.store.read({ reference })).content).toBe(before.content);
   });
 
   it("keeps the origin's name reserved at cohort creation and routes a later rename to revision", () => {
@@ -202,12 +245,34 @@ describe("decompose workflow contract", () => {
     expect(completion).toMatch(softWrappedPattern(/separately[^.]*authoring\s+edits[^.]*dependency\s+settlements[^.]*`records`/iu));
   });
 
-  it("reconciles withdrawn and reassigned obligations after a revision", () => {
+  it("authors the replacement after reassignment removes the former document group", async () => {
+    const h = await createDecomposeTerminalFixture();
+    const removed = lifecycleSuccess(await readWorkUnit(h.store, "member-a"));
+    const design = recordReferences["work-item/draft"](removed.reference.owner);
+    lifecycleSuccess(await h.store.read({ reference: design }));
+    const revised = structuredClone(h.map);
+    const former = revised.authoring.destinations[0];
+    if (former?.kind !== "new-member") throw new Error("Expected a new member.");
+    former.slug = "member-c";
+    for (const allocation of revised.authoring.sourceAllocations) {
+      if (allocation.disposition.kind === "target") allocation.disposition.targetLocator.artifact = "draft-member-c.md";
+    }
+    revised.authoring.internalEdges = [{ from: "member-c", to: "member-b" }];
+    for (const edge of revised.authoring.incomingDispositions) {
+      if (edge.disposition.kind === "replace") edge.disposition.replacementTargets = ["member-c"];
+    }
+    await applyRevision(h.ctx, revised);
+    expect(await h.store.read({ reference: design })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    const replacement = lifecycleSuccess(await readWorkUnit(h.store, "member-c"));
+    lifecycleSuccess(await h.store.read({ reference: recordReferences["work-item/draft"](replacement.reference.owner) }));
+
     const resume = section("arc decompose <origin> --revise <revised-map> --apply <applyAuthority>",
       "## 6. Apply the terminal batch");
     expect(resume).toMatch(softWrappedPattern(/step\s+4[^.]*approved\s+revised\s+map/u));
-    expect(resume).toMatch(softWrappedPattern(/remove[^.]*withdrawn\s+obligations[^.]*retained\s+destinations/iu));
-    expect(resume).toMatch(softWrappedPattern(/reassignments?[^.]*both\s+destinations/iu));
+    const authoring = section("## 4. Author every reported destination", "## 5. Preview and approve the distribution");
+    expect(`${resume}\n${authoring}`).not.toMatch(softWrappedPattern(/reassignments?[^.]*update\s+both\s+destinations/iu));
+    expect(authoring).toMatch(softWrappedPattern(/skip[^.]*removed\s+destinations/iu));
+    expect(authoring).toMatch(softWrappedPattern(/author[^.]*replacement[^.]*current\s+map/iu));
   });
 
   it("reviews an extraction's retained content at the distribution gate", () => {

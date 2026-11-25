@@ -6,7 +6,7 @@ import { basename, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { shippedMethodForm } from "../../helpers/shipped-method-form.js";
-import { softWrappedPattern, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+import { softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
@@ -19,7 +19,7 @@ const relativePaths = [
   "reference/strategies/arc/strategy-work-organization.md",
 ] as const;
 
-const EARLY_START = softWrappedPattern(/starting\s+one\s+before\s+the\s+terminal\s+batch\s+is\s+deliberate/iu);
+const EARLY_START = softWrappedProse("Starting one before the terminal batch is deliberate:");
 
 function assertExtractionDoctrine(workflow: string, strategy: string): void {
   expect(workflow).toMatch(softWrappedProse("Extraction writes no lineage record: its origin survives."));
@@ -58,5 +58,14 @@ describe("decomposition doctrine contract", () => {
     const withoutEarlyStart = workflow.replace(EARLY_START, "");
     expect(withoutEarlyStart).not.toBe(workflow);
     expect(() => assertExtractionDoctrine(withoutEarlyStart, strategy)).toThrow();
+  });
+
+  it("rejects a deliberate prohibition on starting before the terminal batch", () => {
+    const workflow = readFileSync(join(PACKAGE_ROOT, "arc", relativePaths[1]), "utf8");
+    const strategy = readFileSync(join(PACKAGE_ROOT, "arc", relativePaths[2]), "utf8");
+    const forbidden = workflow.replace(/Starting\s+one\s+before\s+the\s+terminal\s+batch\s+is\s+[^.]+\./u,
+      "Starting one before the terminal batch is deliberately forbidden.");
+    expect(forbidden).not.toBe(workflow);
+    expect(() => assertExtractionDoctrine(forbidden, strategy)).toThrow();
   });
 });

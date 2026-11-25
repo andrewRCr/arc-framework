@@ -1,5 +1,5 @@
 /** Stored authoring carries only across compatible source and edge changes. */
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { observedDecomposeWrite } from "../../../helpers/store/decompose-batch.js";
 import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -10,7 +10,7 @@ import { DecomposeRevisionStarterReportSchema } from "../../../../src/lib/decomp
 import type { DecomposeContext } from "../../../../src/lib/decompose/context.js";
 import { readWorkUnit, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { writeMetaDependsOn, writeMetaDesign, writeMetaCurrentWorkflow, writeMetaState, writeMetaNextAction } from "../../../../src/lib/store/kinds/meta/writers.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordReferences, RecordVersionSchema } from "../../../../src/lib/store/identity.js";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin.js";
 import { prepareDecomposePreflight } from "../../../../src/lib/decompose/preflight.js";
@@ -51,6 +51,18 @@ it("carries all stored authoring across a unique dropped-unit edit without writi
   expect(report).toMatchObject({ status: "carried", map: { authoring: h.map.authoring } });
   expect(result.result).toBe(canonicalize(report));
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
+});
+
+it("retries the starter when the selected map and current history head differ", async () => {
+  const h = await createDecomposeTerminalFixture();
+  const history = lifecycleSuccess(await h.store.history({ reference: h.applied.storedMap }));
+  vi.spyOn(h.store, "history").mockResolvedValueOnce({ status: "ok",
+    result: [{ ...history[0]!, version: RecordVersionSchema.parse("advanced-map-version") }, ...history] });
+  expect(await runStoreDecomposeRevisionStarter(h.ctx, "origin")).toMatchObject({ status: "refused", reason: "version-conflict",
+    class: "recoverable", message: expect.stringContaining("cut-map history"),
+    remedy: { argv: ["arc", "decompose", "origin", "--revise"] } });
+
+  expect(await revision(h.ctx)).toMatchObject({ status: "carried", previousMaps: [] });
 });
 
 async function integratingOrigin() {
@@ -193,7 +205,7 @@ it("does not carry authoring into another generation of the same origin name", a
   const fresh = await prepareDecomposePreflight(other.ctx, "origin");
   if (fresh.status === "refused") throw new Error(JSON.stringify(fresh));
   expect(fresh.result.machine.origin.uid).not.toBe(h.map.machine.origin.uid);
-  expect(rebindDecomposeMap(h.map, fresh.result.machine)).toMatchObject({ status: "ok", result: {
+  expect(rebindDecomposeMap(h.map, fresh.result.machine, [])).toMatchObject({ status: "ok", result: {
     status: "reauthor", reason: "source-identity", locus: "machine.origin", storedAuthoring: h.map.authoring } });
 });
 
