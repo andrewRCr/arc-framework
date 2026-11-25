@@ -97,8 +97,8 @@ left as recorded rather than edited to agree with the merge.
   `integration-lane` may consume its exact base/currentness result at the handoff seam, but should not own candidate
   reconstruction or require a broad freeze while private gates run.
 
-- _Captured during:_ `plan-segmentation`, the first stacked delivery after
-  `delivery-native-stack-composition`, 2026-09-09.
+- _Captured during:_ `plan-segmentation`, the first stacked delivery after `delivery-native-stack-composition`,
+  2026-09-09.
 
 ### `[ ]` **Provision plan-owned delivery gate checkouts before verification**
 
@@ -145,8 +145,8 @@ left as recorded rather than edited to agree with the merge.
 - _Boundary:_ this owns private candidate reconstruction after an approved delivery-member fix. It does not choose
   finding dispositions, weaken review or gate obligations, rewrite public history, or own provider restacking.
 
-- _Captured during:_ `plan-segmentation`, the first stacked delivery after
-  `delivery-native-stack-composition`, 2026-09-09.
+- _Captured during:_ `plan-segmentation`, the first stacked delivery after `delivery-native-stack-composition`,
+  2026-09-09.
 
 ### `[ ]` **Land the covered-input rule for ceremony repetition in a shared surface**
 
@@ -186,9 +186,8 @@ left as recorded rather than edited to agree with the merge.
 
 ### `[ ]` **Preserve evidence applicability throughout delivery prepublication**
 
-- _Routed from:_ `USER-INBOX § Work Unit`
-  (`WU_Target: delivery-prepublication-evidence-applicability (planned)`), routed at the
-  `concurrent-integration-characterization` close-out, 2026-09-14.
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: delivery-prepublication-evidence-applicability (planned)`),
+  routed at the `concurrent-integration-characterization` close-out, 2026-09-14.
 
 - _Observation:_ Private-delivery dogfooding exposed three connected evidence losses after
   `evidence-applicability`. First, one narrowly verified Candidate fix changed a private suffix and made every
@@ -329,12 +328,12 @@ Retiring them is part of this work's scope rather than a regression — a fix he
 and each is a single `expectPinnedObservation` call to replace. They retire independently, one per boundary.
 
 - `delivery-window-base-movement.test.ts` — "discards them when the base advances on a path no member touches"
-- `delivery-rebuild-base-movement.test.ts`
-  "admits a chain recut on the moved base, then refuses it after the gates would have run"
-- `delivery-rebuild-base-movement.test.ts`
-  "refuses the unchanged private candidates once the correction lands on the top"
+- `delivery-rebuild-base-movement.test.ts` "admits a chain recut on the moved base, then refuses it after the gates
+  would have run"
+- `delivery-rebuild-base-movement.test.ts` "refuses the unchanged private candidates once the correction lands on the
+  top"
 
-A probe that instead reports "the held result no longer describes what happens, and the awaited one has not
-arrived either" has found behavior neither shape names. That is a finding, not a retirement. The recorded
-observations and the reasoning behind each awaited result are in
-`notes-concurrent-integration-characterization.md` § Characterization ledger.
+A probe that instead reports "the held result no longer describes what happens, and the awaited one has not arrived
+either" has found behavior neither shape names. That is a finding, not a retirement. The recorded observations and the
+reasoning behind each awaited result are in `notes-concurrent-integration-characterization.md` § Characterization
+ledger.
