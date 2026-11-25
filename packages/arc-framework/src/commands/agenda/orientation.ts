@@ -126,10 +126,14 @@ export function compileUnconsumedSignals(input: Pick<AgendaCompileInput, "signal
 }
 
 /** Permit only a requested, bare-clean resume with no compiler-known blocker. */
-export function canAutoProceed(input: AgendaCompileInput, steps: AgendaStep[], metaContent: string | null): boolean {
-  if (!input.signals.next || !input.envelope.dirty.ok || input.envelope.dirty.value.state !== "clean" || metaContent === null) return false;
-  const meta = parseLifecycleMetaContent(metaContent);
-  if (!meta.success || meta.data.blockers !== null) return false;
+export function canAutoProceed(input: AgendaCompileInput, steps: AgendaStep[], metaContent: string | null,
+  projectedMetaContent: string | null): boolean {
+  if (!input.signals.next || !input.envelope.dirty.ok || input.envelope.dirty.value.state !== "clean") return false;
+  for (const content of new Set([metaContent, projectedMetaContent])) {
+    if (content === null) return false;
+    const meta = parseLifecycleMetaContent(content);
+    if (!meta.success || meta.data.blockers !== null) return false;
+  }
   return !steps.some(step => step.type === "offer"
     || ((step.type === "render" || step.type === "note") && step.surface !== "header" && step.surface !== "answered"));
 }

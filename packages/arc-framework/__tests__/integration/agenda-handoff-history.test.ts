@@ -42,14 +42,14 @@ it("reports the missing archived history and its remedy when comparing a reachab
   expect((await compileStateFreshness(f.store, baseline, item.reference, "andrew"))?.text).toContain("work-item/meta");
 });
 
-it("reports the shared handover without replaying the recipient's earlier scratch writes", async () => {
+it.each([false, true])("reports shared handover and includes scratch edits with a personal baseline=%s", async bounded => {
   const { a, b } = await refSyncFixture();
   const sender = createRefStore({ ...a.ports, identity: async () => SlugSchema.parse("alice"),
     actor: async () => "alice@00000000-0000-4000-8000-000000000001" });
-  const recipient = b.store; // The fixture configures this clone for andrew.
+  const recipient = bounded ? a : b; // Both fixture clones are configured for andrew.
   const scratch = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "andrew" },
     key: "scratch/before-handoff.md" });
-  success(await recipient.write({ action: "put", reference: scratch, expected: null, content: "Earlier work",
+  success(await recipient.store.write({ action: "put", reference: scratch, expected: null, content: "Earlier work",
     provenance: { verb: "save", lifecycleAction: "edit" } }));
 
   const primary = { action: "put" as const, placement: { kind: "active" as const },
@@ -64,10 +64,19 @@ it("reports the shared handover without replaying the recipient's earlier scratc
   if (anchored.version === undefined) throw new Error("Expected a saved handoff version");
   success(await sender.write({ ...primary, reference: created.reference, expected: anchored.version,
     content: writeMetaOwner(content, SlugSchema.parse("andrew")), provenance: { verb: "handover", lifecycleAction: "handover" } }));
-  success(await sender.push());
-  success(await recipient.pull());
+  if (!bounded) {
+    success(await sender.push());
+    success(await recipient.store.pull());
+  }
+  const after = RecordReferenceSchema.parse({ ...scratch, key: "scratch/after-handoff.md" });
+  success(await recipient.store.write({ action: "put", reference: after, expected: null, content: "Follow-up notes",
+    provenance: { verb: "save", lifecycleAction: "edit" } }));
+  const current = success(await recipient.store.version());
+  const changes = success(await recipient.store.changes({ from: stateAtHandoff, to: current }));
+  const personal = changes.filter(change => change.reference.kind === "personal/document").map(change => change.reference.key);
+  expect(personal).toEqual(bounded ? [after.key] : [scratch.key, after.key]);
 
-  const meta = success(await recipient.read({ reference: created.reference }));
+  const meta = success(await recipient.store.read({ reference: created.reference }));
   const owner = meta.reference.owner;
   if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected a UID for the handed-over unit");
   const metaPath = ".arc/active/meta-work.md";
@@ -75,9 +84,11 @@ it("reports the shared handover without replaying the recipient's earlier scratc
   const envelope = await sessionInitFixture({ derivedLocusState: async identity =>
     derivedFrameFromActive(active, identity, null, null, null, true, owner.uid) });
   const input = createAgendaFixtureInput(envelope);
-  const { steps } = await compileResumeContext({ ...input, entry: { ...input.entry, cwd: b.root, store: recipient },
+  const { steps } = await compileResumeContext({ ...input, entry: { ...input.entry, cwd: recipient.root, store: recipient.store },
     read: { ...input.read, exists: async path => path === metaPath, size: async () => meta.content.length, read: async () => meta.content } });
   const [note] = steps.flatMap(step => step.type === "note" && step.surface === "freshness-gap" ? [step.text] : []);
   expect(note).toContain("work-item/meta work by handover");
   expect(note).not.toContain("scratch/before-handoff.md");
+  if (bounded) expect(note).toContain("scratch/after-handoff.md");
+  else expect(note).not.toContain("scratch/after-handoff.md");
 });

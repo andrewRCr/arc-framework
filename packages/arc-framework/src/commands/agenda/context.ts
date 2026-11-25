@@ -5,7 +5,7 @@ import { resolveLoadSetManifest, type LoadSetSessionType } from "../../lib/load-
 import { readSessionNotesFields } from "../../lib/store/session-notes-fields.js";
 import { parseLifecycleMetaContent } from "../../lib/store/lifecycle-meta-content.js";
 import type { DerivedWorkUnitSubject } from "../../lib/locus/role-derivation.js";
-import { familyOf } from "../../lib/store/catalog.js";
+import { familyOf, type FamilyId } from "../../lib/store/catalog.js";
 import type { HistoryEntry, Store } from "../../lib/store/contract.js";
 import { OwnerIdentitySchema, recordReferences, sameReference, type RecordReference, type StateVersion } from "../../lib/store/identity.js";
 import type { StoreRefusal } from "../../lib/store/refusal.js";
@@ -29,7 +29,7 @@ interface HandoffFields {
 }
 
 /** Context reads and metadata retained for orientation decisions. */
-export interface AgendaResumeContext { steps: AgendaStep[]; metaContent: string | null }
+export interface AgendaResumeContext { steps: AgendaStep[]; metaContent: string | null; projectedMetaContent: string | null }
 /** An effective session type and any ignored-override warning. */
 export interface AgendaSessionType { sessionType: LoadSetSessionType | null; warning: Note | null }
 
@@ -47,8 +47,10 @@ export function resolveAgendaSessionType(current: LoadSetSessionType | null, aut
 /** Read current session fields before compiling their effective context. */
 export async function compileResumeContext(input: AgendaCompileInput): Promise<AgendaResumeContext> {
   const context = selectedAgendaContext(input);
-  if (context === null) return { steps: [], metaContent: null };
-  const fields = await readHandoffFields(input, context, () => optionalContent(input, context.metaPath));
+  if (context === null) return { steps: [], metaContent: null, projectedMetaContent: null };
+  const projectedMetaContent = input.signals.next || input.entry.store?.capabilities.stateOffBranch !== true
+    ? await optionalContent(input, context.metaPath) : null;
+  const fields = await readHandoffFields(input, context, projectedMetaContent);
   const { metaContent, sessionType: authored } = fields;
   const override = resolveAgendaSessionType(context.sessionType, authored);
   const effective = override.warning === null && authored !== null
@@ -61,15 +63,15 @@ export async function compileResumeContext(input: AgendaCompileInput): Promise<A
   if (override.warning !== null) steps.push(override.warning);
   const freshness = await fields.freshness();
   if (freshness !== null) steps.push(freshness);
-  return { steps, metaContent };
+  return { steps, metaContent, projectedMetaContent };
 }
 
-async function readHandoffFields(input: AgendaCompileInput, context: ResolvedContext, readProjectedMeta: () => Promise<string | null>): Promise<HandoffFields> {
+async function readHandoffFields(input: AgendaCompileInput, context: ResolvedContext, projectedMetaContent: string | null): Promise<HandoffFields> {
   const store = input.entry.store;
   if (store?.capabilities.stateOffBranch !== true) {
     const notesPath = context.loadSet.entries.find(entry => isDocument(entry.path, "SESSION-NOTES.md"))?.path;
     const notes = readSessionNotesFields(await optionalContent(input, notesPath) ?? "");
-    return { metaContent: await readProjectedMeta(), sessionType: notes.sessionType, sessionContextAbsent: false,
+    return { metaContent: projectedMetaContent, sessionType: notes.sessionType, sessionContextAbsent: false,
       freshness: () => compileHandoffFreshness(input, notes.commitAtHandoff, context.metaPath) };
   }
   const subject = enteringWorkUnit(input);
@@ -118,8 +120,10 @@ export async function compileCheckoutFreshness(input: AgendaCompileInput): Promi
   if (!frame.ok || frame.value.entering.kind !== "selected" || frame.value.entering.row.kind !== "work-unit") return null;
   const context = selectedAgendaContext(input);
   if (context === null) return null;
-  return (await readHandoffFields(input, context, () => Promise.resolve(null))).freshness();
+  return (await readHandoffFields(input, context, null)).freshness();
 }
+
+type FreshnessStore = Pick<Store, "version" | "changes" | "list">;
 
 /**
  * Compare the meta's recorded handoff state with the store's current version, listing each change since.
@@ -128,10 +132,10 @@ export async function compileCheckoutFreshness(input: AgendaCompileInput): Promi
  * @param store - The off-branch store the meta lives in.
  * @param baseline - The meta's `State at Handoff`.
  * @param metaReference - The entering work unit's exact meta reference.
- * @param identity - The resuming identity, to scope personal changes to the handoff owner.
+ * @param identity - The resuming identity, whose personal history needs a saved lower bound after a handover.
  * @returns A freshness note, or nothing when no change landed since the handoff.
  */
-export async function compileStateFreshness(store: Pick<Store, "version" | "changes">, baseline: StateVersion | null,
+export async function compileStateFreshness(store: FreshnessStore, baseline: StateVersion | null,
   metaReference: RecordReference, identity: string | null): Promise<Note | null> {
   const note = (text: string): Note => ({ type: "note", surface: "freshness-gap", text });
   if (baseline === null) return note("There is no handoff baseline for this session.");
@@ -142,13 +146,31 @@ export async function compileStateFreshness(store: Pick<Store, "version" | "chan
   if (changes.status === "refused") return unavailableFreshness(changes.refusal);
   const handoff = findBaselineWrite(changes.result, baseline, metaReference);
   const handoffOwner = handoff?.owner ?? null;
-  // A different identity's anchor cannot bound the resuming identity's personal history.
-  const sharedOnly = handoffOwner !== null && identity !== null && handoffOwner !== identity;
-  const since = changes.result.filter(entry => entry !== handoff?.entry
-    && (!sharedOnly || FAMILY_REGISTRY[familyOf(entry.reference.kind)].scope === "project"));
+  const entries = changes.result.filter(entry => entry !== handoff?.entry);
+  const since = handoffOwner !== null && identity !== null && handoffOwner !== identity
+    ? await boundedHandoverChanges(store, baseline, identity, entries) : entries;
+  if (!Array.isArray(since)) return since;
   if (since.length === 0) return null;
   const metaChanged = since.some(entry => isEnteringMeta(entry, metaReference));
   return note(`State changes since handoff ${baseline}:\n${since.map(describeChange).join("\n")}\nMeta changed: ${metaChanged ? "yes" : "no"}.`);
+}
+
+async function boundedHandoverChanges(store: FreshnessStore, baseline: StateVersion, identity: string,
+  entries: HistoryEntry[]): Promise<HistoryEntry[] | Note> {
+  const recipient = OwnerIdentitySchema.parse({ type: "person", name: identity });
+  const personal = new Set(entries.filter(({ reference }) => reference.owner.type === "person" && reference.owner.name === identity));
+  const bounded = new Set<FamilyId>();
+  for (const family of new Set([...personal].map(({ reference }) => familyOf(reference.kind)))) {
+    const listing = await store.list({ family, owner: recipient, asOf: baseline });
+    if (listing.status === "refused") return unavailableFreshness(listing.refusal);
+    if (listing.result.status === "unreadable") return unavailableFreshness(listing.result);
+    // A complete listing establishes the recipient's family at the baseline, even for newer records in it.
+    if (listing.result.status === "complete") bounded.add(family);
+  }
+  return entries.filter(entry => {
+    const family = familyOf(entry.reference.kind);
+    return FAMILY_REGISTRY[family].scope === "project" || (bounded.has(family) && personal.has(entry));
+  });
 }
 
 function findBaselineWrite(entries: HistoryEntry[], baseline: StateVersion, metaReference: RecordReference): { entry: HistoryEntry; owner: string | null } | null {
@@ -164,7 +186,7 @@ function isEnteringMeta(entry: HistoryEntry, metaReference: RecordReference): bo
   return entry.reference.kind === "work-item/meta" && sameReference(entry.reference, metaReference);
 }
 
-function unavailableFreshness(refusal: StoreRefusal): Note {
+function unavailableFreshness(refusal: Pick<StoreRefusal, "condition" | "remedy">): Note {
   return { type: "note", surface: "freshness-gap",
     text: `Freshness cannot be compared. ${refusal.condition}\n${refusal.remedy.text}` };
 }

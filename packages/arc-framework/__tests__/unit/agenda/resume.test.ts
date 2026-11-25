@@ -15,6 +15,14 @@ import { resolveTaskListCursor } from "../../../src/lib/task-list/cursor.js";
 import { compileSessionInitAgenda } from "../../../src/commands/agenda/compile.js";
 import { assertSessionInitAgenda, type AgendaSignals, type SessionInitAgenda } from "../../../src/commands/agenda/schema.js";
 import type { AgendaCompileInput } from "../../../src/commands/agenda/compile-input.js";
+import { writeMetaSessionContext, writeMetaStateAtHandoff } from "../../../src/lib/store/kinds/meta/writers.js";
+import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
+import { seed, success, update } from "../../helpers/store/suite-tools.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
+import { ENTRY_CONFIGS } from "../../../src/lib/store/kinds/entry-configs.js";
+import { PRODUCTION_REGISTRATIONS } from "../../../src/lib/store/kinds/registrations.js";
+import { createKindRegistry } from "../../../src/lib/store/registry.js";
+import { setMetaBulletFields } from "../../../src/lib/active/meta-reader.js";
 
 async function input(probes: SessionInitProbeOverrides = {}, signals: AgendaSignals = {}, stateOffBranch = false): Promise<AgendaCompileInput> {
   const active = activeSessionInit({ resolution: "single", path: ".arc/active/meta-work.md", sessionType: "execution", taskListPath: ".arc/active/tasks-work.md" });
@@ -51,6 +59,24 @@ describe("agenda work-unit resume", () => {
       { type: "render", surface: "header", text: "**ARC session initialized** · `feat/work` · clean" },
     ]));
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
+  });
+
+  it("withholds automatic proceed for a pending projected blocker in a clean checkout", async () => {
+    const value = await input({}, { next: true }, true);
+    const f = createReferenceFixture(ENTRY_CONFIGS, createKindRegistry(PRODUCTION_REGISTRATIONS));
+    const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "work" }));
+    const saved = writeMetaSessionContext(makeMetaFixture("work", { currentWorkflow: "process-task-loop" }), "Resume the parser.");
+    const record = await seed(f, reference, saved);
+    const baseline = success(await f.store.version());
+    const anchored = writeMetaStateAtHandoff(saved, baseline);
+    success(await f.store.write({ ...update(f, record, anchored), provenance: { verb: "handoff-write", lifecycleAction: "handoff" } }));
+    value.entry.store = f.store;
+    value.read.read = async () => anchored;
+    expect((await compile(value)).steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
+
+    value.read.read = async path => path === ".arc/active/meta-work.md"
+      ? setMetaBulletFields(anchored, { Blockers: "Waiting for an answer" }) : anchored;
+    expect((await compile(value)).steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
   });
 
   it.each(["partialPushMarker", "compactionAdvisory", "retiredSubdirs"] as const)("auto-proceeds on a clean --next resume when %s fails", async slot => {

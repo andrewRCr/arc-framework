@@ -19,6 +19,6 @@ export async function compileWorkUnitResume(input: AgendaCompileInput): Promise<
   const orientation = orderOrientationSurfaces(compileSessionOrientation(input, findings, sync));
   const steps = [...prefix, ...reads, ...orientation];
   return createSessionInitAgenda(input, { shape: "work-state" }, carryAgendaAnswers(input, [
-    ...steps, { type: "gate", kind: "proceed", autoProceed: canAutoProceed(input, steps, context.metaContent) },
+    ...steps, { type: "gate", kind: "proceed", autoProceed: canAutoProceed(input, steps, context.metaContent, context.projectedMetaContent) },
   ]));
 }
