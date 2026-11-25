@@ -45,6 +45,7 @@ import { readProjectIdentityBinding } from "../../src/lib/store/project-identity
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { readStoreRecord, seedStore } from "../helpers/store/seed-store.js";
+import { fixtureStore, stored } from "../helpers/store-session-personal-fixture.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 
@@ -105,8 +106,10 @@ async function seedErrandRecord(cwd: string, record: { slug: string; branch: str
 }
 
 /** Hold one Errand capture in the store's inbox, queued when a close should offer it next. */
-async function seedCapture(cwd: string, title: string, id: string, queued = false): Promise<void> {
-  const content = `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${title}**\n\n- _Id:_ \`${id}\`\n- _Created:_ \`2026-11-01\`\n`;
+async function seedCapture(cwd: string, title: string, id: string,
+  { queued, observation }: { queued?: boolean; observation?: string } = {}): Promise<void> {
+  const content = `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${title}**\n\n- _Id:_ \`${id}\`\n- _Created:_ \`2026-11-01\`\n`
+    + (observation === undefined ? "" : `\n- _Observation:_ ${observation}\n`);
   const queue = renderQueueSet({ reference: QUEUE, saved: null, members: [] }, [{ inbox: "personal", id }],
     new Map([[`personal:${id}`, title]])).content;
   await seedStore(cwd, IDENTITY, [{ reference: INBOX, content, expected: (await readStoreRecord(cwd, IDENTITY, INBOX)).version },
@@ -118,6 +121,18 @@ function openedBranch(result: unknown): string {
   const branch = (result as { identity?: { branch?: unknown } } | undefined)?.identity?.branch;
   if (typeof branch !== "string") throw new Error("The open reported no branch");
   return branch;
+}
+
+/** The specific claim that an Errand open established. */
+function openedClaimId(result: unknown): string {
+  const claimId = (result as { identity?: { claimId?: unknown } } | undefined)?.identity?.claimId;
+  if (typeof claimId !== "string") throw new Error("The open reported no claim ID");
+  return claimId;
+}
+
+/** A refused close must leave the same generation active and open. */
+function expectOpenErrand(errand: Awaited<ReturnType<typeof readErrand>>, claimId: string): void {
+  expect(errand).toMatchObject({ placement: "active", record: { claimId, state: "open" } });
 }
 
 /** Designate `origin` as the state remote, which only the store keeps. */
@@ -156,9 +171,8 @@ async function seedAwaitingV3Errand(cwd: string, slug: string): Promise<void> {
 }
 
 /** Seed one identity-only ordinary v3 open claim whose branch is preserved in base. */
-async function seedOpenV3Errand(cwd: string, slug: string): Promise<void> {
+async function seedOpenV3Errand(cwd: string, slug: string, branch = `chore/${slug}`): Promise<void> {
   const headSha = (await git(cwd, ["rev-parse", "HEAD"])).trim();
-  const branch = `chore/${slug}`;
   await git(cwd, ["branch", branch, headSha]);
   const record = {
     version: 3,
@@ -297,13 +311,16 @@ describe("arc errand merge", () => {
   });
 });
 
-async function createMergedGhFixture(cwd: string, slug: string, exactHead?: string): Promise<{
+async function createMergedGhFixture(cwd: string, slug: string, branch?: string, exactHead?: string): Promise<{
+  branchFile: string;
   ghDir: string;
   remoteDir: string;
   env: Record<string, string>;
 }> {
   const remoteDir = `${cwd}-${slug}-remote.git`;
   const ghDir = await mkdtemp(join(tmpdir(), "arc-gh-"));
+  const branchFile = join(ghDir, "merged-branch");
+  await writeFile(branchFile, branch ?? "", "utf-8");
   const headSha = exactHead ?? (await git(cwd, ["rev-parse", "HEAD"])).trim();
   const repositoryUrl = "https://github.com/owner/repo.git";
   await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
@@ -311,9 +328,7 @@ async function createMergedGhFixture(cwd: string, slug: string, exactHead?: stri
   await git(cwd, ["remote", "add", "origin", repositoryUrl]);
   await git(cwd, ["push", "-u", "origin", "main"]);
   await designateStateRemote(cwd);
-  // The store suffixes an opened Errand's branch with the generation it mints, so the host answers for the branch it is
-  // asked about: the slug's own, or that branch suffixed. The store's close also asks for the merge commit, to record
-  // where the Errand landed; this host reports the change's head, as a fast-forward landing would.
+  // The store's close also asks for the merge commit. The host reports the change's head as a fast-forward landing would.
   const exactArgs = "pr list --repo owner/repo --state merged --head $head --limit 2 --json baseRefName,headRefName,headRefOid";
   const lifecycleArgs = "pr list --repo owner/repo --state all --head $head --limit 100"
     + " --json number,state,baseRefName,headRefName,headRefOid,reviewDecision";
@@ -325,23 +340,32 @@ async function createMergedGhFixture(cwd: string, slug: string, exactHead?: stri
     '  if [ "$previous" = "--head" ]; then head="$argument"; fi',
     '  previous="$argument"',
     "done",
-    'case "$head" in',
-    `  chore/${slug}|chore/${slug}-????????) ;;`,
-    '  *) printf \'unexpected gh invocation: %s\\n\' "$*" >&2; exit 2 ;;',
-    "esac",
+    'branch=$(cat "$ARC_TEST_MERGED_BRANCH_FILE")',
+    'respond() {',
+    '  if [ -n "$branch" ] && [ "$head" = "$branch" ]; then printf "$1" "$branch"; else printf "[]\\n"; fi',
+    '}',
     'case "$*" in',
-    `  "${exactArgs}") printf '[{"baseRefName":"main","headRefName":"%s","headRefOid":"${headSha}"}]\\n' "$head" ;;`,
-    `  "${lifecycleArgs}") printf '[{"number":1,"state":"MERGED","baseRefName":"main","headRefName":"%s",`
-      + `"headRefOid":"${headSha}","reviewDecision":"APPROVED"}]\\n' "$head" ;;`,
-    `  "${lifecycleArgs},mergeCommit") printf '[{"number":1,"state":"MERGED","baseRefName":"main","headRefName":"%s",`
-      + `"headRefOid":"${headSha}","reviewDecision":"APPROVED","mergeCommit":{"oid":"${headSha}"}}]\\n' "$head" ;;`,
+    `  "${exactArgs}") respond '[{"baseRefName":"main","headRefName":"%s","headRefOid":"${headSha}"}]\\n' ;;`,
+    `  "${lifecycleArgs}") respond '[{"number":1,"state":"MERGED","baseRefName":"main","headRefName":"%s",`
+      + `"headRefOid":"${headSha}","reviewDecision":"APPROVED"}]\\n' ;;`,
+    `  "${lifecycleArgs},mergeCommit") respond '[{"number":1,"state":"MERGED","baseRefName":"main","headRefName":"%s",`
+      + `"headRefOid":"${headSha}","reviewDecision":"APPROVED","mergeCommit":{"oid":"${headSha}"}}]\\n' ;;`,
     '  *) printf \'unexpected gh invocation: %s\\n\' "$*" >&2; exit 2 ;;',
     "esac",
     "",
   ].join("\n");
   await writeFile(join(ghDir, "gh"), script, "utf-8");
   await chmod(join(ghDir, "gh"), 0o755);
-  return { ghDir, remoteDir, env: { PATH: `${ghDir}:${process.env.PATH ?? ""}` } };
+  return { branchFile, ghDir, remoteDir, env: {
+    PATH: `${ghDir}:${process.env.PATH ?? ""}`, ARC_TEST_MERGED_BRANCH_FILE: branchFile,
+  } };
+}
+
+/** Record the opened checkout's exact branch before subsequent steps can switch away from it. */
+function recordMergedBranch(branchFile: string): { command: readonly string[] } {
+  const script = "const { execFileSync } = require('node:child_process');"
+    + "require('node:fs').writeFileSync(process.argv[1], execFileSync('git', ['symbolic-ref', '--short', 'HEAD']));";
+  return { command: [process.execPath, "-e", script, branchFile] };
 }
 
 describe("arc errand check", () => {
@@ -1032,7 +1056,7 @@ describe("arc errand close", () => {
     await git(tmpDir, ["add", "-A"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
     // The store offers the next Errand from the person's queue.
-    await seedCapture(tmpDir, offeredTitle, "0a1b2c3d", true);
+    await seedCapture(tmpDir, offeredTitle, "0a1b2c3d", { queued: true });
     const remoteDir = await createBareRemote(tmpDir, slug);
     try {
       const result = await runArcAnchoredSequence([
@@ -1077,7 +1101,7 @@ describe("arc errand close", () => {
       });
       const branch = openedBranch(result.results[0]);
       expect(await git(tmpDir, ["branch", "--list", branch])).toContain(branch);
-      expect((await readErrand(tmpDir, slug)).record).toMatchObject({ state: "open" });
+      expectOpenErrand(await readErrand(tmpDir, slug), openedClaimId(result.results[0]));
     } finally {
       await cleanupTempDir(remoteDir);
     }
@@ -1093,7 +1117,7 @@ describe("arc errand close", () => {
       await git(tmpDir, ["remote", "add", "origin", remoteDir]);
       await git(tmpDir, ["push", "-u", "origin", "main"]);
       // The store offers the next Errand from the person's queue.
-      await seedCapture(tmpDir, offeredTitle, "0a1b2c3d", true);
+      await seedCapture(tmpDir, offeredTitle, "0a1b2c3d", { queued: true });
       const result = await runArcAnchoredSequence([
         { command: [process.execPath, CLI_PATH, "errand", "open", "direct-fix", "--json"] },
         { command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "fix direct"] },
@@ -1120,6 +1144,30 @@ describe("arc errand close", () => {
     }
   });
 
+  it.each([
+    ["merged", "2", "baseRefName,headRefName,headRefOid"],
+    ["all", "100", "number,state,baseRefName,headRefName,headRefOid,reviewDecision"],
+    ["all", "100", "number,state,baseRefName,headRefName,headRefOid,reviewDecision,mergeCommit"],
+  ])("reports only the seeded generation for PR queries with state %s (%s, %s)", async (state, limit, fields) => {
+    const branch = "chore/repair-12345678";
+    await seedOpenV3Errand(tmpDir, "repair", branch);
+    const head = (await git(tmpDir, ["rev-parse", branch])).trim();
+    const host = await createMergedGhFixture(tmpDir, "repair", branch, head);
+    try {
+      const query = async (headRef: string): Promise<unknown> => {
+        const { stdout } = await execFileAsync("bash", [
+          join(host.ghDir, "gh"), "pr", "list", "--repo", "owner/repo", "--state", state,
+          "--head", headRef, "--limit", limit, "--json", fields], { cwd: tmpDir, env: { ...process.env, ...host.env } });
+        return JSON.parse(stdout);
+      };
+      expect(await query(branch)).toMatchObject([{ headRefName: branch, headRefOid: head }]);
+      expect(await query("chore/repair-deadbeef")).toEqual([]);
+    } finally {
+      await cleanupTempDir(host.ghDir);
+      await cleanupTempDir(host.remoteDir);
+    }
+  });
+
   it("finalizes an ordinary v3 Errand from exact merged host truth", async () => {
     const slug = "merged-v3";
     const branch = `chore/${slug}`;
@@ -1131,7 +1179,7 @@ describe("arc errand close", () => {
     await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "tracked Errand change"]);
     const head = (await git(tmpDir, ["rev-parse", "HEAD"])).trim();
     await git(tmpDir, ["switch", "main"]);
-    const host = await createMergedGhFixture(tmpDir, slug, head);
+    const host = await createMergedGhFixture(tmpDir, slug, branch, head);
     try {
       const result = await runArcAnchoredSequence([
         [
@@ -1158,7 +1206,7 @@ describe("arc errand close", () => {
     await setFullProtection(tmpDir);
     await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
-    const host = await createMergedGhFixture(tmpDir, slug);
+    const host = await createMergedGhFixture(tmpDir, slug, branch);
     try {
       await seedOpenV3Errand(tmpDir, slug);
       await git(tmpDir, ["push", "-u", "origin", branch]);
@@ -1193,6 +1241,7 @@ describe("arc errand close", () => {
     try {
       const result = await runArcAnchoredSequence([
         ["errand", "open", slug, "--json"],
+        recordMergedBranch(host.branchFile),
         { command: ["git", "switch", "main"] },
         ["errand", "close", slug, "--json"],
       ], tmpDir, { env: host.env, timeout: 60_000 });
@@ -1217,6 +1266,7 @@ describe("arc errand close", () => {
     try {
       const result = await runArcAnchoredSequence([
         ["errand", "open", slug, "--json"],
+        recordMergedBranch(host.branchFile),
         ["errand", "close", slug, "--json"],
       ], tmpDir, { env: host.env, timeout: 60_000 });
 
@@ -1242,6 +1292,7 @@ describe("arc errand close", () => {
     try {
       const result = await runArcAnchoredSequence([
         ["errand", "open", slug, "--json"],
+        recordMergedBranch(host.branchFile),
         {
           command: [
             process.execPath,
@@ -1260,7 +1311,7 @@ describe("arc errand close", () => {
       });
       expect((await git(tmpDir, ["symbolic-ref", "--quiet", "--short", "HEAD"])).trim())
         .toBe(openedBranch(result.results[0]));
-      expect((await readErrand(tmpDir, slug)).record).toMatchObject({ state: "open" });
+      expectOpenErrand(await readErrand(tmpDir, slug), openedClaimId(result.results[0]));
     } finally {
       await cleanupTempDir(host.ghDir);
       await cleanupTempDir(host.remoteDir);
@@ -1280,7 +1331,8 @@ describe("arc errand close", () => {
     try {
       const result = await runArcAnchoredSequence([
         ["errand", "open", slug, "--json"],
-        { args: ["errand", "close", slug, "--json"], cwdFromPreviousJson: "allocation.checkoutPath" },
+        { ...recordMergedBranch(host.branchFile), cwdFromPreviousJson: "allocation.checkoutPath" },
+        { args: ["errand", "close", slug, "--json"], reuseResolvedCwd: true },
       ], tmpDir, { env: host.env, timeout: 60_000 });
 
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
@@ -1356,6 +1408,7 @@ describe("arc errand close", () => {
           { env: host.env, timeout: 60_000 });
         expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
         const branch = openedBranch(opened.results[0]);
+        await writeFile(host.branchFile, branch, "utf-8");
         const result = await runArcAnchoredSequence([
           { command: ["git", "push", "-u", "origin", branch] },
           {
@@ -1434,6 +1487,7 @@ describe("arc errand close", () => {
           { env: host.env, timeout: 60_000 });
         expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
         const branch = openedBranch(opened.results[0]);
+        await writeFile(host.branchFile, branch, "utf-8");
         const result = await runArcAnchoredSequence([
           { command: ["git", "push", "-u", "origin", branch] },
           {
@@ -1495,6 +1549,7 @@ describe("arc errand close", () => {
         ], tmpDir, { env: host.env, timeout: 60_000 });
         expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
         const branch = openedBranch(opened.results[0]);
+        await writeFile(host.branchFile, branch, "utf-8");
         const result = await runArcAnchoredSequence([
           { command: ["git", "push", "-u", "origin", branch] },
           { command: ["git", "switch", "main"] },
@@ -1509,7 +1564,7 @@ describe("arc errand close", () => {
         expect(await git(tmpDir, ["branch", "--list", branch])).toContain(branch);
         expect(await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).toContain(branch);
         const errand = await readErrand(tmpDir, slug);
-        expect(errand.record).toMatchObject({ state: "open" });
+        expectOpenErrand(errand, openedClaimId(opened.results[0]));
         // The open moved the capture into the Errand's description, where the refused close leaves it.
         const description = await readStoreRecord(tmpDir, IDENTITY, recordReferences["work-item/description"](errand.owner));
         expect(description.content).toContain(`**${captureTitle}**`);
@@ -1534,6 +1589,7 @@ describe("arc errand close", () => {
     try {
       const result = await runArcAnchoredSequence([
         ["errand", "open", slug, "--json"],
+        recordMergedBranch(host.branchFile),
         { command: ["git", "switch", "main"] },
         { command: [process.execPath, "-e", `require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "{")`] },
         ["errand", "close", slug, "--json"],
@@ -1545,7 +1601,7 @@ describe("arc errand close", () => {
       });
       const branch = openedBranch(result.results[0]);
       expect(await git(tmpDir, ["branch", "--list", branch])).toContain(branch);
-      expect((await readErrand(tmpDir, slug)).record).toMatchObject({ state: "open" });
+      expectOpenErrand(await readErrand(tmpDir, slug), openedClaimId(result.results[0]));
     } finally {
       await cleanupTempDir(host.ghDir);
       await cleanupTempDir(host.remoteDir);
@@ -1566,6 +1622,7 @@ describe("arc errand close", () => {
         ["errand", "open", slug, "--json"],
       ], tmpDir, { env: host.env });
       expect(opened.exitCode).toBe(0);
+      await writeFile(host.branchFile, openedBranch(opened.results[0]), "utf-8");
       const result = await runArcAnchoredSequence([
         ["errand", "close", slug, "--json"],
       ], observerDir, { env: host.env });
@@ -1578,7 +1635,7 @@ describe("arc errand close", () => {
         generation: expect.stringMatching(new RegExp(`^errand-v1/${slug}/`, "u")),
         destructiveEffect: "close and retire this Errand",
       });
-      expect((await readErrand(tmpDir, slug)).record).toMatchObject({ state: "open" });
+      expectOpenErrand(await readErrand(tmpDir, slug), openedClaimId(opened.results[0]));
     } finally {
       await git(tmpDir, ["worktree", "remove", "--force", observerDir]);
       await cleanupTempDir(host.ghDir);
@@ -1637,11 +1694,13 @@ describe("arc errand close", () => {
     await setFullProtection(tmpDir);
     await git(tmpDir, ["add", "-A"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
-    await seedCapture(tmpDir, "Drain me", "0a1b2c3d");
+    const observation = "The second receipt is missing its timestamp.";
+    await seedCapture(tmpDir, "Drain me", "0a1b2c3d", { observation });
     const host = await createMergedGhFixture(tmpDir, "adopt-it");
     try {
       const sequence = await runArcAnchoredSequence([
         ["errand", "open", "adopt-it", "--from-inbox", "personal:0a1b2c3d", "--json"],
+        recordMergedBranch(host.branchFile),
         ["errand", "close", "adopt-it", "--json"],
       ], tmpDir, { env: host.env });
 
@@ -1656,6 +1715,10 @@ describe("arc errand close", () => {
       const errand = await readErrand(tmpDir, "adopt-it");
       expect(errand).toMatchObject({ placement: "completed",
         record: { version: 3, slug: "adopt-it", origin: "inbox", originEntry: "personal:0a1b2c3d" } });
+      const reference = recordReferences["work-item/description"](errand.owner);
+      const description = await readStoreRecord(tmpDir, IDENTITY, reference);
+      expect(description.content).toContain(observation);
+      expect(description.content).toContain("- _Id:_ `0a1b2c3d`");
       expect((await readStoreRecord(tmpDir, IDENTITY, INBOX)).content).not.toContain("**Drain me**");
     } finally {
       await cleanupTempDir(host.ghDir);
@@ -1720,6 +1783,7 @@ describe("arc errand close over the in-repo store", () => {
     try {
       const sequence = await runArcAnchoredSequence([
         ["errand", "open", "safe-title", "--inbox-title-file", operandPath, "--json"],
+        recordMergedBranch(host.branchFile),
         { command: inspectIdentityCommand("safe-title") },
         ["errand", "close", "safe-title", "--json"],
       ], tmpDir, { env: host.env });
@@ -1985,10 +2049,13 @@ describe("arc errand promote", () => {
     const opened = await runArcAnchoredSequence([["errand", "open", slug, "--json"]], tmpDir, { timeout: 60_000 });
     expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
     const errand = await readErrand(tmpDir, slug);
+    const store = fixtureStore(tmpDir, IDENTITY);
+    const from = stored(await store.version());
     const promoted = await runArcAnchored(
       ["errand", "promote", slug, "--name", "growth", "--type", "feat", "--floor", "scale", "--json"],
       tmpDir, { timeout: 60_000 },
     );
+    const to = stored(await store.version());
 
     expect(promoted.exitCode, promoted.stdout + promoted.stderr).toBe(0);
     await assertEditorDocumentsProvisioned(tmpDir);
@@ -2004,12 +2071,21 @@ describe("arc errand promote", () => {
       settlement: { state: "settled", identity: "retired" },
     });
     // The store promotes the Errand's own work item, whose checkout passes to the new work unit.
-    const meta = await readStoreRecord(tmpDir, IDENTITY, recordReferences["work-item/meta"](
-      OwnerIdentitySchema.parse({ type: "work-item", name: "growth" })));
+    const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "growth" }));
+    const meta = await readStoreRecord(tmpDir, IDENTITY, reference);
     const uid = ownerUid(errand.owner);
     expect(uid).toEqual(expect.any(String));
     expect(ownerUid(meta.reference.owner)).toBe(uid);
     expect(meta.placement?.kind).toBe("active");
+    const changes = stored(await store.changes({ from, to }));
+    const receipt = `errand-v1/${slug}/${openedClaimId(opened.results[0])}`;
+    expect(changes).toContainEqual(expect.objectContaining({
+      reference: meta.reference,
+      content: expect.stringContaining(`- **Promotion Receipt:** \`${receipt}\``),
+      provenance: expect.objectContaining({ verb: "errand-promote", lifecycleAction: "promote" }),
+    }));
+    const batches = new Set(changes.map(({ provenance }) => "batchId" in provenance ? provenance.batchId : undefined));
+    expect([...batches]).toEqual([expect.any(String)]);
     expect(JSON.parse(await readFile(markerPath, "utf-8"))).toMatchObject({
       createdFor: { kind: "work-unit", name: "growth", uid },
     });
@@ -2129,7 +2205,7 @@ describe("the Errand close boundary after the base advances", () => {
     await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "tracked Errand change"]);
     const head = (await git(tmpDir, ["rev-parse", "HEAD"])).trim();
     await git(tmpDir, ["switch", "main"]);
-    return await createMergedGhFixture(tmpDir, slug, head);
+    return await createMergedGhFixture(tmpDir, slug, `chore/${slug}`, head);
   }
 
   function closeArgs(slug: string): readonly string[] {

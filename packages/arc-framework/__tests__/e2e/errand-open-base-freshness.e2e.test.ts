@@ -86,11 +86,13 @@ describe("warm Errand base freshness", () => {
     const designated = await runArc(["store", "remote", "origin", "push"], repository);
     expect(designated.exitCode, designated.stderr).toBe(0);
     await git(repository, ["worktree", "add", parent, "-b", "feat/parent", "main"]);
+    await writeFile(join(parent, "parent.ts"), "export const parent = true;\n");
+    parentHead = await commitFixture(parent, "add parent work");
     await establishWorkUnit(parent, "parent", "test-user");
     await git(repository, ["switch", "-c", "feat/foreign"]);
+    await writeFile(join(repository, "foreign.ts"), "export const foreign = true;\n");
+    foreignHead = await commitFixture(repository, "add foreign work");
     await establishWorkUnit(repository, "foreign", "test-user");
-    parentHead = await git(parent, ["rev-parse", "HEAD"]);
-    foreignHead = await git(repository, ["rev-parse", "HEAD"]);
     parentMeta = await readMeta(repository, "parent");
     foreignMeta = await readMeta(repository, "foreign");
     await writeFile(join(parent, "unfinished.txt"), "parent work in progress\n");
@@ -128,6 +130,10 @@ describe("warm Errand base freshness", () => {
     const opened = result.results[0] as OpenResult;
     return opened;
   }
+
+  it("starts with distinct tips for the base and both work units", () => {
+    expect(new Set([base, parentHead, foreignHead]).size).toBe(3);
+  });
 
   it.each(["stale", "current"] as const)("starts at the resolved %s base without changing other work units", async (state) => {
     const expected = state === "stale" ? await advanceRemote() : base;

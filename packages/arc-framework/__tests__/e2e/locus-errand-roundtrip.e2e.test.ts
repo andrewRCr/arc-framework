@@ -166,11 +166,16 @@ describe("ordinary Errand promotion", () => {
 
       expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
       const [opened, left] = sequence.results as [
-        Record<string, unknown>,
+        Record<string, unknown> & { identity: { claimId: string } },
         Record<string, unknown>,
       ];
+      const branch = openedBranch(opened);
+      const claimId = opened.identity.claimId;
+      const published = await git(remote, ["rev-parse", `refs/heads/${branch}`]);
+      const base = await git(repository, ["rev-parse", "main"]);
+      expect(published).not.toBe(base);
       // The store keeps the Errand's record, so only its local branch goes; materializing takes the code from origin.
-      await git(repository, ["branch", "-D", openedBranch(opened)]);
+      await git(repository, ["branch", "-D", branch]);
       await resetEditorDocumentsProvisioning(repository);
       const materialization = await runArcAnchoredSequence([["errand", "materialize", slug, "--json"]], repository, {
         timeout: 90_000, anchorShellPath: harness.executable,
@@ -178,11 +183,11 @@ describe("ordinary Errand promotion", () => {
       });
       expect(materialization.exitCode, materialization.stderr || materialization.stdout).toBe(0);
       const materialized = materialization.results[0] as Record<string, unknown>;
-      expect(opened).toMatchObject({ outcome: "applied", operation: "errand-open" });
+      expect(opened).toMatchObject({ outcome: "applied", operation: "errand-open", identity: { claimId: expect.any(String) } });
       expect(left).toMatchObject({
         outcome: "applied",
         operation: "errand-leave",
-        subject: { kind: "errand", slug, claimId: expect.any(String) },
+        subject: { kind: "errand", slug, claimId },
         generation: expect.any(String),
         settlement: {
           kind: "identity-tail",
@@ -198,18 +203,19 @@ describe("ordinary Errand promotion", () => {
         outcome: "applied",
         operation: "errand-materialize",
         allocation: { kind: "spawned" },
-        identity: { state: "open", changeRequest: null },
+        identity: { claimId, state: "open", changeRequest: null },
       });
       const result = materialized as {
         allocation: { checkoutPath: string };
-        identity: { claimId: string };
       };
       await assertEditorDocumentsProvisioned(result.allocation.checkoutPath);
       expect(await readMaterializedMarker(result.allocation.checkoutPath)).toMatchObject({
         spawnedByArc: true,
-        createdFor: { kind: "errand", slug, claimId: result.identity.claimId },
+        createdFor: { kind: "errand", slug, claimId },
         provisioning: "ready",
       });
+      expect(await git(result.allocation.checkoutPath, ["branch", "--show-current"])).toBe(branch);
+      expect(await git(result.allocation.checkoutPath, ["rev-parse", "HEAD"])).toBe(published);
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);
