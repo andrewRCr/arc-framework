@@ -11,6 +11,7 @@ import type { Store } from "../lib/store/contract.js";
 import type { StoreCreationDesignationResult } from "../lib/store/commands.js";
 import { createStore, runStoreCreationDesignation } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { projectPull } from "../lib/store/operational-sync-bindings.js";
 import { mintProjectIdentity } from "../lib/store/project-identity.js";
 import type { Remedy } from "../lib/store/refusal.js";
 import { createStoreCommandPorts } from "./store-ports.js";
@@ -352,7 +353,7 @@ export async function runInit(
   }
 }
 
-/** Designate the state remote at creation, or pull the one a remote already carries, refusing on any failure. */
+/** Designate the state remote at creation and acquire its registry before init can mint an identity. */
 async function prepareStateRemote(store: Store, designate: () => Promise<StoreCreationDesignationResult>): Promise<void> {
   const designation = await designate();
   if (designation.status === "refused") {
@@ -360,11 +361,19 @@ async function prepareStateRemote(store: Store, designate: () => Promise<StoreCr
     throw stateRemoteError("ARC could not designate this project's state remote", refusal);
   }
   if (designation.status === "confirmation-needed") throw stateRemoteError("ARC could not designate this project's state remote", designation);
-  if (designation.result.state !== "designated") return;
+  if (designation.result.state === "local") return;
   const pulled = await store.pull();
   if (pulled.status === "refused") throw stateRemoteError("ARC could not pull the designated state remote", pulled.refusal);
   const failed = pulled.result.pulls.find(outcome => outcome.status === "failed");
-  if (failed?.status === "failed") throw stateRemoteError(`ARC could not pull state remote ${failed.remote}`, failed.failure);
+  if (failed) throw stateRemoteError(`ARC could not pull state remote ${failed.remote}`, failed.failure);
+  const result = projectPull(pulled.result);
+  if (result.status === "incomplete") throw stateRemoteError("ARC could not pull the designated state remote", result);
+  if (result.status === "designation-needed") throw stateRemoteError("ARC could not pull the designated state remote", {
+    condition: `Remote ${result.remote} needs a store designation.`, remedy: result.remedy,
+  });
+  const notice = result.notices?.find(item => item.kind === "tracking-update-failed"
+    && item.ref === "refs/arc/project/registry");
+  if (notice) throw stateRemoteError("ARC could not pull the project registry", notice);
 }
 
 function stateRemoteError(whatHappened: string, cause: { condition: string; remedy: Remedy }): UserFacingError {

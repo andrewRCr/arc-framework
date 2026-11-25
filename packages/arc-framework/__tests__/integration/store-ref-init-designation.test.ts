@@ -4,16 +4,17 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { runInit, type InitOptions } from "../../src/commands/init.js";
 import { runJoin } from "../../src/commands/join.js";
-import { createRefStore, runStoreCreationDesignation } from "../../src/lib/store/create.js";
+import { createRefStore, runStoreCreationDesignation, runStoreRemote } from "../../src/lib/store/create.js";
 import { createDefaultRefStorePorts, createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { readProjectIdentityBinding } from "../../src/lib/store/project-identity.js";
 import { DEFAULT_PROMPTS, createTempRepo, makeIOContext } from "../helpers/integration.js";
 import { getArcTemplatePath, getInternalTemplatePath, loadRecipe } from "../helpers/init-temp-repo.js";
 import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 import { createReviewHarness } from "../helpers/store/review-harness.js";
+import { plantRef } from "../helpers/store/ref-plant.js";
 import { commitAll, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const exec = promisify(execFile);
@@ -27,15 +28,16 @@ async function bareRemote(): Promise<string> {
   return path;
 }
 
-async function repository(remote: string | null) {
+async function repository(remote: string | null, identityless = false) {
   const cwd = await createTempRepo();
   onTestFinished(() => removeGitBackedDir(cwd));
   if (remote !== null) await git(cwd, "remote", "add", "origin", remote);
-  return checkout(cwd);
+  return checkout(cwd, identityless);
 }
 
-function checkout(cwd: string) {
+function checkout(cwd: string, identityless = false) {
   const ports = createDefaultRefStorePorts({ checkoutRoot: cwd, backingRepository: async () => null });
+  if (identityless) ports.identity = async () => null;
   return { cwd, ports, store: createRefStore(ports) };
 }
 
@@ -66,7 +68,8 @@ async function roles(cwd: string): Promise<string> {
 }
 
 it.each(["test-user", null])("designates the code remote and mints a project ID in place, with identity %s", async identity => {
-  const r = await repository(await bareRemote());
+  const r = await repository(await bareRemote(), identity === null);
+  expect(await r.ports.identity()).toBe(identity);
   await init(r, identity);
   expect(await roles(r.cwd)).toBe("remote.origin.arc-state push");
   expect((await readProjectIdentityBinding(r.store)).id).toMatch(UUID);
@@ -103,6 +106,136 @@ it("pulls a designated remote first and adopts the project ID it holds", async (
   await git(second.cwd, "config", "remote.origin.arc-state", "push");
   await init(second, "other-user");
   expect((await readProjectIdentityBinding(second.store)).id).toBe(minted);
+}, 90_000);
+
+it("reports a registry lock and mints the first project ID on retry", async () => {
+  const r = await repository(null);
+  const refusal = { code: "lock-held", class: "recoverable", lock: "refs/arc/tmp/version.lock",
+    condition: "Another Git writer holds the version lock.", remedy: { text: "Retry after the Git writer finishes." } } as const;
+  vi.spyOn(r.store, "list").mockResolvedValueOnce({ status: "refused", refusal });
+
+  await expect.soft(init(r, null)).rejects.toMatchObject({ failure: { reason: refusal.condition, remedy: refusal.remedy } });
+  await init(r, null);
+  expect((await readProjectIdentityBinding(r.store)).id).toMatch(UUID);
+}, 60_000);
+
+it("preserves an explicit off role set before creation acquires the migration lock", async () => {
+  const r = await repository(await bareRemote());
+  const designation = await runStoreCreationDesignation({ ...r.ports, lock: async (ref, waitMs) => {
+    if (ref === "migrate") {
+      expect(await runStoreRemote(r.ports, { remote: "origin", role: "off" })).toMatchObject({ status: "ok" });
+    }
+    return r.ports.lock(ref, waitMs);
+  } });
+  expect.soft(designation).toEqual({ status: "ok", result: { state: "designated" } });
+  expect(await roles(r.cwd)).toBe("remote.origin.arc-state off");
+  await init(r);
+  expect((await readProjectIdentityBinding(r.store)).id).toMatch(UUID);
+}, 60_000);
+
+it("initializes locally when backing is the only code repository remote", async () => {
+  const r = await repository(null);
+  await git(r.cwd, "remote", "add", "backing", await bareRemote());
+  await expect(init(r, null)).resolves.not.toBeNull();
+  expect(await roles(r.cwd)).toBe("");
+  expect((await readProjectIdentityBinding(r.store)).id).toMatch(UUID);
+}, 60_000);
+
+it("designates origin when the code repository's backing remote carries an off role", async () => {
+  const r = await repository(await bareRemote());
+  await git(r.cwd, "remote", "add", "backing", await bareRemote());
+  await git(r.cwd, "config", "remote.backing.arc-state", "off");
+  await init(r, null);
+  expect((await roles(r.cwd)).split("\n")).toContain("remote.origin.arc-state push");
+}, 60_000);
+
+it("refuses to mint while the registry tracking ref is locked and adopts the published ID on retry", async () => {
+  const remote = await bareRemote(), source = await repository(remote);
+  await init(source, null);
+  const { id } = await readProjectIdentityBinding(source.store);
+  expect(await source.store.push()).toMatchObject({ status: "ok" });
+  const registry = "refs/arc/project/registry";
+  expect(await git(remote, "rev-parse", "--verify", registry)).toBe(await git(source.cwd, "rev-parse", "--verify", registry));
+
+  const target = await repository(remote);
+  await git(target.cwd, "config", "remote.origin.arc-state", "push");
+  const lock = join(target.cwd, ".git", "refs/arc-remotes/origin/project/registry.lock");
+  await mkdir(dirname(lock), { recursive: true });
+  await writeFile(lock, "");
+
+  const attempt = init(target, null).then(async () => ({ sourceId: id, installedId: (await readProjectIdentityBinding(target.store)).id }));
+  await expect(attempt).rejects.toMatchObject({
+    code: "init.state-remote", why: expect.stringContaining("registry.lock"), whatToDo: expect.stringMatching(/Git (writer|process)/iu),
+  });
+  await expect(readProjectIdentityBinding(target.store)).rejects.toThrow("Project identity record is missing.");
+  await rm(lock);
+  await init(target, null);
+  expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
+}, 90_000);
+
+it("refuses a moved state remote before minting and adopts the original ID on retry", async () => {
+  const destination = await bareRemote(), project = await repository(destination);
+  await init(project, null);
+  const { id: projectId } = await readProjectIdentityBinding(project.store);
+  expect(await project.store.push()).toMatchObject({ status: "ok" });
+  const registryCommit = await git(destination, "rev-parse", "refs/arc/project/registry");
+  const departed = await bareRemote();
+  await plantRef(departed, "refs/arc/project/moved", [
+    { path: "moved.json", content: JSON.stringify({ projectId, registryCommit }) },
+  ], { gitDir: departed });
+
+  const fresh = await repository(departed);
+  await git(fresh.cwd, "config", "remote.origin.arc-state", "push");
+  const attempt = await init(fresh, null).then(() => readProjectIdentityBinding(fresh.store), (error: unknown) => error);
+  expect(attempt, `init must refuse the move of project ${projectId}`).toMatchObject({
+    code: "init.state-remote", whatToDo: expect.stringContaining("arc store migrate"),
+  });
+  await expect(readProjectIdentityBinding(fresh.store)).rejects.toThrow("Project identity record is missing.");
+
+  await git(fresh.cwd, "remote", "set-url", "origin", destination);
+  await init(fresh, null);
+  expect((await readProjectIdentityBinding(fresh.store)).id).toBe(projectId);
+}, 90_000);
+
+it("refuses ambiguous push roles and adopts the published ID after one is turned off", async () => {
+  const remote = await bareRemote(), source = await repository(remote);
+  await init(source);
+  const { id } = await readProjectIdentityBinding(source.store);
+  expect(await source.store.push()).toMatchObject({ status: "ok" });
+
+  const r = await repository(remote);
+  await git(r.cwd, "remote", "add", "other", await bareRemote());
+  await git(r.cwd, "config", "remote.origin.arc-state", "push");
+  await git(r.cwd, "config", "remote.other.arc-state", "push");
+  await expect(init(r)).rejects.toMatchObject({
+    code: "init.state-remote", why: expect.stringMatching(/origin.*other/iu),
+    whatToDo: expect.stringContaining("arc store remote"),
+  });
+  await expect(readProjectIdentityBinding(r.store)).rejects.toThrow("Project identity record is missing.");
+  await runStoreRemote(r.ports, { remote: "other", role: "off" });
+  await init(r);
+  expect((await readProjectIdentityBinding(r.store)).id).toBe(id);
+}, 90_000);
+
+it("adopts the published project ID when init first designates a clone's origin", async () => {
+  const origin = await bareRemote(), publisher = await repository(origin);
+  await commitAll(publisher.cwd, "Initial code");
+  await git(publisher.cwd, "push", "origin", "main");
+  await init(publisher);
+  const { id } = await readProjectIdentityBinding(publisher.store);
+  expect(await publisher.store.push()).toMatchObject({ status: "ok" });
+  expect(JSON.parse(await git(origin, "show", "refs/arc/project/registry:identity.json"))).toEqual({ projectId: id });
+
+  const cwd = await mkdtemp(join(tmpdir(), "arc-init-clone-"));
+  onTestFinished(() => removeGitBackedDir(cwd));
+  await exec("git", ["clone", "-q", origin, cwd]);
+  await git(cwd, "config", "user.email", "test@test.com");
+  await git(cwd, "config", "user.name", "Test User");
+  expect(await roles(cwd)).toBe("");
+  const clone = checkout(cwd);
+  await init(clone, "other-user");
+  expect(await roles(cwd)).toBe("remote.origin.arc-state push");
+  expect((await readProjectIdentityBinding(clone.store)).id).toBe(id);
 }, 90_000);
 
 it("keeps one project ID when an init refused after designation runs again", async () => {
