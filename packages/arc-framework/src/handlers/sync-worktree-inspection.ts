@@ -7,7 +7,7 @@ import {
   type WorktreeMaterializingInspectionResult,
 } from "../lib/git/worktree-sync.js";
 import type { SyncOutput } from "../lib/sync-output.js";
-import type { InterlockState, SyncOptions } from "./sync.js";
+import type { InterlockState, LegOutcomeRecord, SyncOptions } from "./sync.js";
 import { writeSyncAuditEntry } from "./sync-audit.js";
 
 interface FetchFailurePresentation {
@@ -30,6 +30,7 @@ export async function inspectSyncWorktree(input: {
   output: SyncOutput;
   identity: string;
   interlockState: InterlockState;
+  stateOffBranch: boolean;
 }): Promise<WorktreeMaterializingInspectionResult | null> {
   const { exec, cwd, opts, output } = input;
   try {
@@ -38,13 +39,17 @@ export async function inspectSyncWorktree(input: {
     const failure = presentFetchFailure(caught);
     if (failure === null) throw caught;
     const { error, reason } = failure;
+    const skipped = (action: string): LegOutcomeRecord => ({ action, result: "skipped", detail: reason });
+    const storeLeg = input.stateOffBranch
+      ? { state: { pull: skipped("pull"), push: skipped("push") } }
+      : { notes: skipped("skip") };
     if (!opts.dryRun) {
       await writeSyncAuditEntry({
         cwd, identity: input.identity, interlockState: input.interlockState,
         outcome: {
           cell: reason, exitCode: 1,
           worktree: { action: "fetch", result: "failed", detail: failure.legDetail },
-          notes: { action: "skip", result: "skipped", detail: reason },
+          ...storeLeg,
         },
       });
     }

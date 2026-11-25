@@ -456,7 +456,8 @@ export async function handleSync(
     syncInterlock,
   };
 
-  const worktree = await inspectSyncWorktree({ exec: io.exec, cwd, opts, output, identity, interlockState });
+  const stateOffBranch = store.capabilities.stateOffBranch;
+  const worktree = await inspectSyncWorktree({ exec: io.exec, cwd, opts, output, identity, interlockState, stateOffBranch });
   if (worktree === null) return;
   const branch = worktree.branch;
 
@@ -483,7 +484,7 @@ export async function handleSync(
     unpushedN: 0,
   });
 
-  if (store.capabilities.stateOffBranch) {
+  if (stateOffBranch) {
     await finishStoreSync({ opts, store, interlockState, recommendedSummaryLine, worktreeAction: decideWorktree(matrixInput),
       designationPorts, leg: { worktreeState: worktree.state, worktreeAhead: worktree.ahead, worktreeBehind: worktree.behind,
         branch, io, output, cwd, identity, interaction: context } });
@@ -559,7 +560,11 @@ interface StoreSyncRun {
 async function finishStoreSync(run: StoreSyncRun): Promise<void> {
   const { leg, worktreeAction } = run;
   const cell = storeCellName(worktreeAction);
-  const report = { interlockState: run.interlockState, recommendedSummaryLine: run.recommendedSummaryLine };
+  const reconcile = worktreeAction.kind === "skip-blocked-worktree" && worktreeAction.reason === "diverged"
+    ? { ahead: worktreeAction.ahead, behind: worktreeAction.behind, branch: worktreeAction.branch ?? leg.branch ?? "HEAD" }
+    : undefined;
+  const report = { interlockState: run.interlockState, recommendedSummaryLine: run.recommendedSummaryLine,
+    ...(reconcile === undefined ? {} : { reconcile }) };
   if (run.opts.dryRun) {
     const planned = (action: string): LegOutcomeRecord => ({ action, result: "skipped", detail: "dry-run" });
     leg.output.log.info(`Worktree: ${describeWorktreeAction(worktreeAction)}`);
@@ -572,7 +577,7 @@ async function finishStoreSync(run: StoreSyncRun): Promise<void> {
   const state = await runStateLeg({ store: run.store, cwd: leg.cwd, context: leg.interaction, output: leg.output }, run.designationPorts);
   const branch = await executeBranchLeg(leg, worktreeAction);
   const outcome: SyncOutcome = { cell, worktree: branch.record, state: state.state, exitCode: state.failed || branch.failed ? 1 : 0,
-    ...report, ...(branch.reconcile === undefined ? {} : { reconcile: branch.reconcile }),
+    ...report,
     ...(state.tripwires === undefined ? {} : { tripwires: state.tripwires }) };
   await writeSyncAuditEntry({ cwd: leg.cwd, identity: leg.identity, outcome, interlockState: run.interlockState });
   emitStoreSyncOutcome(run, outcome);
@@ -585,8 +590,7 @@ function emitStoreSyncOutcome(run: StoreSyncRun, outcome: SyncOutcome): void {
 }
 
 /** The branch leg alone, as the worktree decision directs it. */
-async function executeBranchLeg(ctx: BranchLegContext, worktree: WorktreeAction): Promise<{ record: LegOutcomeRecord; failed: boolean;
-  reconcile?: SyncOutcome["reconcile"] }> {
+async function executeBranchLeg(ctx: BranchLegContext, worktree: WorktreeAction): Promise<{ record: LegOutcomeRecord; failed: boolean }> {
   const moves = worktree.kind === "push" || worktree.kind === "push-with-upstream-init" || worktree.kind === "inbound-ff-pull";
   if (moves && await detectRebaseSaveBlock(ctx) !== null) {
     ctx.output.log.warn("Branch leg skipped: rebase in progress; complete or abort the rebase, then run `arc sync` again.");
@@ -600,9 +604,7 @@ async function executeBranchLeg(ctx: BranchLegContext, worktree: WorktreeAction)
     }
     case "skip-blocked-worktree":
       ctx.output.log.warn(worktreeBlockGuidance(worktree));
-      return { record: { action: "skip", result: "blocked", detail: worktree.reason }, failed: true,
-        ...(worktree.reason === "diverged"
-          ? { reconcile: { ahead: worktree.ahead, behind: worktree.behind, branch: worktree.branch ?? ctx.branch ?? "HEAD" } } : {}) };
+      return { record: { action: "skip", result: "blocked", detail: worktree.reason }, failed: true };
     case "skip-not-configured":
       if (ctx.worktreeState === "local-ahead" && ctx.branch !== null) {
         ctx.output.log.info(`Worktree: ${ctx.worktreeAhead} unpushed commit(s) on \`${ctx.branch}\`.`);

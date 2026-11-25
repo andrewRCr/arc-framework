@@ -121,7 +121,7 @@ describe("session authority documentation", () => {
       const confirm = section(handoff, "Confirm Handoff");
       expect(confirm).not.toMatch(/^- `synced to remote`[^\n]*(?:at least one|either)\s+leg/mu);
       expect(confirm).toMatch(/`state\.pull`[\s\S]*`state\.push`[\s\S]*`worktree`/u);
-      expect(confirm).toMatch(/`no-remote`[\s\S]*`noop`[\s\S]*local-only/u);
+      expect(confirm).toMatch(/`skipped`[\s\S]*`no-remote`[\s\S]*local-only/u);
       expect(section(handoff, "Sync")).toMatch(/`designation-needed`[\s\S]*`arc store remote`/u);
     }
   });

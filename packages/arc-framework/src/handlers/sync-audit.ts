@@ -1,6 +1,6 @@
 /** One schema-validated audit entry for each resolved runtime sync invocation. */
 import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
-import { AuditEntrySchema, type AuditEntry, type AuditOutcome } from "../lib/release/schema.js";
+import { AuditEntrySchema, type AuditEntry } from "../lib/release/schema.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import type { InterlockState, SyncOutcome } from "./sync.js";
 
@@ -26,7 +26,7 @@ export async function writeSyncAuditEntry(args: {
   const wu = await resolveActiveWu({ cwd: args.cwd });
   const wuAudit = wu.status === "resolved" ? toAuditWorkUnit(wu) : null;
   const refused = REFUSED_SYNC_CELLS.has(args.outcome.cell);
-  const auditOutcome: AuditOutcome = {
+  const auditOutcome = {
     kind: "sync",
     cell: args.outcome.cell,
     worktree: encodeLegToken(args.outcome.worktree),

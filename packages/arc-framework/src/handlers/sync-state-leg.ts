@@ -3,9 +3,9 @@ import type { InteractionContext } from "../lib/command-input/interaction-contex
 import { reportHandoffTripwires, type HandoffTripwireReport } from "../lib/handoff/tripwires.js";
 import type { Store } from "../lib/store/contract.js";
 import type { PullResult } from "../lib/store/operational-sync.js";
-import { pullSelectedStore } from "../lib/store/operational-sync-bindings.js";
+import { projectPull, pullSelectedStore } from "../lib/store/operational-sync-bindings.js";
 import { consumePull, pullDesignation, pullOutcomeNotices, renderExplained } from "../lib/store/pull-consumption.js";
-import type { StoreResult } from "../lib/store/refusal.js";
+import type { StoreRefusal, StoreResult } from "../lib/store/refusal.js";
 import type { PushResult } from "../lib/store/sync.js";
 import type { SyncOutput } from "../lib/sync-output.js";
 import { syncStoreDesignationSite } from "../prompts/sync-store-designation.js";
@@ -22,13 +22,20 @@ export interface StateLegResult {
   readonly tripwires?: HandoffTripwireReport;
 }
 
+type StatePushRecord = LegOutcomeRecord & { result: Exclude<LegOutcomeRecord["result"], "cancelled"> };
+
 /** Pull and consume the store, ask for or report a remote's designation, then push and report the push's figures.
  * A stopping pull, a designation left unmade, or a failed push publishes no state, or none further, and fails the leg.
  */
 export async function runStateLeg(input: { readonly store: Store; readonly cwd: string; readonly context: InteractionContext;
   readonly output: SyncOutput }, ports: StoreDesignationPorts = {}): Promise<StateLegResult> {
   const { output } = input;
-  const pulled = await pullSelectedStore(input.store);
+  let pulled: PullResult;
+  try {
+    pulled = await pullSelectedStore(input.store);
+  } catch (error) {
+    return unpushed(operationError("pull", error, output), "pull-stopped");
+  }
   const consumed = consumePull(pulled);
   const designation = pullDesignation(pulled);
   // A pull that proceeds reaches the designation below, which asks the question or reports it with its remedy.
@@ -51,14 +58,31 @@ export async function runStateLeg(input: { readonly store: Store; readonly cwd: 
 }
 
 async function publish(store: Store, pull: LegOutcomeRecord, output: SyncOutput): Promise<StateLegResult> {
-  const pushed = await store.push();
+  let pushed: StoreResult<PushResult>;
+  try {
+    pushed = await store.push();
+  } catch (error) {
+    return { state: { pull, push: operationError("push", error, output) }, failed: true };
+  }
   if (pushed.status === "ok") for (const notice of pullOutcomeNotices(pushed.result.pulls)) output.log.warn(notice);
   const push = pushRecord(pushed);
-  if (push.result === "failed") output.log.error(`State push failed: ${push.detail ?? "no detail"}`);
-  else output.log.info(push.result === "success" ? "State pushed." : "State already current on its remote.");
+  const failed = push.result === "failed" || push.result === "blocked";
+  switch (push.result) {
+    case "failed": case "blocked": output.log.error(`State push ${push.result}: ${push.detail}`); break;
+    case "skipped": output.log.info("State push skipped because no state push remote is designated."); break;
+    case "success": output.log.info("State pushed."); break;
+    case "noop": output.log.info("State already current on its remote."); break;
+  }
   const tripwires = pushed.status === "ok" ? contention(pushed.result) : undefined;
   if (tripwires?.contention) output.log.warn(tripwires.contention.text);
-  return { state: { pull, push }, failed: push.result === "failed", ...(tripwires === undefined ? {} : { tripwires }) };
+  return { state: { pull, push }, failed, ...(tripwires === undefined ? {} : { tripwires }) };
+}
+
+function operationError(action: "pull" | "push", error: unknown, output: SyncOutput): LegOutcomeRecord {
+  const message = error instanceof Error ? error.message : String(error);
+  const detail = `${message} Resolve the reported store error, then retry with arc sync.`;
+  output.log.error(`State ${action} failed: ${detail}`);
+  return { action, result: "failed", detail };
 }
 
 function unpushed(pull: LegOutcomeRecord, reason: string): StateLegResult {
@@ -72,15 +96,40 @@ function pullRecord(result: PullResult): LegOutcomeRecord {
   return { action: "pull", result: "noop", ...(result.status === "noop" ? {} : { detail: result.status }) };
 }
 
-function pushRecord(result: StoreResult<PushResult>): LegOutcomeRecord {
-  if (result.status === "refused") return { action: "push", result: "failed", detail: `${result.refusal.condition} ${result.refusal.remedy.text}` };
+function pushRecord(result: StoreResult<PushResult>): StatePushRecord {
+  if (result.status === "refused") return failedPush(result.refusal);
+  const stopped = stoppedPushRecord(result.result);
+  if (stopped !== undefined) return stopped;
   for (const publish of result.result.publishes) {
-    if (publish.status === "failed") return { action: "push", result: "failed", detail: `${publish.failure.condition} ${publish.failure.remedy.text}` };
+    if (publish.status === "failed") return failedPush(publish.failure);
     // A conflict, a block, or a history condition explains itself; a published or current family does not.
     if ("condition" in publish) return { action: "push", result: "failed", detail: `${publish.condition} ${publish.remedy.text}` };
   }
   return result.result.publishes.some(publish => publish.status === "pushed" || publish.status === "reconciled")
     ? { action: "push", result: "success" } : { action: "push", result: "noop" };
+}
+
+function stoppedPushRecord(result: PushResult): StatePushRecord | undefined {
+  // Publication can stop while discovering its destination or pulling the basis for the push.
+  const observed = projectPull(result);
+  const designation = pullDesignation(observed);
+  if (designation !== undefined) {
+    return { action: "push", result: "blocked",
+      detail: renderExplained([`Remote ${designation.remote} needs a store designation.`], designation.remedy) };
+  }
+  if ((observed.status === "unreachable" || observed.status === "incomplete") && consumePull(observed).kind === "stop") {
+    return { action: "push", result: "failed", detail: renderExplained([observed.condition], observed.remedy) };
+  }
+  if (result.states.some(state => state.status === "no-remote")) {
+    return { action: "push", result: "skipped", detail: "no-remote" };
+  }
+  return undefined;
+}
+
+function failedPush(failure: StoreRefusal): StatePushRecord {
+  const parts = [failure.condition];
+  if ("message" in failure && failure.message !== failure.condition) parts.push(failure.message);
+  return { action: "push", result: "failed", detail: renderExplained(parts, failure.remedy) };
 }
 
 /** The contention report over the push's largest retry count and wait, or nothing when no figure exceeds its bound. */

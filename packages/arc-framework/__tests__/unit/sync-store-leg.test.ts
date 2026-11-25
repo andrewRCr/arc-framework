@@ -4,10 +4,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeInteractionContext } from "../helpers/interaction-context.js";
+import { WorktreeFetchFailedError, WorktreeFetchTimeoutError } from "../../src/lib/git/worktree-sync.js";
 import type { Store } from "../../src/lib/store/contract.js";
+import type { PushResult } from "../../src/lib/store/sync.js";
 import type { PromptRenderer } from "../../src/lib/command-input/prompter.js";
 import type { SyncOutput } from "../../src/lib/sync-output.js";
 import { prompt } from "../../src/lib/command-input/prompter.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 const events: string[] = [];
 let rebasing = false;
@@ -64,10 +67,10 @@ vi.mock("../../src/lib/config/resolved-settings.js", () => ({
   }),
 }));
 
+const mockInspection = vi.hoisted(() => vi.fn());
 vi.mock("../../src/lib/git/worktree-sync.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../src/lib/git/worktree-sync.js")>(),
-  runMaterializingWorktreeInspection: () => Promise.resolve({ state: "local-ahead", ahead: 1, behind: 0, branch: "main",
-    remoteEvidence: "exact" }),
+  runMaterializingWorktreeInspection: mockInspection,
 }));
 
 let branchPushFails = false;
@@ -143,6 +146,8 @@ function auditOutcome(): Record<string, unknown> {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockInspection.mockReset().mockResolvedValue({ state: "local-ahead", ahead: 1, behind: 0, branch: "main",
+    remoteEvidence: "exact" });
   events.length = 0;
   branchPushFails = false;
   rebasing = false;
@@ -227,6 +232,19 @@ describe("arc sync over an off-branch store", () => {
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
   });
 
+  it("reports the diverged branch and its counts in the dry-run JSON", async () => {
+    mockInspection.mockResolvedValueOnce({
+      state: "diverged", ahead: 1, behind: 2, branch: "main", remoteEvidence: "exact",
+    });
+    const outcome = await syncJson(store(PULLED), { dryRun: true });
+    expect(outcome).toMatchObject({
+      mode: "dry-run", cell: "state+blocked-diverged",
+      worktree: { action: "skip", result: "skipped", detail: "dry-run" },
+      state: { pull: { result: "skipped", detail: "dry-run" }, push: { result: "skipped", detail: "dry-run" } },
+    });
+    expect(outcome.reconcile).toEqual({ ahead: 1, behind: 2, branch: "main" });
+  });
+
   it("designates an undesignated clone that answers the prompt, then pushes its state", async () => {
     const execute = vi.fn(() => Promise.resolve({ status: "ok" } as const));
     const renderer = { select: () => Promise.resolve({ kind: "answered", value: "push" }) } as unknown as PromptRenderer;
@@ -237,4 +255,98 @@ describe("arc sync over an off-branch store", () => {
     expect(auditOutcome()).toMatchObject({ state: "pull:blocked:designation-needed | push:success", exitCode: 0 });
     expect(process.exitCode).toBeUndefined();
   });
+
+  it("reports the next upstream's designation when reading the first still leaves publication blocked", async () => {
+    const question = (remote: string) => ({ ...DESIGNATION, remote,
+      choices: [...DESIGNATION.choices],
+      remedy: { text: `Choose a role for ${remote}.`, argv: ["arc", "store", "remote", remote, "read"] } });
+    const roles = new Map<string, string>();
+    const execute = async (argv: readonly string[]) => {
+      const [remote, role] = argv.slice(3);
+      if (remote === undefined || role === undefined) throw new Error("Missing remote or role");
+      roles.set(remote, role);
+      return { status: "ok" } as const;
+    };
+    const target = store(PULLED), publishState = target.push;
+    target.pull = async () => ({ status: "ok", result: { pulls: [], states: [
+      question(roles.get("upstream-a") === "read" ? "upstream-b" : "upstream-a"),
+    ] } });
+    target.push = async () => roles.get("upstream-b") === "push" ? publishState()
+      : { status: "ok", result: { states: [question("upstream-b")], publishes: [],
+        pulls: [{ status: "pulled", role: "read", remote: "upstream-a", families: ["project-registry"], notices: [] }] } };
+    const select = vi.fn().mockResolvedValueOnce({ kind: "answered", value: "read" })
+      .mockResolvedValueOnce({ kind: "answered", value: "push" });
+    const renderer: PromptRenderer = { select, confirm: vi.fn(), text: vi.fn(), multiselect: vi.fn() };
+    await handleSync({}, recordingOutput(), makeInteractionContext(), target, { execute, renderer });
+
+    expect(roles.get("upstream-a")).toBe("read");
+    expect.soft(auditOutcome()).toMatchObject({ state: expect.stringMatching(/push:(blocked|failed)/u), worktree: "push:success", exitCode: 1 });
+    expect.soft(process.exitCode).toBe(1);
+    expect.soft(events).toContainEqual(expect.stringContaining("arc store remote upstream-b read"));
+    expect.soft(events).not.toContain("info: State already current on its remote.");
+
+    process.exitCode = undefined;
+    mockAppendAuditEntry.mockClear();
+    await handleSync({}, recordingOutput(), makeInteractionContext(), target, { execute, renderer });
+    expect(auditOutcome()).toMatchObject({ state: expect.stringContaining("push:success"), exitCode: 0 });
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("reports a local-only store as skipped without failing the branch push", async () => {
+    const localOnly = { states: [{ status: "no-remote" }], pulls: [] };
+    const outcome = await syncJson(store({ status: "ok", result: localOnly },
+      { status: "ok", result: { ...localOnly, publishes: [] } }));
+
+    expect(outcome).toMatchObject({ exitCode: 0, state: { push: { result: "skipped", detail: "no-remote" } },
+      worktree: { result: "success" } });
+    expect(events).not.toContain("info: State already current on its remote.");
+  });
+
+  const candidateFailure = { status: "failed", role: "candidate", remote: "upstream-b", families: ["project-registry"],
+    notices: [], failure: { code: "unreachable", class: "recoverable", cause: "auth",
+      condition: "Cannot authenticate to upstream-b.", remedy: { text: "Restore credentials and run arc sync." } } } satisfies PushResult["pulls"][number];
+  it.each([
+    { label: "a failed candidate lookup", states: [], pulls: [candidateFailure], detail: candidateFailure.failure.condition,
+      remedy: "Restore credentials and run arc sync." },
+    { label: "a moved state remote", states: [{ status: "moved", remote: "origin",
+      remedy: { text: "Bring in the tracked pointer change and follow the move.", argv: ["arc", "store", "migrate"] } }], pulls: [],
+      detail: "origin", remedy: "arc store migrate" },
+  ] satisfies Array<Pick<PushResult, "states" | "pulls"> & { label: string; detail: string; remedy: string }>
+  )("reports $label and still pushes the branch", async ({ states, pulls, detail, remedy }) => {
+    const target = store(PULLED), push = target.push;
+    target.push = async () => ({ status: "ok", result: { states, pulls, publishes: [] } });
+    const outcome = await syncJson(target);
+    expect(outcome).toMatchObject({ exitCode: 1, worktree: { result: "success" },
+      state: { push: { detail: expect.stringContaining(detail) } } });
+    expect(events).toContainEqual(expect.stringContaining(remedy));
+    target.push = push;
+    expect(await syncJson(target)).toMatchObject({ exitCode: 0, state: { push: { result: "success" } } });
+  });
+
+  it("preserves the pull and pushes the branch when a state push throws", async () => {
+    const target = store(PULLED);
+    const push = target.push;
+    target.push = () => Promise.reject(new Error("Store directory became read-only."));
+    const outcome = await syncJson(target).catch(String);
+
+    expect(outcome).toMatchObject({ exitCode: 1, worktree: { action: "push", result: "success" },
+      state: { pull: { result: "success" }, push: { result: "failed", detail: expect.stringContaining("read-only") } } });
+    expect(auditOutcome()).toMatchObject({ worktree: "push:success", state: expect.stringContaining("pull:success | push:failed:") });
+    target.push = push;
+    expect(await syncJson(target)).toMatchObject({ exitCode: 0, state: { push: { result: "success" } } });
+  });
+});
+
+it.each([
+  { reason: "worktree-fetch-timeout", detail: "timeout", error: new WorktreeFetchTimeoutError("main", "main", 3000) },
+  { reason: "worktree-fetch-failed", detail: "error",
+    error: new WorktreeFetchFailedError("main", "main", makeGitProcessError({
+      command: "git", args: ["fetch", "origin", "main"], exitCode: 128, stderr: "Cannot reach origin.",
+    })) },
+])("audits the skipped notes leg for an in-repo $reason", async ({ reason, detail, error }) => {
+  mockInspection.mockRejectedValueOnce(error);
+  const target = { ...store(PULLED), capabilities: { stateOffBranch: false } };
+  expect(await syncJson(target)).toMatchObject({ reason, exitCode: 1 });
+  expect(auditOutcome()).toEqual({ kind: "sync", cell: reason, exitCode: 1, worktree: `fetch:failed:${detail}`,
+    notes: `skip:skipped:${reason}` });
 });

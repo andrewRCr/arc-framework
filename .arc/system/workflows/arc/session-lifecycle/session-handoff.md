@@ -460,7 +460,8 @@ For active-WU and between-WUs handoff, render **Sync:** from each actual `arc sy
 
 - **State pull** (`state.pull`) — report the result and relevant detail, including a stopped pull or failed read source.
 - **State push** (`state.push`) — say whether state reached the remote, was already current, or was blocked or failed.
-  A `no-remote` pull with a `noop` push means state is local-only. For `designation-needed`, give the designation remedy.
+  A `skipped` push with detail `no-remote` means state is local-only. For `designation-needed`, give the designation
+  remedy.
 - **Branch** (`worktree`) — report the action and its outcome, including a successful push or pull, or a skipped,
   blocked, or failed action. Name the branch and report any supplied reason and remedy.
 

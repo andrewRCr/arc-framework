@@ -37,6 +37,11 @@ async function auditEntries(root: string): Promise<unknown[]> {
   }
 }
 
+function expectSkippedState(entry: unknown, reason: string): void {
+  expect.soft(entry).toHaveProperty("outcome.state", `pull:skipped:${reason} | push:skipped:${reason}`);
+  expect.soft(entry).not.toHaveProperty("outcome.notes");
+}
+
 async function fixture() {
   const harness = await setupMultiClone({ cloneA: { config: { "arc.identity": "test-user" } } });
   const root = harness.cloneA;
@@ -131,8 +136,9 @@ async function reportsTimeoutThenRetries({ args }: { readonly args: string[] }):
         schemaVersion: 2, command: "sync", decision: "proceeded", refusalCode: null,
         interlockState: { command: "sync", pushInterlock: { value: "on-workflow", source: "git-config" } },
         outcome: { kind: "sync", cell: "worktree-fetch-timeout",
-          worktree: "fetch:failed:timeout", notes: "skip:skipped:worktree-fetch-timeout", exitCode: 1 },
+          worktree: "fetch:failed:timeout", exitCode: 1 },
       });
+      if (args[0] === "sync") expectSkippedState(audit.at(-1), "worktree-fetch-timeout");
     }
     if (args.includes("--json")) {
       expect(JSON.parse(result.stdout)).toMatchObject({
@@ -188,8 +194,9 @@ describe("materializing command fetch", () => {
           } : {
             schemaVersion: 2, command: "sync", decision: "proceeded", refusalCode: null,
             outcome: { kind: "sync", cell: "worktree-fetch-failed",
-              worktree: "fetch:failed:error", notes: "skip:skipped:worktree-fetch-failed", exitCode: 1 },
+              worktree: "fetch:failed:error", exitCode: 1 },
           });
+          if (args[0] === "sync") expectSkippedState(audit.at(-1), "worktree-fetch-failed");
         }
         if (args.includes("--json")) {
           expect(JSON.parse(result.stdout)).toMatchObject({

@@ -55,16 +55,17 @@ export const AuditInterlockStateSchema = z.discriminatedUnion("command", [
 
 const CommitOutcomeSchema = z.strictObject({ kind: z.literal("commit"), hash: z.string() });
 const PushOutcomeSchema = z.strictObject({ kind: z.literal("push"), refStatus: z.string() });
-const SyncOutcomeSchema = z.strictObject({
+const syncOutcomeShape = {
   kind: z.literal("sync"),
   cell: z.string(),
   worktree: z.string(),
-  /** Present where the store keeps state on the branch. */
-  notes: z.string().optional(),
-  /** Present where the store keeps state off the branch: the pull's leg token, then the push's, joined by ` | `. */
-  state: z.string().optional(),
   exitCode: z.number(),
-});
+};
+const SyncOutcomeSchema = z.union([
+  z.strictObject({ ...syncOutcomeShape, notes: z.string() }),
+  // Off-branch state records the pull's token, then the push's, joined by ` | `.
+  z.strictObject({ ...syncOutcomeShape, state: z.string() }),
+]);
 const HookFailedOutcomeSchema = z.strictObject({
   kind: z.literal("hook-failed"),
   hook: z.string(),
@@ -78,7 +79,7 @@ const ClosePrecheckFailedOutcomeSchema = z.strictObject({ kind: z.literal("close
 const RefusedOutcomeSchema = z.strictObject({ kind: z.literal("refused") });
 
 /** Outcome variants represented in the version-2 audit log. */
-export const AuditOutcomeSchema = z.discriminatedUnion("kind", [
+export const AuditOutcomeSchema = z.union([
   CommitOutcomeSchema,
   PushOutcomeSchema,
   SyncOutcomeSchema,
