@@ -1,5 +1,7 @@
 /** Integration checkpoint composition persistence behavior. */
 
+import { join, sep } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -56,8 +58,9 @@ function memoryFs(): IntegrationCheckpointStoreFs & { files: Map<string, string>
       files.set(path, content);
     },
     listDirectories: async (path) => {
-      const names = [...files.keys()].filter(file => file.startsWith(`${path}/`))
-        .map(file => file.slice(path.length + 1).split("/")).filter(parts => parts.length > 1).map(parts => parts[0]!);
+      const prefix = `${path}${sep}`;
+      const names = [...files.keys()].filter(file => file.startsWith(prefix))
+        .map(file => file.slice(prefix.length).split(sep)).filter(parts => parts.length > 1).map(parts => parts[0]!);
       if (names.length === 0) throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
       return [...new Set(names)];
     },
@@ -127,8 +130,8 @@ describe("store-path checkpoint records", () => {
 
   it("writes each record in its work item's folder under the identity's machine-local folder", async () => {
     const fs = memoryFs(), handle = await persist(fs);
-    expect([...fs.files.keys()]).toEqual([`/identity/.internal/integration-checkpoints/${nativeOwnership.workItemUid}/`
-      + `${handle.slice(handle.lastIndexOf(":") + 1)}.json`]);
+    expect([...fs.files.keys()]).toEqual([join(identity.root, ".internal", "integration-checkpoints",
+      nativeOwnership.workItemUid, `${handle.slice(handle.lastIndexOf(":") + 1)}.json`)]);
   });
 
   it("reads a record by its handle whatever its work unit is now named", async () => {
@@ -148,5 +151,12 @@ describe("store-path checkpoint records", () => {
   it("refuses a write without the work item that names its folder", async () => {
     await expect(persistIntegrationCheckpointComposition(identity, composition(), { fs: memoryFs() }))
       .rejects.toThrow(/work item/iu);
+  });
+
+  it("lists the persisted work item's UID under the native checkpoint path", async () => {
+    const fs = memoryFs();
+    await persist(fs);
+    const folder = join(identity.root, ".internal", "integration-checkpoints");
+    await expect(fs.listDirectories(folder)).resolves.toEqual([nativeOwnership.workItemUid]);
   });
 });

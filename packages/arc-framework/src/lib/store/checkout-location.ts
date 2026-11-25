@@ -2,6 +2,7 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { readGitDirectories, type GitDirectories, type GitDirectoryFileAccess } from "../git/directories.js";
 import type { GitExec } from "../git/exec.js";
+import { nativeGitPath } from "../local-path-identity.js";
 
 /** The repository a store opened in, found once, and the directory each of its Git calls runs in. */
 export interface StoreCheckoutLocation {
@@ -32,7 +33,7 @@ export function createStoreCheckoutLocation(input: { checkoutRoot: string; fs: G
     // Git lists the main worktree first; a bare repository lists its own directory there.
     const main = stdout.split("\0").find((field) => field.startsWith("worktree "));
     if (main === undefined) throw new Error(`Git listed no main worktree for ${commonDir}.`);
-    return main.slice("worktree ".length);
+    return nativeGitPath(main.slice("worktree ".length));
   }).catch((error: unknown) => { primary = undefined; throw error; });
   return {
     gitDirectories,

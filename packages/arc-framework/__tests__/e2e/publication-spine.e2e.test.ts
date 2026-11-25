@@ -3,7 +3,7 @@ import { withReviewReport } from "../fixtures/review-report-input.js";
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { afterAll, afterEach, describe, expect, it } from "vitest";
@@ -69,6 +69,11 @@ const ARMS: readonly Arm[] = [{ arm: "the in-repo store", store: false }, { arm:
 const IDENTITY = SlugSchema.parse("test-user");
 const EXAMPLE = OwnerIdentitySchema.parse({ type: "work-item", name: "example" });
 const BOUNDARY_PATH = join(".arc", "system", ".internal", "candidates", "example.boundary.json");
+
+async function expectStagedBoundary(repository: string): Promise<void> {
+  const staged = await git(repository, ["diff", "--cached", "--name-only"]);
+  expect(staged.split("\n")).toContain(BOUNDARY_PATH.replaceAll("\\", "/"));
+}
 
 /** Hold `example`'s meta on the checked-out branch: a file for the in-repo store, which takes the task list as a file
  * of its own, and a record bound to this checkout, its task list beside it, on the store. */
@@ -906,7 +911,7 @@ describe.each(ARMS)("attest → pre-publication → publish on $arm", ({ store }
     });
     // The in-repo store stages the boundary it wrote; the store's write leaves the index alone.
     if (store) expect(await git(repository, ["diff", "--cached", "--name-only"])).toBe("");
-    else expect((await git(repository, ["diff", "--cached", "--name-only"])).split("\n")).toContain(BOUNDARY_PATH);
+    else await expectStagedBoundary(repository);
 
     const submitted = await runArc(
       [
@@ -1243,6 +1248,14 @@ describe("attest → pre-publication → publish over committed state", () => {
   afterEach(async () => {
     if (repository !== null) await cleanupTempDir(repository);
     repository = null;
+  });
+
+  it("recognizes the staged boundary in Git's index", async () => {
+    repository = await createTempRepo();
+    await mkdir(join(repository, dirname(BOUNDARY_PATH)), { recursive: true });
+    await writeBoundary(repository, false, { locus: "candidate-publish-ready" });
+
+    await expectStagedBoundary(repository);
   });
 
   it("refuses a premature projection commit and admits only exact version-bound recovery", async () => {

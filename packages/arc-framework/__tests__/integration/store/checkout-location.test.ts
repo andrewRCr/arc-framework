@@ -47,6 +47,15 @@ it("runs Git in the checkout while it remains, and in the primary checkout once 
   expect(await location.gitDirectories()).toEqual(found);
 });
 
+it("returns the native primary path when only the Git directories were read before removal", async () => {
+  await git(repo, ["worktree", "add", "--detach", linked]);
+  const location = locate(linked);
+  await location.gitDirectories();
+  await git(repo, ["worktree", "remove", linked]);
+
+  expect(await location.workingDirectory(linked)).toBe(repo);
+});
+
 it("leaves a call where it was meant to run when the checkout went before any Git call found the repository", async () => {
   await git(repo, ["worktree", "add", "-b", "feat/linked", linked, "main"]);
   const location = locate(linked);

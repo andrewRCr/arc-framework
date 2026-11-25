@@ -11,7 +11,9 @@ const spawners: readonly { readonly name: string; readonly status: (cwd: string)
   { name: "runArc", status: cwd => runArc(["status", "--json"], cwd) },
   { name: "runArcNoTty", status: cwd => runArcNoTty(["status", "--json"], cwd) },
   { name: "runArcWithStdin", status: cwd => runArcWithStdin(["status", "--json"], cwd, "") },
-  { name: "runArcWithStdoutPipe", status: cwd => runArcWithStdoutPipe(["status", "--json"], cwd) },
+  ...(process.platform === "win32" ? [] : [
+    { name: "runArcWithStdoutPipe", status: (cwd: string) => runArcWithStdoutPipe(["status", "--json"], cwd) },
+  ]),
   { name: "runCli", status: cwd => runCli(["status", "--json"], { cwd }) },
 ];
 

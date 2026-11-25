@@ -1704,10 +1704,10 @@ describe("session-init E2E — in-repo store arms", () => {
       await git(repo, ["switch", "main"]);
       await writeUserReferenceStatusFixture(repo, "feat", "remote-boundary", { nextAction: "Continue execution" });
 
-      await expect(execFileAsync("git", ["fetch", "origin", "main"], {
+      await expect(execa("git", ["fetch", "origin", "main"], {
         cwd: repo,
         env: { ...process.env, ...trace.env, ARC_GIT_TRACE_REJECT_CODE_WRITES: "1" },
-      })).rejects.toMatchObject({ code: 97 });
+      })).rejects.toMatchObject({ exitCode: 97 });
       await writeFile(trace.logPath, "", "utf8");
 
       const result = await runArc(["status", "--session-init", "--json"], repo, {

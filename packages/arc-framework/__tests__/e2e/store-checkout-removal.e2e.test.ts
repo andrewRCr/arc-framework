@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArc, runArcAnchoredSequence } from "./helpers.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 
 const execFileAsync = promisify(execFile);
@@ -72,7 +72,7 @@ describe("commands that remove the checkout they run in (ref store)", () => {
     await expect(readStoreRecord(repo, SlugSchema.parse("test-user"), meta.reference)).rejects.toThrow(/not-found/u);
   }, SEQUENCE_TIMEOUT_MS);
 
-  it("tears down a shipped work unit from its own checkout when self-teardown removes the checkout", async () => {
+  it("reaps a shipped work unit's branch during remove-mode self-teardown", async () => {
     await git(repo, ["checkout", "-b", "feat/demo"]);
     await writeFile(join(repo, "demo.txt"), "demo\n");
     await git(repo, ["add", "demo.txt"]);
@@ -94,8 +94,16 @@ describe("commands that remove the checkout they run in (ref store)", () => {
     const teardown = await runArc(["teardown", "demo"], worktree);
 
     expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
-    await expect(access(worktree)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await git(repo, ["branch", "--list", "feat/demo"])).toBe("");
+    if (process.platform === "win32") {
+      expect(teardown.stdout + teardown.stderr).toContain("Windows cannot remove the invoking shell's occupied directory");
+      expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+      expect(await readWorktreeMarker(worktree)).toMatchObject({
+        kind: "present", marker: { husk: { branch: "feat/demo", subject: seededWorkUnitSubject(meta) } },
+      });
+    } else {
+      await expect(access(worktree)).rejects.toMatchObject({ code: "ENOENT" });
+    }
   }, SEQUENCE_TIMEOUT_MS);
 
   // Pausing keeps the Errand's branch, so its work is published first.
