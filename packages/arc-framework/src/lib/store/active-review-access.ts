@@ -9,7 +9,7 @@ import { readWorkUnit } from "./lifecycle-write.js";
 import type { OwnerIdentity } from "./identity.js";
 import { selectWorkBranchLink, workBranchName } from "./lifecycle-branch.js";
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
-import { resolveCheckoutLayoutContext } from "./checkout-layout.js";
+import { readCheckoutLayoutContext } from "./checkout-layout.js";
 
 /** Native content and exact generation retained beside the public candidate fields. */
 interface ActiveReviewSubject {
@@ -26,9 +26,10 @@ export function createActiveReviewAccess(input: ReviewInvocationInput): ActiveRe
   const invocation = resolveReviewInvocation(input);
   return { ...invocation, readSubject: async (candidate: MetaFileCandidate, owner?: OwnerIdentity): Promise<ActiveReviewSubject> => {
     if (!invocation.store.capabilities.stateOffBranch) return { candidate };
-    // The scan's owner is exact; a meta in its own checkout's folder is identified only with that checkout's layout.
+    // The scan gives the exact owner. Nested paths need the invocation checkout's layout.
     const slug = owner?.name
-      ?? identifyWorkUnitArtifactPath(candidate.path, await resolveCheckoutLayoutContext(input.cwd))?.slug;
+      ?? identifyWorkUnitArtifactPath(candidate.path)?.slug
+      ?? identifyWorkUnitArtifactPath(candidate.path, await readCheckoutLayoutContext(input.cwd))?.slug;
     if (slug === undefined) throw new Error(`Cannot identify ${candidate.filename}`);
     const primary = unwrapReviewRecordResult(invocation.store, await readWorkUnit(invocation.store, slug, owner));
     const selected = primary.reference.owner;

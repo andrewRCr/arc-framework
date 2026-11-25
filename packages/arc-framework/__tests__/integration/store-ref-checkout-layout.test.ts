@@ -11,6 +11,10 @@ import { beginProjectionCommand } from "../../src/lib/store/projection/process-s
 import { runSetStage } from "../../src/lib/work-unit/verbs/set-stage.js";
 import { lifecycleRecordPath } from "../../src/lib/store/lifecycle-record-path.js";
 import { readActiveMetaCandidates } from "../../src/lib/active/meta-reader.js";
+import { createActiveReviewAccess } from "../../src/lib/store/active-review-access.js";
+import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { candidateFixture } from "../helpers/store/tracked-write-fixture.js";
 import { resolveStoreViewTarget } from "../../src/handlers/view-store.js";
 import { readStoredLifecycleSummary } from "../../src/scripts/integration/lifecycle-record.js";
 
@@ -46,6 +50,23 @@ describe("checkout-owned lifecycle paths", () => {
     const view = await resolveStoreViewTarget({ cwd: f.root, store: f.store, slug: "alpha" });
     expect(view).toMatchObject({ status: "resolved", metaPath: join(f.root, ".arc/active/current/meta-alpha.md") });
     expect(held.owners?.get(".arc/active/current/meta-alpha.md")).toEqual(primary.reference.owner);
+  });
+
+  it("reads a linked checkout's Candidate without an owner through the primary checkout's store", async () => {
+    const f = await createRefFixture(createKindRegistry(PRODUCTION_REGISTRATIONS));
+    const cwd = join(f.root, "linked");
+    await f.ports.exec("git", ["worktree", "add", "-b", "feat/example", cwd]);
+    const record = candidateFixture();
+    const fields = { state: "Active", currentWorkflow: "prepare-work-unit", taskList: "tasks-example.md" } as const;
+    const { meta } = await seedWorkUnit(f.root, "example", { identity: "test-user", meta: fields, bind: cwd,
+      taskList: "# Tasks\n\n- [x] Verification complete\n",
+      records: [{ kind: "review/candidate", content: canonicalize(record) }] });
+    const candidate = { ...fields, path: ".arc/active/current/meta-example.md", filename: "meta-example.md",
+      branch: null, nextTask: null, nextAction: null };
+    const access = createActiveReviewAccess({ cwd, store: f.store, exec: f.ports.exec });
+    const expected = { owner: meta.reference.owner, candidate: { candidateId: record.attestation.candidateId } };
+    await expect(access.readSubject(candidate, meta.reference.owner)).resolves.toMatchObject(expected);
+    await expect(access.readSubject(candidate)).resolves.toMatchObject(expected);
   });
 
   it("projects session context and its load set through the selected checkout's physical placement", async () => {
