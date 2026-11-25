@@ -16,22 +16,18 @@ end of this doc.
 ## How It Works
 
 ARC stores each developer's personal records under their identity (from `git config arc.identity`, configured during
-initial setup) and projects them into `user/{identity}/` in every checkout:
+initial setup). ARC projects only the current identity's personal records into `user/{identity}/` in each checkout:
 
 ```text
 user/
 ├── README.md                    # This file (tracked)
-├── andrew/                      # Your personal workspace
-│   ├── WORKING-MEMORY.md        # Cross-work-unit context, reviewed at each handoff
-│   ├── USER-INBOX.md            # Personal task capture, read with `arc inbox personal`
-│   └── scratch/                 # Your own files
-└── alice/                       # Team member (same structure)
-    └── ...
+└── andrew/                      # Your personal workspace
+    ├── WORKING-MEMORY.md        # Cross-work-unit context, reviewed at each handoff
+    ├── USER-INBOX.md            # Personal task capture, read with `arc inbox personal`
+    └── scratch/                 # Your own files
 ```
 
-**Solo projects** have one identity directory. **Team projects** have one per developer. The
-structure is identical — team scaling requires no migration. Add team members with
-`arc user add <identity>`.
+The checkout layout is the same for solo and team projects. Add team members with `arc user add <identity>`.
 
 ## What Lives Where
 
@@ -71,8 +67,10 @@ links. Keep each file to at most 1 MiB (1,048,576 UTF-8 bytes). The store reject
 
 Your personal records, including accepted `scratch/` files, are stored under your identity beside the project's state.
 A scratch edit becomes available to sync on another machine after the store accepts it through `arc save` and
-`arc sync` publishes it to the state remote. The state remote for a public repository is public too, so keep secrets
-out of your personal workspace.
+`arc sync` publishes it to the state remote. Anyone with read access to the designated state remote can read published
+personal records. In the default setup, state uses the code repository's remote, so a public code repository makes
+those records public. A separate state repository can be private even when the code repository is public. In local-only
+mode, ARC publishes no state. Keep secrets out of your personal workspace.
 
 ## Adding Team Members
 

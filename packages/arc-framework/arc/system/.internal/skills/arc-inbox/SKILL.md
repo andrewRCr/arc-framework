@@ -94,10 +94,11 @@ inline / message / errand-now / defer call. `arc-housekeep` drains captures; `ar
 
 5. Write it.
 
-   - Add the entry to the chosen section of your personal inbox with
-     `arc route --to personal --section <Errand | "Work Unit">`, the entry on standard input; the verb stamps its
-     `_Id:_` and `_Created:_`. The personal inbox is yours alone, so it accepts writes any time, from any checkout.
-     Leave existing entries in place; the personal inbox drains at the between-WUs `arc-housekeep` flow.
+   - From any checkout, add the entry to the chosen section of your personal inbox with
+     `arc route --to personal --section <Errand | "Work Unit">` and pass the entry on standard input. The verb stamps
+     `_Id:_` and `_Created:_`. ARC accepts personal inbox writes only from the inbox's identity. Anyone with read access
+     to the state remote can read entries published by `arc sync`. Leave existing entries in place for the between-WUs
+     `arc-housekeep` drain.
    - **Every Errand-class capture** has no work-unit home. Capture it to `## Errand`; at the next drain it takes
      the homeless-atomic route — execution, project-inbox deferral, or explicit Owner retention. Never write the
      project inbox directly from capture. Spec-worthy concerns take the drain's gate instead.

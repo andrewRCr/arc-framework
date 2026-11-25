@@ -145,12 +145,13 @@ listed parts once the remedy is applied.
 - **Homeless atomic — defer** — every deferred `errand` outcome takes this route; an Errand-shaped concern has no
   work-unit home. Move it to the project inbox (`--to project`) under `pm.mode: arc-in-git`, which is atomic-only;
   follow the project's convention otherwise.
-- **Retain (escape-hatch)** — an atomic the user explicitly keeps in the personal inbox (private-until-vetted, or
-  imminent self-execution). **Never the default, never agent-suggested.** Set the managed field _Hold:_ to `true`
-  and **re-stamp** _Created:_ to the retain date (both values backtick-delimited per the managed-field grammar) in
-  the inbox's file, then save with `arc save`, so the reminder floor (never same-day) applies from now. A retained
-  entry is _triaged_ — it does not count toward `inboxState.housekeepNeeded`, and the reminder sweep keeps it from
-  rotting.
+- **Retain (escape-hatch)** — the user can explicitly keep an atomic in the personal inbox to defer routing or
+  execute it soon. **Never the default, never agent-suggested.** ARC accepts personal inbox writes only from the
+  inbox's identity. Anyone with read access to the state remote can read retained entries published by `arc sync`.
+  Set the managed field _Hold:_ to `true` and **re-stamp** _Created:_ to the retain date (both values backtick-delimited
+  per the managed-field grammar) in the inbox's file, then save with `arc save`, so the reminder floor (never same-day)
+  applies from now. A retained entry is _triaged_ and the reminder sweep stays active. It does not count toward
+  `inboxState.housekeepNeeded`.
 - **Execute-now atomic** — queued in § 5, not written here.
 
 **Picked-stub re-triage.** Carry out the confirmed outcomes over the stub's inbound list:

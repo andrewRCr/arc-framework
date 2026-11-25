@@ -151,6 +151,22 @@ describe("routing workflow contract", () => {
     }
   });
 
+  it("explains who can write and read personal captures when retaining or adding them", async () => {
+    const [workflow, capture] = await Promise.all([shipped(drain), shipped(inboxSkill)]);
+    const retention = section(workflow, "- **Retain (escape-hatch)**", "- **Execute-now atomic**");
+    const writing = section(capture, "5. Write it.");
+
+    expect.soft(retention).not.toContain("private-until-vetted");
+    expect.soft(writing).not.toMatch(softWrappedProse("The personal inbox is yours alone"));
+    expect.soft(retention, "Retention defers routing").toMatch(/\b(?:defer|postpone)\w* routing\b/iu);
+    for (const instructions of [retention, writing]) {
+      expect.soft(instructions, "ARC restricts writes to the inbox identity")
+        .toMatch(/\bARC\b[^.]*\bwrit\w*\b[^.]*\bonly\b[^.]*\bidentity\b/iu);
+      expect.soft(instructions, "State remote readers can read published entries")
+        .toMatch(/\bread access\b[^.]*\bstate (?:remote|repository)\b[^.]*\bread\b[^.]*\bpublish\w*\b/iu);
+    }
+  });
+
   it("preserves a queued personal capture while planning routes for new ones", async () => {
     const workflow = await shipped(drain);
     const reads = section(workflow, "### 1. Read the inbox", "### 2.");
