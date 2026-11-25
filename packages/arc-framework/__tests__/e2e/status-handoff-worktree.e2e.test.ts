@@ -48,4 +48,18 @@ describe("handoff checkout identity", () => {
       : { kind: "primary" });
     expect(envelope.branch).toBe(kind === "linked" ? "topic" : "main");
   });
+
+  it("reports a missing identity and selects a handoff path after configuration", async () => {
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: join(repository, ".git", "empty-global"), GIT_CONFIG_NOSYSTEM: "1" };
+    await execFileAsync("git", ["config", "--local", "--unset", "arc.identity"], { cwd: repository, env });
+    await execFileAsync("git", ["config", "--local", "--unset", "user.name"], { cwd: repository, env });
+    const args = ["status", "--session-handoff", "--json"];
+    const missing = await runCli(args, { cwd: repository, env });
+    expect(JSON.parse(missing.stdout)).toMatchObject({ handoffLocus: { ok: false, error: { kind: "identity-missing" } } });
+
+    await execFileAsync("git", ["config", "arc.identity", "test-user"], { cwd: repository, env });
+    const configured = await runCli(args, { cwd: repository, env });
+    expect(configured.exitCode, configured.stderr).toBe(0);
+    expect(JSON.parse(configured.stdout)).toMatchObject({ handoffLocus: { ok: true, value: { kind: "between-work-units" } } });
+  });
 });

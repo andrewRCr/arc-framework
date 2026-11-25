@@ -1,8 +1,9 @@
 /** Handoff writes use real checkout claims and one reference-backend mutation. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { lint } from "markdownlint/promise";
 import { afterEach, expect, it, vi } from "vitest";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -54,6 +55,46 @@ it("lands five fields in one write at the observed state and real HEAD", async (
     commitAtHandoff: (await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim(), sessionType: "execution",
     nextAction: request.nextAction, sessionContext: request.sessionContext });
   expect(lifecycleSuccess(await h.store.history({ reference: h.meta.reference }))).toHaveLength(2);
+});
+it("checks Markdown introduced by the handoff after writing the meta and before sync", async () => {
+  const h = await fixture();
+  const sessionContext = "###Blockers\n\nAwaiting review.";
+  expect(await runHandoffWrite({ ...h, request: { ...request, sessionContext } })).toMatchObject({ status: "written" });
+  const written = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  const findings = await lint({ strings: { before: h.meta.content, after: written.content },
+    config: { default: false, MD018: true } });
+  expect(findings.before).toEqual([]);
+  expect(findings.after).toEqual([expect.objectContaining({ ruleNames: expect.arrayContaining(["MD018"]) })]);
+
+  const base = "system/workflows/arc/session-lifecycle";
+  for (const path of [`../../arc/${base}/session-handoff.template.md`, `../../../../.arc/${base}/session-handoff.md`]) {
+    const workflow = await readFile(join(import.meta.dirname, path), "utf8");
+    const active = workflow.split("## Active-WU Handoff Format")[1]?.split("## Sync")[0] ?? "";
+    const afterWrite = active.split("arc handoff write -")[1];
+    expect(afterWrite, "The handoff wrote ###Blockers (MD018) without a Markdown check on the written meta")
+      .toMatch(/Markdown[\s\S]*written meta[\s\S]*correct[\s\S]*request[\s\S]*recheck[\s\S]*Sync/u);
+  }
+
+  const repaired = { ...request, sessionContext: "### Blockers\n\nAwaiting review." };
+  expect(await runHandoffWrite({ ...h, request: repaired })).toMatchObject({ status: "written" });
+  const settled = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  expect((await lint({ strings: { settled: settled.content }, config: { default: false, MD018: true } })).settled)
+    .toEqual([]);
+});
+it("retains an unresolved blocker for resume orientation when the next handoff carries it forward", async () => {
+  const h = await fixture();
+  const blocker = "### Blockers\n\nWaiting for a design decision.";
+  expect(await runHandoffWrite({ ...h, request: { ...request, sessionContext: blocker } }))
+    .toMatchObject({ status: "written" });
+  const previous = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  const previousContext = ParsedMetaRecordSchema.parse(previous.fields).sessionContext;
+  expect(previousContext).toBe(blocker);
+
+  const sessionContext = `${previousContext}\n\n### Additional Context\n\nUse the current branch.`;
+  expect(await runHandoffWrite({ ...h, request: { ...request, sessionContext } }))
+    .toMatchObject({ status: "written" });
+  const current = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  expect(ParsedMetaRecordSchema.parse(current.fields)).toMatchObject({ sessionContext, blockers: null });
 });
 it("writes an omitted Session Type as none", async () => {
   const h = await fixture();

@@ -96,6 +96,28 @@ describe("locus methodology contracts", () => {
     }
   });
 
+  it("uses the surviving checkout's complete probe when an Errand returns to its parent work unit", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const file = base === packageArc ? "session-handoff.template.md" : "session-handoff.md";
+      const handoff = await readFile(resolve(base, "system/workflows/arc/session-lifecycle", file), "utf8");
+      const errand = handoff.split("## Errand-Session Handoff Path")[1]?.split("\n## ")[0];
+      expect(errand).toMatch(/arc status --session-handoff --json[\s\S]*complete probe[\s\S]*new baseline/u);
+      expect(errand).toMatch(/new baseline[\s\S]*`release-work-unit`[\s\S]*matching WU or between-WUs path/u);
+      expect(handoff).toMatch(softWrappedProse("if the `active` artifact slot disagrees, stop"));
+      expect(handoff).toContain("arc handoff write -");
+    }
+  });
+
+  it("stops before selecting a handoff path without an identity and gives the retry command", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const file = base === packageArc ? "session-handoff.template.md" : "session-handoff.md";
+      const handoff = await readFile(resolve(base, "system/workflows/arc/session-lifecycle", file), "utf8");
+      expect(handoff.match(/^- `skipped \(no identity\).*$/mu)?.[0],
+        "A missing identity stops dispatch before handoff confirmation").toBeUndefined();
+      expect(handoff).toMatch(/`identity-missing`[\s\S]*surface[^.]*stop[\s\S]*git config arc\.identity <name>[\s\S]*retry/u);
+    }
+  });
+
   it("routes same-session finalization through exact-head change-request resolution", async () => {
     for (const base of [packageArc, projectArc]) {
       const suffix = base === packageArc ? ".template.md" : ".md";
@@ -123,6 +145,17 @@ describe("locus methodology contracts", () => {
       const init = await readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"), "utf8");
       expect(init).not.toContain("pendingExecuteBound");
       expect(init).not.toContain("executeBoundDiagnostics");
+    }
+  });
+
+  it("sends an externally merged work unit through delivery closeout before teardown", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const file = base === packageArc ? "session-handoff.template.md" : "session-handoff.md";
+      const handoff = await readFile(resolve(base, "system/workflows/arc/session-lifecycle", file), "utf8");
+      const arm = handoff.split("**work-unit candidate**")[1]?.split("**errand candidate")[0] ?? "";
+      const firstAction = arm.match(/arc teardown|arc delivery closeout|merged-PR tail/iu)?.[0];
+      expect(firstAction, "An archived terminal work unit may still have pending closeout").toBe("merged-PR tail");
+      expect(arm).toMatch(/`targetRef\.repository`[\s\S]*`closed-out`[\s\S]*`blocked`[\s\S]*preserve the checkout/u);
     }
   });
 

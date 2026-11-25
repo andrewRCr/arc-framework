@@ -111,8 +111,9 @@ followed method's report and question, and report unoffered `exec` actions that 
 - **`work-state`:** Compose **Last completed** (one line: task ID, title, commit state), **Current task** (one line:
   task ID and title, or `none` between work units), **Blockers** (`none` or the relevant detail), and **Next action**
   (one line on the task list, unbounded when off-task work has no tracked source). Use the loaded meta, its session
-  context included, and the task cursor within the authority rules below. Include a cohort-coordination line only when
-  the loaded cohort document bears on the current task.
+  context included, and the task cursor within the authority rules below. Include unresolved blockers from Session
+  Context in the composed Blockers line. Include a cohort-coordination line only when the loaded cohort document
+  bears on the current task.
 - **`subject`:** Frame the summary around `orientation.subject` and its kind/key, goal, and relevant working context,
   instead of composing work-unit state.
 - **`checkout`:** Emit the compiled header and checkout surfaces, with no thought-state lines or subject.
@@ -135,23 +136,26 @@ At a `gate`:
 
 ## 5. State authority and mismatches
 
-The meta's session context and its handoff fields (`Session Type`, `State at Handoff`, `Commit at Handoff`) may supply
-context anchors and human working context. They never select lifecycle phase, workflow, load set, or live Git facts.
+The agenda compiler can apply the meta's stored `Session Type` as a discretionary planning/execution override when
+building the workflow and load set. Typed prepublication and integration phases retain authority. Follow the emitted
+agenda. Session Context, `State at Handoff`, and `Commit at Handoff` supply working context and freshness anchors.
 WORKING-MEMORY entries bind as active constraints until each entry's `_Remove when:_` trigger is met.
 
-Distinguish two mismatch axes:
+Resolve discrepancies using the authority for each fact.
 
-- **Truth of work state:** Git commits, actual file contents, and `git status` are authoritative. The task list,
-  active meta, and session context make claims about that state; verify them against Git, which wins on conflict.
-- **Which work is being picked up:** Identity-filtered metas and the worktree list are authoritative. The session
-  context describes working context, not which work unit, branch, or task this session resumes.
+- **Code and checkout:** Git history, the index, `git status`, and actual code contents settle code and checkout facts.
+- **Task and lifecycle:** Use the store-backed task cursor for task closure and typed status for lifecycle phase.
+  Consult store history to explain state changes. If a commit landed and the task remains open, report the pending
+  close and follow **Crash Recovery** in [process-task-loop][process-task-loop]. A state-only task can close without a
+  code commit.
+- **Resume subject:** Follow the compiled selection from the identity-filtered metas and worktree list.
 
-When an axis's authority resolves a discrepancy unambiguously, use ground truth and report the discrepancy in
-orientation: “Active meta said X. Git/task list show Y. Proceeding with Y.” If the compiled selection needs refreshing,
-rerun the last agenda invocation from the same checkout; never construct another session frame yourself.
-When explanations remain ambiguous or same-tier authorities disagree, report each view with specific details and
-wait for explicit direction before corrective action. Unexplained dirty files may be co-development or interrupted
-work; do not assume ownership. A mismatch withholds auto-proceed even when it can be recovered with notice.
+When the authority settles a discrepancy, report the conflicting accounts and the authoritative result in orientation.
+If the compiled selection needs refreshing, rerun the last agenda invocation from the same checkout; never construct
+another session frame yourself. When explanations remain ambiguous or same-tier authorities disagree, report each view
+with specific details and wait for explicit direction before corrective action. Unexplained dirty files may be
+co-development or interrupted work; do not assume ownership. A mismatch withholds auto-proceed even when it can be
+recovered with notice.
 
 If a freshness gap suggests an interrupted session, load [process-task-loop][process-task-loop] and follow its
 **Crash Recovery** procedure before proceeding.

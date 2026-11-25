@@ -17,9 +17,8 @@ duration of this workflow.
 
 ## Resolve Handoff Context
 
-Open with the composite probe — single call, slot-wise envelope, per-slot error handling matching
-the session-init pattern. This is **probe-1**; refresh after every subject driver or tracked-state mutation so the
-next operation consumes the latest exact entering-checkout facts.
+Open with the composite probe — single call, slot-wise envelope, per-slot error handling matching the session-init
+pattern. Use this as the initial baseline.
 
 ```bash
 arc status --session-handoff --json
@@ -27,7 +26,7 @@ arc status --session-handoff --json
 
 | Field                    | Contents                                                                                                             |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `identity`               | `{identity, role}` — either may be `null`. `identity === null` skips the personal-state steps                        |
+| `identity`               | `{identity, role}` — either may be `null`. Handoff requires a resolved identity                                      |
 | `derivedLocusState`      | Required entering-checkout frame; sole handoff subject and workflow/session authority                                |
 | `locusGuidance`          | CLI-precomposed current-checkout narration and sibling diagnostics from the same derived frame                       |
 | `handoffLocus`           | `Probe<HandoffLocusPlan>` for `between-work-units`, `release-work-unit`, `leave-errand`, or `refused`                |
@@ -42,24 +41,21 @@ arc status --session-handoff --json
 | `pathSet`                | Absolute paths (`null` when N/A); `workingMemory` names `WORKING-MEMORY.md`. Do not re-derive from conventions       |
 | `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)   |
 
-**Slot freshness contract.** Probe-1 captures pre-path state. Subject leave and between-WUs context routing may mutate
-checkout, worktree, dirty, and head state; refresh `derivedLocusState`, `locusGuidance`, `handoffLocus`, `worktree`,
-`dirty`, and `head` after each such operation. Use the latest refresh for dispatch and confirmation. Other slots,
-including `pathSet`, remain stable from probe-1.
+**Slot freshness contract.** Refresh after a subject driver or tracked-state mutation, before consuming affected
+slots. Carry unchanged slots forward only while the checkout and subject both stay the same. When either changes,
+take every slot from a new probe in the surviving checkout before dispatching.
 
-**Identity absent** (`identity.identity === null`): Skip the personal-state steps — `WORKING-MEMORY` review and
-personal routing resolve through identity — and the sync. Surface a warning in the handoff summary.
+**Identity absent.** If `handoffLocus` reports `identity-missing`, surface the error and stop before dispatch.
+Configure a lowercase identity slug with `git config arc.identity <name>`, then retry the handoff.
 
 **Composite probe failure:** If the composite call itself fails, surface the failure and stop. Direct diagnostic
 commands may explain the failure, but they never establish a session frame, select a subject, authorize context
 loading, or permit mutation.
 
-Carry slot values forward to the steps that consume them; refresh only at the documented mutation points.
-
 ## Handoff Mode Dispatch
 
-After probe-1, if `handoffLocus.ok !== true`, surface its error and stop. Then dispatch only on `handoffLocus.value`;
-branch on its `kind`:
+After probing, if `handoffLocus.ok !== true`, surface its error and stop. Then dispatch only on `handoffLocus.value`
+using its `kind`.
 
 - **`refused`** — render `recommendedPromptText` verbatim and stop. Incomplete housekeep, unshipped grooming,
   incomplete partial Errands, ambiguous topology, and unproven preservation never fall through to another path.
@@ -81,14 +77,18 @@ default — if your project overrides session-state, follow the override instead
   completed work, decisions, blockers, debugging insights, things tried. The section is replaced each handoff, not
   appended. The verb records `State at Handoff` and `Commit at Handoff` itself. Between work units, or during
   planning cycles with no active WU, no meta exists to write.
-- **WORKING-MEMORY.md** — path from `pathSet.value.workingMemory` when `pathSet.ok` (`null` without identity).
+- **WORKING-MEMORY.md** — path from `pathSet.value.workingMemory` when `pathSet.ok`.
   Cross-WU persistent context, persisted with `arc save`. Entries survive across handoffs, each carrying an explicit
   `_Remove when:_` trigger reviewed at each handoff (see WORKING-MEMORY entries guidance below).
 
-> **Person-to-person handoff:** If handing off to a different developer (not just ending your own session), write
-> the session context for someone with no prior context on this work. After the handoff syncs, hand the work unit to
-> them with `arc handover <slug> --to <identity>` and free this checkout with `arc locus release`. See [Team
-> Coordination Strategy][team-coordination] § Person-to-Person Task Handoff for the full protocol.
+> **Person-to-person handoff:** Write the session context for someone new to the work. After the normal handoff sync
+> and [Finalize Handoff State](#finalize-handoff-state), ensure the work branch is shared and run
+> `arc handover <slug> --to <identity>`. If handover refuses, show its remedy and retry after resolving the condition.
+> After `handed-over`, publish the new Owner with `arc sync --json` under the sync interlock. Require
+> `state.push.result` to be `success` before confirming transfer, then free this checkout with `arc locus release`.
+> Without a successful state push, report the transfer as pending. Give the observed reason and any reported remedy,
+> then have the sender run or retry `arc sync` to publish the saved Owner change. See the
+> [Team Coordination Strategy][team-coordination] § Person-to-Person Task Handoff.
 
 **Active-WU handoff** — the work unit's handoff, written with `arc handoff write`. Use
 [Active-WU Handoff Format](#active-wu-handoff-format).
@@ -150,18 +150,18 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
     arc status --session-handoff --json
     ```
 
-   Require the new `handoffLocus.value` to be `release-work-unit` at the result's exact `parentCheckoutPath`, or
-   `between-work-units` at the retained primary checkout when the Errand was cold. Any other result stops. Continue
-   through the matching WU or between-WUs path; do not end handoff at the transient.
+   Use the complete probe from the surviving checkout as the new baseline. Require its `handoffLocus.value` to be
+   `release-work-unit` at the result's exact `parentCheckoutPath`, or `between-work-units` at the retained primary
+   checkout when the Errand was cold. Any other result stops. Continue through the matching WU or between-WUs path;
+   do not end handoff at the transient.
 
 ## Between-WUs Handoff Path
 
 Use this path when `handoffLocus.value.kind === "between-work-units"`.
 
-1. **Review `WORKING-MEMORY.md`** — if identity resolved, apply the criterion in the WORKING-MEMORY
-   entries guidance below. Remove entries whose triggers are met, AND entries whose information is now
-   carried in project state. Surface removals in the handoff summary; do not silently rewrite. If identity
-   is absent, skip user-state reads and surface the degraded state.
+1. **Review `WORKING-MEMORY.md`** — apply the criterion in the WORKING-MEMORY entries guidance below. Remove entries
+   whose triggers are met and entries whose information is now carried in project state. Surface removals in the
+   handoff summary; do not silently rewrite.
 2. **Route durable handoff context** — if anything must survive the handoff, write it to an existing
    authoritative surface: a capture through `arc-inbox` for deferred personal work, `WORKING-MEMORY` for cross-WU
    persistent context, once its addition is approved, or backlog artifacts when the project document is already the
@@ -180,8 +180,8 @@ Use this path when `handoffLocus.value.kind === "between-work-units"`.
     arc status --session-handoff --json
     ```
 
-   Read updated `worktree`, `dirty`, `head`, and `recommendedSummaryLine`; unchanged slots remain stable from
-   probe-1. If nothing changed, the refresh is harmless and becomes the sync baseline.
+   Use the refreshed envelope as the sync baseline, including `handoffLocus`, `worktree`, `dirty`, `head`, and
+   `recommendedSummaryLine`.
 5. **Run [Sync](#sync)**.
 6. **Run [Confirm Handoff](#confirm-handoff)**. Use `session-init discovery / user direction` for
    **Next session** unless the user gave a concrete next action during handoff.
@@ -228,6 +228,13 @@ Write the handoff before ending the session:
     `maintenance` report and any `diagnostics` in Confirm Handoff. A `refused` result names its condition and remedy:
     take the remedy and retry once, or surface it and stop.
 
+4. **Check the written handoff** — before [Sync](#sync), run the project's Markdown lint on the written meta using
+   its explicit path from the active work unit's derived context. For a declared Markdown selection check, use
+   `arc check run <markdown-check-id> --paths <meta-path>`. Confirm the projection contains the new handoff before
+   checking. If it is stale, refresh it with `arc status --session-handoff --json` and verify the written meta.
+   Correct handoff-authored issues in the request, write the corrected request with `arc handoff write`, and recheck
+   before Sync. Carry unrelated findings under Remaining Work in the final request.
+
 **Next Action** (`nextAction`, required) — the next task with its ID and title (`Start Task 3.3 — Write unit tests for
 validation logic`), or a specific preparatory or off-task-list action; say so when work runs out of task-list order.
 Keep it to one line (two for a multi-file scope), wrapped to the 120-char target; push longer context into the session
@@ -246,9 +253,9 @@ prepublication/integration phases cannot be overridden: never set it to enter, l
 **Compose the session context** (`sessionContext` — per-WU session context; active-WU path only). Between-WUs handoff
 skips this section entirely.
 
-**Audience:** The next session's agent loading from cold context. They already have project state —
-git log, task list, meta, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
-only what they can't derive from any of that. Volume is a side effect, not a target.
+**Audience:** The next session's agent loading from cold context. Check what it can still derive from the normal
+load set after this write replaces the section. Carry forward still-applicable items, including unresolved
+blockers, whose only record is the outgoing Session Context.
 
 **Filter pipeline — apply both passes:**
 
@@ -259,8 +266,8 @@ paraphrases an entry, omit. Mechanical step — array-driven, not judgment. When
 
 **Pass 2 — 3-criterion filter on the residual:**
 
-1. **Not in any durable project source.** PRD, strategy, constitution, plan docs, ADRs — those are
-   authoritative; duplicating creates shadow copies that drift.
+1. **Absent from sources that survive this write.** Check Git history, the task list, the rest of the meta,
+   `notes-*.md`, and durable project documents the next session loads.
 2. **Acted on at step 0.** Orientation-relevant — changes what the next session does or checks when
    it loads. Not a retrospective observation you "want on record."
 3. **Costly if missing.** Re-deriving from project state in 30 seconds is not rework; a
@@ -387,8 +394,9 @@ filter pipeline above for the full case.)
 
 ## Task List Completion & Transition
 
-**When every task is closed** and the work unit is still active, Next Action names the next lifecycle step — for
-example, `archive-work-unit Step 1 — archive the work unit`.
+**When every task is closed**, use typed status to name the first pending verification, preparation, or integration
+step in Next Action. For an Active unit ready for its first attestation, use `verify-work-unit Step 3 — attest the
+Candidate`. Use Archive Step 1 only after its prerequisites hold, including Integrating state and completed composition.
 
 Archiving clears the session context, both anchors, and `Session Type`, and resets Next Action. WORKING-MEMORY.md
 persists unchanged across the archive boundary — its entries' eviction triggers handle cross-WU lifecycle.
@@ -419,16 +427,12 @@ underlying model.
     arc sync --json
     ```
 
-  Surface the result per § Confirm Handoff. A pull that stops, or a clone with no designated state remote, publishes
-  no state and exits nonzero while the branch push still runs; take the remedy the result names, such as
-  `arc store remote` for the designation. Resolve it conversationally; never block on a TTY prompt.
+  Surface the result per § Confirm Handoff. If the pull stops or reports `designation-needed` without settling it,
+  state publication is blocked and sync exits nonzero. Follow the reported remedy, using `arc store remote` for a
+  pending designation, then retry. Resolve the remedy conversationally without blocking on a TTY prompt.
 
 - **`manual`** — skip the auto-invoke. The user runs `arc sync` when ready. The latest `recommendedSummaryLine`
   carries the unpushed / Reconcile surface (see § Confirm Handoff).
-
-**Identity absent** (`identity.identity === null`): skip the auto-invoke regardless of
-`syncInterlock.value` — `arc sync` refuses without an identity. The latest probe's
-`recommendedSummaryLine` still composes from worktree state.
 
 ## Finalize Handoff State
 
@@ -452,17 +456,16 @@ a quick confirmation for the human — the stored handoff and routed captures ar
 When `worktree.value.identity.kind === "linked"`, insert `` · `worktree: {identity.path}` `` into the header
 after the branch — naming the non-primary worktree the session occupies. Omit entirely in the primary worktree.
 
-For active-WU and between-WUs handoff, render **Sync:** as one of these results (read from
-`arc sync --json` when it ran, otherwise from the matching skip arm):
+For active-WU and between-WUs handoff, render **Sync:** from each actual `arc sync --json` envelope.
 
-- `synced to remote` — sync ran, exited `0`, and at least one leg (state or branch) reports a successful push.
-- `saved locally — no remote push fired` — sync ran and exited `0`, but no leg pushed.
-- `sync failed — re-run \`arc sync\` after resolving` — sync ran and returned non-zero. Name the leg it reports
-  failed: state publishes first and alone, so a failed branch push leaves state published, and a stopped pull
-  publishes none.
-- `skipped (sync_interlock: manual). Run \`arc sync\` when ready.` — auto-invoke skipped per
-  config.
-- `skipped (no identity). Configure \`arc.identity\` to enable sync.` — identity-absent fallback.
+- **State pull** (`state.pull`) — report the result and relevant detail, including a stopped pull or failed read source.
+- **State push** (`state.push`) — say whether state reached the remote, was already current, or was blocked or failed.
+  A `no-remote` pull with a `noop` push means state is local-only. For `designation-needed`, give the designation remedy.
+- **Branch** (`worktree`) — report the action and its outcome, including a successful push or pull, or a skipped,
+  blocked, or failed action. Name the branch and report any supplied reason and remedy.
+
+If sync was manual, say it was skipped and give `arc sync` as the next command. For a person-to-person handoff,
+report pending publication explicitly when the new Owner has not been published.
 
 For Errand handoff, render **Errand:** with the checkpoint commit hash or `no new commit`, plus the selected
 branch's push result.
@@ -476,10 +479,9 @@ units]
 **Conditional top-level sections** — prepend each applicable surface above the current result block (`**Sync:**`
 or `**Errand:**`):
 
-- `recommendedSummaryLine` non-null: prepend it verbatim. Read from `arc sync --json`'s envelope when sync ran
-  (`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from the latest probe
-  otherwise (manual mode or identity absent). This surface composes from canonical state — no agent-side counting or
-  dispatch.
+- Prepend the non-null `recommendedSummaryLine` verbatim from the latest `arc sync --json` envelope when sync ran,
+  or from the latest probe in manual mode.
+- From each actual `arc sync --json` result, prepend a present `tripwires.contention.text` verbatim.
 - `arc handoff write`'s `maintenance` report or `diagnostics` non-empty: prepend each `text` and diagnostic verbatim.
 
 **Formatting guidance:**
@@ -508,9 +510,12 @@ arc review change-request resolve --head-ref <branch> --head-sha <head-sha>
 An unavailable local head is **failed / blocked**; never substitute a host-reported or remembered head.
 Dispatch only on its typed state and action:
 
-- `merged-at-head / complete` → **merged-clean** — eager teardown. Each step is presence-guarded (safe to re-run):
-    - **work-unit candidate** → `arc teardown <wu-name>`: reaps the merged branch (merged-safe), removes any
-      distinct worktree (clean-checked, never `--force`), and prunes the stale remote-tracking ref;
+- `merged-at-head / complete` → **merged-clean** — finalize the candidate. Each cleanup step is presence-guarded.
+    - **work-unit candidate** → enter integration's [merged-PR tail][merged-pr-tail] with the candidate work unit
+      and the resolver's `targetRef.repository` as `repositoryRef`. Apply integration's composition and archive
+      prerequisites first. Follow the tail through delivery closeout, including its terminal landing check. Continue to
+      teardown only on `closed-out`. On `blocked` or any other result, preserve the checkout, surface the result and
+      any remediation it supplies, and retry closeout after resolving the condition.
     - **errand candidate with a record** → `arc errand close <slug> --json`: consume its typed result while it
       restores or tears down the exact checkout, retires the owned locus and identity generation, reaps refs, and
       settles only the originating capture generation;
@@ -528,3 +533,4 @@ Dispatch only on its typed state and action:
 [commit-footer]: ../../../methods/commit-footer.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops]: ../../../../reference/strategies/arc/strategy-session-operations.md
+[merged-pr-tail]: ../work-unit-lifecycle/integrate-work-unit.md#10-behind-base-reconcile-gate-and-merge
