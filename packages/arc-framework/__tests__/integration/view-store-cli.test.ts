@@ -1,7 +1,8 @@
 /** Registered view commands read one selected store and preserve file/content destinations. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
@@ -35,7 +36,17 @@ async function fixture(fields: MetaRenderOverrides = {}) {
 }
 
 // The command's default store keeps its own state under `.git`; view itself writes nothing in the working tree.
-const workingTree = async (cwd: string) => (await readdir(cwd, { recursive: true })).filter(path => !/^\.git(?:[\\/]|$)/u.test(path));
+async function workingTree(cwd: string): Promise<Record<string, string | null>> {
+  const entries = await readdir(cwd, { recursive: true, withFileTypes: true });
+  const snapshot = await Promise.all(entries.map(async entry => {
+    const file = join(entry.parentPath, entry.name);
+    const path = relative(cwd, file);
+    if (/^\.git(?:[\\/]|$)/u.test(path)) return [];
+    const digest = entry.isFile() ? createHash("sha256").update(await readFile(file)).digest("hex") : null;
+    return [[path, digest] as const];
+  }));
+  return Object.fromEntries(snapshot.flat());
+}
 
 it("renders the claimed work unit's furthest record without a projected file or file writes", async () => {
   const f = await fixture(), before = await workingTree(f.cwd);
@@ -129,4 +140,11 @@ it("refuses a registered path request for unprojected record content with the re
   expect(result.stderr).toContain("has no file in this checkout");
   expect(result.stderr).toContain("arc view spec --for demo");
   expect(result.stderr).not.toContain("without a registered checkout");
+}, 30_000);
+
+it("detects an in-place config overwrite in the working-tree snapshot", async () => {
+  const { cwd } = await fixture();
+  const before = await workingTree(cwd);
+  await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: next\n");
+  expect(await workingTree(cwd)).not.toEqual(before);
 }, 30_000);

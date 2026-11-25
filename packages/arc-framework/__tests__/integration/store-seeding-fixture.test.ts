@@ -1,13 +1,14 @@
 /** The store seeding helper writes a temporary repository's starting state where its composed ref backend reads it. */
-import { mkdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { selectStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
-import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences } from "../../src/lib/store/index.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, StoredUidSchema } from "../../src/lib/store/index.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { seedStore } from "../helpers/store/seed-store.js";
+import { readStoreRecord, removeStoreRecord, seedStore } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { commitAll, createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
@@ -44,20 +45,28 @@ describe("store seeding helper", () => {
     const links = { branches: [{ repository: "example/code", ref: `refs/heads/feat/${name}`, linkedAs: "created" as const, excluded: [] }] };
     const tasks = "# Tasks: Seeded Unit\n\n## **Phase 1:** Work\n\n### `[ ]` **1.1 Do the work**\n";
 
+    const metaByName = RecordReferenceSchema.parse({ kind: "work-item/meta", owner });
+    const tasksByName = RecordReferenceSchema.parse({ kind: "work-item/task-list", owner });
     const [meta, taskList] = await seedStore(root, identity, [
-      { reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner }), content: makeMetaFixture(name),
-        placement: { kind: "active" }, links },
-      { reference: RecordReferenceSchema.parse({ kind: "work-item/task-list", owner }), content: tasks },
+      { reference: metaByName, content: makeMetaFixture(name), placement: { kind: "active" }, links },
+      { reference: tasksByName, content: tasks },
     ]);
 
     expect(meta?.reference.owner).toEqual(taskList?.reference.owner);
     const store = composedStore(root);
+    const storedMeta = success(await store.read({ reference: metaByName }));
+    const storedOwner = storedMeta.reference.owner;
+    const storedUid = StoredUidSchema.parse("uid" in storedOwner ? storedOwner.uid : undefined);
+    expect(meta?.reference.owner).toMatchObject({ uid: storedUid });
+    expect(taskList?.reference.owner).toMatchObject({ uid: storedUid });
     expect(success(await store.read({ reference: meta!.reference }))).toMatchObject({ placement: { kind: "active" }, links });
     expect(success(await store.read({ reference: taskList!.reference }))).toMatchObject({ content: tasks, version: taskList?.version });
   });
 
   it("refuses a repository whose tree tracks ARC state before writing anything", async () => {
     const root = await repository();
+    const storePath = join(root, ".git", "arc", "store");
+    await expect(lstat(storePath)).rejects.toMatchObject({ code: "ENOENT" });
     await mkdir(join(root, ".arc", "active"), { recursive: true });
     await writeFile(join(root, ".arc", "active", "meta-tracked.md"), makeMetaFixture("tracked"));
     await commitAll(root);
@@ -65,5 +74,32 @@ describe("store seeding helper", () => {
     await expect(seedStore(root, identity, [{ reference: inbox, content: "# Project Inbox\n" }]))
       .rejects.toThrow(/tracked-state.*\.arc\/active\//su);
     expect((await makeGitExec(root)("git", ["for-each-ref", "refs/arc/"])).stdout).toBe("");
+    await expect(lstat(storePath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("refuses reads and removals while HEAD tracks ARC state and preserves the seeded record", async () => {
+    const root = await repository();
+    const content = "# Tasks: Seeded Unit\n";
+    const { taskList } = await seedWorkUnit(root, "seeded-unit", { identity, taskList: content });
+    const { reference, version } = taskList!;
+    const active = join(root, ".arc", "active");
+    const tracked = join(active, "meta-tracked.md");
+    await mkdir(active, { recursive: true });
+    await writeFile(tracked, makeMetaFixture("tracked"));
+    await commitAll(root);
+    expect(await composedStore(root).read({ reference }))
+      .toMatchObject({ status: "refused", refusal: { code: "tracked-state" } });
+
+    const refusal = /tracked-state.*\.arc\/active\/.*git fetch origin/su;
+    await expect.soft(readStoreRecord(root, identity, reference)).rejects.toThrow(refusal);
+    await expect.soft(removeStoreRecord(root, identity, reference)).rejects.toThrow(refusal);
+
+    await unlink(tracked);
+    await commitAll(root);
+    expect(success(await composedStore(root).read({ reference }))).toMatchObject({ version, content });
+    await expect(readStoreRecord(root, identity, reference)).resolves.toMatchObject({ version, content });
+    await removeStoreRecord(root, identity, reference);
+    expect(await composedStore(root).read({ reference }))
+      .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 });

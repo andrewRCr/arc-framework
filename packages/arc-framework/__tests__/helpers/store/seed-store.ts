@@ -1,11 +1,13 @@
 /** Seed a temporary repository's ref store in process, as the starting state a test that spawns the CLI reads. */
 import { randomUUID } from "node:crypto";
 
+import type { Store } from "../../../src/lib/store/contract.js";
 import { createRefStore } from "../../../src/lib/store/create.js";
 import { createDefaultRefStorePorts } from "../../../src/lib/store/default-ports.js";
 import type { RecordReference } from "../../../src/lib/store/identity.js";
 import { projectIdentityRecord } from "../../../src/lib/store/project-identity.js";
 import type { StoreRecord } from "../../../src/lib/store/read.js";
+import type { StoreRefusal } from "../../../src/lib/store/refusal.js";
 import { findTrackedStateRefusal } from "../../../src/lib/store/selection.js";
 import type { Slug } from "../../../src/lib/kernel/index.js";
 import type { BatchInput, WriteResult } from "../../../src/lib/store/write.js";
@@ -20,8 +22,17 @@ export type SeedRecord = Omit<Put, "action" | "expected"> & { readonly expected?
 export interface SeededRecord { readonly reference: RecordReference; readonly version: NonNullable<WriteResult["version"]> }
 
 const provenance = { verb: "fixture", lifecycleAction: "seed" } as const;
-const refused = (refusal: { code: string; condition: string }, action = "seed"): Error =>
-  new Error(`The store refused the ${action}: ${refusal.code}: ${refusal.condition}`);
+function refused(refusal: StoreRefusal, action = "seed"): Error {
+  const remedy = refusal.code === "tracked-state" ? `\n${refusal.remedy.text}` : "";
+  return new Error(`The store refused the ${action}: ${refusal.code}: ${refusal.condition}${remedy}`);
+}
+
+async function openFixtureStore(root: string, identity: Slug, action: "seed" | "read" | "removal"): Promise<Store> {
+  const ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
+  const tracked = await findTrackedStateRefusal(ports.exec);
+  if (tracked !== null) throw refused(tracked, action);
+  return createRefStore({ ...ports, identity: async () => identity });
+}
 
 /**
  * Write records in a repository's ref store, in one batch through the ref backend's ports, where the store a command
@@ -33,10 +44,7 @@ const refused = (refusal: { code: string; condition: string }, action = "seed"):
  * @returns Each record's reference and version, in the order given.
  */
 export async function seedStore(root: string, identity: Slug, records: readonly SeedRecord[]): Promise<SeededRecord[]> {
-  const ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
-  const tracked = await findTrackedStateRefusal(ports.exec);
-  if (tracked !== null) throw refused(tracked);
-  const store = createRefStore({ ...ports, identity: async () => identity });
+  const store = await openFixtureStore(root, identity, "seed");
   const result = await store.batch({ provenance, writes: records.map((record) => ({ ...record, action: "put", expected: record.expected ?? null })) });
   if (result.status !== "ok") throw refused(result.refusal);
   return result.result.writes.map(({ reference, version }) => {
@@ -54,8 +62,11 @@ export async function seedStore(root: string, identity: Slug, records: readonly 
  * @returns The record, refusing when the store holds none.
  */
 export async function readStoreRecord(root: string, identity: Slug, reference: RecordReference): Promise<StoreRecord> {
-  const ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
-  const read = await createRefStore({ ...ports, identity: async () => identity }).read({ reference });
+  return readRecord(await openFixtureStore(root, identity, "read"), reference);
+}
+
+async function readRecord(store: Store, reference: RecordReference): Promise<StoreRecord> {
+  const read = await store.read({ reference });
   if (read.status === "refused") throw refused(read.refusal, "read");
   return read.result;
 }
@@ -68,9 +79,9 @@ export async function readStoreRecord(root: string, identity: Slug, reference: R
  * @param reference - The record to remove.
  */
 export async function removeStoreRecord(root: string, identity: Slug, reference: RecordReference): Promise<void> {
-  const held = await readStoreRecord(root, identity, reference);
-  const ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
-  const result = await createRefStore({ ...ports, identity: async () => identity }).batch({ provenance,
+  const store = await openFixtureStore(root, identity, "removal");
+  const held = await readRecord(store, reference);
+  const result = await store.batch({ provenance,
     writes: [{ action: "remove", reference: held.reference, expected: held.version }] });
   if (result.status !== "ok") throw refused(result.refusal, "removal");
 }
