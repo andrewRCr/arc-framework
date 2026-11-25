@@ -42,6 +42,11 @@ export interface RenameMoveRemedy {
   text: string;
 }
 
+interface RenameMoveReplay {
+  argv: readonly ["arc", "rename", string, string];
+  text: string;
+}
+
 /** Validated path-lag projection surfaced by the session-entry sweep. */
 export interface RenameMoveResidue {
   oldSlug: string;
@@ -51,7 +56,7 @@ export interface RenameMoveResidue {
   from: string;
   to: string;
   remedy: RenameMoveRemedy;
-  actions: SessionAction[];
+  actions: [RenameMoveRemedy, RenameMoveReplay];
 }
 
 /** Ordinary CLI action offered for one structurally proven landed retirement. */
@@ -110,12 +115,14 @@ export interface RunLandedRetirementSweepOptions {
  * @param worktree - Registered worktree whose marker was read
  * @param marker - Validated marker read result
  * @param topology - Complete registered topology used to reject ambiguity and occupied targets
+ * @param storeBacked - Whether rename selects work units by their store identity
  * @returns An exact outside-worktree remedy, or `null` when any stamped fact is stale
  */
 export function projectRenameMoveRemedy(
   worktree: RegisteredWorktree,
   marker: WorktreeMarkerReadResult,
   topology: readonly RegisteredWorktree[],
+  storeBacked = false,
 ): RenameMoveResidue | null {
   if (marker.kind !== "present") return null;
   const pending = marker.marker.renameMovePending;
@@ -138,12 +145,18 @@ export function projectRenameMoveRemedy(
   ) {
     return null;
   }
-  const remedy: RenameMoveRemedy = {
+  const operand = storeBacked ? marker.marker.createdFor.uid : pending.oldSlug;
+  if (operand === undefined) return null;
+  const move: RenameMoveRemedy = {
     argv: ["git", "worktree", "move", "-f", "-f", pending.from, pending.to],
-    text: `Run git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)} from outside the checkout, `
-      + `then arc rename ${quoteShellArgument(pending.oldSlug)} ${quoteShellArgument(pending.newSlug)} to settle the move.`,
+    text: `git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)}`,
   };
-  return { ...pending, remedy, actions: [{ ...remedy, argv: [...remedy.argv] }] };
+  const replay: RenameMoveReplay = {
+    argv: ["arc", "rename", operand, pending.newSlug],
+    text: `arc rename ${quoteShellArgument(operand)} ${quoteShellArgument(pending.newSlug)}`,
+  };
+  const remedy = { argv: move.argv, text: `Run ${move.text} from outside the checkout, then ${replay.text} to settle the move.` };
+  return { ...pending, remedy, actions: [move, replay] };
 }
 
 /**

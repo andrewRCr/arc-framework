@@ -576,7 +576,10 @@ describe("runStaleWorktreeSweep", () => {
       },
       actions: [{
         argv: ["git", "worktree", "move", "-f", "-f", "/wt/project.old-name", "/wt/project.new-name"],
-        text: "Run git worktree move -f -f '/wt/project.old-name' '/wt/project.new-name' from outside the checkout, then arc rename 'old-name' 'new-name' to settle the move.",
+        text: "git worktree move -f -f '/wt/project.old-name' '/wt/project.new-name'",
+      }, {
+        argv: ["arc", "rename", "old-name", "new-name"],
+        text: "arc rename 'old-name' 'new-name'",
       }],
     }]);
   });

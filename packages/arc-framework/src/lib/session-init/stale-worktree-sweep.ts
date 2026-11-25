@@ -337,7 +337,7 @@ export async function runStaleWorktreeSweep(
       continue;
     }
     if (branched) branchedMarkers.set(entry.path, marker);
-    const projected = projectRenameMoveRemedy(entry, marker, scan.worktrees);
+    const projected = projectRenameMoveRemedy(entry, marker, scan.worktrees, usesOffBranchState(options.store));
     if (projected !== null) renameMoves.push(projected);
   }
   const retirementSweep = await runLandedRetirementSweep({

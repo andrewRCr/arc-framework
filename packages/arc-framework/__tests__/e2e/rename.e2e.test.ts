@@ -18,6 +18,7 @@ import {
 } from "./helpers.js";
 import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import {
   resolveSubmissionBoundaryPath,
@@ -26,7 +27,7 @@ import {
 import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 
@@ -685,7 +686,9 @@ describe("arc rename on the store", () => {
     expect(unwrapped).toContain(h.checkout);
     expect(unwrapped).toContain(newWorktree);
     // The boxed follow-up wraps at arbitrary columns; compare its words without their spacing.
-    expect(unwrapped.replace(/\s/gu, "")).toContain("thenrunarcrenameold-namenew-nametosettlethemove");
+    const { uid } = seededWorkUnitSubject(h.meta);
+    expect(unwrapped.replace(/\s/gu, ""))
+      .toContain(`thenrunarcrename${uid}new-nametosettlethemove`);
     expect(await exists(h.checkout)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);
     const pending = JSON.parse(await readFile(markerPath(h.checkout), "utf8")) as {
@@ -703,6 +706,42 @@ describe("arc rename on the store", () => {
     expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
     const moved = JSON.parse(await readFile(markerPath(newWorktree), "utf8")) as { renameMovePending?: unknown };
     expect(moved.renameMovePending).toBeUndefined();
+  }, 45_000);
+
+  it("settles a deferred self-rename by following the session-init cleanup choice", async () => {
+    const fixture = await storeFixture();
+    const { checkout } = await startedWorkUnit(fixture, { spawned: true });
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], checkout);
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+
+    let argv = ["arc", "agenda", "session-init", "--json"];
+    // The replay may be part of the move choice or a follow-up on recompilation.
+    for (let pass = 0; pass < 2; pass++) {
+      const result = await runArcNoTty(argv.slice(1), fixture.repo);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      const agenda: unknown = JSON.parse(result.stdout);
+      assertSessionInitAgenda(agenda);
+      const offer = agenda.steps.find(step => step.type === "offer" && step.id.startsWith("rename-moves:"));
+      if (pass === 0) expect(offer, "Expected a deferred rename cleanup choice").toBeDefined();
+      if (offer?.type !== "offer") break;
+      const choice = offer.choices[0];
+      if (choice?.kind !== "actions") throw new Error("Expected an executable rename cleanup choice");
+      for (const action of choice.actions) {
+        const [command, ...args] = action.argv;
+        const cwd = action.checkout ?? fixture.repo;
+        if (command === "git") await git(cwd, args);
+        else if (command === "arc") {
+          const replay = await runArcNoTty(args, cwd);
+          expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+        } else throw new Error(`Unexpected cleanup command: ${command}`);
+      }
+      if (choice.then.kind !== "recompile") break;
+      argv = choice.then.argv;
+    }
+
+    const moved = await readWorktreeMarker(`${fixture.repo}.new-name`);
+    if (moved.kind !== "present") throw new Error("Expected the ownership marker at the destination");
+    expect(moved.marker.renameMovePending).toBeUndefined();
   }, 45_000);
 
   it("resumes after a stale remote lease and keeps the old remote branch a peer moved", async () => {

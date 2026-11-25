@@ -952,7 +952,8 @@ describe("session-init envelope schema", () => {
         text: "git worktree move -f -f /wt/old /wt/new",
       },
       actions: [{ argv: ["git", "worktree", "move", "-f", "-f", "/wt/old", "/wt/new"],
-        text: "git worktree move -f -f /wt/old /wt/new" }],
+        text: "git worktree move -f -f /wt/old /wt/new" },
+      { argv: ["arc", "rename", "old", "new"], text: "arc rename old new" }],
     }]);
     assertSchemaAccepts(SessionInitProbeResultSchema, value);
 

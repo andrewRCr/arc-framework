@@ -1443,6 +1443,7 @@ describe("session-init E2E — deferred rename move advisory", () => {
   it("emits exact outside-worktree argv only while stamped registration facts match", async () => {
     const from = join(worktreeParent, "project.old-name");
     const to = join(worktreeParent, "project.new-name");
+    const uid = "b3e32460-574e-4c51-8b63-66074f9dc949";
     await git(repo, ["branch", "plan/new-name"]);
     await git(repo, ["worktree", "add", from, "plan/new-name"]);
     const canonicalFrom = await realpath(from);
@@ -1452,7 +1453,7 @@ describe("session-init E2E — deferred rename move advisory", () => {
     await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
       spawnedByArc: true,
       wuName: "new-name",
-      createdFor: { kind: "work-unit", name: "new-name" },
+      createdFor: { kind: "work-unit", name: "new-name", uid },
       spawningIdentity: "test-user",
       createdAt: "2026-07-23T00:00:00.000Z",
       renameMovePending: {
@@ -1477,11 +1478,14 @@ describe("session-init E2E — deferred rename move advisory", () => {
       to,
       remedy: {
         argv: ["git", "worktree", "move", "-f", "-f", canonicalFrom, to],
-        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout, then arc rename 'old-name' 'new-name' to settle the move.`,
+        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout, then arc rename '${uid}' 'new-name' to settle the move.`,
       },
       actions: [{
         argv: ["git", "worktree", "move", "-f", "-f", canonicalFrom, to],
-        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout, then arc rename 'old-name' 'new-name' to settle the move.`,
+        text: `git worktree move -f -f '${canonicalFrom}' '${to}'`,
+      }, {
+        argv: ["arc", "rename", uid, "new-name"],
+        text: `arc rename '${uid}' 'new-name'`,
       }],
     }]);
   });

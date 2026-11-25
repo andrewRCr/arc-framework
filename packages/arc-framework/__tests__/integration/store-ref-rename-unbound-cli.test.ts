@@ -9,7 +9,7 @@ import { plantRefPrimary } from "../helpers/store/ref-primary-plant.js";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { seed, success } from "../helpers/store/suite-tools.js";
-import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, writeWorktreeMarker, writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 
 async function fixture() {
   const cli = await repairCliFixture(), f = await createRefFixture(createKindRegistry(PRODUCTION_REGISTRATIONS));
@@ -103,4 +103,39 @@ it("renames the exact UID-bound checkout while preserving its namesake's marker"
   } });
   expect(await readWorktreeMarker(otherPath)).toEqual(otherMarker);
   expect(success(await f.store.read({ reference: f.second }))).toEqual(other);
+}, 60_000);
+
+it("settles the moved checkout with the replay offered after a UID-directed clash repair", async () => {
+  const f = await fixture(), from = await f.checkout("shared", false), to = join(f.cli.cwd, ".arc-checkouts", "renamed");
+  await writeWorktreeOwnershipMarker(from, { createdByArc: true, spawningIdentity: "test-user",
+    createdFor: { kind: "work-unit", name: "shared", uid: f.firstUid } });
+  const other = success(await f.store.read({ reference: f.second }));
+  const renamed = await f.invoke(["rename", f.firstUid, "renamed", "--json"], from);
+  expect(renamed.result).toMatchObject({ status: "renamed", worktree: { from, to } });
+  expect(await readWorktreeMarker(from)).toMatchObject({ kind: "present", marker: { renameMovePending: { from, to } } });
+
+  const session = await f.invoke(["status", "--session-init", "--json"]);
+  const notice = (renamed.result as { worktree: { followUpNotice: string } }).worktree.followUpNotice;
+  const { renameMoves } = (session.result as { sweep: { value: { renameMoves: { remedy: { text: string } }[] } } }).sweep.value;
+  expect(renameMoves).toHaveLength(1);
+  const replayArgs = (text: string) => {
+    const match = /\barc rename '?([\w-]+)'? '?([\w-]+)'?/u.exec(text);
+    if (!match) throw new Error("Missing rename replay in the move instructions");
+    return ["rename", ...match.slice(1)];
+  };
+  const args = replayArgs(notice);
+  expect(replayArgs(renameMoves[0]?.remedy.text ?? "")).toEqual(args);
+  await f.cli.exec("git", ["worktree", "move", "-f", "-f", from, to]);
+  const replay = await f.invoke([...args, "--json"], to);
+  const moved = await readWorktreeMarker(to);
+  expect.soft(replay.exitCode ?? 0, `arc ${args.join(" ")}`).toBe(0);
+  expect(moved).toMatchObject({ kind: "present", marker: { createdFor: { uid: f.firstUid, name: "renamed" } } });
+  expect.soft(moved).not.toHaveProperty("marker.renameMovePending");
+  expect(success(await f.store.read({ reference: f.second }))).toEqual(other);
+
+  const control = await f.invoke(["rename", f.firstUid, "renamed", "--json"], to);
+  expect(control.result).toMatchObject({ status: "renamed", recordBatch: "existing" });
+  const settled = await readWorktreeMarker(to);
+  expect(settled).toMatchObject({ kind: "present", marker: { createdFor: { uid: f.firstUid } } });
+  expect(settled).not.toHaveProperty("marker.renameMovePending");
 }, 60_000);

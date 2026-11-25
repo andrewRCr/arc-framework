@@ -6,17 +6,19 @@ import { createProjectionRemovalSlots } from "../lib/store/projection/removal-sl
 import type { ProjectionRemovalSlots } from "../lib/git/worktree-removal.js";
 import type { ReconcileWorkUnitWorktreeContext } from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import { basename, resolve } from "node:path";
-import { createNodeRenameWorktreeTransactionDriver, type RenameWorktreeMove } from "../lib/work-unit/rename-worktree-transaction.js";
-import { readWorktreeMarker, readWorktreeMarkerGeneration, restoreWorktreeMarkerGeneration } from "../lib/git/worktree-marker.js";
+import { createNodeRenameWorktreeTransactionDriver, type RenameWorktreeMove, type RenameWorktreeTransactionOutcome } from "../lib/work-unit/rename-worktree-transaction.js";
+import { readWorktreeMarkerGeneration, restoreWorktreeMarkerGeneration, type WorktreeMarkerGenerationReadResult } from "../lib/git/worktree-marker.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { reconcileWorkUnitWorktree, nodeReconcileWorkUnitWorktreeFs, resolveRenameWorktreeMove, type ReconcileWorkUnitWorktreeResult } from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import type { WorktreeRenameMovePending } from "../lib/git/worktree-marker.js";
 import { GitProcessError } from "../lib/git/process-error.js";
 import { digestBytes } from "../lib/kernel/index.js";
 import type { GitExec } from "../lib/git/exec.js";
+import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
 import type { StoreRenameCheckoutReceipt, StoreRenameCheckoutRequest, StoreRenameContext } from "../lib/work-unit/verbs/rename-store.js";
 
 type RenameCheckoutCommand = Pick<RenameCommandContext, "cwd" | "io" | "store" | "identity">;
+type PresentMarkerGeneration = Extract<WorktreeMarkerGenerationReadResult, { kind: "present" }>;
 
 /** Bind the physical legs while the verb retains the record and transaction authority.
  * @param command - Resolved repository, identity, and production I/O.
@@ -27,36 +29,36 @@ export function storeRenameAdapters(command: RenameCheckoutCommand): Pick<StoreR
   const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity: command.identity });
   return {
     renameCheckout: (request, onPrepared) => renameCheckout({ ...command, store }, projectionRemovalSlots, request, onPrepared),
-    settleCheckoutMove: async (request) => await landedMove(request)
-      ? renameCheckout({ ...command, store }, projectionRemovalSlots, request) : null,
+    settleCheckoutMove: async (request) => {
+      const landed = await landedMove(request);
+      return landed === null ? null : renameCheckout({ ...command, store }, projectionRemovalSlots, request, undefined, landed);
+    },
   };
 }
 /** A deferred move of this rename has landed once its checkout is registered at the recorded destination. */
-async function landedMove(request: StoreRenameCheckoutRequest): Promise<boolean> {
-  const marker = await readWorktreeMarker(request.checkoutPath);
-  const pending = marker.kind === "present" ? marker.marker.renameMovePending : undefined;
-  return pending !== undefined && pending.newSlug === request.targetSlug && resolve(pending.to) === resolve(request.checkoutPath);
+async function landedMove(request: StoreRenameCheckoutRequest): Promise<PresentMarkerGeneration | null> {
+  const generation = await readWorktreeMarkerGeneration(request.checkoutPath);
+  if (generation.kind !== "present") return null;
+  const pending = generation.marker.renameMovePending;
+  return pending !== undefined && pending.newSlug === request.targetSlug && resolve(pending.to) === resolve(request.checkoutPath)
+    ? generation : null;
 }
 async function renameCheckout(command: RenameCheckoutCommand, projectionRemovalSlots: ProjectionRemovalSlots, request: StoreRenameCheckoutRequest,
-  onPrepared?: (receipt: StoreRenameCheckoutReceipt) => void): Promise<StoreRenameCheckoutReceipt> {
+  onPrepared?: (receipt: StoreRenameCheckoutReceipt) => void, landed?: PresentMarkerGeneration): Promise<StoreRenameCheckoutReceipt> {
   const { cwd } = command, exec = command.io.exec;
   let currentCwd = cwd;
   const git: GitExec = (command, args, options) => exec(command, args, { cwd: currentCwd, ...options });
-  const original = await readWorktreeMarkerGeneration(request.checkoutPath);
+  const original = landed ?? await readWorktreeMarkerGeneration(request.checkoutPath);
   if (original.kind !== "present") throw new Error("The holding checkout has no readable ownership marker.");
   const primary = await resolvePrimaryWorktreePath(git);
   const leaf = basename(request.checkoutPath), offset = leaf.lastIndexOf(request.sourceSlug);
-  const movable = canMoveCheckout(original.marker.spawnedByArc, request.checkoutPath, primary, offset);
+  const movable = landed === undefined && canMoveCheckout(original.marker.spawnedByArc, request.checkoutPath, primary, offset);
   const plan = movable ? await resolveRenameWorktreeMove(git, { worktreePath: request.checkoutPath,
     oldSlug: request.sourceSlug, newSlug: request.targetSlug, currentLocus: cwd, marker: original.marker }) : { status: "in-place" as const };
   const targetPath = plan.status === "move" ? plan.to : request.checkoutPath;
   const head = (await git("git", ["rev-parse", "HEAD"], { cwd: request.checkoutPath })).stdout.trim();
   const pending = plan.status === "deferred-self-move" ? await deferredMove(git, request, head, plan.to) : null;
-  let worktree: ReconcileWorkUnitWorktreeResult | undefined = pending === null ? undefined : {
-    mutation: "move", from: pending.from, to: pending.to, locusHopped: false,
-    followUpNotice: `Move the worktree from outside the worktree: git worktree move -f -f ${pending.from} ${pending.to}, `
-      + `then run arc rename ${pending.oldSlug} ${pending.newSlug} to settle the move`,
-  };
+  let worktree = pending === null ? undefined : deferredMoveNotice(pending, original.marker.createdFor);
   const move = targetPath === request.checkoutPath ? undefined : checkoutMove({ exec: git, store: command.store, projectionRemovalSlots }, cwd, request.checkoutPath, targetPath, (result) => {
     worktree = result;
     if (result.mutation === "move" && result.locusHopped) currentCwd = result.to;
@@ -65,7 +67,7 @@ async function renameCheckout(command: RenameCheckoutCommand, projectionRemovalS
   const outcome = await driver.rename({ sourceCheckoutPath: request.checkoutPath, targetCheckoutPath: targetPath,
     sourceSlug: request.sourceSlug, targetSlug: request.targetSlug, expectedHead: head, expectedMarkerGeneration: digestBytes(original.bytes),
     renameMovePending: pending, ...(move === undefined ? {} : { move }) });
-  if (outcome.kind === "refused" || outcome.kind === "unmanaged") throw new Error(`Checkout rename refused: ${outcome.kind === "refused" ? outcome.reason : "ownership unavailable"}.`);
+  requireRenamedCheckout(outcome, landed !== undefined);
   const receipt: StoreRenameCheckoutReceipt = { report: { checkout: outcome, ...(worktree === undefined ? {} : { worktree }) },
     shape: original.marker.spawnedByArc && resolve(request.checkoutPath) !== resolve(primary ?? request.checkoutPath) ? "spawned" : "in-place",
     repositoryCwd: resolve(cwd) === resolve(request.checkoutPath) ? targetPath : cwd,
@@ -87,8 +89,25 @@ async function renameCheckout(command: RenameCheckoutCommand, projectionRemovalS
   if (renamed.kind !== "present" || digestBytes(renamed.bytes) !== outcome.markerGeneration) throw new Error("Checkout marker changed after its rename transaction.");
   return receipt;
 }
+function requireRenamedCheckout(outcome: RenameWorktreeTransactionOutcome, settling: boolean):
+  asserts outcome is Extract<RenameWorktreeTransactionOutcome, { kind: "renamed" | "idempotent" }> {
+  if (outcome.kind === "refused" || outcome.kind === "unmanaged") {
+    const reason = outcome.kind === "refused" ? outcome.reason : "ownership unavailable";
+    throw new Error(settling
+      ? `Checkout move settlement refused: ${reason}. Run arc agenda session-init --json from outside the checkout to inspect the current move before retrying.`
+      : `Checkout rename refused: ${reason}.`);
+  }
+}
 function canMoveCheckout(spawned: boolean, checkout: string, primary: string | null, offset: number): boolean {
   return spawned && resolve(checkout) !== resolve(primary ?? checkout) && offset !== -1;
+}
+function deferredMoveNotice(pending: WorktreeRenameMovePending, subject: PresentMarkerGeneration["marker"]["createdFor"]): ReconcileWorkUnitWorktreeResult {
+  const operand = subject?.kind === "work-unit" ? subject.uid ?? pending.oldSlug : pending.oldSlug;
+  return {
+    mutation: "move", from: pending.from, to: pending.to, locusHopped: false,
+    followUpNotice: `Move the worktree from outside the worktree: git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)}, `
+      + `then run arc rename ${operand} ${pending.newSlug} to settle the move`,
+  };
 }
 async function deferredMove(exec: GitExec, request: StoreRenameCheckoutRequest, head: string, to: string): Promise<WorktreeRenameMovePending> {
   let branch: string | null;
