@@ -1,7 +1,7 @@
 /** A hand edit names under a cohort record's members heading only the current names of that cohort's members. */
 import { brokenRule } from "../rule-support.js";
-import { observeAllMemberHoldings } from "./check-support.js";
-import { cohortMemberSectionSlugs, reportOrphanCohortMemberSections } from "./member-section-report.js";
+import { observeDirectMemberNames } from "./check-support.js";
+import { cohortMemberSectionSlugs } from "./member-section-report.js";
 import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
 
 const RULE = "cohort.member-sections";
@@ -18,15 +18,15 @@ const RULE = "cohort.member-sections";
  */
 export async function checkCohortMemberSections(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
   if (input.writer.kind === "verb" || input.next === undefined) return [];
-  if (cohortMemberSectionSlugs(input.next.content).length === 0) return [];
-  const held = await observeAllMemberHoldings(input.after, input.reference);
-  if (held.status !== "known") {
-    return [brokenRule(RULE, held.status === "unavailable" ? held.condition : "Cohort membership evidence is unavailable.",
+  const names = new Set(cohortMemberSectionSlugs(input.next.content));
+  if (names.size === 0) return [];
+  const members = await observeDirectMemberNames(input.after, input.reference, names);
+  if (members.status === "unresolved") return [{ rule: RULE, condition: members.condition, remedy: members.remedy }];
+  if (members.status !== "known") {
+    return [brokenRule(RULE, members.status === "unavailable" ? members.condition : "Cohort membership evidence is unavailable.",
       "Repair the reported membership evidence, then retry.")];
   }
-  const members = held.value.filter(holding => holding.segment === holding.segments.length - 1)
-    .map(holding => holding.candidate.reference.owner.name);
-  const orphans = [...new Set(reportOrphanCohortMemberSections(input.next.content, members))];
+  const orphans = [...names].filter(name => !members.value.has(name));
   return orphans.length === 0 ? [] : [brokenRule(RULE,
     `The cohort record's Members sections name no current member of this cohort: ${orphans.map(slug => `\`${slug}\``).join(", ")}.`,
     "Remove or rename each such section, or save that member's meta naming this cohort first, then retry.")];

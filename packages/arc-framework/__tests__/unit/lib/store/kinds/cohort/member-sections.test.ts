@@ -2,6 +2,7 @@
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../../../helpers/store/lifecycle-harness.js";
 import { fixtureRenameProvenance } from "../../../../../helpers/store/suite-tools.js";
+import { conflictViewRecord } from "../../../../../helpers/store/view-conflicts.js";
 import { OwnerIdentitySchema, recordReferences, RecordReferenceSchema, type RecordReference } from "../../../../../../src/lib/store/identity.js";
 import { recordPut } from "../../../../../../src/lib/store/lifecycle-write.js";
 import { observeRecords } from "../../../../../../src/lib/store/record-observations.js";
@@ -38,6 +39,22 @@ it("refuses a hand edit whose member section names no member, naming that slug, 
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });
 
+it("refuses an orphan after a fenced level-two heading in Members", async () => {
+  const h = await fixture();
+  const repaired = cohortDocument("group", ["member"]) + "\n```md\n## Example\n```\n";
+  const result = await h.store.write({ ...recordPut(h.cohort, { content: repaired + "\n### `stray`\n" }), provenance: handEdit });
+  expect(result).toMatchObject({ status: "refused", refusal: { rule: "cohort.member-sections",
+    condition: expect.stringContaining("`stray`"), remedy: { text: expect.stringMatching(/remove or rename/iu) } } });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.cohort, { content: repaired }), provenance: handEdit }));
+});
+
+it("admits a member section containing a fenced example member heading", async () => {
+  const h = await fixture();
+  const content = cohortDocument("group", ["member"]) + "\n```md\n### `example`\n```\n";
+  const result = await h.store.write({ ...recordPut(h.cohort, { content }), provenance: handEdit });
+  expect(result).toMatchObject({ status: "ok" });
+});
+
 it.each(["removed", "renamed", "joined"] as const)("admits the edit once the stray section is %s", async repair => {
   const h = await fixture(), stray = await h.seedMeta("stray", { cohort: null });
   expect(await h.edit(["member", "stray"])).toMatchObject({ status: "refused" });
@@ -52,6 +69,23 @@ it("admits a completed member's section", async () => {
   await h.seedMeta("done", { state: "Shipped", currentWorkflow: null, completed: "2026-10-01", prUrl: "https://example.test/pull/1",
     cohort: "group" }, { kind: "completed", quarter });
   lifecycleSuccess(await h.edit(["member", "done"]));
+});
+
+it("admits a proved member's section while another work unit's membership is disputed", async () => {
+  const h = await fixture();
+  await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "elsewhere" })),
+    cohortDocument("elsewhere", []));
+  const outside = await h.seedMeta("outside", { cohort: null });
+  const joined = writeMetaCohort(outside.content, "group");
+  const disputed = await conflictViewRecord(h, outside, writeMetaCohort(outside.content, "elsewhere"), joined);
+  expect(disputed.conflicts).toHaveLength(1);
+
+  expect(await h.edit(["outside"])).toMatchObject({ status: "refused", refusal: { rule: "cohort.member-sections",
+    condition: expect.stringMatching(/outside.*conflict/iu), remedy: { text: expect.stringMatching(/resolve.*arc save/iu) } } });
+  lifecycleSuccess(await h.edit(["member"]));
+  lifecycleSuccess(await h.store.write({ ...recordPut(disputed, { content: joined }), resolves: disputed.conflicts,
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  lifecycleSuccess(await h.edit(["member", "outside"]));
 });
 
 it("admits a section for a member whose Cohort names the cohort by a former name", async () => {
@@ -92,3 +126,24 @@ it.each(["merges into a conflict with a concurrent edit", "lands while another c
     expect(lifecycleSuccess(merged).conflicts).not.toEqual([]);
     lifecycleSuccess(await h.edit(["member", "other"]));
   });
+
+it.each([
+  { retained: "member", incoming: "departed" },
+  { retained: "departed", incoming: "member" },
+])("checks the retained `$retained` heading when it conflicts with the incoming `$incoming` heading", async ({ retained, incoming }) => {
+  const h = await fixture();
+  const departed = await h.seedMeta("departed", { cohort: "group" });
+  const base = h.cohort;
+  lifecycleSuccess(await h.edit([retained]));
+  lifecycleSuccess(await h.store.write({ ...recordPut(departed, { content: writeMetaCohort(departed.content, null) }), provenance: handEdit }));
+  const before = lifecycleSuccess(await h.store.version());
+  const merged = await h.store.write({ ...recordPut(base, { content: cohortDocument("group", [incoming]) }), provenance: handEdit });
+
+  if (retained === "departed") {
+    expect(merged).toMatchObject({ status: "refused", refusal: { rule: "cohort.member-sections", condition: expect.stringContaining("`departed`") } });
+    expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  } else {
+    expect(lifecycleSuccess(merged).conflicts).toHaveLength(1);
+    expect(lifecycleSuccess(await h.store.read({ reference: base.reference })).content).toBe(cohortDocument("group", [retained]));
+  }
+});

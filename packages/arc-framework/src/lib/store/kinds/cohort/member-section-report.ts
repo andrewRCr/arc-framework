@@ -1,4 +1,5 @@
 /** Advisory orphan member-section reporting over cohort coordination prose. */
+import { fromMarkdown } from "mdast-util-from-markdown";
 
 /** Report member-section slugs that name no supplied member.
  * @param content - Whole cohort document.
@@ -21,15 +22,14 @@ export function reportOrphanCohortMemberSections(content: string, members: Itera
 export function cohortMemberSectionSlugs(content: string): string[] {
   const slugs: string[] = [];
   let inMembers = false;
-  for (const line of content.split(/\r?\n/)) {
-    const h2 = /^##\s+(.*)$/.exec(line);
-    if (h2) {
-      inMembers = (h2[1] ?? "").trim().toLowerCase() === "members";
-      continue;
+  for (const node of fromMarkdown(content).children) {
+    if (node.type !== "heading") continue;
+    const [label, ...rest] = node.children;
+    if (node.depth === 2) {
+      inMembers = rest.length === 0 && label?.type === "text" && label.value.trim().toLowerCase() === "members";
+    } else if (inMembers && node.depth === 3 && rest.length === 0 && label?.type === "inlineCode") {
+      slugs.push(label.value.trim());
     }
-    if (!inMembers) continue;
-    const h3 = /^###\s+`([^`]+)`\s*$/.exec(line);
-    if (h3) slugs.push((h3[1] ?? "").trim());
   }
   return slugs;
 }
