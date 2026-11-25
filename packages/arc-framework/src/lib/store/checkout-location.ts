@@ -11,20 +11,20 @@ export interface StoreCheckoutLocation {
   /**
    * Choose where a Git call meant for a directory runs.
    * @param cwd - The directory the call names.
-   * @returns That directory, or the repository's primary checkout once the checkout the store opened in, which holds
-   *   it, is gone.
+   * @returns That directory, or the repository's primary checkout once the opening checkout loses its Git metadata.
    */
   workingDirectory: (cwd: string) => Promise<string>;
 }
 
 /**
- * Bind a store to the checkout it opens in while that checkout remains, and to the repository's primary checkout after.
+ * Bind a store to the opening checkout while its Git metadata remains, and to the repository's primary checkout after.
  * @param input - The opening checkout, the files Git's directory markers are read through, and an executor that runs
  *   each call in the directory it names.
  * @returns The location; nothing is read until the store first uses it.
  */
 export function createStoreCheckoutLocation(input: { checkoutRoot: string; fs: GitDirectoryFileAccess; exec: GitExec }): StoreCheckoutLocation {
   let directories: Promise<GitDirectories> | undefined;
+  const marker = resolve(input.checkoutRoot, ".git");
   const gitDirectories = (): Promise<GitDirectories> => directories ??= readGitDirectories(input.checkoutRoot, input.fs)
     .catch((error: unknown) => { directories = undefined; throw error; });
   let primary: Promise<string> | undefined;
@@ -39,12 +39,10 @@ export function createStoreCheckoutLocation(input: { checkoutRoot: string; fs: G
     gitDirectories,
     workingDirectory: async (cwd) => {
       if (!contains(input.checkoutRoot, cwd)) return cwd;
-      if (await present(input)) {
-        // Find the repository while the checkout still leads to it; a checkout that is not one is read again later.
-        await gitDirectories().catch(() => undefined);
-        return cwd;
-      }
-      // Without the repository, the call runs where it was meant to and reports that directory's absence.
+      const found = await gitDirectories().catch(() => undefined);
+      // A linked checkout's folder or gitfile can outlive Git's removal of its private metadata.
+      if (found === undefined || await present(input.fs, marker)
+        && (found.gitDir === marker || await present(input.fs, found.gitDir))) return cwd;
       return primaryCheckout().catch(() => cwd);
     },
   };
@@ -55,8 +53,14 @@ function contains(root: string, path: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
-async function present(input: { checkoutRoot: string; fs: GitDirectoryFileAccess }): Promise<boolean> {
-  return input.fs.lstat(input.checkoutRoot).then(() => true, () => false);
+async function present(fs: GitDirectoryFileAccess, path: string): Promise<boolean> {
+  try {
+    await fs.lstat(path);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | null)?.code;
+    return code !== "ENOENT" && code !== "ENOTDIR";
+  }
 }
 
 /**

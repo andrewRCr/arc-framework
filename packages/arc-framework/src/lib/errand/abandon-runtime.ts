@@ -21,7 +21,7 @@ import {
   type OrdinaryErrandRecord,
 } from "./identity-transitions.js";
 import { authorizeErrandTerminal } from "./terminal-authority.js";
-import { createTerminalOccupancyIO, settleTerminalOccupancy } from "./terminal-occupancy.js";
+import { createTerminalOccupancyIO, settleTerminalOccupancy, type TerminalOccupancyIO } from "./terminal-occupancy.js";
 import { acquireErrandCloseBranchDeletionHeadLocks } from "./close-head-lock.js";
 import { resolveOptionalCommit } from "./exact-branch-generation.js";
 
@@ -59,7 +59,10 @@ export async function abandonOrdinaryErrandAtRuntime(
   const remote = await configuredIdentityRemote(exec);
   const lifecyclePort = createGhChangeRequestLifecyclePort(exec);
   let preservedHead: string | null = null;
-  return abandonOrdinaryErrand({
+  let removalNotice: string | undefined;
+  const occupancyIO = createTerminalOccupancyIO(exec, { restorePrimaryTo: options.base,
+    onRemovalNotice: (text) => { removalNotice = text; } });
+  const result = await abandonOrdinaryErrand({
     slug: options.slug,
     protection: options.protection,
     dependencies: {
@@ -86,7 +89,7 @@ export async function abandonOrdinaryErrandAtRuntime(
         if (primary === null) {
           return { kind: "refused", reason: "checkout-missing", message: "Primary checkout is unavailable." };
         }
-        const settled = await cleanupOccupancy({ ...options, exec, execInput }, record, frame, primary);
+        const settled = await cleanupOccupancy(options, record, frame, primary, occupancyIO);
         if (settled.kind === "applied" || settled.kind === "idempotent") {
           preservedHead = preservation.head;
           primaryCheckoutPath = primary;
@@ -111,6 +114,8 @@ export async function abandonOrdinaryErrandAtRuntime(
       ),
     },
   });
+  return removalNotice === undefined ? result
+    : { ...result, recommendedPromptText: `${result.recommendedPromptText} ${removalNotice}` };
 }
 
 async function cleanupOccupancy(
@@ -118,6 +123,7 @@ async function cleanupOccupancy(
   record: OrdinaryErrandRecord,
   frame: DerivedLocusFrame,
   primaryCheckoutPath: string,
+  io: TerminalOccupancyIO,
 ): Promise<AbandonStepResult> {
   const authority = await authorizeErrandTerminal({
     store: options.store,
@@ -145,7 +151,7 @@ async function cleanupOccupancy(
     projectionRemovalSlots: options.projectionRemovalSlots,
     authority,
     primaryCheckoutPath,
-    io: createTerminalOccupancyIO(options.exec, { restorePrimaryTo: options.base }),
+    io,
   });
   if (settled.kind === "refused") {
     return { kind: "refused", reason: "preservation-unproven", message: settled.message };

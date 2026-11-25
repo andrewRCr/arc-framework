@@ -1,6 +1,7 @@
 /** Commands run from the checkout they remove complete through the built CLI on the ref store. */
 
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +10,8 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArc, runArcAnchoredSequence } from "./helpers.js";
+import { CLI_PATH } from "../helpers/cli-spawn.js";
+import { primaryReference } from "../helpers/store-errand-fixture.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -107,18 +110,31 @@ describe("commands that remove the checkout they run in (ref store)", () => {
   }, SEQUENCE_TIMEOUT_MS);
 
   // Pausing keeps the Errand's branch, so its work is published first.
-  it.each([
+  const errandExits = [
     { verb: "abandon", args: [] as string[], publish: false, keepsBranch: false },
     { verb: "close", args: [] as string[], publish: false, keepsBranch: false },
     { verb: "leave", args: ["--state", "paused"], publish: true, keepsBranch: true },
-  ])("runs errand $verb from the Errand's own isolated checkout", async ({ verb, args, publish, keepsBranch }) => {
+  ];
+  const errandCases = errandExits.flatMap(exit => [
+    { ...exit, label: "from its own isolated checkout", held: false },
+    ...(process.platform === "win32" ? [{ ...exit, label: "while another process holds the checkout", held: true }] : []),
+  ]);
+  it.each(errandCases)("runs errand $verb $label", async ({ verb, args, publish, keepsBranch, held }) => {
     const slug = `own-${verb}`;
+    const initialRoster = await git(repo, ["worktree", "list", "--porcelain"]);
+    const terminalArgs = ["errand", verb, slug, ...args, "--json"];
+    // This parent retains the checkout as its own cwd until ARC has exited.
+    const terminal = held
+      ? { command: [process.execPath, "-e", "const {spawnSync}=require('node:child_process');"
+        + "const child=spawnSync(process.execPath,process.argv.slice(1),{stdio:'inherit'});"
+        + "process.exitCode=child.status??1;", CLI_PATH, ...terminalArgs] }
+      : { args: terminalArgs };
     const sequence = await runArcAnchoredSequence([
       ["errand", "open", slug, "--isolate", "--json"],
       ...publish
         ? [{ command: ["git", "push", "origin", "HEAD"], cwdFromPreviousJson: "allocation.checkoutPath" },
-          { args: ["errand", verb, slug, ...args, "--json"], reuseResolvedCwd: true as const }]
-        : [{ args: ["errand", verb, slug, ...args, "--json"], cwdFromPreviousJson: "allocation.checkoutPath" }],
+          { ...terminal, reuseResolvedCwd: true as const }]
+        : [{ ...terminal, cwdFromPreviousJson: "allocation.checkoutPath" }],
     ], repo, { timeout: SEQUENCE_TIMEOUT_MS });
     const [opened, ended] = sequence.results as [
       { allocation?: { checkoutPath?: string }; identity?: { branch?: string } } | undefined, unknown];
@@ -126,9 +142,24 @@ describe("commands that remove the checkout they run in (ref store)", () => {
     expect(checkout, JSON.stringify(opened)).toEqual(expect.any(String));
     expect(branch, JSON.stringify(opened)).toEqual(expect.any(String));
 
-    expect(sequence.exitCode, sequence.stdout + sequence.stderr).toBe(0);
+    const record = await readStoreRecord(repo, SlugSchema.parse("test-user"), primaryReference(slug));
+    if (verb === "leave") expect.soft(JSON.parse(record.content)).toMatchObject({ state: "paused", branch });
+    expect({
+      exitCode: sequence.exitCode,
+      folderExists: existsSync(checkout!),
+      roster: await git(repo, ["worktree", "list", "--porcelain"]),
+      branchExists: (await git(repo, ["branch", "--list", branch!])) !== "",
+      placement: record.placement?.kind,
+    }, sequence.stdout + sequence.stderr).toEqual({
+      exitCode: 0, folderExists: held, roster: initialRoster, branchExists: keepsBranch,
+      placement: verb === "leave" ? "active" : "completed",
+    });
     expect(ended).toMatchObject({ outcome: "applied", checkoutPath: checkout });
-    await expect(access(checkout!)).rejects.toMatchObject({ code: "ENOENT" });
-    expect(await git(repo, ["branch", "--list", branch!]) !== "").toBe(keepsBranch);
+    if (held) {
+      expect(ended).toMatchObject({ recommendedPromptText: expect.stringContaining(checkout!) });
+      expect(ended).toMatchObject({ recommendedPromptText: expect.stringContaining("Remove-Item -LiteralPath") });
+      await removeGitBackedDir(checkout!);
+      expect(existsSync(checkout!)).toBe(false);
+    }
   }, SEQUENCE_TIMEOUT_MS);
 });

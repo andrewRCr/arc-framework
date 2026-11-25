@@ -38,7 +38,7 @@ import {
 } from "./close-locus.js";
 import { type OrdinaryErrandTransition, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { authorizeErrandTerminal } from "./terminal-authority.js";
-import { createTerminalOccupancyIO, settleTerminalOccupancy } from "./terminal-occupancy.js";
+import { createTerminalOccupancyIO, settleTerminalOccupancy, type TerminalOccupancyIO } from "./terminal-occupancy.js";
 import { deserializeTransientIdentityRecord, type TransientIdentityRecord } from "./identity-record.js";
 
 export interface CloseOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
@@ -85,6 +85,9 @@ export async function closeOrdinaryErrandAtRuntime(
   });
   const runtimeOptions = { ...options, exec };
   const identityIO = { exec, execInput, identity: options.identity };
+  let removalNotice: string | undefined;
+  const occupancyIO = createTerminalOccupancyIO(exec, { restorePrimaryTo: options.base,
+    onRemovalNotice: (text) => { removalNotice = text; } });
   const lifecyclePort = createGhChangeRequestLifecyclePort(exec, undefined, options.store?.capabilities.stateOffBranch);
   const remote = await configuredIdentityRemote(exec);
   const dependencies: CloseOrdinaryErrandDependencies = {
@@ -94,7 +97,7 @@ export async function closeOrdinaryErrandAtRuntime(
     readLifecycle: (target) => target.kind === "merged"
       ? lifecyclePort.read(target.changeRequest, target.changeRequest)
       : Promise.reject(new Error("An unchanged-base close has no change request lifecycle.")),
-    readOccupancy: (target) => readCloseOccupancy(runtimeOptions, target, (path) => { fallbackCwd = path; }),
+    readOccupancy: (target) => readCloseOccupancy(runtimeOptions, target, occupancyIO, (path) => { fallbackCwd = path; }),
     retainTarget: (target) => retainCloseTarget(identityIO, options.base, remote, target, options),
     cleanupRefs: (target, guard) => cleanupOrdinaryErrandRefs(
       exec,
@@ -139,11 +142,13 @@ export async function closeOrdinaryErrandAtRuntime(
         : { kind: "error", message: result.message };
     },
   };
-  return closeOrdinaryErrand({
+  const result = await closeOrdinaryErrand({
     slug: options.slug,
     protection: options.protection,
     dependencies,
   });
+  return removalNotice === undefined ? result
+    : { ...result, recommendedPromptText: `${result.recommendedPromptText} ${removalNotice}` };
 }
 
 async function retainCloseTarget(
@@ -229,6 +234,7 @@ function finalizedCloseClaim(options: ErrandRuntimeStorageOptions, slug: string)
 async function readCloseOccupancy(
   options: CloseOrdinaryErrandRuntimeOptions,
   target: CloseTarget,
+  io: TerminalOccupancyIO,
   setFallbackCwd: (path: string) => void,
 ): Promise<CloseOccupancyResult> {
   const frame = await options.readFrame();
@@ -266,7 +272,7 @@ async function readCloseOccupancy(
         projectionRemovalSlots: options.projectionRemovalSlots,
         authority,
         primaryCheckoutPath,
-        io: createTerminalOccupancyIO(options.exec, { restorePrimaryTo: options.base }),
+        io,
       });
       setFallbackCwd(primaryCheckoutPath);
       if (settled.kind === "refused") {

@@ -1,7 +1,7 @@
 /** Where a store's Git calls run once the checkout it opened in is removed, over real temporary repositories. */
 
 import { execFile } from "node:child_process";
-import { lstat, mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -54,6 +54,20 @@ it("returns the native primary path when only the Git directories were read befo
   await git(repo, ["worktree", "remove", linked]);
 
   expect(await location.workingDirectory(linked)).toBe(repo);
+});
+
+it.each([false, true])("runs Git from the primary when only the folder remains (gitfile retained: %s)", async retainGitfile => {
+  await git(repo, ["worktree", "add", "--detach", linked]);
+  const location = locate(linked);
+  const gitfilePath = join(linked, ".git");
+  const gitfile = await readFile(gitfilePath, "utf8");
+  await location.gitDirectories();
+  await git(repo, ["worktree", "remove", linked]);
+  await mkdir(linked);
+  if (retainGitfile) await writeFile(gitfilePath, gitfile);
+
+  expect(await location.workingDirectory(linked)).toBe(repo);
+  expect(await location.workingDirectory(join(linked, "nested"))).toBe(repo);
 });
 
 it("leaves a call where it was meant to run when the checkout went before any Git call found the repository", async () => {
