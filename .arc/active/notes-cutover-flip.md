@@ -2204,8 +2204,12 @@ on the importing machine, outside the repository and uncited; each conclusion na
     - the Markdown fix's end-to-end test over the flipped store;
     - a worktree spawned after the flip, holding the tracked `.arc/user/.npmignore`, through its first
       materialization;
-    - store-backed cases 2 to 7, case 6's reopen through the `gh` stub, labeled stubbed host evidence;
-    - the representative decomposition cut, recording the time its execute half takes.
+    - the representative decomposition cut, recording the time its execute half takes, stopped at its terminal preview
+      for the distribution's approval; and a second cut of a stub holding a planted PRD and RFC pair, which is the only
+      origin whose cut copies a companion.
+
+Store-backed cases 2 to 7 run on the end-to-end work unit (Task 6.R3, A31), which alone reaches a Candidate and local
+review passes.
 
 Steps 2 to 6 are the window's day (12-01). Stage 1's trial and import each took 15 to 19 minutes; each Stage 2 run
 records every step's time here, which sizes that day.
@@ -2396,6 +2400,64 @@ started.
 For the day: deletion-first stays the order every session takes, since ten of the twelve held branches would meet a
 record conflict merging the flipped `main` first; and an Errand under review at the cutoff leaves a detached checkout
 its session removes before `check`.
+
+#### Step 7 on run 11's copy (Task 6.4.e), at `c9410c1318`: the flipped copy's paths
+
+Run on 11-25 on run 11's copy after its close, each outcome written before its step and each matching.
+
+- **Status and view arms.** From the flipped primary, `status` (1.2 s), `status --project` (2.3 s), `status --json`
+  (1.2 s) and `view` for the inbox, working memory, a cohort, a meta and a task list (0.4 to 0.7 s) exit 0, with no file
+  withheld; `arc view roadmap` exits 1 with "Unknown view kind", listing the kinds.
+- **The roster** reads the free primary, eleven `work-unit` rows, and `projection-team-scale`'s checkout as
+  `unresolved-checkout` with an unbound marker, offering `arc materialize projection-team-scale --here` and `arc locus
+  release`: the state its unresolved merge of the flipped `main` leaves.
+- **The slug clash,** made as it would arise: a second clone of the mirror took the store on its first sync, and `arc
+  start clash-probe --new` ran in both before either synced. After syncs, `status --project` in both warned "Slug
+  clash-probe has multiple live holders" and omitted them, and `status clash-probe` refused with "more than one record
+  generation". `arc rename <uid> clash-probe-two` in one holder's checkout kept its marker's UID, and after syncs both
+  names resolved with no warning.
+- **Handoff and sync.** `arc handoff write` in a materialized checkout wrote in 14.7 s with no growth and no
+  contention reported; `arc sync` on the primary pushed the store and the mirror's refs changed.
+- **Tripwires.** Command start printed on every command in a projected checkout, its nine-sample median 41.7 to 46.0 ms
+  against the 25 ms bound. No fan-out or materialization line printed on this copy. On run 7's copy, after several
+  dozen saves made while scouting, fan-out also printed, 862 to 920 ms against 750 ms.
+- **The Markdown fix's end-to-end test** passed over the flipped store, 1 test.
+- **A worktree spawned after the flip** (`arc start` of a planned unit, 10.9 s) sat detached at `main` with its marker
+  bound from the start, the tracked `.arc/user/.npmignore` unchanged and `git status` clean; its first status withheld
+  nothing and its draft, inbound list and meta lay under `active/current/`.
+
+**The representative cut** retired `operational-state-docs`, whose draft records a cut into three members, into a new
+cohort.
+
+- The first preflight refused `inbound-held` over the stub's 14 inbound entries. They were folded into the draft by
+  hand edit, each as a subsection, and saved, since the members a routing map would send them to do not exist until the
+  cut. The preflight then listed 23 source units and two outgoing edges.
+- The execute half took 8.4 s and wrote eight records: three members with a copy of the draft each and a conventional
+  Design, the cohort record, and the stored map. Nothing approaches a command timeout, so no apply was interrupted.
+- After each member's draft was pruned to its units and the cohort's Coordination written, `arc check increment` passed
+  and `arc save` saved. `--finish` previewed one lineage write and two removals, the origin's meta and the map, and
+  stopped for approval.
+- On approval `--finish --apply` answered `applied` in 6.7 s with no notice and no continuation, and a repeated
+  `--finish` answered `landed`. The origin reads nonexistent; the members read planned with their edges, the origin's
+  two dependencies distributed as mapped. No repair followed.
+- What the map had to respect: three new members take shape `symmetric`, `heterogeneous` being for a cut with an
+  existing home; destinations and edge targets in canonical order; a created cohort cannot take the origin's name, which
+  that draft's recorded cut gives it, so the rehearsal named it `managed-records`; and a member's allocation targets
+  only its own draft, spec, task list or notes.
+
+**The second cut** ran § 9.9's companion copy, which only an origin whose Design is a PRD and RFC pair reaches: a cut
+copies the origin's Design files, and its task list and notes where allocated, and nothing else. No open unit has a
+pair, so a planned stub was minted with `arc stub`, a pair planted in its projected folder and saved, each half
+becoming a `work-item/companion` record, and its Design then edited to name them. The preflight read profile
+`paired-spec`. The execute half (7.9 s) gave each of two members both halves as companions under the same keys,
+`spec-prd` and `spec-rfc`, named for the member, and a Design naming its own pair. Its terminal batch applied in 6.5 s
+and reads `landed`. Direct-member placement takes exactly one new member, so the two went into a new cohort. Two cuts
+held at their previews together, scouted on run 7's copy, did not disturb each other.
+
+Seen beside them, each handed on for triage: a created cohort's Purpose is written on one line, so one past about 107
+characters fails the line-length check the author runs next; `arc delivery plan from-tasks` refuses a missing
+`--design-inventory` without naming it; and a projected companion file deleted and saved appeared to leave its record,
+seen once and not reproduced.
 
 ## The parallel run from 11-24
 

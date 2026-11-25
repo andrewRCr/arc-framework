@@ -2438,7 +2438,7 @@ None.
 - **A27** — 2026-11-24 — design: the in-place checkout's carry runs in a synthetic repository, not on the copy.
   _Supersedes:_ § 9.6 ¶1. _Trigger:_ 6.4.b must-stop. _Work:_ 6.R. _Revalidated:_ pending → 6.8.
 - **A28** — 2026-11-24 — spec-depth: ahead of the window, `main` stops testing tracked state and live branches merge it.
-  _Supersedes:_ none. _Trigger:_ 6.4.d must-stop. _Work:_ 6.R2. _Revalidated:_ pending → 6.4.
+  _Supersedes:_ none. _Trigger:_ 6.4.d must-stop. _Work:_ 6.R2. _Revalidated:_ 6.4.
 - **A29** — 2026-11-24 — spec-depth: the brief's Cohort definition names a subcohort's `Parent` as its nesting's record.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R2. _Revalidated:_ pending → 7.1.
 - **A30** — 2026-11-24 — task: `init-work-unit.md` states promotion, its replay and release as the store has them.

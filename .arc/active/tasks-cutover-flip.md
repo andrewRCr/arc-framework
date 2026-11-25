@@ -1623,7 +1623,7 @@ rewritten workflows (§ 9.2).
           draft written under `active/current/` passes `arc check increment` and `arc save` and reads back from the
           store; and `arc set-class` and `arc repoint-design draft-created` land on the stored meta.
 
-### `[ ]` **6.4 Stage 2 through the window's order — § 9.2, § 9.6, § 9.9, § 9.10, § 12**
+### `[x]` **6.4 Stage 2 through the window's order — § 9.2, § 9.6, § 9.9, § 9.10, § 12**
 
 - _Goal:_ On a fresh full copy at the flip branch's head, every § 9.2 step runs in § 10's order and passes, each with
   its conclusion recorded.
@@ -1663,15 +1663,19 @@ rewritten workflows (§ 9.2).
         - _Amended in:_ 6.R (A27).
         - _Amended in:_ 6.R2 (A28).
 
-    - `[ ]` **6.4.e The flipped copy's paths**
-        - The status and view arms, the roster read and the slug clash among them; the tripwire report's first live
-          figures from `arc handoff write` and the rewired sync; the Markdown fix's end-to-end test over the flipped
-          store; a worktree spawned after the flip holding the tracked `.arc/user/.npmignore` through its first
-          materialization; store-backed cases 2 to 7 (§ 9.10); and the representative decomposition cut (§ 9.9), with
-          its execute half's time recorded.
-        - Case 6's reopen reads its pull request through the `gh` stub § 9.5 places, its evidence labeled stubbed host
-          evidence.
+    - `[x]` **6.4.e The flipped copy's paths**
+        - On the same copy after its close: the status and view arms, the roster, and a slug clash made through a second
+          clone and resolved by `arc rename`; `arc handoff write` and a sync push, with command start the one tripwire
+          that printed (about 42 ms against 25 ms); the Markdown fix's test; and a worktree spawned after the flip.
+        - The representative cut retired `operational-state-docs` into three members, its execute half 8.4 s and its
+          terminal batch applied after the distribution's approval, with no repair. A second cut, of a stub with a
+          planted PRD and RFC pair, copied each half to each member as a companion under the same key.
+          `notes-cutover-flip.md` § Stage 2 holds the conclusions.
         - _Amended in:_ 6.R3 (A31).
+
+- _Outcome:_ One copy at `c9410c1318` took every step from the copy to the flipped copy's paths in § 10's order, each
+  matching the outcome written before it, in 53 minutes to the close; Tasks 6.4.b and 6.4.c had passed their parts at
+  earlier heads. Store-backed cases 2 to 7 run in Task 6.R3 (A31).
 
 ### `[ ]` **6.5 The controlled perturbations — § 9.3**
 
