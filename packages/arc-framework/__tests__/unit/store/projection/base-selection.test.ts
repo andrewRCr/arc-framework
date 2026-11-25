@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
 import { prepareWriteBack } from "../../../../src/lib/store/projection/write-back.js";
+import { selectWriteBackBase } from "../../../../src/lib/store/projection/base-selection.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
@@ -100,6 +101,27 @@ describe("selecting a write-back base", () => {
       } });
     },
   );
+
+  it("takes an attached file's recorded version without history, and a listed one once the store rejects that version", async () => {
+    fixture = await createWriteBackFixture({ path: ".arc/personal-document.txt" });
+    const listed = fixture.entry.base.version, rejected = "rejected-version" as typeof listed;
+    const entry = { ...fixture.entry, base: { ...fixture.entry.base, version: rejected }, adoption: { kind: "write-back" as const } };
+    const request = { ...fixture.request, entry, adopting: true as const, observedEdit: true };
+    const content = await fixture.file(), counted = createCountingStore(fixture.store);
+    const context = { ...fixture.context, store: counted.store, memo: createHistoryMemo(counted.store) };
+    const select = (recoveringBase: boolean) => selectWriteBackBase({ ...context, recoveringBase }, request, content, null);
+    expect(await select(false)).toMatchObject({ status: "ok", result: { kind: "selected", base: { version: rejected } } });
+    expect(counted.count({ operation: "history", input: { reference: entry.reference } })).toBe(0);
+    expect(await select(true)).toMatchObject({ status: "ok", result: { kind: "selected", base: { version: listed } } });
+  });
+
+  it("selects no base for an attached file whose record history is refused", async () => {
+    fixture = await createWriteBackFixture({ kind: "work-item/companion", path: ".arc/active/current/note.txt" });
+    const request = { ...fixture.request, entry: { ...fixture.entry, adoption: { kind: "write-back" as const } } };
+    const { store } = createHistoryRefusingStore(fixture.store, [fixture.entry.reference]);
+    const context = { ...fixture.context, store, memo: createHistoryMemo(store) };
+    expect(await selectWriteBackBase(context, request, "opening\nedited\nclosing\n", null)).toMatchObject({ status: "refused" });
+  });
 
   it("normalizes stampless content for the store while retaining the raw read's blob", async () => {
     fixture = await createWriteBackFixture({ path: ".arc/personal-document.txt" });

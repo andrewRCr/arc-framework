@@ -88,9 +88,9 @@ export interface AsideCopyDeletion {
 }
 
 /**
- * Delete an aside copy: the one deletion every deleter calls. It clears the copy's own record, and the entry's
- * in-progress record where that names this copy and the file holds what the batch linked there, read by the file
- * identity the entry records.
+ * Delete a spent aside copy: the one deletion every deleter but a returned alias's calls. It clears the copy's own
+ * record, and the entry's in-progress record where that names this copy and the file holds what the batch linked there,
+ * read by the file identity the entry records.
  * @param input - The copy, the file it was made of, and the file's entry.
  * @returns The entry as it stands once the copy is gone.
  */

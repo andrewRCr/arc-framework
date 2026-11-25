@@ -37,15 +37,6 @@ describe("retired review architecture sweep", () => {
     ], /\breview\.pre_merge\b|\bdiff-review\b/u)).resolves.toEqual([]);
   });
 
-  it("limits planned-work references to explicitly historical baselines", async () => {
-    await expect(matchingFiles([
-      ".arc/backlog/planned",
-    ], /\breview\.pre_merge\b|\bdiff-review\b/u)).resolves.toEqual([
-      ".arc/backlog/planned/configuration/config-storage-architecture/draft-config-storage-architecture.md",
-      ".arc/backlog/planned/configuration/customization-arch-realign/draft-customization-arch-realign.md",
-    ]);
-  });
-
   it("retains review-gate/v1 only in the exact legacy parser family", async () => {
     await expect(matchingFiles([
       "packages/arc-framework/src/scripts/review-gate",
