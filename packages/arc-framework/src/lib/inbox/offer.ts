@@ -4,6 +4,7 @@ import { readQueueState, type QueueState } from "./queue-storage.js";
 import { resolveEntryList } from "./lists.js";
 import { rowsInList } from "./listing.js";
 import { listCoordinate } from "./receipts.js";
+import { markSurvivors } from "./survivors.js";
 import { openErrandHolding } from "./errand-home.js";
 import { entryConflictReason } from "./conflicts.js";
 import type { StoreRecord } from "../store/read.js";
@@ -19,7 +20,7 @@ export interface QueueExecutionOffer {
   leftOut: QueueOfferProblem[];
   skipped: QueueOfferProblem[];
 }
-/** Find the first queue member a start would accept, without changing queue state.
+/** Find the first member eligible for an execution offer without changing queue state.
  * @param context - Store and identity.
  * @param parentCheckoutPath - Warm parent checkout for a continuation.
  * @returns First offer and individual reports, or unreadable queue evidence.
@@ -39,12 +40,13 @@ export async function selectQueueExecutionOffer(queue: QueueState, context: Inbo
       result.nextOffer = { kind: "errand", key: `${member.inbox}:${member.id}`, parentCheckoutPath };
       break;
     }
-    result[inspected.kind === "skipped" ? "skipped" : "leftOut"].push({ inbox: member.inbox, id: member.id, reason: inspected.reason, remedy: { text: "Repair or reorder this member with arc errand queue set." } });
+    result[inspected.kind === "skipped" ? "skipped" : "leftOut"].push({ inbox: member.inbox, id: member.id, reason: inspected.reason,
+      remedy: { text: inspected.remedy ?? "Repair or reorder this member with arc errand queue set." } });
   }
   return result;
 }
 
-type MemberInspection = { kind: "ready" } | { kind: "skipped" | "left-out"; reason: string };
+type MemberInspection = { kind: "ready" } | { kind: "skipped" | "left-out"; reason: string; remedy?: string };
 async function inspectMember(member: QueueReference, queue: StoreRecord | null, context: InboxContext): Promise<MemberInspection> {
   const queueConflict = await entryConflictReason(queue, member.id, context);
   if (queueConflict !== null) return { kind: "skipped", reason: queueConflict };
@@ -57,5 +59,13 @@ async function inspectMember(member: QueueReference, queue: StoreRecord | null, 
   const home = await openErrandHolding(member.id, listCoordinate(source.result), context);
   if (home.status === "refused") return { kind: "left-out", reason: home.refusal.condition };
   if (home.result.held !== null) return { kind: "left-out", reason: `Open Errand ${home.result.held.slug} holds this entry; resume it in its checkout.` };
-  return rows.result.some((row) => row.id === member.id) ? { kind: "ready" } : { kind: "left-out", reason: "The queued entry is gone from its inbox; inspect arc inbox before starting it." };
+  const row = rows.result.find((entry) => entry.id === member.id);
+  if (row === undefined) return { kind: "left-out", reason: "The queued entry is gone from its inbox; inspect arc inbox before starting it." };
+  const marked = await markSurvivors([row], source.result, context);
+  if (marked.status === "refused") return { kind: "left-out", reason: marked.refusal.condition, remedy: marked.refusal.remedy.text };
+  const survivor = marked.result[0]?.survivor;
+  if (survivor === undefined) return { kind: "ready" };
+  return { kind: "left-out", reason: `The queued entry survived a move to ${survivor.home.list}.`,
+    remedy: "Inspect the source and its home with arc inbox. Reconcile the survivor through arc route if a carry is needed,"
+      + " then update its reference with arc errand queue set." };
 }

@@ -77,8 +77,8 @@ first candidate to check, never a destination decided by existence.
 
 Validate at most three finalists with `arc view design --for <slug>`: map headings first, then read Purpose,
 the scope boundary, and the named decision or section. For a routed-into target, also read its inbound list with
-`arc inbox <slug> --json` for its pending count and oldest date. Never infer lifecycle or owner from paths; use
-`arc status <slug> --json`.
+`arc inbox <list> --json` using the selector in the binding below for its pending count and oldest date.
+Never infer lifecycle or owner from paths; use `arc status <slug> --json`.
 
 Delegate pointed reads when they would flood context, under DEV-RULES' Sub-agent scope. They remain advisory until
 the primary reads the named section. Give the reader no primary-side door or allowed-outcome set.
@@ -139,9 +139,9 @@ record's `_Captures:_` category. Row coverage is in the binding.
 
 **Drain re-triage:** only backlog stubs may be groomed; only a started work unit's owner edits or removes its entries.
 At the drain's confirmation interlock, offer each routed-into backlog stub already holding entries once, with the
-`retriage` offer `arc inbox <slug> --json` reports. Re-triage only targets the Owner picks, through that door's bounded
-outcomes, then confirm the revised routing plan at the same stop. Keep its dispositions in the routing plan, never the
-target's draft.
+`retriage` offer from `arc inbox <list> --json` using the selector in the binding below. Re-triage only targets the
+Owner picks, through that door's bounded outcomes, then confirm the revised routing plan at the same stop. Keep its
+dispositions in the routing plan, never the target's draft.
 
 **Cascade:** a work-unit cascade routes only when it names the decision it shapes in the affected work unit.
 Never reopen that work unit's body mid-pass or route on shared domain alone.
@@ -224,8 +224,10 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
 - **Route-now and an Errand's route-to-home:** the session carries out its own confirmed route with these verbs and
   `arc stub`; no Errand carries it. An Errand's route-to-home may also weave a `fold` into a backlog stub's draft,
   saved with `arc save`.
-- **Survivors:** a personal inbox row carrying `survivor` was edited after it was routed. Carry it, with no gate,
-  through the move form to the list its `survivor.home` names, with no `--section`: every such home has one section.
+- **Survivors:** a personal inbox row carrying `survivor` was edited after it was routed. Read the entry with the
+  same ID at `survivor.home` before carrying. If the carry would drop an already routed concern, preserve the
+  held entry and confirm how to reconcile it with the Owner. Otherwise carry through the move form to its named home,
+  with no `--section`: every such home has one section.
 - **Capture vehicles:** a deferred route is a pre-routed capture with `WU_Target` and `_Shapes:_`, and a deferred
   `errand` an Errand capture, each added with `arc route --to personal --section <"Work Unit" | Errand>`. `fold` into
   the session's own work unit and an `errand` execute directly. Every new capture gets the full gate at the drain;

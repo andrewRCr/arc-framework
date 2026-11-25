@@ -3,7 +3,9 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { listInbox } from "../../../src/lib/inbox/listing.js";
+import { resolveQueueExecutionOffer } from "../../../src/lib/inbox/offer.js";
 import { listErrandQueue, setErrandQueue } from "../../../src/lib/inbox/queue.js";
+import { removeInboxEntry } from "../../../src/lib/inbox/removal.js";
 import { routeEntry } from "../../../src/lib/inbox/route.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
@@ -27,6 +29,12 @@ function section(content: string, start: string, end?: string): string {
   const from = content.indexOf(start);
   expect(from, start).toBeGreaterThan(-1);
   return content.slice(from, end === undefined ? undefined : content.indexOf(end, from));
+}
+
+async function rows(h: ReturnType<typeof createInboxHarness>, list: string) {
+  const result = await listInbox({ list }, h.context);
+  if (result.state === "refused") throw new Error(result.reason);
+  return result.entries;
 }
 
 const method = "system/methods/route-discovered-work.md";
@@ -68,6 +76,20 @@ describe("routing workflow contract", () => {
       "planning-grooming", "grooming PR"]) {
       expect(binding).not.toContain(retired);
     }
+  });
+
+  it("uses the work-item selector binding for both homing figures and a backlog re-triage offer", async () => {
+    const guidance = await shipped(method);
+    const homing = section(guidance, "### Homing", "### Target lifecycle");
+    const retriage = section(guidance, "**Drain re-triage:**", "**Cascade:**");
+
+    for (const step of [homing, retriage]) {
+      expect.soft(step).not.toContain("`arc inbox <slug> --json`");
+      expect.soft(step, "Use the bound work-item selector at the read site").toMatch(
+        /`arc inbox <list> --json`[^.]*\b(?:binding|UID)\b/iu);
+    }
+    expect(homing).toMatch(/pending count[^.]*oldest date/iu);
+    expect(retriage).toContain("`retriage` offer");
   });
 
   it("gets the source owner's edit for changed Shapes and split residuals in a foreign stub", async () => {
@@ -188,6 +210,90 @@ describe("routing workflow contract", () => {
     expect.soft(dispatch).toMatch(/\b(?:remove|replace|update)\b[^.]*\breference\b[^.]*\b(?:confirmed|approved)\b/iu);
   });
 
+  it("continues after a reported remedy performs the refused queue read or write", async () => {
+    const workflow = await shipped(drain);
+    const reads = section(workflow, "### 1. Read the inbox", "### 2.");
+    const dispatch = section(workflow, "### 5. Execution transition", "### 6.");
+
+    expect.soft(reads).toMatch(/\bremedy\b[\s\S]*\b(?:use|continue)\b[^.]*\b(?:provides|supplies|done|result)\b/iu);
+    expect.soft(dispatch).toMatch(/\bremedy\b[\s\S]*\b(?:continue|dispatch)\b[^.]*\b(?:settles|completes|done)\b/iu);
+    expect(dispatch).not.toMatch(/\bcontinue only from `set`/iu);
+  });
+
+  it("reconciles qualified queue members when moves and removals landed before an interrupted drain", async () => {
+    const workflow = await shipped(drain);
+    const reads = section(workflow, "### 1. Read the inbox", "### 2.");
+    const dispatch = section(workflow, "### 5. Execution transition", "### 6.");
+    const h = createInboxHarness();
+    const ids = ["11223344", "55667788", "aabbccdd"];
+    await h.inbox("personal", ids.map(id => entry(id, `Capture ${id}`)).join("\n\n"));
+    const members = ids.map(id => ({ inbox: "personal", id }));
+    expect(await setErrandQueue({ schemaVersion: 1, members }, h.context)).toMatchObject({ state: "set", members });
+    const [moved, removed, kept] = await rows(h, "personal");
+    if (!moved || !removed || !kept) throw new Error("Expected three queued captures");
+
+    expect(await routeEntry({ from: "personal", to: "project", entryId: moved.id, expectedVersion: moved.version }, h.context))
+      .toMatchObject({ state: "routed", destination: { list: "project" } });
+    expect(await removeInboxEntry({ list: "personal", id: removed.id, expectedVersion: removed.version }, h.context))
+      .toMatchObject({ status: "ok", result: { disposition: "removed" } });
+    expect(await rows(h, "personal")).toMatchObject([{ id: kept.id }]);
+    expect(await rows(h, "project")).toMatchObject([{ id: moved.id }]);
+    expect(await listErrandQueue(h.context)).toMatchObject({ state: "listed", members });
+    expect(await resolveQueueExecutionOffer(h.context)).toMatchObject({
+      status: "ok", result: { leftOut: [{ inbox: "personal", id: moved.id }, { inbox: "personal", id: removed.id }] },
+    });
+
+    expect.soft(reads, "Reconcile members missing from their named inbox before classification").toMatch(
+      /\bmissing\b[^.]*\b(?:inbox|source)\b[^.]*\b(?:check|inspect|read)\b/iu);
+    expect.soft(reads, "Include interrupted changes and unresolved evidence at the confirmation stop").toMatch(
+      /\b(?:interrupted|earlier)\b[\s\S]*\b(?:confirm|Owner)\w*\b/iu);
+    expect.soft(dispatch, "Repair the queue even when only a prior change landed").toMatch(
+      /\b(?:interrupted|earlier)\b[^.]*\b(?:landed|settled|completed)\b/iu);
+
+    const repaired = [{ inbox: "project", id: moved.id }, { inbox: "personal", id: kept.id }];
+    expect(await setErrandQueue({ schemaVersion: 1, members: repaired }, h.context)).toMatchObject({ state: "set", members: repaired });
+    expect(await resolveQueueExecutionOffer(h.context)).toMatchObject({
+      status: "ok", result: { nextOffer: { key: `project:${moved.id}` }, leftOut: [], skipped: [] },
+    });
+  });
+
+  it("carries a queued survivor to its backlog home and withholds a second execution offer", async () => {
+    const workflow = await shipped(drain);
+    const reads = section(workflow, "### 1. Read the inbox", "### 2.");
+    const carry = section(workflow, "- **Survivor**", "- **Existing-stub home**");
+    const h = createInboxHarness();
+    const id = "11223344";
+    const saved = await h.inbox("personal", entry(id));
+    const target = await h.workUnit("home", "test-user", "backlog", "", "Planning");
+    const { owner } = target.reference;
+    if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected a backlog UID");
+    const to = owner.uid;
+    const member = { inbox: "personal", id };
+    const [original] = await rows(h, "personal");
+    if (!original) throw new Error("Expected the original capture");
+    expect(await setErrandQueue({ schemaVersion: 1, members: [member] }, h.context)).toMatchObject({ state: "set" });
+    const move = { from: "personal", to, entryId: id, expectedVersion: original.version };
+    expect(await routeEntry(move, h.context)).toMatchObject({ state: "routed" });
+    success(await h.context.store.write({ action: "put", reference: saved.reference, expected: saved.version,
+      content: saved.content.replace("Prose", "Surviving field notes"), provenance: { verb: "save", lifecycleAction: "edit" } }));
+    const [survivor] = await rows(h, "personal");
+    if (!survivor) throw new Error("Expected the concurrent edit to survive removal");
+    expect(survivor).toMatchObject({ id, survivor: { home: { list: to } } });
+    expect(await listErrandQueue(h.context)).toMatchObject({ state: "listed", members: [member] });
+    expect.soft(await resolveQueueExecutionOffer(h.context)).toMatchObject({ status: "ok", result: { nextOffer: null,
+      leftOut: [{ ...member, reason: expect.stringContaining(to), remedy: { text: expect.stringContaining("arc route") } }] } });
+    expect.soft(reads, "The carry takes priority even for a queued row").toMatch(/`survivor`[^.]*\b(?:even|regardless)\b[^.]*\bqueue\w*\b/iu);
+    expect.soft(carry, "Settle the carry before reconciling its queue reference").toMatch(
+      /\b(?:lands|settles|succeeds)\b[^.]*\bqueue\b/iu);
+
+    expect(await routeEntry({ ...move, expectedVersion: survivor.version }, h.context)).toMatchObject({ state: "routed", carried: "replaced" });
+    expect(await setErrandQueue({ schemaVersion: 1, members: [] }, h.context)).toMatchObject({ state: "set", members: [] });
+    expect(await rows(h, "personal")).toEqual([]);
+    expect(await rows(h, to)).toMatchObject([{ id, raw: expect.stringContaining("Surviving field notes") }]);
+    expect(await resolveQueueExecutionOffer(h.context))
+      .toMatchObject({ status: "ok", result: { nextOffer: null, leftOut: [], skipped: [] } });
+  });
+
   it("keeps exactly one accepted split part and leaves the refused part available to resume", async () => {
     const workflow = section(await shipped(drain), "### 4. Route", "### 5.");
     const split = section(workflow, "Split a capture", "- **Survivor**");
@@ -219,6 +325,46 @@ describe("routing workflow contract", () => {
     expect(await routeEntry({ ...remaining, to: repaired }, h.context)).toMatchObject({ state: "routed" });
     expect(await listInbox(source, h.context)).toMatchObject({ entries: [] });
     expect(await listInbox({ list: first }, h.context)).toMatchObject({ entries: [{ id: accepted.id }] });
+  });
+
+  it("checks the routed whole before dispatching a split that survived a concurrent move", async () => {
+    const workflow = await shipped(drain);
+    const split = section(workflow, "Split a capture", "- **Survivor**");
+    const carry = section(workflow, "- **Survivor**", "- **Existing-stub home**");
+    const h = createInboxHarness();
+    const whole = "Check the index. Update the guide.";
+    const saved = await h.inbox("personal", entry("aabbccdd", "Two concerns", whole));
+    const home = await h.workUnit("home", "test-user", "backlog", "", "Planning");
+    const { owner } = home.reference;
+    if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected a backlog UID");
+    const to = owner.uid;
+    const [original] = await rows(h, "personal");
+    if (!original) throw new Error("Expected the original capture");
+
+    const move = { from: "personal", to, entryId: original.id, expectedVersion: original.version };
+    expect(await routeEntry(move, h.context)).toMatchObject({ state: "routed" });
+    const parts = [entry(original.id, "Check the index", "Check the index."), entry("55667788", "Update the guide", "Update the guide.")];
+    success(await h.context.store.write({ action: "put", reference: saved.reference, expected: saved.version,
+      content: `## Work Unit\n\n${parts.join("\n\n")}\n`, provenance: { verb: "save", lifecycleAction: "edit" } }));
+    const [narrowed, other] = await rows(h, "personal");
+    if (!narrowed || !other) throw new Error("Expected both parts to persist");
+    expect([narrowed.raw.trim(), other.raw.trim()]).toEqual(parts);
+    expect(narrowed.survivor).toMatchObject({ home: { list: to } });
+    expect(await rows(h, to)).toMatchObject([{ id: original.id, raw: expect.stringContaining(whole) }]);
+
+    expect.soft(split, "A matching split with a survivor is not ready to dispatch").toMatch(
+      /`survivor`[^.]*\b(?:stop|pause)\b[^.]*\b(?:dispatch|rout|carry)\w*\b/iu);
+    expect.soft(split, "Read the already routed whole and reconcile before proceeding").toMatch(
+      /`survivor\.home`[^.]*\bwhole\b[\s\S]*\bOwner\b/iu);
+    expect.soft(carry, "A later drain must also check whether a carry drops already routed work").toMatch(
+      /\b(?:narrow|drop|discard)\w*\b[^.]*\b(?:work|concern)\w*\b/iu);
+
+    for (const part of [narrowed, other]) {
+      expect(await removeInboxEntry({ list: "personal", id: part.id, expectedVersion: part.version }, h.context))
+        .toMatchObject({ status: "ok", result: { disposition: "removed" } });
+    }
+    expect(await rows(h, "personal")).toEqual([]);
+    expect(await rows(h, to)).toMatchObject([{ id: original.id, title: "Two concerns", raw: expect.stringContaining(whole) }]);
   });
 
   it("hands a same-session partial Errand off to the returned primary checkout on base", async () => {

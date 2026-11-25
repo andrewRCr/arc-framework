@@ -40,18 +40,25 @@ classification.
 
 Read the personal inbox in full with `arc inbox personal --json` — both its `Errand` section (errand-class captures)
 and its `Work Unit` section (spec-worthy captures). Each row carries its entry's `id` and `version`, which every
-later write takes. Read `arc errand queue --json` and match queue members to captures by inbox and entry ID.
-Treat matching queued captures as already triaged and preserve their execution disposition unless the Owner
-explicitly asks to revisit it. If either listing is `refused`, apply its remedy and retry before classifying.
+later write takes. Read `arc errand queue --json` and match queue members to captures by inbox and entry ID when
+the listings provide them. If a read is refused, surface the condition and apply the reported remedy. Use the
+evidence and selectors the remedy supplies when it completes the read, or retry after repair before classifying.
 
-An unqueued row carrying `survivor` was edited after an earlier route took it out. Carry it to its `survivor.home`
-at § 4.
+A row carrying `survivor` goes to the carry step even if it is queued. Treat other matching queued captures as
+already triaged and preserve their execution disposition unless the Owner explicitly asks to revisit it.
+
+Read `arc inbox project --json` to resolve project-qualified members. If a queue member is missing from its
+named inbox, inspect both inboxes and the available evidence of its prior disposition. Include interrupted moves
+and removals in the confirmation plan. For a verified move, keep treating the entry as triaged and propose the new
+qualified reference if it is still meant to run. For a verified removal or a move that ends execution, propose
+dropping the stale reference. Ask the Owner to resolve missing or ambiguous evidence before changing or handing
+off that member.
 
 ### 2. First-pass classification — no writes
 
-Classify each entry except queued captures and survivors handled in § 1. Classify a queued capture here if the
-Owner explicitly reopens it. Use the **logical model** — _entry · character · home_. This pass **makes no writes**.
-It produces the routing plan the interlock (§ 3) confirms. Resolve, per entry:
+Classify each entry except queued captures and survivors handled in § 1. Reclassify a queued capture here if the
+Owner explicitly reopens it and it has no survivor home. Use the **logical model** — _entry · character · home_.
+This pass **makes no writes**. It produces the routing plan the interlock (§ 3) confirms. Resolve, per entry:
 
 **Method fire-point** · [route-discovered-work][route-discovered-work], for each capture:
 
@@ -106,8 +113,8 @@ route-discovered-work:
 > `workflow-interlock`: Stop before any write. Present the full routing plan — each concern's outcome or unclear
 > Errand pair with its four record answers, `_Shapes:_` for each fold or hold, and the coupled target's CLI horizon
 > advisory verbatim. Include groupings, new-stub commitment levels, any message to a live target, atomic
-> dispositions, existing queued captures, survivor carries, and overlap advisories. Await explicit confirmation
-> before routing (§ 4).
+> dispositions, existing queued captures, queue repairs, survivor carries, and overlap advisories. Await explicit
+> confirmation before routing (§ 4).
 
 For each routed-into backlog stub, show the `retriage` offer `arc inbox <list> --json` reports when the stub already
 holds entries. Use the stub's UID if its slug is `personal` or `project`. When the Owner picks targets, return their
@@ -125,13 +132,17 @@ result after the outcome's writes land. A `retained` removal result leaves a cap
 
 Split a capture by replacing it in its source list with all confirmed parts in one `arc save` before dispatching any
 part. Keep the original ID on the retained or queued residual, if any, or on one part of a split with no residual.
-Let the save stamp distinct IDs on the other parts. Re-list the source and confirm it contains the agreed parts in
-place of the original. If the unsplit entry survives or a part differs, use the current listing to resolve the split
-with the Owner before routing. Use the persisted IDs and versions in the binding's move and removal forms. If a
-destination refuses, leave its part in the source, surface the reason and remedy, and resume from the remaining
-listed parts once the remedy is applied.
+Let the save stamp distinct IDs on the other parts. Re-list the source and verify the parts against the approved
+split. If the unsplit entry remains, a part differs, or a part carries `survivor`, stop before dispatching or
+carrying any part. Read any marked part's `survivor.home` to check whether the whole capture already landed.
+Bring the current evidence back to the Owner. Preserve already routed work and agree which parts are redundant
+and which still need routing. Use the persisted IDs and versions for confirmed moves and removals. If a destination
+refuses, leave its part in the source, surface the condition and apply the reported remedy. Resume from the
+remaining listed parts after the remedy completes the move or makes retry safe.
 
-- **Survivor** — carry each to its `survivor.home` through the move form.
+- **Survivor** — follow the binding's survivor check and carry to `survivor.home` through the move form. If the
+  carry would narrow the work already routed, take the source and home back to the confirmation interlock.
+  Once the carry settles the source, reconcile any queue reference in § 5.
 - **Existing-stub home** — a gate-confirmed `fold` or `hold` into a backlog stub. The drain folds only a trivially
   additive, on-topic note into the stub's draft, saved with `arc save`; otherwise it moves the entry into the stub's
   inbound list with its `_Shapes:_`. The owner folds or dispositions every inbound entry before the draft is ready,
@@ -165,21 +176,25 @@ listed parts once the remedy is applied.
 
 ### 5. Execution transition — committed atomics → `run-errand`
 
-Before dispatch, re-read `arc errand queue --json` if the confirmed plan changes the queue. Remove or update a queue
-reference only once its confirmed change of disposition lands. Use the resulting inbox and ID if the entry remains
-queued. Write the changed queue with `arc errand queue set <file | ->`, keeping its members in order and appending
-each newly approved Errand's entry once:
+Before dispatch, re-read `arc errand queue --json` and verify the affected entries when the confirmed plan changes
+the queue. Remove or update a queue reference once its confirmed change of disposition lands, including an
+interrupted change that landed before this drain and was confirmed in § 3. Drop an unverified missing reference
+only if the Owner explicitly confirms dropping it and it is still missing. Use the resulting inbox and ID if the
+entry remains queued. Write the changed queue with `arc errand queue set <file | ->`, keeping its members in order
+and appending each newly approved Errand's entry once:
 
 ```json
 {"schemaVersion":1,"members":[{"inbox":"personal","id":"<queued-id>"},{"inbox":"personal","id":"<new-id>"}]}
 ```
 
-If updating the queue, continue only from `set`. A `refused` read or write stops dispatch until its reason is
-reported and its remedy applied. The verb replaces the whole queue in one write.
+For a refused read, follow § 1. For a refused write, surface the condition and apply the reported remedy.
+Continue to dispatch when `set` or the remedy completes the queue update. When the remedy only clears the refusal,
+retry the refused step. The setter replaces the whole queue in one write.
 
 For each **execute-now** atomic, hand off to the [`run-errand`][run-errand] lifecycle — the drain never executes
 atomic work itself. The atomic's entry is the Errand's **origin**: pass `personal:<id>` to `run-errand` as its
-`--from-inbox` selector. Two explicit paths, the user's choice by context budget (never a structural gate):
+`--from-inbox` selector when the read supplied an ID. If a remedy supplied the queue, match its resulting offer to
+the confirmed atomic and use the offer's origin selector. Two explicit paths, the user's choice by context budget:
 
 - **Same session** — transition into `run-errand`, then **return here for the next**. Run the committed atomics
   **one at a time, sequentially** (batch only when they are genuinely one concern). Launch from the
