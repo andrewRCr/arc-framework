@@ -2105,15 +2105,23 @@ on the importing machine, outside the repository and uncited; each conclusion na
           records;
         - publish each copied Errand's branch, and abandon the Errand from its own checkout;
         - drop tracked-state stash entries;
-        - plant the stand-in for `main`'s pre-window change (A28): the test-only part of the flip's own commit
-          `24a8bea61d`, committed on `main`, after which `main`'s suite reads no tracked state from the tree;
-        - merge `main` into every live branch a checkout holds, and into a live branch no checkout holds by a merge
-          commit written without a checkout (`git merge-tree --write-tree`, `git commit-tree`, `git update-ref`);
+        - confirm `main` carries its pre-window change (A28), so its suite reads no tracked state from the tree; a copy
+          taken before that change landed plants its stand-in on `main` instead, the test-only part of the flip's own
+          commit `24a8bea61d`;
+        - merge `main` into every live branch a checkout holds that lacks its tip, and into a live branch no checkout
+          holds by a merge commit written without a checkout (`git merge-tree --write-tree`, `git commit-tree`, `git
+          update-ref`); a branch the shared-record step already merged `main` into holds it and takes no merge here;
         - merge `main` into the flip branch where `main` has moved since its last merge.
     3. Each copied unit holding an unpublished Candidate that those merges moved settles it (A6): `arc review
        pre-publication <wu>`, then the choice the live day would take through `arc candidate applicability resolve`,
        committed and pushed in its checkout. Read `<P>`'s roster after the merges: a unit whose checkout still reads
        `work-unit` has nothing to settle.
+        - The review command exits 1 with `candidate-unexplained-delta`; its `applicability` object reads
+          `decision-required` and `request-authority` and carries a `resolutionSelector`.
+        - `arc candidate applicability resolve <wu> -` takes that selector with `selectedBy` and `choice` (`covered`,
+          `targeted-check`, or `changed`), answers `resolved` with `commit-selection`, and leaves only the Candidate
+          record staged. The commit is `chore(arc): record Candidate applicability for <wu>` with the footer `Context:
+          meta-<wu>.md (prepublication)`; once it is pushed the roster row reads `work-unit` again.
     4. Where the copy holds none, make each before the lock: a live branch no checkout holds; a branch carrying a
        Candidate record `main` lacks; and a spawned pre-flip checkout. The copy holds no checkout claimed in place,
        which `check` would refuse as unmarked; that carry runs in its synthetic repository (Task 6.R).
@@ -2121,7 +2129,9 @@ on the importing machine, outside the repository and uncited; each conclusion na
        refuses as § 3.2 states with the registry absent, naming both routes.
 2. **The quiesce (§ 10.2), in order:**
     1. No review attempt in flight.
-    2. Ended holders' checkouts and husks torn down, the files each keeps copied out first.
+    2. Ended holders' checkouts and husks torn down, the files each keeps copied out first. An Errand's detached
+       review checkout, which the roster reads as `unmanaged-checkout`, goes with `git worktree remove` once its review
+       has ended, as the check's finding names.
     3. `lock`.
     4. `git fetch origin` in `<P>`.
     5. Every checkout's `arc user save`, then the trial, `arc store migrate --import --trial`: work its blocking
@@ -2154,7 +2164,8 @@ on the importing machine, outside the repository and uncited; each conclusion na
        moves one, then its branch step, the deletion ahead of any merge of the flipped `main` (§ 10.6):
         - merge the mirror's tip where needed;
         - make its checkout's CLI runnable, as **The builds** states;
-        - delete the five paths from disk and the index;
+        - delete the five paths from disk and the index (`git rm -r --ignore-unmatch`: the plain form fails where one
+          of the five holds nothing tracked);
         - commit in its checkout or, for a branch no checkout holds, from a temporary checkout removed afterwards, the
           hooks passing on the branch's own pre-flip build; the message's footer is `Context: standalone (maintenance)`,
           since the commit deletes the meta a work-unit footer would name;
@@ -2166,7 +2177,9 @@ on the importing machine, outside the repository and uncited; each conclusion na
        gate, which the copy cannot run inside the cap for eleven branches, and on the day each session's push places it
        as usual.
         - The checkout that merged `main` and rebuilt while still tracking state shows the refusal, then the remedy's
-          deletion commit passing its hooks with the projection off, then its first materialization.
+          deletion commit passing its hooks with the projection off, then its first materialization. Its branch takes no
+          step in 5.1. Only a branch whose merge of the flipped `main` meets no modify/delete conflict on a record can
+          take this order, two of the twelve held branches on the copy.
         - Each spawned pre-flip checkout's marker is bound.
         - The primary's identity root ends holding only ARC's surfaces and `scratch/`, its inbox and working memory laid
           from the store.
@@ -2342,6 +2355,47 @@ with the projection off, and that checkout's first materialization remain to be 
 For the day: the primary's identity root keeps its pre-flip `STATUS.USER.md`, which no step removes; a session that
 makes a checkout with a plain `git worktree add` must run `npm run prepare` before committing there; and
 `projection-team-scale` will meet the same five conflicts when it merges the flipped `main`.
+
+#### Run 11 (Task 6.4.d), at `c9410c1318`: the live state's own quiesce steps, and a checkout that merged first
+
+Run on 11-25 from a fresh copy taken at 6:55 am, with `main` at `855b111238` carrying its own pre-window change, so
+nothing was planted. Every step from the copy to the close matched the outcome written before it, in 53 minutes; from
+the lock to the close took 45.
+
+- **What the copy held that run 7's did not.** An open Errand with a detached review checkout, which the roster read as
+  `unmanaged-checkout`; `projection-team-scale` mid review-fix, its checkout reading `unresolved-checkout` ("Candidate
+  target requires request-authority"); and seven planning branches not yet holding `main`'s shared-record changes.
+- **Preparation (8 min).** The review checkout went with `git worktree remove` and the Errand was abandoned. The
+  shared-record step merged `main` into the seven branches (194 s), and `main` then merged without conflict into the
+  other five held branches. The settlement (A6) ran through the verb as the runbook's step 1.3 states, with `covered`
+  standing in for that session's choice: its one-file commit passed its hooks, its push the gate, and the roster read
+  13 `work-unit` rows.
+- **Quiesce and import (20 min).** Trial 421 s, `check` 105 s, the import 433 s at a 2,513 MiB peak, `account` 117 s,
+  `chain` 124 s, `recompute` 3 s.
+- **The flip's landing (2 min).** As in run 7: 72 workspace files withheld at the first status, the archive published
+  `Shipped`, 26 register rows closed, the checkout released.
+- **Each branch (16 min).** Eleven held branches made the deletion commit, 1,066 to 1,070 files, through their own
+  pre-flip hooks before any merge of the flip, on `main`'s real change with no stand-in (A28's criterion), and pushed
+  through their gates; the unheld branch took it from a temporary checkout. Two checkouts reinstalled first.
+- **The checkout that merged first.** `delivery-rebuild-continuity` took no branch step. It merged the flipped `main`
+  while still tracking three files, reinstalled and rebuilt; `arc status` then refused, exit 1, naming the deletion and
+  the merge; the remedy's deletion commit of those three files passed its hooks with nothing projected before it; the
+  checkout then materialized and bound its marker.
+- **The other checkouts (7 min, with the one above).** The primary and ten linked checkouts materialized and bound
+  their markers. `projection-team-scale`'s merge met the same five conflicts outside the five paths and was left to its
+  session.
+- **Close.** The notes ref moved under `refs/retired-notes/`, all six notes writers refused, `close` passed and left no
+  window ref, and 411 review-gate records naming the live repository were cleared.
+
+Runs 8 to 10 that morning each ended within minutes on a fault in the run's own scaffolding, none on a step behaving
+other than as written: an expectation that `main` would merge into all twelve held branches where the shared-record
+step had already brought seven to its tip; a capped test of mine run beside the chain, which took the host's serial cap
+from a step's launch; and a miscounted checkout total. The driver's wait for the cap now retries a launch that never
+started.
+
+For the day: deletion-first stays the order every session takes, since ten of the twelve held branches would meet a
+record conflict merging the flipped `main` first; and an Errand under review at the cutoff leaves a detached checkout
+its session removes before `check`.
 
 ## The parallel run from 11-24
 

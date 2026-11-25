@@ -1652,15 +1652,14 @@ rewritten workflows (§ 9.2).
           the checkout once that folder was copied out and removed. `notes-cutover-flip.md` § Stage 2 holds the
           conclusions and times.
 
-    - `[ ]` **6.4.d Each branch and checkout**
-        - A live branch no checkout holds, and a branch carrying a Candidate record `main` lacks, through § 10.6's
-          branch step; a checkout that merged `main` and rebuilt while still tracking its records, through the refusal,
-          the remedy's deletion commit on the flip build with the projection off, and its first materialization; each
-          checkout's steps through its first materialization and its marker's carry, including a pre-flip `arc start
-          --here` checkout and a spawned pre-flip checkout (§ 9.6); the primary's identity root left holding only ARC's
-          surfaces and `scratch/`.
-        - Then notes retirement (§ 12), its old ref moved under a namespace neither a tag nor pushed and every `arc
-          user` notes writer refusing, and last the window tooling's close, with no checkout reporting a withheld file.
+    - `[x]` **6.4.d Each branch and checkout**
+        - Run on a fresh copy at `c9410c1318`, `main` carrying its own pre-window change: eleven held branches and one
+          no checkout holds took the deletion commit through their pre-flip hooks before any merge of the flip,
+          `projection-team-scale`'s after its Candidate applicability was settled through the verb ahead of the lock.
+          One checkout merged the flipped `main` first: its commands refused, the remedy's deletion commit passed with
+          nothing projected, and it materialized. The primary and ten other checkouts materialized and bound their
+          markers, notes retired, and `close` passed. `notes-cutover-flip.md` § Stage 2 holds the conclusions and
+          times; the in-place checkout's carry is Task 6.R's.
         - _Amended in:_ 6.R (A27).
         - _Amended in:_ 6.R2 (A28).
 
