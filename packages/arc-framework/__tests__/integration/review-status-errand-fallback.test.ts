@@ -11,15 +11,18 @@ import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } fro
   "../../src/lib/errand/identity-record.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-import { LocalReviewOperationStateStore } from
-  "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { HostedRequestOwnerIndex } from "../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
 import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import { HostedRequestEnvelopeSchema, HostedRequestResultSchema } from
   "../../src/scripts/review-gate/hosted/request.js";
 import { readLaneProgressOwner, recordHostedAwaitAttempt } from "../../src/scripts/review-gate/lane-progress.js";
 import { ReviewResolveEnvelopeSchema } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
+import { reviewInFlight } from "../fixtures/review-response-policy.js";
 import { makeGitExec } from "../helpers/integration.js";
+import { seedProjectIdentity, seedStore } from "../helpers/store/seed-store.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
@@ -33,7 +36,7 @@ async function git(cwd: string, args: readonly string[]): Promise<string> {
   return (await execFileAsync("git", [...args], { cwd })).stdout.trim();
 }
 
-async function fallbackErrand() {
+async function fallbackErrand(backend: "in-repo" | "ref") {
   const primary = await createTempRepoCore({ prefix: "arc-errand-fallback-", identity: "andrew" });
   roots.push(primary);
   await writeFile(join(primary, ".git/info/exclude"), ".arc/\n.arc-fixture/\n");
@@ -44,10 +47,14 @@ async function fallbackErrand() {
     branch, state: "open", savedHead: null, changeRequest: null,
     createdAt: "2026-10-27T00:00:00.000Z", updatedAt: "2026-10-27T00:00:00.000Z",
   });
-  await writeFile(join(primary, identity.slug), serializeTransientIdentityRecord(identity));
-  await git(primary, ["add", identity.slug]);
-  await git(primary, ["commit", "-m", "identity"]);
-  await git(primary, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+  if (backend === "in-repo") {
+    await writeFile(join(primary, identity.slug), serializeTransientIdentityRecord(identity));
+    await git(primary, ["add", identity.slug]);
+    await git(primary, ["commit", "-m", "identity"]);
+    await git(primary, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+  } else {
+    await git(primary, ["commit", "--allow-empty", "-m", "base"]);
+  }
   const root = `${primary}-errand`;
   await git(primary, ["worktree", "add", "-b", branch, root, "HEAD"]);
   roots.push(root);
@@ -99,10 +106,21 @@ process.stdout.write(JSON.stringify(response));
 `);
   await chmod(script, 0o755);
   const publisher = new RepositoryGitCommonStatePublisher(makeGitExec(root), root);
-  return { root, bin, commentsPath, identity, publisher, headSha,
-    target: { repository: "owner/repo", pullRequest: 42, headSha },
-    repositoryId: await resolveRepositoryIdentity(publisher),
-    store: new LocalReviewOperationStateStore(publisher) };
+  const fixture = { root, bin, commentsPath, identity, publisher, headSha,
+    target: { repository: "owner/repo", pullRequest: 42, headSha } };
+  if (backend === "in-repo") return { ...fixture, repositoryId: await resolveRepositoryIdentity(publisher),
+    workItem: undefined, store: reviewInFlight(root) };
+  const owner = SlugSchema.parse("andrew");
+  const repositoryId = await seedProjectIdentity(root, owner);
+  const [seeded] = await seedStore(root, owner, [{
+    reference: recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: identity.slug })),
+    content: serializeTransientIdentityRecord(TransientIdentityRecordV3Schema.parse({ ...identity, owner })),
+    placement: { kind: "active" },
+    links: { branches: [{ repository: repositoryId, ref: branch, linkedAs: "created", excluded: [] }] },
+  }]);
+  if (seeded === undefined) throw new Error("Missing stored Errand");
+  const workItem = seeded.reference.owner;
+  return { ...fixture, repositoryId, workItem, store: reviewInFlight(root, workItem) };
 }
 
 async function invokeHostedRequest(input: unknown) {
@@ -116,13 +134,12 @@ async function invokeHostedRequest(input: unknown) {
   return result;
 }
 
-describe("hosted Errand source fallback", () => {
-  // The Errand is an in-repo identity ref and its attempts live in the repository's local operation store.
-  useInRepoStoreForEach();
+describe.each(["in-repo", "ref"] as const)("hosted Errand source fallback (%s)", backend => {
+  if (backend === "in-repo") useInRepoStoreForEach();
 
   it.each(["rate-limited", "transient-unavailable"] as const)(
     "submits the unchanged next-source action after %s without losing history or spending another pass", async outcome => {
-      const fixture = await fallbackErrand();
+      const fixture = await fallbackErrand(backend);
       const priorPath = process.env.PATH; const priorCwd = process.cwd();
       process.env.PATH = `${fixture.bin}${delimiter}${priorPath ?? ""}`;
       process.chdir(fixture.root);
@@ -152,6 +169,10 @@ describe("hosted Errand source fallback", () => {
         const fallback = await resolve([{ sourceId: "coderabbit-pr", outcome }]);
         expect(fallback.provider).toBe("codex-pr");
         const second = await invokeHostedRequest(fallback);
+        if (fixture.workItem !== undefined) {
+          const index = new HostedRequestOwnerIndex(fixture.publisher);
+          expect(await index.read(fixture.repositoryId, fallback)).toMatchObject({ workItem: fixture.workItem });
+        }
         const replay = await invokeHostedRequest(fallback);
         expect(replay.handle).toEqual(second.handle);
         expect(second.handle.admission.logicalPass).toBe(1);

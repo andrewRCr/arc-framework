@@ -1,5 +1,5 @@
 /** Active status projects native review authority without materialized metadata fields, in any checkout layout. */
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -85,8 +85,31 @@ async function boundStatus(primary: StoreRecord, store: Store, projectCandidateT
     spawningIdentity: "andrew", createdAt: "2026-10-19T00:00:00.000Z" });
   const git = scriptGitExec([{ match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "feat/example" }] }]);
   const options = { cwd, store, projectId: async () => "project", exec: git.exec, projectCandidateTarget };
-  return { full: () => runActiveStatus(options), session: () => runActiveSessionInitStatus(options) };
+  return { cwd, full: () => runActiveStatus(options), session: () => runActiveSessionInitStatus(options) };
 }
+
+it("resolves a stored repository-relative Task List and its notes in the bound checkout's nested layout", async () => {
+  const h = createReviewHarness();
+  const meta = await h.seedMeta("example", { taskList: ".arc/active/tasks-example.md" });
+  const owner = meta.reference.owner;
+  const tasks = await h.seed(recordReferences["work-item/task-list"](owner), "# Task List\n");
+  const notes = await h.seed(recordReferences["work-item/notes"](owner), "# Notes\n");
+  const status = await boundStatus(meta, h.store);
+  recordEngineStoreCapability(status.cwd, h.store.capabilities.stateOffBranch);
+  onTestFinished(() => { beginProjectionCommand(); });
+
+  const current = ".arc/active/current";
+  await mkdir(join(status.cwd, current), { recursive: true });
+  await writeFile(join(status.cwd, current, "tasks-example.md"), tasks.content);
+  await writeFile(join(status.cwd, current, "notes-example.md"), notes.content);
+
+  const result = await status.session();
+  expect(result).toMatchObject({ resolution: "single", path: `${current}/meta-example.md`, warnings: [] });
+  expect(result).toMatchObject({
+    taskListPath: `${current}/tasks-example.md`,
+    companions: { notes: `${current}/notes-example.md` },
+  });
+});
 
 /** Hold an Active work unit in Candidate preparation, its task list complete, with its Candidate stored. */
 async function preparingWorkUnit(h: ReturnType<typeof createReviewHarness>): Promise<StoreRecord> {
@@ -103,7 +126,8 @@ async function preparingWorkUnit(h: ReturnType<typeof createReviewHarness>): Pro
 
 /** Hold an Integrating work unit linked to its branch, with its Candidate stored. */
 async function integratingWorkUnit(h: ReturnType<typeof createReviewHarness>): Promise<StoreRecord> {
-  const primary = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit" },
+  const primary = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit",
+    branch: "feat/previous", candidateId: canonicalDigest({ candidate: "previous" }) },
     { kind: "active" }, { branches: [{ repository: "project", ref: "refs/heads/feat/example", linkedAs: "created", excluded: [] }] });
   await h.seedCandidate(primary.reference.owner, record);
   return primary;
@@ -156,12 +180,47 @@ it.each([
     read: async input => refused && input.reference.kind === "review/candidate"
       ? { status: "refused", refusal } : base.read(input) };
   const status = await boundStatus(primary, store);
-  const unavailable = expect.stringMatching(/Candidate authority for meta-example\.md is unavailable/u);
-  expect(await status.full()).toMatchObject({ candidates: [{ integrationBoundary: null }], warnings: [unavailable] });
+  const warnings = [expect.stringContaining(`${refusal.condition} ${refusal.remedy.text}`)];
+  const refusedFull = await status.full();
+  expect(refusedFull).toMatchObject({ candidates: [{ integrationBoundary: null }], warnings });
   expect(await status.session()).toMatchObject({ resolution: "single", sessionType: null,
-    currentWorkflow: workflow, integrationBoundary: null, warnings: [unavailable] });
+    currentWorkflow: workflow, integrationBoundary: null, warnings });
   refused = false;
   expect(await status.session()).toMatchObject({ sessionType, integrationBoundary: boundary, warnings: [] });
+  if (state === "Integrating") {
+    expect(await status.full()).toMatchObject({ candidates: [{ candidateId: coordinates.candidateId, branch: "feat/example" }],
+      warnings: [] });
+    expect(refusedFull.candidates).toMatchObject([{ candidateId: null, branch: expect.toBeOneOf([null, "feat/example"]) }]);
+  }
+});
+
+it.each([
+  ["Integrating", "integrate-work-unit", "integration"],
+  ["Active", "prepare-work-unit", "prepublication"],
+] as const)("retains %s status when only the boundary read is refused, and resumes after repair", async (state, workflow, sessionType) => {
+  const h = createReviewHarness();
+  const primary = state === "Integrating" ? await integratingWorkUnit(h) : await preparingWorkUnit(h);
+  const boundary = projectCandidateReviewBoundary(coordinates, 2);
+  await h.seedBoundary(primary.reference.owner, boundary);
+  const status = await boundStatus(primary, h.store);
+  const condition = "The stored boundary's objects are missing.";
+  const remedy = "Fetch the missing boundary objects and retry.";
+  const read = h.store.read.bind(h.store);
+  h.store.read = async input => input.reference.kind === "review/integration-boundary"
+    ? { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference: input.reference,
+      historyRefs: [], condition, remedy: { text: remedy } } } : read(input);
+  const [full, session] = await Promise.allSettled([status.full(), status.session()]);
+  h.store.read = read;
+
+  const path = ".arc/active/meta-example.md";
+  const candidate = { path, state, candidateId: coordinates.candidateId, ...(state === "Integrating" && { branch: "feat/example" }) };
+  expect(await status.full()).toMatchObject({ candidates: [{ ...candidate, integrationBoundary: boundary }], warnings: [] });
+  expect(await status.session()).toMatchObject({ path, sessionType, integrationBoundary: boundary, warnings: [] });
+
+  const warnings = expect.arrayContaining([expect.stringContaining(condition), expect.stringContaining(remedy)]);
+  expect.soft(full).toMatchObject({ status: "fulfilled", value: { candidates: [{ ...candidate, integrationBoundary: null }], warnings } });
+  expect.soft(session).toMatchObject({ status: "fulfilled", value: { resolution: "single", path,
+    currentWorkflow: workflow, sessionType: null, integrationBoundary: null, warnings } });
 });
 
 it("recovers the publication reservation from the stored Integrating boundary in full and session-init status", async () => {

@@ -1293,7 +1293,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
       nextAction: "Candidate review pending — run pre-publication review",
     });
 
-    const probes = makeSessionInitProbes(fixture);
+    const probes = makeSessionInitProbes(fixture, inRepoStoreAt(fixture.root));
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -1305,6 +1305,10 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
       expect(result.active.value.resolution).toBe("none");
       expect(result.active.value.sessionType).toBeNull();
     }
+    expect(result.derivedLocusState).toMatchObject({
+      ok: true,
+      value: { entering: { kind: "selected", row: { kind: "unresolved-checkout" } } },
+    });
   });
 });
 

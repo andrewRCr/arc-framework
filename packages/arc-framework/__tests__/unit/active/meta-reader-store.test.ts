@@ -26,7 +26,7 @@ function sentinelMeta(sentinel: string): string {
     .replace("- **Depends On:** [none]", `- **Depends On:** ${sentinel}`)
     .replace("- **Current Workflow:** [none]", `- **Current Workflow:** ${sentinel}`)
     .replace("- **Next Task:** [none]", `- **Next Task:** ${sentinel}`)
-    .replace("- **Task List:** `tasks-example.md`", `- **Task List:** ${sentinel}`);
+    .replace("- **Task List:** [none]", `- **Task List:** ${sentinel}`);
 }
 
 describe("active-meta store delegate", () => {
@@ -59,8 +59,9 @@ describe("active-meta store delegate", () => {
     const content = sentinelMeta(sentinel);
     await writeFile(join(h.root, "meta-example.md"), content);
     const expected = { path: ".arc/active/meta-example.md", filename: "meta-example.md", ...parseMetaFile(content), integrationBoundary: null };
-    expect(await readActiveMetaCandidates(h.cwd, { store: inRepoStoreAt(h.cwd) }))
-      .toEqual({ layout: "full", candidates: [expected], warnings: [] });
+    const result = await readActiveMetaCandidates(h.cwd, { store: inRepoStoreAt(h.cwd) });
+    expect(result).toEqual({ layout: "full", candidates: [expected], warnings: [] });
+    expect(result.candidates[0]?.taskList).toBe(sentinel);
   });
 
   // A status file beside the metas is the in-repo implementation's flat root.
