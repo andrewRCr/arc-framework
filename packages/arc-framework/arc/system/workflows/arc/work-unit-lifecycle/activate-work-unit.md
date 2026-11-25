@@ -94,6 +94,13 @@ Settle `**Class:**` via [`classify-work-unit`][classify-work-unit] — pre-imple
 confirm-or-ratchet before execution. Ratchet up to the realized floor with `arc set-class <Class>` when planning
 authored design since the last touchpoint; otherwise confirm the value holds.
 
+Bring any accepted ADR and moved research from planning into this checkout as uncommitted changes. Apply the
+commit interlock below when there are files to carry.
+
+> [!IMPORTANT]
+> `commit-interlock`: Stop for review of the pending ADR and research. Surface the files and await approval to
+> activate and make the first commit on the work branch.
+
 Compose the activation inputs (judgment — never fabricated):
 
 - `<type>` — working-branch type per [`branch-format`][branch-format]. The selected branch is `{type}/{name}` when
@@ -113,6 +120,18 @@ The verb flips `**State:** Planning → Active`, links the selected work branch 
 `**Next Action:**`, discharges satisfied `**Depends On:**` edges, and removes a draft that `Design` no longer
 names, in one write. `{name}` defaults to the current checkout's WU. Its report names any commits it excluded from the
 WU's task work and the old name's remote branch to delete (Step 4).
+
+If planning left an accepted ADR or moved research, stage those files after activation succeeds.
+
+> [!CAUTION]
+> `commit-interlock` release — commit the ADR or moved research as `workflowCommit` before pushing or starting
+> task work. This is the first commit on the work branch.
+
+```text
+chore(arc): record {name} planning artifacts
+
+Context: spec-{name}.md (planning)
+```
 
 ### 4) Push the work branch
 

@@ -192,8 +192,9 @@ by design, not a missing ceremony.
 arc status <slug> [--json]
 
 # Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields per strategy-work-organization.md § Stub required fields)
+# Planned requires --class <Light|Heavy|Novel>. Use provisional when Class is unresolved.
 # --cohort accepts <cohort> or <cohort>/<subcohort> and requires the planned tier.
-arc stub <name> --commitment <provisional|planned> --priority <P#> \
+arc stub <name> --commitment <provisional|planned> --priority <P#> [--class <Class>] \
   [--origin <ref>] [--design <ref>] [--cohort <cohort-path>]
 
 # Start an existing work unit in Planning; --new explicitly creates an absent name.

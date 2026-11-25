@@ -518,9 +518,8 @@ pre-save checklist and saves it.
 - [ ] Success Criteria section at bottom with root-indent checkboxes; a Delivery Plan groups them by member and
       cross-member seams, while a single-deliverable work unit keeps the flat form (marked only at verification)
 
-**Destination path** (referenced by **Structural decomposition**'s file creation) — write `tasks-{name}.md` in the
-folder holding the work unit's meta (`arc view meta --path` prints the meta's path); saving stores it as the work
-unit's task-list record.
+**Destination path** (referenced by **Structural decomposition**'s file creation) — run
+`arc view meta --for {name} --path` for the selected work unit and write `tasks-{name}.md` beside that meta file.
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
@@ -537,15 +536,17 @@ planning-review:
 
 ### Canonicalize active delivery authoring
 
-Run this only for a selected delivery-plan candidate in an active Planning flow, after all grounding,
-adversarial folds, and suite coherence have settled. Incubating authoring remains provisional: keep its unmarked
-section and resolve any meta outside the active locus at a later attended delivery-authoring entry.
+Run this only for a selected delivery-plan candidate in Planning when `arc locus` shows this checkout holds
+that started work unit, after all grounding, adversarial folds, and suite coherence have settled. Incubating authoring
+remains provisional: keep its unmarked section and resolve any meta outside the active locus at a later attended
+delivery-authoring entry.
 
 For active authoring, obtain the generated strict contract with `arc delivery plan inventory schema --json`, then supply
 one caller-authored inventory containing the exact form-owned design elements and revision digests. Do not infer
 author-judgment elements or copy schema/hashing mechanics into this workflow. Create the transient map with
-`arc delivery plan from-tasks --task-list <path> --design-inventory <json-path> --json`, taking the task list's path
-from `arc view tasks --path`, fill only the author slots, and run `arc delivery compose --json`.
+`arc delivery plan from-tasks --task-list <path> --design-inventory <json-path> --json`. Use the path from
+`arc view tasks --path` relative to the repository root as `<path>`, fill only the author slots, and run
+`arc delivery compose --json`.
 
 Set the authoring projection to `stack-to-main` and every member's `mainlineLandability` to
 `independently-landable`. If a proposed subdivision is review-only rather than independently landable on main,
@@ -575,10 +576,14 @@ task list:
 arc save
 ```
 
-**Update the meta** — for a work unit in `Planning`; skip otherwise. Run `arc finalize generate-tasks --class <Class>`
-to write the resolved `**Class:**`, derived `**Task List:**`, and terminal `**Next Action:**` through the field
-model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel; `activate`
-sets `Current Workflow` to `process-task-loop`.
+After a successful save, inspect `arc status --json`. Require `projection` to report a ready index with no
+`files` entry for the task list or companion notes edited here. Surface each outstanding file condition, apply its
+reported remedy or repair the pending edit, then repeat `arc check increment`, the save, and the status check.
+
+**Update the meta.** For a pre-start stub, persist the resolved Class with `arc set-class <Class> {name}` and stop.
+For a started work unit in `Planning`, verify that `arc locus` shows this checkout holds `{name}`. Then run
+`arc finalize generate-tasks --class <Class>` to write the resolved Class, the task-list pointer, and the terminal
+Next Action. Activation sets the next workflow.
 
 See [Task Processing Loop](process-task-loop.md) for how task lists are executed.
 

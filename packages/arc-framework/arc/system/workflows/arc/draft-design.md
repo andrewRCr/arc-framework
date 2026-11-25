@@ -50,8 +50,9 @@ for none is not adopted when saved. For an idea with no work unit yet (`arc stat
 WU-worthiness and **confirm with the developer** before acting:
 
 - **start now** — WU-worthy → `arc start <name> --new`, then draft in its checkout.
-- **stub** — defer → `arc stub <name>` (with `--commitment provisional|planned` and `--priority`) mints the backlog
-  stub; draft in its folder, or start it via `init` first.
+- **stub** — defer → `arc stub <name>` with `--commitment provisional|planned` and `--priority`. For a planned
+  stub, resolve Class with [`classify-work-unit`][classify-work-unit] first and pass `--class <Class>`. Choose
+  `provisional` when Class is unresolved.
 - **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
 
 **Stage pointer** — no entry write: the init scaffold seeds `Current Workflow = draft-design`, the stage this
@@ -99,6 +100,9 @@ surfaces heavier derivation than the read assumed, step up.
 
 Whatever the path produces, the scope boundary it records is what the spec inherits — author it as a handoff
 surface, not a private note.
+
+On a draft-producing path, run `arc view meta --for {name} --path` for the selected work unit and write
+`draft-{name}.md` beside that meta file, including when drafting for a backlog stub.
 
 ### `low` — quick determinacy-confirm (no draft artifact)
 
@@ -209,7 +213,7 @@ On a draft-producing path, run `arc check increment` before readiness approval a
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
-> approval before saving the capture and persisting `Class`.
+> approval before persisting `Class` and saving any draft.
 
 **Re-entry valve (the loop's floor-raising back-edge):** follow
 [resolve-planning-depth's mid-stage route][resolve-planning-depth] when the design runs deeper than the resolved
@@ -218,9 +222,9 @@ shaping step over the named locus, from the problem and alternatives, the `Novel
 or boundary assessment when concerns can stand apart. Accepting a return ends the loop as `re-entered`; re-run
 readiness after shaping, then offer a fresh loop with a fresh cap and the ended loop's findings as context.
 
-On approval, run [planning-review's post-settle reread][planning-reread] as the final review. If draft text changed
-after the first request, including review amendments or this reread, run `arc check increment` again. Then capture
-what the level produced:
+On approval, run [planning-review's post-settle reread][planning-reread] as the final review. On a draft-producing
+path, run `arc check increment` again if draft text changed after the first request, including review amendments
+or this reread, then save:
 
 ```bash
 arc save
@@ -229,19 +233,12 @@ arc save
 Persist the resolved `Class` with `arc set-class <Class> <slug>`. The `Class` decision is live from the entry read —
 it drove this stage's depth immediately — but its write lands here, at the capture.
 
-On a draft-producing path (`medium` / `high`) for a work unit in `Planning`, repoint `Design` to the new draft:
-`arc repoint-design draft-created` rewrites `Design: [none] → draft-{name}.md`. Skip it on the `low` path (no
-draft — `Design` repoints straight to the spec at create-spec finalization).
+**Groom-and-stop.** End a pre-start stub session here after the named Class write and any draft save. Resume by
+re-invoking `--plan <stub>`.
 
-When the draft is formalization-ready and crosses into create-spec (the forward path — not the re-entry
-back-edge), advance the stage pointer: `arc set-stage create-spec --advance` rewrites `Current Workflow:
-draft-design → create-spec` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel in
-this capture — so a fresh session after handoff resumes in create-spec.
-
-**Groom-and-stop (the `--plan` grooming exit).** A `--plan <stub>` grooming session ends here without advancing —
-a complete outcome, not an incomplete forward path. Save the draft and **do not advance the stage pointer**: the
-stub stays in its backlog state, and the session resumes by re-invoking `--plan <stub>`. The draft record is the
-continuity artifact; write no marker and no new durable state.
+For a started work unit in `Planning`, verify that `arc locus` shows this checkout holds the selected unit. If this
+path produced a draft, run `arc repoint-design draft-created` to point Design at it. When the design is ready for
+create-spec, run `arc set-stage create-spec --advance` to advance with the `[begin current workflow]` sentinel.
 
 ---
 

@@ -164,7 +164,9 @@ Two paths depending on Step 3's outcome. `State`, `Owner`, `Class`, and `Current
 
 **Path A — Started from a stub** (Step 3 ran):
 
-`arc start` (Step 3) already moved the meta to active placement. Reconcile the remaining planning-state fields:
+`arc start` (Step 3) already moved the meta to active placement. Confirm the resolved Class still holds, or ratchet
+it up to the realized floor via [`classify-work-unit`][classify-work-unit]. Persist any ratchet with
+`arc set-class <Class> {name}` before reconciling the remaining fields:
 
 1. **Design** → for a stub specified before its start, run `arc repoint-design spec-finalized`, which points
    `Design` at the spec, removes the draft record, and advances `Current Workflow` to `generate-tasks`. Otherwise,
@@ -174,9 +176,6 @@ Two paths depending on Step 3's outcome. `State`, `Owner`, `Class`, and `Current
 3. **Next Action** → a within-stage planning note or the `[begin current workflow]` sentinel — never a
    workflow pointer. Leave the spec-readiness call to the consuming session (`arc-plan` → `draft-design`),
    which assesses against the actual draft state.
-
-**Class** was resolved before the start (Step 3); confirm it still holds, or ratchet up to any realized floor via
-[`classify-work-unit`][classify-work-unit] and write it with `arc set-class <Class>`.
 
 **Preserve** `Origin`, `Depends On`, `Cohort`, and all other fields set at stub creation — `arc start` left them
 untouched. The backlog stub's intentional metadata survives the start.
