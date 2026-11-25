@@ -31,7 +31,9 @@ async function fixture() {
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), ["branch.base: main", "branch.protection: full",
     "session.remote_sync: disabled", `worktree.location_template: ${join(cwd, ".arc-checkouts", "{name}")}`, ""].join("\n"));
-  await writeFile(join(cwd, ".gitignore"), ".arc-checkouts/\n");
+  await writeFile(join(cwd, ".gitignore"), ".arc-checkouts/\n.arc/user/*/\n");
+  await mkdir(join(cwd, ".arc/user"), { recursive: true });
+  await writeFile(join(cwd, ".arc/user/.npmignore"), "*\n");
   await exec("git", ["add", "."]); await exec("git", ["commit", "-m", "Initialize preservation fixture"]);
   const remote = join(cwd, ".git/code-origin.git");
   await exec("git", ["init", "--bare", remote]);
@@ -172,6 +174,8 @@ it.each(["text", "inbox"] as const)("keeps a %s description unchanged through fa
   expect(await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--json"])).toMatchObject({ result: { outcome: "applied" } });
   expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(description);
   expect((await saved(h, slug)).identity).toMatchObject({ claimId: initial.identity.claimId, state: "open", origin: initial.identity.origin, originEntry: initial.identity.originEntry });
+  // A person removing the checkout outside ARC unlocks the projection's lock first.
+  await h.exec("git", ["worktree", "unlock", holder]);
   await h.exec("git", ["worktree", "remove", holder]);
   expect(await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--json"])).toMatchObject({ result: { outcome: "applied" } });
   expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(description);

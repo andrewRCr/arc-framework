@@ -81,7 +81,7 @@ it.each([true, false])("paused reconcile prepare proceeds but apply refuses even
     content: writeMetaPause(primary.content, { pausedBy: SlugSchema.parse("test-user"), since: "2026-10-14T00:00:00Z", reason: "Wait.", waitsOn: null, resumeNotes: null, open: false }),
     provenance: { verb: "pause", lifecycleAction: "pause" } }));
   const paused = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
-  const ceremony = buildStoreCurrentWuReconcile(h.store);
+  const ceremony = buildStoreCurrentWuReconcile("/project", h.store);
   const prepared = await ceremony.prepare({ slug: "example", metaPath: ".arc/active/meta-example.md" });
   expect(prepared.status).toBe(edits ? "pending" : "clean");
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(paused);

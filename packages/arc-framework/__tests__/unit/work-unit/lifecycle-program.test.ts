@@ -1,3 +1,4 @@
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 /** One checked owner retains its branch provenance across the lifecycle program. */
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
@@ -13,7 +14,7 @@ import type { GitExec, RawGitExec } from "../../../src/lib/git/exec.js";
 import type { LocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
 const base = "0".repeat(40), personal = "1".repeat(40), planning = "2".repeat(40);
 function repository() {
-  const state = { current: null as string | null, head: base, commits: [] as string[], branches: new Map([["main", base]]), marker: "demo" };
+  const state = { current: null as string | null, head: base, commits: [] as string[], branches: new Map([["main", base]]), marker: "demo", markerUid: null as string | null };
   const calls: string[][] = [];
   const exec: GitExec = async (_command, args) => {
     calls.push(args);
@@ -42,7 +43,7 @@ function repository() {
     throw new Error(`Unexpected scripted Git operation: ${args.join(" ")}`);
   };
   const raw: RawGitExec = async (_args, request) => ({ stdout: Buffer.from(Buffer.from(request?.input ?? []).toString().trim().split("\n").filter(Boolean).map((sha) => `${sha} missing\n`).join("")) });
-  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async ({ name }) => name === state.marker ? "/holder" : null, writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
+  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async request => request.kind === "owner" && request.uid === state.markerUid && request.checkoutPath !== "/holder" ? { kind: "held", path: "/holder" } : { kind: "none" }, writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
   return { state, exec, raw, calls, locusPorts };
 }
 function executor(h: ReturnType<typeof createLifecycleHarness>, git: ReturnType<typeof repository>): ActivateContext {
@@ -50,11 +51,12 @@ function executor(h: ReturnType<typeof createLifecycleHarness>, git: ReturnType<
   return { store: h.store, cwd: "/holder", exec: git.exec, execRaw: git.raw, projectId: async () => "repo", locusPorts: git.locusPorts,
     indexFs: { readFile: forbidden, readdir: forbidden }, setPhase: forbidden, reconcileBranch: forbidden, reconcileWorkUnitWorktree: forbidden,
     relocateArtifacts: forbidden, writeSoftFields: forbidden, writeBranchField: forbidden, writeCurrentWorkflowField: forbidden, writeDesignField: forbidden,
-    currentWuReconcile: buildStoreCurrentWuReconcile(h.store) };
+    currentWuReconcile: buildStoreCurrentWuReconcile("/project", h.store) };
 }
 it.each(["created", "adopted"] as const)("keeps one UID and sticky %s provenance through activation, deactivation, reactivation and rename", async (linkedAs) => {
   const h = createLifecycleHarness(), git = repository();
   const primary = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
+  git.state.markerUid = boundWorkUnitSubject(primary).uid;
   const read = () => h.store.read({ reference: primary.reference }).then(lifecycleSuccess);
   expect(git.state.current).toBeNull(); expect((await read()).links?.branches ?? []).toEqual([]);
   if (linkedAs === "adopted") { git.state.current = "person"; git.state.head = personal; git.state.commits = [personal]; git.state.branches.set("person", personal); }
@@ -72,7 +74,7 @@ it.each(["created", "adopted"] as const)("keeps one UID and sticky %s provenance
   expect(await runStoreRename({ ...ctx, store: h.store, exec: git.exec, baseBranch: "main", renameCheckout: async (request) => {
     git.state.marker = request.targetSlug;
     return { report: { checkout: { kind: "renamed", checkoutPath: "/holder", markerGeneration: "renamed" } }, rollback: async () => { git.state.marker = request.sourceSlug; } };
-  } }, { sourceSlug: "demo", targetSlug: "renamed" })).toMatchObject({ status: "renamed" });
+  } }, { operand: "demo", targetSlug: "renamed" })).toMatchObject({ status: "renamed" });
   const renamed = await read(); expect(renamed.reference.owner).toEqual({ ...primary.reference.owner, name: "renamed" });
   expect(renamed.links?.branches).toEqual(active.links?.branches?.map((link) => ({ ...link, ref: "feat/renamed" })));
   expect(lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") })).reference).toEqual(renamed.reference);
@@ -94,7 +96,7 @@ it("promotes a second owner through the real adapter, then rename keeps its Erra
   expect(promoted.reference).toMatchObject({ kind: "work-item/meta", owner: { ...primary.reference.owner, name: "promoted" } });
   expect(promoted.links?.branches).toEqual([...primary.links!.branches!, { repository: "repo", ref: "feat/promoted", linkedAs: "created", excluded: [] }]);
   expect(await runStoreRename({ store: h.store, exec: git.exec, cwd: "/holder", baseBranch: "main", projectId: async () => "repo",
-    locusPorts: { ...git.locusPorts, findHoldingCheckout: async () => null } }, { sourceSlug: "promoted", targetSlug: "renamed-promotion" })).toMatchObject({ status: "renamed", keptBranches: [identity.branch] });
+    locusPorts: { ...git.locusPorts, findHoldingCheckout: async () => ({ kind: "none" as const }) } }, { operand: "promoted", targetSlug: "renamed-promotion" })).toMatchObject({ status: "renamed", report: { keptBranches: [{ branch: identity.branch, reason: "other-link" }] } });
   const renamed = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(renamed.links?.branches).toEqual([primary.links!.branches![0], { repository: "repo", ref: "feat/renamed-promotion", linkedAs: "created", excluded: [] }]);
   expect(git.state.branches.get(identity.branch)).toBe(personal);

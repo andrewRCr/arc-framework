@@ -58,7 +58,7 @@ function agentOutputDiagnostic(stdout: string): string {
 /** Preserve a short local process diagnostic without carrying credentials or unbounded output. */
 export function codeRabbitProcessDiagnostic(
   error: unknown,
-  stage: "provider process" | "executable resolution" = "provider process",
+  stage: "provider process" | "executable resolution" | "changed-file listing" = "provider process",
 ): string {
   if (!(error instanceof Error)) return `${stage} exception: no diagnostic available`;
   const candidate = "shortMessage" in error && typeof error.shortMessage === "string"

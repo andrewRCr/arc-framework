@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
 /** Store cut over the retirement repository's strict physical simulator. */
 import { createRetirementHarness } from "../helpers/store/retirement-harness.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -17,7 +18,7 @@ export async function createDecomposeRetirementFixture(options: Parameters<typeo
     content: writeMetaDesign(h.meta.content, ["draft-demo.md"]) }), provenance: { verb: "write-back", lifecycleAction: "hand-edit" } }));
   await h.seed(recordReferences["work-item/draft"](primary.reference.owner), "# Demo\n\n## Scope\n\nOwned work.\n");
   const ctx = decomposeContext(h.store);
-  const locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => options.held ? "/repo" : null };
+  const locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: boundHolderLookup(h.meta, () => options.held ? "/repo" : null) };
   ctx.executor = { ...ctx.executor, exec: h.ctx.exec, locusPorts };
   ctx.removal = { exec: h.ctx.exec, readMarker: h.ctx.readMarker, folderExists: async () => true };
   ctx.storeTeardown = h.ctx;

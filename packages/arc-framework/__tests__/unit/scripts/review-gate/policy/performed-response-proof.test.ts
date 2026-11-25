@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { findingsHostedResult, approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { confirmPerformedResponse } from "../../../../../src/scripts/review-gate/policy/performed-response-proof.js";
+import { nativeListingRefusal } from "../../../../fixtures/native-refusal.js";
 const objectId = (character: string): string => character.repeat(40);
 function store(record: ReturnType<typeof approvedRecord> | null) {
   return { readDispositionRecord: async () => record,
@@ -24,6 +25,24 @@ describe("performed change-set response proof", () => {
       dispositionStore: store(record),
       readResponsePerformance: async () => performance,
     })).resolves.toBe("applicable");
+  });
+
+  it("raises a native store refusal from the performance read whole, and proves the leg once readable", async () => {
+    const predecessor = findingsHostedResult(["major"]);
+    const record = approvedRecord(predecessor, [{
+      sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix",
+    }]);
+    const { targetId: _targetId, ...coordinates } = predecessor.target;
+    void _targetId;
+    const currentTarget = createReviewTarget({ ...coordinates, headSha: objectId("e") });
+    const performance = { ...performedFix(predecessor, record), producedHeadSha: currentTarget.headSha };
+    const refusal = nativeListingRefusal();
+    let readable = false;
+    const input = { predecessor, currentTarget, currentLineage: predecessor.admission.lineage, dispositionStore: store(record),
+      readResponsePerformance: async () => { if (!readable) throw refusal; return performance; } };
+    await expect(confirmPerformedResponse(input)).rejects.toBe(refusal);
+    readable = true;
+    await expect(confirmPerformedResponse(input)).resolves.toBe("applicable");
   });
 
   it.each(["base ref", "base commit", "base tree", "unapproved", "unperformed", "other head",

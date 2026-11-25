@@ -44,6 +44,14 @@ it("retains a resolving state baseline instead of silently adopting the current 
   const h = createLifecycleHarness();
   await h.seedMeta("subject");
   const original = { ...seed(), stateVersion: lifecycleSuccess(await h.store.version()) };
+  let available = false;
+  const changes = h.store.changes.bind(h.store);
+  h.store.changes = async input => available ? changes(input) : { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+    condition: "Saved state unavailable.", remedy: { text: "Restore saved state." }, historyRefs: ["refs/arc/history/work/00000000-0000-4000-8000-000000000001"] } };
+  h.store.pull = async input => {
+    available = input?.history?.length === 1 && input.history[0] === "refs/arc/history/work/00000000-0000-4000-8000-000000000001";
+    return { status: "ok", result: { states: [], pulls: [] } };
+  };
   expect(await resolveRecoveryStateBasis({ seed: original, recover, store: h.store })).toEqual({ seed: original, rebuilt: false });
 });
 it("retains cursorless transient load-set evidence when rebuilding only its unavailable state anchor", async () => {

@@ -312,3 +312,50 @@ describe("explicit Markdown format planning", () => {
     expect(readBytes).not.toHaveBeenCalled();
   });
 });
+
+
+describe("prose format planning", () => {
+  const original = Array.from({ length: 30 }, () => "word").join(" ") + "\n";
+  const wrapped = Array.from({ length: 24 }, () => "word").join(" ") + "\n"
+    + Array.from({ length: 6 }, () => "word").join(" ") + "\n";
+
+  it("rewraps ordinary and managed-meta prose while retaining the meta core table bytes", async () => {
+    const authority = createMarkdownAuthority({ recipe, manifest, existingPaths: new Set() });
+    const core = ["# Metadata: demo", "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --- | --- | --- | --- | --- |",
+      "| `Active` | `andrew` | `feat/demo` | `Heavy` | `P1` |", "",
+      "- **Cohort:** [none]", "", "---", "", "## Completion Notes", "", ""].join("\n");
+    const contents = new Map([["notes.md", original], [".arc/active/meta-demo.md", core + original]]);
+    const plan = await planExplicitMarkdownFormat({ root: "/repo",
+      paths: [...contents.keys()].map(validateMarkdownPath), authority, manifest, prose: {},
+      readBytes: async path => encoder.encode(contents.get(path) ?? "") });
+    expect(plan.files.map(file => file.source)).toEqual(["prose", "prose"]);
+    expect(decoder.decode(plan.files[0]?.bytes)).toBe(wrapped);
+    expect(decoder.decode(plan.files[1]?.bytes)).toBe(core + wrapped);
+    expect(contents.get("notes.md")).toBe(original);
+    expect(contents.get(".arc/active/meta-demo.md")).toBe(core + original);
+  });
+
+  it("projects a formatted Framework source through the stored install configuration", async () => {
+    const source = validateMarkdownPath("packages/arc-framework/arc/reference/demo.template.md");
+    const output = validateMarkdownPath(".arc/reference/demo.md");
+    const authority = createMarkdownAuthority({ recipe: { prompts: [], include_files: ["reference/demo.template.md"], conditions: {} },
+      manifest, existingPaths: new Set([output]) });
+    const contents = new Map([[source, "# {{PROJECT_NAME}}\n\n" + original], [output, "stale bytes\n"]]);
+    const plan = await planExplicitMarkdownFormat({ root: "/repo", paths: [source], authority, manifest, prose: {},
+      readBytes: async path => encoder.encode(contents.get(path) ?? "") });
+    expect(plan.files.map(file => [file.path, file.source])).toEqual([[source, "prose"], [output, "framework-projection"]]);
+    expect(decoder.decode(plan.files[0]?.bytes)).toBe("# {{PROJECT_NAME}}\n\n" + wrapped);
+    expect(decoder.decode(plan.files[1]?.bytes)).toBe("# Demo\n\n" + wrapped);
+  });
+
+  it("refuses an ambiguous multi-file line selection and succeeds after selecting one file", async () => {
+    const authority = createMarkdownAuthority({ recipe, manifest, existingPaths: new Set() });
+    const options = { root: "/repo", paths: [validateMarkdownPath("one.md"), validateMarkdownPath("two.md")],
+      authority, manifest, prose: { line: 1 }, readBytes: async () => encoder.encode(original) };
+    await expect(planExplicitMarkdownFormat(options)).rejects.toThrow("exactly one");
+    const repaired = await planExplicitMarkdownFormat({ ...options, paths: [validateMarkdownPath("one.md")] });
+    expect(decoder.decode(repaired.files[0]?.bytes)).toBe(wrapped);
+  });
+});

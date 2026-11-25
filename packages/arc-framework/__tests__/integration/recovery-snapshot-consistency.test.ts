@@ -1,4 +1,5 @@
 /** Recovery keeps its projected cursor and reconstructed anchor in one operational snapshot. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it, vi } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -37,7 +38,7 @@ async function fixture() {
   await h.putLinks({ branches: [{ repository: project, ref: "feat/demo", linkedAs: "created", excluded: [] }] });
   await ensureWorktreeMarkerIgnored(h.cwd, h.input.exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeMarker(h.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-18T00:00:00Z",
-    createdFor: { kind: "work-unit", name: "demo" } });
+    createdFor: boundWorkUnitSubject(await h.readMeta()) });
   return h;
 }
 
@@ -83,15 +84,17 @@ it("retains the cursor's earlier state when tasks advance during the registered 
 it.each([true, false])("preserves strict snapshot acquisition and named-history repair, repaired=%s", async repaired => {
   const h = await fixture(), version = h.store.version.bind(h.store);
   let available = false;
-  const pulled: (readonly string[])[] = [];
   const refs = [HistoryRefSchema.parse(`refs/arc/history/work/${randomUUID()}`)];
   h.store.version = async () => available ? version() : { status: "refused", refusal: {
     code: "state-unresolvable", class: "recoverable", historyRefs: refs,
     condition: "Snapshot refs are unavailable.", remedy: { text: "Restore snapshot refs and retry." },
   } };
-  const sync = createStoreSyncPort({ pull: async refs => { pulled.push(refs ?? []); available = repaired; return { status: "pulled" }; } });
+  h.store.pull = async input => {
+    available = repaired && input?.history?.length === 1 && input.history[0] === refs[0];
+    return { status: "ok", result: { states: [], pulls: [] } };
+  };
   const makeProbes = () => createRecoverStatusProbes({ cwd: h.cwd, exec: (command, args, options) => h.input.exec(command, args, { ...options, cwd: options?.cwd ?? h.cwd }), execInput: createExecaGitExecInput(),
-    readFile: path => readFile(path, "utf8"), dirty: async () => ({ state: "clean", fileCount: 0 }), store: h.store, sync });
+    readFile: path => readFile(path, "utf8"), dirty: async () => ({ state: "clean", fileCount: 0 }), store: h.store });
   const probes = makeProbes();
   if (!repaired) {
     await expect(probes.derivedLocusState!("test-user")).rejects.toThrow("Snapshot refs are unavailable. Restore snapshot refs and retry.");
@@ -102,7 +105,6 @@ it.each([true, false])("preserves strict snapshot acquisition and named-history 
   const frame = await retry.derivedLocusState!("test-user");
   expect(frame.entering).toMatchObject({ kind: "selected", row: { context: { taskCursor: resolveTaskListCursor(before) } } });
   expect(await retry.stateVersion("test-user")).toBe(lifecycleSuccess(await version()));
-  expect(pulled).toEqual([refs]);
 }, 30_000);
 
 

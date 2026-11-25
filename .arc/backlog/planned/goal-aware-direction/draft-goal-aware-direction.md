@@ -71,16 +71,6 @@
   remover + idempotent backstops) may also flag matching `VECTOR.USER` intent refs at errand completion, with
   the housekeep sweep as backstop.
 
-### Dispositions — owner's pass, 2026-10-11
-
-| Entry                                                                                       | Outcome | Where, or why                                                                                                                                 |
-| ------------------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Derive `VECTOR.USER`'s queued Errands from the Errand queue                                 | fold    | § `VECTOR.USER`, derived members; § The recommender, The Errand-queue arm                                                                     |
-| Re-point the horizon-test seam at the routing method's advisory                             | fold    | § Dependencies / Coordination, `inbound-routing-method`                                                                                       |
-| Managed-record members, ask: the queued set read from `INBOX.USER`                          | dismiss | Superseded by the Errand-queue fold: members derive from the queue, and the derived-not-stored rule already stands in § `VECTOR.USER`         |
-| Managed-record members, ask: the `_Hold:_` → `_Queued:_` rename                             | dismiss | The contract's Errand queue (`spec-storage-contract.md` D11) replaces execute-bound marks, so queue membership is no inbox flag for this unit |
-| `USER-INBOX`: Give the recommender a capacity mode for when the goal's own path is occupied | fold    | § The recommender, Capacity mode; § Problem / Motivation                                                                                      |
-
 ### `[ ]` **Fit the vector design to what the RELEASE-GATES trial could not hold**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: goal-aware-direction`), housekeep drain (2026-10-11).

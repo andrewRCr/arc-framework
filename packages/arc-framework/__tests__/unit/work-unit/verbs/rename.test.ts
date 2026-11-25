@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emptyRenameReport } from "../../../../src/lib/work-unit/rename-report.js";
 
 import { validateManagedPath } from "../../../../src/lib/kernel/canonical/managed-path.js";
 import type { RenameRetirementContext } from "../../../../src/lib/work-unit/direct-retirement-driver.js";
@@ -267,7 +268,7 @@ describe("runRename", () => {
     const { ctx, calls } = buildContext({ shape: "stub" });
 
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
-      .resolves.toMatchObject({ status: "renamed", shape: "stub", pendingIntegration: true });
+      .resolves.toMatchObject({ status: "renamed", shape: "stub", pendingIntegration: true, report: emptyRenameReport() });
     expect(calls).toContain("stub-branch-enter");
     expect(calls).toContain("stub-branch-rest");
     expect(calls).not.toContain("branch");
@@ -319,7 +320,7 @@ describe("runRename", () => {
     const { ctx, calls } = buildContext({ failAt: "notes" });
 
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
-      .resolves.toEqual({ status: "partial", reason: "notes failed" });
+      .resolves.toEqual({ status: "partial", reason: "notes failed", report: emptyRenameReport() });
     expect(calls.at(-1)).toBe("notes");
   });
 
@@ -448,7 +449,7 @@ describe("runRename checkout identity", () => {
     ctx.renameCheckout = async () => ({ checkout: { kind: "refused", reason: "generation-changed" } });
 
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
-      .resolves.toEqual({ status: "partial", reason: "checkout rename refused: generation-changed" });
+      .resolves.toEqual({ status: "partial", reason: "checkout rename refused: generation-changed", report: emptyRenameReport() });
   });
 
   it("passes an already-landed worktree move to the checkout transaction", async () => {
@@ -493,6 +494,6 @@ describe("runRename checkout identity", () => {
     };
 
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
-      .resolves.toMatchObject({ status: "renamed", shape: "stub", pendingIntegration: true });
+      .resolves.toMatchObject({ status: "renamed", shape: "stub", pendingIntegration: true, report: emptyRenameReport() });
   });
 });

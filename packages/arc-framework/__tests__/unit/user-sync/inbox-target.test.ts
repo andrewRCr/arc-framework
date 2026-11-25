@@ -15,6 +15,7 @@ describe("listInboxEntriesNamingTarget", () => {
     const content = inbox([], [
       entry("Backticked line", "- `WU_Target: seam-lifecycle`", "- _Observation:_ one."),
       entry("Managed field", "- _WU_Target:_ `seam-lifecycle`"),
+      entry("Managed field, bare value", "- _WU_Target:_ seam-lifecycle"),
       entry("Bare line", "- WU_Target: seam-lifecycle"),
     ]);
 
@@ -22,10 +23,33 @@ describe("listInboxEntriesNamingTarget", () => {
       entries: [
         { title: "Backticked line", section: "Work Unit", held: false },
         { title: "Managed field", section: "Work Unit", held: false },
+        { title: "Managed field, bare value", section: "Work Unit", held: false },
         { title: "Bare line", section: "Work Unit", held: false },
       ],
       diagnostics: [],
     });
+  });
+
+  it("reports a target line that is not a list item, since it may be the capture that names the target", () => {
+    const content = inbox([], [
+      entry("Paragraph line", "WU_Target: seam-lifecycle"),
+      entry("Paragraph field", "_WU_Target:_ `seam-lifecycle (planned)`"),
+      entry("Other target", "WU_Target: seam-locus"),
+    ]);
+
+    expect(listInboxEntriesNamingTarget(content, "seam-lifecycle")).toEqual({
+      entries: [],
+      diagnostics: [
+        "A target line naming seam-lifecycle is not a list item, so no capture reads it: WU_Target: seam-lifecycle",
+        "A target line naming seam-lifecycle is not a list item, so no capture reads it: _WU_Target:_ `seam-lifecycle (planned)`",
+      ],
+    });
+  });
+
+  it("does not report a non-list target line inside a comment left unclosed", () => {
+    const content = inbox([], [entry("Readable", "- WU_Target: seam-locus"), "<!--", "WU_Target: seam-lifecycle", ""]);
+
+    expect(listInboxEntriesNamingTarget(content, "seam-lifecycle")).toEqual({ entries: [], diagnostics: [] });
   });
 
   it("reads a planned or provisional commitment suffix as the same target", () => {

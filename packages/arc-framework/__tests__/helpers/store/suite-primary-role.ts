@@ -2,7 +2,8 @@
 import { expect } from "vitest";
 import { ConflictRecordSchema, RecordReferenceSchema, OwnerIdentitySchema, type RecordReference, type StoreRecord } from "../../../src/lib/store/index.js";
 import type { ConformanceFixture } from "./fixture-contract.js";
-import { assertion, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { MutationSchema } from "../../../src/lib/store/write.js";
+import { assertion, mutationOf, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
 
 function metaRole(reference: RecordReference): RecordReference {
   return RecordReferenceSchema.parse({ ...reference, kind: "work-item/meta" });
@@ -81,10 +82,14 @@ export function registerPrimaryRoleAssertions(context: SuiteContext): void {
     }
     const unrelated = fixture.reference("personal/document", "untouched");
     for (const handles of [[promoted.reference, original.reference], [fixture.reference("work-item/meta"), fixture.reference("work-item/record")]]) {
-      expect(await fixture.store.batch({ writes: [
-        { ...put, reference: handles[0]! }, { ...put, reference: handles[1]! },
+      const writes = [
+        { ...mutationOf(put), reference: handles[0]! }, { ...mutationOf(put), reference: handles[1]! },
         { action: "put", reference: unrelated, expected: null, content: fixture.content(unrelated) },
-      ], provenance: testProvenance })).toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
+      ] as const;
+      expect(writes.every(write => MutationSchema.safeParse(write).success)).toBe(true);
+      expect(await fixture.store.batch({ writes: [...writes], provenance: testProvenance }))
+        .toMatchObject({ status: "refused", refusal: { code: "record-malformed",
+          condition: expect.stringMatching(/each (?:canonical )?record at most once/u) } });
       expect(await fixture.settle()).toBe(before);
       expect(await fixture.store.read({ reference: unrelated })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
       expect(await primaryCount(fixture, promoted.reference)).toBe(1);
@@ -98,12 +103,12 @@ export function registerPrimaryRoleAssertions(context: SuiteContext): void {
     if (remote === undefined) throw new Error("Fixture must provide the configured remote");
     const original = await seed(fixture, fixture.reference("work-item/record"), undefined, { kind: "active" },
       { branches: [{ repository: "repo", ref: "chore/original", linkedAs: "created" as const, excluded: [] }] });
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const promoted = await promote(fixture, original);
     success(await remote.write({ ...update(fixture, original, fixture.content(original.reference, "changed-again")),
       provenance: { ...testProvenance, verb: "remote-edit" } }));
     const current = success(await remote.read({ reference: original.reference }));
-    const result = success(await fixture.store.sync());
+    const result = success(await fixture.store.push());
     expect(result.publishes[0]?.status).toBe("reconciled");
     const preserved = success(await fixture.reopen().read({ reference: promoted.reference }));
     expect(preserved).toMatchObject({ reference: current.reference, content: current.content, version: current.version,
@@ -117,7 +122,7 @@ export function registerPrimaryRoleAssertions(context: SuiteContext): void {
       current: { value: conflictValue(current) }, incoming: { value: conflictValue(promoted) } });
     const restoredPromotion = await promote(fixture, preserved);
     expect(restoredPromotion.conflicts).toEqual([conflictReference]);
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     expect(success(await remote.read({ reference: original.reference }))).toEqual(restoredPromotion);
     expect(success(await fixture.reopen().read({ reference: original.reference }))).toEqual(restoredPromotion);
     expect(await primaryCount(fixture, restoredPromotion.reference)).toBe(1);

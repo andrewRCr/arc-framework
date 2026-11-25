@@ -37,6 +37,8 @@ export const EMPTY_CONFIG_VALIDATION_PASS_LINES = [
   "PASS  user.notes_push: [absent, default: on-sync]",
   "PASS  sync.auto_pull: [absent, default: false]",
   "PASS  archive.cadence: [absent, default: with-integration]",
+  "PASS  storage.track_design_docs: [absent, default: specs]",
+  "PASS  layout.active: [absent, default: nested]",
 ] as const;
 
 // Counts follow the independent rendered inventory, not the full configuration catalog size.

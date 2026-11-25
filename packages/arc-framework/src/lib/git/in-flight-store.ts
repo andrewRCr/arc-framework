@@ -1,4 +1,5 @@
 /** In-flight membership from active placement; Git contributes location hints and residue only. */
+import { ownerHolderRequest, type LocusPorts } from "../work-unit/locus-ports.js";
 import type { Store } from "../store/contract.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
@@ -11,7 +12,7 @@ import { readLocalInFlightRefSnapshot } from "./remote-ref-reader.js";
 import type { InFlightWorkUnit, InFlightErrand, DeriveInFlightResult, InFlightWarning, InFlightEntryMark } from "./in-flight-derivation.js";
 
 /** Store work units can be planning without a code branch and paused while remaining in flight. */
-export type StoreInFlightWorkUnit = Omit<InFlightWorkUnit, "branch" | "scheduling"> & { branch?: string; scheduling?: "paused" };
+export type StoreInFlightWorkUnit = Omit<InFlightWorkUnit, "branch" | "scheduling"> & { uid: string; branch?: string; scheduling?: "paused" };
 /** Project-scoped Errands retain their explicit owner. */
 export type StoreInFlightErrand = Omit<InFlightErrand, "branch"> & { branch?: string; owner?: string };
 /** Store-only type keeps the retiring branch classifier's public contract narrow. */
@@ -27,7 +28,7 @@ export interface DeriveStoreInFlightOptions {
   store: Store; exec: GitExec; identity: string | null; teamMode: boolean;
   projectId?: () => Promise<string>; remote?: string; cwd?: string;
   roster?: readonly DerivedCheckoutRow[];
-  findHoldingCheckout?: (name: string) => Promise<string | null>;
+  findHoldingCheckout?: LocusPorts["findHoldingCheckout"];
 }
 /** Derive membership without fetching and retain incomplete evidence as warnings.
  * @param options - Operational store, local Git boundary and identity filter.
@@ -152,16 +153,18 @@ async function addWorkUnits(context: InFlightProjection): Promise<void> {
 }
 async function addWorkUnit(context: InFlightProjection, item: import("../store/lifecycle-index.js").LifecycleEntry): Promise<void> {
   const name = item.reference.owner.name, fields = item.fields;
-  const { path, holder, marks } = await workUnitLocation(context, name);
-  context.entries.push({ kind: "work-unit", name, state: item.phase, ...context.locate(context.branchFor(item, holder?.checkout.branch), path, marks), dependsOn: fields.dependsOn,
+  const request = ownerHolderRequest(item);
+  const { path, holder, marks } = await workUnitLocation(context, request);
+  context.entries.push({ kind: "work-unit", name, uid: request.uid, state: item.phase, ...context.locate(context.branchFor(item, holder?.checkout.branch), path, marks), dependsOn: fields.dependsOn,
     ...optionalField("owner", fields.owner), ...optionalField("cohort", fields.cohort), ...optionalField("class", fields.workClass),
     ...optionalField("priority", fields.priority), ...(fields.pause === null ? {} : { scheduling: "paused" }),
     ...(fields.design.length === 0 ? {} : { design: fields.design.join(", ") }) });
 }
-async function workUnitLocation(context: InFlightProjection, name: string): Promise<{
+async function workUnitLocation(context: InFlightProjection, request: ReturnType<typeof ownerHolderRequest>): Promise<{
   path?: string; holder?: DerivedCheckoutRow; marks?: readonly InFlightEntryMark[];
 }> {
-  const rows = context.options.roster?.filter((candidate) => candidate.subject?.kind === "work-unit" && candidate.subject.key === name) ?? [];
+  const name = request.names.current;
+  const rows = context.options.roster?.filter(candidate => candidate.subject?.kind === "work-unit" && candidate.subject.uid === request.uid) ?? [];
   if (rows.length > 1 || rows.some(row => row.kind !== "work-unit" || row.diagnostics.length > 0)) {
     const details = rows.flatMap(row => row.diagnostics.map(diagnostic => diagnostic.message)).join(" ");
     const repair = rows.length > 1 ? "Inspect and release the stray checkout's claim, then retry." : "Repair the reported checkout evidence, then retry.";
@@ -178,7 +181,12 @@ async function workUnitLocation(context: InFlightProjection, name: string): Prom
     return { path: holder?.checkout.path, holder };
   }
   try {
-    const path = await context.options.findHoldingCheckout(name) ?? undefined;
+    const found = await context.options.findHoldingCheckout(request);
+    if (found.kind === "unbound") {
+      context.warn(found.reason);
+      return { path: found.path, marks: ["degraded"] };
+    }
+    const path = found.kind === "held" ? found.path : undefined;
     return { path, holder: rows.find(row => row.checkout.path === path) };
   } catch (error) {
     context.warn(`Holder lookup failed for work unit '${name}': ${error instanceof Error ? error.message : String(error)} Repair its checkout evidence, then retry.`);

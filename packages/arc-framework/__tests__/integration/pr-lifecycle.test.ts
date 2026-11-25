@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { guidanceMarkdownFiles } from "../helpers/guidance-markdown.js";
 import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -38,13 +39,8 @@ describe("PR lifecycle and review contracts", () => {
   });
 
   it("removes the legacy hook from live product surfaces", async () => {
-    const files = [
-      ...await markdownFiles(packageArc),
-      ...await markdownFiles(resolve(projectArc, "system")),
-      ...await markdownFiles(resolve(projectArc, "reference")),
-    ];
     const matches: string[] = [];
-    for (const file of files) {
+    for (const file of await guidanceMarkdownFiles(root)) {
       if ((await readFile(file, "utf8")).includes("pre-pr-review")) matches.push(file);
     }
     expect(matches).toEqual([]);
@@ -471,7 +467,7 @@ describe("PR lifecycle and review contracts", () => {
       expect(normalized).toContain("never raises its verified severity");
       expect(normalized).toContain("follow-up observation in the converged completion report");
 
-      expect(method).toContain("`Pass N of M`");
+      expect(method).toContain("`pass N`, adding `(limit reached)` at the cap and `(over limit)`");
       expect(normalized).toContain("converged, `cap-exhausted`, suspended, re-entered, or owner-accepted");
       expect(normalized).toContain("stop before another evaluator invocation");
       expect(normalized).toContain("same turn as the complete disposition report");
@@ -675,7 +671,8 @@ describe("PR lifecycle and review contracts", () => {
       const normalized = rules.toLowerCase().replace(/\s+/gu, " ");
       expect(normalized).toContain("verify every review finding against source");
       expect(normalized).toContain("complete proposed disposition set");
-      expect(normalized).toContain("approval before applying any finding-driven fix");
+      expect(normalized).toContain("approval before applying any finding-driven fix from a formal review pass");
+      expect(normalized).toContain("declining or dismissing a finding from any review is never yours to decide");
       expect(rules).not.toMatch(/GitHub|CodeRabbit|review-gate/iu);
     }
   });

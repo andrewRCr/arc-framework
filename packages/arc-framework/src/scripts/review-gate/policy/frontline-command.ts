@@ -1,5 +1,6 @@
 /** Workflow-facing composition API for frontline semantic resolution. */
 
+import { requireNativeReviewDecisionReferences } from "./review-grant-references.js";
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { withdrawUnrunFrontlineAdmission } from "./frontline-pending-admission.js";
@@ -7,7 +8,7 @@ import {
   FrontlineCommandResultEnvelopeSchema,
 } from "../core/review-command-envelope.js";
 import {
-  createFrontlineAdmission,
+  FrontlineAdmissionSchema, createFrontlineAdmission,
   type FrontlineAdmission,
 } from "../core/frontline-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
@@ -70,6 +71,8 @@ interface FrontlineCommandDependencies {
   preferences: FrontlineSourcePreferenceReader;
   registry: FrontlineSourceRegistry;
   operationStore: ReviewOperationStateStore;
+  resolvePassJudgments?: (request: FrontlineCommandRequest, lineage: LaneSubjectLineage) => Promise<FrontlineCommandRequest>;
+  recordInitialSkip?: (lineage: LaneSubjectLineage, target: ReviewTarget) => Promise<void>;
   resolveLineage(
     target: ReviewTarget,
     vehicle: FrontlineCommandRequest["vehicle"],
@@ -100,6 +103,7 @@ export async function resolveFrontlineCommand(
   dependencies: FrontlineCommandDependencies,
 ): Promise<FrontlineCommandResult> {
   const parsed = FrontlineCommandRequestSchema.parse(request);
+  requireNativeReviewDecisionReferences(dependencies.operationStore.stateOffBranch === true, parsed.policyJudgment);
   const lineage = await dependencies.resolveLineage(parsed.target, parsed.vehicle);
   return dependencies.withLaneOperationLock(laneContinuationOperationId({
     lane: "frontline",
@@ -281,6 +285,8 @@ async function readOpeningFrontlinePhase(input: {
   const phaseLineages = openingPhaseLineages(lineage, ancestors);
   const closed = phaseLineages.length > 0 && await frontlinePhaseClosed(dependencies.operationStore, {
     repositoryId: parsed.target.repositoryId,
+    headSha: parsed.target.headSha,
+    confirmResponseHeadContinuation: dependencies.confirmResponseHeadContinuation,
     lineages: phaseLineages,
     readSettledFindingsAdvice: (producerId) => dependencies.readSettledFindingsAdvice(producerId),
   });
@@ -308,10 +314,11 @@ async function resolveFrontlineSelection(
 ) {
   const routing = resolveReviewRouting(parsed.changeSet);
   const configuredMaxPasses = ReviewPassSchema.parse(await dependencies.readMaxPasses());
-  const conditionalCeiling = parsed.policyJudgment?.ceilingOverride;
-  const maxPasses = conditionalCeiling?.conditionalPassAuthorizationId === undefined
-    ? configuredMaxPasses
-    : ReviewPassSchema.parse(Math.max(configuredMaxPasses, conditionalCeiling.nextPass));
+  const ceiling = parsed.policyJudgment?.ceilingOverride;
+  const granted = ceiling !== undefined && (ceiling.conditionalPassAuthorizationId !== undefined
+    || (dependencies.resolvePassJudgments !== undefined && ceiling.decisionKey !== undefined));
+  const maxPasses = granted
+    ? ReviewPassSchema.parse(Math.max(configuredMaxPasses, ceiling.nextPass)) : configuredMaxPasses;
   const semantic = await resolveFrontlineReview({
     methodActive: routing.facts.activity.frontlineReview,
     routerAction: routing.decision.frontlineAction,
@@ -356,8 +363,9 @@ async function readFrontlineOwnerForResolution(
     attempt.outcome === "pending" && attempt.frontline !== undefined
   )) ?? [];
   if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
-  const pendingAdmission = pending[0]?.frontline?.admission;
-  if (pendingAdmission === undefined) return { ...current, replay: null };
+  const storedAdmission = pending[0]?.frontline?.admission;
+  if (storedAdmission === undefined) return { ...current, replay: null };
+  const pendingAdmission = FrontlineAdmissionSchema.parse(storedAdmission);
   const replay = resumePendingFrontlineAdmission(pendingAdmission);
   if (parsed.invocation.mode !== "skip" && canonicalize(parsed.target) === canonicalize(pendingAdmission.target)) {
     return { ...current, replay };
@@ -374,6 +382,7 @@ async function resolveFrontlineCommandWithinLock(
   lineage: LaneSubjectLineage,
   dependencies: FrontlineCommandDependencies,
 ): Promise<FrontlineCommandResult> {
+  parsed = await dependencies.resolvePassJudgments?.(parsed, lineage) ?? parsed;
   const { version: ownerVersion, state: owner, replay } =
     await readFrontlineOwnerForResolution(parsed, lineage, dependencies);
   if (replay !== null) return replay;
@@ -387,7 +396,7 @@ async function resolveFrontlineCommandWithinLock(
     return FrontlineCommandResultEnvelopeSchema.parse({
       ...base,
       diagnostics: [...diagnostics, {
-        code: "frontline-phase-closed",
+        code: dependencies.operationStore.stateOffBranch === true ? "frontline-window-closed" : "frontline-phase-closed",
         message: "The opening frontline phase is already closed for this review subject.",
       }],
       state: "skipped",
@@ -407,13 +416,7 @@ async function resolveFrontlineCommandWithinLock(
     });
   }
   if (semantic.frontlineReview.action === "skip") {
-    if (lineage.kind === "candidate" && parsed.invocation.mode === "skip") {
-      await recordSingletonFrontlineInitialSkip(dependencies.operationStore, {
-        repositoryId: parsed.target.repositoryId,
-        candidateId: lineage.candidateId,
-        now: dependencies.now(),
-      });
-    }
+    await recordExplicitFrontlineSkip(parsed, lineage, dependencies);
     return FrontlineCommandResultEnvelopeSchema.parse({
       ...base,
       state: "skipped",
@@ -432,4 +435,13 @@ async function resolveFrontlineCommandWithinLock(
   return admitNewFrontlineOperation(
     parsed, lineage, dependencies, owner, ownerVersion, phase.inheritedCompletedPasses, maxPasses, semantic, payload, base,
   );
+}
+
+async function recordExplicitFrontlineSkip(parsed: FrontlineCommandRequest, lineage: LaneSubjectLineage,
+  dependencies: FrontlineCommandDependencies): Promise<void> {
+  if (parsed.invocation.mode !== "skip") return;
+  if (dependencies.recordInitialSkip !== undefined) return dependencies.recordInitialSkip(lineage, parsed.target);
+  if (lineage.kind === "candidate") await recordSingletonFrontlineInitialSkip(dependencies.operationStore, {
+    repositoryId: parsed.target.repositoryId, candidateId: lineage.candidateId, now: dependencies.now(),
+  });
 }

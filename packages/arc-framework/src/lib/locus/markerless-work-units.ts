@@ -5,6 +5,8 @@ import { requireCompleteInventory } from "../store/lifecycle-storage.js";
 import { createProjectIdentityReader } from "../store/project-identity.js";
 import { selectWorkBranchLink, workBranchName } from "../store/lifecycle-branch.js";
 import type { DerivedCheckoutRow } from "./derived-roster.js";
+import type { StoreRecord } from "../store/read.js";
+import type { RegisteredWorktree } from "../git/worktree-roster.js";
 /** A work unit can be claimed in place from this exact checkout. */
 export interface MarkerlessWorkUnitCheckout { workUnit: string; checkoutPath: string }
 /** Find owned work whose checkout predates marker-based claims. */
@@ -20,15 +22,22 @@ export async function findMarkerlessWorkUnitCheckouts(input: { store: Store; ide
   const matches: MarkerlessWorkUnitCheckout[] = [];
   for (const entry of listing.result.index.entries()) {
     if (entry.fields.owner !== input.identity || entry.phase === "Shipped") continue;
-    const selected = selectWorkBranchLink(entry, { repository });
-    if (selected.kind === "ambiguous") throw new Error(selected.reason);
-    if (selected.kind === "none") continue;
-    const branch = workBranchName(selected.link.ref);
-    for (const row of checkouts) {
-      if (row.checkout.branch === branch) matches.push({ workUnit: entry.reference.owner.name, checkoutPath: row.checkout.path });
+    for (const checkoutPath of findWorkBranchCheckoutPaths(entry, repository, checkouts.map(row => row.checkout))) {
+      matches.push({ workUnit: entry.reference.owner.name, checkoutPath });
     }
   }
   return matches;
+}
+
+/** Match one exact primary's repository-qualified branch against already verified unclaimed registrations. */
+export function findWorkBranchCheckoutPaths(record: Pick<StoreRecord, "links">, repository: string,
+  checkouts: readonly RegisteredWorktree[]): string[] {
+  if (repository.trim() === "") throw new Error("Project identity is unavailable; markerless checkout matches are incomplete.");
+  const selected = selectWorkBranchLink(record, { repository });
+  if (selected.kind === "ambiguous") throw new Error(selected.reason);
+  if (selected.kind === "none") return [];
+  const branch = workBranchName(selected.link.ref);
+  return checkouts.filter(row => row.branch === branch).map(row => row.path);
 }
 function isUnclaimedCheckout(row: DerivedCheckoutRow): boolean {
   return row.checkout.folderPresent && row.markerGeneration === null && row.subject === null

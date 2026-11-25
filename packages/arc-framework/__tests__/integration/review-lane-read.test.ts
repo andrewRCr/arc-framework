@@ -46,7 +46,7 @@ it("refuses outside a claim checkout, resumes in it, and creates no first-use re
   await git("switch", "-c", record.branch);
   expect(await run(root)).toMatchObject({ state: "ready", payload: {
     lineage: { kind: "head-bound", vehicleIdentity: record.claimId }, rejections: [], lastLook: null,
-    facts: { completePasses: 0, ceiling: 4 } } });
+    facts: { completePasses: 0, ceiling: 4 }, nextLooks: { state: "disabled" } } });
   expect(await snapshot(join(root, ".git/arc"))).toEqual(before);
   const publisher = new RepositoryGitCommonStatePublisher(exec, root);
   const repositoryId = await resolveRepositoryIdentity(publisher);
@@ -56,7 +56,7 @@ it("refuses outside a claim checkout, resumes in it, and creates no first-use re
   const historyBefore = await snapshot(join(root, ".git/arc"));
   expect(await runHistory({ cwd: root, exec }, { schemaVersion: 1 })).toMatchObject({ state: "ready", payload: {
     lineage, rejections: [{ lane: "standard", findingId: "finding-1", reason: "The source check established this disposition." }],
-    facts: { completePasses: 1, ceiling: 4 } } });
+    facts: { completePasses: 1, ceiling: 4 }, nextLooks: { state: "disabled" } } });
   expect(await snapshot(join(root, ".git/arc"))).toEqual(historyBefore);
 });
 
@@ -166,7 +166,8 @@ it("reads real Candidate history without initializing absent review namespaces",
   const before = await snapshot(join(fixture.cwd, ".git/arc"));
   expect(await runHistory(fixture, { schemaVersion: 1 })).toMatchObject({ state: "ready", payload: { lineage,
     rejections: [{ lane: "standard", findingId: "finding-1", sourceVerification: "not-supported",
-      reason: "The source check established this disposition." }], facts: { completePasses: 1, ceiling: 4 } } });
+      reason: "The source check established this disposition." }], facts: { completePasses: 1, ceiling: 4 },
+    nextLooks: { state: "enabled", incremental: null, completePass: "admitted", refusal: null } } });
   expect(await snapshot(join(fixture.cwd, ".git/arc"))).toEqual(before);
 });
 

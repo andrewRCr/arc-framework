@@ -53,6 +53,7 @@ export interface RestateCandidatesResult {
 }
 
 export interface DeriveRestateCandidatesOptions {
+  cwd?: string;
   exec: GitExec;
   /** SESSION-NOTES.md content; `null` when the file is absent. */
   sessionNotes: string | null;
@@ -148,8 +149,8 @@ function extractTaskIds(body: string, ids: Set<string>): void {
 }
 
 async function deriveOffBranchCandidates(options: DeriveRestateCandidatesOptions, store: Store): Promise<RestateCandidatesResult> {
-    if (options.workUnit === undefined || options.identity === undefined) throw new Error("Restating requires the current work unit and person. Resolve the work-unit checkout and retry handoff.");
-    const state = await deriveStoreRestateCandidates({ store, workUnit: options.workUnit,
+    if (options.cwd === undefined || options.workUnit === undefined || options.identity === undefined) throw new Error("Restating requires the checkout, current work unit and person. Resolve the work-unit checkout and retry handoff.");
+    const state = await deriveStoreRestateCandidates({ cwd: options.cwd, store, workUnit: options.workUnit,
       identity: options.identity, ...(options.sync === undefined ? {} : { sync: options.sync }) });
     if (state === null) return fallback();
     const code = state.commit === null ? fallback() : await deriveRestateCandidates({ exec: options.exec,

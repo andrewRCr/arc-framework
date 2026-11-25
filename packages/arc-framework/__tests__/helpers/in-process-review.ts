@@ -16,6 +16,7 @@ import { createReduceDependencies } from "../../src/scripts/review-gate/runtime/
 import { respondToReviewCommand } from "../../src/scripts/review-gate/runtime/respond-command.js";
 import { createRespondDependencies } from "../../src/scripts/review-gate/runtime/respond-composition.js";
 import { makeGitExec } from "./integration.js";
+import type { ReviewInvocationOptions } from "../../src/scripts/review-gate/runtime/invocation.js";
 
 /** One review command's JSON envelope. */
 export interface InProcessReviewEnvelope {
@@ -54,18 +55,18 @@ async function invoke(
  * the built CLI's process start, the dominant cost of a review command, is skipped.
  */
 export const inProcessReview = {
-  prepare: (root: string, request: unknown): Promise<InProcessReviewEnvelope> => invoke(root, request, (boundary) =>
+  prepare: (root: string, request: unknown, invocation: ReviewInvocationOptions = {}): Promise<InProcessReviewEnvelope> => invoke(root, request, (boundary) =>
     handleReviewLocalPrepare("-", { ...boundary, prepare: (input) =>
-      prepareLocalReview(input, createLocalPrepareDependencies({ cwd: root, exec: makeGitExec(root) })) })),
-  attest: (root: string, request: unknown): Promise<InProcessReviewEnvelope> => invoke(root, request, (boundary) =>
+      prepareLocalReview(input, createLocalPrepareDependencies({ ...invocation, cwd: root, exec: makeGitExec(root) })) })),
+  attest: (root: string, request: unknown, invocation: ReviewInvocationOptions = {}): Promise<InProcessReviewEnvelope> => invoke(root, request, (boundary) =>
     handleReviewLocalAttest("-", { ...boundary, attest: (input) =>
-      attestLocalReviewCommand(input, createLocalAttestDependencies({ cwd: root, exec: makeGitExec(root) })) })),
-  reduce: (root: string, request: unknown): Promise<InProcessReviewEnvelope> => invoke(root, request, (boundary) =>
+      attestLocalReviewCommand(input, createLocalAttestDependencies({ ...invocation, cwd: root, exec: makeGitExec(root) })) })),
+  reduce: (root: string, request: unknown, invocation: ReviewInvocationOptions = {}): Promise<InProcessReviewEnvelope> => invoke(root, request, (boundary) =>
     handleReviewReduce("-", { ...boundary, reduce: (input) =>
-      reduceReviewCommand(input, createReduceDependencies({ cwd: root, exec: makeGitExec(root) })) })),
-  respond: (root: string, request: unknown): Promise<InProcessReviewEnvelope> => invoke(root, withReviewReport(request), (boundary) =>
+      reduceReviewCommand(input, createReduceDependencies({ ...invocation, cwd: root, exec: makeGitExec(root) })) })),
+  respond: (root: string, request: unknown, invocation: ReviewInvocationOptions = {}): Promise<InProcessReviewEnvelope> => invoke(root, withReviewReport(request), (boundary) =>
     handleReviewRespond("-", { ...boundary, respond: (input) =>
-      respondToReviewCommand(input, createRespondDependencies({ cwd: root, exec: makeGitExec(root) })) })),
+      respondToReviewCommand(input, createRespondDependencies({ ...invocation, cwd: root, exec: makeGitExec(root) })) })),
 };
 
 /** The fields of a prepared local review that its result must bind. */

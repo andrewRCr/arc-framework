@@ -2,6 +2,14 @@
 import { expect, it } from "vitest";
 import { renderDeclaredChecks, type DeclaredCheckEnvelope } from "../../../../src/handlers/check/run-output.js";
 
+it("shows a forecast's environment names and kinds in the human report", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [{ id: "check", kind: "enforcement", outcome: "would run", batches: [["check"]],
+      environmentInputs: { CHECK_MODE: "value", CHECK_WEIGHTS: "file" } }],
+  } }, false);
+  expect(result).toContain("Environment inputs: CHECK_MODE (value), CHECK_WEIGHTS (file)");
+});
+
 it("labels a successful divergent run with its differing input paths", () => {
   const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
     status: "completed", checks: [{ id: "lint", kind: "enforcement", outcome: "passed", divergent: ["src/a.ts"] }],
@@ -158,6 +166,19 @@ it("leads with a no-evidence check and shows its output tail, but offers no retr
   expect(result).toContain("Checks: 1 no evidence, 1 passed.");
 });
 
+it("keeps provider recovery guidance visible in CI text output", () => {
+  const remedy = "Inspect and settle plan 726ea270-cdb4-49d0-8e30-de4ffb6d4566; retain /captured/source until settled.";
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 2, result: {
+    status: "completed", ci: true, checks: [{ id: "remote", kind: "enforcement", outcome: "couldn't run",
+      reason: "Adapter closed without settlement", remedy, remedyKind: "runner" },
+    { id: "native", kind: "enforcement", outcome: "failed", remedy: "arc check run native --all" }],
+  } }, false);
+  expect(result).toContain("remote: couldn't run (Adapter closed without settlement)");
+  expect(result).toContain(remedy);
+  expect(result).not.toContain("arc check run native --all");
+  expect(result).toContain("Checks: 1 failed, 1 couldn't run.");
+});
+
 it("counts the files a merge brought in unchanged between a failure's output and its retry", () => {
   const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
     status: "completed", checks: [{ id: "prose", kind: "enforcement", outcome: "failed", output: "docs/c.md:3: short line",
@@ -223,4 +244,40 @@ it("keeps JSON output whole when the human tail exceeds both limits", () => {
   const envelope = JSON.parse(result) as DeclaredCheckEnvelope;
   if (!("result" in envelope)) throw new Error("Expected a result envelope");
   expect(envelope.result.checks[0]?.output).toBe(output);
+});
+
+it("retains attributed pair status, full native exit and incomplete detail in human and JSON output", () => {
+  const invocations = [
+    { invocationId: "first", batch: 1, shard: { index: 1, count: 2 },
+      outcome: { kind: "failure" as const, exitCode: 0xC0000005, notice: "native notice" }, output: "native failure\n" },
+    { invocationId: "second", batch: 1, shard: { index: 2, count: 2 },
+      outcome: { kind: "unavailable" as const, reason: "A required invocation has no terminal outcome." } },
+  ];
+  const outcome = { kind: "result" as const, exitCode: 1 as const, result: { status: "completed" as const,
+    checks: [{ id: "matrix", kind: "enforcement" as const, outcome: "failed" as const, invocations,
+      reason: "required closure not proven", output: "unattributed old text", runnerOutput: "adapter diagnostic" }] } };
+  const human = renderDeclaredChecks(outcome, false);
+  expect(human).toContain("matrix: failed [enforcement] (required closure not proven)");
+  expect(human).toContain("Batch 1, shard 1/2: failed (exit 3221225477) (native notice)");
+  expect(human).toContain("Batch 1, shard 2/2: couldn't run: A required invocation has no terminal outcome.");
+  expect(human).toContain("native failure");
+  expect(human).not.toContain("unattributed old text");
+  expect(human).toContain("adapter diagnostic");
+  const json = JSON.parse(renderDeclaredChecks(outcome, true));
+  expect(json.result.checks[0].invocations).toEqual(invocations);
+  expect(json.result.checks[0].outcome).toBe("failed");
+});
+
+it("makes a complete successful matrix visible without printing successful stdout", () => {
+  const human = renderDeclaredChecks({ kind: "result", exitCode: 0, result: { status: "completed", checks: [{
+    id: "matrix", kind: "enforcement", outcome: "passed", invocations: [1, 2].map(index => ({
+      invocationId: String(index), batch: 1, shard: { index, count: 2 },
+      outcome: { kind: "success", exitCode: 0 }, output: "successful stdout",
+    })),
+  }] } }, false);
+  expect(human).toContain("matrix: passed [enforcement]");
+  expect(human).toContain("Batch 1, shard 1/2: passed (exit 0)");
+  expect(human).toContain("Batch 1, shard 2/2: passed (exit 0)");
+  expect(human).not.toContain("successful stdout");
+  expect(human).toContain("Checks: 1 passed.");
 });

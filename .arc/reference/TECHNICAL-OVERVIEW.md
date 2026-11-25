@@ -99,9 +99,9 @@ Three orthogonal mechanisms let teams adapt ARC without forking:
 - **Methods** (`system/methods/`) — Per-file overridable defaults for codified behaviors (commit format, test-first
   assessment, session state, branch format, and similar). Each method ships a default and an override slot; teams
   replace the default in place. See `system/methods/README.md` for the full set.
-- **Check declaration** (`system/arc-checks.yml`) — Project-owned checks with commands, dependency inputs, and earliest
-  event deadlines. `arc check` resolves selection and content-based reuse; hooks, workflow requests, and CI use the
-  same declaration.
+- **Check declaration** (`system/arc-checks.yml`) — Project-owned checks with commands, dependency inputs, explicit
+  environment inputs (`environment_inputs`), runner eligibility (`runner: true`), and earliest event deadlines.
+  `arc check` resolves selection and content-based reuse; hooks, workflow requests, and CI use the same declaration.
 
 Project strategies, workflows, and domain rules supply additional content channels. Project workflows may run
 beside ARC workflows and use methods; ARC supplies no supported workflow-step insertion or tracker notification
@@ -158,7 +158,9 @@ _Runtime & environment:_
 
 _Language & build:_
 
-- **TypeScript**: Strict mode (`noUncheckedIndexedAccess`), ES2022 target, Node16 module resolution
+- **TypeScript**: Strict mode (`noUncheckedIndexedAccess`), ES2022 target, Node16 module resolution. The two type
+  checks use TypeScript 7 through `src/scripts/run-typecheck.ts`: one source process and five test shards.
+  TypeScript 6 remains for compiler-API tooling, typed linting and declaration generation.
 - **Runtime contracts**: Zod 4 is the runtime-schema and static-type authority; plain discriminated unions
   represent success and failure outcomes
 - **Git process execution**: execa 10 provides the ESM-native subprocess runtime behind the injectable Git executor
@@ -210,11 +212,15 @@ workflow.
 ### Quality Gates
 
 - **Markdown linting** — `markdownlint-cli2` with zero-tolerance policy
-- **TypeScript type checking** — `tsc --noEmit` with strict mode
+- **TypeScript type checking** — TypeScript 7 through `src/scripts/run-typecheck.ts`, with strict mode: `typecheck`
+  runs one source process and `typecheck:test` runs five sequential shards. TypeScript 6 remains for tooling.
 - **Code linting** — typescript-eslint (strict-type-checked) and shellcheck
 - **Test suite** — Vitest with all tests passing
 - **Build verification** — tsup produces working CLI output
 - **CI validation** — GitHub Actions validates all gates on push and PR
+- **Check execution** — `checks.runner` in machine-local `~/.arc/config.yml` names the subprocess adapter for
+  `runner: true` checks; a missing key retains native execution. ARC owns selection, fixed input capture, reusable
+  passes, and results; the adapter owns dependency preparation, admission, placement, execution, and settlement.
 - **Event deadlines** — The commit gate, push gate, and merge quality gate require declared checks to pass before
   their respective events. Increment and segment requests provide earlier feedback; verification and attestation
   requests force fresh results at their required scope.

@@ -20,6 +20,7 @@ import {
   type MarkdownPathIdentity,
 } from "./authority.js";
 import { transformGfmTables } from "./table-transform.js";
+import { transformMarkdownProse, type TransformMarkdownProseInput } from "./prose-transform.js";
 import { validateExplicitMarkdownPaths } from "./selection.js";
 
 const PACKAGE_ARC_PREFIX = "packages/arc-framework/arc/";
@@ -29,7 +30,7 @@ const encoder = new TextEncoder();
 export interface PlannedMarkdownFile {
   readonly path: ManagedPath;
   readonly identity: MarkdownPathIdentity;
-  readonly source: "gfm-table" | "meta-core" | "framework-projection";
+  readonly source: "gfm-table" | "prose" | "meta-core" | "framework-projection";
   readonly bytes: Uint8Array;
   readonly changed: boolean;
   readonly changedRanges: readonly MarkdownChangedRange[];
@@ -48,6 +49,7 @@ export interface PlanExplicitMarkdownFormatOptions {
   readonly authority: MarkdownAuthority;
   readonly manifest: Manifest;
   readonly readBytes: (path: ManagedPath) => Promise<Uint8Array>;
+  readonly prose?: Pick<TransformMarkdownProseInput, "line">;
 }
 
 /** Worktree boundaries for validating and loading one complete explicit operation. */
@@ -63,6 +65,7 @@ export interface PrepareMarkdownFormatOptions {
   readonly realpath: (path: string) => Promise<string>;
   readonly readText: (path: string) => Promise<string>;
   readonly readBytes: (path: ManagedPath) => Promise<Uint8Array>;
+  readonly prose?: Pick<TransformMarkdownProseInput, "line">;
 }
 
 function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
@@ -84,14 +87,14 @@ function byteRange(content: string, start: number, end: number): MarkdownChanged
   };
 }
 
-function routeOrThrow(authority: MarkdownAuthority, path: ManagedPath): {
+function routeOrThrow(authority: MarkdownAuthority, path: ManagedPath, formatter: "tables" | "prose" = "tables"): {
   identity: MarkdownPathIdentity;
   route: ReturnType<typeof routeMarkdownFormatting>;
 } {
   const identity = authority.classify(path);
   const route = routeMarkdownFormatting(identity);
   if (route.action !== "refuse" && route.action !== "regenerate") return { identity, route };
-  const diagnostic = createMarkdownRouteDiagnostic("format-explicit", identity);
+  const diagnostic = createMarkdownRouteDiagnostic("format-explicit", identity, formatter);
   const error = new ArcError(
     diagnostic?.message ?? `Markdown path cannot be formatted directly: ${path}`,
     diagnostic?.code ?? "markdown.authority-refusal",
@@ -102,9 +105,10 @@ function routeOrThrow(authority: MarkdownAuthority, path: ManagedPath): {
 function explicitFormatWritePaths(
   authority: MarkdownAuthority,
   paths: readonly ManagedPath[],
+  formatter: "tables" | "prose" = "tables",
 ): readonly ManagedPath[] {
   return paths.flatMap((path) => {
-    const { route } = routeOrThrow(authority, path);
+    const { route } = routeOrThrow(authority, path, formatter);
     switch (route.action) {
       case "format-source":
       case "format-direct":
@@ -173,16 +177,18 @@ async function renderFrameworkProjection(
   return encoder.encode(rendered);
 }
 
-async function planGfmFile(
+async function planContentFile(
   identity: MarkdownPathIdentity,
   readBytes: PlanExplicitMarkdownFormatOptions["readBytes"],
+  prose?: Pick<TransformMarkdownProseInput, "line">,
 ): Promise<PlannedMarkdownFile> {
   const original = await readBytes(identity.path);
-  const transformed = transformGfmTables({ path: identity.path, bytes: original });
+  const transformed = prose === undefined ? transformGfmTables({ path: identity.path, bytes: original })
+    : transformMarkdownProse({ path: identity.path, bytes: original, ...prose });
   return {
     path: identity.path,
     identity,
-    source: "gfm-table",
+    source: prose === undefined ? "gfm-table" : "prose",
     bytes: transformed.bytes,
     changed: !equalBytes(original, transformed.bytes),
     changedRanges: transformed.changedRanges,
@@ -217,15 +223,19 @@ export async function planExplicitMarkdownFormat(
   if (unique.size !== options.paths.length) {
     throw new ArcError("Explicit Markdown paths must be unique", "markdown.duplicate-selection");
   }
-  const routed = options.paths.map((path) => routeOrThrow(options.authority, path));
+  if (options.prose?.line !== undefined && options.paths.length !== 1) {
+    throw new ArcError("Select exactly one Markdown path with --line, or omit --line to rewrap whole files and retry.",
+      "markdown.prose-selection");
+  }
+  const routed = options.paths.map((path) => routeOrThrow(options.authority, path, options.prose === undefined ? "tables" : "prose"));
   const files: PlannedMarkdownFile[] = [];
 
   for (const { identity, route } of routed) {
-    if (route.action === "normalize-meta") {
+    if (route.action === "normalize-meta" && options.prose === undefined) {
       files.push(await planMetaFile(identity, options.readBytes));
       continue;
     }
-    const source = await planGfmFile(identity, options.readBytes);
+    const source = await planContentFile(identity, options.readBytes, options.prose);
     files.push(source);
     if (route.action !== "format-source") continue;
 
@@ -270,7 +280,7 @@ export async function prepareExplicitMarkdownFormat(
   });
   await validateExplicitMarkdownPaths({
     root: options.root,
-    paths: explicitFormatWritePaths(loaded.authority, paths),
+    paths: explicitFormatWritePaths(loaded.authority, paths, options.prose === undefined ? "tables" : "prose"),
     operation: "mutate",
     allowIgnoredPaths,
     exec: options.exec,
@@ -283,6 +293,7 @@ export async function prepareExplicitMarkdownFormat(
     authority: loaded.authority,
     manifest: loaded.manifest,
     readBytes: options.readBytes,
+    ...(options.prose === undefined ? {} : { prose: options.prose }),
   });
 }
 

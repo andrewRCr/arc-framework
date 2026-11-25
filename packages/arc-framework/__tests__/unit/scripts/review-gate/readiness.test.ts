@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 
 import { renderMetaFile } from "../../../../src/lib/active/meta-reader.js";
 import { composeProjectReadinessView } from "../../../../src/lib/status/project-view.js";
@@ -1371,4 +1372,16 @@ describe("delivery-member evaluation without work-unit lifecycle readiness", () 
     expect(archivedResult.state).toBe("ready");
     expect(errandResult.state).toBe("ready");
   });
+});
+
+it.each(["errand", "delivery-member"] as const)("keeps %s readiness independent of the native lifecycle store", async kind => {
+  const h = createReviewHarness();
+  h.store.read = async () => { throw new Error("Unexpected lifecycle read"); };
+  h.store.list = async () => { throw new Error("Unexpected lifecycle listing"); };
+  const request = kind === "errand"
+    ? readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" })
+    : readinessRequest(memberVehicle());
+  expect((await evaluateReviewReadiness(request, {
+    fs: buildFs({}), store: h.store, deliveryMemberLookup: memberLookup(resolvedMember()),
+  })).state).toBe("ready");
 });

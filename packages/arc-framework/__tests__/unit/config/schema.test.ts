@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
+import { validateConfigFile } from "../../../src/commands/config/validate.js";
 
 import {
   ArcConfigSchema,
@@ -21,6 +22,35 @@ function field(key: string) {
 }
 
 describe("ARC config field catalog", () => {
+  it("defaults the active layout to nested and accepts only its two documented layouts", async () => {
+    const validate = (content: string) => validateConfigFile({ readPath: "selected.yml", displayPath: "selected.yml",
+      readFile: async () => content });
+    expect((await validate("")).lines).toContain("PASS  layout.active: [absent, default: nested]");
+    expect(field("layout.active").defaultValue).toBe("nested");
+    for (const value of ["nested", "flat"]) {
+      assertSchemaAccepts(field("layout.active").schema, value);
+      const result = await validate(`layout.active: ${value}\n`);
+      expect(result.exitCode).toBe(0);
+      expect(result.lines).toContain(`PASS  layout.active: ${value}`);
+    }
+    assertSchemaRefuses(field("layout.active").schema, "unknown");
+    const invalid = await validate("layout.active: unknown\n");
+    expect(invalid.exitCode).toBe(2);
+    expect(invalid.lines).toContain("ERROR layout.active: 'unknown' is not valid (expected: nested flat)");
+  });
+
+  it("defaults design tracking to specs and validates both export choices", async () => {
+    expect(field("storage.track_design_docs").defaultValue).toBe("specs");
+    for (const value of ["specs", "none"]) {
+      assertSchemaAccepts(field("storage.track_design_docs").schema, value);
+      const result = await validateConfigFile({ readPath: "selected.yml", displayPath: "selected.yml",
+        readFile: async () => `storage.track_design_docs: ${value}\n` });
+      expect(result.errors).toBe(0);
+      expect(result.lines).toContain(`PASS  storage.track_design_docs: ${value}`);
+    }
+    assertSchemaRefuses(field("storage.track_design_docs").schema, "drafts");
+  });
+
   it("does not retain the former review-owned threshold keys", () => {
     const keys = ARC_CONFIG_FIELDS.map(({ key }) => key);
     expect(keys).not.toContain("review.chunking_threshold_lines");
@@ -49,6 +79,8 @@ describe("ARC config field catalog", () => {
       "user.notes_push": ["manual", "prompt", "on-sync"],
       "sync.auto_pull": ["false", "true"],
       "archive.cadence": ["with-integration", "manual"],
+      "storage.track_design_docs": ["none", "specs"],
+      "layout.active": ["nested", "flat"],
     };
 
     for (const [key, values] of Object.entries(domains)) {
@@ -194,6 +226,7 @@ describe("ARC config field catalog", () => {
     const unset = new Set([
       "worktree.post_create",
       "worktree.harness_dirs",
+      "storage.backing_repository",
       "commit.custom_pattern",
       "commit.context_pattern",
       "hooks.skip_extensions",
@@ -242,6 +275,7 @@ describe("ARC config field catalog", () => {
       ["worktree.location_template", "../{repo}.{name}"],
       ["worktree.post_create", ""],
       ["worktree.harness_dirs", ".claude,.codex,.gemini,.opencode"],
+      ["storage.backing_repository", ""],
       ["commit.format", "conventional"],
       ["commit.context_footer", "required"],
       ["commit.custom_pattern", ""],
@@ -289,6 +323,8 @@ describe("ARC config field catalog", () => {
       ["user.notes_push", "on-sync"],
       ["sync.auto_pull", "false"],
       ["archive.cadence", "with-integration"],
+      ["storage.track_design_docs", "specs"],
+      ["layout.active", "nested"],
       ["inbox.remind_after_days", "1"],
       ["inbound.retriage_after_entries", "10"],
       ["inbound.retriage_after_days", "30"],

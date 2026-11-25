@@ -15,7 +15,7 @@ import { runStoreDecomposeFinish } from "../../../../src/lib/decompose/finish.js
 
 it("previews lineage and every removal and write without changing store state", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const before = lifecycleSuccess(await h.store.version());
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   expect(preview).toMatchObject({ status: "ok", result: { kind: "preview", mode: "retirement-finish",
@@ -29,7 +29,7 @@ it("previews lineage and every removal and write without changing store state", 
 
 it("applies a matching authority with exactly the previewed mutations", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const result = await runStoreDecomposeFinish(h.ctx, "origin");
   if (result.status === "refused" || result.result.kind !== "preview") throw Error(JSON.stringify(result));
   const preview = result.result;
@@ -44,7 +44,7 @@ it("applies a matching authority with exactly the previewed mutations", async ()
 
 it.each(["member", "dependent"] as const)("requires fresh approval after accepted %s grooming", async recipient => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const result = await runStoreDecomposeFinish(h.ctx, "origin");
   if (result.status === "refused" || result.result.kind !== "preview") throw Error(JSON.stringify(result));
   const record = lifecycleSuccess(await readWorkUnit(h.store, recipient === "member" ? "member-a" : "consumer"));
@@ -62,7 +62,7 @@ it.each(["member", "dependent"] as const)("requires fresh approval after accepte
 
 it("reports a current content refusal before checking an old authority", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const member = lifecycleSuccess(await readWorkUnit(h.store, "member-a"));
   const draft = lifecycleSuccess(await h.store.read({ reference: recordReferences["work-item/draft"](member.reference.owner) }));
   await h.handEdit(draft, draft.content.replace("## Scope", "## Different"));
@@ -73,7 +73,7 @@ it("reports a current content refusal before checking an old authority", async (
 
 it("refuses a batch conflict without persistence and requires a fresh preview and approval", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));
   const consumer = lifecycleSuccess(await readWorkUnit(h.store, "consumer"));
@@ -109,7 +109,7 @@ it.each([true, false])("checks a dirty holder at preview and preserves projectio
 
 it("binds operation and origin generation while ignoring observation and write order", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const prepared = await prepareDecomposeRetirement(h.ctx, "origin");
   if (prepared.status === "refused") throw Error(JSON.stringify(prepared));
   const input = { mode: "retirement-finish" as const, origin: prepared.result.input.map.machine.origin,

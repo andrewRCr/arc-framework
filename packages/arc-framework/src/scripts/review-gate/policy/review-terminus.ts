@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
-import { ReviewIdentifierSchema } from "../core/gate-contract-v2-schema.js";
+import { ReviewCanonicalDigestSchema, ReviewIdentifierSchema } from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema } from "../core/review-pass.js";
 
 /** Conversational judgment supplied only after the Work Unit Owner explicitly accepts the terminus. */
@@ -31,6 +31,24 @@ export const OwnerAcceptedReviewTerminusSchema = z.strictObject({
 /** Durable Owner-accepted verdict bound by its containing Candidate identity. */
 export type OwnerAcceptedReviewTerminus = z.infer<typeof OwnerAcceptedReviewTerminusSchema>;
 
+/** Resolved native decision provenance, including an unknown author on imported authority. */
+export const NativeOwnerAcceptedReviewTerminusSchema = OwnerAcceptedReviewTerminusSchema.unwrap().extend({
+  schemaVersion: z.literal(2),
+  semanticsVersion: z.literal("review-terminus/v2"),
+  decisionKey: ReviewCanonicalDigestSchema,
+  acceptedBy: ReviewIdentifierSchema.nullable(),
+}).readonly();
+/** Native decision projection bound by the owning composition. */
+export type NativeOwnerAcceptedReviewTerminus = z.infer<typeof NativeOwnerAcceptedReviewTerminusSchema>;
+
+/** Policy output preserves the provenance of either storage backend. */
+export const ResolvedOwnerAcceptedReviewTerminusSchema = z.union([
+  OwnerAcceptedReviewTerminusSchema,
+  NativeOwnerAcceptedReviewTerminusSchema,
+]);
+/** Backend-specific accepted verdict after authority binding. */
+export type ResolvedOwnerAcceptedReviewTerminus = z.infer<typeof ResolvedOwnerAcceptedReviewTerminusSchema>;
+
 /** One Owner terminus bound to an exact delivery member and head. */
 export const DeliveryReviewMemberTerminusSchema = z.strictObject({
   vehicle: DeliveryReviewMemberVehicleSchema,
@@ -38,3 +56,10 @@ export const DeliveryReviewMemberTerminusSchema = z.strictObject({
 }).readonly();
 /** Durable Owner conclusion scoped to one exact delivery-member review subject. */
 export type DeliveryReviewMemberTerminus = z.infer<typeof DeliveryReviewMemberTerminusSchema>;
+
+/** Internal member view retaining the resolved verdict's backend provenance. */
+export const ResolvedDeliveryReviewMemberTerminusSchema = DeliveryReviewMemberTerminusSchema.unwrap().extend({
+  terminus: ResolvedOwnerAcceptedReviewTerminusSchema,
+}).readonly();
+/** An exact member and its authority-bound verdict, never a caller acceptance judgment. */
+export type ResolvedDeliveryReviewMemberTerminus = z.infer<typeof ResolvedDeliveryReviewMemberTerminusSchema>;

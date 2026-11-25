@@ -36,7 +36,7 @@ export async function admitDecomposeRevision(ctx: DecomposeContext, origin: stri
   if (owned.status === "refused") return owned;
   const identities = checkDecomposeRevisionIdentities(bound.result, owned.result);
   if (identities !== undefined) return identities;
-  const retained = prior.members.flatMap(member => member.primary === null ? [] : [member.primary.reference]);
+  const retained = prior.members.flatMap(member => member.primary === null ? [] : [member.primary.reference.owner]);
   const names = await checkDecomposeNames(store, map, retained);
   if (names.status === "refused") return names;
   const homes = await checkDecomposeHomes(cached, map);

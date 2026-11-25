@@ -336,18 +336,23 @@ describe("required-checks await", () => {
   });
 
   it("returns pending at the deadline instead of classifying the yield as failure", async () => {
+    let reads = 0;
+    const pendingPort = port([{ name: "build", state: "pending" }]);
+    const readRequiredChecks = pendingPort.readRequiredChecks;
+    pendingPort.readRequiredChecks = async (...args) => { reads += 1; return readRequiredChecks(...args); };
     await expect(awaitRequiredChecks({
       repository: "owner/repo",
       pullRequest: 42,
       headSha,
       timeoutMs: 2_000,
       pollIntervalMs: 500,
-    }, { port: port([{ name: "build", state: "pending" }]), clock: clock() })).resolves.toMatchObject({
+    }, { port: pendingPort, clock: clock() })).resolves.toMatchObject({
       state: "pending",
       nextAction: "await",
       elapsedMs: 2_000,
       checks: [{ name: "build", state: "pending" }],
     });
+    expect(reads).toBe(4);
   });
 
   it("bounds the final observation by its reads, not by the polling interval", async () => {

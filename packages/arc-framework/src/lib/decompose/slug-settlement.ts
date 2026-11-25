@@ -5,6 +5,7 @@ import type { DecomposeOriginRecords } from "./acquire-origin.js";
 import type { DecomposeResult } from "./refusal.js";
 import type { StoreRecord } from "../store/read.js";
 import type { RecordObservation } from "../store/write.js";
+import type { DependencyDisposition } from "../store/retired-edge.js";
 import type { WorkItemRef } from "../store/kinds/lineage/index.js";
 import { sameOwner, recordReferences, sameReference } from "../store/identity.js";
 import { readLifecycleMetaFields } from "../store/lifecycle-write.js";
@@ -16,7 +17,7 @@ export interface DecomposeSlugSettlement {
   primary: StoreRecord;
   edge: string;
   priorTarget: WorkItemRef;
-  disposition: { kind: "drop"; reason: string } | { kind: "replace"; replacementTargets: readonly string[] };
+  disposition: DependencyDisposition;
 }
 
 /** Read guards retained alongside the edges that can be settled without owner judgment. */
@@ -59,6 +60,7 @@ async function planStub(ctx: DecomposeContext, reference: StoreRecord["reference
   if (cut.refusal.code !== "not-found") return decomposeStoreRefusal(cut.refusal);
   const fields = readLifecycleMetaFields(current.result);
   if (fields.status === "refused") return decomposeStoreRefusal(fields.refusal);
+  if (fields.result.state !== "Planning") return empty;
   const settlements: DecomposeSlugSettlement[] = [], guards: StoreRecord[] = [];
   for (const edge of fields.result.dependsOn.filter(target => slugs.has(target))) {
     const resolved = await resolveDecomposeRetiredEdge(ctx.executor.store, edge, current.result.reference.owner);

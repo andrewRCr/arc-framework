@@ -1,4 +1,5 @@
 /** Map-backed read views with real record envelopes and explicit exceptional lookups. */
+import { clashRepair } from "../../../src/lib/store/clash-repair.js";
 import {
   OwnerIdentitySchema, RecordVersionSchema, StoreRecordSchema, recordReferences, sameReference, sameOwner,
   type LookupInput, type LookupResult, type ReadPlacement, type StoreRecord, type StoreResult, type WriteCheckInput,
@@ -41,7 +42,8 @@ export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLook
       const live = candidates.filter((record) => record.placement?.kind !== "completed");
       const selected = live.length > 0 ? live : candidates;
       if (selected.length > 1) return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
-        candidates: selected.map(({ reference }) => reference), condition: "Multiple fixture generations match.", remedy: { text: "Choose a unique fixture name." } } };
+        candidates: selected.map(({ reference }) => reference), tie: { liveness: live.length > 0 ? "live" : "completed", name: "current" },
+        condition: "Multiple fixture generations match.", remedy: clashRepair(selected.map(({ reference }) => reference), { liveness: live.length > 0 ? "live" : "completed", name: "current" }) } };
       return selected.length === 0 ? missing({ reference }) : { status: "ok", result: selected[0]! };
     },
     list: async ({ family, kind, owner, filter }) => {
@@ -65,7 +67,11 @@ export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLook
       const resolved = live.length > 0 ? live : candidates;
       if (resolved.length === 0) return missing({ lookup: input });
       if (resolved.length > 1) return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
-        candidates: resolved.map(({ reference }) => reference), condition: "Multiple fixture generations match.", remedy: { text: "Choose a unique fixture name." } } };
+        candidates: resolved.map(({ reference }) => reference),
+        ...(input.kind === "slug" ? { tie: { liveness: live.length > 0 ? "live" as const : "completed" as const, name: "current" as const } } : {}),
+        condition: "Multiple fixture generations match.", remedy: input.kind === "slug"
+          ? clashRepair(resolved.map(({ reference }) => reference), { liveness: live.length > 0 ? "live" : "completed", name: "current" })
+          : { text: "Name the intended owner by UID, then repeat the lookup." } } };
       return { status: "ok", result: { reference: resolved[0]!.reference } };
     },
   };

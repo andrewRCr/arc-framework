@@ -79,6 +79,7 @@ function configResult(protection: "full" | "partial" = "partial") {
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+      "storage.backing_repository": "",
     },
     warnings: [],
   };
@@ -166,6 +167,7 @@ vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unk
 // Lifecycle handlers read templates and other files through `node:fs/promises`.
 const mockReadFile = vi.fn(async () => "{}");
 vi.mock("node:fs/promises", () => ({
+  realpath: vi.fn(async (path: string) => path),
   readFile: () => mockReadFile(),
   lstat: vi.fn(),
   writeFile: vi.fn(),
@@ -292,12 +294,16 @@ vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
 }));
 
 const mockReadCandidateRecord = vi.fn();
+const mockReadCandidateRecordVersioned = vi.fn();
 const mockReadRepositoryCandidateRecordRevision = vi.fn();
 const mockWriteCandidateRecord = vi.fn();
-vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
+vi.mock("../../../src/lib/store/kinds/review/candidate/access.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
-  readRepositoryCandidateRecordRevision: (...a: unknown[]) => mockReadRepositoryCandidateRecordRevision(...a),
+  readCandidateRecordVersioned: (...a: unknown[]) => mockReadCandidateRecordVersioned(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
+}));
+vi.mock("../../../src/lib/store/kinds/review/candidate/history.js", () => ({
+  readRepositoryCandidateRecordRevision: (...a: unknown[]) => mockReadRepositoryCandidateRecordRevision(...a),
 }));
 const mockResolveRepositoryIdentity = vi.fn();
 vi.mock("../../../src/scripts/review-gate/hosts/local/git-common-state.js", async (orig) => ({
@@ -330,7 +336,7 @@ vi.mock("../../../src/lib/work-unit/git-candidate-effective-target.js", () => ({
 }));
 const mockReadSubmissionBoundaryVersioned = vi.fn();
 const mockWriteSubmissionBoundary = vi.fn();
-vi.mock("../../../src/lib/work-unit/submission-boundary-store.js", () => ({
+vi.mock("../../../src/lib/store/kinds/review/integration-boundary/access.js", () => ({
   readSubmissionBoundaryVersioned: (...a: unknown[]) => mockReadSubmissionBoundaryVersioned(...a),
   writeSubmissionBoundary: (...a: unknown[]) => mockWriteSubmissionBoundary(...a),
 }));
@@ -497,6 +503,7 @@ beforeEach(() => {
     reservation: null,
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
+  mockReadCandidateRecordVersioned.mockResolvedValue({ record: { attestation: { candidateId } }, version: "candidate-v1" });
   mockResolveRepositoryIdentity.mockResolvedValue("repository-id");
   mockReadLaneProgressOwner.mockResolvedValue(null);
   mockCollectGitCandidateSubject.mockResolvedValue({
@@ -867,7 +874,7 @@ describe("handleDecompose", () => {
   ] as const)("converts a thrown %s failure to the core refusal", async (mode, options, adapter, argv) => {
     const forbidden = async (): Promise<never> => { throw new Error("Tracked-state dispatch must not call the store."); };
     const store: Store = { capabilities: { stateOffBranch: false }, read: forbidden, list: forbidden, lookup: forbidden,
-      write: forbidden, batch: forbidden, history: forbidden, version: forbidden, changes: forbidden, sync: forbidden };
+      write: forbidden, batch: forbidden, history: forbidden, version: forbidden, changes: forbidden, pull: forbidden, push: forbidden, maintain: forbidden };
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const locus = `${mode} exploded`;
@@ -1386,7 +1393,11 @@ describe("handlePublish", () => {
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
+      candidateVersion: "candidate-v1",
     });
+    const params = mockRunPublish.mock.calls[0]?.[1] as import("../../../src/lib/work-unit/verbs/publish.js").PublishParams;
+    mockReadCandidateRecordVersioned.mockResolvedValueOnce({ record: { attestation: { candidateId: params.candidateId } }, version: "candidate-v2" });
+    expect(await params.refreshCandidateAuthorization()).toMatchObject({ candidateVersion: "candidate-v2" });
   });
 
   it("reports the unchanged durable publication resume point as JSON", async () => {
@@ -1472,7 +1483,7 @@ describe("handlePublish", () => {
     const refusal = LifecycleCommandRefusalSchema.parse(
       JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
     );
-    expect(refusal.remedy.argv).toEqual(["arc", "status", "--json"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "status", "--json"] });
     expect(mockLogError).not.toHaveBeenCalled();
     expect(mockRunPublish).not.toHaveBeenCalled();
   });
@@ -1487,7 +1498,7 @@ describe("handlePublish", () => {
     const refusal = LifecycleCommandRefusalSchema.parse(
       JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
     );
-    expect(refusal.remedy.argv).toEqual(["arc", "status", "--json"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "status", "--json"] });
     expect(mockLogError).not.toHaveBeenCalled();
     expect(mockRunPublish).not.toHaveBeenCalled();
   });
@@ -1794,7 +1805,7 @@ describe("handleAttest", () => {
     const refusal = LifecycleCommandRefusalSchema.parse(
       JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
     );
-    expect(refusal.remedy.argv).toEqual(["arc", "init"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "init"] });
     expect(mockLogError).not.toHaveBeenCalled();
     expect(mockRunAttest).not.toHaveBeenCalled();
   });
@@ -1817,7 +1828,7 @@ describe("handleAttest", () => {
       JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
     );
     expect(refusal.reason).toContain("missing review-head record");
-    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo", "--new-root"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "attest", "foo", "--new-root"] });
     expect(process.exitCode).toBe(1);
   });
 
@@ -2151,7 +2162,7 @@ describe("handleAttest", () => {
       reservation: null,
       terminus,
       changeRequest: null,
-    });
+    }, 1);
     mockParseMetaRecord.mockReturnValue({
       branch: "feat/foo",
       state: "Active",
@@ -2249,7 +2260,7 @@ describe("handleAttest", () => {
         candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
         reservation,
         changeRequest: null,
-      }),
+      }, 1),
       deliveryReviewTermini: [memberTerminus],
     };
     const deliveryContinuation = {
@@ -2358,7 +2369,7 @@ describe("handleAttest", () => {
       candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     const deliveryContinuation = {
       schemaVersion: 1 as const,
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
@@ -2481,7 +2492,7 @@ describe("handleAttest", () => {
       candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     let boundaryVersion = "source-boundary-version";
     let stateRevision = 7;
     const continuation = () => ({
@@ -2612,7 +2623,7 @@ describe("handleAttest", () => {
     expect(refusal.status).toBe("rejected");
     expect(refusal.reason).toContain(".arc/active/tasks-foo.md");
     expect(refusal.reason).toContain("packages/arc-framework/src/foo.ts");
-    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "attest", "foo"] });
     expect(mockRunAttest).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
@@ -2659,7 +2670,7 @@ describe("handleAttest", () => {
     );
     expect(refusal.reason).toContain("merge-base-ambiguous");
     expect(refusal.reason).toContain("The revisions have more than one best merge base.");
-    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "attest", "foo"] });
     expect(mockRunAttest).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });

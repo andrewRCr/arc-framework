@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { describe, it, expect, vi, beforeAll, beforeEach, type Mock } from "vitest";
 
 import { UserFacingError } from "../../src/lib/errors.js";
+import { storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 import type {
   WorktreeMaterializingInspectionResult,
@@ -24,6 +25,10 @@ import type {
 import type { AuditEntry } from "../../src/lib/release/schema.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
+import { createStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
+
+const inRepoStore = createStore(createDefaultStorePorts({ checkoutRoot: "/project" }));
 
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();
@@ -73,6 +78,12 @@ vi.mock("../../src/commands/user.js", async () => {
     recordErrandPartialPushMarker: (...args: unknown[]) => mockRecordErrandPartialPushMarker(...args),
   };
 });
+
+const mockStoreImported = vi.hoisted(() => vi.fn<() => Promise<boolean>>());
+vi.mock("../../src/lib/store/store-imported.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../src/lib/store/store-imported.js")>(),
+  storeImported: () => mockStoreImported(),
+}));
 
 const mockReconcileErrandPush = vi.fn();
 vi.mock("../../src/lib/errand/index.js", () => ({
@@ -330,7 +341,7 @@ async function captureSyncJson(
 
   try {
     await handleSync({ json: true, ...opts }, cap.output,
-      makeTestContext({ machineReadable: true, yes: opts.yes === true ? "authority" : "absent" }));
+      makeTestContext({ machineReadable: true, yes: opts.yes === true ? "authority" : "absent" }), inRepoStore);
     written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
   } finally {
     stdoutWrite.mockRestore();
@@ -351,7 +362,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   it("uses the explicit materializing reader without an automatic-sync policy", async () => {
     setWorktree("clean");
 
-    await handleSync({ dryRun: true }, undefined, makeTestContext());
+    await handleSync({ dryRun: true }, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: mockGitExec, cwd: "/repo" });
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
@@ -360,7 +371,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   it("stops before sync mutation when worktree materialization fails", async () => {
     mockRunMaterializingWorktreeInspection.mockRejectedValue(new Error("cannot lock tracking ref"));
 
-    await expect(handleSync({}, undefined, makeTestContext())).rejects.toThrow("cannot lock tracking ref");
+    await expect(handleSync({}, undefined, makeTestContext(), inRepoStore)).rejects.toThrow("cannot lock tracking ref");
 
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();
@@ -384,7 +395,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       exitCode: 0,
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunPairedPush).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).toHaveBeenCalledWith(expect.objectContaining({
@@ -475,7 +486,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       partialPushMarkerRecorded: markerRecorded,
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockLog.warn).toHaveBeenCalledWith(expectedWarning);
     if (!markerRecorded) {
@@ -506,7 +517,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       partialPushMarkerRecorded: true,
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
     expect(mockLog.warn).toHaveBeenCalledWith(message);
     expect(mockLog.warn).toHaveBeenCalledWith(
       "Partial publish recorded; publication remains deferred until this safety condition is resolved.",
@@ -606,7 +617,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setWorktree("local-ahead", 2);
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).not.toHaveBeenCalled();
@@ -628,7 +639,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setWorktree("clean");
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(calls.filter(({ args }) => args[0] === "push").map(({ args }) => args))
       .toEqual([["push", "origin", "main"]]);
@@ -709,7 +720,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setWorktree("local-ahead", 3);
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).not.toHaveBeenCalled();
@@ -772,7 +783,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockConfirm).toHaveBeenCalledTimes(1);
@@ -932,7 +943,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       warnings: [],
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     const warnings = mockLog.warn.mock.calls.map((c) => String(c[0] ?? ""));
     expect(warnings.some((line) =>
@@ -1001,7 +1012,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       warnings: [],
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -1024,7 +1035,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       warnings: [],
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -1048,7 +1059,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     });
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
@@ -1108,7 +1119,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setNotesPolicy("on-sync");
     setWorktree("local-ahead", 2);
 
-    await handleSync({ dryRun: true }, undefined, makeTestContext());
+    await handleSync({ dryRun: true }, undefined, makeTestContext(), inRepoStore);
 
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();
@@ -1252,7 +1263,7 @@ describe("--json stdout-purity contract", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true }, undefined, makeTestContext({ machineReadable: true }));
+      await handleSync({ json: true }, undefined, makeTestContext({ machineReadable: true }), inRepoStore);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1310,7 +1321,7 @@ describe("--json stdout-purity contract", () => {
       exitCode: 0,
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockIntro).toHaveBeenCalledWith("arc sync");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
@@ -1397,7 +1408,7 @@ describe("--yes wiring", () => {
     });
     mockPushBranchBoundedNotesExport.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync({ yes: true }, undefined, makeTestContext({ yes: "authority" }));
+    await handleSync({ yes: true }, undefined, makeTestContext({ yes: "authority" }), inRepoStore);
 
     expect(mockPushBranchBoundedNotesExport).toHaveBeenCalledTimes(1);
     expect(capturedNotesContext).toEqual({ status: "success" });
@@ -1448,7 +1459,7 @@ describe("error-path envelope coverage", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }));
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), inRepoStore);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1472,7 +1483,7 @@ describe("error-path envelope coverage", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     try {
-      await handleSync({}, undefined, makeTestContext());
+      await handleSync({}, undefined, makeTestContext(), inRepoStore);
     } finally {
       stdoutWrite.mockRestore();
     }
@@ -1494,7 +1505,7 @@ describe("error-path envelope coverage", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }));
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), inRepoStore);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1511,6 +1522,27 @@ describe("error-path envelope coverage", () => {
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
   });
 
+  it("store-imported + --json → refuses before any leg, carrying the refusal in the envelope", async () => {
+    mockStoreImported.mockResolvedValueOnce(true);
+
+    const cap = makeCapturingSyncOutput();
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    let writes: string[];
+    try {
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), inRepoStore);
+      writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
+    } finally {
+      stdoutWrite.mockRestore();
+    }
+
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(writes[0] ?? "")).toEqual({ cell: "none", reason: "store-imported", refusal: storeImportedRefusal() });
+    expect(cap.stderr.join("")).toContain("store.imported");
+    expect(process.exitCode).toBe(1);
+    expect(mockResolveAllSettings).not.toHaveBeenCalled();
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+  });
+
   it("no-arc-project + non-JSON → routes diagnostic via clack log; no envelope on stdout", async () => {
     mockResolveArcRoot.mockReturnValueOnce(null);
 
@@ -1518,7 +1550,7 @@ describe("error-path envelope coverage", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     try {
-      await handleSync({}, undefined, makeTestContext());
+      await handleSync({}, undefined, makeTestContext(), inRepoStore);
     } finally {
       stdoutWrite.mockRestore();
     }
@@ -1553,7 +1585,7 @@ describe("audit-log integration", () => {
       warnings: [],
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     const call = mockAppendAuditEntry.mock.calls[0]?.[0] as {
@@ -1612,7 +1644,7 @@ describe("audit-log integration", () => {
         ]).exec);
       }
 
-      await handleSync({}, undefined, makeTestContext());
+      await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
       expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
       const call = mockAppendAuditEntry.mock.calls[0]?.[0] as {
@@ -1648,7 +1680,7 @@ describe("audit-log integration", () => {
       warnings: [],
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     const call = mockAppendAuditEntry.mock.calls[0]?.[0] as {
@@ -1685,7 +1717,7 @@ describe("audit-log integration", () => {
       }),
     );
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1695,7 +1727,7 @@ describe("audit-log integration", () => {
   it("no-arc-project path skips the audit write", async () => {
     mockResolveArcRoot.mockReturnValueOnce(null);
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1707,7 +1739,7 @@ describe("audit-log integration", () => {
     setNotesPolicy("on-sync");
     setWorktree("clean");
 
-    await handleSync({ dryRun: true }, undefined, makeTestContext());
+    await handleSync({ dryRun: true }, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1736,7 +1768,7 @@ describe("audit-log integration", () => {
       error: new Error("EACCES: permission denied"),
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     expect(process.exitCode).toBeUndefined();
@@ -1758,7 +1790,7 @@ describe("audit-log integration", () => {
       error: new Error("ENOSPC: no space left on device"),
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     // Sync's refused-cell exit code (1) survives the audit-write failure.
@@ -1795,7 +1827,7 @@ describe("audit-log integration > schema round-trip", () => {
   });
 
   async function captureEntry(): Promise<AuditEntry> {
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     return AuditEntrySchema.parse(mockAppendAuditEntry.mock.calls[0]?.[0].entry);
   }
@@ -1900,7 +1932,7 @@ describe("audit-log integration > success cells", () => {
       exitCode: 0,
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       command: "sync",
@@ -1931,7 +1963,7 @@ describe("audit-log integration > success cells", () => {
       exitCode: 0,
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       outcome: {
@@ -1955,7 +1987,7 @@ describe("audit-log integration > success cells", () => {
       warnings: [],
     });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       command: "sync",
@@ -1988,7 +2020,7 @@ describe("audit-log integration > success cells", () => {
     });
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       decision: "proceeded",
@@ -2014,7 +2046,7 @@ describe("audit-log integration > success cells", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       decision: "proceeded",
@@ -2043,7 +2075,7 @@ describe("audit-log integration > success cells", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(captureEntry()).toMatchObject({
       decision: "proceeded",
@@ -2089,7 +2121,7 @@ describe("handleSync inbound fast-forward leg", () => {
       { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "", stderr: "" }] },
     ]).exec);
 
-    await handleSync({}, undefined, makeTestContext());
+    await handleSync({}, undefined, makeTestContext(), inRepoStore);
 
     expect(mockExecuteInboundPull).toHaveBeenCalledTimes(1);
     expect(mockExecuteInboundPull).toHaveBeenCalledWith(expect.objectContaining({

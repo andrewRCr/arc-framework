@@ -12,7 +12,7 @@ import { createDefaultLocusPorts } from "../../../../src/lib/work-unit/locus-por
 
 it.each(["finish", "discard", "revise", "starter"] as const)("%s refuses conflicted landed lineage and resumes its report after resolution", async mode => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));
   expect(await runStoreDecomposeFinish(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority })).toMatchObject({ status: "ok" });

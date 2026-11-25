@@ -9,7 +9,7 @@ import type { Store } from "../store/contract.js";
 import { posix } from "node:path";
 import { scanV3DecomposeContent, resolveV3DecomposeContentLocator } from "../work-unit/decompose-content.js";
 import { acquireLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
-import { lifecycleRecordPath, cohortDocumentPath } from "../store/lifecycle-record-path.js";
+import { lifecycleRecordName, cohortDocumentPath } from "../store/lifecycle-record-path.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeReviseArgv } from "./command-argv.js";
 import { renderV3DecomposeArgv } from "../work-unit/decompose-command-renderer.js";
@@ -93,13 +93,13 @@ async function acquireTargetArtifacts(store: Store, input: DecomposeTerminalReco
   if (primary === undefined || primary === null) return { status: "ok", result: [] };
   let records = home?.records;
   if (records === undefined) {
-    const acquired = await acquireLifecycleRecords(store, primary.reference.owner.name);
+    const acquired = await acquireLifecycleRecords(store, primary.reference);
     if (acquired.status === "refused") return decomposeStoreRefusal(acquired.refusal);
     records = acquired.result;
   }
   return { status: "ok", result: records.flatMap(record => {
-    const path = lifecycleRecordPath(primary, record);
-    return path === null ? [] : [{ basename: posix.basename(path), record }];
+    const name = lifecycleRecordName(primary.reference.owner.name, record);
+    return name === null ? [] : [{ basename: posix.basename(name), record }];
   }) };
 }
 

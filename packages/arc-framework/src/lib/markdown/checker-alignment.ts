@@ -61,7 +61,7 @@ function resolveSourceImport(importer: ManagedPath, specifier: string): ManagedP
   const source = resolved.endsWith(".js")
     ? `${resolved.slice(0, -3)}.ts`
     : resolved;
-  if (!source.startsWith("packages/arc-framework/src/") || !source.endsWith(".ts")) {
+  if (!source.startsWith("packages/arc-framework/src/") || (!source.endsWith(".ts") && !source.endsWith(".mjs"))) {
     throw new ArcError(
       `Indexed Markdown checker has an unsupported relative import: ${importer} -> ${specifier}`,
       "markdown.checker-misaligned",

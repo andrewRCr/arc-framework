@@ -37,7 +37,7 @@ it("refuses removing a started member and discards after that member is abandone
   expect(await runStoreDecomposeDiscard(h.ctx, "origin")).toMatchObject({ status: "refused", reason: "started-member-removal",
     remedy: { text: expect.stringContaining("arc abandon member-a") } });
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   expect(await runStoreAbandon(h.ctx, { name: "member-a", confirmed: true })).toMatchObject({ status: "abandoned" });
   await discard(h);
 });
@@ -122,11 +122,11 @@ it("requires a removed member's own cut to be discarded first", async () => {
 it.each(["depends-on", "waits-on", "renamed-waits-on"] as const)("protects a surviving %s edge and admits owner repair", async kind => {
   const h = await createDecomposeTerminalFixture();
   if (kind === "renamed-waits-on") expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "member-a", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
+    { operand: "member-a", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
   const outsider = kind === "depends-on" ? await h.seedStub("outsider")
     : await h.seedMeta("outsider", { state: "Active", currentWorkflow: "process-task-loop" });
   const pause = { store: h.store, cwd: "/repo", baseBranch: "main", now: () => new Date("2026-10-19T00:00:00Z"),
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null },
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) },
     exec: scriptGitExec([{ match: ["remote"], responses: [{ stdout: "" }, { stdout: "" }] }]).exec };
   if (kind === "depends-on") await h.handEdit(outsider, writeMetaDependsOn(outsider.content, ["member-a"]));
   else expect(await runPause(pause, { name: "outsider", identity: h.ctx.identity, reason: "Waiting for the member.", waitsOn: "member-a" }))

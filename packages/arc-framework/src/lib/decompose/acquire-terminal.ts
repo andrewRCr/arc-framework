@@ -10,6 +10,7 @@ import { acquireLifecycleRecords } from "../work-unit/prepared-lifecycle-write.j
 import { decomposeStoreRefusal } from "./refusal.js";
 import { decomposeReadCache } from "./read-cache.js";
 import { decodeCutMapContent, type StoredCutMap } from "../store/kinds/cut-map/index.js";
+import { readWorkUnit } from "../store/lifecycle-write.js";
 import { acquireDecomposeOrigin } from "./acquire-origin.js";
 import { acquireDecomposeTerminalCohorts, acquireDecomposeTerminalHomes } from "./acquire-terminal-targets.js";
 import { sameReference } from "../store/identity.js";
@@ -33,7 +34,9 @@ export interface DecomposeTerminalRecords {
 export async function acquireDecomposeTerminal(ctx: DecomposeContext, origin: string): Promise<DecomposeResult<DecomposeTerminalRecords>> {
   const store = decomposeReadCache(ctx.executor.store);
   const reading = { ...ctx, executor: { ...ctx.executor, store } };
-  const group = await acquireLifecycleRecords(store, origin);
+  const selectedOrigin = await readWorkUnit(store, origin);
+  if (selectedOrigin.status === "refused") return decomposeStoreRefusal(selectedOrigin.refusal);
+  const group = await acquireLifecycleRecords(store, selectedOrigin.result.reference);
   if (group.status === "refused") return decomposeStoreRefusal(group.refusal);
   const storedMap = group.result.find(record => record.reference.kind === "work-item/cut-map");
   if (storedMap === undefined) return { status: "refused", reason: "no-stored-map", class: "recoverable", locus: origin,

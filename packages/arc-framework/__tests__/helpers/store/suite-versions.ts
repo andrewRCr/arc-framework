@@ -3,7 +3,7 @@
 import { expect } from "vitest";
 import { KIND_REGISTRY, RecordReferenceSchema, sameReference, type KindId, type Mutation, type RecordReference } from "../../../src/lib/store/index.js";
 import type { ConformanceFixture } from "./fixture-contract.js";
-import { assertion, everyKind, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { assertion, everyKind, seed, success, testProvenance, update, mutationOf, type SuiteContext } from "./suite-tools.js";
 import { registerObservationAssertions } from "./suite-observations.js";
 
 function mutable(kind: KindId): boolean { return !["create-only", "write-once"].includes(KIND_REGISTRY[kind].writerRule); }
@@ -13,13 +13,31 @@ function mutable(kind: KindId): boolean { return !["create-only", "write-once"].
  */
 export function registerBatchAssertions(context: SuiteContext): void {
   registerObservationAssertions(context);
+  assertion(context, "personal", "unknown-write-and-batch-input-refusal", async (fixture) => {
+    const first = await seed(fixture, fixture.reference("personal/document"));
+    const second = await seed(fixture, fixture.reference("personal/document", "two"));
+    const before = await fixture.settle();
+    const extraWrite = { ...update(fixture, first), unknownInput: true };
+    expect(await fixture.store.write(extraWrite)).toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
+    expect(await fixture.settle()).toBe(before);
+    expect(success(await fixture.store.read({ reference: first.reference }))).toEqual(first);
+    const extraMutation = { ...mutationOf(update(fixture, second)), unknownInput: true };
+    expect(await fixture.store.batch({ writes: [mutationOf(update(fixture, first)), extraMutation], provenance: testProvenance }))
+      .toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
+    expect(await fixture.settle()).toBe(before);
+    expect(success(await fixture.store.read({ reference: first.reference }))).toEqual(first);
+    expect(success(await fixture.store.read({ reference: second.reference }))).toEqual(second);
+    success(await fixture.store.batch({ writes: [mutationOf(update(fixture, first)), mutationOf(update(fixture, second))], provenance: testProvenance }));
+    expect(success(await fixture.store.read({ reference: first.reference })).content).toBe(fixture.content(first.reference, "changed"));
+    expect(success(await fixture.store.read({ reference: second.reference })).content).toBe(fixture.content(second.reference, "changed"));
+  });
   assertion(context, "personal", "derived-status-root-write-and-batch-refusal", async (fixture) => {
     const existing = await seed(fixture, fixture.reference("personal/document"));
     const derived = RecordReferenceSchema.parse({ ...existing.reference, key: "STATUS.USER.md" });
     const before = await fixture.settle();
     const put = { action: "put" as const, reference: derived, expected: null, content: "derived status", provenance: testProvenance };
     expect(await fixture.store.write(put)).toMatchObject({ status: "refused", refusal: { remedy: { text: expect.any(String) } } });
-    expect(await fixture.store.batch({ writes: [update(fixture, existing), put], provenance: testProvenance })).toMatchObject({ status: "refused" });
+    expect(await fixture.store.batch({ writes: [mutationOf(update(fixture, existing)), mutationOf(put)], provenance: testProvenance })).toMatchObject({ status: "refused" });
     expect(await fixture.settle()).toBe(before);
     expect(success(await fixture.store.read({ reference: existing.reference }))).toEqual(existing);
     expect(await fixture.store.read({ reference: derived })).toMatchObject({ status: "refused" });
@@ -34,7 +52,7 @@ export function registerBatchAssertions(context: SuiteContext): void {
     const currentFirst = success(await fixture.store.read({ reference: first.reference }));
     const currentSecond = success(await fixture.store.read({ reference: second.reference }));
     const before = success(await fixture.store.version());
-    const result = await fixture.store.batch({ writes: [update(fixture, first), update(fixture, second), update(fixture, third)], provenance: testProvenance });
+    const result = await fixture.store.batch({ writes: [first, second, third].map((record) => mutationOf(update(fixture, record))), provenance: testProvenance });
     expect(result).toMatchObject({ status: "refused", refusal: { code: "version-conflict", records: [first.reference, second.reference] } });
     expect(success(await fixture.store.version())).toBe(before);
     expect(success(await fixture.store.read({ reference: first.reference }))).toEqual(currentFirst);
@@ -44,7 +62,7 @@ export function registerBatchAssertions(context: SuiteContext): void {
   assertion(context, "work-item", "batch-mixed-atomic-write-and-removal", async (fixture) => {
     const remove = await seed(fixture, fixture.reference("work-item/meta"));
     const change = await seed(fixture, fixture.reference("work-item/meta", "two"));
-    const writes: Mutation[] = [{ action: "remove", reference: remove.reference, expected: remove.version }, update(fixture, change)];
+    const writes: Mutation[] = [{ action: "remove", reference: remove.reference, expected: remove.version }, mutationOf(update(fixture, change))];
     const landed = success(await fixture.store.batch({ writes, provenance: testProvenance }));
     expect(landed.writes).toHaveLength(2);
     expect(await fixture.store.read({ reference: remove.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
@@ -55,7 +73,7 @@ export function registerBatchAssertions(context: SuiteContext): void {
     const change = await seed(fixture, fixture.reference("work-item/meta", "two"));
     const before = await fixture.settle();
     const landed = success(await fixture.store.batch({ writes: [
-      { action: "remove", reference: remove.reference, expected: remove.version }, update(fixture, change),
+      { action: "remove", reference: remove.reference, expected: remove.version }, mutationOf(update(fixture, change)),
     ], provenance: testProvenance }));
     const changes = success(await fixture.store.changes({ from: before, to: await fixture.settle() }));
     expect(changes).toHaveLength(2);
@@ -170,7 +188,9 @@ export function registerHistoryAssertions(context: SuiteContext): void {
     await fixture.settle();
     const history = success(await fixture.store.history({ reference: first.reference }));
     expect(history.at(-1)?.provenance).toMatchObject({ ...testProvenance, reference: first.reference });
-    if (first.reference.owner.type !== "person") expect(history.at(-1)?.provenance).toMatchObject({ ownerUid: first.reference.owner.uid });
+    if (first.reference.owner.type !== "person" && first.reference.owner.uid !== undefined) {
+      expect(history.at(-1)?.provenance).toMatchObject({ ownerUid: first.reference.owner.uid });
+    }
     if (mutable(reference.kind)) expect(history[0]?.provenance).toMatchObject({ verb: "update", lifecycleAction: "resume", codeHead: testProvenance.codeHead });
   });
 }

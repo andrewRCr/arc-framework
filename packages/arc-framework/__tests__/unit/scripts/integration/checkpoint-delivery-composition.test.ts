@@ -63,8 +63,8 @@ vi.mock("../../../../src/lib/work-unit/candidate-effective-target.js", async (im
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/candidate-effective-target.js")>(),
   projectEffectiveCandidateCurrentness: mocks.projectEffectiveCandidateCurrentness,
 }));
-vi.mock("../../../../src/lib/work-unit/candidate-record-store.js", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../../../src/lib/work-unit/candidate-record-store.js")>(),
+vi.mock("../../../../src/lib/store/kinds/review/candidate/access.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../src/lib/store/kinds/review/candidate/access.js")>(),
   readCandidateRecordVersion: mocks.readCandidateRecordVersion,
   readCandidateRecordVersioned: mocks.readCandidateRecordVersioned,
 }));
@@ -77,8 +77,8 @@ vi.mock("../../../../src/lib/work-unit/git-candidate-effective-target.js", async
   projectGitCandidateEffectiveTarget: mocks.projectGitCandidateEffectiveTarget,
   readGitCandidateTargetBase: mocks.readGitCandidateTargetBase,
 }));
-vi.mock("../../../../src/lib/work-unit/submission-boundary-store.js", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../../../src/lib/work-unit/submission-boundary-store.js")>(),
+vi.mock("../../../../src/lib/store/kinds/review/integration-boundary/access.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../src/lib/store/kinds/review/integration-boundary/access.js")>(),
   readSubmissionBoundary: mocks.readSubmissionBoundary,
 }));
 vi.mock("../../../../src/scripts/delivery/hosts/github.js", () => ({
@@ -140,6 +140,8 @@ import {
   "../../../../src/scripts/integration/checkpoint-composition.js";
 import { composeCanonicalSettlementPlan } from
   "../../../../src/scripts/integration/settlement-plan.js";
+import { nativeListingRefusal } from "../../../fixtures/native-refusal.js";
+import type { BaseDriftResult } from "../../../../src/lib/git/base-drift-types.js";
 
 const oid = (character: string): string => character.repeat(40);
 
@@ -525,6 +527,33 @@ describe("delivery checkpoint composition", () => {
     })).resolves.toEqual({
       status: "unavailable",
       detail: "The managed delivery Candidate record could not be read or validated.",
+      evidence: { baseRevision },
+      nextAction: { command: "rerun-checkpoint", workUnit: plan.workUnitId },
+    });
+  });
+
+  it("raises a native refusal reading the managed Candidate record whole, and classifies once the store reads", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baseRevision = oid("d");
+    const refusal = nativeListingRefusal();
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    mocks.readCandidateRecordVersioned.mockRejectedValueOnce(refusal).mockResolvedValueOnce({ record: null, version: null });
+    // Each checkpoint run composes its own dependencies, so the rerun after repair reads the record afresh.
+    const checkpoint = () => createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
+    const drift: BaseDriftResult = {
+      mode: "authoritative", verdict: "reconcile", state: "diverged", ahead: 2, behind: 1, base: "main",
+      baseOid: baseRevision, headOid: oid("c"), movement: "overlapping",
+      integrationEvidence: { coverage: "complete", scannedCommitCount: 1, events: [], unclassifiedCommitCount: 0,
+        truncated: false, limitations: [] },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
+    };
+
+    await expect(checkpoint().classifyDeliveryDrift(plan.workUnitId, drift)).rejects.toBe(refusal);
+    await expect(checkpoint().classifyDeliveryDrift(plan.workUnitId, drift)).resolves.toEqual({
+      status: "unavailable",
+      detail: "The managed delivery Candidate record is unavailable.",
       evidence: { baseRevision },
       nextAction: { command: "rerun-checkpoint", workUnit: plan.workUnitId },
     });

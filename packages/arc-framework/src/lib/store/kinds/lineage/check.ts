@@ -15,7 +15,7 @@ import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
 export async function checkLineageRecord(input: WriteCheckInput, grammar?: EntryListConfig): Promise<readonly BrokenRule[]> {
   if (input.next === undefined) {
     const prior = input.prior === undefined ? null : parseLineageRecord(input.prior.content);
-    return prior?.retiredBranches === undefined ? [] : [brokenRule("lineage.retired-branches", "A terminal branch snapshot cannot be removed with its lineage record.",
+    return prior?.retiredBranches === undefined || await archivedBranchAuthority(input, prior.retiredBranches) ? [] : [brokenRule("lineage.retired-branches", "A terminal branch snapshot cannot be removed with its lineage record.",
       "Keep the terminal lineage and its branch authority available for cleanup and retry.")];
   }
   const lineage = parseLineageRecord(input.next.content);
@@ -28,6 +28,13 @@ export async function checkLineageRecord(input: WriteCheckInput, grammar?: Entry
     : held.status === "known" && held.value ? "The retiring work item's inbound list still holds an entry." : undefined;
   return condition === undefined ? [] : [brokenRule("lineage.inbound-held", condition,
     "Integrate or route the origin's held inbound entries, repair unavailable observations, and retry retirement.")];
+}
+
+async function archivedBranchAuthority(input: WriteCheckInput, branches: unknown): Promise<boolean> {
+  if (input.reference.owner.type !== "work-item") return false;
+  const source = await input.after.read({ reference: recordReferences["work-item/meta"](input.reference.owner) });
+  return source.status === "ok" && source.result.placement?.kind === "completed"
+    && isDeepStrictEqual(source.result.links?.branches ?? [], branches);
 }
 
 async function checkRetiredBranches(input: WriteCheckInput, lineage: NonNullable<ReturnType<typeof parseLineageRecord>>): Promise<readonly BrokenRule[]> {

@@ -101,7 +101,7 @@ it.each([false, true])("checks full and partial adoption before consuming a disp
   await resolve(h, saved.reference);
   const plan = await prepareErrandAdoption(input, h.context);
   if (plan.status !== "ok") throw new Error(plan.refusal.condition);
-  success(await h.context.store.batch({ writes: plan.result.writes, provenance: { verb: "errand-open", lifecycleAction: "open" } }));
+  if (plan.result.writes.length > 0) success(await h.context.store.batch({ writes: plan.result.writes, provenance: { verb: "errand-open", lifecycleAction: "open" } }));
   expect(await listInbox({ list: "project" }, h.context)).toMatchObject({ entries: partial ? [expect.objectContaining({ id: "12345678" })] : [] });
 });
 it("checks the resumed Errand description before accepting its retained origin", async () => {

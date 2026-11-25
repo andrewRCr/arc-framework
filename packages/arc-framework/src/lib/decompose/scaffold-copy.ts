@@ -5,7 +5,7 @@ import type { DecomposeResult, DecomposeRefusal } from "./refusal.js";
 import type { RecordReference, OwnerIdentity } from "../store/identity.js";
 import type { Mutation } from "../store/write.js";
 import { recordReferences } from "../store/identity.js";
-import { companionArtifactName } from "../store/companion-name.js";
+import { companionStoredName } from "../store/companion-name.js";
 import { decomposeMapRuleRefusal } from "./map-rule-refusal.js";
 import { checkTaskListDescriptor, checkTaskListSegmentation } from "../store/kinds/task-list/shape-rules.js";
 import { parseTaskListRecord } from "../store/kinds/task-list/parser.js";
@@ -45,7 +45,7 @@ function copyCoordinates(owner: OwnerIdentity, source: RecordReference): { refer
   if (source.kind === "work-item/task-list") return { reference: recordReferences["work-item/task-list"](owner), basename: `tasks-${owner.name}.md` };
   if (source.kind === "work-item/notes") return { reference: recordReferences["work-item/notes"](owner), basename: `notes-${owner.name}.md` };
   return source.kind === "work-item/companion" && typeof source.key === "string"
-    ? { reference: recordReferences["work-item/companion"](owner, source.key), basename: companionArtifactName(owner.name, source.key) } : null;
+    ? { reference: recordReferences["work-item/companion"](owner, source.key), basename: companionStoredName(owner.name, source.key) } : null;
 }
 
 function checkTaskCopy(ctx: DecomposeContext, reference: RecordReference, source: string, content: string): DecomposeRefusal | undefined {

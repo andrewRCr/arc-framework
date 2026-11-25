@@ -334,6 +334,7 @@ function makeProbes(fixture: Fixture): StatusProbes {
     user: async (identity) => stubUserResult(identity),
     config: () => runConfigStatus({ cwd: fixture.root }),
     active: () => runActiveStatus({ cwd: fixture.root }),
+    projection: async () => ({ kind: "disabled" }),
   };
 }
 
@@ -897,6 +898,7 @@ describe("runStatus — identity missing", () => {
       },
       config: () => runConfigStatus({ cwd: fixture.root }),
       active: () => runActiveStatus({ cwd: fixture.root }),
+      projection: async () => ({ kind: "disabled" }),
     };
     const result = await runStatus({ identity: null, role: null, probes });
 
@@ -1338,7 +1340,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
         responses: [({ args }) => {
           const value = args[2] === undefined ? undefined : overrides[args[2]];
           return value === undefined
-            ? { failure: { exitCode: 1, stderr: "exit 1" } }
+            ? { failure: { exitCode: 1, stdout: "", stderr: "" } }
             : { stdout: `${value}\n` };
         }],
       }]).exec);
@@ -1402,7 +1404,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
       responses: [({ args }) => {
         const value = args[2] === undefined ? undefined : overrides[args[2]];
         return value === undefined
-          ? { failure: { exitCode: 1, stderr: "exit 1" } }
+          ? { failure: { exitCode: 1, stdout: "", stderr: "" } }
           : { stdout: `${value}\n` };
       }],
     }]).exec);
@@ -1489,7 +1491,7 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       responses: [({ args }) => {
         const value = args[2] === undefined ? undefined : overrides[args[2]];
         return value === undefined
-          ? { failure: { exitCode: 1, stderr: "exit 1" } }
+          ? { failure: { exitCode: 1, stdout: "", stderr: "" } }
           : { stdout: `${value}\n` };
       }],
     }]).exec);

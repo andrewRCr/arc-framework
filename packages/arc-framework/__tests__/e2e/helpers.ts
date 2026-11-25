@@ -14,11 +14,14 @@ import { CLI_PATH, assertCliBuilt } from "../helpers/cli-spawn.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 import { emitsMachineReadablePayload, usesPseudoTty } from "../helpers/cli-transport.js";
 import { recordCliInvocationForCurrentTest } from "../helpers/test-cost-timeout.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
+
+export { commitAll } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
 /** Compose the deterministic environment shared by built-CLI tests. */
-function builtCliEnvironment(overrides?: Record<string, string>): NodeJS.ProcessEnv {
+function builtCliEnvironment(overrides?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ARC_DISABLE_UPDATE_CHECKS: "1",
@@ -48,8 +51,42 @@ function runBsdPseudoTerminal(
   command: readonly string[],
   options: PseudoTerminalOptions,
 ): Promise<{ stdout: string; stderr: string }> {
+  return runWithIgnoredInput("script", ["-q", "/dev/null", ...command], options, false);
+}
+
+/**
+ * Run a shell script beneath one persistent anchor shell, reading its output as a terminal shows it.
+ *
+ * Windows has no pseudo-terminal utility, so there the shell runs on pipes with its error stream merged into its
+ * output, as a terminal merges them; it is not interactive and sets no terminal size, whose warnings would join that
+ * output. Git Bash reads backslashes inside a quoted command-line argument as escapes, which would halve those in a
+ * Windows path, so the script reaches it through the environment rather than its command line.
+ */
+async function runInAnchorShell(
+  shell: string,
+  script: string,
+  options: PseudoTerminalOptions,
+): Promise<{ stdout: string; stderr: string }> {
+  if (process.platform === "win32") {
+    const env = { ...options.env, ARC_TEST_ANCHOR_SCRIPT: script };
+    return runWithIgnoredInput(shell, ["--noprofile", "--norc", "-c", 'eval "$ARC_TEST_ANCHOR_SCRIPT"'],
+      { ...options, env }, true);
+  }
+  return runInPseudoTerminal(
+    [shell, "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${script}`],
+    options,
+  );
+}
+
+/** Spawn with closed input, optionally merging the error stream into the output stream in arrival order. */
+function runWithIgnoredInput(
+  file: string,
+  args: readonly string[],
+  options: PseudoTerminalOptions,
+  mergeStderr: boolean,
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolveResult, rejectResult) => {
-    const child = spawn("script", ["-q", "/dev/null", ...command], {
+    const child = spawn(file, args, {
       cwd: options.cwd,
       env: options.env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -59,10 +96,27 @@ function runBsdPseudoTerminal(
     let timedOut = false;
     let settled = false;
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => (mergeStderr ? stdout : stderr).push(chunk));
+    const captured = () => ({
+      stdout: Buffer.concat(stdout).toString("utf8"),
+      stderr: Buffer.concat(stderr).toString("utf8"),
+    });
+    // A killed process's children can keep its output open, so a timeout settles without waiting for it to close and
+    // releases the output streams, ending further capture.
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGKILL");
+      if (settled) return;
+      settled = true;
+      const result = captured();
+      child.stdout.destroy();
+      child.stderr.destroy();
+      rejectResult(Object.assign(new Error(`${file} timed out after ${options.timeout}ms`), {
+        code: "ETIMEDOUT",
+        killed: true,
+        signal: "SIGKILL",
+        ...result,
+      }));
     }, options.timeout);
     child.on("error", (error) => {
       if (settled) return;
@@ -74,15 +128,12 @@ function runBsdPseudoTerminal(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      const result = {
-        stdout: Buffer.concat(stdout).toString("utf8"),
-        stderr: Buffer.concat(stderr).toString("utf8"),
-      };
+      const result = captured();
       if (code === 0) {
         resolveResult(result);
         return;
       }
-      rejectResult(Object.assign(new Error(`script exited with ${code ?? signal ?? "unknown status"}`), {
+      rejectResult(Object.assign(new Error(`${file} exited with ${code ?? signal ?? "unknown status"}`), {
         code: timedOut ? "ETIMEDOUT" : (code ?? 1),
         killed: timedOut,
         signal,
@@ -147,7 +198,7 @@ export async function git(cwd: string, args: string[]): Promise<string> {
 export async function runArc(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
   // JSON contracts need a clean stdout channel. On Linux, `script` allocates a
@@ -158,7 +209,7 @@ export async function runArc(
   if (args.includes("--json") || emitsMachineReadablePayload(args)) {
     return runArcNoTty(args, cwd, options);
   }
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
   try {
@@ -197,19 +248,16 @@ export async function runArc(
 export async function runArcAnchored(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment({ PS1: "", ...options?.env });
   const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
   const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
   try {
-    const { stdout, stderr } = await runInPseudoTerminal(
-      ["bash", "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${interactiveCommand}`],
-      { cwd, timeout, env },
-    );
+    const { stdout, stderr } = await runInAnchorShell("bash", interactiveCommand, { cwd, timeout, env });
     return { stdout: normalizeAnchoredOutput(stdout), stderr, exitCode: 0 };
   } catch (error) {
     const failure = error as { stdout?: string; stderr?: string; code?: number | string };
@@ -225,10 +273,10 @@ export async function runArcAnchored(
 export async function runArcAnchoredSequence(
   argsList: readonly AnchoredSequenceEntry[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string>; anchorShellPath?: string },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv; anchorShellPath?: string },
 ): Promise<AnchoredSequenceResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   for (const entry of argsList) {
     if (!("command" in entry)) recordCliInvocationForCurrentTest(timeout);
   }
@@ -263,19 +311,17 @@ export async function runArcAnchoredSequence(
   });
   const command = `${commands.join(" && ")}; command_status=$?; exit $command_status`;
   try {
-    const { stdout, stderr } = await runInPseudoTerminal(
-      [anchorShell, "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${command}`],
-      { cwd, timeout, env },
-    );
+    const { stdout, stderr } = await runInAnchorShell(anchorShell, command, { cwd, timeout, env });
     const normalized = normalizeAnchoredOutput(stdout);
     return { stdout: normalized, stderr, exitCode: 0, results: parseJsonLines(normalized) };
   } catch (error) {
-    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string; killed?: boolean };
     const normalized = normalizeAnchoredOutput(failure.stdout ?? "");
     return {
       stdout: normalized,
       stderr: failure.stderr ?? "",
       exitCode: typeof failure.code === "number" ? failure.code : 1,
+      ...(failure.code === "ETIMEDOUT" || failure.killed === true ? { timedOut: true as const } : {}),
       results: parseJsonLines(normalized),
     };
   }
@@ -295,10 +341,10 @@ export async function runArcAnchoredSequence(
 export async function runArcNoTty(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
   try {
@@ -327,10 +373,10 @@ export async function runArcNoTty(
 export async function runArcWithStdoutPipe(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
   try {
@@ -365,10 +411,10 @@ export function runArcWithStdin(
   args: string[],
   cwd: string,
   stdin: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
 
@@ -425,7 +471,7 @@ function normalizeAnchoredOutput(value: string): string {
 
 /** Join clack box continuations so assertions inspect logical values independent of terminal width. */
 export function unwrapPresentationOutput(value: string): string {
-  return value.replace(/\s*│\n│\s*/gu, "");
+  return value.replace(/\s*([│|])\r?\n\1\s*/gu, "");
 }
 
 function parseJsonLines(value: string): unknown[] {

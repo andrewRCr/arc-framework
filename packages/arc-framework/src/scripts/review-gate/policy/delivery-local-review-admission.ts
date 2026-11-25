@@ -104,3 +104,17 @@ export const DeliveryLocalReviewAdmissionSchema = z.strictObject({
   }
 });
 export type DeliveryLocalReviewAdmission = z.infer<typeof DeliveryLocalReviewAdmissionSchema>;
+
+function grantIdentity<Grant extends { readonly decisionKey?: string }>(grant: Grant): Omit<Grant, "decisionKey"> {
+  const { decisionKey, ...identity } = grant;
+  void decisionKey;
+  return identity;
+}
+
+/** Keep transient decision references out of admission identity while retaining all grant constraints. */
+export function projectDeliveryLocalReviewAdmissionIdentity(admission: DeliveryLocalReviewAdmission | undefined): DeliveryLocalReviewAdmission | null {
+  if (admission === undefined) return null;
+  return { ...admission,
+    ...(admission.ceilingOverride === undefined ? {} : { ceilingOverride: grantIdentity(admission.ceilingOverride) }),
+    ...(admission.additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization: grantIdentity(admission.additionalPassAuthorization) }) };
+}

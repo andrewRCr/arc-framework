@@ -1,5 +1,5 @@
 /**
- * Reader for `arc config status` — reads arc-config.yml, applies documented
+ * Configuration status and explicit tracked backing-pointer access. Reads arc-config.yml, applies documented
  * defaults for absent keys, and returns the agent-consumable settings set.
  *
  * Shared by config status and handler code that needs session-relevant config
@@ -17,6 +17,7 @@
  * @module
  */
 
+import { atomicWriteFile } from "../fs.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -65,6 +66,48 @@ export interface ReaderResult {
   warnings: string[];
 }
 
+/** Read the checkout's backing destination, preserving failures at this publication boundary. */
+export async function readBackingRepository(cwd: string): Promise<string | null> {
+  const path = configSettingsPath(cwd);
+  let content: string;
+  try { content = await readFile(path, "utf8"); }
+  catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") return null;
+    throw new Error(`Cannot read the backing pointer at ${path}. Restore a readable arc-config.yml, then retry the operation.`, { cause: error });
+  }
+  const value = parseArcConfig(content)["storage.backing_repository"] ?? "";
+  const parsed = getArcConfigField("storage.backing_repository").schema.safeParse(value);
+  if (!parsed.success) {
+    throw new Error(`The backing pointer storage.backing_repository at ${path} is not a repository location: ${JSON.stringify(value)}. `
+      + "Set it to the backing repository's URL or path, or to an empty value, then retry the operation.");
+  }
+  return parsed.data.trim() || null;
+}
+
+/** Write the tracked backing pointer as the configuration reader decodes it, preserving unrelated text and line endings. */
+export async function writeBackingRepository(cwd: string, value: string | null): Promise<void> {
+  const path = configSettingsPath(cwd), key = "storage.backing_repository";
+  const validated = getArcConfigField(key).schema.parse(value ?? "").trim();
+  // The reader strips one pair of surrounding quotes and unescapes nothing, and a single-quoted YAML scalar escapes nothing
+  // but its own quote, so a one-line value without one decodes the same through both.
+  if (/[\r\n]/u.test(validated)) throw new Error(`The backing pointer must fit on one line of arc-config.yml: ${JSON.stringify(validated)}`);
+  if (validated.includes("'")) throw new Error(`The backing pointer cannot contain a single quote: ${JSON.stringify(validated)}`);
+  let content = "";
+  try { content = await readFile(path, "utf8"); }
+  catch (error) {
+    if (!(typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT")) throw error;
+  }
+  const line = `${key}: '${validated}'`, eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const claimed = /^storage\.backing_repository:[^\r\n]*/mu;
+  const next = claimed.test(content) ? content.replace(claimed, () => line)
+    : content + (content.length && !content.endsWith("\n") ? eol : "") + line + eol;
+  await atomicWriteFile(path, next);
+}
+
+function configSettingsPath(cwd: string): string {
+  return join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX);
+}
+
 /**
  * Read arc-config.yml and return the agent-consumable settings map with
  * documented defaults filled in for any absent keys.
@@ -74,7 +117,7 @@ export interface ReaderResult {
  * the caller to surface — both recoverable, since defaults substitute.
  */
 export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
-  const configPath = join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX);
+  const configPath = configSettingsPath(cwd);
   const warnings: string[] = [];
   const defaultsApplied: string[] = [];
 

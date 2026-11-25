@@ -40,7 +40,7 @@ describe("deriveRestateCandidates integration", () => {
     await makeCommit(tempDir, "feat(x): first since baseline");
     await makeCommit(tempDir, "feat(x): second since baseline");
 
-    const result = await deriveRestateCandidates({
+    const result = await deriveRestateCandidates({ cwd: "/project",
       exec,
       sessionNotes: notesWithBaseline(baseline),
     });
@@ -61,7 +61,7 @@ describe("deriveRestateCandidates integration", () => {
       [subject, "", "Body line 1.", "Body line 2.", "Body line 3."].join("\n"),
     );
 
-    const result = await deriveRestateCandidates({
+    const result = await deriveRestateCandidates({ cwd: "/project",
       exec,
       sessionNotes: notesWithBaseline(baseline),
     });
@@ -92,7 +92,7 @@ describe("deriveRestateCandidates integration", () => {
       ].join("\n"),
     );
 
-    const result = await deriveRestateCandidates({
+    const result = await deriveRestateCandidates({ cwd: "/project",
       exec,
       sessionNotes: notesWithBaseline(baseline),
     });
@@ -109,7 +109,7 @@ describe("deriveRestateCandidates integration", () => {
     await makeCommit(tempDir, "chore(seed): on this branch");
     const fakeBaseline = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
 
-    const result = await deriveRestateCandidates({
+    const result = await deriveRestateCandidates({ cwd: "/project",
       exec,
       sessionNotes: notesWithBaseline(fakeBaseline),
     });

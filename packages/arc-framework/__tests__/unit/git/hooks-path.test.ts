@@ -2,6 +2,7 @@
  * Unit tests for hooks-path classification (missing core.hooksPath guard).
  */
 
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -152,11 +153,12 @@ describe("resolveHooksPathVerdict", () => {
     const exec: HooksPathGitExec = (command, args, opts) =>
       scripted.exec(command, [...args], opts);
 
+    const relativeHooks = resolve("/worktree", "relative-hooks");
     await expect(
-      resolveHooksPathVerdict("/worktree", exec, (path) => path === "/worktree/relative-hooks"),
+      resolveHooksPathVerdict("/worktree", exec, (path) => path === relativeHooks),
     ).resolves.toEqual({
       kind: "ok",
-      resolvedPath: "/worktree/relative-hooks",
+      resolvedPath: relativeHooks,
       reason: "unset-default-present",
     });
   });

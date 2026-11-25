@@ -25,6 +25,7 @@
  * @module
  */
 
+import type { StoreRecord } from "../store/read.js";
 import {
   chmod,
   mkdir,
@@ -52,7 +53,8 @@ import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import { checkCurrentWorkflowConsistency } from "../active/current-workflow-consistency.js";
 import { createProjectIdentityReader } from "../store/project-identity.js";
 import { createStore } from "../store/create.js";
-import { createDefaultStorePorts } from "../store/default-ports.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
+import { createProjectionRemovalSlots } from "../store/projection/removal-slots.js";
 import type { Store } from "../store/contract.js";
 import type { GitExec } from "../git/exec.js";
 import { SlugSchema } from "../kernel/index.js";
@@ -133,6 +135,7 @@ export function buildExecutorContext(
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
   const store = deps.store ?? deps.reopenStore?.(cwd, exec) ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity });
   const locusPorts = deps.locusPorts ?? (usesOffBranchState(store) ? createLocusPorts({ cwd, exec, store }) : undefined);
   const projectId = deps.projectId ?? (usesOffBranchState(store) ? createProjectIdentityReader(store) : undefined);
   const transitionExec = deps.transitionExec ?? createExecaRawGitExec(cwd);
@@ -180,7 +183,7 @@ export function buildExecutorContext(
   // already-applied `Integrating → Active` flip isn't left mid-transition (the
   // operator finishes the withdrawal by hand).
   const legacyWithdrawPrHandler: SideEffectHandler = async ({ slug, inputs }) => {
-    const branch = await withdrawalBranch({ store, exec, cwd, io, at, projectId }, slug);
+    const branch = await withdrawalBranch({ store, exec, cwd, io, at, projectId }, slug, inputs.storeTransition?.primary);
     const mode = inputs.prWithdrawMode ?? "close";
     if (branch === null) {
       return `Could not withdraw the PR for \`${slug}\`: no branch recorded — close or convert it manually.`;
@@ -196,7 +199,7 @@ export function buildExecutorContext(
   };
   const withdrawPrHandler: RecoverablePrWithdrawalHandler = Object.assign(legacyWithdrawPrHandler, {
     prepareWithdrawal: async ({ slug, inputs }: Parameters<SideEffectHandler>[0]) => {
-      const branch = await withdrawalBranch({ store, exec, cwd, io, at, projectId }, slug);
+      const branch = await withdrawalBranch({ store, exec, cwd, io, at, projectId }, slug, inputs.storeTransition?.primary);
       if (branch === null) throw new Error(`Cannot withdraw the PR for \`${slug}\`: no work branch is linked.`);
       return preparePrWithdrawal({ exec }, { branch, mode: inputs.prWithdrawMode ?? "close" });
     },
@@ -235,6 +238,7 @@ export function buildExecutorContext(
       return reconcileWorkUnitWorktree({
         exec,
         store,
+        projectionRemovalSlots,
         ...(locusPorts === undefined ? {} : { locusPorts }),
         chdir: (dir) => { process.chdir(at(dir)); },
         fs: nodeReconcileWorkUnitWorktreeFs,
@@ -333,9 +337,9 @@ export function buildExecutorContext(
 }
 
 async function withdrawalBranch(input: { store: Store; exec: GitExec; cwd: string; io: UserIOContext;
-  at: (path: string) => string; projectId?: () => Promise<string> }, slug: string): Promise<string | null> {
+  at: (path: string) => string; projectId?: () => Promise<string> }, slug: string, primary?: StoreRecord): Promise<string | null> {
   if (usesOffBranchState(input.store)) {
-    const read = await readWorkUnit(input.store, slug);
+    const read = primary === undefined ? await readWorkUnit(input.store, slug) : await input.store.read({ reference: primary.reference });
     if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
     return linkedWorkBranch(input, read.result);
   }

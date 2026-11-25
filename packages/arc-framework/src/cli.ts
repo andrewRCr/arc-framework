@@ -5,6 +5,10 @@
  * Command logic lives in `src/handlers/`, orchestrators in `src/commands/`,
  * and I/O adapters in `src/lib/io-context.ts`.
  */
+import { rejectUnsupportedReviewJson, rejectUnsupportedReviewOutputJson } from "./lib/command-input/review-json-option.js";
+import { formatCommandPath } from "./lib/command-input/command-path.js";
+import { registerProjectionHooks } from "./lib/store/projection/command-hooks.js";
+import { projectionCommandBinding } from "./lib/store/projection/engine.js";
 
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +21,7 @@ import {
   runDevBuildGuard,
   createDevBuildGuardDeps,
   refreshDevBuildAfterAction,
+  rerunDevCommand,
 } from "./lib/dev-check.js";
 import { reviewRequestAction } from "./lib/command-input/review-request-action.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
@@ -90,6 +95,7 @@ import type {
   ActiveInFlightCliOptions,
 } from "./handlers/active.js";
 import type { StatusCliOptions } from "./handlers/status.js";
+import type { AgendaCliOptions } from "./commands/agenda/index.js";
 import type { SchemaListOptions, SchemaInstallOptions } from "./handlers/schema.js";
 import type { LocusCliOptions } from "./handlers/locus.js";
 import type { ViewCliOptions } from "./handlers/view.js";
@@ -126,6 +132,7 @@ program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
   .option("--no-input", "Forbid prompts, presenters, editors, and ambient child-process input")
+  .option("--skip-projection", "Skip automatic projection work for this command, leaving edits pending")
   .version(getFrameworkVersion());
 
 // --- Checks ---
@@ -212,7 +219,7 @@ checkCmd
 
 checkCmd
   .command("increment")
-  .description("Run commit checks, early push file feedback, and changed projected selection feedback")
+  .description("Run commit checks, early push file feedback, and changed projected selection feedback; list other push checks as left to the push gate")
   .option("--json", "Emit a versioned JSON envelope")
   .option("--force", "Run selected checks without reusing passes")
   .option("--dry-run", "Forecast checks without executing them")
@@ -260,6 +267,38 @@ program
   .action(async () => {
     await (await import("./scripts/remedy-roadmap-conflict.js")).runRoadmapConflictAutoRemedyCommand();
   });
+
+const storeCmd = program.command("store", { hidden: true }).description("Operate on the ref store explicitly");
+storeCmd.command("repair-review-roots").argument("[file]", "JSON request file, or - for stdin")
+  .option("--schema", "Emit the versioned JSON request schema")
+  .action(withInteractionContext({ machineReadable: () => true },
+    async (_context, file: string | undefined, options: import("./commands/store-review-root-repair.js").StoreReviewRootRepairOptions) => {
+      await (await import("./commands/store-review-root-repair.js")).handleStoreReviewRootRepair(file, options);
+    }));
+storeCmd.command("conflict").argument("<uid>", "Owner UID").argument("<kind>", "Registered work-item conflict kind")
+  .argument("<id>", "Exact conflict ID")
+  .option("--discard", "Accept the current state and discard this retained alternative")
+  .option("--json", "Emit the complete conflict or resolution result as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (_context, uid: string, kind: string, id: string, options: import("./commands/store-conflict.js").StoreConflictOptions) => {
+      await (await import("./commands/store-conflict.js")).handleStoreConflict(uid, kind, id, options);
+    }));
+storeCmd.command("migrate").option("--to <remote-or-url>", "Move state to a remote or backing URL")
+  .option("--trial", "Build and report the move without landing it")
+  .option("--leave-source", "Finish leaving the recorded source")
+  .option("--import", "Import the current operational state")
+  .option("--json", "Emit the move report or refusal as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (context, options: import("./commands/store-migrate.js").StoreMigrateOptions) => {
+      await (await import("./commands/store-migrate.js")).handleStoreMigrate(options, context);
+    }));
+storeCmd.command("remote").argument("[remote]", "Remote name").argument("[role]", "push, read, or off")
+  .option("--own-state", "Publish everything this clone's store holds on the selected remote")
+  .option("--json", "Emit the store result as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (context, remote: string | undefined, role: string | undefined, options: import("./commands/store-remote.js").StoreRemoteOptions) => {
+      await (await import("./commands/store-remote.js")).handleStoreRemote(remote, role, options, context);
+    }));
 
 program
   .command("hook-validate-frontmatter", { hidden: true })
@@ -370,7 +409,7 @@ program
   )
   .option(
     "--from <pointer-or-blurb>",
-    "Seed input — issue ref → Origin; documents and descriptions pass through for assessment",
+    "Seed a new work unit started with --here — issue ref → Origin; documents and descriptions pass through for assessment",
   )
   .option(
     "--class <value>",
@@ -430,11 +469,36 @@ program
 
 program
   .command("rename <slug> <new-slug>")
-  .description("Rename a work unit and its branch, workspace, remote, marker, and worktree identities")
+  .description("Rename a work unit or cohort selected by slug or UID, with a work unit's branch, workspace, remote, marker, and worktree identities")
+  .option("--json", "Emit the rename result and follow-up report as JSON")
   .action(withInteractionContext(
-    {},
-    async (context, slug: string, newSlug: string) => {
-      await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, context);
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, newSlug: string, opts: { json?: boolean }) => {
+      await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, opts, context);
+    },
+  ));
+
+const cohort = program.command("cohort").description("Manage cohorts selected by slug or UID");
+cohort
+  .command("close <cohort>")
+  .description("Close a cohort selected by slug or UID")
+  .option("--yes", "Confirm closing the cohort")
+  .option("--json", "Emit one machine-readable result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, subject: string, opts: { yes?: boolean; json?: boolean }) => {
+      await (await import("./handlers/cohort.js")).handleCohortClose(subject, opts, context);
+    },
+  ));
+cohort
+  .command("remove <cohort>")
+  .description("Remove an empty cohort selected by slug or UID")
+  .option("--yes", "Confirm removing the cohort")
+  .option("--json", "Emit one machine-readable result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, subject: string, opts: { yes?: boolean; json?: boolean }) => {
+      await (await import("./handlers/cohort.js")).handleCohortRemove(subject, opts, context);
     },
   ));
 
@@ -609,15 +673,16 @@ program
 
 program
   .command("teardown [name]")
-  .description("Evidence-backed cleanup of a retired work unit: reap refs, remove or husk its worktree, and prune")
+  .description("Clean up a retired work unit by slug or UID: reap refs, remove or husk its worktree, and prune")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
+  .option("-y, --yes", "Confirm removal of eligible stamped husks when no name or branch is supplied")
   .option(
     "--force",
     "Compatibility spelling for evidence-backed cleanup; grants no additional authority",
   )
   .action(withInteractionContext(
-    {},
+    { yes: "authority" },
     async (context, name: string | undefined, opts: TeardownOptions) => {
       await (await import("./handlers/lifecycle.js")).handleTeardown(name, opts, context);
     },
@@ -808,7 +873,7 @@ errand
 errand
   .command("open <slug>")
   .description("Open an errand in the free primary or a provisioned transient worktree")
-  .option("--type <type>", "Errand branch nature-type: fix, chore, refactor, or hotfix (default: chore)")
+  .option("--type <type>", "Errand branch nature-type: fix, chore, refactor, or hotfix (default: chore; full protection only)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt an inbox capture as the errand concern")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
@@ -877,7 +942,7 @@ errand
 
 errand
   .command("close <slug>")
-  .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
+  .description("Complete an Errand selected by slug or UID, release its exact occupancy, and drop its originating inbox capture")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
@@ -889,7 +954,7 @@ errand
 
 errand
   .command("abandon <slug>")
-  .description("Abandon a safely preserved Errand and retain its inbox capture")
+  .description("Abandon a safely preserved Errand selected by slug or UID and retain its inbox capture")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
@@ -1283,9 +1348,13 @@ program
   .command("update")
   .description("Update ARC framework files to the latest version")
   .option("-q, --quiet", "Suppress changelog output")
+  .option(
+    "--keep-local-without-baseline",
+    "Keep customized files that have no merge baseline as they are, skipping their upstream changes",
+  )
   .action(withInteractionContext(
     {},
-    async (context, opts: { quiet?: boolean }) => {
+    async (context, opts: { quiet?: boolean; keepLocalWithoutBaseline?: boolean }) => {
       await (await import("./handlers/installation.js")).handleUpdate(opts, context);
     },
   ));
@@ -1626,6 +1695,28 @@ program
 // --- Status (composite) ---
 
 program
+  .command("agenda")
+  .description("Compile session initialization steps")
+  .argument("<ceremony>", "Ceremony to compile: session-init")
+  .argument("[seed]", "Optional entry seed")
+  .option("--plan [stub]", "Enter planning for a backlog stub")
+  .option("--errand [concern]", "Enter an isolated errand")
+  .option("--next", "Proceed to the next action when the session permits")
+  .option("--isolate", "Give an errand its own checkout")
+  .option("--start <slug>", "Assess a named work unit for launch")
+  .option("--housekeep", "Enter inbox housekeeping")
+  .option("--context", "Load context without discovering next work")
+  .option("--answered <key=answer>", "Carry a recorded answer (repeatable)",
+    (value: string, previous: string[]) => [...previous, value], [])
+  .option("--done <id>", "Carry a completed action id (repeatable)",
+    (value: string, previous: string[]) => [...previous, value], [])
+  .option("--json", "Emit the compiled agenda as JSON")
+  .action(withInteractionContext({ machineReadable: opts => opts.json === true },
+    async (context, ceremony: string, seed: string | undefined, opts: AgendaCliOptions) => {
+      await (await import("./commands/agenda/index.js")).handleAgenda(ceremony, seed, opts, context);
+    }));
+
+program
   .command("status")
   .description("Composite probe: identity + user-sync + config + active state")
   .argument(
@@ -1754,6 +1845,47 @@ recoverCmd
     },
   ));
 
+// --- Editor ---
+
+program
+  .command("editor")
+  .description("Configure checkout editor settings for projected files")
+  .argument("<editor>", "Editor to configure (vscode or zed)")
+  .option("--remove", "Remove ARC's editor settings")
+  .action(withInteractionContext({}, async (_context, editor: "vscode" | "zed", opts: { remove?: boolean }) => {
+    const binding = projectionCommandBinding();
+    await (await import("./handlers/editor.js")).handleEditor({ editor, ...opts }, binding.store, binding.checkout);
+  }));
+
+// --- Selection ---
+
+program
+  .command("selection")
+  .description("List editable projected Markdown files")
+  .option("--changed", "List only files changed since the last arc save")
+  .option("--json", "Emit the selected paths as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { changed?: boolean; json?: boolean }) => {
+      const binding = projectionCommandBinding();
+      await (await import("./handlers/selection.js")).handleSelection(opts, binding.store, binding.checkout);
+    },
+  ));
+
+// --- Save ---
+
+program
+  .command("save")
+  .description("Save pending edits in every projected root")
+  .option("--resolve <conflict>", "Resolve an indexed conflict shown without markers")
+  .option("--json", "Emit the complete save result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { resolve?: string; json?: boolean }) => {
+      await (await import("./handlers/save.js")).handleSave(opts, projectionCommandBinding().store);
+    },
+  ));
+
 // --- Sync (orchestrator) ---
 
 program
@@ -1775,7 +1907,7 @@ program
   .action(withInteractionContext(
     { yes: "authority", machineReadable: (opts) => opts.json === true },
     async (context, opts: SyncOptions) => {
-      await (await import("./handlers/sync.js")).handleSync(opts, undefined, context);
+      await (await import("./handlers/sync.js")).handleSync(opts, undefined, context, projectionCommandBinding().store);
     },
   ));
 
@@ -1986,24 +2118,6 @@ const reviewCmd = program
   .command("review")
   .description("Resolve and execute review workflows");
 
-function rejectUnsupportedReviewJson(_command: Command, actionCommand: Command): void {
-  if (actionCommand.opts().json !== true) return;
-  actionCommand.error(
-    `error: option '--json' is unsupported for ${formatCommandPath(actionCommand)}; `
-      + "pass a JSON request file or '-' for stdin. JSON output is automatic.",
-    { exitCode: 1, code: "arc.review.unsupportedJsonOption" },
-  );
-}
-
-function rejectUnsupportedReviewOutputJson(this: Command): void {
-  const commandPath = formatCommandPath(this);
-  this.error(
-    `error: option '--json' is unsupported for ${commandPath}; JSON output is automatic. `
-      + `See '${commandPath} --help' for accepted inputs.`,
-    { exitCode: 1, code: "arc.review.unsupportedJsonOption" },
-  );
-}
-
 reviewCmd
   .command("change-request")
   .description("Exact-head change-request operations")
@@ -2089,16 +2203,27 @@ reviewCmd
   .requiredOption("--repository <owner/repo>", "Exact repository coordinates")
   .requiredOption("--pull-request <number>", "Pull-request number")
   .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
-  .option("--timeout-ms <milliseconds>", "Bounded wait duration (default: review.checks_await_timeout_seconds)")
+  .option("--timeout-ms <milliseconds>",
+    "Bounded wait duration; a longer one waits 1800000 (default: review.checks_await_timeout_seconds)")
   .option(
     "--poll-interval-ms <milliseconds>",
-    "Initial polling interval (default: review.checks_await_initial_poll_interval_seconds)",
+    "Initial polling interval; a longer one polls every 60000 (default: review.checks_await_initial_poll_interval_seconds)",
   )
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)
   .action(withInteractionContext({ machineReadable: () => true }, async (context, options: ReviewChecksAwaitOptions) => {
     await (await import("./handlers/review.js")).handleReviewChecksAwait(options, {}, context);
   }));
+
+reviewCmd.command("adversarial").description("Record approved adversarial passes").command("record")
+  .description("Record one approved adversarial pass as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-adversarial-record-request",
+    async (input, context) => (await import("./handlers/review-adversarial.js")).handleReviewAdversarialRecord(input, {}, context))));
 
 reviewCmd.command("lane").description("Read review lineage history").command("read")
   .description("Read lineage rejections and standard-lane facts as JSON")
@@ -2282,6 +2407,26 @@ hostedCmd
     await (await import("./handlers/review.js")).handleReviewHostedSettle(input ?? "", {}, context);
   }));
 
+hostedCmd
+  .command("dismiss")
+  .description("Dismiss one review service's settled change-request review as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nInput:\n  The open pull request's exact head and one blocking review as `arc review status` reports it.\n",
+  )
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (_context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-dismiss-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewHostedDismiss(input ?? "");
+  }));
+
 reviewCmd
   .command("changeset")
   .description("Exact-target changeset-size review operations")
@@ -2329,6 +2474,22 @@ localReviewCmd
       return;
     }
     await (await import("./handlers/review.js")).handleReviewLocalAttest(input ?? "", {}, context);
+  }));
+
+localReviewCmd
+  .command("cancel")
+  .description("Cancel a pending local review dispatch without settling its review obligation")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-cancel-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewLocalCancel(input ?? "", {}, context);
   }));
 
 localReviewCmd
@@ -2402,14 +2563,17 @@ reviewCmd
 
 let devBuildRefreshEligible = false;
 
-program.hook("preAction", (_thisCommand, actionCommand) => {
-  devBuildRefreshEligible = runDevBuildGuard(
+program.hook("preAction", async (_thisCommand, actionCommand) => {
+  const admission = await runDevBuildGuard(
     {
       commandPath: formatCommandPath(actionCommand),
       writeCompactionSeed: actionCommand.opts<Record<string, unknown>>().writeCompactionSeed === true,
     },
     createDevBuildGuardDeps(fileURLToPath(import.meta.url)),
   );
+  // The stale bundle stays loaded in this process, so the command runs again on the rebuilt one instead.
+  if (admission.kind === "rerun") return await rerunDevCommand();
+  devBuildRefreshEligible = admission.refreshEligible;
 });
 
 program.hook("postAction", async () => {
@@ -2426,15 +2590,7 @@ program.hook("postAction", async () => {
   process.exitCode = 1;
 });
 
-function formatCommandPath(cmd: Command): string {
-  const parts: string[] = [];
-  let cur: Command | null = cmd;
-  while (cur !== null) {
-    parts.unshift(cur.name());
-    cur = cur.parent;
-  }
-  return parts.join(" ");
-}
+registerProjectionHooks(program, { mint: async input => (await import("./handlers/projection-stub.js")).mintProjectionStub(input) });
 
 // --- Entry ---
 

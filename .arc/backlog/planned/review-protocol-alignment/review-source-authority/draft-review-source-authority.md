@@ -291,6 +291,47 @@
 
 - _Captured during:_ that Errand, 2026-10-07.
 
+### `[ ]` **Count CodeRabbit's icon-badge migration as evidence for a recoverable provider-format failure**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the routed entry on a provider format change ending the whole pass as `terminal-failure / stop` — its
+  recoverable-outcome, fallback-integrity, and structured-surface items.
+
+- _Observation:_ a sixth parser fix since 2026-09-28. CodeRabbit moved its inline severity badge from a color emoji to
+  an SVG icon image between PR #1105 (2026-10-23T21:53Z) and PR #1112 (2026-10-24T02:35Z), and every CodeRabbit pass
+  with a thread finding ended `terminal-failure` / `provider-thread-finding-severity-unrecognized` until Errand
+  `coderabbit-icon-badges` landed. Since at least 2026-10-21, each thread finding's label had also been the provider's
+  leading `<!-- coderabbit-ai-generated:v1 -->` marker, unnoticed because labels only display.
+
+- _Observation:_ the failure was not always terminal, and a seventh fix shows it was live. Between 2026-10-08 and
+  2026-10-14 CodeRabbit changed review-body counts from `Nitpick comments (1)` to `Nitpick comments: 1`, file headers
+  likewise. The section reader skipped a header it could not recognize and still reported `parsed`, so the only two
+  nitpicks since, on PR #1046 and PR #1101, were dropped from passes that read as complete. Errand
+  `coderabbit-section-markers` reads both forms and makes a finding marker outside every recognized section a malformed
+  body, so an unknown section such as "Duplicate comments" now ends the pass `terminal-failure`. The recoverable outcome
+  should build on that closed-failure guard, and fallback must not read a skipped section as clean.
+
+- _Observation:_ through the migration, the comment's HTML comment markers stayed stable while the decorated badge
+  changed: `cr-comment:v1:<fingerprint>` and `cr-indicator-types:potential_issue`, beside a plain-text "Prompt for AI
+  Agents" block that carries the locus. None of them carries the grade, which bears on the structured-surface item.
+
+- _Observation:_ PR #1112 is a live instance of the folded-in same-head retry gap. Its await recorded `terminal-failure`
+  on the attempt, and `pendingAttemptCanAdvance` (`lane-progress.ts`) advances only a pending one, so re-awaiting the
+  already-posted review with the fixed parser conflicts (read from source, not run). The route left is moving the head
+  and paying for a fresh hosted pass.
+
+- _Observation:_ the deferred PR #835 finding came back on PR #1114's second hosted pass (thread
+  `PRRT_kwDOP8ODB86v1Osy`, minor): `finding()` reads the first badge anywhere in the comment, and the icon form widens
+  what a quoted example or fenced block can match. It was deferred again so that the leading-line read lands for both
+  marks at once rather than for icons alone.
+
+- _Observation:_ an eighth drift a day after the icon change: PR #1116's thread badges separate with ` · ` rather than
+  ` | ` (the § Errand capture "Read CodeRabbit badge lines separated by `·` as well as `|`"). The grade survived, the
+  label did not, and the review-body nitpick reader would refuse the new form.
+
+- _Captured during:_ the CodeRabbit icon-badge Errand, 2026-10-23.
+
 ---
 
 ### `[ ]` **Give an oversized frontline target a typed route instead of operator reasoning**
@@ -495,6 +536,209 @@
   lift it, carry the override to every composition that applies the limit.
 
 - _Captured during:_ `review-coverage-cadence` create-spec, second adversarial pass, fix-check round 4 (2026-10-17).
+
+### `[ ]` **Let an Owner revise an approved disposition after its fix commits move the head**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ the "Make an Owner-accepted review terminus bind thereafter" item — its sharp form, a decision destroyed by
+  the fix it authorized, has this sibling: a decision the Owner changes mid-fix cannot be recorded at all.
+
+- _Observation:_ during `storage-ref-backend`'s pass 8 fix round (2026-10-29), the Owner changed one finding's
+  approved action after fixes had begun: AGG-20 was approved as a fix adding supersession lines to the shipped
+  contract specification, and became, at the Owner's direction, a different repair — restore that specification and
+  record the changes in the cohort document (`1258af5c0`). The gate refuses to supersede an approved disposition set
+  once the reviewed head moves, which the first fix commit always does, so the approved set could not be revised to
+  the repair actually made. The commit carried the original finding line and explained the change in its body; the
+  verified-fix replay then attested the original set's wording.
+
+- _Approach:_ a typed revision of an approved set after partial application, bound to the Owner's new decision and to
+  the fix commits already made under the old one, so the record, the commit lines, and the verified-fix replay agree.
+  Design question: whether a revision supersedes the set or amends one finding's action, and how the replay binds
+  commits made before it.
+
+- _Captured during:_ `storage-ref-backend` pre-publication review, pass 8 and its fix checks, 2026-10-29.
+
+### `[ ]` **Let a successor disposition set correct a host reply its predecessor already settled**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ "Let an Owner revise an approved disposition after its fix commits move the head" — its host-side
+  sibling: the record-side supersession succeeds, but the predecessor's posted reply and resolved thread cannot be
+  corrected through settlement.
+
+- _Observation:_ in `store-operation-git-access`'s hosted review of PR #1213 (2026-10-31), a cohort-note finding was
+  approved as a rejection, its before-fix settlement posted the reject reply, and CodeRabbit then resolved the thread.
+  The Owner reversed the decision, and a two-call supersession (`supersedes` naming the predecessor set) made it a
+  fix. The successor's after-fix settlement for that thread, carrying the correction reply, returned
+  `ambiguous / stop` with no host change: `settleHostedFinding` (`scripts/review-gate/hosted/settle.ts`) treats a
+  resolved thread with no reply matching the request body as ambiguous and never posts onto it, and nothing in the
+  successor's plan records that the thread was already settled under another disposition. On Owner direction the
+  correction was posted by hand with `gh`, and the unchanged settle request then returned `already-settled / complete`.
+
+- _Approach:_ carry the predecessor's settlement into the successor's plan: for each finding whose disposition changed
+  after its before-fix settlement ran, a correction phase that may reply on the resolved thread, bound to the
+  predecessor's reply, so a supersession needs no hand-posted reply.
+
+- _Captured during:_ `store-operation-git-access` integration, hosted review response round, 2026-10-31.
+
+---
+
+### `[ ]` **Let a prepared, unlaunched local review be withdrawn or superseded**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Make an Owner-accepted review terminus bind thereafter, across every lane and every later subject"; decide
+  with its hosted counterpart, "Let an unacknowledged hosted review request be withdrawn or superseded".
+
+- `WU_Target: review-source-authority`
+
+- _Re-checked:_ 2026-11-03 at `41963788ec`, after `seam-delivery-review` merged: partly addressed; merged with a second
+  capture. Details are in that day's verification notes, kept outside the repository.
+
+- _Observation:_ on PR #1087, `arc review local prepare -`, run only to see what it would admit, recorded a pending
+  local complete pass at the head. A later `arc review hosted request` for the CodeRabbit full review the Owner chose
+  then refused "Hosted review capacity is already held by a pending request" (`hosted-reservation-admission.ts`,
+  `handlers/review.ts`). No verb withdraws a prepared, unlaunched local review: `arc review local` has only prepare,
+  attest, and resume, and attesting `failed` would record a terminal failure for a review that never ran. The only
+  clean continuation was to run the prepared pass, which took the source choice away.
+
+- _Observation:_ `arc review local cancel` now exists (`e4d8c1bb6f`, 2026-10-25), but it records the attempt as
+  `terminal-failure` with `consumedPass: false`, and the policy driver blocks on that record
+  (`review-policy-driver.ts`, the `blocked` branch) before it reaches the terminus check. The same record stops both
+  a switch to another source and an Owner-accepted stop. Merged here: "Let an Owner-accepted stop take effect after a
+  cancelled local review dispatch" (`machine-check-runner` pre-publication, head `33b6ea7ae`, 2026-10-28), where
+  re-entry with `lanes.standard.terminus: { mode: "owner-accepted" }` returned `source-outcome-terminal-failure`
+  and only merging base, which gave a head with no attempts, applied the stop.
+
+- _Observation:_ an Errand opened for this on 2026-11-04 at `680f08c208` stopped before writing code, because
+  withdrawal is not the small change it looked like. Frontline withdraws an admission only while no execution record
+  exists (`admissionHasStarted`, `frontline-pending-admission.ts:29-33`); a prepared local review already has its
+  operation record and a materialized source, so frontline's rule does not reach it.
+
+- _Observation:_ on the native store, the ended outcome cancel writes is how an execution ends. It prunes the
+  in-flight record (`hosts/local/in-flight-outcomes.ts`), lets a shared source release once every owner has finished
+  (`hosts/local/source-sweep-records.ts`, pinned by `review-local-shared-source-native.test.ts`), and makes a retried
+  cancel replay. Removing the attempt without an outcome leaves a shared source pinned until the cleanup timeout, and
+  when both owners cancel, the sweep's duplicate-owner refusal blocks even that. On the repository store, a cancel
+  retried after a withdrawal finds no admitted attempt and refuses as corrupt state (`local-cancel-command.ts:82-85`),
+  and the tested persist-then-release order depends on the record withdrawal removes.
+
+- _Observation:_ native already records a cancel distinctly, as an ended local `terminal-failure` with no receipt
+  (`replayEndedLocalCancel`). The repository lane attempt cannot carry that difference without a new field, and the
+  `state-storage` pull-forward filter admits review work ahead of the seam only as Errands that "add no stored record
+  or record shape". An admission that consumed conditional pass authority (`admittedBy` on native, a consumed
+  authorization on the repository store) cannot be withdrawn without releasing or orphaning that authority.
+
+- _Decision:_ neither remaining shape is an Errand (Owner, 2026-11-04). Withdrawal, with native deleting the owner's
+  execution record, changes how the native store ends an execution, which the cutover builds on. Reading a receiptless
+  cancel as a run that never happened adds a record shape on the repository store. Until this lands, `WORKING-MEMORY`
+  carries the avoidance and the exits: run and attest the prepared review, cancel it only to retry locally, or move to
+  a new head.
+
+- _Approach:_ two shapes remain. Cancel withdraws the pending attempt, and native also retires the owner's execution
+  record, releasing before it withdraws so an interrupted cancel still finishes on retry. Or cancel keeps its ended
+  record, and the lane projection and policy driver read a receiptless local failure as a run that never happened, so
+  it blocks neither another source nor an Owner-accepted stop while an attested `failed` run still blocks. Fit with
+  the native model, which already records the fact, favors the second. Either way, a refused hosted request names the
+  holding operation and its exit.
+
+- _Files:_ `packages/arc-framework/src/scripts/review-gate/runtime/local-cancel-command.ts`,
+  `policy/review-policy-driver.ts`, `policy/review-policy-attempt.ts` (`isSafeUnavailable`),
+  `hosts/local/lane-outcome-composition.ts`, `hosts/local/source-sweep-records.ts`, and the three
+  "Hosted review capacity is already held by a pending request" sites (`handlers/review.ts`,
+  `policy/hosted-reservation-admission.ts`).
+
+- _Evidence:_ the 2026-10-21 investigation's local-prepare and hosted-request results, kept outside the repository.
+
+- _Captured during:_ Errand `test-cost-diagnosis-method`, PR #1087 review, 2026-10-21; routed by the Owner 2026-10-21.
+  Re-filed from `§ Errand` on 2026-11-04 after the Errand `withdraw-local-cancel` was abandoned unrun.
+
+---
+
+### `[ ]` **Let an unacknowledged hosted review request be withdrawn or superseded**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Make an Owner-accepted review terminus bind thereafter, across every lane and every later subject"; decide
+  with its local counterpart, "Let a prepared, unlaunched local review be withdrawn or superseded".
+
+- `WU_Target: review-source-authority`
+
+- _Observation:_ once `arc review hosted request -` posts a request, nothing ends it if the provider never answers. `arc
+  review hosted` has only request, await, settle and dismiss. `await` reaches `pending / inspect-or-extend` and retains
+  the request. The Errand stop (`code-review.md` § Errand stop) refuses while any review request is pending, so the
+  Owner cannot accept the residual risk either. The only exit is an Owner-directed push to a new head, which gives up
+  that review. PR #1044's repeat CodeRabbit request had no reply or submitted review on its head at capture.
+
+- _Approach:_ a typed withdrawal or supersession of a pending hosted request that records it as not run, releases its
+  hosted capacity, and leaves the Errand stop and a source switch available, without claiming a result. Decide with the
+  local counterpart, whose cancel record currently blocks the policy driver.
+
+- _Captured during:_ Errand `repeat-review-guard`, investigating ARC's automatic repeat-review requests, 2026-11-07.
+  Approved for capture by the Owner.
+
+---
+
+### `[ ]` **Accept a manual read of an exact-head hosted review as a review-stop basis**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Provider-owned Capabilities, beside "Reconcile the three Owner-acceptance instances behind one primitive".
+
+- _Observation:_ the hosted readers now stop at once, naming the review, when they cannot read a finished result
+  (`provider-completion-reply-unrecognized`, `provider-body-finding-unattributed`, Codex's unreadable-review stops).
+  The session must still settle that pass. On #1304 that took `code-review.md` § Errand stop's residual-risk
+  acceptance, which records Owner acceptance of an unreviewed residual rather than a review that was read. Nothing lets
+  a manual read of the named exact-head review, with each finding dispositioned like a parsed one, count as the pass.
+
+- _Approach:_ add a basis under which a manual read of the exact-head review the stop names settles the hosted pass,
+  recorded as a manual read. Decide who may attest the read, what binds it to the head, and how its findings enter the
+  disposition record. Check coupling with `review-source-authority`, which holds the Owner-accepted review terminus.
+
+- _Captured during:_ the `coderabbit-reader-format-tolerance` Errand's completion report, 2026-11-08 (Owner-approved).
+
+---
+
+### `[ ]` **Name the files a frontline coverage shortfall missed**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Capability Re-cut (the stored frontline outcome's reason shape).
+
+- _Observation:_ Since #1272, a CodeRabbit run that does not cover every added or modified file records
+  `unavailable / capability-unsupported` with no detail, because that reason is a strict class with no fields
+  (`policy/frontline-outcome.ts`). The repair notice cannot name the missed files and reads the same as a missing
+  CodeRabbit executable or a too-many-files refusal. It was kept that way to leave the stored shape unchanged.
+
+- _Approach:_ add a bounded list, or a count and digest, of the missed paths to that reason. That changes the
+  strict-current v1 frontline outcome and its store binding in `lib/store/kinds/review/outcome/frontline.ts`, so weigh
+  it against the storage cutover's import, which should carry one shape.
+
+- _Captured during:_ the `frontline-clean-coverage` Errand (#1272), 2026-11-04 (Owner-approved capture).
+
+### `[ ]` **Record a failed provider-executable probe as not started, so a plain rerun clears it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16), split from "Stop a sandboxed first
+  frontline run from becoming a durable failure", whose file-argument half stays an Errand.
+
+- _Shapes:_ § Provider-owned Capabilities, beside the buffered "Stop CodeRabbit's next format change from failing a
+  whole hosted review": what a provider's unlaunched failure does to the pass and to its retry.
+
+- _Observation:_ in a sandboxed run, CodeRabbit's executable probe (`coderabbit --version`) fails writing its log
+  under its home folder, and the frontline run is stored as `unexpected-adapter-failure`. Since the 11-12 host rule
+  to escalate only after a refusal, every Codex frontline run here failed that way first (five in the errands
+  session, one in `projection-worktrees`).
+
+- _Observation:_ the failure is durable though the provider never launched: replaying the request returns it, and a
+  retry needs a fresh resolve, `retryOfOperationId` and Owner direction (`code-review.md`). No review was spent.
+
+- _Approach:_ record a failed provider-executable probe as not started, which a plain rerun clears, rather than a
+  durable failure; design it against the frontline operation's replay and retry contract.
+
+- _Evidence:_ the stored failed run, Codex's rule-matching checks and the sandbox tests, kept outside the repository.
+
+- _Captured during:_ the project manager's look at Codex's CodeRabbit retries (Owner-approved capture, 2026-11-13).
 
 ---
 

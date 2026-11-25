@@ -8,8 +8,9 @@
 
 import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
 import { join } from "node:path";
-import { writeArcGitignoreBlock } from "../lib/template/index.js";
+import { writeArcIgnoreBlocks, preflightIgnoreFiles } from "../lib/template/index.js";
 import { configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
+import { zedProjectionSettingsMessage } from "../lib/editor-settings.js";
 import {
   generateSkills,
   writeSkillOutputs,
@@ -57,6 +58,7 @@ export interface JoinOptions extends PersonalIdentitySetupOptions {
 /** Result from a successful join run. */
 export interface JoinResult {
   hookSetupMessages?: string[];
+  zedSettingsMessage?: string;
   role: "maintainer" | "contributor";
   tools: string[];
   identity: string | null;
@@ -90,6 +92,8 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
     });
   }
 
+  await preflightIgnoreFiles(cwd, io.readFile, io);
+
   const preparedIdentity = identityResult === null ? null : await preparePersonalIdentitySetup({
     ...options, identity: identityResult, command: "join",
   });
@@ -119,18 +123,10 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Write managed gitignore block with skill directories
-  const gitignorePath = join(cwd, ".gitignore");
-  const gitignoreEntries = [
-    ".arc/system/.internal/pristine.json",
-    ".arc/system/.internal/worktree-marker.json",
-    ".arc/user/*/",
-    ...skillGitignoreEntries(skillResult.targetDirs),
-  ];
-  await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile, io);
 
   // User directory and session templates
-  await runPostInitSetup({
+  const stateOffBranch = await runPostInitSetup({
     arcDir, internalTemplateDir, io, identityResult, preparedIdentity,
   });
 
@@ -143,6 +139,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
 
   return {
     ...(hookSetupMessages.length > 0 ? { hookSetupMessages } : {}),
+    ...(stateOffBranch ? { zedSettingsMessage: zedProjectionSettingsMessage() } : {}),
     role: prompts.role,
     tools: prompts.tools,
     identity: identityResult,
@@ -200,6 +197,8 @@ export async function runJoinReconfigure(
     });
   }
 
+  await preflightIgnoreFiles(cwd, io.readFile, io);
+
   // Update role in git config
   await io.exec("git", ["config", "--local", "arc.role", prompts.role]);
 
@@ -227,17 +226,8 @@ export async function runJoinReconfigure(
   // Write new skill files
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Update gitignore with new skill directories
-  const gitignorePath = join(cwd, ".gitignore");
-  const gitignoreEntries = [
-    ".arc/system/.internal/pristine.json",
-    ".arc/system/.internal/worktree-marker.json",
-    ".arc/user/*/",
-    ...skillGitignoreEntries(skillResult.targetDirs),
-  ];
-  await writeArcGitignoreBlock(
-    gitignorePath, gitignoreEntries, io.readFile, io.writeFile,
-  );
+  // Update the ignore blocks with the new skill directories
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile, io);
 
   // Persist new tool selection
   if (prompts.tools.length > 0) {
@@ -275,6 +265,7 @@ export function buildPostJoinMessage(result: JoinResult): string {
 
   lines.push(`Joined as ${result.role}.`);
   for (const message of result.hookSetupMessages ?? []) lines.push("", message);
+  if (result.zedSettingsMessage !== undefined) lines.push("", result.zedSettingsMessage);
 
   if (result.tools.length > 0) {
     lines.push("");

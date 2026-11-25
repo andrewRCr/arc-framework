@@ -23,7 +23,7 @@ export function createDecomposeHarness() {
     seedRenamedWorkUnit: async (from: string, to: string): Promise<StoreRecord> => {
       const primary = await seedStub(from);
       const renamed = await runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" },
-        { sourceSlug: from, targetSlug: to });
+        { operand: from, targetSlug: to });
       if (renamed.status !== "renamed") throw new Error(JSON.stringify(renamed));
       return lifecycleSuccess(await h.store.read({ reference: primary.reference }));
     },

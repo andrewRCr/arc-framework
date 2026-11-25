@@ -13,6 +13,7 @@ import {
   gitConfigUnset,
   gitMergeFile,
 } from "../../../src/lib/git/exec.js";
+import { createExecaGitExec } from "../../../src/lib/git/process-executor.js";
 import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 describe("captureGitIndexState", () => {
@@ -183,7 +184,7 @@ describe("gitConfigGet", () => {
 
   it("returns undefined when key does not exist", async () => {
     const mockExec = vi.fn().mockRejectedValue(makeGitProcessError({ command: "git",
-      args: ["config", "--get", "nonexistent.key"], exitCode: 1, stderr: "exit code 1" }));
+      args: ["config", "--get", "nonexistent.key"], exitCode: 1, stdout: "", stderr: "" }));
     const result = await gitConfigGet(mockExec, "nonexistent.key");
     expect(result).toBeUndefined();
   });
@@ -234,7 +235,7 @@ describe("gitConfigUnset", () => {
       .fn()
       .mockRejectedValueOnce(makeGitProcessError({ command: "git",
         args: ["config", "--get", "missing.key"], exitCode: 1,
-        stderr: "exit code 1" })); // --get fails (absent key)
+        stdout: "", stderr: "" })); // --get fails (absent key)
     await expect(
       gitConfigUnset(mockExec, "missing.key"),
     ).resolves.toBeUndefined();
@@ -263,7 +264,27 @@ describe("gitMergeFile", () => {
       "current.txt",
       "base.txt",
       "other.txt",
-    ]);
+    ], { preserveOutput: true });
+  });
+
+  it("keeps the merged content byte-exact through the production executor, final newline included", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "arc-merge-file-"));
+    try {
+      const files = {
+        current: "# Rules\n\nOriginal\n\n## Notes\n\nLocal rule.\n",
+        base: "# Rules\n\nOriginal\n\n## Notes\n\nNone yet.\n",
+        other: "# Rules\n\nUpdated\n\n## Notes\n\nNone yet.\n",
+      };
+      for (const [name, content] of Object.entries(files)) await writeFile(join(dir, name), content);
+
+      const result = await gitMergeFile(
+        createExecaGitExec(), join(dir, "current"), join(dir, "base"), join(dir, "other"),
+      );
+
+      expect(result).toEqual({ content: "# Rules\n\nUpdated\n\n## Notes\n\nLocal rule.\n", hasConflicts: false });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("returns conflict markers when merge has conflicts", async () => {

@@ -5,19 +5,26 @@
  * the driver no longer admits refuses before anything is spent; re-reading the lane names what it admits instead,
  * including when the lane is complete or the next pass needs an Owner decision. A lane's attempts belong to the
  * head they reviewed, so re-resolving at a new head while still carrying them refuses; concluded attempts
- * carry forward in the logical count, and dropping the attempts reaches the ordinary resolution. Hosted requests take
+ * carry forward in the logical count, and dropping the attempts reaches the ordinary resolution. A request carrying a
+ * review result whose head the checkout has moved past resolves to the driver's stale-target state, naming both heads,
+ * so the caller recomposes it at the current head. Hosted requests take
  * complete coverage; the local fix check re-examines an approved fix before another hosted complete pass.
  *
  * @module
  */
 
+import { ZodError } from "zod";
+
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import type { ChangeRequestTargetRef } from "../change-request.js";
 import { ReviewDriverAdmissionError } from "../policy/review-execution-admission.js";
 import { LocalReviewResultReaderError } from "../hosts/local/review-result-reader.js";
-import { ReviewPolicyCommandRequestSchema, ReviewResolveEnvelopeSchema, type ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
+import { ReviewPolicyCommandRequestSchema, ReviewResolveEnvelopeSchema, type ReviewPolicyCommandRequest,
+  type ReviewResolveEnvelope } from "../policy/review-policy-driver.js";
 
+import { ReviewPolicyContextError } from "./review-policy-context.js";
 import { ReviewTerminalAttemptInputError } from "../policy/review-policy-evidence.js";
+import { PendingHostedSettlementError, hostedSettlementRemedy } from "../hosted-settlement-stop.js";
 
 const RESOLVE_ARGV = ["arc", "review", "resolve", "-"] as const;
 
@@ -25,6 +32,38 @@ const ADMISSION_INVARIANT = "Review capacity is spent only on the action the sta
 
 const ATTEMPTS_INVARIANT = "A lane's attempts belong to the exact head they reviewed; attempts concluded at an "
   + "earlier head carry forward only as the logical attempt count.";
+
+type SourceSelectionProblem = "unconfigured" | "precedes-progress";
+
+/** A caller-owned forced-source choice rejected by the configured policy. */
+class ReviewSourceSelectionInputError extends Error {
+  readonly code = "invalid-input" as const;
+  readonly correction: string;
+
+  constructor(problem: SourceSelectionProblem, sourceId: string, cause: ZodError) {
+    super(problem === "unconfigured"
+      ? `Forced source '${sourceId}' must name a configured standard-review source.`
+      : `Forced standard-review source '${sourceId}' cannot precede recorded source progress.`, { cause });
+    this.name = "ReviewSourceSelectionInputError";
+    this.correction = problem === "unconfigured"
+      ? "Select a configured standard-review source, or configure the intended source, then retry the same request."
+      : "Attempts must contain only the current logical pass. Remove attempts from an earlier pass while preserving "
+        + "completedPasses; otherwise keep current-pass attempts and select a source at or after recorded progress. "
+        + "Then retry the repaired request.";
+  }
+}
+
+function sourceSelectionInputError(error: unknown, request: unknown): ReviewSourceSelectionInputError | null {
+  if (!(error instanceof ZodError) || error.issues.length !== 1) return null;
+  const issue = error.issues[0];
+  if (issue?.code !== "custom" || issue.path.length !== 2
+    || issue.path[0] !== "invocation" || issue.path[1] !== "sourceId") return null;
+  const problem: unknown = issue.params?.reviewPolicySourceSelection;
+  if (problem !== "unconfigured" && problem !== "precedes-progress") return null;
+  const parsed = ReviewPolicyCommandRequestSchema.safeParse(request);
+  if (!parsed.success || parsed.data.lane !== "standard" || parsed.data.invocation?.mode !== "force") return null;
+  return new ReviewSourceSelectionInputError(problem, parsed.data.invocation.sourceId, error);
+}
 
 /** A lane re-resolved at the checkout's current head while still carrying attempts reviewed at an earlier head. */
 export class StaleLaneAttemptsError extends Error {
@@ -150,6 +189,33 @@ function admissionCorrection(error: ReviewDriverAdmissionError, route: LaneReadR
   return `The driver answered ${error.state}/${error.nextAction}; ${route.action} and follow its typed state`;
 }
 
+/** A lane resolution requested for a head the checkout has since moved past. */
+export class StaleReviewTargetError extends Error {
+  readonly code = "invalid-input" as const;
+
+  constructor(readonly selectedTarget: ReviewPolicyCommandRequest["target"], readonly currentHeadSha: string) {
+    super(`the request targets head ${selectedTarget.headSha}, but the checkout is at head ${currentHeadSha}`);
+    this.name = "StaleReviewTargetError";
+  }
+}
+
+/**
+ * Report a request for a head the checkout has moved past as the driver's stale-target state.
+ *
+ * @param error - The failure the resolution raised; any other failure is rethrown unchanged.
+ * @param request - The parsed request whose lane the result names.
+ * @returns The `stale-target / select-scope` result naming the requested and the current head.
+ */
+export function staleReviewTargetResult(error: unknown, request: ReviewPolicyCommandRequest): ReviewResolveEnvelope {
+  if (!(error instanceof StaleReviewTargetError)) throw error;
+  return ReviewResolveEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-resolve",
+    diagnostics: [{ code: "stale-request-target",
+      message: `${error.message}; recompose the request at the current head and resolve again.` }],
+    state: "stale-target", nextAction: "select-scope",
+    payload: { lane: request.lane, consumedPass: false, selectedTarget: error.selectedTarget,
+      currentTarget: { ...error.selectedTarget, headSha: error.currentHeadSha } } });
+}
+
 /**
  * Name the replay for a lane re-resolved at a new head while carrying the earlier head's attempts.
  *
@@ -170,6 +236,9 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
 
 /** Return a corrected terminal input replay, or the existing stale-attempt recovery route. */
 export function reviewResolveRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+  if (error instanceof ReviewSourceSelectionInputError) return spineRemedy(error.message, error.correction, RESOLVE_ARGV, request);
+  if (error instanceof PendingHostedSettlementError) return hostedSettlementRemedy(error.pending, "re-resolving the lane");
+  if (error instanceof ReviewPolicyContextError) return spineRemedy(error.message, error.correction, RESOLVE_ARGV, request);
   if (error instanceof ReviewDriverAdmissionError && incrementalOverride(error)) return incrementalOverrideRemedy(request, RESOLVE_ARGV);
   if (error instanceof ReviewDriverAdmissionError && localSourceCorrection(error, false) !== null) {
     return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error, RESOLVE_ROUTE), RESOLVE_ARGV, request);
@@ -204,6 +273,8 @@ export function requireReviewSourceSelection(
  * @returns The refusal with caller recovery guidance, or the original failure unchanged.
  */
 export function reviewResolveError(error: unknown, request: unknown): unknown {
+  const selection = sourceSelectionInputError(error, request);
+  if (selection !== null) return selection;
   if (!(error instanceof LocalReviewResultReaderError) || error.code !== "missing-producer") return error;
   const parsed = ReviewPolicyCommandRequestSchema.safeParse(request);
   const attempt = parsed.success ? parsed.data.attempts.at(-1) : undefined;
@@ -223,6 +294,9 @@ export function reviewResolveError(error: unknown, request: unknown): unknown {
  * @returns The remedy re-resolving the exact policy request the driver evaluated; otherwise `undefined`.
  */
 export function localPrepareAdmissionRemedy(error: unknown, submittedRequest?: unknown): SpineRemedy | undefined {
+  if (error instanceof PendingHostedSettlementError) {
+    return hostedSettlementRemedy(error.pending, "preparing the local review again");
+  }
   if (!(error instanceof ReviewDriverAdmissionError)) return undefined;
   if (submittedRequest !== undefined && incrementalOverride(error)) {
     return incrementalOverrideRemedy(submittedRequest, ["arc", "review", "local", "prepare", "-"]);
@@ -243,6 +317,9 @@ export function localPrepareAdmissionRemedy(error: unknown, submittedRequest?: u
  * @returns The remedy re-reading the open change request's review status; otherwise `undefined`.
  */
 export function hostedRequestAdmissionRemedy(error: unknown): SpineRemedy | undefined {
+  if (error instanceof PendingHostedSettlementError) {
+    return hostedSettlementRemedy(error.pending, "requesting the hosted review again");
+  }
   if (error instanceof HostedIncrementalCoverageError) {
     return spineRemedy(HOSTED_COMPLETE_INVARIANT, "Run the local fix check through arc review local prepare; "
       + "re-read status for the next complete hosted pass", ["arc", "review", "status", "--target", JSON.stringify(error.statusTarget)]);

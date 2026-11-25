@@ -113,7 +113,7 @@ function remoteFacingStore(store: Store, prepare: (reference: RecordReference) =
   remote.read = async (input) => { await prepare(input.reference); return store.read(input); };
   remote.write = async (input) => {
     const result = await store.write(input);
-    if (result.status === "ok" && KIND_REGISTRY[input.reference.kind].inRepo.substrate === "personal") await store.sync();
+    if (result.status === "ok" && KIND_REGISTRY[input.reference.kind].inRepo.substrate === "personal") await store.push();
     return result;
   };
   return remote;

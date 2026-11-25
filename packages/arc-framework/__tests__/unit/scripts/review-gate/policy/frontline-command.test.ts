@@ -855,3 +855,13 @@ describe("frontline workflow command", () => {
     }])).toThrow();
   });
 });
+
+it("refuses an in-repository frontline decision reference and resolves after repair", async () => {
+  const deps = dependencies();
+  const request = { schemaVersion: 1, target, changeSet: routineCode,
+    invocation: { mode: "force", sourceId: "review-command" } };
+  await expect(resolveFrontlineCommand({ ...request, policyJudgment: { ceilingOverride: {
+    exhaustedPassCount: 0, nextPass: 1, decisionKey: `sha256:${"d".repeat(64)}` } } }, deps))
+    .rejects.toThrow(/native review context.*retry/iu);
+  expect(await resolveFrontlineCommand(request, deps)).toMatchObject({ state: "ready", nextAction: "run-frontline" });
+});

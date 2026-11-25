@@ -28,12 +28,15 @@ source to reach adopters.
 The harness-local skill directories (`.claude/skills/`, `.codex/skills/`, `.gemini/skills/`, and their siblings —
 all gitignored) are a third, derived surface. `arc update` regenerates them deterministically from the canonical
 `SKILL.md` sources under `system/.internal/skills/`, so adopters get a fresh copy on every update. This repo does
-not run `arc update` against itself, so its harness copies drift from the canonical sources in
-`.arc/system/.internal/skills/` and `packages/arc-framework/arc/system/.internal/skills/` as canonical content
-changes.
+not run `arc update` against itself. Instead, each skill in its `.claude/skills/` and `.codex/skills/` is a link to the
+same checkout's canonical skill in `.arc/system/.internal/skills/`, so a harness reads the current text.
 
-The consequence is self-hosting-only: on a fresh session, if a skill's behavior surprises you, suspect drift
-before suspecting the skill, and hand-sync by copying the canonical `SKILL.md` into the harness subdirectory.
+`npm run setup` makes those links in each harness folder that exists: it links a missing skill and replaces a copied
+skill folder or a link that resolves elsewhere. A linked checkout copies the primary's harness folders when it is
+created. After a canonical skill is added, or when a skill's behavior surprises you, run `node scripts/link-skills.mjs`
+in the primary. To repair other checkouts in the same run, name `.` for the primary alongside their paths, as in
+`node scripts/link-skills.mjs . <checkout>...`: once any path is given, the script links only the checkouts named.
+Never hand-copy a `SKILL.md` into a harness folder: the copy stops following the canonical text.
 
 ## Edit Flow Rules
 
@@ -73,13 +76,12 @@ tree by then. Use targeted edits from the start.
 
 ## Template Counterparts
 
-11 files in the package use a `.template.md` suffix, stripped at init time. Two contain
+10 files in the package use a `.template.md` suffix, stripped at init time. One contains
 `<!-- arc:if -->` conditionals resolved during rendering:
 
-| Template file                   | Conditions           |
-| ------------------------------- | -------------------- |
-| `session-init.template.md`      | team.mode (2 blocks) |
-| `02_define-project.template.md` | pm.mode (10 blocks)  |
+| Template file                   | Conditions          |
+| ------------------------------- | ------------------- |
+| `02_define-project.template.md` | pm.mode (10 blocks) |
 
 **Editing template files:** When editing a workflow that has a `.template.md` counterpart,
 edit the template in the package source. The `.arc/` rendered copy reflects this project's
@@ -133,12 +135,12 @@ Framework hook shipped to adopters.
 
 **Strategy documents** and **ADRs** serve complementary roles in ARC's documentation system:
 
-| Aspect     | Strategy documents                            | ADRs                                       |
-| ---------- | --------------------------------------------- | ------------------------------------------ |
-| Content    | Synthesized approaches to problem domains     | Specific decisions made at a point in time |
-| Style      | "How we think about X"                        | "What we chose for X situation"            |
-| Mutability | Updated as understanding evolves              | Immutable once accepted (supersession)     |
-| Origin     | Extracted from multiple experiences/decisions | Raw material that can inform strategies    |
+| Aspect     | Strategy documents                            | ADRs                                                      |
+| ---------- | --------------------------------------------- | --------------------------------------------------------- |
+| Content    | Synthesized approaches to problem domains     | Specific decisions made at a point in time                |
+| Style      | "How we think about X"                        | "What we chose for X situation"                           |
+| Mutability | Updated as understanding evolves              | Immutable once the accepting change merges (supersession) |
+| Origin     | Extracted from multiple experiences/decisions | Raw material that can inform strategies                   |
 
 Multiple related ADRs may reveal patterns worth extracting into a strategy. This separation
 operationalizes a widely-recognized principle: ADRs should remain point-in-time records, not
@@ -158,11 +160,11 @@ arc-in-git files are annotated explicitly.
 ### Framework files (must match between copies)
 
 Framework is the default classification: every resolved recipe path not listed in the classifier's Scaffolded or
-Configurable sets. The self-hosting configuration currently resolves 104 Framework files. Membership is derived from
+Configurable sets. The self-hosting configuration currently resolves 103 Framework files. Membership is derived from
 `init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
 `framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
-### Configurable files (project sections expected to differ) — 40
+### Configurable files (project sections expected to differ) — 44
 
 - `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
@@ -198,6 +200,10 @@ Configurable sets. The self-hosting configuration currently resolves 104 Framewo
 - `system/methods/review-response.md`
 - `system/methods/review-triage.md`
 - `system/methods/session-state.md`
+- `system/methods/read-load-set.md`
+- `system/methods/assess-start-readiness.md`
+- `system/methods/discover-next-work.md`
+- `system/methods/assess-parallel-fit.md`
 - `system/methods/source-grounding.md`
 - `system/methods/spec-review.md`
 - `system/methods/task-audit.md`
@@ -225,19 +231,17 @@ Configurable sets. The self-hosting configuration currently resolves 104 Framewo
   `system/workflows/arc/initial-setup/02_define-project.md` (Framework)
 - `system/workflows/arc/session-lifecycle/session-handoff.template.md` →
   `system/workflows/arc/session-lifecycle/session-handoff.md` (Framework)
-- `system/workflows/arc/session-lifecycle/session-init.template.md` →
-  `system/workflows/arc/session-lifecycle/session-init.md` (Framework)
 
 ### Summary
 
 | Classification | Count | Update Behavior                                       |
 | -------------- | ----- | ----------------------------------------------------- |
-| Framework      | 104   | Wholesale replaced. No conflicts.                     |
-| Configurable   | 40    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 103   | Wholesale replaced. No conflicts.                     |
+| Configurable   | 44    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Self-hosting installed files:** 148. **Template counterparts:** 11. Conditional recipe arms change installed
+**Self-hosting installed files:** 151. **Template counterparts:** 10. Conditional recipe arms change installed
 membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
 coordination strategy.
 

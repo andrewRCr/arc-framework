@@ -1,4 +1,5 @@
 /** Store-backed session slots sharing invocation-scoped identity and checkout evidence. */
+import type { LocusPorts } from "../../lib/work-unit/locus-ports.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
 import type { GitExec } from "../../lib/git/exec.js";
@@ -28,13 +29,13 @@ export interface StoreSessionContext {
   readSettings: () => Promise<Record<string, string>>;
   readUserInbox: (identity: string) => Promise<string>;
   projectId?: () => Promise<string>;
-  findHoldingCheckout?: (name: string) => Promise<string | null>;
+  findHoldingCheckout?: LocusPorts["findHoldingCheckout"];
 }
 /** Bind operational session slots without consulting code-remote reachability. */
 export function createStoreSessionProbes(context: StoreSessionContext) {
   const projectId = context.projectId ?? createProjectIdentityReader(context.store);
   const ports = createLocusPorts(context);
-  const findHoldingCheckout = context.findHoldingCheckout ?? (name => ports.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }));
+  const findHoldingCheckout = context.findHoldingCheckout ?? ports.findHoldingCheckout;
   let oracle: ReturnType<typeof deriveStoreInFlight> | undefined;
   let errands: ReturnType<typeof acquireStoreErrands> | undefined;
   let markerless: ReturnType<typeof findMarkerlessWorkUnitCheckouts> | undefined;
@@ -48,7 +49,7 @@ export function createStoreSessionProbes(context: StoreSessionContext) {
     getOracle,
     userReferenceReconcile: async (workUnit: string) => {
       if (context.identity === null) throw new Error("User-reference reconciliation requires an identity.");
-      const prepared = await createStoreUserReferencePrepareContext({ store: context.store, identity: context.identity, workUnit });
+      const prepared = await createStoreUserReferencePrepareContext({ cwd: context.cwd, store: context.store, identity: context.identity, workUnit });
       if (prepared.status === "refused") return projectUserReferenceSessionResult({ status: "unavailable", ref: "store",
         reason: "state-unavailable", condition: prepared.refusal.condition, remedy: prepared.refusal.remedy, remoteEvidence: "not-applicable" },
         { userInbox: { path: "", content: "" } });
@@ -80,7 +81,7 @@ export function createStoreSessionProbes(context: StoreSessionContext) {
     pausedWork: async () => {
       if (context.identity === null) return { items: [] };
       const oracle = await getOracle();
-      return runPausedWork({ store: context.store, identity: context.identity,
+      return runPausedWork({ cwd: context.cwd, store: context.store, identity: context.identity,
         reviewAfterDays: positive((await context.readSettings())["pause.review_after_days"], 14), findHoldingCheckout,
         markerlessCheckouts: await getMarkerless(), inFlightEntries: oracle.entries,
         localRefsAvailable: localRefsAvailable(oracle), projectId });

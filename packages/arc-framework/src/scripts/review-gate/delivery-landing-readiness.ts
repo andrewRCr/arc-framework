@@ -3,6 +3,7 @@
 import type { ChangeRequestTargetRef } from "./change-request.js";
 import { selectDischargedDeliveryMember } from "./status.js";
 import type { RoutedReviewObligation, ReviewStatusPort } from "./status.js";
+import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
 
 export type DeliveryLandingReviewReadiness =
   | { readonly status: "ready" }
@@ -28,7 +29,8 @@ export async function assessDeliveryLandingReviewReadiness(
   let observation: Awaited<ReturnType<ReviewStatusPort["observe"]>>;
   try {
     observation = await port.observe(target);
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return { status: "refused", reason: "status-unavailable" };
   }
   if (observation.actualHeadSha !== target.headSha) {
@@ -72,7 +74,8 @@ export function createDeliveryLandingSetReviewReadiness(
         target,
         memberStatus(target, observation.routedObligation),
       );
-    } catch {
+    } catch (error) {
+      rethrowNativeRefusal(error);
       return { status: "refused", reason: "status-unavailable" };
     }
   };

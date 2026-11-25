@@ -31,4 +31,4 @@ when ARC's use of the dependency is what makes them exploitable.
 ---
 
 [report]: https://github.com/andrewRCr/arc-framework/security/advisories/new
-[dependency-assessment]: .arc/reference/supplemental/analysis/analysis-dependency-audit-2026-10-15.md
+[dependency-assessment]: .arc/reference/supplemental/analysis/analysis-dependency-audit-2026-11-06.md

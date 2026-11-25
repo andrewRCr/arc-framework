@@ -78,7 +78,8 @@ async function lookupCommit(context: InRepoContext, input: Extract<LookupInput, 
   return { ...result, taskIds: expandTaskReference(attribution.tasks, ids) };
 }
 
-function contextAttribution(value: string): { slug: string; tasks: ParsedTaskReference | null } | undefined {
+/** Read a work-item footer and its task expression using the tracked lookup grammar. */
+export function contextAttribution(value: string): { slug: string; tasks: ParsedTaskReference | null } | undefined {
   const match = /^(tasks|meta|draft|spec)-([a-z0-9]+(?:-[a-z0-9]+)*)\.md \((.+)\)$/u.exec(value);
   const family = match?.[1]; const slug = match?.[2]; const payload = match?.[3];
   if (slug === undefined || payload === undefined) return undefined;

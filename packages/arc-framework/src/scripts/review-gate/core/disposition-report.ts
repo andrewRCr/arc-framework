@@ -28,10 +28,10 @@ interface ReportHeader {
   details: readonly string[];
 }
 
-/** The caller's reading of the review loop and the facts it rests on. */
+/** The caller's reading of the review loop, over one series of critical and major counts per complete pass, if any. */
 interface ReportTrend {
   reading: string;
-  lines: readonly string[];
+  series: readonly string[];
 }
 
 const TABLE_HEAD = ["| # | Grade | Finding | Action |", "|---|---|---|---|"];
@@ -102,10 +102,15 @@ function renderHeader({ title, details }: ReportHeader): string {
   return [`**${escapeReviewFindingDisplayText(title)}**`, ...details.map(escapeReviewFindingDisplayText)].join(" · ");
 }
 
-/** The reading leads, so the decision it points to reads first; its supporting facts follow as bullets. */
-function renderTrend({ reading, lines }: ReportTrend): string {
-  return [`**Trend:** ${escapeReviewFindingDisplayText(reading)}`,
-    ...lines.map(line => `- ${escapeReviewFindingDisplayText(line)}`)].join("\n");
+/**
+ * The reading leads, so where the review stands reads first; each complete pass's counts follow as a bullet, or one
+ * line when no look found a critical or major finding.
+ */
+function renderTrend({ reading, series }: ReportTrend): string {
+  const counts = series.length === 0 ? "No critical or major findings at any look."
+    : ["Critical and major findings, each full pass then its fix checks:",
+      ...series.map(line => `- ${escapeReviewFindingDisplayText(line)}`)].join("\n");
+  return [`**Trend:** ${escapeReviewFindingDisplayText(reading)}`, counts].join("\n\n");
 }
 
 /** One paragraph per descriptor field, so each scans on its own line once rendered. */
@@ -187,20 +192,23 @@ function reportEntries(input: DispositionReportInput): ReportEntry[] {
 
 /**
  * Render one labelled disposition set: header, a table when there is more than one finding, the finding sections,
- * then the trend and decisions that bear on what comes next, and the approval question last.
+ * then, set off from them, the trend and decisions that bear on what comes next, and the approval question last.
  *
  * @param input - Canonical set, exact producer findings, and optional presentation inputs.
  * @returns One standalone deterministic Markdown report, without the evidence block.
  */
 export function renderDispositionReport(input: DispositionReportInput): string {
   const entries = reportEntries(input);
+  const tail = [
+    ...(input.trend === undefined ? [] : [renderTrend(input.trend)]),
+    ...(input.includeDecisions === false ? [] : renderDecisions(entries, input.decisions)),
+    ...(input.closer === undefined ? [] : [escapeReviewFindingDisplayText(input.closer)]),
+  ];
   return [
     ...(input.header === undefined ? [] : [renderHeader(input.header)]),
     ...(entries.length < 2 ? [] : [[...TABLE_HEAD, ...entries.map(renderRow)].join("\n")]),
     entries.map(renderSection).join("\n\n---\n\n"),
-    ...(input.trend === undefined ? [] : [renderTrend(input.trend)]),
-    ...(input.includeDecisions === false ? [] : renderDecisions(entries, input.decisions)),
-    ...(input.closer === undefined ? [] : [escapeReviewFindingDisplayText(input.closer)]),
+    ...(tail.length === 0 ? [] : ["---", ...tail]),
   ].join("\n\n");
 }
 

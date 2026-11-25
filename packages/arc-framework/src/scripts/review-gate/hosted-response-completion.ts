@@ -3,6 +3,7 @@
 import type { LaneProgressState } from "./core/operation-state-schema.js";
 import type { ConfirmResponseHeadContinuation } from "./core/response-head-continuation.js";
 import type { LaneSubjectLineage } from "./core/lane-admission.js";
+import { assertHostedFixSettlementHeads } from "./hosted-settlement-heads.js";
 import { bindCompletedConditionalPassAuthorization } from "./lane-progress-conditional.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
@@ -22,34 +23,42 @@ function hostedSettlementComplete(attempt: LaneAttempt): boolean {
   return findingCount > 0 && attempt.hosted?.settledFindingIds.length === findingCount;
 }
 
+/** An approved hosted response's findings that still owe their reply on the host once the response is performed. */
+export interface PendingHostedSettlement {
+  readonly attemptId: string;
+  readonly dispositionSetId: string;
+  readonly findingIds: readonly string[];
+}
+
+/**
+ * Name the findings a performed hosted response still owes host settlement.
+ *
+ * A deferred or rejected thread normally settles before the fix changes the head; one missed there settles at the
+ * response's verified fix head, so it stays owed until it does.
+ *
+ * @returns The unsettled host findings, or null when none is owed or the response is not yet performed.
+ */
+export function pendingHostedSettlement(attempt: LaneAttempt): PendingHostedSettlement | null {
+  const hosted = attempt.hosted;
+  if (attempt.outcome !== "findings" || hosted === undefined || hosted.dispositionSetId === null
+    || attempt.responsePerformance?.dispositionSetId !== hosted.dispositionSetId) return null;
+  const settled = new Set(hosted.settledFindingIds);
+  const findingIds = (hosted.dispositionSetLineage.at(-1)?.findingActions ?? [])
+    .filter(({ findingId, channelAction }) => channelAction === "reply-and-resolve" && !settled.has(findingId))
+    .map(({ findingId }) => findingId);
+  return findingIds.length === 0 ? null
+    : { attemptId: attempt.attemptId, dispositionSetId: hosted.dispositionSetId, findingIds };
+}
+
 async function confirmHostedFixSettlementHeads(attempt: LaneAttempt, context?: ResponseContinuationContext): Promise<void> {
   const hosted = attempt.hosted;
   const performance = attempt.responsePerformance;
   if (hosted === undefined || performance === undefined) {
     throw new Error("hosted fix settlement lacks durable response-head evidence");
   }
-  const hostFixFindingIds = hosted.dispositionSetLineage.at(-1)?.findingActions
-    .filter(({ disposition, channelAction }) =>
-      disposition === "fix" && channelAction === "reply-and-resolve")
-    .map(({ findingId }) => findingId) ?? [];
-  const fixEvidence = hosted.settlementEvidence.filter((evidence) =>
-    evidence.dispositionSetId === hosted.dispositionSetId
-    && hostFixFindingIds.includes(evidence.findingId));
-  if (fixEvidence.length !== hostFixFindingIds.length) {
-    throw new Error("hosted fix settlement does not match durable response-head evidence");
-  }
-  for (const evidence of fixEvidence) {
-    if (evidence.channelAction !== "reply-and-resolve") {
-      throw new Error("hosted fix settlement does not match durable response-head evidence");
-    }
-    const head = evidence.fixTarget?.headSha;
-    if (head === undefined
-      || (head !== performance.producedHeadSha && !await context?.confirmResponseHeadContinuation?.({
-        repositoryId: context.repositoryId, lineage: context.lineage, producerId: attempt.attemptId,
-        dispositionSetId: performance.dispositionSetId, originatingHeadSha: performance.originatingHeadSha,
-        fromHeadSha: performance.producedHeadSha, toHeadSha: head,
-      }))) throw new Error("hosted fix settlement does not match durable response-head evidence");
-  }
+  await assertHostedFixSettlementHeads({ producerId: attempt.attemptId, dispositionSetId: hosted.dispositionSetId,
+    performance, findingActions: hosted.dispositionSetLineage.at(-1)?.findingActions ?? [],
+    settlementEvidence: hosted.settlementEvidence, context });
 }
 
 /**

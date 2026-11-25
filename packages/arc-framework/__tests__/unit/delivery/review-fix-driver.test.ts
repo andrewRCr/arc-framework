@@ -216,7 +216,7 @@ describe("delivery review-fix driver", () => {
     });
   });
 
-  it("carries a stale same-Candidate boundary internally before re-entering hosted status", async () => {
+  it.each([false, true])("carries a stale same-Candidate boundary before hosted status with native=%s", async native => {
     const project = vi.fn()
       .mockResolvedValueOnce({
         step: {
@@ -241,7 +241,7 @@ describe("delivery review-fix driver", () => {
         && input.candidateSubjectDigest === expectedDigest
       ? {
           status: "carried" as const,
-          path: ".arc/active/integration-boundary.json",
+          ...(native ? {} : { path: ".arc/active/integration-boundary.json" }),
           candidateId: `sha256:${"a".repeat(64)}`,
           stateRevision: 8,
         }
@@ -251,12 +251,12 @@ describe("delivery review-fix driver", () => {
       project,
       execute: vi.fn(),
       carryBoundary,
-    })).resolves.toEqual({
+    })).resolves.toStrictEqual({
       status: "review-status-required",
       nextAction: "respond-to-findings",
       effectLog: [{
         kind: "boundary-carry",
-        path: ".arc/active/integration-boundary.json",
+        ...(native ? {} : { path: ".arc/active/integration-boundary.json" }),
         candidateId: `sha256:${"a".repeat(64)}`,
         stateRevision: 8,
       }],

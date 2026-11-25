@@ -33,7 +33,8 @@
 
 ### `[ ]` **Coordinate vocabulary + decoupling with the new sibling `unit-scoped-review`**
 
-- _Coordination (cross-member, 2026-06-15):_ `unit-scoped-review` joined the cohort — it widens the _review_
+- _Routed from:_ cross-member cohort coordination, 2026-06-15.
+- _Coordination:_ `unit-scoped-review` joined the cohort — it widens the _review_
   increment to whole-WU scope (the limit of a leaf/phase/WU axis) and carries a hard `Depends On` to this WU.
 - _Vocabulary:_ it introduces "review increment = whole WU." The term reconsideration above must settle jointly
   with it — keep the rename cascade whole; don't land a canonical term here that the WU-scope case then bends.

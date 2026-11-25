@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import { checkWorktreeRemoval, clearMissingWorktreeRegistrations, removeWorktreeCheckout, releaseWorktreeCheckout, passingProjectionRemovalSlots, PROJECTION_LOCK_REASON } from "../../../src/lib/git/worktree-removal.js";
+import { describeRemovalRefusal, checkWorktreeRemoval, clearMissingWorktreeRegistrations, describeSpawnLock, removeWorktreeCheckout, releaseWorktreeCheckout, passingProjectionRemovalSlots, PROJECTION_LOCK_REASON } from "../../../src/lib/git/worktree-removal.js";
 
 function fixture(options: { present?: boolean; lock?: string | null; status?: string; fail?: string } = {}) {
   let registered = true;
@@ -31,6 +31,12 @@ describe("checkout removal authorization", () => {
   it("treats a bare Git lock as owned by its operator", async () => {
     expect(await checkWorktreeRemoval({ ...fixture({ lock: null }), disposition: "remove" })).toEqual({ kind: "refused", reason: "locked", path: "/checkout", lockReason: null, folderPresent: true });
   });
+  it("quotes spaces and apostrophes in a locked checkout repair", () => {
+    const path = "/checkout/owner's topic";
+    expect(describeRemovalRefusal({ kind: "refused", reason: "locked", path, lockReason: "operator", folderPresent: true })).toBe(
+      `worktree is locked (operator): ${path}; its owner may run git worktree unlock '/checkout/owner'"'"'s topic'`,
+    );
+  });
   it("reports missing folders and accepts projection locks", async () => {
     expect(await checkWorktreeRemoval({ ...fixture({ present: false }), disposition: "remove" })).toEqual({ kind: "missing" });
     expect(await checkWorktreeRemoval({ ...fixture({ lock: PROJECTION_LOCK_REASON }), disposition: "remove" })).toEqual({ kind: "removable" });
@@ -53,6 +59,16 @@ describe("checkout removal authorization", () => {
 });
 
 describe("physical removal", () => {
+  it("preserves a literal path in a failed relock's repair command", async () => {
+    const checkoutPath = "/tmp/alice's checkout";
+    const exec: GitExec = async (_command, args) => {
+      if (args[1] === "list") return { stdout: `worktree ${checkoutPath}\0HEAD abc\0branch refs/heads/topic\0locked ${PROJECTION_LOCK_REASON}\0\0` };
+      if (args[1] === "remove" || args[1] === "lock") throw new Error("permission denied");
+      return { stdout: "" };
+    };
+    const result = await removeWorktreeCheckout({ exec, checkoutPath, primaryWorktreePath: "/tmp", folderExists: async () => true });
+    expect(result).toMatchObject({ kind: "failed", detail: expect.stringContaining("'/tmp/alice'\"'\"'s checkout'") });
+  });
   it("persists and removes a clean checkout", async () => {
     const f = fixture(); expect(await removeWorktreeCheckout(f)).toEqual({ kind: "removed" }); expect(f.state()).toEqual({ registered: false, persisted: true, unlocked: false });
   });
@@ -64,6 +80,18 @@ describe("physical removal", () => {
   });
   it.each(["persist", "unlock", "remove"])("reports a failure at %s", async (fail) => {
     expect(await removeWorktreeCheckout(fixture({ fail, lock: PROJECTION_LOCK_REASON }))).toMatchObject({ kind: "failed", step: fail });
+  });
+});
+
+describe("spawn lock recovery commands", () => {
+  it("quotes a literal checkout path when the spawn lock fails", () => {
+    expect(describeSpawnLock("/tmp/alice's checkout", { kind: "failed", detail: "permission denied" }))
+      .toContain("'/tmp/alice'\"'\"'s checkout'");
+  });
+
+  it("quotes a literal checkout path when another tool owns its lock", () => {
+    expect(describeSpawnLock("/tmp/alice's checkout", { kind: "kept", lockReason: "owner" }))
+      .toContain("git worktree unlock '/tmp/alice'\"'\"'s checkout'");
   });
 });
 
@@ -79,7 +107,7 @@ describe("stale registration clearing", () => {
     expect(await clearMissingWorktreeRegistrations({ ...f, branch: "topic" })).toEqual({ kind: "clear", prunedPaths: ["/checkout"] });
     expect(f.state().registered).toBe(false);
     const locked = fixture({ present: false, lock: "operator" });
-    expect(await clearMissingWorktreeRegistrations({ ...locked, branch: "topic" })).toMatchObject({ kind: "refused", reason: expect.stringContaining("git worktree unlock /checkout") });
+    expect(await clearMissingWorktreeRegistrations({ ...locked, branch: "topic" })).toMatchObject({ kind: "refused", reason: expect.stringContaining("git worktree unlock '/checkout'") });
     expect(locked.state().registered).toBe(true);
   });
 });

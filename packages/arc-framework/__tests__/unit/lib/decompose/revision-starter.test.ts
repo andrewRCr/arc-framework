@@ -95,14 +95,14 @@ it.each(["meta", "draft"] as const)("preserves the %s source-conflict refusal an
   const original = lifecycleSuccess(await h.store.read({ reference }));
   const remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const other = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   for (const [store, text] of [[h.store, "Local edit"], [other, "Remote edit"]] as const) {
     const record = lifecycleSuccess(await store.read({ reference }));
     const content = role === "meta" ? writeMetaNextAction(record.content, text) : record.content.replace("Owned work.", text);
     lifecycleSuccess(await store.write({ ...recordPut(record, { content }), provenance: { verb: "write-back", lifecycleAction: "edit" } }));
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const before = lifecycleSuccess(await h.store.version());
@@ -134,7 +134,7 @@ it.each(["consumer", "provider"])("carries a renamed %s by stable edge identity 
   const h = await createDecomposeTerminalFixture({ provider: true });
   const target = source === "consumer" ? "follower" : "upstream";
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: source, targetSlug: target })).toMatchObject({ status: "renamed" });
+    { operand: source, targetSlug: target })).toMatchObject({ status: "renamed" });
   const report = await revision(h.ctx);
   expect(report).toMatchObject({ status: "carried", map: { authoring: h.map.authoring } });
   if (report.status !== "carried") throw new Error(JSON.stringify(report));
@@ -182,7 +182,7 @@ it("includes an unrelated generation that reused a gone member's slug in the fre
 it("reports the renamed origin before its changed artifact identities", async () => {
   const h = await createDecomposeTerminalFixture();
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "origin", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
+    { operand: "origin", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
   expect(await revision(h.ctx, "delta")).toMatchObject({ status: "reauthor", reason: "source-identity", locus: "machine.origin",
     starter: { machine: { origin: { slug: "delta", uid: h.map.machine.origin.uid } } }, storedAuthoring: h.map.authoring });
 });

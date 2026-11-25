@@ -13,6 +13,7 @@ import { groomClaimTransform, housekeepClaimTransform } from "../../src/lib/erra
 import { MAX_LOCUS_JSON_BYTES } from "../../src/lib/locus/schema/index.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { setupMultiClone } from "../helpers/multi-clone.js";
+import { mutationOf } from "../helpers/store/suite-tools.js";
 import type { StoreResult } from "../../src/lib/store/refusal.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 import { mkdir, writeFile, unlink, rename } from "node:fs/promises";
@@ -237,7 +238,7 @@ describe("transient Store", () => {
     const h = await fixture();
     const betaReference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "beta" }));
     const betaBytes = serializeTransientIdentityRecord({ ...record(), slug: SlugSchema.parse("beta"), branch: "chore/beta" });
-    const writes = [put(), { ...put(betaBytes), reference: betaReference }];
+    const writes = [put(), { ...put(betaBytes), reference: betaReference }].map(mutationOf);
     const created = ok(await h.store.batch({ writes, provenance }));
     expect(created.writes.map((write) => write.reference)).toEqual([reference, betaReference]);
     const before = await readRefTip(h.io.exec, errandsRef("andrew"));

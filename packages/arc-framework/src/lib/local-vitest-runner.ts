@@ -4,9 +4,12 @@ import { parseCLI, type TestSpecification } from "vitest/node";
 
 import type { GitExec } from "./git/exec.js";
 import type { LocalHeavyTestTier } from "./local-test-admission.js";
-import { discoverVitestSelection } from "./vitest-discovery.js";
+import type { ReachDeclaration, ReachSelection } from "./vitest-reach.js";
+import { discoverVitestSelection, EmptyVitestSelectionError } from "./vitest-discovery.js";
 import { executeVitestSelection } from "./vitest-execution.js";
-import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { checkVitestCompletion } from "./vitest-completion.js";
+import { resolve, sep } from "node:path";
 
 /**
  * Integration suites that read this repository's own tracked content rather than temporary fixtures, so a
@@ -14,7 +17,6 @@ import { resolve } from "node:path";
  */
 export const ARC_CONTRACT_SUITES = [
   "framework-sync",
-  "live-transition-records",
   "pr-lifecycle",
   "review-gate-workflows",
   "ci-check-plumbing",
@@ -34,6 +36,15 @@ export const ARC_CONTRACT_SUITES = [
 ] as const;
 
 /**
+ * Reach declarations, package-relative, whose suites run by reach in their own check rather than in the tiers that
+ * would otherwise run them whole.
+ */
+export const REACH_DECLARATIONS = ["__tests__/reach/store-suites.json"] as const;
+
+/** Names the form of a portability run; a pull request's leaves its store suites to their own check. */
+const PORTABILITY_FORM_VARIABLE = "ARC_PORTABILITY_FORM";
+
+/**
  * Exit status of a related-tests run that no configured unit test reaches, so a caller can tell missing evidence
  * from a failing test. pytest exits with the same status when it collects no tests.
  */
@@ -50,15 +61,140 @@ export async function runLocalVitestTier(
   tier: LocalHeavyTestTier,
   forwardedArguments: string[],
 ): Promise<void> {
+  const packageRoot = resolve(import.meta.dirname, "../..");
   const { filter, options } = parseCLI([
     "vitest",
     tier === "changed" ? "related" : "run",
-    ...localVitestTierArguments(tier),
+    ...await localVitestTierRunArguments(packageRoot, tier, process.env),
     ...forwardedArguments,
   ]);
-  const selection = await discoverVitestSelection(filter, options);
-  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier,
-    packageRoot: resolve(import.meta.dirname, "../..") });
+  const guardPath = unitChangeGuard(tier, options.related);
+  const originalCoverage = new Set<string>();
+  const selection = await discoverVitestSelection(filter, options, guardPath === undefined ? undefined
+    : async (specifications, controller) => {
+      for (const specification of specifications) originalCoverage.add(specification.taskId);
+      const guard = await controller.globTestSpecifications([guardPath]);
+      return [...specifications, ...guard.filter(({ taskId, moduleId }) =>
+        resolve(moduleId) === guardPath && !originalCoverage.has(taskId))];
+    });
+  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier, packageRoot }, () => {
+    if (guardPath === undefined) return;
+    if (!selection.specifications.some(({ taskId }) => originalCoverage.has(taskId))) {
+      throw new EmptyVitestSelectionError();
+    }
+    checkVitestCompletion({ unhandledErrors: selection.controller.state.getUnhandledErrors(),
+      testModules: selection.controller.state.getTestModules()
+        .filter((module) => originalCoverage.has(module.toTestSpecification().taskId)),
+    }, selection.controller.logger);
+  });
+}
+
+function unitChangeGuard(tier: LocalHeavyTestTier, related: string | string[] | undefined): string | undefined {
+  if (tier !== "changed" || !Array.isArray(related)) return undefined;
+  const unitDirectory = resolve(import.meta.dirname, "../../__tests__/unit");
+  return related.some((path) => resolve(path).startsWith(`${unitDirectory}${sep}`))
+    ? resolve(unitDirectory, "isolated-mock-files.guard.test.ts") : undefined;
+}
+
+/**
+ * Compose a tier's native selectors as the tier runs: its project membership and portability boundaries, less the
+ * suites that run by reach in their own check.
+ * @param packageRoot - Package root holding the reach declarations
+ * @param tier - Logical test tier
+ * @param env - Environment naming the portability run's form, its checked base and tree, and its ask
+ * @param git - Git boundary a portability run reads its change through
+ * @returns Native Vitest selectors and run-mode flags
+ */
+export async function localVitestTierRunArguments(packageRoot: string, tier: LocalHeavyTestTier,
+  env: Readonly<Record<string, string | undefined>>, git?: GitExec): Promise<string[]> {
+  const declarations = await readReachDeclarations(packageRoot, tier, env);
+  const exclusions = reachSuiteExclusions(tier, env, declarations.flatMap(packageSuites));
+  return [...localVitestTierArguments(tier),
+    ...(exclusions.length > 0 || tier !== "portability" ? exclusions
+      : await unreachedPortabilityExclusions(packageRoot, declarations, env, git))];
+}
+
+/**
+ * Leave the suites that run by reach out of the tiers that would run them whole: the integration tier, the lane that
+ * contains it, and a pull request's portability run.
+ * @param tier - Logical package-script tier
+ * @param env - The run's environment, which names a portability run's form
+ * @param suites - Package-relative suite globs of every reach declaration
+ * @returns Native exclusion arguments
+ */
+export function reachSuiteExclusions(tier: LocalHeavyTestTier, env: Readonly<Record<string, string | undefined>>,
+  suites: readonly string[]): string[] {
+  const excluded = tier === "integration" || tier === "lane"
+    || (tier === "portability" && env[PORTABILITY_FORM_VARIABLE] === "pull-request");
+  return excluded ? suites.flatMap((suite) => ["--exclude", suite]) : [];
+}
+
+/**
+ * Whether a portability run other than a pull request's takes a declaration's suites. It takes all of them when it runs
+ * in full or every suite is asked for, and otherwise when its change reaches any of them; it takes none when the change
+ * reaches none.
+ * @param selection - The declaration's reach selection for the run
+ * @returns Whether the run keeps the declaration's suites
+ */
+export function portabilityTakesReachSuites(selection: Pick<ReachSelection, "form" | "suites">): boolean {
+  return selection.form !== "reach" || selection.suites.length > 0;
+}
+
+/**
+ * Exclude each declaration's suites from a portability run other than a pull request's when its change reaches none
+ * of them, reporting each selection it computes. A run with no base, or one asking for a full or every-suite run,
+ * takes them all without reading the change.
+ * @param packageRoot - Package root holding the reach declarations
+ * @param declarations - The reach declarations and their package-relative paths
+ * @param env - Environment carrying the checked base and tree and the declaration's ask
+ * @param git - Git boundary the change is read through; the process's own when absent
+ * @returns Native exclusion arguments
+ */
+export async function unreachedPortabilityExclusions(packageRoot: string,
+  declarations: readonly LocatedReachDeclaration[], env: Readonly<Record<string, string | undefined>>,
+  git?: GitExec): Promise<string[]> {
+  const { resolveReachForm } = await import("./vitest-reach.js");
+  const { describeReachSelection, selectReachCheck } = await import("./reach-check.js");
+  const exclusions: string[] = [];
+  for (const located of declarations) {
+    const { declaration, path } = located;
+    if (resolveReachForm(env[declaration.ask], { hasBase: Boolean(env.ARC_CHECK_BASE), selectionChanged: false })
+      !== "reach") continue;
+    const gitBoundary = git ?? (await import("./io-context.js")).gitExec;
+    const checkoutRoot = resolve(packageRoot, ...declaration.package.split("/").map(() => ".."));
+    // A run that takes the suites takes all of them, so reaching one that runs only in a full run counts too.
+    const selection = await selectReachCheck({ ...declaration, fullOnly: [] }, { checkoutRoot,
+      declarationPath: `${declaration.package}/${path}`, env: { ...env }, git: gitBoundary });
+    const takes = portabilityTakesReachSuites(selection);
+    process.stdout.write(`${describeReachSelection(declaration, selection)[0]}; this run ${takes
+      ? "takes all of them" : "leaves them out"}\n`);
+    if (!takes) exclusions.push(...packageSuites(located).flatMap((suite) => ["--exclude", suite]));
+  }
+  return exclusions;
+}
+
+/** A reach declaration and its package-relative path. */
+export interface LocatedReachDeclaration { readonly path: string; readonly declaration: ReachDeclaration }
+
+async function readReachDeclarations(packageRoot: string, tier: LocalHeavyTestTier,
+  env: Readonly<Record<string, string | undefined>>): Promise<LocatedReachDeclaration[]> {
+  const leaves = reachSuiteExclusions(tier, env, ["any"]).length > 0;
+  if (!leaves && tier !== "portability") return [];
+  const { ReachDeclarationSchema } = await import("./vitest-reach.js");
+  const declarations: LocatedReachDeclaration[] = [];
+  for (const path of REACH_DECLARATIONS) {
+    const declaration = ReachDeclarationSchema.parse(JSON.parse(await readFile(resolve(packageRoot, path), "utf8")));
+    declarations.push({ path, declaration });
+  }
+  return declarations;
+}
+
+function packageSuites({ declaration }: LocatedReachDeclaration): string[] {
+  const prefix = `${declaration.package}/`;
+  return declaration.suites.map((suite) => {
+    if (!suite.startsWith(prefix)) throw new Error(`Reach suite ${suite} lies outside its package ${declaration.package}`);
+    return suite.slice(prefix.length);
+  });
 }
 
 /**
@@ -125,6 +261,125 @@ export function selectLocalE2eSpecifications(
     specifications: specifications.filter((specification) => named.has(resolve(specification.moduleId))) };
 }
 
+/** Filename filters the portability tier runs on each supported platform. */
+const PORTABILITY_SUITES = [
+  "unit/paths.test.ts",
+  "unit/git/linked-worktree.test.ts",
+  "check-runner-home.e2e.test.ts",
+  "fs.test.ts",
+  "build-context.test.ts",
+  "build-cancellation.test.ts",
+  "build-generation-lifetime.test.ts",
+  "build-coordinator.test.ts",
+  "build-publication.test.ts",
+  "build-inventory.test.ts",
+  "build-ownership.test.ts",
+  "ci-build-transfer.test.ts",
+  "ci-build-recovery.test.ts",
+  "local-test-admission.test.ts",
+  "worktree-marker.test.ts",
+  "atomic-graduation.test.ts",
+  "commit-message-retry-store.test.ts",
+  "advisory-lock",
+  "store/projection/",
+  "user-sync-notes-lock",
+  "ref-tree-cas",
+  "state-ref-race.e2e",
+  "git-executor",
+  "raw-git-files.test.ts",
+  "check-source-git.test.ts",
+  "delivery-transfer.e2e",
+  "store-ref-bursts.test.ts",
+  "store-ref-projection-bursts-",
+  "store-ref-transaction-deadline.test.ts",
+  "store-ref-directory.test.ts",
+  "store-ref-write-batching.test.ts",
+  "store-ref-reader-lifetime.test.ts",
+  "store-ref-archive-acquisition.test.ts",
+  "store-ref-named-acquisition.test.ts",
+  "store-ref-publication.test.ts",
+  "git-batch-reader.test.ts",
+  "store-ref-separate-conformance-records-",
+  "store-ref-separate-conformance-reads-",
+  "store-ref-separate-conformance-sync-",
+  "store-ref-timing-isolation.test.ts",
+  "checks/runner/",
+  "lib/checks/result.test.ts",
+  "lib/checks/batching.test.ts",
+  "lib/checks/forecast.test.ts",
+  "lib/checks/key.test.ts",
+  "handlers/check/run-output",
+  "check-runner-shard",
+  "heavy-first-sequencer.test.ts",
+  "duration-artifacts.test.ts",
+  "duration-layout-workflow.test.ts",
+  "vitest-discovery.test.ts",
+  "vitest-completion",
+  "vitest-mixed-shard.test.ts",
+  "vitest-native-writers.test.ts",
+  "vitest-native-closing.test.ts",
+  "vitest-runtime-ownership.test.ts",
+  "vitest-shard-",
+  "check-runner-session.test.ts",
+  "check-runner-conformance-wire.test.ts",
+  "check-runner-conformance-groups.test.ts",
+  "check-runner-execution-run.test.ts",
+  "check-runner-platform-status.test.ts",
+  "check-runner-platform-spelling.test.ts",
+  "check-runner-platform.e2e.test.ts",
+  "check-symlink-cwd.test.ts",
+  "check-process.test.ts",
+  "environment-inputs.test.ts",
+  "repository-environment.test.ts",
+  "ci-check-runner.test.ts",
+  "check-execution.e2e.test.ts",
+  // Retirement, teardown, park and abandon, named by file: a suite joins once it passes on Windows and macOS.
+  "unit/work-unit/verbs/teardown.test.ts",
+  "unit/work-unit/verbs/park-resume.test.ts",
+  "unit/work-unit/verbs/abandon.test.ts",
+  "unit/session-init/stale-worktree-sweep.test.ts",
+  "integration/work-unit/park-planning-landing.test.ts",
+  "integration/teardown.test.ts",
+  "integration/retirement-store-compositions.test.ts",
+  "integration/retirement-store-slots.test.ts",
+  "integration/retirement-store-release.test.ts",
+  "integration/errand-projection-retirement.test.ts",
+  "integration/status-projection-removal.test.ts",
+  "integration/store-unbound-cleanup.test.ts",
+  // Checkout roles, selection and release.
+  "integration/locus-dormant-foundation-contract.test.ts",
+  "integration/locus-methodology-contracts.test.ts",
+  "integration/locus-retirement-contract.test.ts",
+  "integration/locus-sibling-delivery-in-repo.test.ts",
+  "integration/locus-subject-native-review.test.ts",
+  "unit/locus/allocator.test.ts",
+  "unit/locus/derived-lifecycle-evidence.test.ts",
+  "unit/locus/derived-roster.test.ts",
+  "unit/locus/derived-store-evidence.test.ts",
+  "unit/locus/derived-task-conflicts.test.ts",
+  "unit/locus/lifecycle-ports-uid.test.ts",
+  "unit/locus/marker-occupancy.test.ts",
+  "unit/locus/marker-origin-evidence.test.ts",
+  "unit/locus/markerless-work-units.test.ts",
+  "unit/locus/occupancy-marker.test.ts",
+  "unit/locus/origin-binding.test.ts",
+  "unit/locus/primary-safety.test.ts",
+  "unit/locus/provisioning.test.ts",
+  "unit/locus/release.test.ts",
+  "unit/locus/role-authority-boundary.test.ts",
+  "unit/locus/role-corroboration.test.ts",
+  "unit/locus/role-derivation.test.ts",
+  "unit/locus/session-guidance.test.ts",
+  "unit/locus/store-identities-missed.test.ts",
+  "unit/locus/store-work-unit-claims.test.ts",
+  "unit/locus/store-work-unit-terminal.test.ts",
+  "unit/locus/terminal-occupancy-admission.test.ts",
+  "unit/locus/unbound-marker.test.ts",
+  "unit/locus/user-sync-exclusion.test.ts",
+  // Errand provisioning through the anchored shell.
+  "e2e/errand-open-provisioning-recovery.e2e.test.ts",
+];
+
 /**
  * Select configured project membership and portability boundaries for a local tier.
  * @param tier - Validated logical test tier
@@ -146,36 +401,21 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "unit-mocks",
         "--project",
         "integration",
+        "--project",
+        "integration-timing",
+        "--project",
+        "integration-bursts",
       ];
     case "integration":
-      return ["--project", "integration"];
+    case "store":
+      return ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"];
     case "arc-contracts":
       return ["--project", "integration", ...ARC_CONTRACT_SUITES];
     case "e2e":
     case "e2e-focused":
       return ["--project", "e2e"];
     case "portability":
-      return [
-        "fs.test.ts",
-        "build-context.test.ts",
-        "build-cancellation.test.ts",
-        "build-generation-lifetime.test.ts",
-        "build-coordinator.test.ts",
-        "build-publication.test.ts",
-        "build-inventory.test.ts",
-        "build-ownership.test.ts",
-        "ci-build-transfer.test.ts",
-        "ci-build-recovery.test.ts",
-        "local-test-admission.test.ts",
-        "worktree-marker.test.ts",
-        "commit-message-retry-store.test.ts",
-        "advisory-lock",
-        "user-sync-notes-lock",
-        "ref-tree-cas",
-        "state-ref-race.e2e",
-        "git-executor",
-        "delivery-transfer.e2e",
-      ];
+      return [...PORTABILITY_SUITES];
     case "portability-macos":
       return ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"];
   }

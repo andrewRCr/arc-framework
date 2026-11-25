@@ -253,7 +253,7 @@ describe("checkout subject projection", () => {
       candidateSubjectDigest: subjectDigest,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
     files.set(

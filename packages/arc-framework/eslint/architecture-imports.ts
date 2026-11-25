@@ -46,6 +46,13 @@ export function architectureRuleFor(predicate: ArchitecturePredicate): string {
  */
 const RAW_STATE_MODULES = [
   "lib/store/kinds/registrations.ts",
+  "lib/store/kinds/in-repo-registrations.ts",
+  "lib/store/kinds/review/outcome/registration.ts",
+  "lib/store/kinds/review/decision/registration.ts",
+  "lib/store/kinds/review/evidence/registration.ts",
+  "lib/store/kinds/review/adversarial-pass/registration.ts",
+  "lib/store/kinds/review/candidate/registration.ts",
+  "lib/store/kinds/review/integration-boundary/registration.ts",
   "lib/store/kinds/entry-registration.ts",
   "lib/store/kinds/meta/registration.ts",
   "lib/store/kinds/errand-record/registration.ts",
@@ -62,6 +69,7 @@ const RAW_STATE_MODULES = [
   "lib/git/ref-tree.ts",
   "lib/errand/ref-tree.ts",
   "lib/work-unit/candidate-record-store.ts",
+  "lib/work-unit/submission-boundary-store.ts",
   "lib/work-unit/transition-record-store.ts",
   "lib/work-unit/git-transition-record-enumeration.ts",
   "lib/errand/identity-snapshot.ts",
@@ -80,7 +88,7 @@ const SURFACE_NAME = /USER-INBOX|ATOMIC-INBOX|ROADMAP|STATUS\.USER|\.arc\/active
  * roots that hold them. System, configuration, project-document, and personal addresses stay outside the ratchet.
  */
 const WORK_UNIT_ADDRESS_KINDS: ReadonlySet<string> = new Set([
-  "work-unit-artifact", "work-unit-container", "placement-root", "cohort-document",
+  "work-unit-artifact", "work-unit-container", "work-unit-companion", "work-unit-spec-part", "work-unit-inbound", "errand-description", "placement-root", "cohort-document", "cohort-copy",
   "candidate-record", "integration-boundary-record", "transition-record",
 ]);
 
@@ -338,14 +346,15 @@ function storeViolations(
   for (const { node, specifier } of storeReferences(source)) {
     if (!specifier.startsWith(".")) continue;
     const target = resolve(dirname(filename), specifier.replace(/\.js$/u, ".ts")).replaceAll("\\", "/");
+    const privateImplementation = /\/lib\/store\/(?:in-repo|ref)\//u.test(target);
     if (predicates.includes("store-production")) {
-      if (target.includes("/lib/store/in-repo/") && !file.includes("/lib/store/")) {
+      if (privateImplementation && !file.includes("/lib/store/")) {
         violations.push({ node, predicate: "store-production", reason: "private store implementation outside store" });
-      } else if (target.endsWith("/store/in-repo/backend.ts") && resolve(filename) !== join(sourceRoot, "lib/store/create.ts")) {
+      } else if (/\/store\/(?:in-repo|ref)\/backend\.ts$/u.test(target) && resolve(filename) !== join(sourceRoot, "lib/store/create.ts")) {
         violations.push({ node, predicate: "store-production", reason: "store implementation entry outside public factory" });
       }
     }
-    if (predicates.includes("store-tests") && target.includes("/lib/store/in-repo/")) {
+    if (predicates.includes("store-tests") && privateImplementation) {
       violations.push({ node, predicate: "store-tests", reason: "test imports private store implementation" });
     }
   }

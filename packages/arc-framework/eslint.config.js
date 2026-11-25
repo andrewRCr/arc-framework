@@ -6,6 +6,8 @@ import tseslint from "typescript-eslint";
 import { composeArchitectureBans, TYPESCRIPT_SCOPE } from "./eslint/architecture-config.ts";
 import { ARCHITECTURE_RULES, createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
 import { moduleDocCommentRule } from "./eslint/module-doc-comment.ts";
+import { refCompletedFailureRule } from "./eslint/ref-completed-failure.ts";
+import { projectionRemovalBindingRule } from "./eslint/projection-removal-binding.ts";
 
 const src = (path) => `src/${path}`;
 const subtree = (path) => `src/${path}/${TYPESCRIPT_SCOPE}`;
@@ -34,11 +36,27 @@ const schemaOwners = ["lib/change-facts.schema.ts", "scripts/review-gate/core/ga
 const viewerFiles = ["lib/view-artifact.ts", "lib/view-renderer.ts", "lib/view/types.ts", "lib/view/format.ts", "lib/view/clock.ts"].map(src);
 const validationBan = restrictedReference("(?:^|/)validation\\.js$");
 const architectureBans = [
+  {
+    files: [subtree("lib/store/projection")],
+    patterns: [referencePattern("(?:^|/)user-surface-migration[.]js$")],
+    syntax: [
+      ...referenceSyntax('/(?:user-surfaces|user-surface-migration)[.]js$/'),
+      ...["ImportDefaultSpecifier", "ImportNamespaceSpecifier",
+        'ImportSpecifier:not([imported.name="IDENTITY_STATUS_FILENAME"]):not([imported.value="IDENTITY_STATUS_FILENAME"])']
+        .map((specifier) => ({ selector: `ImportDeclaration[source.value=/user-surfaces[.]js$/] > ${specifier}`,
+          message: "Keep projected personal files checkout-local" })),
+      ...["ExportAllDeclaration", "ExportNamedDeclaration"].map((declaration) => ({
+        selector: `${declaration}[source.value=/(?:user-surfaces|user-surface-migration)[.]js$/]`,
+        message: "Keep projected personal files checkout-local",
+      })),
+    ],
+  },
   { files: [`src/${TYPESCRIPT_SCOPE}`],
     ignores: [src("lib/terminal.ts"), src("lib/command-input/prompt-renderer.ts")], paths: ["@clack/prompts"],
     syntax: referenceSyntax('/^@clack\\/prompts$/'), predicates: ["clack"] },
   { files: [`src/lib/kernel/${TYPESCRIPT_SCOPE}`], predicates: ["kernel"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-production", "store-reference"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [subtree("scripts/cutover-window")], predicates: ["store-production"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-reference"] },
   { files: [`__tests__/${TYPESCRIPT_SCOPE}`], predicates: ["store-tests"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["layout-private"] },
   { files: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["layout-dependencies"] },
@@ -46,8 +64,9 @@ const architectureBans = [
   { files: [`src/lib/store/concurrency/${TYPESCRIPT_SCOPE}`], predicates: ["store-concurrency"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: ["src/lib/git/identity.ts"], predicates: ["configured-identity"] },
   // Ratchets: today's violations are recorded in eslint-suppressions.json as a floor, drained to zero by rerouting.
-  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["surface-names", "work-unit-paths"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [subtree("scripts/cutover-window")], predicates: ["store-raw-state"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`, src("lib/store/registry.ts"), subtree("scripts/cutover-window")], predicates: ["surface-names"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`, subtree("scripts/cutover-window")], predicates: ["work-unit-paths"] },
   {
     files: [src("lib/kernel/canonical/canonical-json.ts")],
     ...restrictedReference("^zod(?:/.*)?$"),
@@ -65,7 +84,7 @@ const architectureBans = [
   {
     files: [src("lib/active/meta-reader.ts")],
     syntax: ["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration"].map((node) => ({
-      selector: `${node}[source.value=/\\/store\\//]:not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])`,
+      selector: `${node}[source.value=/\\/store\\//]:not([importKind="type"]):not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])`,
       message: "Keep the store delegate dynamic",
     })),
   },
@@ -134,8 +153,8 @@ const architectureBans = [
   },
   {
     files: [src("commands/active/status.ts")],
-    paths: ["../../lib/config/status-reader.js", "../../lib/work-unit/submission-boundary-store.js",
-      "../../lib/work-unit/candidate-record-store.js", "../../lib/work-unit/candidate-attestation.js",
+    paths: ["../../lib/store/active-review-access.js", "../../lib/config/status-reader.js", "../../lib/store/kinds/review/integration-boundary/access.js",
+      "../../lib/store/kinds/review/candidate/access.js", "../../lib/work-unit/candidate-attestation.js",
       "../../lib/work-unit/git-candidate-effective-target.js", "../../scripts/review-gate/policy/integration-boundary-locus.js",
       "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"].map((name) => ({ name, allowTypeImports: true })),
   },
@@ -159,6 +178,8 @@ export default tseslint.config(
           ...Object.fromEntries(Object.entries(ARCHITECTURE_RULES).map(([rule, predicates]) =>
             [rule, createArchitectureImportsRule(join(import.meta.dirname, "src"), predicates)])),
           "module-doc-comment": moduleDocCommentRule,
+          "ref-completed-failure": refCompletedFailureRule,
+          "projection-removal-binding": projectionRemovalBindingRule,
         },
       },
     },
@@ -211,13 +232,30 @@ export default tseslint.config(
     },
   },
   {
-    files: ["__tests__/**/*.ts"],
+    files: ["__tests__/**/*.{ts,mjs}"],
     ...tseslint.configs.disableTypeChecked,
     rules: {
       ...tseslint.configs.disableTypeChecked.rules,
       "@typescript-eslint/no-non-null-assertion": "off",
       "max-lines": ["error", { max: 1500, skipBlankLines: true, skipComments: true }],
     },
+  },
+  // A focused test narrows every run of its file, so a pass recorded with one never covers the whole file.
+  {
+    files: ["__tests__/**/*.ts"],
+    rules: {
+      "no-restricted-properties": ["error", ...["it", "test", "describe", "suite"].map((object) => ({
+        object, property: "only", message: "Remove .only; a focused test narrows every run of its file.",
+      }))],
+    },
+  },
+  {
+    files: ["src/lib/store/ref/**/*.ts"],
+    rules: { "arc/ref-completed-failure": "error" },
+  },
+  {
+    files: [src("commands/start.ts"), src("commands/rename.ts"), src("commands/rename-store.ts"), src("handlers/lifecycle.ts")],
+    rules: { "arc/projection-removal-binding": "error" },
   },
   ...composeArchitectureBans(architectureBans),
   {

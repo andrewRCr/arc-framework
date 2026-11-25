@@ -3,6 +3,7 @@
  * state it offers owned, released work independently of remote presence, leaving
  * paused work to its own slot and isolating each rejected holder lookup.
  */
+import { ownerHolderRequest, type LocusPorts } from "../work-unit/locus-ports.js";
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 
 import { readWorkUnit } from "../store/lifecycle-write.js";
@@ -10,7 +11,7 @@ import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import type { Store } from "../store/contract.js";
 import { storeInFlightLocationUnavailable, type StoreInFlightWorkUnit, type StoreInFlightEntry } from "../git/in-flight-store.js";
 import { z } from "zod";
-import { SessionActionsSchema } from "./actions.js";
+import { SessionActionsSchema, type SessionAction } from "./actions.js";
 import { selectWorkBranchLink } from "../store/lifecycle-branch.js";
 import { createProjectIdentityReader } from "../store/project-identity.js";
 
@@ -38,8 +39,8 @@ export interface FindMaterializableWorkUnitsOptions {
 
 /** Store membership is independent of remote presence; each holder lookup can fail separately. */
 export interface FindStoreMaterializableWorkUnitsOptions extends Omit<FindMaterializableWorkUnitsOptions, "entries"> {
-  entries: readonly StoreInFlightEntry[]; store: Store;
-  findHoldingCheckout: (slug: string) => Promise<string | null>;
+  entries: readonly (StoreInFlightEntry | InFlightEntry)[]; store: Store;
+  findHoldingCheckout: LocusPorts["findHoldingCheckout"];
   markerlessCheckouts?: readonly { workUnit: string; checkoutPath: string }[];
   localRefsAvailable?: boolean;
   projectId?: () => Promise<string>;
@@ -173,11 +174,11 @@ async function findStoreMaterializableWorkUnits(options: FindStoreMaterializable
   candidates.sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)));
   return { candidates, ...(warnings.length === 0 ? {} : { warnings }) };
 }
-function ownedUnpausedEntry(entry: StoreInFlightWorkUnit, identity: string | null): boolean {
+function ownedUnpausedEntry(entry: StoreInFlightWorkUnit | Extract<InFlightEntry, { kind: "work-unit" }>, identity: string | null): boolean {
   return identity !== null && entry.owner === identity && entry.state !== "Shipped" && entry.scheduling !== "paused"
     && !storeInFlightLocationUnavailable(entry);
 }
-async function storeMaterializableCandidate(options: FindStoreMaterializableWorkUnitsOptions, entry: StoreInFlightWorkUnit): Promise<MaterializableWorkUnit | null> {
+async function storeMaterializableCandidate(options: FindStoreMaterializableWorkUnitsOptions, entry: StoreInFlightWorkUnit | Extract<InFlightEntry, { kind: "work-unit" }>): Promise<MaterializableWorkUnit | null> {
   const read = await readWorkUnit(options.store, entry.name);
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   const record = read.result;
@@ -185,7 +186,9 @@ async function storeMaterializableCandidate(options: FindStoreMaterializableWork
   const fields = ParsedMetaRecordSchema.parse(record.fields);
   if (fields.pause !== null || fields.owner !== options.identity || record.placement?.kind !== "active" || !["Planning", "Active", "Integrating"].includes(fields.state ?? "")) return null;
   const name = SlugSchema.parse(record.reference.owner.name);
-  if (await options.findHoldingCheckout(name) !== null) return null;
+  const held = await options.findHoldingCheckout(ownerHolderRequest(record));
+  if (held.kind === "unbound") return materializableCandidateWithActions(name, entry.branch, held.exits);
+  if (held.kind === "held") return null;
   if (options.localRefsAvailable === false) {
     const repository = await (options.projectId ?? createProjectIdentityReader(options.store))();
     const selection = selectWorkBranchLink(record, { repository });
@@ -195,6 +198,9 @@ async function storeMaterializableCandidate(options: FindStoreMaterializableWork
   const unmarked = options.markerlessCheckouts?.find(pair => pair.workUnit === name);
   const argv = ["arc", "materialize", name, ...(unmarked === undefined ? [] : ["--here"])];
   const text = unmarked === undefined ? argv.join(" ") : `Run ${argv.join(" ")} from ${unmarked.checkoutPath}.`;
-  return { name, ...(entry.branch === undefined ? {} : { branch: entry.branch }),
-    actions: [{ text, argv, ...(unmarked === undefined ? {} : { checkout: unmarked.checkoutPath }) }] };
+  return materializableCandidateWithActions(name, entry.branch,
+    [{ text, argv, ...(unmarked === undefined ? {} : { checkout: unmarked.checkoutPath }) }]);
+}
+function materializableCandidateWithActions(name: MaterializableWorkUnit["name"], branch: string | undefined, actions: readonly SessionAction[]): MaterializableWorkUnit {
+  return { name, ...(branch === undefined ? {} : { branch }), actions: [...actions] };
 }

@@ -26,6 +26,7 @@ describe("store identities and references", () => {
     { type: "person", name: "andrew", uid },
     { type: "work-item", name: "../example" },
     { type: "work-item", name: "example", uid: "invalid" },
+    { type: "work-item", name: "example", uid: "A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D" },
     { type: "branch", name: "example" },
     { type: "work-item", name: "example", formerSlugs: [] },
   ])("rejects an invalid owner: %j", (value) => expect(OwnerIdentitySchema.safeParse(value).success).toBe(false));

@@ -87,7 +87,7 @@ export interface WorktreeCleanupInputs {
 /** Conservative disposition of a detached worktree at a husk-removal site. */
 export type HuskCleanupDecision =
   | { action: "removable" }
-  | { action: "blocked"; reason: "uncommitted" | "head-moved" | "evidence-mismatch" }
+  | { action: "blocked"; reason: "uncommitted" | "head-moved" | "evidence-mismatch" | "pre-store-husk" }
   | { action: "outside"; reason: "untrusted-marker" | "missing-stamp" };
 
 /** Signals used by the terminal-husk removability oracle. */

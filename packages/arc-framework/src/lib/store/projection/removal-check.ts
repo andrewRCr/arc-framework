@@ -1,0 +1,65 @@
+/** Observe whether a checkout's projected edits can safely survive retirement. */
+import type { Slug } from "../../kernel/index.js";
+import type { ProjectionRemovalSlots } from "../../git/worktree-removal.js";
+import type { Store } from "../contract.js";
+import { observeUnprojectedPersonalFiles, type ProjectionResidualFs } from "./removal-residual.js";
+import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
+import { locateProjection } from "./location.js";
+import { checkoutHoldsProjection } from "./ownership.js";
+import { readProjectionIndex, type UnusableIndexCause } from "./index-file.js";
+import type { ProjectionRetirement } from "./removal-verdict.js";
+import { readProjectionConfiguration } from "./configuration.js";
+import { bindReadOnlyProjectionRoot } from "./engine-read-only.js";
+import { createHistoryMemo } from "./base-recovery.js";
+import { projectedRootPaths } from "../../layout/index.js";
+import { checkProjectionRemovalFiles } from "./removal-files.js";
+import { observeProjectionReads } from "./read-observation.js";
+import { createRemovalGuard, readRemovalHandoffs } from "./removal-observations.js";
+import { checkProjectionRemovalAsides } from "./removal-asides.js";
+import { checkRetainedReleaseEntries } from "./release-entries.js";
+
+/** The command's store authority and independently target-bound host operations. */
+export interface ProjectionRemovalContext {
+  readonly store: Store;
+  readonly residualFs?: ProjectionResidualFs;
+  readonly identity: Slug | null;
+  readonly ports?: (checkout: string) => ProjectionEnginePorts;
+}
+
+/** The repair for a target whose projection index cannot be used, which the check and the persist step both name. */
+export function unusableProjectionIndexDetail(checkout: string, cause: UnusableIndexCause): string {
+  return `The projection index at ${checkout} is ${cause}. Run arc save from that checkout to rebuild it, then retry removal or release there.`;
+}
+
+/** Check projected retirement safety without acquiring a lease or changing local or stored state. */
+export async function checkProjectionRemoval(checkout: string, context: ProjectionRemovalContext, disposition: ProjectionRetirement = "remove"): Promise<Awaited<ReturnType<ProjectionRemovalSlots["check"]>>> {
+  try {
+    const ports = context.ports?.(checkout) ?? createProjectionEnginePorts(checkout);
+    const location = await locateProjection(checkout, ports);
+    const disk = await readProjectionIndex(location, await checkoutHoldsProjection(checkout, location), { groups: "all", retry: true });
+    if (disk.kind === "unusable") return { kind: "unobservable", detail: unusableProjectionIndexDetail(checkout, disk.cause) };
+    if (disk.kind === "no-projection") return disposition === "release" ? { kind: "passes" }
+      : await observeUnprojectedPersonalFiles(checkout, context.residualFs);
+    const configuration = await readProjectionConfiguration(ports.exec, checkout);
+    if (configuration.identity.status === "no-identity") return { kind: "would-refuse", remedy: configuration.identity.remedy };
+    const targetIdentity = configuration.identity.identity;
+    if (targetIdentity !== context.identity) return { kind: "unobservable", detail:
+      `The target ${checkout} uses identity ${targetIdentity}, while this command ${context.identity === null ? "has no resolved identity" : `uses ${context.identity}`}. Run removal or release from that checkout under its identity.` };
+    // Adoption answers an ambiguous name lookup as its own refusal, never as a failed read.
+    const observed = observeProjectionReads(context.store, { answeredLookups: ["ambiguous-match"] });
+    const root = await bindReadOnlyProjectionRoot({ checkout, store: observed.store, ports, location, configuration,
+      history: createHistoryMemo(observed.store) });
+    const index = await readRemovalHandoffs({ disposition, root, index: disk.index, ports, configuration });
+    const guard = createRemovalGuard({ disposition, root, index, ports, configuration });
+    const files = await checkProjectionRemovalFiles({ disposition, root, index, roots: projectedRootPaths(targetIdentity), ports, configuration, guard });
+    const asides = files.verdict.kind === "passes"
+      ? await checkProjectionRemovalAsides({ disposition, root, index: files.index, ports, configuration, guard }) : files.verdict;
+    // Release alone keeps a linked checkout and walks every entry it will discard, so it answers for files already gone.
+    const result = asides.kind !== "passes" || disposition !== "release" || location.primary ? asides
+      : await checkRetainedReleaseEntries({ index: files.index, checkout, verb: root.context.verb, linkFs: ports.linkFs, guard });
+    const unreadable = observed.nativeFailure();
+    return unreadable === undefined ? result : { kind: "unobservable", detail: unreadable.remedy.text };
+  } catch (error) {
+    return { kind: "unobservable", detail: `Cannot observe the projection at ${checkout}: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}

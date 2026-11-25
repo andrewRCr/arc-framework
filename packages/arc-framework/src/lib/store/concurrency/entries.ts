@@ -24,6 +24,8 @@ export function splitEntryList(content: string, config: EntryListConfig): SplitE
   const masked = maskComments(content);
   const parts: (ListEntry | OutsideEntry)[] = [];
   const lines = [...masked.matchAll(/[^\n]*(?:\n|$)/gu)].filter((line) => line[0].length > 0);
+  const textLines = lines.map(line => line[0].replace(/\r?\n$/u, "").trimEnd());
+  const fieldHeaders = new Set(config.shape === "field-header" ? fieldHeaderSpans(textLines).filter(span => span.problem === null).map(span => span.start) : []);
   let section: string | null = null;
   let started: {offset:number;section:string} | null = null;
   let consumed = 0;
@@ -40,14 +42,14 @@ export function splitEntryList(content: string, config: EntryListConfig): SplitE
     consumed = end;
     started = null;
   }
-  for (const line of lines) {
-    const text = line[0].replace(/\r?\n$/u,"").trimEnd();
+  for (const [index, line] of lines.entries()) {
+    const text = textLines[index] ?? "";
     const offset = line.index;
     if (text.startsWith("## ") || text === "---") {
       flush(offset);
       const name = text.startsWith("## ") ? text.slice(3) : "";
       section = config.sections.includes(name) ? name : null;
-    } else if (section !== null && isEntryHeader(text,config.shape)) {
+    } else if (section !== null && isEntryHeader(text, config.shape, fieldHeaders.has(index))) {
       flush(offset);
       started = {offset,section};
     }
@@ -66,8 +68,43 @@ export function rejoinEntryList(split: SplitEntryList): string {
 }
 
 
-function isEntryHeader(line: string, shape: EntryListConfig["shape"]): boolean {
-  return shape === "heading" ? /^###\s/u.test(line) : /^\*\*.+:\*\*\s*$/u.test(line);
+function isEntryHeader(line: string, shape: EntryListConfig["shape"], fieldHeader: boolean): boolean {
+  return shape === "heading" ? /^###\s/u.test(line) : fieldHeader;
+}
+
+interface FieldHeaderSpan {
+  readonly start: number;
+  readonly end: number;
+  readonly trigger: number;
+  readonly problem: "opening" | "ending" | null;
+}
+
+/** Recognize title paragraphs anchored by removal-trigger fields in comment-masked content.
+ * A title is the paragraph immediately before its trigger, back to the previous blank line,
+ * section heading or ---. It must open with ** and its last line must end with :**.
+ * Interior text is opaque: nested bold, code spans and other inline Markdown have no parsing role.
+ * Decoding joins its trimmed lines with single spaces. An unseparated **-opening line belongs
+ * to the title; a non-** paragraph needs a blank line before the title. Bold-colon body lines
+ * without a trigger do not start entries. Callers restrict recognition to their configured sections.
+ * @param lines - Comment-masked document lines, preserving original line positions.
+ * @returns Trigger-anchored paragraphs and any missing opening or ending delimiter.
+ */
+export function fieldHeaderSpans(lines: readonly string[]): readonly FieldHeaderSpan[] {
+  const spans: FieldHeaderSpan[] = [];
+  let start = 0;
+  for (const [index, line] of lines.entries()) {
+    const text = line.trimEnd();
+    if (!text.trim() || text.startsWith("## ") || text === "---") { start = index + 1; continue; }
+    const field = text.trimStart();
+    if (!field.startsWith("_Remove when:") && !field.startsWith("*Remove when:")) continue;
+    spans.push({ start, end: index - 1, trigger: index, problem: fieldHeaderProblem(lines, start, index - 1) });
+  }
+  return spans;
+}
+
+function fieldHeaderProblem(lines: readonly string[], start: number, end: number): FieldHeaderSpan["problem"] {
+  if (!(lines[start] ?? "").startsWith("**")) return "opening";
+  return (lines[end] ?? "").trimEnd().endsWith(":**") ? null : "ending";
 }
 
 /** Hide comments from recognition while retaining offsets and line endings.

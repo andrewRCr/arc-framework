@@ -1,6 +1,7 @@
 /** Shared work-item and cohort namespace admission for decomposition. */
 import type { Store } from "../store/contract.js";
-import { sameReference, type RecordReference } from "../store/identity.js";
+import type { OwnerIdentity } from "../store/identity.js";
+import { checkCreationAdmission, renderCreationAdmissionRefusal } from "../store/creation-admission.js";
 import type { StoreRecord } from "../store/read.js";
 import type { CutMap } from "./cut-map-schema.js";
 import type { DecomposeResult, DecomposeRefusal } from "./refusal.js";
@@ -20,7 +21,7 @@ export interface DecomposeNames {
 interface AcquiredName { name: string; locus: string; cohort: boolean }
 
 /** Prove names free for creation, allowing only authenticated retained member generations. */
-export async function checkDecomposeNames(store: Store, map: CutMap, retainedMembers: readonly RecordReference[] = []): Promise<DecomposeResult<DecomposeNames>> {
+export async function checkDecomposeNames(store: Store, map: CutMap, retainedMembers: readonly OwnerIdentity[] = []): Promise<DecomposeResult<DecomposeNames>> {
   const cohorts = await acquireDecomposeCohortInventory(store);
   if (cohorts.status === "refused") return cohorts;
   const conflicts = selectedCohortConflicts(map, cohorts.result);
@@ -38,7 +39,7 @@ export async function checkDecomposeNames(store: Store, map: CutMap, retainedMem
     remedy: { text: "Choose another cohort name in the map, then retry." } };
   const seen = new Set<string>();
   for (const named of names) {
-    if (seen.has(named.name)) return nameCollision(named.name, named.locus, "another name in the map");
+    if (seen.has(named.name)) return nameCollision(named.locus, `${JSON.stringify(named.name)} is held by another name in the map.`);
     seen.add(named.name);
   }
   for (const named of names) {
@@ -58,20 +59,21 @@ function selectedCohortConflicts(map: CutMap, cohorts: readonly DecomposeCohortO
 }
 
 async function checkNamespaceName(store: Store, named: AcquiredName,
-  cohorts: readonly DecomposeCohortObservation[], retainedMembers: readonly RecordReference[]): Promise<DecomposeRefusal | undefined> {
-  const held = cohorts.find(({ record }) => record.reference.owner.name === named.name
-    && (named.cohort || record.placement?.kind !== "completed"));
-  if (held !== undefined) return nameCollision(named.name, named.locus, "a cohort document");
+  cohorts: readonly DecomposeCohortObservation[], retainedMembers: readonly OwnerIdentity[]): Promise<DecomposeRefusal | undefined> {
+  if (!named.cohort) {
+    const admission = await checkCreationAdmission(store, named.name, retainedMembers);
+    if (admission.kind === "free") return undefined;
+    const rendered = renderCreationAdmissionRefusal(named.name, admission);
+    if (admission.kind === "refused" && admission.refusal !== undefined && !admission.ambiguous) {
+      return { ...decomposeStoreRefusal(admission.refusal), message: rendered.condition };
+    }
+    return nameCollision(named.locus, rendered.condition);
+  }
+  const held = cohorts.find(({ record }) => record.reference.owner.name === named.name);
+  if (held !== undefined) return nameCollision(named.locus, `${JSON.stringify(named.name)} is held by a cohort document.`);
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(named.name) });
   if (lookup.status === "refused") return lookup.refusal.code === "not-found" ? undefined : decomposeStoreRefusal(lookup.refusal);
-  if (!named.cohort && retainedMembers.some(reference => sameReference(reference, lookup.result.reference))) return undefined;
-  const holder = await store.read({ reference: lookup.result.reference });
-  if (holder.status === "refused") return decomposeStoreRefusal(holder.refusal);
-  if (holder.result.reference.owner.name !== named.name || holder.result.placement?.kind !== "completed") {
-    return nameCollision(named.name, named.locus, holder.result.reference.owner.name === named.name
-      ? "a live work item" : "a former slug");
-  }
-  return undefined;
+  return nameCollision(named.locus, `${JSON.stringify(named.name)} resolves to an existing ${lookup.result.reference.kind} owner '${lookup.result.reference.owner.name}'.`);
 }
 
 function placementCohorts(placement: CutMap["authoring"]["placement"]): { path: string; locus: string }[] {
@@ -80,9 +82,9 @@ function placementCohorts(placement: CutMap["authoring"]["placement"]): { path: 
   return paths.map(path => ({ path, locus: "authoring.placement.cohort" }));
 }
 
-function nameCollision(name: string, locus: string, holder: string): DecomposeRefusal {
+function nameCollision(locus: string, condition: string): DecomposeRefusal {
   return { status: "refused", reason: "name-collision", class: "recoverable", locus,
-    message: `${JSON.stringify(name)} is held by ${holder}.`, remedy: { text: "Choose another name at the named map locus, then retry." } };
+    message: condition, remedy: { text: "Choose another name at the named map locus, then retry." } };
 }
 
 /** Acquire the complete parsed cohort inventory without applying a consumer's admission policy. */

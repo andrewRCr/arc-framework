@@ -29,6 +29,7 @@ function buildCtx(): Harness {
   const softWrites: { metaPath: string; updates: Record<string, string> }[] = [];
   return {
     ctx: {
+      cwd: "/project",
       writeClassField: async (metaPath, value) => {
         classWrites.push({ metaPath, value });
       },
@@ -168,10 +169,10 @@ it("finalizes a former handle using the resolved owner's task filename", async (
   const primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: "generate-tasks", design: ["spec-source.md"] });
   const forbidden = async (): Promise<never> => { throw new Error("Unexpected checkout access"); };
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: forbidden, baseBranch: "main",
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }),
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }),
       writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
-  { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
-  expect(await runFinalizeStage({ store: h.store, writeClassField: forbidden, writeSoftFields: forbidden },
+  { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(await runFinalizeStage({ cwd: "/project", store: h.store, writeClassField: forbidden, writeSoftFields: forbidden },
     { name: "source", firePoint: "generate-tasks", workClass: "Novel" }))
     .toMatchObject({ status: "ok", taskList: "tasks-target.md" });
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields)

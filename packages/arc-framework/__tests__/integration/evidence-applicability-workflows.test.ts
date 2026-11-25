@@ -74,6 +74,18 @@ describe("evidence applicability workflow fire-points", () => {
     expect(integrate).not.toMatch(softWrappedProse("Show the bounded check's findings and"));
   });
 
+  it("keeps the residual judgment for a fix that only adds verification", async () => {
+    const method = await readPair("system/methods/assess-evidence-applicability.md");
+
+    expect(method).not.toMatch(softWrappedProse("finds a material defect or prompts any fix"));
+    expect(method).toMatch(softWrappedProse("including when every fix only adds verification"));
+    expect(method).toMatch(softWrappedProse("Show such a fix's proof"));
+    expect(method).toMatch(softWrappedProse(
+      "unless the check found no material defect in what the change does, every approved fix only adds verification",
+    ));
+    expect(method).toMatch(softWrappedProse("with the same exception and conditions as outside a bound delivery"));
+  });
+
   it.each(Object.entries(workflows))("declares bounded residual judgment in %s", async (_name, path) => {
     const workflow = await readPair(path);
     const frontmatter = parseWorkflowFrontmatter(workflow);

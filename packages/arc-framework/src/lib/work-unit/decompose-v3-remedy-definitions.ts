@@ -165,6 +165,10 @@ export const V3_GIT_PREFLIGHT_REMEDIES: Readonly<Record<string, V3PreflightRemed
 };
 
 export const V3_OPERATION_RETRY_REMEDIES: Readonly<Record<string, V3PreflightRemedyDefinition>> = {
+  "source-remote-unreachable": {
+    invariant: "A branch-backed source's publication must be read from its remote before mutation.",
+    correction: "Retry the selected mode once the remote answers",
+  },
   "base-moved": {
     invariant: "The result base must remain at the plan's authenticated commit.",
     correction: "Refresh the repository state, then retry the selected mode",

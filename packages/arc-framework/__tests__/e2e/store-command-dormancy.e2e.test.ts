@@ -22,13 +22,17 @@ describe("dormant store command registrations", () => {
     { args: ["errand", "queue", "--json"], serving: "arc user inbox-mark-execute-bound", schema: ErrandQueueResultSchema },
     { args: ["errand", "queue", "set", "-"], serving: "arc user inbox-mark-execute-bound", schema: ErrandQueueResultSchema },
     { args: ["handoff", "write", "-"], serving: "SESSION-NOTES", schema: HandoffWriteResultSchema },
+    { args: ["cohort", "close", "example"], serving: "tracked cohort", schema: undefined },
+    { args: ["cohort", "close", "example", "--json"], serving: "archive", schema: undefined },
+    { args: ["cohort", "remove", "example"], serving: "tracked cohort", schema: undefined },
+    { args: ["cohort", "remove", "example", "--json"], serving: "archive", schema: undefined },
   ])("refuses $args with its serving path", async ({ args, serving, schema }) => {
     const result = await runArcNoTty(["--no-input", ...args], root);
     expect(result.exitCode).toBe(1);
     expect(result.stdout + result.stderr).toContain("unsupported");
     expect(result.stdout + result.stderr).toContain(serving);
     if (schema !== undefined) expect(schema.safeParse(JSON.parse(result.stdout)).success).toBe(true);
-    if (args[0] === "handoff") expect(JSON.parse(result.stdout)).toMatchObject({
+    if (args[0] === "handoff" || (args[0] === "cohort" && args.includes("--json"))) expect(JSON.parse(result.stdout)).toMatchObject({
       status: "refused", refusal: { code: "unsupported", class: "terminal" },
     });
   });

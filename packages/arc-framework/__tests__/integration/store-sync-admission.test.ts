@@ -36,8 +36,8 @@ describe("notes metadata admission", () => {
       if (ignored.includes(key)) throw Object.assign(new Error("Excluded body must not be opened"), { code: "EACCES" });
       return read(path);
     };
-    expect(success(await h.a.store.sync()).publishes).toEqual([
-      { status: "pushed", families: ["personal"] }, { status: "pushed", families: ["work-item", "claims"] },
+    expect(success(await h.a.store.push()).publishes).toEqual([
+      { status: "pushed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number) }, { status: "pushed", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number) },
     ]);
     expect(opened).toEqual(expect.arrayContaining(["notes.md", "example/SESSION-NOTES.md"]));
     for (const key of ignored) expect(opened).not.toContain(key);
@@ -49,9 +49,9 @@ describe("notes metadata admission", () => {
     const read = h.a.ports.fs.readFile;
     const original = Object.assign(new Error("Eligible body unreadable"), { code: "EACCES" });
     h.a.ports.fs.readFile = async (path) => { if (path.endsWith("/notes.md")) throw original; return read(path); };
-    await expect(h.a.store.sync()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
+    await expect(h.a.store.push()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
     h.a.ports.fs.readFile = read;
-    expect(success(await h.a.store.sync()).publishes.map((publish) => publish.status)).toEqual(["pushed", "pushed"]);
+    expect(success(await h.a.store.push()).publishes.map((publish) => publish.status)).toEqual(["pushed", "pushed"]);
     expect((await manifest(h)).files["notes.md"]).toBe("identity notes\n");
   });
 });

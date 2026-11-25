@@ -1,20 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import { getArcTemplatePath, getInternalTemplatePath, resolveArcRoot } from "../../src/lib/paths.js";
 
 describe("getArcTemplatePath", () => {
   it("returns an absolute path ending with /arc", () => {
     const result = getArcTemplatePath();
     expect(isAbsolute(result)).toBe(true);
-    expect(result).toMatch(/\/arc$/);
+    expect(basename(result)).toBe("arc");
   });
 
   it("resolves within the package directory", () => {
     const result = getArcTemplatePath();
-    expect(result).toContain("packages/arc-framework");
+    expect(result).toContain(join("packages", "arc-framework"));
   });
 
   it("points to a directory that exists after build", () => {
@@ -29,12 +29,12 @@ describe("getInternalTemplatePath", () => {
   it("returns an absolute path ending with /templates", () => {
     const result = getInternalTemplatePath();
     expect(isAbsolute(result)).toBe(true);
-    expect(result).toMatch(/\/templates$/);
+    expect(basename(result)).toBe("templates");
   });
 
   it("resolves within the package directory", () => {
     const result = getInternalTemplatePath();
-    expect(result).toContain("packages/arc-framework");
+    expect(result).toContain(join("packages", "arc-framework"));
   });
 });
 
@@ -53,6 +53,15 @@ describe("resolveArcRoot", () => {
     await mkdir(join(tempDir, ".arc"));
 
     expect(resolveArcRoot(tempDir)).toBe(tempDir);
+  });
+
+  it("does not treat machine configuration alone as an ARC project", async () => {
+    await mkdir(join(tempDir, ".arc"));
+    await writeFile(join(tempDir, ".arc/config.yml"), "checks.runner: [runner]\n");
+    const child = join(tempDir, "outside-project");
+    await mkdir(child);
+
+    expect(resolveArcRoot(child)).toBeNull();
   });
 
   it("finds an ARC root one level up", async () => {

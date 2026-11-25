@@ -23,9 +23,9 @@ to the registered package default.
 | code-review-author    | `true`          | Author-side aggregate diff preflight                |
 | code-review-frontline | `false`         | Advisory distinct-context review before PR creation |
 
-**Loading model:** Method defaults and overrides always load on-demand at their fire-points. Session-init does not
-read methods; the `override-active` frontmatter field is consumed by the framework-repo CI audit, docs generation,
-and authoring tooling, not by session-init. Workflows and methods declare only the methods their own bodies may fire
+**Loading model:** Method defaults and overrides load on-demand at their fire-points, including session-init's read
+rule and `fragment` steps. The `override-active` field serves the framework-repo CI audit, docs generation, and
+authoring tooling; it does not trigger an init-time scan. Workflows and methods declare only what their own bodies fire
 in `arc.methods`; workflow declarations are roots, and method-owned declarations form a deduplicated transitive
 graph. A caller never redeclares its methods' dependencies. See [Workflow Authoring Strategy][workflow-authoring]
 and [Session Operations Strategy § Method Loading][session-ops-methods].

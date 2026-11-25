@@ -20,6 +20,7 @@
  * @module
  */
 
+import type { RecordReference } from "../../store/identity.js";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import { runStoreReopen } from "./reopen-store.js";
@@ -40,6 +41,8 @@ import { resolveTaskListCursor } from "../../task-list/cursor.js";
 
 /** The inputs a `reopen` supplies. */
 export interface ReopenParams {
+  /** Exact already-selected subject, when the caller holds one. */
+  reference?: RecordReference;
   /** Target WU name (the CLI defaults this to the current Integrating WU). */
   name: string;
   /** Whether the WU's PR has merged — the `pr-unmerged` guard input (caller resolves via `gh`). */

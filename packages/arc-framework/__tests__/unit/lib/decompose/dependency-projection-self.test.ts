@@ -26,7 +26,7 @@ it.each(([false, true] as const).flatMap(alias => (["additive", "revision"] as c
     await h.handEdit(h.draft, "# Origin\n\n## Member\n\nMember work.\n\n## Home\n\nHome work.\n");
     await h.seedStub("provider");
     if (alias) expect(await runStoreRename({ ...h.ctx.executor, baseBranch: h.ctx.baseBranch },
-      { sourceSlug: "provider", targetSlug: "current-provider" })).toMatchObject({ status: "renamed" });
+      { operand: "provider", targetSlug: "current-provider" })).toMatchObject({ status: "renamed" });
     const provider = lifecycleSuccess(await readWorkUnit(h.store, "provider"));
     const artifact = `draft-${provider.reference.owner.name}.md`;
     await h.seed(recordReferences["work-item/draft"](provider.reference.owner), "# Provider\n\n## Home\n\nAuthored home work.\n");
@@ -71,7 +71,7 @@ it.each([[false, false], [true, false], [false, true]] as const)("refuses an inc
   const home = await h.seedStub("home");
   await h.handEdit(home, writeMetaDependsOn(home.content, ["origin"]));
   if (alias) expect(await runStoreRename({ ...h.ctx.executor, baseBranch: h.ctx.baseBranch },
-    { sourceSlug: "home", targetSlug: "existing-work" })).toMatchObject({ status: "renamed" });
+    { operand: "home", targetSlug: "existing-work" })).toMatchObject({ status: "renamed" });
   const current = lifecycleSuccess(await readWorkUnit(h.store, "home"));
   await h.seed(recordReferences["work-item/draft"](current.reference.owner), "# Existing work\n\n## Scope\n\nOwned work.\n");
   if (started) lifecycleSuccess(await h.store.write({ ...recordPut(current, { placement: { kind: "active" },

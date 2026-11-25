@@ -26,6 +26,11 @@
  * @module
  */
 
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
+import { materializeSpawnedProjection } from "../lib/store/projection/spawn-materialization.js";
+import type { StoreRefusal } from "../lib/store/refusal.js";
 import { runStoreColdStart } from "./start-cold-store.js";
 import { basename, join } from "node:path";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
@@ -42,6 +47,7 @@ import {
 } from "../lib/active/current-workflow-consistency.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
+import { describeSpawnLock, lockSpawnedCheckout, type SpawnLock } from "../lib/git/worktree-removal.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
@@ -71,6 +77,10 @@ import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
+import { withProjectionFanOutHold } from "../lib/store/projection/fan-out-scheduler.js";
+import { stampCreatedWorkUnitMarker } from "../lib/work-unit/created-work-unit-marker.js";
+import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
+import type { OwnerIdentity } from "../lib/store/identity.js";
 import type {
   GitGraduationTransactionResult,
 } from "../lib/work-unit/git-graduation-transaction.js";
@@ -327,7 +337,9 @@ export function buildCreateNewCeremonyCommitMessage(name: string): string {
 
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
-  | { status: "rejected"; reason: string; recovery?: LifecycleRollbackRecovery }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; recovery?: LifecycleRollbackRecovery;
+      /** A successful linked placement retained after a later completion failure. */
+      worktreePath?: string; spawnLock?: SpawnLock }
   | {
       status: "graduation-recovery-required";
       reason: string;
@@ -348,6 +360,8 @@ export type GraduateResult =
       worktreePath?: string;
       /** Notice surfaced when the spawned worktree has no post-create provisioning script configured. */
       postCreateNotice?: string;
+      /** The lock a spawned worktree carries once the transition has returned; absent in place. */
+      spawnLock?: SpawnLock;
     };
 
 /**
@@ -371,7 +385,42 @@ export async function runGraduate(
   ctx: ExecuteTransitionContext,
   params: GraduateParams,
 ): Promise<GraduateResult> {
-  if (usesOffBranchState(ctx.store)) return runStoreGraduate(ctx, params);
+  let retainedPath: string | undefined;
+  const apply = ctx.atomicGraduate;
+  const protectedCtx = apply === undefined ? ctx : {
+    ...ctx,
+    atomicGraduate: async (transaction: ValidatedGraduationTransaction) => {
+      const result = await apply(transaction);
+      if (result.status === "applied" && transaction.occupation.mode === "spawned") retainedPath = result.worktreePath;
+      return result;
+    },
+  };
+  let result: GraduateResult;
+  try {
+    result = usesOffBranchState(ctx.store) ? await runStoreGraduate(ctx, params) : await graduateInRepo(protectedCtx, params);
+  } catch (error) {
+    if (retainedPath === undefined) throw error;
+    result = { status: "rejected", reason: error instanceof Error ? error.message : String(error) };
+  }
+  if (result.status === "graduation-recovery-required") return result;
+  const worktreePath = result.worktreePath ?? retainedPath;
+  // A successful atomic application is beyond rollback, even when a later completion effect failed.
+  if (params.inPlace === true || worktreePath === undefined) return result;
+  const spawnLock = ctx.exec === undefined
+    ? { kind: "failed" as const, detail: "graduation ran without a Git executor" }
+    : await lockSpawnedCheckout(ctx.exec, worktreePath);
+  if (result.status === "rejected") return {
+    ...result, reason: `graduation partially applied at ${worktreePath}: ${result.reason}`, worktreePath, spawnLock,
+  };
+  if (spawnLock.kind === "failed") return {
+    status: "rejected", worktreePath, spawnLock,
+    reason: `checkout retained: ${describeSpawnLock(worktreePath, spawnLock) ?? spawnLock.detail}`
+      + " After locking it, continue work in the retained checkout; the placement has already applied.",
+  };
+  return { ...result, spawnLock };
+}
+
+async function graduateInRepo(ctx: ExecuteTransitionContext, params: GraduateParams): Promise<GraduateResult> {
   const branch = `plan/${params.name}`;
   const preflight = await preflightGraduate(
     ctx,
@@ -560,8 +609,8 @@ async function coldStartOccupancyRefusal(worktreePath: string): Promise<string |
   const active = await resolveCurrentWorkUnit({ cwd: worktreePath });
   if (active.status === "none") return active.warnings.length === 0 ? null : active.warnings.join("; ");
   const existing = active.status === "resolved" ? active.candidate.reference.owner.name
-    : active.candidates.map(candidate => workItemArtifactPath(candidate.reference.owner.name, "meta",
-      { kind: "active" }, candidate.record?.cohort ?? null)).join(", ");
+    : (await Promise.all(active.candidates.map(candidate => workItemArtifactPath(worktreePath, candidate.reference.owner.name, "meta",
+      { kind: "active" }, candidate.record?.cohort ?? null)))).join(", ");
   const occupancy = active.status === "resolved" ? "an active work unit" : "multiple active work units";
   return `worktree already has ${occupancy} (${existing}); `
     + "resolve the existing work-unit occupancy before retrying; "
@@ -704,12 +753,14 @@ export interface CreateNewResult {
   wuName: string;
   /** Notice surfaced when no post-create provisioning script is configured. */
   postCreateNotice?: string;
+  /** The lock the spawned worktree carries once every rollback that could remove it has passed. */
+  spawnLock: SpawnLock;
 }
 
 /** No-throw outcome — a refusal carries a reason instead of throwing. */
 export type CreateNewOutcome =
   | { ok: true; value: CreateNewResult }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; worktreePath?: string; spawnLock?: SpawnLock };
 
 /**
  * Spawn an isolated worktree on a new `plan/<name>` branch for a brand-new work
@@ -756,7 +807,8 @@ export async function runCreateNew(
     };
   }
   const repo = basename(primaryWorktreePath);
-  const offBranch = usesOffBranchState(ctx.store);
+  const store = ctx.store ?? createStore(createDefaultStorePorts({ checkoutRoot: params.worktreePath, exec: ctx.io.exec }));
+  const offBranch = usesOffBranchState(store);
   const branch = offBranch ? null : `plan/${wuName}`;
 
   // Spawn leg: cut the branch + worktree and write the ARC-created marker.
@@ -768,7 +820,8 @@ export async function runCreateNew(
     const spawnResult = await reconcileWorkUnitWorktree(
       {
         exec: ctx.io.exec,
-        store: ctx.store,
+        store,
+        projectionRemovalSlots: createProjectionRemovalSlots({ store, identity: params.identity }),
         locusPorts: ctx.locusPorts,
         chdir: (dir) => { process.chdir(dir); },
         fs: nodeReconcileWorkUnitWorktreeFs,
@@ -776,6 +829,7 @@ export async function runCreateNew(
       },
       {
         mutation: "spawn",
+        ...(offBranch ? { holder: { kind: "creation" as const, slug: wuName } } : {}),
         ...(offBranch ? { detached: true } : { branch: branch ?? undefined }),
         base: baseBranch,
         locationTemplate,
@@ -800,32 +854,55 @@ export async function runCreateNew(
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
   }
 
-  // Scaffold + user-workspace legs: the fresh meta and SESSION-NOTES seed. The
-  // marker is already written by the spawn, so this pass writes none.
-  try {
-    await scaffoldIntoWorktree(ctx, {
-      worktreePath,
-      branch,
-      wuName,
-      spawningIdentity: params.identity,
-      createdByArc: false,
-      ...(branch === null ? {} : { sessionNotesSeed: buildStartSessionNotesSeed({
-        wuName, branch, kind: "create-new", commit: START_CEREMONY_PENDING_COMMIT,
-      }) }),
-    });
-  } catch (err) {
-    return rejectCreateNewScaffold(ctx, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate }, err);
-  }
+  return completeCreatedWorktree({ ...ctx, store }, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate },
+    params.identity, postCreateNotice);
+}
 
-  return {
-    ok: true,
-    value: {
-      worktreePath,
-      branch,
-      wuName,
-      ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
-    },
+async function completeCreatedWorktree(ctx: SpawnWorktreeContext, spawn: {
+  offBranch: boolean; worktreePath: string; branch: string | null; wuName: string; markerGeneration?: Buffer;
+  spawnCoordinate?: SpawnedCheckoutCoordinate;
+}, identity: string, postCreateNotice: string | undefined): Promise<CreateNewOutcome> {
+  const { worktreePath, branch, wuName } = spawn;
+  const prepared = await withProjectionFanOutHold(async (): Promise<CreateNewOutcome | null> => {
+    let owner: OwnerIdentity | undefined;
+    try {
+      owner = await scaffoldIntoWorktree(ctx, { worktreePath, branch, wuName, spawningIdentity: identity, createdByArc: false,
+        ...(branch === null ? {} : { sessionNotesSeed: buildStartSessionNotesSeed({
+          wuName, branch, kind: "create-new", commit: START_CEREMONY_PENDING_COMMIT,
+        }) }),
+      });
+    } catch (error) { return rejectCreateNewScaffold(ctx, spawn, error); }
+    if (spawn.offBranch) {
+      const refusal = await stampCreatedWorkUnitMarker({ cwd: worktreePath, name: wuName, expected: spawn.markerGeneration, owner });
+      if (refusal !== null) return { ok: false, reason: refusal, worktreePath,
+        spawnLock: await lockRetainedCreation(ctx, worktreePath, wuName, owner) };
+    }
+    return null;
+  });
+  if (prepared !== null) return prepared;
+  await materializeSpawnedProjection(worktreePath);
+  const spawnLock = await lockSpawnedCheckout(ctx.io.exec, worktreePath);
+  if (spawnLock.kind === "failed") return {
+    ok: false, worktreePath, spawnLock,
+    reason: `checkout retained: ${describeSpawnLock(worktreePath, spawnLock) ?? spawnLock.detail}`
+      + " After locking it, continue work in the retained checkout; the placement has already applied.",
   };
+  return { ok: true, value: { worktreePath, branch, wuName, spawnLock,
+    ...(postCreateNotice === undefined ? {} : { postCreateNotice }) } };
+}
+
+async function lockRetainedCreation(ctx: SpawnWorktreeContext, worktreePath: string, wuName: string,
+  owner: OwnerIdentity | undefined): Promise<SpawnLock> {
+  try {
+    const current = await readWorktreeMarker(worktreePath);
+    if (current.kind !== "present" || !current.marker.spawnedByArc
+      || current.marker.createdFor?.kind !== "work-unit" || current.marker.createdFor.name !== wuName
+      || (current.marker.createdFor.uid !== undefined && (owner?.type !== "work-item" || current.marker.createdFor.uid !== owner.uid))
+      || current.marker.provisioning !== undefined || current.marker.husk !== undefined) {
+      return { kind: "failed", detail: `The retained checkout's ARC-created claim for ${wuName} could not be confirmed; inspect its marker before locking.` };
+    }
+    return await lockSpawnedCheckout(ctx.io.exec, worktreePath);
+  } catch (error) { return { kind: "failed", detail: error instanceof Error ? error.message : String(error) }; }
 }
 
 async function rejectCreateNewScaffold(ctx: SpawnWorktreeContext, spawn: {

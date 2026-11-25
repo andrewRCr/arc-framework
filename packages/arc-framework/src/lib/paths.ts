@@ -75,8 +75,9 @@ export function getChangelogPath(): string {
 /**
  * Walk upward from a starting directory until an ARC project root is found.
  *
- * An ARC project root is any directory containing a `.arc/` entry. Returns
- * `null` when the walk reaches the filesystem root without finding one.
+ * An `.arc/` entry marks a project, except machine configuration alone:
+ * `.arc/config.yml` needs sibling `system/` content to also identify a project.
+ * Returns `null` when the walk reaches the filesystem root without finding one.
  *
  * @param startDir - Directory to begin searching from (defaults to `process.cwd()`)
  * @returns Absolute path to the ARC project root, or `null` if none exists
@@ -84,7 +85,9 @@ export function getChangelogPath(): string {
 export function resolveArcRoot(startDir = process.cwd()): string | null {
   let dir = resolve(startDir);
   for (;;) {
-    if (existsSync(join(dir, resolveArcPath({ kind: "arc-root" })))) {
+    const arcRoot = join(dir, resolveArcPath({ kind: "arc-root" }));
+    if (existsSync(arcRoot)
+      && (!existsSync(join(arcRoot, "config.yml")) || existsSync(join(arcRoot, "system")))) {
       return dir;
     }
     const parent = dirname(dir);

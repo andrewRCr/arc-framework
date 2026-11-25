@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** `storage-cutover`
+- **Depends On:** `cutover-flip`
 
 - **Origin:** [internal]
 - **Design:** `draft-errand-promotion-concurrency.md`

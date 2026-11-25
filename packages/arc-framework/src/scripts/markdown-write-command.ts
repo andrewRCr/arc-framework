@@ -2,6 +2,8 @@
 
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
+import { parseArgs } from "node:util";
+import { ArcError } from "../lib/kernel/index.js";
 
 import type { GitExec } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
@@ -13,9 +15,10 @@ import {
   resolveMarkdownRepositoryRoot,
   type MarkdownPlanExecution,
   type MarkdownPlanWriter,
+  type PrepareMarkdownFormatOptions,
 } from "../lib/markdown/index.js";
 
-export type MarkdownWriteCommand = "format-tables" | "render-framework";
+export type MarkdownWriteCommand = "format-tables" | "format-prose" | "render-framework";
 
 /** Injectable boundaries for repository-local Markdown command tests. */
 export interface MarkdownWriteCommandDependencies {
@@ -36,6 +39,17 @@ const productionDependencies: MarkdownWriteCommandDependencies = {
   writer: createAtomicMarkdownPlanWriter,
 };
 
+function proseArguments(args: readonly string[]): Pick<PrepareMarkdownFormatOptions, "paths" | "prose"> {
+  const { values, positionals } = parseArgs({ args: [...args], allowPositionals: true,
+    options: { line: { type: "string" } } });
+  const line = values.line === undefined ? undefined : Number(values.line);
+  if (line !== undefined && (!Number.isSafeInteger(line) || line < 1 || positionals.length !== 1)) {
+    throw new ArcError("Use --line with a positive line number and exactly one Markdown path, or omit --line and retry.",
+      "markdown.prose-selection");
+  }
+  return { paths: positionals, prose: line === undefined ? {} : { line } };
+}
+
 /** Resolve the Git top level, validate the complete input, then execute its atomic write plan. */
 export async function runMarkdownWriteCommand(
   command: MarkdownWriteCommand,
@@ -44,10 +58,11 @@ export async function runMarkdownWriteCommand(
   dependencies: MarkdownWriteCommandDependencies = productionDependencies,
 ): Promise<MarkdownPlanExecution> {
   const root = await resolveMarkdownRepositoryRoot({ cwd, exec: dependencies.exec, realpath: dependencies.realpath });
-  const prepare = command === "format-tables" ? prepareExplicitMarkdownFormat : prepareFrameworkProjection;
+  const prepare = command === "render-framework" ? prepareFrameworkProjection : prepareExplicitMarkdownFormat;
+  const input = command === "format-prose" ? proseArguments(paths) : { paths };
   const plan = await prepare({
     root,
-    paths,
+    ...input,
     exec: dependencies.exec,
     lstat: dependencies.lstat,
     realpath: dependencies.realpath,
@@ -57,7 +72,7 @@ export async function runMarkdownWriteCommand(
   return executeMarkdownFormatPlan(plan, dependencies.writer(root));
 }
 
-/** Stable human-readable result lines, including every changed table byte range. */
+/** Stable human-readable result lines, including every changed source byte range. */
 export function renderMarkdownWriteExecution(execution: MarkdownPlanExecution): {
   readonly stdout: string;
   readonly stderr: string;

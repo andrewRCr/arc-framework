@@ -53,9 +53,11 @@ const retained: EarlierApplicableAttempt = {
 
 async function discharge(attempts: readonly EarlierApplicableAttempt[], invocation?: {
   mode: "force"; sourceId: string;
-}) {
+}, ordinaryGrant = false, bindCurrentOperationRef?: (operationId: string) => string) {
   return projectHostedReservationDischarge({
     reservation,
+    ...(bindCurrentOperationRef === undefined ? {} : { bindCurrentOperationRef }),
+    ...(ordinaryGrant ? { nativePassGrants: true as const } : {}),
     ...(invocation === undefined ? {} : { invocation }),
     span: ["d".repeat(40)],
     target: { ...handle.target, headSha: "d".repeat(40) },
@@ -73,6 +75,8 @@ async function discharge(attempts: readonly EarlierApplicableAttempt[], invocati
       sources: [attempt.sourceId],
       maxPasses: 3,
       completedPasses: attempt.logicalPass,
+      ...(ordinaryGrant ? { additionalPassAuthorization: { target: handle.target, lane: "standard" as const,
+        precedingProducerId: attempt.attemptId, completedPasses: attempt.logicalPass, nextPass: attempt.logicalPass + 1 } } : {}),
       attempts: [{ sourceId: attempt.sourceId, outcome: "clean", reviewOperationId: attempt.attemptId }],
       verifiedTerminalSignal: {
         reviewOperationId: attempt.attemptId,
@@ -86,6 +90,13 @@ async function discharge(attempts: readonly EarlierApplicableAttempt[], invocati
 }
 
 describe("retained admitted source selection", () => {
+  it("retains the exact producer and count when native authority admits another pass over retained evidence", async () => {
+    await expect(discharge([retained], undefined, true)).resolves.toMatchObject({ discharged: false,
+      nextSource: "codex-pr", completedPasses: 2, requestCoverage: "complete", terminalAttempt: {
+        sourceId: "codex-pr", outcome: "clean", reviewOperationId: retained.attemptId,
+      } });
+  });
+
   it("discharges an applicable complete selected source without repeating the invocation", async () => {
     await expect(discharge([retained])).resolves.toMatchObject({ discharged: true, nextSource: null });
   });
@@ -133,6 +144,12 @@ describe("retained admitted source selection", () => {
     };
     await expect(discharge([retained, pending]))
       .resolves.toMatchObject({ discharged: false, nextSource: null, awaitAction: { handle: pendingHandle } });
+    const { bindNativeReviewOperationReference } = await import("../../../../../src/scripts/review-gate/core/review-operation-reference.js");
+    const { OwnerIdentitySchema } = await import("../../../../../src/lib/store/identity.js");
+    const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: "123e4567-e89b-42d3-a456-426614174001" });
+    const bind = (operationId: string) => bindNativeReviewOperationReference({ repositoryId: "repo-1", workItem, operationId });
+    await expect(discharge([retained, pending], undefined, false, bind)).resolves.toMatchObject({
+      awaitAction: { handle: pendingHandle, operationRef: bind(pendingHandle.admission.admissionId) } });
     await expect(discharge([retained, { ...pending, outcome: "clean" }]))
       .resolves.toMatchObject({ discharged: true, nextSource: null });
   });

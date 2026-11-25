@@ -181,7 +181,7 @@ export async function handleActiveInFlight(
   const result = await runActiveInFlightExpansion({
     store,
     ...(roster === undefined ? {} : { roster }),
-    ...(locusPorts === undefined ? {} : { findHoldingCheckout: (name: string) => locusPorts.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }) }),
+    ...(locusPorts === undefined ? {} : { findHoldingCheckout: locusPorts.findHoldingCheckout }),
     exec,
     execInput: createGitExecInput(interaction?.subprocess),
     cwd,

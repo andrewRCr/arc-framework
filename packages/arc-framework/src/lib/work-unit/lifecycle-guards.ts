@@ -26,8 +26,10 @@
  * @module
  */
 
-import { inspectCheckoutMarker } from "../locus/marker-occupancy.js";
+import { inspectCheckoutMarker, type MarkerOccupancy } from "../locus/marker-occupancy.js";
 import { decodeWorktreeMarkerOwnership } from "../git/worktree-marker.js";
+import { ownedInFlight, type UnboundMarkerClassification } from "../locus/unbound-marker.js";
+import { sameReference } from "../store/identity.js";
 import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
@@ -143,19 +145,20 @@ function materializesInCurrentCheckout(inputs: {
  *
  * Reads the worktree's active-meta candidates, derives each one's state from its
  * `(phase, location)` (never `git branch` inference), and rejects on the first
- * foreign occupant. A candidate with the target slug is not a collision.
+ * foreign occupant. Operational occupancy matches the selected primary's UID;
+ * materialize alone may bind an eligible unbound marker.
  *
  * @param deps - The worktree root and the injected active-meta reader.
  * @returns An async guard validator.
  */
 export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardValidator {
-  return async ({ slug, inputs }) => {
+  return async ({ slug, inputs, primary, admitUnbound }) => {
     // A fresh spawn that re-attaches an existing branch lands nothing in this
     // checkout, so a current occupant is no collision; every other placement
     // (in-place, or a branch-creating spawn) materializes here and is checked.
     if (!materializesInCurrentCheckout(inputs)) return { ok: true };
 
-    if (deps.store !== undefined) return readStoreOccupancy(deps.cwd, deps.store, slug, deps.identity);
+    if (deps.store !== undefined) return readStoreOccupancy({ cwd: deps.cwd, store: deps.store, slug, identity: deps.identity, primary, admitUnbound });
     const { candidates } = await deps.readActiveMetaCandidates(deps.cwd);
 
     for (const candidate of candidates) {
@@ -213,25 +216,39 @@ export function makePauseGuard(store?: Store, basis?: StoreRecord): GuardValidat
   };
 }
 
+interface StoreOccupancyInput { cwd: string; store: Store; slug: string; identity?: string; primary?: StoreRecord; admitUnbound?: boolean }
 /** Enforce identity-based occupancy using the bound store's resolver. */
-async function readStoreOccupancy(cwd: string, store: Store, slug: string, identity?: string): Promise<GuardResult> {
-  if (usesOffBranchState(store)) {
-    const occupancy = await inspectCheckoutMarker({ cwd, store, identity });
-    if (occupancy.kind === "unreadable") return { ok: false, message: occupancy.reason };
-    if (occupancy.kind === "occupied") {
-      const ownership = decodeWorktreeMarkerOwnership(occupancy.marker.marker);
-      const own = occupancy.marker.marker.husk === undefined && ownership.kind === "current"
-        && ownership.subject.kind === "work-unit" && ownership.subject.name === slug;
-      if (!own) return { ok: false, message: occupancy.reason };
-    }
-  }
-  const current = await resolveCurrentWorkUnit({ cwd, store });
-  if (current.status === "none" && current.warnings.length === 0) return { ok: true };
+async function readStoreOccupancy(input: StoreOccupancyInput): Promise<GuardResult> {
+  const offBranch = usesOffBranchState(input.store);
+  const marker = offBranch ? await inspectCheckoutMarker(input) : { kind: "clear" as const };
+  const admitted = admitMarkerOccupancy(input, marker);
+  if (!admitted.ok) return admitted;
+  const current = await resolveCurrentWorkUnit(input);
+  if (current.status === "unbound") return admitted.bind !== undefined && canBindUnbound(input, current.unbound)
+    ? admitted : { ok: false, message: current.unbound.reason };
+  if (current.status === "none" && current.warnings.length === 0) return admitted;
   if (current.status !== "resolved" || current.candidate.record === undefined) return {
     ok: false, message: `Unable to resolve this checkout's work-unit occupancy. ${current.warnings.join(" ")}`,
   };
   const name = current.candidate.reference.owner.name;
-  if (name === slug) return { ok: true };
-  if (!usesOffBranchState(store) && !OCCUPYING.has(current.candidate.record.state?.toLowerCase() ?? "")) return { ok: true };
+  const own = offBranch ? input.primary !== undefined && sameReference(input.primary.reference, current.candidate.reference) : name === input.slug;
+  if (own || (!offBranch && !OCCUPYING.has(current.candidate.record.state?.toLowerCase() ?? ""))) return admitted;
   return { ok: false, message: `worktree already holds an active work unit \`${name}\` — one active work unit per worktree.` };
+}
+function admitMarkerOccupancy(input: StoreOccupancyInput, occupancy: MarkerOccupancy): GuardResult {
+  if (occupancy.kind === "clear") return { ok: true };
+  if (occupancy.kind === "unbound" && canBindUnbound(input, occupancy.unbound)) return { ok: true, bind: { expected: occupancy.marker.bytes } };
+  if (occupancy.kind === "occupied" && markerBelongsToPrimary(input.primary, occupancy)) return { ok: true };
+  return { ok: false, message: occupancy.reason };
+}
+function canBindUnbound(input: StoreOccupancyInput, unbound: UnboundMarkerClassification): boolean {
+  if (!input.admitUnbound || input.primary === undefined || input.identity === undefined) return false;
+  return ownedInFlight(input.primary, input.identity) && unbound.exit.kind === "bind"
+    && sameReference(input.primary.reference, unbound.exit.reference);
+}
+function markerBelongsToPrimary(primary: StoreRecord | undefined, occupancy: Extract<MarkerOccupancy, { kind: "occupied" }>): boolean {
+  const uid = primary?.reference.owner.type === "work-item" ? primary.reference.owner.uid : undefined;
+  const ownership = decodeWorktreeMarkerOwnership(occupancy.marker.marker);
+  return uid !== undefined && occupancy.marker.marker.husk === undefined && ownership.kind === "current"
+    && ownership.subject.kind === "work-unit" && ownership.subject.uid === uid;
 }

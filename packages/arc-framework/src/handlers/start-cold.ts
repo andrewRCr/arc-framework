@@ -70,7 +70,7 @@ export async function runColdStartArm(
   const lines = offBranch ? [`Work unit: ${r.wuName}`, `Checkout:  ${r.worktreePath}`] : [
     `Work unit: ${r.wuName}`,
     `Branch:    ${r.branch}${r.cutFromBase ? ` (cut off protected base ${r.cutFromBase})` : ""}`,
-    `Meta:      ${workItemArtifactPath(r.wuName, "meta", { kind: "active" }, null)}`,
+    `Meta:      ${await workItemArtifactPath(r.worktreePath, r.wuName, "meta", { kind: "active" }, null)}`,
   ];
   if (r.origin) lines.push(`Origin:    ${r.origin}`);
   if (r.passthrough) {

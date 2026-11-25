@@ -1,7 +1,6 @@
 /** Public repository entry point for explicit GFM table formatting. */
 
-import { fileURLToPath } from "node:url";
-
+import { isMainModule } from "../lib/main-module.mjs";
 import { formatUnexpectedError } from "../lib/errors.js";
 import { renderMarkdownWriteExecution, runMarkdownWriteCommand } from "./markdown-write-command.js";
 
@@ -18,4 +17,4 @@ export async function main(args: readonly string[] = process.argv.slice(2)): Pro
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main();
+if (await isMainModule(import.meta, process.argv[1])) process.exitCode = await main();

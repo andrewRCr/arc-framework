@@ -60,11 +60,10 @@ export function stripTombstoneSections(content: string): string {
  * @returns A new manifest with cross-WU files stripped of `## Removed:` sections.
  */
 export function projectManifest(manifest: SyncManifest): SyncManifest {
-  const files: Record<string, string> = {};
-  for (const [path, content] of Object.entries(manifest.files)) {
-    files[path] = classifyUserSyncPath(path) === "cross-wu" && shapeForFile(path) !== null
+  const files = Object.fromEntries(Object.entries(manifest.files).map(([path, content]) => [path,
+    classifyUserSyncPath(path) === "cross-wu" && shapeForFile(path) !== null
       ? stripTombstoneSections(content)
-      : content;
-  }
+      : content,
+  ]));
   return { version: manifest.version, files };
 }

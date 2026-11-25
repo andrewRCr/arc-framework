@@ -8,7 +8,7 @@ import type { StoreRecord } from "../store/read.js";
 import type { RecordReference } from "../store/identity.js";
 
 /** Projection repair available for source conflicts in the registered command surface. */
-export const DECOMPOSE_SOURCE_CONFLICT_REMEDY = "Resolve the named conflict's markers in the projecting file and let write-back persist that resolution, then retry the selected mode.";
+export const DECOMPOSE_SOURCE_CONFLICT_REMEDY = "Resolve the named conflict's markers in the projecting file and let write-back persist that resolution, or otherwise run arc save --resolve <token> from a checkout projecting the subject, then retry the selected mode.";
 
 /** Name source conflicts before an origin meta conflict can hide behind incomplete inventory. */
 export function checkDecomposeSourceConflicts(input: Pick<DecomposeOriginRecords, "primary" | "artifacts">): DecomposeRefusal | undefined {

@@ -78,6 +78,9 @@ async function namedPathChange(io: TreeMatchIO, root: string, resolved: Resolved
 export type SelectedCheckInputs = { status: "selected"; paths?: TreePathChange[] }
   | { status: "not selected"; reason: string };
 
+/** Why a request outside CI leaves a CI-only check unrun. */
+export const CI_ONLY_UNSELECTED_REASON = "CI-only check requires --ci";
+
 /**
  * Apply one check's explicit invocation, CI policy, and widening opt-out to observed input reach.
  * @param input - Check identity, declaration, request, resolved scope, and observed reach
@@ -88,7 +91,7 @@ export function selectCheckInputs(input: {
   resolved: ResolvedCheckRequest; selection: CheckSelection;
 }): SelectedCheckInputs {
   const { id, check, request, resolved, selection } = input;
-  if (check.ci_only && request.form.kind !== "run" && !request.ci) return { status: "not selected", reason: "CI-only check requires --ci" };
+  if (check.ci_only && request.form.kind !== "run" && !request.ci) return { status: "not selected", reason: CI_ONLY_UNSELECTED_REASON };
   if (resolved.scope.kind === "all") return selectAllScopeInputs(id, check, request, selection);
   if (request.form.kind === "run" && check.mode === "project") return { status: "selected" };
   if (request.form.kind !== "run" && selection.widened && check.widen) return { status: "selected" };

@@ -1,9 +1,8 @@
 /**
  * Type contracts for `arc status` — the composite probe orchestrator.
  *
- * The composite fans out to the three standalone probes (user, config, active) and folds their results into a single envelope. Session-init
- * consumes this in place of its own Batch 1 git-config reads and four separate
- * CLI invocations.
+ * Full status combines user, config, active, and projection probes. Session-specific
+ * results carry their own scoped probe sets.
  *
  * Each probe slot is wrapped in a {@link Probe} discriminated union so
  * per-probe failures surface through the result shape rather than process
@@ -12,6 +11,7 @@
  * logically parallel to the probe fan-out.
  */
 import type { PausedWorkResult } from "../../lib/session-init/paused-work.js";
+import type { ProjectionStatus } from "../../lib/store/projection/status.js";
 import type { InboundBackPressureResult } from "../../lib/session-init/inbound-back-pressure.js";
 import { SessionInitUserValueSchema, SessionUserValueSchema } from "../user/session-init-schema.js";
 import { z } from "zod";
@@ -228,6 +228,7 @@ export interface StatusResult {
   user: Probe<UserStatusResult>;
   config: Probe<ConfigStatusResult>;
   active: Probe<ActiveStatusResult>;
+  projection: Probe<ProjectionStatus>;
 }
 
 /** Session-init-scoped composite result — `--session-init` consumer shape. */
@@ -381,9 +382,8 @@ export interface SessionInitProbeResult {
   /**
    * Pre-computed partial-push-marker surface — the cohort sibling's live,
    * non-expired sync-state markers, each a notes push that has not yet arrived
-   * at origin (lag, not loss). Rendered as the Aware advisory one-liner in
-   * Step 5, co-located with the base-ref surface; the agent proceeds-with-context
-   * and never auto-resolves. Present whenever identity resolved (the ref is
+   * at origin (lag, not loss). Entry compilation carries an advisory alongside
+   * base-ref context and never auto-resolves it. Present whenever identity resolved (the ref is
    * identity-scoped); omitted only when identity is absent. An empty `markers`
    * array means the ref was read and nothing is live (or the ref is absent —
    * degrade-silent).
@@ -394,8 +394,8 @@ export interface SessionInitProbeResult {
    * compared to the internal threshold, plus a once-per-calendar-day nudge
    * marker. Present when identity resolved on the primary worktree and the
    * optional probe is supplied; omitted when identity is absent, the session is
-   * a linked worktree, or the probe is not supplied. Workflow
-   * renders it as offer-only guidance and never auto-runs compaction.
+   * a linked worktree, or the probe is not supplied. Entry compilation carries
+   * offer-only guidance and never auto-runs compaction.
    */
   compactionAdvisory?: Probe<NotesCompactionSessionAdvisoryResult>;
   /**
@@ -411,21 +411,21 @@ export interface SessionInitProbeResult {
    * Pre-resolved path to the active WU's coordinating `cohort-<leaf>.md`,
    * relative to cwd (forward-slash normalized). Present only when the active
    * meta carries a `Cohort` value and the backing doc exists under
-   * `backlog/planned/`; omitted otherwise. The session-init workflow reads it
-   * during context-load to surface cross-member coordination awareness.
+   * `backlog/planned/`; omitted otherwise. Included in the context-read projection
+   * for cross-member coordination.
    */
   cohortDocPath?: string;
   /**
    * Ordered context load set projected from the resolved session-init state.
-   * Purely additive: recovery consumes it as the deterministic context-load
-   * contract, while session-init keeps its existing prose-level reads for now.
+   * Shared deterministic context-read contract consumed by entry compilation
+   * and recovery.
    */
   loadSet: Probe<LoadSetManifest>;
   /**
    * Deterministic cursor derived from the active task-list checkbox grammar.
    * Present only when `active.value.taskListPath` resolves and passes the same
-   * path-safety validation used by `loadSet`. Session-init may use it as a
-   * line-anchor helper for strategic reads; it is not thought-state.
+   * path-safety validation used by `loadSet`. Supplies strategic-read anchors;
+   * it does not carry thought-state.
    */
   taskCursor?: Probe<TaskListCursorFileResult>;
   /**
@@ -437,8 +437,8 @@ export interface SessionInitProbeResult {
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
-   * (or neither) prompts. Workflow renders verbatim instead of composing
-   * combined-prompt prose itself.
+   * (or neither) prompts. Entry compilation carries this text into its combined
+   * offer rather than composing another prompt.
    */
   recommendedCombinedPrompt: string | null;
 }
@@ -481,6 +481,7 @@ export interface StatusProbes {
   user: (identity: string) => Promise<UserStatusResult>;
   config: () => Promise<ConfigStatusResult>;
   active: () => Promise<ActiveStatusResult>;
+  projection: () => Promise<ProjectionStatus>;
 }
 
 /**

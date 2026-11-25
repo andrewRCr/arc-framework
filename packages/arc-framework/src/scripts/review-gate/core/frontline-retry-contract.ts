@@ -14,7 +14,9 @@ export type FrontlineRetryCeilingOverride = Pick<ConditionalPassAuthorization, "
  * @param admission - Existing immutable source admission
  * @returns Target, source, policy, lineage, pass and coverage bindings
  */
-export function frontlineRetryContract(admission: FrontlineAdmission): unknown {
+export function frontlineRetryContract(admission: Pick<FrontlineAdmission,
+  "target" | "lineage" | "policyVersion" | "logicalPass" | "maxPasses" | "requestedCoverage"
+>): unknown {
   return {
     target: admission.target, lineage: admission.lineage, policyVersion: admission.policyVersion,
     logicalPass: admission.logicalPass, maxPasses: admission.maxPasses, requestedCoverage: admission.requestedCoverage,

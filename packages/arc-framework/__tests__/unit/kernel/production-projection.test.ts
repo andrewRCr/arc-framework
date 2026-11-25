@@ -3,9 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import type { KernelRegistry } from "../../../src/lib/kernel/index.js";
 import { foldKernelSchemaClosure, projectKernelSchemas } from "../../../src/lib/kernel/schema/generate.js";
-import {
-  createEditorDocumentSchemaRegistry, createProductionSchemaRegistry,
-} from "../../../src/production-schema-registry.js";
+import { createEditorDocumentSchemaRegistry } from "../../../src/editor-document-schema-registry.js";
+import { createProductionSchemaRegistry } from "../../../src/production-schema-registry.js";
 
 function editorDocumentIds(registry: KernelRegistry): string[] {
   return registry.ids().filter((id) => registry.meta(id)?.authored === "editor-document");

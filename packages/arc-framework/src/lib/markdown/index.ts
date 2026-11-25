@@ -11,6 +11,7 @@ export * from "./display-width.js";
 export * from "./emphasis-audit.js";
 export * from "./format-plan.js";
 export * from "./format-write.js";
+export * from "./prose-transform.js";
 export * from "./indexed-configuration.js";
 export * from "./indexed-dependencies.js";
 export * from "./indexed-lint.js";

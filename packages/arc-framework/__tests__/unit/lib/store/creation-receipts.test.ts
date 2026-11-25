@@ -100,8 +100,8 @@ it("retains complete creation facts through filtered cross-family sync and net-z
   const original = success(await fixture.store.history({ reference: batch.writes[0]!.reference }))[0]!.creationReceipt;
   success(await fixture.store.batch({ provenance: testProvenance, writes: batch.writes.map(result => ({ action: "remove" as const,
     reference: result.reference, expected: result.version! })) }));
-  success(await fixture.store.sync());
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
+  success(await fixture.store.push());
   for (const result of batch.writes) {
     const history = success(await remote.history({ reference: result.reference }));
     expect(history).toHaveLength(2);

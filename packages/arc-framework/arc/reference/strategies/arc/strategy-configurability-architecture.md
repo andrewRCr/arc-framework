@@ -57,7 +57,7 @@ domain-specific guidance, project-specific procedures, or extended standards:
 | --------------------- | --------------------------- | --------------------- | ---------------------------------------------- |
 | Project strategies    | Domain-specific guidance    | `strategies/project/` | `strategy-authentication.md` for auth patterns |
 | Project workflows     | Project-specific procedures | `workflows/project/`  | Custom deploy workflow, release checklist      |
-| Domain-specific rules | Extended project standards  | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`   |
+| Domain-specific rules | Extended project standards  | `system/rules/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`   |
 
 These are project-owned files — teams create them, ARC doesn't ship them. `DEV-RULES.ARC.md` and
 `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies, workflows, and domain-specific
@@ -143,21 +143,23 @@ a configurability path (how teams adapt it).
 
 ### Agent discovery
 
-The agent learns about the active configuration during session initialization. The session-init probe
-(`arc status --session-init --json`) resolves **final settings** by merging project YAML (`arc-config.yml`)
-with the current developer's local git-config — per-developer keys (`arc.commitInterlock`, `arc.pushInterlock`,
-`arc.syncInterlock`, `arc.releaseOptedIn`, `arc.notesPush`) take precedence in the resolution. Downstream
-logic (workflows, hooks, fire-point directives) consumes the resolved view, not the raw YAML:
+The agenda's residual `config` slot carries resolved session-entry settings. Resolution merges project YAML
+(`arc-config.yml`) with the current developer's local git-config; per-developer keys (`arc.commitInterlock`,
+`arc.pushInterlock`, `arc.syncInterlock`, `arc.releaseOptedIn`, `arc.notesPush`) take precedence where applicable.
+Downstream consumers use the resolved view rather than interpreting raw YAML.
 
-1. **Platform**: Check `platform.type`; use QUICK-REFERENCE § Platform Commands for platform-appropriate PR/MR
-   and issue commands. The section lists GitHub defaults and is project-editable for other platforms.
-2. **Custom patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the active patterns
+Settings outside that entry subset are read by the operation that needs them:
+
+1. **Platform**: Resolve `platform.type` for platform-specific operations; use QUICK-REFERENCE § Platform Commands
+   for the configured PR/MR and issue commands. The section lists GitHub defaults and is project-editable.
+2. **Custom patterns**: When `commit.format: custom` or `commit.context_footer: custom`, the commit operation reads
+   the active patterns.
 
 Method defaults and overrides load on demand at their direct workflow or method fire-point
 (see [Session Operations Strategy][session-ops]).
 
-This is a read-and-note step, not a ceremony. The agent carries this awareness through the session and applies
-it when encountering method references or platform-specific operations.
+Carry the resolved settings into their consuming operation. Method references and platform-specific operations
+supply the fire-points for any remaining reads.
 
 ---
 
@@ -242,11 +244,20 @@ independently; they have no project-level counterpart except the dual-scope entr
 | `arc.notesPush`        | Personal user-directory notes push behavior  | `manual` / `prompt` / `on-sync`               | `on-sync`    |
 | `arc.frontlineSources` | Ordered registered frontline review sources  | Repeated lowercase registry IDs               | (project)    |
 | `arc.releaseOptedIn`   | Per-developer release-wrapper opt-in flag    | `true` / `false`                              | `false`      |
+| `arc.inflightView`     | Other active work items selected for view    | `mine` / `cohort` / `all`                     | `mine`       |
+| `arc.inflightPin`      | Active work items added to that selection    | Repeated work-item slugs                      | (none)       |
+| `arc.selfTeardownMode` | Teardown of the invoking linked checkout     | `husk` / `remove`                             | `husk`       |
 
 `arc.notesPush` is dual-scope: it overrides the project-level `user.notes_push` value in `arc-config.yml`. The
 `arc.frontlineSources` preferences similarly override `review.frontline_sources`; both lists name registered
 sources in resolution order and never contain commands or reviewer identities. Add each developer preference with
 `git config --add arc.frontlineSources <source-id>`. The other entries are per-developer only.
+
+`git config --local arc.selfTeardownMode remove` asks teardown to move the CLI to primary and remove its own
+checkout after the ordinary retirement checks. The invoking shell or agent session remains in the deleted directory
+and must use primary for subsequent commands. Windows falls back to `husk` with a notice because the invoking shell
+may keep the directory occupied. The default `husk` leaves a detached, stamped checkout and releases ARC's Git lock.
+From outside any husk, `arc teardown --yes` removes eligible stamped husks and reports every retained path's reason.
 
 `arc.releaseOptedIn` is set by `arc release setup install` (per-harness setup + opt-in recording) or
 `arc release opt-in` (opt-in recording only). See [Interlock Release Wrappers
@@ -255,6 +266,12 @@ Strategy][interlock-release-wrappers] for the trust model and per-harness setup 
 `arc.identity`, `arc.role`, and `arc.tools` are managed by `arc init` (project bootstrap) or `arc join`
 (joining an existing project). The autonomy interlocks have no setup helper today — set them via direct
 `git config arc.<key> <value>` edits as preference.
+
+Set the view with `git config --local arc.inflightView <mode>`; the last value wins. Add each pin with
+`git config --local --add arc.inflightPin <slug>`. `mine` selects active work items owned by the current identity,
+`cohort` selects the checkout work unit's other cohort members, and `all` selects every active work item. Pins add to
+each mode; the checkout's own work item is always excluded. `arc status` names unknown modes, which use `mine`, and
+pins naming no active work item, which add nothing.
 
 ### Settings with behavioral implications
 

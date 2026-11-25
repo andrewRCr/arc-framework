@@ -12,7 +12,7 @@ import { DecomposeRefusalSchema } from "../../../../src/lib/decompose/refusal.js
 
 it.each(["retirement", "extraction"] as const)("refuses every discard and revision form after a %s lands, naming its recorded members", async shape => {
   const h = shape === "retirement" ? await createDecomposeTerminalFixture() : await createDecomposeExtractionFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   expect(preview.status).toBe("ok");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw new Error(JSON.stringify(preview));
@@ -36,7 +36,7 @@ it.each(["retirement", "extraction"] as const)("refuses every discard and revisi
 
 it("does not classify a reused live origin generation from the old retirement lineage", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw new Error(JSON.stringify(preview));
   expect(await runStoreDecomposeFinish(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority })).toMatchObject({ status: "ok" });

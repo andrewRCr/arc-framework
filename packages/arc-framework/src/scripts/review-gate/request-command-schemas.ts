@@ -1,4 +1,5 @@
 /** Kernel registration for public review request schemas owned by their own command modules. */
+import { ReviewAdversarialRecordRequestSchema } from "./core/adversarial-record-schema.js";
 
 import { ReviewLaneReadRequestSchema } from "./lane-read-schema.js";
 import type { KernelRegistry } from "../../lib/kernel/index.js";
@@ -10,11 +11,14 @@ import { RespondRequestSchema } from "./runtime/respond-command.js";
 import { ReviewReadinessRequestSchema } from "./readiness.js";
 import { FrontlineResolveRequestSchema } from "./policy/frontline-command-schema.js";
 import { HostedSettleEnvelopeSchema } from "./hosted/settle.js";
+import { HostedDismissEnvelopeSchema } from "./hosted/dismiss.js";
 import { LocalPrepareRequestSchema } from "./runtime/local-prepare.js";
 import { LocalAttestRequestSchema } from "./runtime/local-attest-command.js";
+import { LocalCancelRequestSchema } from "./runtime/local-cancel-command.js";
 import { LocalResumeRequestSchema } from "./runtime/local-resume-command.js";
 import { DeliveryReviewTerminusAcceptanceInputSchema } from "./policy/delivery-review-terminus.js";
 
+export const REVIEW_ADVERSARIAL_RECORD_REQUEST_SCHEMA_ID = "review-adversarial-record-request";
 export const REVIEW_RESOLVE_REQUEST_SCHEMA_ID = "review-resolve-request";
 export const REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID = "review-hosted-await-request";
 export const REVIEW_REDUCE_REQUEST_SCHEMA_ID = "review-reduce-request";
@@ -24,8 +28,10 @@ export const REVIEW_LANE_READ_REQUEST_SCHEMA_ID = "review-lane-read-request";
 export const REVIEW_READINESS_REQUEST_SCHEMA_ID = "review-readiness-request";
 export const REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID = "review-frontline-resolve-request";
 export const REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID = "review-hosted-settle-request";
+export const REVIEW_HOSTED_DISMISS_REQUEST_SCHEMA_ID = "review-hosted-dismiss-request";
 export const REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID = "review-local-prepare-request";
 export const REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID = "review-local-attest-request";
+export const REVIEW_LOCAL_CANCEL_REQUEST_SCHEMA_ID = "review-local-cancel-request";
 export const REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID = "review-local-resume-request";
 export const REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID = "review-terminus-accept-request";
 
@@ -41,6 +47,7 @@ export const REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID = "review-terminus-accept-
  */
 export function registerReviewRequestCommandSchemas(registry: KernelRegistry): KernelRegistry {
   for (const [id, schema] of [
+    [REVIEW_ADVERSARIAL_RECORD_REQUEST_SCHEMA_ID, ReviewAdversarialRecordRequestSchema],
     [REVIEW_RESOLVE_REQUEST_SCHEMA_ID, ReviewPolicyCommandRequestSchema],
     [REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID, HostedAwaitEnvelopeSchema],
     [REVIEW_REDUCE_REQUEST_SCHEMA_ID, ReduceRequestSchema],
@@ -50,8 +57,10 @@ export function registerReviewRequestCommandSchemas(registry: KernelRegistry): K
     [REVIEW_LANE_READ_REQUEST_SCHEMA_ID, ReviewLaneReadRequestSchema],
     [REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID, FrontlineResolveRequestSchema],
     [REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID, HostedSettleEnvelopeSchema],
+    [REVIEW_HOSTED_DISMISS_REQUEST_SCHEMA_ID, HostedDismissEnvelopeSchema],
     [REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID, LocalPrepareRequestSchema],
     [REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID, LocalAttestRequestSchema],
+    [REVIEW_LOCAL_CANCEL_REQUEST_SCHEMA_ID, LocalCancelRequestSchema],
     [REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID, LocalResumeRequestSchema],
     [REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID, DeliveryReviewTerminusAcceptanceInputSchema],
   ] as const) {

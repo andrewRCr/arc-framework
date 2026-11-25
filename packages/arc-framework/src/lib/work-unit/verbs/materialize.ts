@@ -17,6 +17,7 @@ import {
 } from "../lifecycle-executor.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
+import { describeSpawnLock, lockSpawnedCheckout, type SpawnLock } from "../../git/worktree-removal.js";
 
 /** Default spawned materialize — create a local branch from `origin/<branch>` in a fresh worktree. */
 export interface MaterializeSpawnParams {
@@ -63,7 +64,7 @@ export type MaterializeParams = MaterializeSpawnParams | MaterializeInPlaceParam
 
 /** The outcome of a materialize attempt. */
 export type MaterializeResult =
-  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; worktreePath?: string; spawnLock?: SpawnLock }
   | {
       status: "materialized";
       /** The materialized branch. */
@@ -74,6 +75,8 @@ export type MaterializeResult =
       worktreePath: string;
       /** Provisioning notices surfaced by the placement primitive. */
       advisories: string[];
+      /** The lock a fresh worktree carries once its placement has returned; absent in place. */
+      spawnLock?: SpawnLock;
     };
 
 /** Remote-tracking branch ref used as the base for a fresh materialize spawn. */
@@ -100,7 +103,20 @@ export async function runMaterialize(
   ctx: MaterializeContext,
   params: MaterializeParams,
 ): Promise<MaterializeResult> {
-  if (usesOffBranchState(ctx.store)) return runStoreMaterialize(ctx, params);
+  const result = usesOffBranchState(ctx.store) ? await runStoreMaterialize(ctx, params) : await materializeInRepo(ctx, params);
+  if (result.status !== "materialized" || result.inPlace) return result;
+  const spawnLock = ctx.exec === undefined
+    ? { kind: "failed" as const, detail: "materialize ran without a Git executor" }
+    : await lockSpawnedCheckout(ctx.exec, result.worktreePath);
+  if (spawnLock.kind === "failed") return {
+    status: "rejected", worktreePath: result.worktreePath, spawnLock,
+    reason: `checkout retained: ${describeSpawnLock(result.worktreePath, spawnLock) ?? spawnLock.detail}`
+      + " After locking it, continue work in the retained checkout; the placement has already applied.",
+  };
+  return { ...result, spawnLock };
+}
+
+async function materializeInRepo(ctx: MaterializeContext, params: MaterializeParams): Promise<MaterializeResult> {
   const { name, branch } = params;
   if (!isSlugSafe(name)) {
     return {

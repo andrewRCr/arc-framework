@@ -8,6 +8,8 @@ import {
   configValidateCommandInputRegistration,
 } from "./commands/config.js";
 import { infrastructureCommandInputPolicyDeclarations } from "./command-input-infrastructure-policies.js";
+import { storeCommandInputPolicyDeclarations as refStoreCommandInputPolicyDeclarations,
+  storeCommandInputRegistrations as refStoreCommandInputRegistrations } from "./commands/store-input.js";
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
 import { baseCommandInputPolicyDeclarations, baseCommandInputRegistrations } from "./handlers/base.js";
 import {
@@ -93,7 +95,11 @@ import {
 import { schemaCommandInputRegistrations, schemaCommandInputPolicyDeclarations } from "./handlers/schema.js";
 import { startCommandInputPolicyDeclarations, startCommandInputRegistration } from "./handlers/start.js";
 import { statusCommandInputPolicyDeclarations, statusCommandInputRegistration } from "./handlers/status.js";
+import { agendaCommandInputPolicyDeclarations, agendaCommandInputRegistration } from "./commands/agenda/input.js";
 import { syncCommandInputPolicyDeclarations } from "./handlers/sync.js";
+import { selectionCommandInputRegistration, selectionCommandInputPolicyDeclarations } from "./handlers/selection.js";
+import { saveCommandInputRegistration, saveCommandInputPolicyDeclarations } from "./handlers/save.js";
+import { editorCommandInputRegistration, editorCommandInputPolicyDeclarations } from "./handlers/editor.js";
 import { userCommandInputPolicyDeclarations, userCommandInputRegistrations } from "./handlers/user.js";
 import {
   userInboxListCommandInputPolicyDeclarations,
@@ -112,6 +118,7 @@ import type { CommandInputRegistration } from "./lib/command-input/registry.js";
 /** Every command-owned schema registration contributed by migrated families. */
 export const commandInputRegistrations = [
   ...storeCommandInputRegistrations,
+  ...refStoreCommandInputRegistrations,
   initCommandInputRegistration,
   joinCommandInputRegistration,
   checkCommitMessageInputRegistration,
@@ -134,6 +141,10 @@ export const commandInputRegistrations = [
   wuReconcileCommandInputRegistration,
   recoverCommandInputRegistration,
   statusCommandInputRegistration,
+  selectionCommandInputRegistration,
+  saveCommandInputRegistration,
+  editorCommandInputRegistration,
+  agendaCommandInputRegistration,
   logStandaloneInputRegistration,
   ...userCommandInputRegistrations,
   userInboxListCommandInputRegistration,
@@ -186,12 +197,17 @@ export const commandInputPolicyDeclarations = [
   ...startCommandInputPolicyDeclarations,
   ...schemaCommandInputPolicyDeclarations,
   ...statusCommandInputPolicyDeclarations,
+  ...agendaCommandInputPolicyDeclarations,
   ...syncCommandInputPolicyDeclarations,
+  ...selectionCommandInputPolicyDeclarations,
+  ...saveCommandInputPolicyDeclarations,
+  ...editorCommandInputPolicyDeclarations,
   ...userCommandInputPolicyDeclarations,
   ...userInboxListCommandInputPolicyDeclarations,
   ...userSyncCommandInputPolicyDeclarations,
   ...viewCommandInputPolicyDeclarations,
   ...remedyRoadmapConflictInputPolicyDeclarations,
+  ...refStoreCommandInputPolicyDeclarations,
   ...validateFrontmatterInputPolicyDeclarations,
   ...infrastructureCommandInputPolicyDeclarations,
 ] as const satisfies readonly CommandInputDeclaration[];

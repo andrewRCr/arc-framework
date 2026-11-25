@@ -1,16 +1,13 @@
 # Strategy Document Index
 
-**Purpose:** Quick reference to codified strategy guidance. Consult relevant strategies before implementing
-work in their domains.
-
 ## ARC Framework Strategies
 
-These ship with the framework and cover development methodology applicable to any project.
 Strategies marked **(arc-in-git)** are only present when arc-in-git Project Management mode is active
 (`pm.mode: arc-in-git`); those marked **(team mode)** only when `team.mode: true` — both in `arc-config.yml`.
 
 - `arc/strategy-adr-methodology.md`
-    - Consult when: writing an ADR, deciding whether a decision warrants one
+    - ALWAYS load before writing, amending, or accepting an ADR; `assess-draft-readiness` carries the planning-close
+      test of which decisions warrant one.
 - `arc/strategy-configurability-architecture.md`
     - Consult when: working on config or methods infrastructure
 - `arc/strategy-planning-module.md` **(arc-in-git)** - What arc-in-git installs, routing/promotion, scaling

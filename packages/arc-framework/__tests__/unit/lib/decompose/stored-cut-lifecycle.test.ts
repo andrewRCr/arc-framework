@@ -12,7 +12,7 @@ import { recordReferences } from "../../../../src/lib/store/identity.js";
 
 it("refuses abandonment while a cut is stored and succeeds after its approved discard", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const before = lifecycleSuccess(await h.store.version());
   const refused = await runStoreAbandon(h.ctx, { name: "origin", confirmed: true });
   expect(refused).toMatchObject({ status: "rejected", refusal: { code: "record-malformed", rule: "lineage.cut-in-flight" } });
@@ -31,11 +31,11 @@ it("refuses abandonment while a cut is stored and succeeds after its approved di
 
 it("preserves unsynced abandonment's native slug refusal and leaves independently removable stubs and an open cohort", async () => {
   const h = await createDecomposeCloneFixture();
-  for (const clone of [h.left, h.right]) clone.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  for (const clone of [h.left, h.right]) clone.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const cut = await addConcurrentDecomposeCut(h.left.ctx, "left");
   expect(await runStoreAbandon(h.right.ctx, { name: "origin", confirmed: true })).toMatchObject({ status: "abandoned" });
-  lifecycleSuccess(await h.right.store.sync());
-  lifecycleSuccess(await h.left.store.sync());
+  lifecycleSuccess(await h.right.store.push());
+  lifecycleSuccess(await h.left.store.push());
   const native = await readWorkUnit(h.left.store, "origin");
   expect(native).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   if (native.status !== "refused") throw new Error(JSON.stringify(native));

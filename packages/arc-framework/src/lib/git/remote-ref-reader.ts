@@ -59,6 +59,8 @@ export const DEFAULT_NETWORK_TIMEOUT_MS = 5000;
 interface BoundedResult {
   ok: boolean;
   stdout: string;
+  /** A failed read ran out its own deadline rather than failing otherwise. */
+  timedOut?: boolean;
 }
 
 /**
@@ -85,7 +87,7 @@ async function runBounded(
     });
     return { ok: true, stdout };
   } catch {
-    return { ok: false, stdout: "" };
+    return { ok: false, stdout: "", timedOut: controller.signal.aborted };
   } finally {
     clearTimeout(timer);
   }
@@ -228,6 +230,8 @@ export interface LiveRemoteBranchTipResult {
   reachable: boolean;
   /** Exact tip when the remote returned one well-formed record for the requested branch. */
   tip: string | null;
+  /** Why an unreachable read failed: its own deadline, or any other error. */
+  failureReason?: "timeout" | "error";
 }
 
 /** Inputs for {@link readLiveRemoteBranchTip}. */
@@ -248,7 +252,7 @@ export async function readLiveRemoteBranchTip(
   } = options;
   const ref = `refs/heads/${branch}`;
   const result = await runBounded(exec, ["ls-remote", "--heads", remote, ref], timeoutMs);
-  if (!result.ok) return { reachable: false, tip: null };
+  if (!result.ok) return { reachable: false, tip: null, failureReason: result.timedOut === true ? "timeout" : "error" };
   const records = result.stdout.split("\n").filter((line) => line.trim() !== "");
   if (records.length !== 1) return { reachable: true, tip: null };
   const [record] = records;

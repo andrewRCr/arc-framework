@@ -1,6 +1,7 @@
 /** Marker-selected work-unit lifecycle evidence over the operational store. */
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
-import { SlugSchema, WorkUnitStateSchema } from "../kernel/index.js";
+import { WorkUnitStateSchema } from "../kernel/index.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { ParsedMetaRecordSchema, type ParsedMetaRecord } from "../active/meta-schema.js";
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
@@ -12,32 +13,37 @@ import { createProjectIdentityReader } from "../store/project-identity.js";
 import { parseLineageRecord } from "../store/kinds/lineage/parser.js";
 import type { DerivedWorkUnitSubject, WorkUnitLifecycleProjection } from "./role-derivation.js";
 import { readWorkUnitLineage } from "./store-terminal-work-unit.js";
+import type { WorktreeMarker } from "../git/worktree-marker.js";
+import { classifyUnboundMarker, type UnboundMarkerClassification } from "./unbound-marker.js";
 
 /** A complete subject observation retains the exact record for context projection. */
 export type StoreWorkUnitEvidence =
   | { kind: "absent" }
-  | { kind: "unreadable"; reason: string; missingRecord?: boolean; code?: "subject-unresolved" }
+  | { kind: "unreadable"; reason: string; missingRecord?: boolean;
+      code?: "subject-unresolved" | "work-unit-marker-unbound"; unbound?: UnboundMarkerClassification }
   | { kind: "terminal"; subject: DerivedWorkUnitSubject; lifecycle: WorkUnitLifecycleProjection }
   | { kind: "present"; subject: DerivedWorkUnitSubject; record: StoreRecord;
       fields: ParsedMetaRecord; branch: string | null; lifecycle: WorkUnitLifecycleProjection };
 interface StoreWorkUnitInput {
-  store: Store; slug: string; head: string; exec?: GitExec; baseBranch?: string;
+  store: Store; slug: string; uid?: string; head: string; exec?: GitExec; baseBranch?: string;
+  cwd: string; marker: WorktreeMarker; identity?: string;
   archiveCadence?: "manual" | "with-integration"; projectId?: () => Promise<string>;
 }
 
 /** Read a marker claim and its authoritative lifecycle without consulting checkout projections. */
 export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
   try {
-    const record = await readClaimedWorkUnit(input.store, input.slug);
+    if (isUnboundClaim(input)) return await readUnboundEvidence(input);
+    const record = await readClaimedWorkUnit(input.store, input.slug, input.uid);
     if (record === null) return await readRemovedWorkUnit(input);
     const fields = ParsedMetaRecordSchema.parse(record.fields);
     WorkUnitStateSchema.parse(fields.state);
     const branch = await readWorkUnitBranch(input, record);
-    const subject = { kind: "work-unit" as const, key: record.reference.owner.name };
+    const subject = workUnitSubject(input.store, record);
     if (record.placement === undefined) throw new Error("The marker's work-unit record has no lifecycle placement.");
     const completed = record.placement.kind === "completed";
     const retired = completed && await completedWorkUnitRetired(input, record);
-    const expectedTopology = branch === null ? {} : { branch, detached: false };
+    const expectedTopology = retired || branch === null ? {} : { branch, detached: false };
     return { kind: "present", subject, record, fields, branch,
       lifecycle: { kind: "present", subject, expectedTopology,
         state: retired ? "retired" : completed ? "integration" : "active" } };
@@ -45,8 +51,16 @@ export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Prom
     ...(error instanceof MissingWorkUnitRecord ? { missingRecord: true } : {}),
     ...((error instanceof SubjectBranchUnavailable || error instanceof SubjectClaimUnavailable) ? { code: "subject-unresolved" as const } : {}) }; }
 }
-async function readClaimedWorkUnit(store: Store, slug: string): Promise<StoreRecord | null> {
-  const result = await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(slug) } });
+function isUnboundClaim(input: StoreWorkUnitInput): boolean {
+  return input.store.capabilities.stateOffBranch && input.uid === undefined && input.marker.husk === undefined;
+}
+async function readUnboundEvidence(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
+  const unbound = await classifyUnboundMarker(input);
+  return unbound.kind === "unreadable" ? unbound
+    : { kind: "unreadable", reason: unbound.reason, code: "work-unit-marker-unbound", unbound };
+}
+async function readClaimedWorkUnit(store: Store, slug: string, uid?: string): Promise<StoreRecord | null> {
+  const result = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, slug, uid) });
   if (result.status === "refused" && result.refusal.code === "not-found") return null;
   if (result.status === "refused" && result.refusal.code === "ambiguous-match") throw new SubjectClaimUnavailable(`${result.refusal.condition} ${result.refusal.remedy.text}`);
   const lookup = unwrap(result);
@@ -57,12 +71,17 @@ async function readClaimedWorkUnit(store: Store, slug: string): Promise<StoreRec
 }
 async function readRemovedWorkUnit(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
   let lineage: StoreRecord | null;
-  try { lineage = await readWorkUnitLineage(input.store, input.slug); }
+  try { lineage = await readWorkUnitLineage(input.store, input.uid ?? input.slug); }
   catch (error) { throw new SubjectClaimUnavailable(error instanceof Error ? error.message : String(error), { cause: error }); }
   if (lineage === null) throw new MissingWorkUnitRecord(`Work unit '${input.slug}' has no primary or authenticated terminal lineage. Restore its record or repair the marker's subject, then retry.`);
   if (parseLineageRecord(lineage.content)?.kind === "rename") throw new SubjectClaimUnavailable(`Work unit '${input.slug}' has rename lineage but no current primary. Restore its current record or repair the marker, then retry.`);
-  const subject = { kind: "work-unit" as const, key: lineage.reference.owner.name };
+  const subject = workUnitSubject(input.store, lineage);
   return { kind: "terminal", subject, lifecycle: { kind: "present", subject, state: "retired", expectedTopology: {} } };
+}
+function workUnitSubject(store: Store, record: StoreRecord): DerivedWorkUnitSubject {
+  const owner = record.reference.owner;
+  const uid = store.capabilities.stateOffBranch && owner.type === "work-item" ? owner.uid : undefined;
+  return { kind: "work-unit", key: owner.name, ...(uid === undefined ? {} : { uid }) };
 }
 async function readWorkUnitBranch(input: StoreWorkUnitInput, record: StoreRecord): Promise<string | null> {
   try {

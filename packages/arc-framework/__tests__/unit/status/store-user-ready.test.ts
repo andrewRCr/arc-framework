@@ -20,7 +20,7 @@ it("renders owned planned work with satisfied dependencies and its Class", async
   await h.seedMeta("ready", { owner: "alice", state: "Planning", currentWorkflow: "draft-design", workClass: "Heavy", priority: "P1", dependsOn: ["shipped"] },
     { kind: "backlog", commitment: "planned" });
   await h.seedMeta("foreign", { owner: "bob", state: "Planning", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" });
-  const result = await readStoreUserReady({ store: h.store, identity: "alice", reviewAfterDays: 14 });
+  const result = await readStoreUserReady({ cwd: "/project", store: h.store, identity: "alice", reviewAfterDays: 14 });
   expect(result).toEqual({ status: "ok", result: { rows: [{ workUnit: "ready", state: "Planning", class: "Heavy", priority: "P1", dependsOn: [] }], warnings: [] } });
 });
 
@@ -31,7 +31,7 @@ it.each(["active", "paused"] as const)("keeps planned %s work out of Ready", asy
     pause: kind === "paused" ? MetaPauseSchema.parse({ pausedBy: "alice", since: "2026-10-01T12:00:00.000Z", reason: "Waiting" }) : null };
   lifecycleSuccess(await h.store.write({ action: "put", reference, expected: null, content: JSON.stringify(fields),
     placement: { kind: "backlog", commitment: "planned" }, provenance: testProvenance }));
-  const result = await readStoreUserReady({ store: h.store, identity: "alice", reviewAfterDays: 14 });
+  const result = await readStoreUserReady({ cwd: "/project", store: h.store, identity: "alice", reviewAfterDays: 14 });
   if (result.status === "refused") throw new Error(result.refusal.condition);
   expect(result.result.rows).toEqual([]);
 });
@@ -42,7 +42,7 @@ it("includes an unowned admitted meta in the identity's Ready slice", async () =
   const fields = { ...parseMetaRecord(makeMetaFixture("unowned", { state: "Planning" })), owner: null };
   lifecycleSuccess(await h.store.write({ action: "put", reference, expected: null, content: JSON.stringify(fields),
     placement: { kind: "backlog", commitment: "planned" }, provenance: testProvenance }));
-  const result = await readStoreUserReady({ store: h.store, identity: "alice", reviewAfterDays: 14 });
+  const result = await readStoreUserReady({ cwd: "/project", store: h.store, identity: "alice", reviewAfterDays: 14 });
   if (result.status === "refused") throw new Error(result.refusal.condition);
   expect(result.result.rows.map(row => row.workUnit)).toEqual(["unowned"]);
 });
@@ -59,7 +59,7 @@ it("satisfies a completed generation's former slug despite its active namesake",
   await h.seedMeta("current");
   await h.seedMeta("ready", { owner: "alice", state: "Planning", currentWorkflow: "draft-design", dependsOn: ["former"] },
     { kind: "backlog", commitment: "planned" });
-  const result = await readStoreUserReady({ store: h.store, identity: "alice", reviewAfterDays: 14 });
+  const result = await readStoreUserReady({ cwd: "/project", store: h.store, identity: "alice", reviewAfterDays: 14 });
   if (result.status === "refused") throw new Error(result.refusal.condition);
   expect(result.result.rows.map(row => row.workUnit)).toEqual(["ready"]);
   expect(result.result.warnings).toEqual([]);
@@ -76,7 +76,7 @@ it("omits both clashed holders from Ready while retaining the coded warning", as
     ...record, reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: "clashed" } }),
     content: record.content.replaceAll(record.reference.owner.name, "clashed"),
   })) } } : h.store.list(input);
-  const result = await readStoreUserReady({ store, identity: "alice", reviewAfterDays: 14 });
+  const result = await readStoreUserReady({ cwd: "/project", store, identity: "alice", reviewAfterDays: 14 });
   if (result.status === "refused") throw new Error(result.refusal.condition);
   expect(result.result.rows).toEqual([]);
   expect(result.result.warnings).toMatchObject([{ code: "slug-clash", workUnit: "clashed" }]);

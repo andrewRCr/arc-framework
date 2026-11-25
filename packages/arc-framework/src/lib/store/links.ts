@@ -1,7 +1,7 @@
 /** Structured code traceability and write provenance, never commit conventions. */
 
 import { z } from "zod";
-import { RecordReferenceSchema } from "./identity.js";
+import { RecordReferenceSchema, StoredUidSchema } from "./identity.js";
 
 /** Git object identity used at repository lookup seams. */
 export const CommitShaSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -51,7 +51,7 @@ export const CallerProvenanceSchema = z.strictObject({
 export type CallerProvenance = z.infer<typeof CallerProvenanceSchema>;
 /** Backend-enriched provenance, or a commit message preserved by the interim backend. */
 export const StoredProvenanceSchema = z.union([
-  CallerProvenanceSchema.extend({ reference: RecordReferenceSchema, ownerUid: z.uuid().optional(), batchId: z.string().min(1).optional() }),
+  CallerProvenanceSchema.extend({ reference: RecordReferenceSchema, ownerUid: StoredUidSchema.optional(), batchId: z.string().min(1).optional() }),
   z.strictObject({ message: z.string() }),
 ]);
 /** History provenance as stored, with no implied review evidence. */

@@ -6,15 +6,24 @@ import { seed, success } from "../../../../helpers/store/suite-tools.js";
 import { ENTRY_CONFIGS, type EntryKind } from "../../../../../src/lib/store/kinds/entry-configs.js";
 import { parseEntryList, writeEntryList } from "../../../../../src/lib/store/kinds/entry-list.js";
 import { writeEntryFields } from "../../../../../src/lib/store/kinds/entry-fields.js";
+import { ENTRY_REGISTRATIONS } from "../../../../../src/lib/store/kinds/entry-registration.js";
+import type { KindId } from "../../../../../src/lib/store/catalog.js";
+import { createKindRegistry, type KindDefinition } from "../../../../../src/lib/store/registry.js";
 import { META_REGISTRATION } from "../../../../../src/lib/store/kinds/meta/registration.js";
 import { LINEAGE_REGISTRATION } from "../../../../../src/lib/store/kinds/lineage/registration.js";
 import { recordReferences } from "../../../../../src/lib/store/identity.js";
 import { makeMetaFixture } from "../../../../helpers/meta-fixture.js";
 
+const registry = createKindRegistry(ENTRY_REGISTRATIONS);
+const productionEntries = Object.fromEntries(ENTRY_REGISTRATIONS.map(({ kind }) => [kind, registry[kind]]));
+function createFixture(overrides: Partial<Record<KindId, Partial<KindDefinition>>> = {}) {
+  return createReferenceFixture(ENTRY_CONFIGS, { ...productionEntries, ...overrides });
+}
+
 const provenance = { verb: "edit", lifecycleAction: "edit" };
 describe("production entry reference writes", () => {
   it.each(Object.keys(ENTRY_CONFIGS) as EntryKind[])("round-trips %s with its production parser", async (kind) => {
-    const fixture = createReferenceFixture();
+    const fixture = createFixture();
     const config = ENTRY_CONFIGS[kind];
     const values: Record<string, string> = { Created: "2026-01-01", Remind: "true", Hold: "true", WU_Target: "example (planned)", Shapes: "Section 2", Cites: "87654321", Inbox: "personal", Rank: "a0" };
     const fields = Object.fromEntries(config.managedFields.flatMap((field) => values[field] === undefined ? [] : [[field, values[field]]]));
@@ -28,8 +37,8 @@ describe("production entry reference writes", () => {
     expect(parsed.data.entries[0]?.fields).toMatchObject(fields);
     expect(writeEntryList(parsed.data)).toBe(content);
   });
-  it.each(["**Wrapped\nheader:**", "**Colonless**"])("refuses an invalid memory header before persistence: %s", async (header) => {
-    const fixture = createReferenceFixture();
+  it.each(["**Wrapped\n\nheader:**", "**Colonless**"])("refuses an invalid memory header before persistence: %s", async (header) => {
+    const fixture = createFixture();
     const reference = fixture.reference("personal/working-memory");
     const result = await fixture.store.write({ action: "put", reference, expected: null, content: `## Memories\n${header}\n_Remove when: done._\n`, provenance });
     expect(result.status).toBe("refused");
@@ -37,21 +46,25 @@ describe("production entry reference writes", () => {
     expect((await fixture.store.read({ reference })).status).toBe("refused");
   });
   it.each(["\n", "\r\n"].flatMap((newline) => [" ", "\t"].flatMap((suffix) =>
-    ["**Wrapped\nheader:**", "**Colonless**"].map((header) => ({ newline, suffix, header })))))(
+    ["**Wrapped\n\nheader:**", "**Colonless**"].map((header) => ({ newline, suffix, header })))))(
     "persists memory only after repairing its header under a whitespace-suffixed section: $newline $suffix $header",
     async ({ newline, suffix, header }) => {
-      const fixture = createReferenceFixture(), reference = fixture.reference("personal/working-memory");
+      const fixture = createFixture(), reference = fixture.reference("personal/working-memory");
       const content = `## Memories${suffix}\n**Good:**\n_Remove when: good._\n\n${header}\n_Remove when: done._\n`.replaceAll("\n", newline);
       const before = success(await fixture.store.version());
       expect(await fixture.store.write({ action: "put", reference, expected: null, content, provenance }))
         .toMatchObject({ status: "refused", refusal: { code: "record-malformed", condition: expect.stringContaining("**Title:**") } });
       expect(success(await fixture.store.version())).toBe(before);
       expect((await fixture.store.read({ reference })).status).toBe("refused");
-      const repaired = content.replace(header.replaceAll("\n", newline), "**Fixed:**");
+      const repaired = content.replace(header.replaceAll("\n", newline), "**Fixed\nwrapped header:**".replaceAll("\n", newline));
       expect((await fixture.store.write({ action: "put", reference, expected: null, content: repaired, provenance })).status).toBe("ok");
       const parsed = parseEntryList(success(await fixture.store.read({ reference })).content, "personal/working-memory");
       expect(parsed.success).toBe(true);
-      if (parsed.success) expect(parsed.data.entries).toHaveLength(2);
+      if (parsed.success) {
+        expect(parsed.data.entries).toHaveLength(2);
+        expect(parsed.data.entries[1]?.title).toBe("**Fixed wrapped header:**");
+        expect(parsed.data.entries[1]?.bytes).toContain("**Fixed\nwrapped header:**".replaceAll("\n", newline));
+      }
     });
   it("reads today's seeded memory and project inbox; ignores commented triggers and bold body prose", async () => {
     const memory = await readFile(new URL("../../../../../templates/user/WORKING-MEMORY.md", import.meta.url), "utf8");
@@ -61,7 +74,7 @@ describe("production entry reference writes", () => {
     expect(parseEntryList(inbox, "project-inbox/inbox").success).toBe(true);
   });
   it("refuses activation and retirement while production inbound entries remain", async () => {
-    const fixture = createReferenceFixture(undefined, {
+    const fixture = createFixture({
       "work-item/meta": { parser: META_REGISTRATION.parser ?? null, check: META_REGISTRATION.check ?? null },
       "lineage/transition": { parser: LINEAGE_REGISTRATION.parser ?? null, check: LINEAGE_REGISTRATION.check ?? null },
     });

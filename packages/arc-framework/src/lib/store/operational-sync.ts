@@ -1,13 +1,22 @@
-/** Narrow synchronization seam until the reference backend supplies these operations on Store. */
+/** Invocation-bound synchronization and orientation over the selected operational store. */
 import { z } from "zod";
 import { RemedySchema } from "./refusal.js";
+import { PullNoticeSchema, type PullNotice, PullResultSchema as StorePullResultSchema } from "./sync.js";
+import { pullSelectedStore, maintainSelectedStore } from "./operational-sync-bindings.js";
+import type { Store } from "./contract.js";
+
+// A condition reported beside a synchronized pull that stops nothing, such as a move left unfinished.
+const PullAdvisorySchema = z.strictObject({ condition: z.string().min(1), remedy: RemedySchema });
+const notices = { notices: z.array(PullNoticeSchema).optional(), advisories: z.array(PullAdvisorySchema).optional() };
+const partial = { partial: StorePullResultSchema.optional() };
 
 /** Pull records operational reachability independently of publication. */
 export const PullResultSchema = z.union([
-  z.strictObject({ status: z.enum(["no-remote", "no-identity", "pulled", "noop"]) }),
-  z.strictObject({ status: z.literal("unreachable"), condition: z.string().min(1), remedy: RemedySchema }),
+  z.strictObject({ status: z.enum(["no-remote", "pulled", "noop"]), ...notices }),
+  z.strictObject({ status: z.literal("no-identity"), remedy: RemedySchema.optional(), ...notices }),
+  z.strictObject({ status: z.enum(["unreachable", "incomplete"]), condition: z.string().min(1), remedy: RemedySchema, ...partial, ...notices }),
   z.strictObject({ status: z.literal("designation-needed"), remote: z.string().min(1),
-    choices: z.array(z.string().min(1)).min(1), remedy: RemedySchema.extend({ argv: z.array(z.string()).min(1) }) }),
+    choices: z.array(z.string().min(1)).min(1), remedy: RemedySchema, ...notices }),
 ]);
 /** A pull outcome, including a remote whose state role needs an explicit decision. */
 export type PullResult = z.infer<typeof PullResultSchema>;
@@ -37,4 +46,19 @@ function historyRefs(refusal: unknown): readonly string[] {
     || refusal.code !== "state-unresolvable" || !("historyRefs" in refusal)
     || !Array.isArray(refusal.historyRefs) || !refusal.historyRefs.every((ref) => typeof ref === "string")) return [];
   return [...refusal.historyRefs];
+}
+
+/** Bind synchronization operations to the invocation's selected operational store. */
+export function bindStoreSyncPort(store: Store): StoreSyncPort {
+  return createStoreSyncPort({
+    pull: refs => pullSelectedStore(store, refs),
+    maintain: () => maintainSelectedStore(store),
+  });
+}
+
+/** Retain notices from every partial remote outcome, coalescing the same explicitly surfaced notice. */
+export function pullResultNotices(result: PullResult): PullNotice[] {
+  const partial = "partial" in result ? result.partial : undefined;
+  const notices = [...(result.notices ?? []), ...(partial?.pulls.flatMap(pull => pull.notices) ?? [])];
+  return [...new Map(notices.map(notice => [JSON.stringify(notice), notice])).values()];
 }

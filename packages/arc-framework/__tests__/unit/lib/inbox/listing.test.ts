@@ -6,7 +6,7 @@ import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
 import { listInbox } from "../../../../src/lib/inbox/listing.js";
 import { routeEntry } from "../../../../src/lib/inbox/route.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordReferences, OwnerIdentitySchema, sameReference } from "../../../../src/lib/store/identity.js";
 import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
 import { entryVersion } from "../../../../src/lib/store/kinds/entry-fields.js";
 import type { InboxContext } from "../../../../src/lib/inbox/types.js";
@@ -35,11 +35,11 @@ describe.each(["work-unit", "errand"] as const)("disputed %s primary", kind => {
     if (listed.state === "refused" || listed.entries[0] === undefined) throw new Error("Expected a held entry");
     const row = listed.entries[0], remote = f.remote(true);
     if (remote === undefined) throw new Error("Expected remote writer");
-    success(await f.store.sync());
+    success(await f.store.push());
     const local = success(await f.store.read({ reference })), other = success(await remote.read({ reference }));
     success(await f.store.write({ action: "put", reference, expected: local.version, content: content("alice"), placement: { kind: "active" }, provenance: testProvenance }));
     success(await remote.write({ action: "put", reference, expected: other.version, content: content("test-user"), placement: { kind: "active" }, provenance: testProvenance }));
-    success(await f.store.sync());
+    success(await f.store.push());
     const disputed = success(await f.store.read({ reference }));
     expect(disputed.conflicts.length).toBeGreaterThan(0);
     const source = success(await f.store.read({ reference: sourceRef })), target = success(await f.store.read({ reference: destination.reference }));
@@ -130,4 +130,29 @@ it("offers no re-triage for an empty backlog list or a nonempty started list", a
   if (started.state === "refused") throw new Error(started.reason);
   expect(started.pending?.count).toBe(1);
   expect(started.retriage).toBeUndefined();
+});
+
+it("normalizes an uppercase work-item UID before listing its entries", async () => {
+  const { f, context } = fixture(), reference = f.reference("work-item/meta");
+  const primary = await seed(f, reference, makeMetaFixture(reference.owner.name, { owner: "test-user", state: "Planning" }));
+  await seed(f, recordReferences["work-item/inbound"](primary.reference.owner), '## Inbound\n### **Owned entry**\n- _Id:_ `12345678`\n');
+  if (primary.reference.owner.type !== "work-item" || primary.reference.owner.uid === undefined) throw new Error("Expected UID");
+  expect(await listInbox({ list: primary.reference.owner.uid.toUpperCase() }, context))
+    .toMatchObject({ state: "listed", entries: [{ title: "Owned entry" }] });
+});
+
+it("refuses several listed primaries carrying one UID and resumes after the listing is repaired", async () => {
+  const { f, context } = fixture(), reference = f.reference("work-item/meta");
+  const primary = await seed(f, reference, makeMetaFixture(reference.owner.name, { owner: "test-user", state: "Planning" }));
+  const other = await seed(f, f.reference("work-item/meta", "other"), makeMetaFixture("work-item-other", { owner: "test-user", state: "Planning" }));
+  if (primary.reference.owner.type !== "work-item" || primary.reference.owner.uid === undefined) throw new Error("Expected UID");
+  const uid = primary.reference.owner.uid, store = Object.create(f.store) as typeof f.store;
+  const collision = { ...other, reference: recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ ...other.reference.owner, uid })) };
+  store.list = async input => {
+    const result = await f.store.list(input);
+    return input.kind === "work-item/meta" && result.status === "ok" && result.result.status === "complete"
+      ? { status: "ok", result: { ...result.result, records: result.result.records.map(record => sameReference(record.reference, other.reference) ? collision : record) } } : result;
+  };
+  expect(await listInbox({ list: uid }, { ...context, store })).toMatchObject({ state: "refused", code: "ambiguous-match" });
+  expect(await listInbox({ list: uid }, context)).toMatchObject({ state: "listed", entries: [] });
 });

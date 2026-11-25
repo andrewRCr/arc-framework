@@ -17,6 +17,48 @@ it("repeats the same key for the same resolved entry and input content", () => {
   expect(checkContentKey(first)).toBe(checkContentKey(second));
 });
 
+it("includes captured explicit input identity without replacing existing scoped content", () => {
+  const original = { ...input(), environmentIdentity: `sha256:${"a".repeat(64)}` };
+  const changed = { ...original, environmentIdentity: `sha256:${"b".repeat(64)}` };
+  expect(checkContentKey(changed)).not.toBe(checkContentKey(original));
+  expect(checkContentKey({ ...original })).toBe(checkContentKey(original));
+});
+
+it("distinguishes scoped materialized bytes even when their canonical Git content is equal", () => {
+  const original = { ...input(), materializedInputs: [{ path: "src/a.ts", entry: { path: "src/a.ts", kind: "file" as const,
+    mode: 0o644, bytes: 4, digest: `sha256:${"a".repeat(64)}` as const } }] };
+  const changed = { ...original, materializedInputs: original.materializedInputs.map(value => ({ ...value,
+    entry: { ...value.entry, digest: `sha256:${"b".repeat(64)}` as const } })) };
+  expect(checkContentKey(changed)).not.toBe(checkContentKey(original));
+});
+
+it("digests materialized entries independently of object property and inventory order", () => {
+  const entry = { path: "src/a.ts", kind: "file" as const, mode: 0o644, bytes: 4, digest: `sha256:${"a".repeat(64)}` as const };
+  const other = { path: "src/b.ts", kind: "symlink" as const, target: "a.ts" };
+  const first = { ...input(), materializedInputs: [{ path: entry.path, entry }, { path: other.path, entry: other }] };
+  const second = { ...input(), materializedInputs: [{ path: other.path, entry: { target: other.target, kind: other.kind, path: other.path } },
+    { path: entry.path, entry: { digest: entry.digest, bytes: entry.bytes, mode: entry.mode, kind: entry.kind, path: entry.path } }] };
+  expect(checkContentKey(first)).toBe(checkContentKey(second));
+});
+
+it.each(["identity", "global probe", "check probe"])("includes each prepared invocation's %s", field => {
+  const original = { ...input(), preparedRuntime: [
+    { identity: `sha256:${"a".repeat(64)}`, globalRuntime: [" global\r\n"], runtime: [" check\n"] },
+    { identity: `sha256:${"a".repeat(64)}`, globalRuntime: [" global\r\n"], runtime: [" check\n"] },
+  ] };
+  const changed = { ...original, preparedRuntime: original.preparedRuntime.map(value => ({ ...value })) };
+  const second = changed.preparedRuntime[1]!;
+  if (field === "identity") second.identity = `sha256:${"b".repeat(64)}`;
+  if (field === "global probe") second.globalRuntime = ["global\r\n"];
+  if (field === "check probe") second.runtime = [" check\r\n"];
+  expect(checkContentKey(changed)).not.toBe(checkContentKey(original));
+});
+
+it("does not reuse passes formed with lexical file-argument coordinates", () => {
+  const lexicalDirectoryKey = "d9ff1fef0408fdb1846a8456c6211b5236fe151ccadb890dd2f7e75e2fe41a12";
+  expect(checkContentKey(input())).not.toBe(lexicalDirectoryKey);
+});
+
 it.each(["id", "declaration", "input path", "input blob", "input mode", "received paths"])("changes with %s", field => {
   const original = input();
   const changed = input();

@@ -1,5 +1,6 @@
 /** Bound response source and settlement checks for pre-publication continuation. */
 
+import { OwnerIdentitySchema } from "../../../../../src/lib/store/identity.js";
 import { describe, expect, it } from "vitest";
 
 import { parseReviewSourceReference } from
@@ -88,4 +89,18 @@ describe("pre-publication pending response source", () => {
     });
     expect(projectPendingResponseSource(hosted, "performed", true)).toBeNull();
   });
+});
+
+it.each(["attested-local", "frontline", "hosted"] as const)("retains the selected native owner in a pending %s response", kind => {
+  const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" });
+  const common = { repositoryId: "native-project", workItem, producerId: "producer-1" };
+  const result = kind === "attested-local" ? { ...common, kind, receiptRef: "receipt-key" }
+    : kind === "frontline" ? { ...common, kind, outcomeRef: "outcome-key" } : { ...common, kind, laneOperationId: "lane-1" };
+  const pending = projectPendingResponseSource(result, "incomplete", false);
+  if (pending === null) throw new Error("Expected pending source");
+  const reference = pending.kind === "attested-local" ? pending.receiptRef
+    : pending.kind === "frontline" ? pending.outcomeRef : pending.attemptRef;
+  expect(parseReviewSourceReference(reference, kind, true)).toEqual({ repositoryId: common.repositoryId, workItem, kind,
+    operationId: kind === "hosted" ? "lane-1" : common.producerId,
+    durableRef: kind === "hosted" ? common.producerId : kind === "frontline" ? "outcome-key" : "receipt-key" });
 });

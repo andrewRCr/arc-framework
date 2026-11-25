@@ -163,7 +163,7 @@ async function readCheckout(
   io: DerivedLocusEvidenceIO,
   inventoryError: string | null,
 ): Promise<DormantCheckoutReadEvidence> {
-  if (io.store?.capabilities.stateOffBranch === true) return readStoreCheckout(worktree, io, io.store, inventoryError);
+  if (io.store?.capabilities.stateOffBranch === true) return readStoreCheckout(worktree, identity, io, io.store, inventoryError);
   const roots = [
     join(worktree.path, ".arc", "active"),
     join(worktree.path, ".arc", "user", identity, "active"),
@@ -316,29 +316,31 @@ function projectMarker(result: WorktreeMarkerGenerationReadResult): DormantMarke
   if (subject.kind === "branch") {
     return { kind: "malformed", reason: "Branch-only marker ownership has no session subject" };
   }
-  let marker: OccupancyMarker;
   if (subject.kind === "work-unit") {
-    marker = { spawnedByArc: result.marker.spawnedByArc, createdFor: { kind: "work-unit", name: subject.name } };
-  } else {
-    if (decoded.provisioning === null) {
-      return { kind: "malformed", reason: "Transient marker ownership has no provisioning state" };
-    }
-    const common = {
+    return { kind: "present", generation: digestBytes(result.bytes), marker: {
       spawnedByArc: result.marker.spawnedByArc,
-      provisioning: decoded.provisioning,
-      ...parentCheckout(result.marker.parentCheckoutPath),
-    };
-    if (subject.kind === "partial-errand") {
-      const originEntry = result.marker.originEntry;
-      const originEntrySourceDigest = result.marker.originEntrySourceDigest;
-      const originEntryVersion = result.marker.originEntryVersion;
-      marker = originEntry === undefined ? { ...common, createdFor: subject }
-        : originEntryVersion !== undefined ? { ...common, createdFor: subject, originEntry, originEntryVersion }
-          : originEntrySourceDigest !== undefined ? { ...common, createdFor: subject, originEntry, originEntrySourceDigest }
-            : { ...common, createdFor: subject };
-    } else {
-      marker = { ...common, createdFor: subject };
-    }
+      createdFor: { kind: "work-unit", name: subject.name, ...(subject.uid === undefined ? {} : { uid: subject.uid }) },
+    } };
+  }
+  if (decoded.provisioning === null) {
+    return { kind: "malformed", reason: "Transient marker ownership has no provisioning state" };
+  }
+  const common = {
+    spawnedByArc: result.marker.spawnedByArc,
+    provisioning: decoded.provisioning,
+    ...parentCheckout(result.marker.parentCheckoutPath),
+  };
+  let marker: OccupancyMarker;
+  if (subject.kind === "partial-errand") {
+    const originEntry = result.marker.originEntry;
+    const originEntrySourceDigest = result.marker.originEntrySourceDigest;
+    const originEntryVersion = result.marker.originEntryVersion;
+    marker = originEntry === undefined ? { ...common, createdFor: subject }
+      : originEntryVersion !== undefined ? { ...common, createdFor: subject, originEntry, originEntryVersion }
+        : originEntrySourceDigest !== undefined ? { ...common, createdFor: subject, originEntry, originEntrySourceDigest }
+          : { ...common, createdFor: subject };
+  } else {
+    marker = { ...common, createdFor: subject };
   }
   return { kind: "present", marker, generation: digestBytes(result.bytes) };
 }
@@ -368,13 +370,24 @@ async function workUnitInventoryFailure(store: Store): Promise<string | null> {
   } catch (error) { return errorMessage(error); }
 }
 
-async function readStoreCheckout(worktree: RegisteredWorktree, io: DerivedLocusEvidenceIO, store: Store,
+async function readStoreCheckout(worktree: RegisteredWorktree, identity: string, io: DerivedLocusEvidenceIO, store: Store,
   inventoryError: string | null): Promise<DormantCheckoutReadEvidence> {
-  const marker = await io.readMarker(worktree.path).then(projectMarker,
-    (error: unknown): DormantMarkerGenerationEvidence => ({ kind: "error", reason: errorMessage(error) }));
+  const observed = await io.readMarker(worktree.path).then(read => ({ marker: projectMarker(read),
+    raw: read.kind === "present" ? read.marker : undefined }),
+    (error: unknown) => ({ marker: { kind: "error" as const, reason: errorMessage(error) }, raw: undefined }));
+  const marker = observed.marker;
+  const husk = observed.raw?.husk;
+  if (husk?.subject.kind === "work-unit" && marker.kind === "present" && marker.marker.createdFor.kind === "work-unit") {
+    const subject = { kind: "work-unit" as const, key: husk.subject.name };
+    const retiredMarker: DormantMarkerGenerationEvidence = { ...marker, marker: {
+      spawnedByArc: marker.marker.spawnedByArc, createdFor: { kind: "work-unit", name: marker.marker.createdFor.name } } };
+    return { checkoutPath: worktree.path, marker: retiredMarker, metaRoots: [], metas: [], workUnit: { kind: "terminal", subject,
+      lifecycle: { kind: "present", subject, state: "retired", expectedTopology: {} } } };
+  }
   const subject = marker.kind === "present" ? marker.marker.createdFor : null;
   const workUnit = inventoryError !== null ? { kind: "unreadable" as const, reason: inventoryError }
-    : subject?.kind === "work-unit" ? await readStoreWorkUnitEvidence({ store, slug: subject.name, head: worktree.head,
+    : subject?.kind === "work-unit" && observed.raw !== undefined ? await readStoreWorkUnitEvidence({ store, slug: subject.name, uid: subject.uid, head: worktree.head,
+        cwd: worktree.path, marker: observed.raw, identity,
         exec: io.exec, baseBranch: io.baseBranch, archiveCadence: io.archiveCadence, projectId: io.projectId })
       : { kind: "absent" as const };
   return { checkoutPath: worktree.path, marker, workUnit, metaRoots: [], metas: [] };

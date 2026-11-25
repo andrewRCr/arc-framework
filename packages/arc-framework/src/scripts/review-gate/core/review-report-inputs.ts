@@ -12,8 +12,6 @@ export const ReviewReportInputSchema = z.strictObject({
   fails: z.array(z.strictObject({ findingId: z.string().trim().min(1), fails: z.string().trim().min(1)
     .refine(value => value.toLowerCase() !== "none", "none requires its reason") })),
   successorRecommendation: z.string().trim().min(1),
-  origin: z.array(z.strictObject({ origin: z.string().trim().min(1), findings: z.number().int().nonnegative(),
-    newDesignFixes: z.number().int().nonnegative() })),
   reading: z.strictObject({ kind: z.enum(["baseline", "converging", "discovering", "sustained non-convergence"]),
     rationale: z.string().trim().min(1) }),
 });

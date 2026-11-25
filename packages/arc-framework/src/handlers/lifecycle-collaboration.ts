@@ -36,6 +36,7 @@ async function target(base: VerbBase, executor: BoundExecutor, slug?: string): P
   if (slug !== undefined) return slug;
   const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store });
   if (current.status === "resolved") return current.candidate.reference.owner.name;
+  if (current.status === "unbound") { refuse(current.unbound.reason); return null; }
   refuse(`Supply a work-unit slug; this checkout's current work unit is ${current.status}.`); return null;
 }
 function rejected(result: CollaborationRejection): void {

@@ -6,6 +6,8 @@
  * the local backlog projection neither authorizes nor blocks that operation.
  */
 
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -65,6 +67,11 @@ function buildCtx(opts: {
   }
 
   const ctx: ExecuteTransitionContext = {
+    exec: scriptGitExec([
+      { match: ["worktree", "list", "--porcelain", "-z"], responses: [{ stdout:
+        worktreePorcelainZ(`worktree ${WORKTREE}\nHEAD ${"a".repeat(40)}\nbranch refs/heads/feat/foo\n`) }] },
+      { match: { prefix: ["worktree", "lock"] }, responses: [{ stdout: "" }] },
+    ]).exec,
     cwd: CWD,
     indexFs: opts.indexFs ?? emptyIndexFs(),
     setPhase: async () => ({ phase: "Active" }),

@@ -8,6 +8,7 @@
     "packages/arc-framework"
   ],
   "scripts": {
+    "cutover-window": "node --wasm-max-mem-pages=4096 --import tsx packages/arc-framework/src/scripts/cutover-window/main.ts",
     "lint:md": "node --import tsx packages/arc-framework/src/scripts/lint-markdown.ts",
     "lint:md:staged": "node --import tsx packages/arc-framework/src/scripts/lint-markdown-staged.ts",
     "lint:md:underwrap": "node --import tsx packages/arc-framework/src/scripts/lint-markdown-underwrap.ts",
@@ -18,6 +19,7 @@
     "lint:md:fix": "node --import tsx packages/arc-framework/src/scripts/fix-markdown.ts",
     "lint:md:fix:file": "node --import tsx packages/arc-framework/src/scripts/fix-markdown.ts --files",
     "format:tables": "node --import tsx packages/arc-framework/src/scripts/format-tables.ts",
+    "format:prose": "node --import tsx packages/arc-framework/src/scripts/format-prose.ts",
     "render:framework": "node --import tsx packages/arc-framework/src/scripts/render-framework.ts",
     "audit:tables": "node --import tsx packages/arc-framework/src/scripts/audit-tables.ts",
     "audit:emphasis": "node --import tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
@@ -43,13 +45,14 @@
     "lint:ts:file": "node --import tsx packages/arc-framework/src/scripts/run-focused-lint.ts",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
     "lint:workflows": "bash scripts/lint-workflows.sh",
+    "lint:adr": "node --import tsx packages/arc-framework/src/scripts/check-adr-records.ts",
     "lint:arc:triggers": "node --import tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
     "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
     "lint:arc:links": "node --import tsx packages/arc-framework/src/scripts/audit-links.ts",
     "audit:coupling": "node --import tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
     "prepare": "husky",
-    "setup": "npm run check:install && npm rebuild esbuild --ignore-scripts=false && npm run prepare",
+    "setup": "npm run check:install && npm rebuild esbuild --ignore-scripts=false && npm run prepare && node scripts/prepare-check-outputs.mjs && node scripts/link-skills.mjs",
     "check:install": "node scripts/check-install-policy.mjs"
   },
   "devDependencies": {

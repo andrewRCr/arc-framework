@@ -15,7 +15,7 @@ it.each([
 ] as const)("refuses %s extraction finish with a conflicted %s decision, then completes after resolution", async (extraction, kind) => {
   const h = extraction ? await createDecomposeExtractionFixture(kind === "cohort" ? { kind: "at-cap", parent: "group/child" } : undefined)
     : await createDecomposeTerminalFixture({ withHome: kind === "home" });
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const reference = kind === "cohort"
     ? recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: extraction ? "child" : "group" }))
     : kind === "home" ? recordReferences["work-item/draft"](lifecycleSuccess(await readWorkUnit(h.store, "home")).reference.owner)

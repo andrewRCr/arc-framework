@@ -18,11 +18,13 @@
  * @module
  */
 
-import { basename } from "node:path";
-import { fileURLToPath } from "node:url";
+import { isMainModule } from "../lib/main-module.mjs";
+import { execFileSync } from "node:child_process";
+import { basename, isAbsolute, relative, sep } from "node:path";
 
 import { runPathListScript } from "./cli-runner.js";
 import { parseMethodFrontmatter } from "../lib/frontmatter/index.js";
+import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import {
   defaultMethodActivation,
   isActivatableMethodName,
@@ -135,6 +137,17 @@ export function validateFiles(
 
 // --- CLI entry ---
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  runPathListScript(validateFiles);
+function readStagedFile(path: string): string {
+  const indexPath = isAbsolute(path)
+    ? `./${relative(process.cwd(), path).split(sep).join("/")}`
+    : path;
+  return execFileSync("git", ["show", `:${indexPath}`], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
+  });
+}
+
+if (await isMainModule(import.meta, process.argv[1])) {
+  runPathListScript(validateFiles, { readFile: readStagedFile });
 }

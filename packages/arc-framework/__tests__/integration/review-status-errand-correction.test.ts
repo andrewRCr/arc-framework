@@ -1,5 +1,6 @@
 import type { GitExec } from "../../src/lib/git/exec.js";
 import type { ReviewAdditionalPassAuthorization } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
+import type { ReviewCeilingOverride } from "../../src/scripts/review-gate/policy/review-ceiling-override.js";
 import type { StandardReviewObligationProjection } from "../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { approvedRecord } from "../fixtures/review-response-proof.js";
@@ -14,7 +15,9 @@ import { createRespondDependencies } from "../../src/scripts/review-gate/runtime
 import { createLocalAttestDependencies } from "../../src/scripts/review-gate/runtime/local-attest-composition.js";
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
 import { attestLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-attest-command.js";
-import { handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewHostedRequest, handleReviewResolve } from "../../src/handlers/review.js";
+import { handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewHostedRequest, handleReviewHostedSettle, handleReviewResolve }
+  from "../../src/handlers/review.js";
+import type { HostedProcessRunner } from "../../src/scripts/review-gate/hosted/gh-process.js";
 import { readResolveNextPassContext } from "../../src/handlers/review-next-pass-context.js";
 import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { execFile } from "node:child_process";
@@ -116,6 +119,10 @@ interface FixedErrandOptions {
   readonly sources?: readonly string[];
   readonly hostedAdmission?: boolean;
   readonly routine?: boolean;
+  /** Approve the finding for a host reply instead of recording it, leaving its settlement owed. */
+  readonly settlementPending?: boolean;
+  /** The verification scope the fix was approved at. */
+  readonly verification?: "focused" | "full";
 }
 
 /** One Errand whose first hosted pass found one verified finding, fixed by an approved commit. */
@@ -200,13 +207,17 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
         lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha: input.headSha },
         logicalPass: input.pass, sourceId: provider, target, requestedCoverage: coverage,
         ...(input.correctionScope === undefined ? {} : { correctionScope: input.correctionScope }),
-        vehicle, reviewTarget, requirement, actorIdentity: "github-user-1",
+        vehicle, reviewTarget, requirement, actorIdentity: "1",
       }),
     };
   };
   const first = handleAt({ headSha: firstHead, headTree: firstTree, pass: 1 });
   await recordHostedPendingRequest(store, { repositoryId, handle: first, now: "2026-10-08T00:01:00Z" });
-  const finding = {
+  const finding = options.settlementPending === true ? {
+    findingId: "finding-1", origin: "review-thread" as const, commentId: "123", threadId: "thread-finding-1",
+    settlement: "reply-and-resolve" as const, severity, locus: "change.txt:1",
+    url: "https://example.test/thread-finding-1", sourceOrdinal: 1,
+  } : {
     findingId: "finding-1", origin: "review-body" as const, reviewId: "review-1",
     fingerprint: "fingerprint-1", settlement: "not-applicable" as const,
     severity, locus: "change.txt:1", url: "https://example.test/review-1",
@@ -230,7 +241,7 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
       producerId: firstAttemptId, resultDigest: firstResultId,
       policyVersion: first.admission.requirement.policyVersion,
       rubricVersion: standardReview.rubricVersion, rubricDigest: standardReview.rubricDigest,
-      proposedBy: "reviewer", proposedVerification: "focused",
+      proposedBy: "reviewer", proposedVerification: options.verification ?? "focused",
       findings: [{
         findingId: finding.findingId, sourceIdentity: provider, locus: finding.locus,
         sourceVerification: "verified", verificationRefs: [finding.url],
@@ -261,7 +272,8 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
   }));
   await bindHostedAttemptDisposition(store, {
     operationId: firstProgress.operationId, attemptId: firstAttemptId, dispositionSetId,
-    findingDispositions: [{ findingId: finding.findingId, disposition: "fix", channelAction: "record-only" }],
+    findingDispositions: [{ findingId: finding.findingId, disposition: "fix",
+      channelAction: options.settlementPending === true ? "reply-and-resolve" : "record-only" }],
     now: "2026-10-08T00:01:45Z",
   });
   await writeFile(join(root, "change.txt"), "reviewed change, fixed\n", "utf8");
@@ -281,15 +293,30 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
   const statusTarget = { repository: "owner/repo", headRef: branch, headSha: fixedHead };
   return {
     root, exec, dispositionStore, firstAttemptId, publisher, store, provider, standardReview, statusTarget, reviewTargetAt,
+    /** The host settlement request for the approved fix, as its settle command takes it. */
+    settlementRequest: { schemaVersion: 1,
+      response: { attemptRef: bindReviewSourceReference({ kind: "hosted", operationId: firstProgress.operationId,
+        durableRef: firstAttemptId }), dispositionSetId, findingId: finding.findingId },
+      target: { repository: "owner/repo", pullRequest: 42, headSha: firstHead },
+      fixTarget: { repository: "owner/repo", pullRequest: 42, headSha: fixedHead },
+      actorIdentity: "1", finding: { commentId: "123", threadId: "thread-finding-1" }, disposition: "fix",
+      reply: "Fixed in the follow-up commit." },
     errand: { slug, claimId, branch },
     fixedReviewTarget: reviewTargetAt(fixedHead, fixedTree),
-    readStatus: (withBaseRef = true, sourceId?: string, additionalPassAuthorization?: ReviewAdditionalPassAuthorization) => readErrandRoutedObligation({
+    readStatus: (withBaseRef = true, sourceId?: string, additionalPassAuthorization?: ReviewAdditionalPassAuthorization,
+      ceilingOverride?: ReviewCeilingOverride) => readErrandRoutedObligation({
       cwd: root, exec, rawExec, target: statusTarget, pullRequest: 42, currentBaseOid: base,
       ...(sourceId === undefined ? {} : { sourceId }),
       ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }),
+      ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
       ...(withBaseRef
         ? { changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repo/pull/42" } }
         : {}),
+    }),
+    /** Read the routed obligation at a later head of the Errand branch. */
+    readStatusAt: (headSha: string, currentBaseOid = base) => readErrandRoutedObligation({
+      cwd: root, exec, rawExec, target: { ...statusTarget, headSha }, pullRequest: 42, currentBaseOid,
+      changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repo/pull/42" },
     }),
     /** Record a clean CodeRabbit pass over the given correction, with its provider-proven range. */
     recordCorrectionPass: async (correctionScope: IncrementalReviewScope) => {
@@ -339,6 +366,14 @@ type PreparedLocal = Extract<ReturnType<typeof LocalPrepareEnvelopeSchema.parse>
 async function prepareErrandLocal(errand: LocalErrandFixture, coverageAdmission?: {
   requestedCoverage: "complete" | "incremental"; correctionScope?: IncrementalReviewScope;
 }) {
+  const { output, exitCodes } = await runErrandLocalPrepare(errand, coverageAdmission);
+  expect(exitCodes, output.join("")).toEqual([]);
+  return LocalPrepareEnvelopeSchema.parse(JSON.parse(output.join("")));
+}
+
+async function runErrandLocalPrepare(errand: LocalErrandFixture, coverageAdmission?: {
+  requestedCoverage: "complete" | "incremental"; correctionScope?: IncrementalReviewScope;
+}) {
   const output: string[] = []; const exitCodes: number[] = [];
   await handleReviewLocalPrepare("-", { resolveRoot: () => errand.root,
     readText: async () => JSON.stringify({ schemaVersion: 1, evaluatorIdentity: "independent-reviewer",
@@ -348,8 +383,7 @@ async function prepareErrandLocal(errand: LocalErrandFixture, coverageAdmission?
     prepare: input => prepareLocalReview(input, createLocalPrepareDependencies({ cwd: errand.root, exec: errand.exec })),
     write: text => output.push(text), setExitCode: code => exitCodes.push(code),
   });
-  expect(exitCodes, output.join("")).toEqual([]);
-  return LocalPrepareEnvelopeSchema.parse(JSON.parse(output.join("")));
+  return { output, exitCodes };
 }
 
 async function attestErrandLocal(errand: LocalErrandFixture, prepared: PreparedLocal, findings = false) {
@@ -476,6 +510,41 @@ async function withErrandHost<T>(errand: FixedErrand, open: boolean, run: () => 
   }
 }
 
+/** Settle the Errand's approved fix through the settle command against a host that accepts the reply. */
+async function settleErrandFinding(errand: FixedErrand) {
+  const fixedHead = errand.statusTarget.headSha;
+  let reply: string | null = null;
+  let resolved = false;
+  const threads = () => ({ data: { repository: { pullRequest: { reviewThreads: { nodes: [{ id: "thread-finding-1",
+    isResolved: resolved, comments: { nodes: [{ fullDatabaseId: 123, pullRequestReview: { id: "review-1" },
+      replyTo: null, author: { databaseId: 2 }, body: "The reviewed change needs a correction.", path: "change.txt",
+      line: 1, url: "https://example.test/thread-finding-1", commit: { oid: fixedHead } }],
+    pageInfo: { hasNextPage: false, endCursor: null } } }], pageInfo: { hasNextPage: false, endCursor: null } } } } } });
+  const hostedRunner: HostedProcessRunner = { run: async args => {
+    const endpoint = args[0] === "api" ? args[1] : undefined;
+    let value: unknown;
+    if (endpoint === "user") value = { id: 1 };
+    else if (endpoint === "repos/owner/repo/pulls/42") value = { head: { sha: fixedHead } };
+    else if (endpoint === "repos/owner/repo/pulls/42/comments/123/replies") {
+      reply = args.find(arg => arg.startsWith("body="))?.slice(5) ?? null;
+      value = { id: 456 };
+    } else if (endpoint?.startsWith("repos/owner/repo/pulls/42/comments?") === true) {
+      value = [reply === null ? [] : [{ id: 456, in_reply_to_id: 123, user: { id: 1 }, body: reply }]];
+    } else if (endpoint === "graphql" && args.some(arg => arg.includes("resolveReviewThread"))) {
+      resolved = true;
+      value = { data: { resolveReviewThread: { thread: { id: "thread-finding-1", isResolved: true } } } };
+    } else if (endpoint === "graphql") value = threads();
+    else throw new Error(`unexpected host invocation: ${args.join(" ")}`);
+    return { stdout: JSON.stringify(value), stderr: "" };
+  } };
+  const output: string[] = []; const exitCodes: number[] = [];
+  await handleReviewHostedSettle("-", { readText: async () => JSON.stringify(errand.settlementRequest),
+    write: text => output.push(text), setExitCode: code => exitCodes.push(code) }, undefined,
+  { cwd: errand.root, exec: errand.exec, hostedRunner });
+  return { result: JSON.parse(output.join("")), failed: exitCodes.some(code => code !== 0), replied: reply !== null,
+    resolved };
+}
+
 async function performHostedRequest(errand: FixedErrand, coverage: "complete" | "incremental" = "complete",
   additionalPassAuthorization?: ReviewAdditionalPassAuthorization) {
   const output: string[] = []; const exitCodes: number[] = [];
@@ -536,6 +605,20 @@ describe("Errand local correction cadence", () => {
       expect(await resolveErrandReview(errand, errand.predecessor, open ? 42 : null)).toMatchObject({ exitCodes: [],
         result: { state: "ready", nextAction: "local-prepare", payload: { sourceId: "delegated-agent", pass: 3 } } });
     });
+  });
+
+  it("returns stale-target for a request still at the reviewed head, then resolves at the current head", async () => {
+    const errand = await plainErrand();
+    const reviewed = { ...errand.statusTarget, headSha: errand.predecessor.target.headSha };
+    expect(await resolveErrandReview({ ...errand, statusTarget: reviewed }, errand.predecessor)).toMatchObject({
+      exitCodes: [], result: { state: "stale-target", nextAction: "select-scope",
+        diagnostics: [expect.objectContaining({ code: "stale-request-target",
+          message: expect.stringContaining(errand.statusTarget.headSha) })],
+        payload: { lane: "standard", consumedPass: false,
+          selectedTarget: { repository: reviewed.repository, pullRequest: null, headSha: reviewed.headSha },
+          currentTarget: { repository: reviewed.repository, pullRequest: null, headSha: errand.statusTarget.headSha } } } });
+    expect(await resolveErrandReview(errand, errand.predecessor)).toMatchObject({ exitCodes: [],
+      result: { state: "ready", nextAction: "local-prepare" } });
   });
 
   it.each([false, true])("re-confirms a converged Errand delta in respond with open PR=%s", async open => {
@@ -694,6 +777,24 @@ describe("Errand local correction cadence", () => {
     await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required", scope: "errand",
       action: { provider: "codex-pr", coverage: "complete" } });
   });
+  it("asks before another complete hosted pass once a correction and a base merge follow a converged minor fix", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "full-final",
+      sources: ["codex-pr", "delegated-agent"] });
+    await writeFile(join(errand.root, "change.txt"), "reviewed change, fixed, then corrected\n", "utf8");
+    await git(errand.root, ["add", "change.txt"]);
+    await git(errand.root, ["commit", "-m", "correct the change after its fix"]);
+    await git(errand.root, ["switch", "main"]);
+    await writeFile(join(errand.root, "base-change.ts"), "export const baseChange = true;\n");
+    await git(errand.root, ["add", "."]); await git(errand.root, ["commit", "-m", "advance base"]);
+    const baseOid = await git(errand.root, ["rev-parse", "HEAD"]);
+    await git(errand.root, ["switch", errand.errand.branch]);
+    await git(errand.root, ["merge", "--no-edit", "main"]);
+    const status = await errand.readStatusAt(await git(errand.root, ["rev-parse", "HEAD"]), baseOid);
+    expect(status, JSON.stringify(status)).toMatchObject({ state: "review-required", scope: "errand",
+      continuationDecision: { kind: "errand-review-continuation", reviewedHeadSha: errand.expectedScope.predecessorHeadSha,
+        hostedAction: { provider: "codex-pr", coverage: "complete" } } });
+    expect(status).not.toHaveProperty("action");
+  });
   it("offers the ranked hosted complete successor at a head with a converged fix check", async () => {
     const errand = await fixedErrand({ provider: "codex-pr", retrigger: "full-final", maxPasses: 4,
       sources: ["codex-pr", "delegated-agent"], hostedAdmission: true });
@@ -716,6 +817,30 @@ describe("Errand local correction cadence", () => {
 });
 
 
+describe("Errand pending hosted settlement", () => {
+  const settle = ["arc", "review", "hosted", "settle", "-"];
+  it("stops status, resolve, local prepare, and hosted request until the fixed finding settles, then offers the fix check", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "incremental", routine: true,
+      settlementPending: true, sources: ["codex-pr", "delegated-agent"], maxPasses: 4, hostedAdmission: true });
+    const stop = { error: { code: "invalid-input", message: expect.stringContaining("finding-1") }, remedy: { argv: settle } };
+    await withErrandHost(errand, true, async () => {
+      await expect(errand.readStatus()).resolves.toMatchObject({ state: "blocked", reason: "hosted-settlement-required",
+        detail: expect.stringContaining("finding-1"), remedy: { argv: settle } });
+      const predecessor = await createRepositoryReviewResultReader(errand.publisher).readResult(errand.firstAttemptId);
+      await expect(resolveErrandReview(errand, predecessor, 42)).resolves.toMatchObject({ exitCodes: [1], result: stop });
+      const refused = await runErrandLocalPrepare(errand);
+      expect(refused.exitCodes).toEqual([1]);
+      expect(JSON.parse(refused.output.join(""))).toMatchObject(stop);
+      await expect(performHostedRequest(errand)).resolves.toMatchObject({ exitCodes: [1], result: stop });
+      await expect(settleErrandFinding(errand)).resolves.toMatchObject({ failed: false, replied: true, resolved: true,
+        result: { state: "settled", nextAction: "complete" } });
+      await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required" });
+      await expect(prepareErrandLocal(errand)).resolves.toMatchObject({ state: "coverage-required", payload: {
+        coverageSelectionAction: { choices: expect.arrayContaining([expect.objectContaining({ requestedCoverage: "incremental" })]) } } });
+    });
+  });
+});
+
 describe("ordinary resolve next-pass records", () => {
   it("requires approval for a hosted complete request while a minor-fix incremental check is admissible", async () => {
     const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "incremental", routine: true,
@@ -723,11 +848,51 @@ describe("ordinary resolve next-pass records", () => {
     await expect(errand.readStatus()).resolves.toMatchObject({ state: "approval-required",
       detail: expect.stringContaining("1 of 1 configured complete standard-review passes") });
     await withErrandHost(errand, true, async () => {
+      const predecessor = await createRepositoryReviewResultReader(errand.publisher).readResult(errand.firstAttemptId);
+      expect(await resolveErrandReview(errand, predecessor, 42)).toMatchObject({ exitCodes: [], result: {
+        state: "approval-required", nextAction: "obtain-ceiling-override",
+        payload: { consequence: { exhaustedPassCount: 1, nextPass: 2 } },
+      } });
       expect(await performHostedRequest(errand)).toMatchObject({ exitCodes: [1], result: {
         error: { code: "invalid-input" }, remedy: { text: expect.stringContaining("--ceiling-override") },
       } });
       expect(await prepareErrandLocal(errand, { requestedCoverage: "incremental", correctionScope: errand.expectedScope }))
         .toMatchObject({ state: "ready", payload: { request: { logicalPass: 2 }, reviewerPayload: { correctionScope: errand.expectedScope } } });
+    });
+  });
+
+  it("selects a full-final Errand's fix check at the ceiling after minor fixes approved for full verification", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "full-final", maxPasses: 1,
+      sources: ["codex-pr", "delegated-agent"], hostedAdmission: true, verification: "full" });
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required",
+      detail: expect.stringContaining("delegated-agent with arc review local prepare") });
+    const override = { target: { repository: "owner/repo", pullRequest: 42, headSha: errand.statusTarget.headSha },
+      lane: "standard" as const, exhaustedPassCount: 1, nextPass: 2 };
+    await withErrandHost(errand, true, async () => {
+      const predecessor = await createRepositoryReviewResultReader(errand.publisher).readResult(errand.firstAttemptId);
+      expect(await resolveErrandReview(errand, predecessor, 42)).toMatchObject({ exitCodes: [], result: {
+        state: "ready", nextAction: "local-prepare",
+        payload: { sourceId: "delegated-agent", pass: 2, ceilingOverrideApplied: false } } });
+      expect(await performHostedRequest(errand)).toMatchObject({ exitCodes: [1], result: {
+        remedy: { text: expect.stringContaining("--ceiling-override") } } });
+      await expect(errand.readStatus(true, undefined, undefined, override)).resolves.toMatchObject({
+        state: "review-required", action: { provider: "codex-pr", coverage: "complete" } });
+      expect(await prepareErrandLocal(errand, { requestedCoverage: "incremental", correctionScope: errand.expectedScope }))
+        .toMatchObject({ state: "ready", payload: { request: { logicalPass: 2 } } });
+    });
+  });
+
+  it("offers a hosted pass below the ceiling as complete coverage while a minor-fix incremental check is admissible", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "incremental", routine: true,
+      maxPasses: 2, sources: ["codex-pr", "delegated-agent"], hostedAdmission: true });
+    await withErrandHost(errand, true, async () => {
+      await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required",
+        action: { provider: "codex-pr", coverage: "complete" } });
+      const predecessor = await createRepositoryReviewResultReader(errand.publisher).readResult(errand.firstAttemptId);
+      expect(await resolveErrandReview(errand, predecessor, 42)).toMatchObject({ exitCodes: [], result: {
+        state: "ready", nextAction: "hosted-request",
+        payload: { sourceId: "codex-pr", pass: 2, maxPasses: 2, coverage: "complete", ceilingOverrideApplied: false },
+      } });
     });
   });
 

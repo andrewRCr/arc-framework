@@ -490,6 +490,8 @@ export interface RunPairedPushOptions {
 
 /** Options for the fetch operation. */
 export interface UserFetchOptions {
+  /** Checkout whose notes ref the fetch updates. */
+  cwd: string;
   io: UserIOContext;
   /** Identity whose notes to fetch (may differ from caller's identity for cross-user pull). */
   identity: string;

@@ -2,9 +2,8 @@
 
 import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
-import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 import { listCurrentWuArtifactPaths } from "../work-unit/reference-reconcile.js";
-import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
 
 /** Repository paths through which one work unit can contribute lifecycle state. */
 export interface DeliveryLifecycleContributionPaths {
@@ -145,6 +144,7 @@ function byteSort(left: string, right: string): number {
 export class CurrentDeliveryLifecycleContributionPathSource
 implements DeliveryLifecycleContributionPathSource {
   constructor(private readonly input: {
+    readonly stateOffBranch?: boolean;
     readonly readDirectory: (path: string) => Promise<readonly string[]>;
     readonly readArtifactsAtRef?: (
       ref: string,
@@ -159,6 +159,7 @@ implements DeliveryLifecycleContributionPathSource {
     readonly protectedBaseRef?: string;
     readonly topRef?: string;
   }): Promise<DeliveryLifecycleContributionPaths> {
+    if (this.input.stateOffBranch === true) return { paths: [] };
     const currentArtifacts = await listCurrentWuArtifactPaths(
       input.workUnitId,
       input.activeMetaPath,

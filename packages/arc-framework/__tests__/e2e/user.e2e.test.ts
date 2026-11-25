@@ -10,8 +10,11 @@ import { execFile } from "node:child_process";
 import { access, mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, onTestFinished } from "vitest";
 import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { initializedRepository } from "../helpers/initialized-repository.js";
+import { removeGitBackedDirs } from "../helpers/temp-repo.js";
+import { storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { LocalSyncStateSchema } from "../../src/lib/user-sync/sync-state.js";
 
 const execFileAsync = promisify(execFile);
@@ -32,11 +35,9 @@ async function git(args: string[], cwd: string): Promise<string> {
   return stdout.trim();
 }
 
-/** Init ARC and create an initial commit so git notes can attach.
+/** Commit initialized ARC so git notes can attach.
  *  Bypasses hooks — these are scaffolding commits for test setup, not hook tests. */
-async function initAndCommit(tmpDir: string): Promise<void> {
-  const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-  expect(init.exitCode).toBe(0);
+async function commitInitializedRepository(tmpDir: string): Promise<void> {
   await git(["add", "."], tmpDir);
   await git(["-c", "core.hooksPath=/dev/null", "commit", "-m", "initial commit"], tmpDir);
 }
@@ -45,9 +46,7 @@ describe("user add", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
@@ -93,7 +92,7 @@ describe("user save/load", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
@@ -101,7 +100,7 @@ describe("user save/load", () => {
   });
 
   it("save/load round-trip: files restored after deletion", async () => {
-    await initAndCommit(tmpDir);
+    await commitInitializedRepository(tmpDir);
 
     // User directory exists after init (WORKING-MEMORY.md)
     const userDir = join(tmpDir, ".arc", "user", "test-user");
@@ -136,8 +135,28 @@ describe("user save/load", () => {
     expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
   });
 
+  it("refuses an imported-store load with its condition and remedy, then loads after removal", async () => {
+    await commitInitializedRepository(tmpDir);
+    const userDir = join(tmpDir, ".arc", "user", "test-user");
+    expect((await runArc(["user", "save"], tmpDir)).exitCode).toBe(0);
+    await rm(userDir, { recursive: true, force: true });
+    const registry = "refs/arc/project/registry";
+    await git(["update-ref", registry, "HEAD"], tmpDir);
+
+    const load = await runArcNoTty(["user", "load"], tmpDir);
+
+    expect(load.exitCode).toBe(1);
+    const refusal = storeImportedRefusal();
+    expect(load.stderr).toContain(refusal.condition);
+    expect(load.stderr).toContain(refusal.remedy.text);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(false);
+    await git(["update-ref", "-d", registry], tmpDir);
+    expect((await runArcNoTty(["user", "load"], tmpDir)).exitCode).toBe(0);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+  });
+
   it("save without identity exits non-zero", async () => {
-    await initAndCommit(tmpDir);
+    await commitInitializedRepository(tmpDir);
 
     // Unset local arc.identity — user.name may still exist in global config,
     // so also isolate HOME to prevent fallback to global git config
@@ -156,8 +175,8 @@ describe("user status from a subdirectory", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    await initAndCommit(tmpDir);
+    tmpDir = await initializedRepository("initialized");
+    await commitInitializedRepository(tmpDir);
   });
 
   afterEach(async () => {
@@ -183,7 +202,7 @@ describe("sync orchestrator", () => {
   const tempDirs: string[] = [];
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     tempDirs.push(tmpDir);
   });
 
@@ -195,7 +214,7 @@ describe("sync orchestrator", () => {
   });
 
   it("default config on a clean worktree saves a user note on HEAD", async () => {
-    await initAndCommit(tmpDir);
+    await commitInitializedRepository(tmpDir);
 
     bareDir = join(tmpDir, "sync-remote.git");
     await git(["init", "-b", "main", "--bare", bareDir], tmpDir);
@@ -219,7 +238,7 @@ describe("user push/pull portability", () => {
   const tempDirs: string[] = [];
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     tempDirs.push(tmpDir);
   });
 
@@ -231,7 +250,7 @@ describe("user push/pull portability", () => {
   });
 
   it("full portability: save → push → clone → pull → load restores files", async () => {
-    await initAndCommit(tmpDir);
+    await commitInitializedRepository(tmpDir);
 
     // Save user directory to git note
     const save = await runArc(["user", "save"], tmpDir);
@@ -271,15 +290,15 @@ describe("user push/pull portability", () => {
 
 describe("user open / close lifecycle", () => {
   let tmpDir: string;
+  const directories: string[] = [];
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("initialized");
+    directories.push(tmpDir);
   });
 
   afterEach(async () => {
-    await cleanupTempDir(tmpDir);
+    await removeGitBackedDirs(directories.splice(0));
   });
 
   it("opens a per-WU subdir and seeds SESSION-NOTES.md from template", async () => {
@@ -352,6 +371,11 @@ describe("user open / close lifecycle", () => {
     // Stand up a bare remote and publish `main`, then archive old-wu into
     // origin/main's `completed/` tree (the shipped oracle) and drop it locally.
     const bareDir = `${tmpDir}-bare.git`;
+    directories.push(bareDir);
+    onTestFinished(async () => {
+      expect(await pathExists(tmpDir), tmpDir).toBe(false);
+      expect(await pathExists(bareDir), bareDir).toBe(false);
+    });
     await git(["init", "--bare", bareDir], tmpDir);
     await git(["remote", "add", "origin", bareDir], tmpDir);
     await git(["add", "."], tmpDir);

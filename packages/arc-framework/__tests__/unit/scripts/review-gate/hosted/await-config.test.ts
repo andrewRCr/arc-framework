@@ -86,4 +86,38 @@ describe("hosted await timing", () => {
       expect(error).toMatchObject({ code: "invalid-input" });
     }
   });
+
+  it("waits up to each limit for an over-limit request and names what it applied", () => {
+    expect(resolveHostedAwaitTiming({
+      schemaVersion: 1,
+      handle,
+      timeoutSeconds: 2_700,
+      initialPollIntervalSeconds: 90,
+    }, settings)).toEqual({
+      request: { schemaVersion: 1, handle, timeoutMs: 1_800_000, pollIntervalMs: 60_000 },
+      attentionAfterMs: 900_000,
+      diagnostics: [
+        { code: "await-timing-limited",
+          message: "timeoutSeconds is above the 30-minute limit, so this call waits up to 30 minutes." },
+        { code: "await-timing-limited",
+          message: "initialPollIntervalSeconds is above the 60-second limit, so this call starts polling every 60 seconds." },
+      ],
+    });
+  });
+
+  it("applies the poll-interval limit inside the configured bound", () => {
+    expect(resolveHostedAwaitTiming({ schemaVersion: 1, handle, initialPollIntervalSeconds: 90 }, settings)).toMatchObject({
+      request: { timeoutMs: 120_000, pollIntervalMs: 60_000 },
+      diagnostics: [{ code: "await-timing-limited", message: expect.stringContaining("initialPollIntervalSeconds") }],
+    });
+  });
+
+  it("keeps refusing an over-limit poll interval longer than the timeout it asks for", () => {
+    expect(() => resolveHostedAwaitTiming({
+      schemaVersion: 1,
+      handle,
+      timeoutSeconds: 2_000,
+      initialPollIntervalSeconds: 2_500,
+    }, settings)).toThrow("initialPollIntervalSeconds must not exceed timeoutSeconds");
+  });
 });

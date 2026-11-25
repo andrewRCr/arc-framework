@@ -1,4 +1,5 @@
 /** Registered materialize repairs a corrupt marker, then claims branchless work without moving code. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
@@ -61,7 +62,7 @@ it("refuses linked in-place materialization before fetching into an occupied che
   await f.exec("git", ["push", "origin", "main", `main:refs/heads/${branch}`]);
   for (const ref of ["refs/remotes/origin/main", `refs/remotes/origin/${branch}`]) await f.exec("git", ["update-ref", "-d", ref]);
   await ensureWorktreeMarkerIgnored(f.cwd, f.exec, nodeWorktreeMarkerIgnoreFs);
-  await writeWorktreeMarker(f.cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: occupant.reference.owner.name },
+  await writeWorktreeMarker(f.cwd, { spawnedByArc: false, createdFor: boundWorkUnitSubject(occupant),
     spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
   const marker = await readWorktreeMarker(f.cwd), version = success(await store.version());
   expect(marker).toMatchObject({ kind: "present" });

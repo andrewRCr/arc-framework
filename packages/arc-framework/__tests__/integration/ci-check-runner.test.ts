@@ -1,7 +1,8 @@
 /** Native CI invocations consume forecast batches in their own checkout. */
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { gitExec } from "../../src/lib/io-context.js";
 import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
@@ -54,10 +55,64 @@ async function output(root: string) {
   return text.trim().split("\n").filter(Boolean).map(line => JSON.parse(line) as string[]);
 }
 
+it("streams a command's output to the step log while the command still runs", async () => {
+  const setup = await fixture();
+  // The command waits for the test to see a line on each stream; output held until exit would leave it waiting.
+  await writeFile(join(setup.root, "stream.mjs"), 'import fs from "node:fs"; process.stdout.write("first line\\n"); '
+    + 'process.stderr.write("first error\\n"); '
+    + "const end = Date.now() + 5000; while (!fs.existsSync(\"seen\") && Date.now() < end) "
+    + "await new Promise(done => setTimeout(done, 20)); "
+    + 'fs.writeFileSync("result", fs.existsSync("seen") ? "seen while running" : "not seen");\n');
+  const declaration = CheckDeclarationSchema.parse({ checks: { stream: { command: [process.execPath, "stream.mjs"] } } });
+  const forecast = { ...setup.forecast, checks: [{ id: "stream",
+    ...resolveCheckForecast(declaration.checks.stream!, setup.root, [], process.platform) }] };
+  const written = { stdout: [] as string[], stderr: [] as string[] };
+  const capture = (stream: "stdout" | "stderr") => vi.spyOn(process[stream], "write").mockImplementation(((chunk: string | Uint8Array) => {
+    written[stream].push(Buffer.from(chunk).toString());
+    if (written.stdout.join("").includes("first line") && written.stderr.join("").includes("first error")) {
+      writeFileSync(join(setup.root, "seen"), "");
+    }
+    return true;
+  }) as typeof process.stdout.write);
+  const spies = [capture("stdout"), capture("stderr")];
+  try {
+    expect(await runCiCheckStep({ ...setup, declaration, forecast, job: "lint", step: "default" })).toBe(0);
+  } finally { for (const spy of spies) spy.mockRestore(); }
+  expect(await readFile(join(setup.root, "result"), "utf8")).toBe("seen while running");
+  expect(written.stdout.join("")).toBe("stream:\nfirst line\n");
+  expect(written.stderr.join("")).toBe("first error\n");
+});
+
 it("runs only the mapped check's given shard and appends workflow reporting arguments", async () => {
   const setup = await fixture();
   expect(await runCiCheckStep({ ...setup, shard: 2, arguments: ["--reporter=json"] })).toBe(0);
   expect(await output(setup.root)).toEqual([["selected", "--shard=2/2", "--reporter=json"]]);
+});
+
+it.each(["test", "default"])("refuses a shard for an unsharded check at %s and runs after removing the selector", async step => {
+  const setup = await fixture();
+  const forecast = { ...setup.forecast, checks: setup.forecast.checks.filter(check => check.id === "other") };
+  const options = { ...setup, forecast, plumbing: { other: [{ job: "unit", step }] }, step };
+  await expect(runCiCheckStep({ ...options, shard: 2 })).rejects.toThrow(
+    /other has no shards; remove --shard.*declare shards.*regenerate the forecast/iu);
+  expect(await output(setup.root)).toEqual([]);
+  expect(await runCiCheckStep(options)).toBe(0);
+  expect(await output(setup.root)).toEqual([["other"]]);
+});
+
+it("runs the selected share after declaring shards and regenerating an unsharded forecast", async () => {
+  const setup = await fixture();
+  const options = { ...setup, shard: 2, plumbing: { other: [{ job: "unit", step: "test" }] },
+    forecast: { ...setup.forecast, checks: setup.forecast.checks.filter(check => check.id === "other") } };
+  await expect(runCiCheckStep(options)).rejects.toThrow(/other has no shards/iu);
+  expect(await output(setup.root)).toEqual([]);
+  const declaration = CheckDeclarationSchema.parse({ checks: { other: { ...setup.declaration.checks.other!,
+    shards: { count: 2, argument: "--shard={index}/{count}" },
+  } } });
+  const forecast = { ...setup.forecast, checks: [{ id: "other",
+    ...resolveCheckForecast(declaration.checks.other!, setup.root, [], process.platform) }] };
+  expect(await runCiCheckStep({ ...options, declaration, forecast })).toBe(0);
+  expect(await output(setup.root)).toEqual([["other", "--shard=2/2"]]);
 });
 
 it("runs every unmapped entry at the default step", async () => {
@@ -115,4 +170,158 @@ it("executes an explicitly mapped default-step check and propagates its failure"
     ...resolveCheckForecast(declaration.checks.broken!, setup.root, [], process.platform) }] };
   expect(await runCiCheckStep({ ...setup, declaration, forecast,
     plumbing: { broken: [{ job: "unit", step: "default" }] }, step: "default" })).toBe(1);
+});
+
+it.each(["changed", "added", "removed", "missing", "constructor"])("refuses %s selected input declarations until the forecast is regenerated", async change => {
+  const setup = await fixture();
+  vi.stubEnv("CHECK_MODE", undefined);
+  vi.stubEnv("CHECK_EXTRA", undefined);
+  const id = change === "constructor" ? "constructor" : "selected";
+  const original = CheckDeclarationSchema.parse({ checks: { [id]: {
+    command: [process.execPath, "probe.mjs", "repaired"], environment_inputs: { CHECK_MODE: "value" },
+    shards: { count: 2, argument: "--shard={index}/{count}", routed: true },
+  } } });
+  const currentInputs = change === "changed" ? { CHECK_MODE: "file" }
+    : change === "added" ? { CHECK_MODE: "value", CHECK_EXTRA: "file" } : {};
+  const declaration = CheckDeclarationSchema.parse({ checks: change === "missing" || change === "constructor" ? {} : {
+    [id]: { ...original.checks[id], environment_inputs: currentInputs },
+  } });
+  const forecast = { ...setup.forecast, checks: [{ id,
+    ...resolveCheckForecast(original.checks[id]!, setup.root, [], process.platform) }] };
+  const options = { ...setup, declaration, forecast, shard: 2,
+    plumbing: { [id]: [{ job: "unit", step: "test" }] } };
+  await expect(runCiCheckStep(options)).rejects.toThrow(/regenerate.*arc check gate merge --ci --dry-run --json/iu);
+  expect(await output(setup.root)).toEqual([]);
+  const repaired = change === "missing" || change === "constructor" ? original : declaration;
+  const regenerated = { ...forecast, checks: [{ id,
+    ...resolveCheckForecast(repaired.checks[id]!, setup.root, [], process.platform) }] };
+  expect(await runCiCheckStep({ ...options, declaration: repaired, forecast: regenerated })).toBe(0);
+  expect(await output(setup.root)).toEqual([["repaired", "--shard=2/2"]]);
+});
+
+it.each([undefined, 2])("captures delivered CI artifacts once for all native batches in shard %s after forecasting", async shard => {
+  const setup = await fixture();
+  const cwd = join(setup.root, "nested");
+  await mkdir(cwd);
+  await writeFile(join(setup.root, "capture.mjs"), 'import fs from "node:fs"; '
+    + 'const env=process.env; const bytes=fs.readFileSync(env.CHECK_WEIGHTS,"utf8"); '
+    + 'fs.appendFileSync("output.jsonl",JSON.stringify({path:env.CHECK_WEIGHTS,bytes,mode:env.CHECK_MODE, '
+    + 'emptyValue:env.CHECK_EMPTY_VALUE,emptyFile:env.CHECK_EMPTY_FILE, '
+    + 'absent:Object.hasOwn(env,"CHECK_ABSENT"),args:process.argv.slice(2)})+"\\n"); '
+    + 'fs.writeFileSync("private-input","changed by a batch");\n');
+  const declaration = CheckDeclarationSchema.parse({ checks: { other: {
+    command: [process.execPath, "../capture.mjs"], root: "nested", mode: "files", runner: true,
+    shards: { count: 2, argument: "--shard={index}/{count}", routed: true },
+    environment_inputs: { CHECK_WEIGHTS: "file", CHECK_MODE: "value", CHECK_EMPTY_VALUE: "value",
+      CHECK_EMPTY_FILE: "file", CHECK_ABSENT: "value" },
+  } } });
+  vi.stubEnv("CHECK_WEIGHTS", "private-input");
+  vi.stubEnv("CHECK_MODE", "before delivery");
+  vi.stubEnv("CHECK_EMPTY_VALUE", "");
+  vi.stubEnv("CHECK_EMPTY_FILE", "");
+  vi.stubEnv("CHECK_ABSENT", undefined);
+  const paths = Array.from({ length: 450 }, (_, index) => `nested/${index}-${"x".repeat(80)}.ts`);
+  const forecast = { ...setup.forecast, checks: [{ id: "other",
+    ...resolveCheckForecast(declaration.checks.other!, setup.root, paths, process.platform) }] };
+  expect(forecast.checks[0]!.batches.length).toBeGreaterThan(1);
+  expect(forecast.checks[0]!.environmentInputs).toEqual(declaration.checks.other!.environment_inputs);
+  expect(JSON.stringify(forecast)).not.toContain("private-input");
+  expect(JSON.stringify(forecast)).not.toContain("before delivery");
+  await writeFile(join(cwd, "private-input"), "delivered bytes");
+  vi.stubEnv("CHECK_MODE", "execution step");
+  const workflowArguments = ["--reporter=json", "--outputFile=native-report.json"];
+  expect(await runCiCheckStep({ ...setup, declaration, forecast, shard, arguments: workflowArguments,
+    plumbing: { other: [{ job: "unit", step: "test" }] } })).toBe(0);
+  const batches = shard === undefined ? forecast.checks[0]!.batches : forecast.checks[0]!.shards![shard - 1]!.batches;
+  const records = (await readFile(join(cwd, "output.jsonl"), "utf8")).trim().split("\n")
+    .map(line => JSON.parse(line) as { path: string; bytes: string; mode: string; emptyValue: string;
+      emptyFile: string; absent: boolean; args: string[] });
+  expect(records).toHaveLength(batches.length);
+  expect(new Set(records.map(record => record.path)).size).toBe(1);
+  expect(records[0]!.path).not.toBe("private-input");
+  for (const record of records) {
+    expect(record).toMatchObject({ bytes: "delivered bytes", mode: "execution step", emptyValue: "", emptyFile: "", absent: false });
+    await expect(readFile(record.path)).rejects.toMatchObject({ code: "ENOENT" });
+  }
+  expect(records.map(record => record.args)).toEqual(batches.map(batch => [...batch.slice(2), ...workflowArguments]));
+  expect(records.flatMap(record => record.args.slice(0, shard === undefined ? -2 : -3)))
+    .toEqual(paths.map(path => path.slice("nested/".length)));
+  expect(await readFile(join(cwd, "private-input"), "utf8")).toBe("changed by a batch");
+});
+
+it.each(["missing", "directory"])("refuses a %s CI file input before execution and runs after repair", async kind => {
+  const setup = await fixture();
+  const source = join(setup.root, "private-artifact-location");
+  if (kind === "directory") await mkdir(source);
+  vi.stubEnv("CHECK_WEIGHTS", source);
+  const declaration = CheckDeclarationSchema.parse({ checks: { other: {
+    command: [process.execPath, "probe.mjs", "repaired"], runner: true, environment_inputs: { CHECK_WEIGHTS: "file" },
+  } } });
+  const forecast = { ...setup.forecast, checks: [{ id: "other",
+    ...resolveCheckForecast(declaration.checks.other!, setup.root, [], process.platform) }] };
+  const options = { ...setup, declaration, forecast, step: "default" };
+  await expect(runCiCheckStep(options)).rejects.toThrow(/capture.*CHECK_WEIGHTS.*repair.*retry/iu);
+  try { await runCiCheckStep(options); } catch (error) {
+    expect(String(error)).not.toContain(source);
+  }
+  expect(await output(setup.root)).toEqual([]);
+  await rm(source, { recursive: true, force: true });
+  await writeFile(source, "delivered after repair");
+  expect(await runCiCheckStep(options)).toBe(0);
+  expect(await output(setup.root)).toEqual([["repaired"]]);
+});
+
+it("preserves a failed CI command's status and disposes its frozen input", async () => {
+  const setup = await fixture();
+  const source = join(setup.root, "private-input");
+  await writeFile(source, "original");
+  vi.stubEnv("CHECK_WEIGHTS", source);
+  const declaration = CheckDeclarationSchema.parse({ checks: { other: {
+    command: [process.execPath, "-e", "require('node:fs').writeFileSync('copy-path',process.env.CHECK_WEIGHTS);process.exit(17)"],
+    environment_inputs: { CHECK_WEIGHTS: "file" },
+  } } });
+  const forecast = { ...setup.forecast, checks: [{ id: "other",
+    ...resolveCheckForecast(declaration.checks.other!, setup.root, [], process.platform) }] };
+  expect(await runCiCheckStep({ ...setup, declaration, forecast, step: "default" })).toBe(1);
+  const copied = await readFile(join(setup.root, "copy-path"), "utf8");
+  try {
+    expect(copied).not.toBe(source);
+    await expect(readFile(copied)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(source, "utf8")).toBe("original");
+  } finally {
+    if (copied !== source) await rm(dirname(copied), { recursive: true, force: true });
+  }
+});
+
+it("does not capture a CI file binding when the selected forecast has no batches", async () => {
+  const setup = await fixture();
+  vi.stubEnv("CHECK_WEIGHTS", "private-unavailable-input");
+  const declaration = CheckDeclarationSchema.parse({ checks: { other: {
+    command: [process.execPath, "probe.mjs", "unused"], mode: "files", environment_inputs: { CHECK_WEIGHTS: "file" },
+  } } });
+  const forecast = { ...setup.forecast, checks: [{ id: "other",
+    ...resolveCheckForecast(declaration.checks.other!, setup.root, [], process.platform) }] };
+  expect(forecast.checks[0]!.batches).toEqual([]);
+  expect(await runCiCheckStep({ ...setup, declaration, forecast, step: "default" })).toBe(0);
+  expect(await output(setup.root)).toEqual([]);
+});
+
+it("disposes captured CI inputs when native snapshot preparation fails before the command", async () => {
+  const setup = await fixture();
+  const storage = join(setup.root, "temporary-storage");
+  await mkdir(storage);
+  for (const name of ["TMPDIR", "TMP", "TEMP"]) vi.stubEnv(name, storage);
+  const source = join(setup.root, "private-input");
+  await writeFile(source, "original");
+  vi.stubEnv("CHECK_WEIGHTS", source);
+  const declaration = CheckDeclarationSchema.parse({ checks: { other: {
+    command: [process.execPath, "probe.mjs", "unused"], fixes: true, environment_inputs: { CHECK_WEIGHTS: "file" },
+  } } });
+  const forecast = { ...setup.forecast, checks: [{ id: "other",
+    ...resolveCheckForecast(declaration.checks.other!, setup.root, [], process.platform) }] };
+  await rm(join(setup.root, ".git"), { recursive: true, force: true });
+  await expect(runCiCheckStep({ ...setup, declaration, forecast, step: "default" })).rejects.toThrow();
+  expect(await readdir(storage)).toEqual([]);
+  expect(await output(setup.root)).toEqual([]);
+  expect(await readFile(source, "utf8")).toBe("original");
 });

@@ -38,7 +38,6 @@ function compositionDependencies(fixture: Awaited<ReturnType<typeof createLocalC
     resultReader: fixture.resultReader,
     dispositionStore: {
       readDispositionRecord: async () => null,
-      appendDispositionRecord: async () => { throw new Error("unexpected disposition write"); },
     },
     readResponsePerformance: async () => null,
     confirmIncrementalApplicability: async () => "applicable",

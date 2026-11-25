@@ -28,10 +28,7 @@ export async function checkPreparedWrites(found: ReferenceContext, prepared: Ref
   references: readonly RecordReference[], provenance: CallerProvenance,
   observations: readonly RecordObservation[] = [], proposedCreatedOwners: readonly CreatedOwner[] = []): Promise<StoreRefusal | undefined> {
   const results: { reference: RecordReference; rules: readonly BrokenRule[] }[] = [];
-  const before: WriteCheckInput["before"] = { ...view(found), history: async input => {
-    const history = historyReference(found, input.reference);
-    return history.length === 0 ? refused(missingRecord(input.reference, found.environment.identity)) : checkedMemoryHistory(history, found.state.events);
-  } };
+  const before = createReferenceWriteBefore(found);
   const after = view(prepared), writer = deriveWriteCheckWriter(provenance);
   const checkVersion = async (reference: RecordReference, prior: MemoryRecord | undefined, next: MemoryRecord | undefined) => {
     const check = prepared.registry[reference.kind].check;
@@ -54,4 +51,14 @@ export async function checkPreparedWrites(found: ReferenceContext, prepared: Ref
     } else await checkVersion(reference, prior, next);
   }
   return composeWriteCheckRefusal(results);
+}
+
+
+/** Bind preparation to the same queued namespace used by final kind checks. */
+export function createReferenceWriteBefore(found: ReferenceContext): WriteCheckInput["before"] {
+  return { ...view(found), history: async input => {
+    const history = historyReference(found, input.reference);
+    return history.length === 0 ? refused(missingRecord(input.reference, found.environment.identity))
+      : checkedMemoryHistory(history, found.state.events);
+  } };
 }

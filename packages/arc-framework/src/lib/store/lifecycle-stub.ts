@@ -33,10 +33,10 @@ export async function readLifecycleStub(store: Store, cwd: string, slug: string)
   }
   const placement = meta.result.placement;
   if (placement?.kind !== "backlog") return null;
-  const metaPath = materializeArcPath(cwd, validateManagedPath(workUnitMetaPath(meta.result)));
+  const metaPath = materializeArcPath(cwd, validateManagedPath(await workUnitMetaPath(cwd, meta.result)));
   const draft = await store.read({ reference: recordReferences["work-item/draft"](meta.result.reference.owner) });
   if (draft.status === "refused" && draft.refusal.code !== "not-found") throw new Error(`${draft.refusal.condition} ${draft.refusal.remedy.text}`);
-  const draftPath = draft.status === "ok" ? lifecycleRecordPath(meta.result, draft.result) : null;
+  const draftPath = draft.status === "ok" ? await lifecycleRecordPath(cwd, meta.result, draft.result) : null;
   return { slug: meta.result.reference.owner.name, stateDir: placement.commitment, metaPath, dir: dirname(metaPath),
     draftPath: draftPath === null ? null : materializeArcPath(cwd, validateManagedPath(draftPath)) };
 }

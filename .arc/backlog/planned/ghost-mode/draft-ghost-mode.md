@@ -108,6 +108,24 @@
 - _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
   Coordination (2026-10-14).
 
+### `[ ]` **Validate commit messages across a pull request's range in CI, under the footer policy**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Settled inputs, "The footer policy".
+
+- _Observation:_ commit messages are validated only client-side, in `commit-msg`, so a commit made without hooks
+  reaches the pull request unchecked. The TypeScript validator now ships in the installed CLI (`arc check
+  commit-msg`), so CI can run the same module over the range rather than duplicate the grammar. The footer grammar
+  changes under ghost mode (register row "The `Context:` footer grammar…", owner `ghost-mode`), so a range check built
+  before it would be rebuilt.
+
+- _Approach:_ build it with the footer policy; settle whether each commit or the pull request title is authoritative
+  under the repository's merge method, and how a CI checkout degrades.
+
+- _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07 (first captured during `commit-message-submission`
+  design review).
+
 ---
 
 ## Problem / Motivation

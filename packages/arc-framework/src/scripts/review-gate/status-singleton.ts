@@ -4,11 +4,9 @@ import { selectReviewSources } from "./policy/review-source-eligibility.js";
 import { projectSingletonLocalCoverageRefusal, projectReviewSourceRefusal } from "./status-driver-refusal.js";
 import type { ReviewStatusRoute } from "./status-route.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
-import type { GitExec } from "../../lib/git/exec.js";
-import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "./runtime/invocation.js";
+import { createReviewCompositionContext } from "./runtime/composition-context.js";
 import type { CandidateManagedRecordV1 } from "../../lib/work-unit/candidate-attestation.js";
-import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
-import { LocalApprovedDispositionRecordStore } from "./hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from "./hosts/local/review-result-reader-composition.js";
 import { readLaneResponsePerformance } from "./lane-progress.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
@@ -20,15 +18,15 @@ import type { HostedReservationDischarge, HostedReservationDischargeReader } fro
 import type { StandardReviewReservationV1 } from "./policy/integration-boundary-locus.js";
 import { composeSingletonReviewObligation, type RoutedReviewObligation } from "./status.js";
 import type { ReviewStatusPolicyJudgment } from "./status-judgment.js";
+import { composeNativePublishedStatusGrants } from "./runtime/native-published-status-grants.js";
 
-interface PublishedSingletonInput {
+interface PublishedSingletonInput extends ReviewInvocationInput {
   statusRoute: ReviewStatusRoute;
-  cwd: string;
-  exec: GitExec;
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
   reservation: StandardReviewReservationV1;
   record: CandidateManagedRecordV1;
   recordVersion: string;
+  candidateSubjectDigest?: string;
   baseRevision: string;
   workUnit: string;
   target: { repository: string; pullRequest: number; headSha: string };
@@ -42,18 +40,10 @@ interface PublishedSingletonInput {
  * @param input - Current Candidate, reservation, exact PR, and repository-backed discharge reader.
  * @returns The status obligation and any fully composed hosted request action.
  */
-export async function composePublishedSingletonReview(input: PublishedSingletonInput): Promise<RoutedReviewObligation> {
-  const { target, reservation, readDischarge } = input;
-  const dischargeInput = {
-    reservation,
-    baseRevision: input.baseRevision,
-    approvedHead: target.headSha,
-    changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
-    candidate: input.record,
-    ...(input.judgment?.sourceId === undefined ? {}
-      : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
-  };
-  let discharge = await readDischarge(dischargeInput);
+export async function composePublishedSingletonReview(options: PublishedSingletonInput): Promise<RoutedReviewObligation> {
+  const { input, dischargeInput, discharge: initialDischarge } = await readSingletonStatusDischarge(options);
+  const { reservation } = input;
+  let discharge = initialDischarge;
   if (!discharge.discharged && discharge.terminalPolicyState === "coverage-required") {
     const invocation = input.judgment?.sourceId === undefined ? discharge.invocation
       : { mode: "force" as const, sourceId: input.judgment.sourceId };
@@ -82,14 +72,34 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
   });
 }
 
+async function readSingletonStatusDischarge(options: PublishedSingletonInput) {
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  if (input.judgment?.ceilingOverride !== undefined || input.judgment?.additionalPassAuthorization !== undefined) {
+    input.judgment = await composeNativePublishedStatusGrants(input);
+  }
+  const { target, reservation, readDischarge } = input;
+  const dischargeInput = {
+    reservation,
+    baseRevision: input.baseRevision,
+    approvedHead: target.headSha,
+    changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
+    candidate: input.record,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
+  };
+  const discharge = await readDischarge(dischargeInput);
+  input.judgment = await composeNativePublishedStatusGrants({ ...input, requestedCoverage: discharge.requestCoverage });
+  return { input, dischargeInput, discharge };
+}
+
 async function resolveSingletonRequest(
   input: PublishedSingletonInput,
   discharge: HostedReservationDischarge,
   dischargeInput: Parameters<HostedReservationDischargeReader>[0],
 ): Promise<NonNullable<Parameters<typeof composeSingletonReviewObligation>[0]["request"]>> {
   if (discharge.nextSource === null) throw new Error("The singleton review source is unavailable.");
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const store = new LocalReviewOperationStateStore(publisher);
+  const { publisher, family } = createReviewCompositionContext(input);
+  const store = family.ports.inFlight;
   const policy = await resolveConfiguredLanePolicy({
     lane: "standard",
     settings: input.settings,
@@ -111,8 +121,8 @@ async function resolveSingletonRequest(
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
     ...(invocation === undefined ? {} : { invocation }),
   }, {
-    resultReader: createRepositoryReviewResultReader(publisher),
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher, input),
+    dispositionStore: family.ports.dispositions,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
     confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
     confirmIncrementalApplicability: (predecessor, current) => (

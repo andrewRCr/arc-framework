@@ -1,10 +1,14 @@
 /** Settlement plan composed from one Candidate lineage's approved responses. */
 
+import { createReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
+import type { ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
+import type { ReviewInFlightPort, ReviewResultReader } from "../review-gate/core/ports.js";
+import { createRepositoryReviewResultReader } from "../review-gate/hosts/local/review-result-reader-composition.js";
+import { validateApprovedDispositionRecordForResult } from "../review-gate/core/review-result-disposition.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
-import type { GitExec } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { readCandidateRecord } from "../../lib/store/kinds/review/candidate/access.js";
 import { candidateReviewResponses } from "../../lib/work-unit/candidate-attestation.js";
 import {
   projectGitCandidateEffectiveTarget,
@@ -15,15 +19,9 @@ import {
 } from "../review-gate/core/advisory-records.js";
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { composeReviewResponseSettlementAction } from "../review-gate/core/response-plan.js";
-import { parseReviewSourceReference } from "../review-gate/core/review-source-reference.js";
-import {
-  LocalApprovedDispositionRecordStore,
-} from "../review-gate/hosts/local/disposition-record-store.js";
+import { parseReviewSourceReferenceForInvocation } from "../review-gate/runtime/source-invocation.js";
 import { LocalFrontlineOutcomeStore } from "../review-gate/hosts/local/frontline-outcome-store.js";
 import { resolveRepositoryIdentity } from "../review-gate/hosts/local/git-common-state.js";
-import {
-  LocalReviewOperationStateStore,
-} from "../review-gate/hosts/local/operation-state-store.js";
 import { deriveLocalReviewTarget } from "../review-gate/hosts/local/repository-target.js";
 import {
   composeCandidateResponseConfirmation,
@@ -38,10 +36,20 @@ export interface LineageReviewComposition {
   actions: SettlementAction[];
 }
 
-async function resolveApprovedOriginTarget(
+async function resolveApprovedOriginTarget(input: ReviewInvocationInput, record: ApprovedDispositionRecord,
+  required: boolean, operationStore: Pick<ReviewInFlightPort, "readOperation">, outcomeStore: LocalFrontlineOutcomeStore,
+  resultReader: ReviewResultReader | null): Promise<ReviewTarget | null> {
+  if (resultReader === null) return readRepositoryApprovedOriginTarget(input, record, required, operationStore, outcomeStore);
+  const result = await resultReader.readResult(record.operationId);
+  validateApprovedDispositionRecordForResult(record, result);
+  return result.target;
+}
+
+async function readRepositoryApprovedOriginTarget(
+  input: ReviewInvocationInput,
   record: ApprovedDispositionRecord,
   required: boolean,
-  operationStore: LocalReviewOperationStateStore,
+  operationStore: Pick<ReviewInFlightPort, "readOperation">,
   outcomeStore: LocalFrontlineOutcomeStore,
 ): Promise<ReviewTarget | null> {
   let resolved: ReviewTarget | null;
@@ -52,7 +60,7 @@ async function resolveApprovedOriginTarget(
     const { record: outcome } = await outcomeStore.readOutcome(record.operationId);
     resolved = outcome?.outcome.target ?? null;
   } else {
-    const reference = parseReviewSourceReference(record.source.attemptRef, "hosted");
+    const reference = await parseReviewSourceReferenceForInvocation(input, record.source.attemptRef, "hosted");
     if (reference.durableRef !== record.operationId) {
       throw new Error("The hosted review source reference moved attempt.");
     }
@@ -75,7 +83,7 @@ async function resolveApprovedOriginTarget(
 }
 
 async function deriveApprovedSettledTarget(
-  input: { cwd: string; exec: GitExec },
+  input: ReviewInvocationInput,
   publisher: RepositoryGitCommonStatePublisher,
   approvedHead: string,
 ): Promise<ReviewTarget> {
@@ -84,7 +92,7 @@ async function deriveApprovedSettledTarget(
     exec: input.exec,
     cwd: input.cwd,
     baseRef: settings["branch.base"],
-    repositoryId: await resolveRepositoryIdentity(publisher),
+    repositoryId: await resolveRepositoryIdentity(publisher, undefined, input),
   });
   if (target.headSha !== approvedHead) {
     throw new Error("The current change set does not bind the approved head.");
@@ -123,6 +131,14 @@ function composeApprovedSettlementAction(input: {
   });
 }
 
+function createLineageReviewContext(options: ReviewInvocationInput) {
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  return { ...context, input, dispositionIndex: context.family.ports.dispositions,
+    operationStore: context.family.ports.inFlight, outcomeStore: new LocalFrontlineOutcomeStore(context.publisher),
+    resultReader: context.family.mode === "stored" ? createRepositoryReviewResultReader(context.publisher, input) : null };
+}
+
 /**
  * Compose the settlement plan from every approved disposition record the Candidate covers.
  *
@@ -139,21 +155,16 @@ function composeApprovedSettlementAction(input: {
  * records remain unavailable at the completeness check below, while a readable record whose originating
  * operation is unavailable cannot be placed in any span and is left out when it is unrelated.
  *
- * @param input - The repository root and its Git boundary.
+ * @param options - The repository root and its Git boundary.
  * @returns A composer memoized per work unit, approved head, and checkpoint-validated base.
  */
-export function createLineageReviewComposer(input: {
-  cwd: string;
-  exec: GitExec;
-}): (
+export function createLineageReviewComposer(options: ReviewInvocationInput): (
   workUnit: string,
   approvedHead: string,
   approvedBase: string,
 ) => Promise<LineageReviewComposition> {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const dispositionIndex = new LocalApprovedDispositionRecordStore(publisher);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
-  const outcomeStore = new LocalFrontlineOutcomeStore(publisher);
+  const { input, store: reviewRecordStore, publisher, dispositionIndex, operationStore, outcomeStore, resultReader } =
+    createLineageReviewContext(options);
   const compositions = new Map<string, Promise<LineageReviewComposition>>();
 
   const compose = async (
@@ -161,7 +172,7 @@ export function createLineageReviewComposer(input: {
     approvedHead: string,
     approvedBase: string,
   ): Promise<LineageReviewComposition> => {
-    const record = await readCandidateRecord(input.cwd, workUnit);
+    const record = await readCandidateRecord(input.cwd, workUnit, { store: reviewRecordStore, owner: input.workItem });
     if (record === null) {
       throw new Error("The managed Candidate record disappeared during checkpoint composition.");
     }
@@ -196,7 +207,7 @@ export function createLineageReviewComposer(input: {
         && approved.candidate.workUnit === workUnit
         && approved.candidate.candidateId === record.attestation.candidateId;
       if (!required) continue;
-      const origin = await resolveApprovedOriginTarget(approved, required, operationStore, outcomeStore);
+      const origin = await resolveApprovedOriginTarget(input, approved, required, operationStore, outcomeStore, resultReader);
       if (origin === null) {
         throw new Error(`The approved disposition record ${dispositionId} is outside the Candidate span.`);
       }
@@ -204,6 +215,7 @@ export function createLineageReviewComposer(input: {
       const privateProof = ordinaryOrder === undefined
         ? await composeCandidateResponseConfirmation({
             ...input,
+            store: reviewRecordStore,
             workUnit,
             approvedHead,
             approvedBase,

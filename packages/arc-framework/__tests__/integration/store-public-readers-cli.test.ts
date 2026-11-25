@@ -1,4 +1,5 @@
 /** Registered public readers combine Store lifecycle truth with actual local checkout evidence. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -26,7 +27,7 @@ async function fixture() {
   await exec("git", ["add", ".arc/system/arc-config.yml"]);
   await exec("git", ["commit", "-m", "Initialize reader fixture"]);
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "reader-project", uid: project })), "{}");
-  await h.seedMeta("planning-unit", { state: "Planning", currentWorkflow: "draft-design" });
+  const planning = await h.seedMeta("planning-unit", { state: "Planning", currentWorkflow: "draft-design" });
   const paused = await h.seedMeta("paused-unit", { dependsOn: ["planning-unit"], design: ["spec-paused-unit.md"] }, { kind: "active" },
     { branches: [{ repository: project, ref: "feat/paused-unit", linkedAs: "created", excluded: [] }] });
   lifecycleSuccess(await h.store.write({ action: "put", reference: paused.reference, expected: paused.version,
@@ -38,8 +39,8 @@ async function fixture() {
   await exec("git", ["worktree", "add", holder, "feat/paused-unit"]);
   await ensureWorktreeMarkerIgnored(holder, exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeMarker(holder, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
-    createdFor: { kind: "work-unit", name: "paused-unit" } });
-  return { ...h, cwd, exec, holder, project };
+    createdFor: boundWorkUnitSubject(paused) });
+  return { ...h, cwd, exec, holder, project, planning };
 }
 async function invoke(h: Awaited<ReturnType<typeof fixture>>, argv: readonly string[]) {
   const previousCwd = process.cwd(), previousExit = process.exitCode;
@@ -83,7 +84,7 @@ it("errand check reports committed and checkout code overlap for paused and bran
   await h.exec("git", ["worktree", "add", "--detach", planningHolder, "main"]);
   await ensureWorktreeMarkerIgnored(planningHolder, h.exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeMarker(planningHolder, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
-    createdFor: { kind: "work-unit", name: "planning-unit" } });
+    createdFor: boundWorkUnitSubject(h.planning) });
   await mkdir(join(h.holder, "src"));
   await writeFile(join(h.holder, "src/committed.ts"), "export const committed = true;\n");
   await h.exec("git", ["add", "src/committed.ts"], { cwd: h.holder });
@@ -91,10 +92,10 @@ it("errand check reports committed and checkout code overlap for paused and bran
   await writeFile(join(h.holder, "src/checkout.ts"), "export const checkout = true;\n");
   await mkdir(join(planningHolder, "src"));
   await writeFile(join(planningHolder, "src/planning.ts"), "export const planning = true;\n");
-  await h.seedMeta("caller", { state: "Planning", currentWorkflow: "draft-design" });
+  const caller = await h.seedMeta("caller", { state: "Planning", currentWorkflow: "draft-design" });
   await ensureWorktreeMarkerIgnored(h.cwd, h.exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeMarker(h.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
-    createdFor: { kind: "work-unit", name: "caller" } });
+    createdFor: boundWorkUnitSubject(caller) });
   await mkdir(join(h.cwd, "src"));
   await writeFile(join(h.cwd, "src/caller.ts"), "export const caller = true;\n");
   const result = await invoke(h, ["errand", "check", "--target", "src/committed.ts", "src/checkout.ts", "src/planning.ts", "src/caller.ts", "--json"]);
@@ -113,7 +114,7 @@ it("errand check preserves duplicate-holder uncertainty and matches code after t
     await h.exec("git", ["worktree", "add", "--detach", holder, "main"]);
     await ensureWorktreeMarkerIgnored(holder, h.exec, nodeWorktreeMarkerIgnoreFs);
     await writeWorktreeMarker(holder, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
-      createdFor: { kind: "work-unit", name: "planning-unit" } });
+      createdFor: boundWorkUnitSubject(h.planning) });
   }
   await mkdir(join(changed, "src"));
   await writeFile(join(changed, "src/shared.ts"), "export const shared = true;\n");

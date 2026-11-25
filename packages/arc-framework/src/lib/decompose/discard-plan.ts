@@ -29,7 +29,7 @@ export async function prepareDecomposeDiscard(ctx: DecomposeContext, origin: str
   const selected = await acquireDecomposeStoredCut(store, origin);
   if (selected.status === "refused") return selected;
   const { map, primary, storedMap } = selected.result;
-  const originGroup = await acquireLifecycleRecords(store, primary.reference.owner.name);
+  const originGroup = await acquireLifecycleRecords(store, primary.reference);
   if (originGroup.status === "refused") return decomposeStoreRefusal(originGroup.refusal);
   const members = await acquireDecomposeMembers(store, selected.result.storedCut, storedMap);
   if (members.status === "refused") return members;
@@ -40,7 +40,7 @@ export async function prepareDecomposeDiscard(ctx: DecomposeContext, origin: str
   for (const member of members.result) {
     if (member.primary === null || acquired.has(member.primary.reference.owner.name)) continue;
     acquired.add(member.primary.reference.owner.name);
-    const group = await acquireLifecycleRecords(store, member.slug);
+    const group = await acquireLifecycleRecords(store, member.primary.reference);
     if (group.status === "refused") return decomposeStoreRefusal(group.refusal);
     removed.push(...group.result);
   }

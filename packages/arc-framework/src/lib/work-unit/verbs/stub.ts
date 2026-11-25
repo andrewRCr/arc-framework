@@ -5,7 +5,8 @@
  * `stub` mints a fresh, branchless work unit at a committed backlog tier
  * (`provisional` or `planned`, both physically under `backlog/`). It is the
  * enforcement front door: it refuses creation without an explicit **commitment**
- * and **priority**, never substituting a silent `provisional` / `P3` default.
+ * and **priority**, plus a resolved **Class** for planned creation, never
+ * substituting a silent `provisional` / `P3` default.
  * The required-fields *policy* is authored in the work-organization strategy;
  * the *enforcement mechanic* lives here. Because enforcement is pure over the
  * supplied inputs — it never defaults — the non-interactive case needs no TTY
@@ -21,13 +22,13 @@
  * @module
  */
 
+import type { StoreRefusal } from "../../store/refusal.js";
 import { join } from "node:path";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import { OwnerIdentitySchema, recordReferences } from "../../store/identity.js";
 import { renderMetaFile as renderStoreMeta } from "../../store/kinds/meta/writers.js";
+import { settleCreationSlugEdges } from "../../store/creation-slug-settlement.js";
 
-import { validateClass } from "../../kernel/schema/vocabulary.js";
-import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../../active/meta-reader.js";
 import { MetaPrioritySchema } from "../../active/meta-schema.js";
 import { SlugSchema } from "../../kernel/index.js";
@@ -39,10 +40,8 @@ import {
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
-import { isSlugSafe } from "../../kernel/schema/slug.js";
-
-/** The backlog tier a stub commits to — both live physically under `backlog/`. */
-export type StubCommitment = "provisional" | "planned";
+import { validateStubParameters, type StubParams, type StubCommitment } from "./stub-parameters.js";
+export type { StubParams, StubCommitment } from "./stub-parameters.js";
 
 /** Filesystem seam for writing the scaffolded backlog meta. */
 export interface StubScaffoldFs {
@@ -60,122 +59,26 @@ export interface StubContext {
   fs: StubScaffoldFs;
 }
 
-/** The judgment + identity inputs a `stub` creation supplies. */
-export interface StubParams {
-  /** New work-unit name — must not already exist (the create edge requires a nonexistent source). */
-  name: string;
-  /** Committed backlog tier — required; no default tier is ever assumed. */
-  commitment: StubCommitment | undefined;
-  /** Work-unit priority written into the scaffolded meta — required; no silent `P3`. */
-  priority: string | undefined;
-  /** Identity owning the new stub — the meta `Owner`. */
-  owner: string;
-  /** Parsed external reference (issue / URL) → meta `Origin`, when supplied. */
-  origin?: string;
-  /** Parsed ARC artifact (spec / draft) → meta `Design`, when supplied. */
-  design?: string;
-  /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
-  suggestion?: string;
-  /**
-   * Cohort path to enrol the new member under → meta `Cohort` + a cohort-tree
-   * placement (`backlog/planned/<cohort>/<name>/`). Single member only; the
-   * batch cohort-tree scaffold is `decompose-matrix`'s.
-   */
-  cohort?: string;
-  /**
-   * Initial resolved `Class` (`Light` | `Heavy` | `Novel`) written into the
-   * scaffolded meta; omitted → the template's `[TBD]`. An unresolvable value is
-   * refused (no silent `[TBD]` downgrade of an explicit judgment).
-   */
-  cls?: string;
-}
-
 /** The outcome of a `stub` attempt — a rejection reason, or the scaffolded meta path. */
 export type StubResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal }
   | { status: "scaffolded"; outcome: TransitionOutcome; metaPath: string };
 
 /**
- * Run the `stub` creation contract: enforce commitment + priority, then scaffold
- * the selected-tier meta through the executor.
+ * Run the `stub` creation contract: enforce commitment, priority, and planned
+ * Class, then scaffold the selected-tier meta through the executor.
  *
  * @param ctx - The executor seams plus the meta-write filesystem seam.
- * @param params - The new WU's name, committed tier, priority, and identity.
+ * @param supplied - The new WU's name, committed tier, priority, and identity.
  * @returns A rejection (missing judgment) or the scaffolded meta's repo-relative path.
  */
-export async function runStub(ctx: StubContext, params: StubParams): Promise<StubResult> {
-  // `name` flows straight into directory/file path composition below, so reject
-  // anything but a slug before it can escape the artifact root via separators or
-  // dot-segments and write an arbitrary repo path.
-  if (!isSlugSafe(params.name)) {
-    return {
-      status: "rejected",
-      reason: "`stub` requires a slug-safe name (`[a-z0-9-]`, no path separators or dot segments).",
-    };
-  }
-  if (params.commitment !== "provisional" && params.commitment !== "planned") {
-    return {
-      status: "rejected",
-      reason: "`stub` requires an explicit commitment (`provisional` | `planned`) — refusing to default.",
-    };
-  }
-  if (params.priority === undefined || params.priority.trim() === "") {
-    return {
-      status: "rejected",
-      reason: "`stub` requires an explicit priority — refusing to default (no silent `P3`).",
-    };
-  }
-
-  // An explicit `--class` must be a resolved weight — refuse an unresolvable value
-  // rather than silently minting `[TBD]` over the caller's judgment.
-  const clsArg = params.cls?.trim();
-  let cls: "Light" | "Heavy" | "Novel" | undefined;
-  if (clsArg !== undefined && clsArg !== "") {
-    const validated = validateClass(clsArg);
-    if (validated === "[TBD]") {
-      return {
-        status: "rejected",
-        reason: `\`${clsArg}\` is not a resolved Class (expected \`Light\` | \`Heavy\` | \`Novel\`).`,
-      };
-    }
-    cls = validated;
-  }
-
-  const commitment = params.commitment;
-  const priority = params.priority;
-
-  // `--cohort` enrols the member in a cohort tree. Cohorts live exclusively
-  // under `backlog/planned/` (the membership resolver scans only there), so a
-  // provisional cohort member would be invisible — require `planned` rather than
-  // silently override the supplied commitment. The path guard mirrors every
-  // other callsite that interpolates the field into a directory.
-  const cohort = params.cohort?.trim();
-  const hasCohort = cohort !== undefined && cohort !== "";
-  if (hasCohort) {
-    if (commitment !== "planned") {
-      return {
-        status: "rejected",
-        reason: "`stub --cohort` requires `--commitment planned` — cohort members are planned-tier.",
-      };
-    }
-    if (!isSafeCohortPath(cohort)) {
-      return {
-        status: "rejected",
-        reason: `\`stub --cohort\` rejects an unsafe cohort path "${cohort}" (no \`..\`, leading \`/\`, or backslash).`,
-      };
-    }
-    const shapeError = validateCohortPath(cohort);
-    if (shapeError !== null) {
-      return { status: "rejected", reason: `\`stub --cohort\`: ${shapeError}.` };
-    }
-  }
-
-  // Logical tier → physical destination: a per-WU subdir under the committed
-  // tier, nested in the cohort tree when `--cohort` enrols it.
-  const rawCohortSegments = hasCohort ? cohort.split("/") : [];
-  if (rawCohortSegments.some((segment) => !SlugSchema.safeParse(segment).success)) {
-    return { status: "rejected", reason: `\`stub --cohort\` rejects an invalid cohort path "${cohort}".` };
-  }
+export async function runStub(ctx: StubContext, supplied: StubParams): Promise<StubResult> {
+  const verdict = validateStubParameters(supplied);
+  if (verdict.status === "rejected") return verdict;
+  const params = verdict.params;
+  const { commitment, priority, cls, cohort } = verdict.params;
+  const hasCohort = cohort !== undefined;
+  const rawCohortSegments = cohort?.split("/") ?? [];
   if (usesOffBranchState(ctx.executor.store)) return runStoreStub(ctx, params, commitment, priority, cls, hasCohort ? cohort : undefined);
   const placement = {
     kind: "backlog",
@@ -234,10 +137,16 @@ async function runStoreStub(ctx: StubContext, params: StubParams, commitment: St
   };
 
     const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: params.name }));
+    const store = ctx.executor.store;
+    if (store === undefined) throw new Error("Store stub requires an operational store");
+    const settlement = await settleCreationSlugEdges(store, params.name, reference.owner);
     const outcome = await executeTransition(ctx.executor, { verb: "stub", slug: params.name, inputs: {
       commitment, suggestion: params.suggestion,
-      storeTransition: { create: { action: "put", reference, expected: null,
+      storeTransition: { additionalWrites: [...settlement.writes], observations: settlement.observations, create: { action: "put", reference, expected: null,
         content: renderStoreMeta(params.name, creationFields), placement: { kind: "backlog", commitment } } },
     } });
-    return outcome.status === "ok" ? { status: "scaffolded", outcome, metaPath } : { status: "rejected", reason: outcome.message };
+    if (outcome.status === "ok") return { status: "scaffolded", outcome, metaPath };
+    const refusal = outcome.status === "rejected" ? outcome.refusal : undefined;
+    return { status: "rejected", reason: `${outcome.message}${refusal === undefined ? "" : ` ${refusal.remedy.text}`}`,
+      ...(refusal === undefined ? {} : { refusal }) };
 }

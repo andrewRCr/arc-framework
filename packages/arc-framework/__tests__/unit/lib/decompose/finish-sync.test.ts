@@ -13,11 +13,11 @@ import type { Store } from "../../../../src/lib/store/contract.js";
 
 async function conflictingCuts() {
   const h = await createDecomposeCloneFixture();
-  h.right.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.right.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const leftCut = await addConcurrentDecomposeCut(h.left.ctx, "left");
   const rightCut = await addConcurrentDecomposeCut(h.right.ctx, "right");
-  lifecycleSuccess(await h.left.store.sync());
-  lifecycleSuccess(await h.right.store.sync());
+  lifecycleSuccess(await h.left.store.push());
+  lifecycleSuccess(await h.right.store.push());
   // Additive guards also re-put the meta; resolve that independent source conflict using its current bytes.
   const primary = lifecycleSuccess(await readWorkUnit(h.right.store, "origin"));
   if (primary.conflicts.length > 0) lifecycleSuccess(await h.right.store.write({ ...recordPut(primary), resolves: primary.conflicts,
@@ -110,9 +110,9 @@ it.each(["member", "cohort"] as const)("sync refuses independently minted %s own
   const h = await createDecomposeCloneFixture();
   await addConcurrentDecomposeCut(h.left.ctx, "left");
   await addConcurrentDecomposeCut(h.right.ctx, collision === "member" ? "left" : "right", collision === "cohort" ? "left-group" : "right-group");
-  lifecycleSuccess(await h.left.store.sync());
+  lifecycleSuccess(await h.left.store.push());
   const before = lifecycleSuccess(await h.right.store.version());
-  const result = await h.right.store.sync();
+  const result = await h.right.store.push();
   expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", class: "recoverable" } });
   if (result.status !== "refused" || result.refusal.code !== "ambiguous-match") throw new Error(JSON.stringify(result));
   const candidates = result.refusal.candidates;

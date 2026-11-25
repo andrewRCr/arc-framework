@@ -23,13 +23,13 @@ import {
   LaneSubjectLineageSchema,
   type LaneSubjectLineage,
 } from "./lane-admission.js";
-import type { LocalReviewState } from "./operation-state-schema.js";
+import type { LaneProgressState, LocalReviewState } from "./operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./ports.js";
 import {
   ReviewScopeModeSchema,
   type ReviewScopeMode,
 } from "./review-primitives.js";
-import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
+import { projectDeliveryLocalReviewAdmissionIdentity, type DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
 import {
   LocalReviewCoverageAdmissionSchema,
   type LocalReviewCoverageAdmission,
@@ -185,7 +185,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     coverageAdmission,
     deliveryAdmissionDigest: input.deliveryAdmission === undefined
       ? null
-      : canonicalDigest(input.deliveryAdmission),
+      : canonicalDigest(projectDeliveryLocalReviewAdmissionIdentity(input.deliveryAdmission)),
     lineage,
     logicalPass,
     retryGeneration,
@@ -249,8 +249,8 @@ export async function resolveLocalReviewAdmission(
     || persisted.state.logicalPass !== admission.logicalPass
     || persisted.state.retryGeneration !== admission.retryGeneration
     || canonicalize(persisted.state.coverageAdmission) !== canonicalize(admission.coverageAdmission)
-    || canonicalize(persisted.state.deliveryAdmission ?? null)
-      !== canonicalize(admission.deliveryAdmission ?? null)
+    || canonicalize(projectDeliveryLocalReviewAdmissionIdentity(persisted.state.deliveryAdmission))
+      !== canonicalize(projectDeliveryLocalReviewAdmissionIdentity(admission.deliveryAdmission))
     || canonicalize(persisted.state.vehicle) !== canonicalize(admission.authority.vehicle)
     || persisted.state.attestationRuntimeKind !== admission.authority.attestationRuntimeKind) {
     throw new LocalReviewAdmissionError("local-operation-key-mismatch");
@@ -262,4 +262,23 @@ export async function resolveLocalReviewAdmission(
     persistedVersion: persisted.version,
     persistedState: persisted.state,
   };
+}
+
+/** Compare the complete immutable local admission carried by a lane attempt and its producer. */
+export function localAttemptMatchesState(attempt: LaneProgressState["attempts"][number], state: LocalReviewState): boolean {
+  const local = attempt.local;
+  if (local === undefined) return false;
+  return attempt.attemptId === state.operationId
+    && attempt.logicalPass === state.logicalPass
+    && attempt.retryGeneration === state.retryGeneration
+    && attempt.sourceId === state.laneSourceId
+    && attempt.headSha === state.target.headSha
+    && local.requestId === state.requestId
+    && local.scopeMode === state.scopeMode
+    && canonicalize({ requestedCoverage: local.requestedCoverage,
+      ...(local.correctionScope === undefined ? {} : { correctionScope: local.correctionScope }) })
+      === canonicalize(state.coverageAdmission)
+    && canonicalize(local.target) === canonicalize(state.target)
+    && canonicalize(local.vehicle) === canonicalize(state.vehicle)
+    && canonicalize(local.deliveryAdmission ?? null) === canonicalize(state.deliveryAdmission ?? null);
 }

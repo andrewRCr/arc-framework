@@ -246,6 +246,30 @@ describe("classify-change.sh portability", () => {
     expect(await portability(["packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts"])).toBe("true");
   });
 
+  it.each([
+    "packages/arc-framework/src/lib/checks/runner/session-process.ts",
+    "packages/arc-framework/src/lib/checks/result.ts",
+    "packages/arc-framework/src/lib/checks/file-coordinates.ts",
+    "packages/arc-framework/__tests__/integration/check-symlink-cwd.test.ts",
+    "packages/arc-framework/__tests__/integration/check-runner-platform-status.test.ts",
+    "packages/arc-framework/__tests__/e2e/check-runner-platform.e2e.test.ts",
+    "packages/arc-framework/__tests__/fixtures/checks/prepared-execution.ts",
+    "packages/arc-framework/examples/check-runner/local-process.mjs",
+  ])("targets runner foundation surface %s", async path => {
+    expect(await portability([path])).toBe("true");
+  });
+
+  it.each([
+    "packages/arc-framework/src/lib/checks/shards.ts",
+    "packages/arc-framework/src/lib/vitest-execution.ts",
+    "packages/arc-framework/__tests__/helpers/native-writer-fixture.ts",
+    "packages/arc-framework/__tests__/helpers/heavy-first-sequencer.ts",
+    "packages/arc-framework/__tests__/integration/vitest-native-writers.test.ts",
+    "packages/arc-framework/__tests__/unit/lib/checks/forecast.test.ts",
+  ])("targets native shard consumer surface %s", async path => {
+    expect(await portability([path])).toBe("true");
+  });
+
   it("does not target unrelated code changes", async () => {
     expect(await portability(["packages/arc-framework/src/lib/config.ts"])).toBe("false");
     expect(await portability(["README.md", "packages/arc-framework/src/commands/status.ts"])).toBe("false");

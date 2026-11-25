@@ -5,6 +5,7 @@ import { assertReservedLocalObligation, confirmReservedLocalReplay } from "./loc
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import type { FixedFindingPointer } from "../core/fixed-finding-pointers.js";
 import { z } from "zod";
+import { requireNativeReviewDecisionReferences } from "../policy/review-grant-references.js";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 
@@ -52,10 +53,13 @@ import type {
   ForwardReceiptLedger,
   LocalReviewSourceStore,
   ReviewOperationStateStore,
+  ReviewOutcomePort,
 } from "../core/ports.js";
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "../core/version-conflict.js";
 import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import { requireSettledErrandPredecessor } from "../hosted-settlement-stop.js";
+import { selectErrandCorrectionPredecessor } from "../status-errand.js";
 import type { CandidateSupersessionAncestor } from
   "../../../lib/work-unit/candidate-attestation.js";
 import {
@@ -73,7 +77,6 @@ import type { ReviewScopeMode } from "../core/review-primitives.js";
 import {
   LocalReviewCoverageAdmissionSchema,
   type LocalReviewCoverageSelectionAction,
-  projectLocalReviewCoverageAdmission,
   type LocalReviewCoverageAdmission,
 } from "../core/local-review-coverage.js";
 import {
@@ -83,7 +86,9 @@ import {
 } from "../policy/local-review-coverage-selection.js";
 import { cleanupExpired, retryLaneOwnerConflicts } from "./local-prepare-retry.js";
 import { LocalPrepareCommandError } from "./local-prepare-error.js";
-import { completedReplayAttemptMatches, resolveStablePendingLocalReplay } from "./local-pending-replay.js";
+import { completedReplayAttemptMatches, localReplayAdmissionMatches, localRequestScope, replayAttemptCoverage, resolveStablePendingLocalReplay,
+  type StablePendingReplayContext } from "./local-pending-replay.js";
+import { replayCompletedNativeLocalAdmission } from "./local-completed-replay.js";
 export { LocalPrepareCommandError } from "./local-prepare-error.js";
 
 const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
@@ -146,6 +151,7 @@ type AssuranceComposition =
   | { status: "refused"; diagnostics: readonly string[] };
 
 export interface LocalPrepareDependencies {
+  resolvePassJudgments?: (request: LocalPrepareRequest) => Promise<LocalPrepareRequest>;
   sweep(): Promise<void>;
   withLocalReviewLock<T>(action: () => Promise<T>): Promise<T>;
   withLaneOperationLock<T>(input: {
@@ -226,6 +232,7 @@ export interface LocalPrepareDependencies {
     dispositionSetId: string,
   ) => Promise<boolean>;
   operationStore: ReviewOperationStateStore;
+  outcomes?: ReviewOutcomePort;
   readFixedFindingPointers(input: {
     repositoryId: string; headSha: string; lineage: LaneSubjectLineage; workUnitId?: string;
   }): Promise<readonly FixedFindingPointer[]>;
@@ -255,15 +262,8 @@ function unavailableLocalPreparation(messages: readonly string[]) {
   });
 }
 
-type PendingLocalReplayInput = {
-  request: LocalPrepareRequest;
+type PendingLocalReplayInput = StablePendingReplayContext & {
   dependencies: LocalPrepareDependencies;
-  repositoryId: string;
-  target: ReviewTarget;
-  lineage: LaneSubjectLineage;
-  scopeMode: ReviewScopeMode;
-  coverageAdmission: LocalReviewCoverageAdmission;
-  cleanupTtlMs: number;
 };
 
 function requireSharedLogicalPassCoverage(
@@ -275,12 +275,6 @@ function requireSharedLogicalPassCoverage(
     && !sharedLogicalPassCoverageMatches(attempts, logicalPass, coverageAdmission)) {
     throw new LocalPrepareCommandError("local review coverage differs from the shared logical pass");
   }
-}
-
-function replayAttemptCoverage(input: PendingLocalReplayInput,
-  attempt: LocalLaneAttempt | undefined): LocalReviewCoverageAdmission {
-  return input.request.coverageAdmission === undefined && input.request.deliveryAdmission === undefined
-    && attempt?.local !== undefined ? localAttemptCoverageAdmission(attempt.local) : input.coverageAdmission;
 }
 
 async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
@@ -301,32 +295,6 @@ async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
   return { attempt, coverageAdmission };
 }
 
-type LocalReplayAttempt = NonNullable<Awaited<ReturnType<typeof selectLocalReplayAttempt>>>["attempt"];
-
-function replayIdentityMatches(
-  state: LocalReviewState,
-  attempt: LocalReplayAttempt,
-  binding: NonNullable<LocalReplayAttempt["local"]>,
-  input: PendingLocalReplayInput,
-): boolean {
-  return state.operationId === attempt.attemptId
-    && state.operationId === binding.operationId
-    && state.requestId === binding.requestId
-    && state.targetId === input.target.targetId
-    && binding.target.targetId === input.target.targetId
-    && canonicalize(state.target) === canonicalize(input.target)
-    && state.scopeMode === binding.scopeMode
-    && state.scopeMode === input.scopeMode
-    && state.logicalPass === attempt.logicalPass
-    && state.retryGeneration === attempt.retryGeneration;
-}
-
-function replayContextMatches(state: LocalReviewState, input: PendingLocalReplayInput): boolean {
-  return canonicalize(state.coverageAdmission) === canonicalize(input.coverageAdmission)
-    && canonicalize(state.lineage) === canonicalize(input.lineage)
-    && canonicalize(state.deliveryAdmission ?? null) === canonicalize(input.request.deliveryAdmission ?? null);
-}
-
 async function replayPendingLocalAdmission(supplied: PendingLocalReplayInput): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {
   const selected = await selectLocalReplayAttempt(supplied);
   if (selected === null) return null;
@@ -337,10 +305,13 @@ async function replayPendingLocalAdmission(supplied: PendingLocalReplayInput): P
     throw new LocalPrepareCommandError("local pending admission is incomplete");
   }
   const persisted = await input.dependencies.operationStore.readOperation(binding.operationId);
+  if (attempt.outcome !== "pending" && input.dependencies.outcomes !== undefined) {
+    return replayCompletedNativeLocalAdmission({ ...input, outcomes: input.dependencies.outcomes,
+      persistedVersion: persisted.version }, attempt);
+  }
   const state = persisted.state;
   if (state === null || state.kind !== "local-review"
-    || !replayIdentityMatches(state, attempt, binding, input)
-    || !replayContextMatches(state, input)) {
+    || !localReplayAdmissionMatches(state, attempt, binding, input)) {
     throw new LocalPrepareCommandError("local pending admission does not match its operation");
   }
   await confirmReservedLocalReplay({ request: input.request, state, lineage: input.lineage,
@@ -521,13 +492,18 @@ async function resolveSettlementPolicyAdmission(
     return { state: "ready" as const, pass: request.deliveryAdmission.pass,
       coverageAdmission: input.coverageAdmission, incrementalBasis: undefined };
   }
-  const policyAttempts = currentAttempts.filter((attempt) => (
+  const eligibleAttempts = currentAttempts.filter((attempt) => (
     retryingLocalAttempt === undefined
     || attempt.outcome !== "terminal-failure"
     || attempt.local === undefined
     || attempt.sourceId !== dependencies.laneSourceId
     || attempt.logicalPass !== retryingLocalAttempt.logicalPass
-  )).map(projectReviewPolicyAttempt);
+  ));
+  // Fallback order belongs to one logical pass; the owner retains all history for counts and coverage.
+  const currentPass = eligibleAttempts.at(-1)?.logicalPass;
+  const policyAttempts = eligibleAttempts.filter(attempt => attempt.logicalPass === currentPass)
+    .map(projectReviewPolicyAttempt);
+  requireSettledErrandPredecessor(lineage, selectErrandCorrectionPredecessor(owner?.attempts ?? [], target.headSha));
   const predecessorOperationId = [...(owner?.attempts ?? [])].reverse().find((attempt) => (
     attempt.terminalProducer
     && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
@@ -913,14 +889,7 @@ async function resolveLocalPreparationContext(
     request.deliveryAdmission,
     member ?? undefined,
   );
-  const scopeMode = request.deliveryAdmission?.scopeSelection?.mode
-    ?? request.policyJudgment?.scopeMode
-    ?? "whole-target";
-  const coverageAdmission = request.deliveryAdmission === undefined
-    ? request.coverageAdmission ?? LocalReviewCoverageAdmissionSchema.parse({
-        requestedCoverage: "complete",
-      })
-    : projectLocalReviewCoverageAdmission(request.deliveryAdmission);
+  const { scopeMode, coverageAdmission } = localRequestScope(request);
   if (coverageAdmission.correctionScope !== undefined
     && coverageAdmission.correctionScope.headSha !== target.headSha) {
     throw new LocalPrepareCommandError("local review correction scope does not match its target");
@@ -950,7 +919,9 @@ export async function prepareLocalReview(
   requestInput: unknown,
   dependencies: LocalPrepareDependencies,
 ): Promise<z.infer<typeof LocalPrepareEnvelopeSchema>> {
-  const request = LocalPrepareRequestSchema.parse(requestInput);
+  let request = LocalPrepareRequestSchema.parse(requestInput);
+  requireNativeReviewDecisionReferences(() => dependencies.operationStore.stateOffBranch === true, request.policyJudgment, request.deliveryAdmission);
+  request = await dependencies.resolvePassJudgments?.(request) ?? request;
   const stableReplay = await retryLaneOwnerConflicts(() => resolveStablePendingLocalReplay(
     request, dependencies, (context) => replayPendingLocalAdmission({ ...context, dependencies }),
   ));

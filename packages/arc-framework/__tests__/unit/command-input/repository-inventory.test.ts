@@ -52,6 +52,7 @@ describe("repository command-input inventory", () => {
       syntaxCount + declaredInteractionCount + declaredSemanticSites.length,
     );
     expect(declaredSemanticSites).toEqual([
+      "agenda:semantic.interaction-context",
       "status:semantic.interaction-context",
     ]);
     expect(inventory.entries).toEqual(expect.arrayContaining([
@@ -250,7 +251,9 @@ describe("repository command-input inventory", () => {
   });
 
   it("routes hosted review JSON commands under a constant machine-mode policy", () => {
-    for (const path of ["review hosted request", "review hosted await", "review hosted settle"]) {
+    for (const path of [
+      "review hosted request", "review hosted await", "review hosted settle", "review hosted dismiss",
+    ]) {
       const command = snapshot.source.commands.find((entry) => entry.path === path);
       expect(command?.action?.interactionContext, path).toBe(true);
       expect(command?.action?.constantMachineMode, path).toBe(true);
@@ -268,8 +271,8 @@ describe("repository command-input inventory", () => {
     }
   });
 
-  it("declares JSON mode on attest, publish, and locus", () => {
-    for (const path of ["attest", "publish", "locus"]) {
+  it("declares JSON mode on attest, publish, rename, and locus", () => {
+    for (const path of ["attest", "publish", "rename", "locus"]) {
       expect(inventory.entries.find((entry) => entry.identity === `${path}:option.json`)?.acquisition, path)
         .toBe("machine-mode");
     }
@@ -307,6 +310,14 @@ describe("repository command-input inventory", () => {
     const command = snapshot.source.commands.find((entry) => entry.path === "review frontline run");
 
     expect(command?.action?.interactionContext).toBe(true);
+  });
+
+  it("classifies runner protocol stdin independently of terminal input for every check form", () => {
+    const runnerSites = inventory.entries
+      .filter(entry => entry.siteId === "interaction.lib-checks-runner-session-process.ts-subprocess-execa-1")
+      .map(entry => ({ command: entry.commandPath, stdin: entry.subprocess, noInput: entry.noInput }));
+    expect(runnerSites).toEqual(["check gate", "check increment", "check new-head", "check pre-commit", "check pre-push",
+      "check run", "check segment"].map(command => ({ command, stdin: "explicit-stdin", noInput: "same" })));
   });
 
   it("assigns the byte-preserving raw Git boundary to its command families", () => {
@@ -375,6 +386,10 @@ describe("repository command-input inventory", () => {
       "set-stage",
       "start",
       "status",
+      "store conflict",
+      "store migrate",
+      "store remote",
+      "store repair-review-roots",
       "stub",
       "task close",
       "task defer",
@@ -532,7 +547,7 @@ describe("repository command-input inventory", () => {
     const refusal = inventory.entries.find((site) => site.commandPath === "start"
       && site.siteId === "safety.indeterminate-lifecycle");
     expect(refusal).toMatchObject({ origin: "prompt", noInput: "refuse" });
-    expect(reached.map((site) => site?.noInput).sort()).toEqual([...kinds].sort());
+    expect([...new Set(reached.map((site) => site?.noInput))].sort()).toEqual([...kinds].sort());
   });
 
   it("rejects duplicate explicit policy ownership instead of silently taking the last declaration", () => {

@@ -6,7 +6,8 @@ import type { StoreRecord } from "../store/read.js";
 import type { Links } from "../store/links.js";
 import type { Mutation } from "../store/write.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
-import { createStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
+import { bindStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
+import { consumePull, writePullNotices } from "../store/pull-consumption.js";
 import { deserializeTransientIdentityRecord, serializeTransientIdentityRecord, type TransientIdentityRecord } from "./identity-record.js";
 import { ordinaryErrandTransform, type OrdinaryErrandRecord, type OrdinaryErrandTransition, type OrdinaryErrandTransform } from "./identity-transitions.js";
 import type { IdentityTransactionOutcome } from "./identity-transaction.js";
@@ -14,8 +15,11 @@ import type { IdentityTransactionOutcome } from "./identity-transaction.js";
 /** Shared invocation ports; companions join the primary's atomic batch. */
 export interface ErrandStoreOptions {
   store: Store;
+  selectedRecord?: StoreRecord;
   identity: string;
   sync?: StoreSyncPort;
+  /** Where the pull's notices are written; standard error by default. */
+  writeNotice?: (line: string) => void;
   projectId?: () => Promise<string>;
   now?: () => string;
   provenanceVerb?: string;
@@ -67,13 +71,17 @@ export async function transformStoreErrand(options: ErrandStoreOptions, previous
   return basis.kind === "ready" ? applyTransform(options, previous.slug, basis, transform, retire ? previous : undefined) : transactionFailure(basis);
 }
 async function readBasis(options: ErrandStoreOptions, slug: string, claimId?: string, completed = false): Promise<Basis> {
-  const pulled = await (options.sync ?? createStoreSyncPort()).pull();
-  if (pulled.status === "unreachable") return { kind: "refused", reason: `${pulled.condition} ${pulled.remedy.text}` };
-  const found = await options.store.lookup(claimId === undefined ? { kind: "slug", slug: SlugSchema.parse(slug) }
-    : { kind: "claim", claim: { kind: "errand", slug: SlugSchema.parse(slug), claimId } });
+  const pulled = consumePull(await (options.sync ?? bindStoreSyncPort(options.store)).pull());
+  writePullNotices(pulled.notices, options.writeNotice);
+  if (pulled.kind === "stop") return { kind: "refused", reason: pulled.reason };
+  const found = options.selectedRecord === undefined
+    ? await options.store.lookup(claimId === undefined ? { kind: "slug", slug: SlugSchema.parse(slug) }
+      : { kind: "claim", claim: { kind: "errand", slug: SlugSchema.parse(slug), claimId } })
+    : { status: "ok" as const, result: { reference: options.selectedRecord.reference } };
   if (found.status === "refused") return found.refusal.code === "not-found" ? { kind: "ready", saved: null, record: null }
     : { kind: "refused", reason: formatRefusal(found.refusal) };
   const read = await options.store.read({ reference: found.result.reference });
+  if (read.status === "refused" && read.refusal.code === "not-found" && options.selectedRecord !== undefined) return { kind: "ready", saved: null, record: null };
   if (read.status === "refused") return { kind: "refused", reason: formatRefusal(read.refusal) };
   return decodeBasis(read.result, slug, options.identity, completed);
 }

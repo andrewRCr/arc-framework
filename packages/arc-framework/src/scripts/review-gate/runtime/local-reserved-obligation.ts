@@ -1,6 +1,7 @@
 /** Bind ordinary work-unit preparation and replay to the live reserved review obligation. */
-import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
-import type { IntegrationBoundaryLocus } from "../policy/integration-boundary-locus.js";
+import { readSubmissionBoundaryVersioned, type SubmissionBoundaryReadOptions } from "../../../lib/store/kinds/review/integration-boundary/access.js";
+import type { ReviewInvocationInput } from "./invocation.js";
+import type { PublishedIntegrationBoundaryLocus } from "../policy/integration-boundary-locus.js";
 import type { LocalReviewAuthority } from "../core/local-review-authority.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
@@ -11,14 +12,14 @@ import type { StandardReviewObligationProjection } from "../policy/standard-revi
 import type { LocalPrepareDependencies, LocalPrepareRequest } from "./local-prepare.js";
 import { LocalPrepareCommandError } from "./local-prepare-error.js";
 import type { ReviewNextPassInput } from "../policy/review-next-pass.js";
-import type { GitExec } from "../../../lib/git/exec.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 /** Read one work unit's current Candidate boundary, optionally requiring an already resolved lineage. */
 export async function readLocalWorkUnitBoundary(
-  cwd: string, workUnitId: string, candidateId?: string,
-): Promise<IntegrationBoundaryLocus> {
-  const boundary = (await readSubmissionBoundaryVersioned(cwd, workUnitId)).boundary;
+  cwd: string, workUnitId: string, candidateId?: string, options?: SubmissionBoundaryReadOptions,
+): Promise<PublishedIntegrationBoundaryLocus> {
+  const boundary = (await readSubmissionBoundaryVersioned(cwd, workUnitId, options)).boundary;
   if (boundary === null || boundary.workUnit !== workUnitId) {
     throw new Error("Candidate lineage authority is unavailable for local review");
   }
@@ -29,9 +30,7 @@ export async function readLocalWorkUnitBoundary(
 }
 
 /** Admit private Candidate delta coverage only while its matching boundary remains in pre-publication. */
-export async function readLocalDeltaAdmissionSurface(input: {
-  readonly cwd: string;
-  readonly exec: GitExec;
+export async function readLocalDeltaAdmissionSurface(input: ReviewInvocationInput & {
   readonly lineage: LaneSubjectLineage;
   readonly workUnitId?: string;
   readonly pullRequest: number | null;
@@ -41,10 +40,12 @@ export async function readLocalDeltaAdmissionSurface(input: {
     return "open-pr-errand";
   }
   if (lineage.kind !== "candidate" || input.workUnitId === undefined || pullRequest !== null) return "ordinary";
-  const boundary = await readLocalWorkUnitBoundary(input.cwd, input.workUnitId, lineage.candidateId).catch(() => null);
+  const boundary = await readLocalWorkUnitBoundary(input.cwd, input.workUnitId, lineage.candidateId,
+    { store: input.store, exec: input.exec, owner: input.workItem })
+    .catch((error: unknown) => { rethrowNativeRefusal(error); return null; });
   if (boundary === null || boundary.locus === "publication-pending" || boundary.locus === "hosted-review-pending"
     || boundary.locus === "delivery-status-required") return "ordinary";
-  const live = await readLocalReviewLiveContext(input).catch(() => null);
+  const live = await readLocalReviewLiveContext(input).catch((error: unknown) => { rethrowNativeRefusal(error); return null; });
   return live?.meta?.state === "Active" && live.context.workUnit?.identity === input.workUnitId
     ? "pre-publication" : "ordinary";
 }
@@ -52,10 +53,11 @@ export async function readLocalDeltaAdmissionSurface(input: {
 /** Return the live reservation's policy for an ordinary work-unit review in the same Candidate lineage. */
 export async function readReservedWorkUnitObligation(
   cwd: string, vehicle: LocalReviewAuthority["vehicle"], lineage: LaneSubjectLineage,
+  options?: SubmissionBoundaryReadOptions,
 ): Promise<StandardReviewObligationProjection | undefined> {
   if (vehicle.kind !== "work-unit") return undefined;
   if (lineage.kind !== "candidate") throw new LocalPrepareCommandError("reserved work-unit Candidate lineage is unavailable");
-  const boundary = await readLocalWorkUnitBoundary(cwd, vehicle.identity, lineage.candidateId);
+  const boundary = await readLocalWorkUnitBoundary(cwd, vehicle.identity, lineage.candidateId, options);
   return boundary.reservation?.obligation;
 }
 
@@ -77,7 +79,7 @@ export function assertReservedLocalObligation(
 /** Re-confirm the live reservation before a pending or completed operation can answer ordinary local prepare. */
 export async function confirmReservedLocalReplay(input: {
   readonly request: Pick<LocalPrepareRequest, "routingFacts">;
-  readonly state: LocalReviewState;
+  readonly state: Pick<LocalReviewState, "deliveryAdmission" | "vehicle" | "requirement" | "request">;
   readonly lineage: LaneSubjectLineage;
   readonly dependencies: Pick<LocalPrepareDependencies,
     "readReservedWorkUnitObligation" | "resolveAuthority" | "composeAssurance">;

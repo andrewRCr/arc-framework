@@ -1,5 +1,7 @@
 /** Unstored instructions for ordinary local prepare on a published singleton's branch. */
 import { z } from "zod";
+import { projectReviewCeilingJudgment } from "./policy/review-ceiling-override.js";
+import { projectReviewAdditionalPassJudgment } from "./policy/review-additional-pass.js";
 import { CanonicalDigestSchema, SlugSchema } from "../../lib/kernel/index.js";
 import { HostedTargetSchema, type HostedRequestEnvelope } from "./hosted/request.js";
 import { ReviewLaneJudgmentSchema, type ReviewResolveEnvelope } from "./policy/review-policy-driver.js";
@@ -34,12 +36,8 @@ export function projectSingletonLocalPrepareAction(input: {
   const additional = input.judgment.additionalPassAuthorization;
   const policyJudgment = {
     ...(input.judgment.invocation === undefined ? {} : { invocation: input.judgment.invocation }),
-    ...(ceiling === undefined ? {} : { ceilingOverride: { exhaustedPassCount: ceiling.exhaustedPassCount,
-      nextPass: ceiling.nextPass, ...(ceiling.conditionalPassAuthorizationId === undefined ? {}
-        : { conditionalPassAuthorizationId: ceiling.conditionalPassAuthorizationId }) } }),
-    ...(additional === undefined ? {} : { additionalPassAuthorization: { headSha: additional.target.headSha,
-      precedingProducerId: additional.precedingProducerId, completedPasses: additional.completedPasses,
-      nextPass: additional.nextPass } }),
+    ...(ceiling === undefined ? {} : { ceilingOverride: projectReviewCeilingJudgment(ceiling) }),
+    ...(additional === undefined ? {} : { additionalPassAuthorization: projectReviewAdditionalPassJudgment(additional) }),
   };
   return SingletonLocalPrepareActionSchema.parse({ schemaVersion: 1, sourceId: "delegated-agent", target: input.target,
     lineageBoundary: input.lineageBoundary, standardReview: input.standardReview,

@@ -34,6 +34,7 @@ describe("entry splitting", () => {
         .toMatchObject([{ section: "One", id: "80000000" }]);
       const record = keyedReference(OwnerIdentitySchema.parse({ type: "person", name: "owner" }), "personal/document", "list.md");
       expect(mergeEntryText({ base: stamped, current: stamped, incoming: stamped, record,
+        baseVersion: null,
         currentLabel: { actor: "current", time: "2026-10-01T00:00:00Z" },
         incomingLabel: { actor: "incoming", time: "2026-10-01T01:00:00Z" } }, config))
         .toEqual({ content: stamped, conflicts: [] });
@@ -57,7 +58,7 @@ describe("entry splitting", () => {
 describe("managed ID stamping", () => {
   it.each([
     [heading,'## Errand\n\n### **Entry**\n\n- _Created:_ `2026-10-01`\n\n<!-- example\n- _Description:_ example field\n-->\n\nactual body\n'],
-    [field,'## Memories\n\n**Memory:**\n<!-- example\n_Remove when:_ example\n-->\n_Remove when:_ real\n\nbody\n'],
+    [field,'## Memories\n\n<!-- example\n_Remove when:_ example\n-->\n\n**Memory:**\n_Remove when:_ real\n\nbody\n'],
     [heading,'## Errand\n\n### **Entry**\n- _Description:_ real <!-- example\n- _Description:_ hidden\n-->\n\nbody\n'],
     [field,'## Memories\n\n**Memory:**\n_Remove when:_ real <!-- example\n_Remove when:_ hidden\n-->\n\nbody\n']
   ] as const)("stamps a usable identity outside comment examples for %j", (config,input) => {
@@ -70,7 +71,7 @@ describe("managed ID stamping", () => {
       expect(stampEntryIds(stamped,config,()=>{throw new Error("must not draw");})).toBe(stamped);
       expect(stamped.match(/<!--[\s\S]*?-->/u)?.[0]).toBe(content.match(/<!--[\s\S]*?-->/u)?.[0]);
       const record = keyedReference(OwnerIdentitySchema.parse({type:"person",name:"owner"}),"personal/document","list.md");
-      expect(mergeEntryText({base:stamped,current:stamped,incoming:stamped,record,currentLabel:{actor:"current",time:"2026-10-01T00:00:00Z"},incomingLabel:{actor:"incoming",time:"2026-10-01T01:00:00Z"}},config)).toEqual({content:stamped,conflicts:[]});
+      expect(mergeEntryText({base:stamped,current:stamped,incoming:stamped,record,baseVersion: null,currentLabel:{actor:"current",time:"2026-10-01T00:00:00Z"},incomingLabel:{actor:"incoming",time:"2026-10-01T01:00:00Z"}},config)).toEqual({content:stamped,conflicts:[]});
     }
   });
 

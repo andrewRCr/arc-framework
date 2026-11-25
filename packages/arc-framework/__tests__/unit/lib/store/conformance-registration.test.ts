@@ -2,7 +2,10 @@
 import { describe, expect, it } from "vitest";
 import { FAMILY_IDS } from "../../../../src/lib/store/index.js";
 import type { ConformanceRegistration, FixtureDeclarations } from "../../../helpers/store/fixture-contract.js";
-import { registerStoreConformanceSuite, validateConformanceRegistration } from "../../../helpers/store/conformance-suite.js";
+import {
+  collectConformanceCoverage, collectRunCases, registerStoreConformanceSuite, validateConformanceInventory,
+  validateConformanceRegistration,
+} from "../../../helpers/store/conformance-suite.js";
 import { inRepoDeclarations } from "../../../helpers/store/in-repo-declarations.js";
 import { unservedFamilyExclusions } from "../../../helpers/store/suite-tools.js";
 
@@ -70,7 +73,7 @@ describe("conformance registration exclusions", () => {
       .toThrow(/Invalid conformance registration:.*unserved/);
   });
 
-  it.each([0,18,"bogus"])("refuses an unknown suite item %s", (item) => {
+  it.each([0,19,"bogus"])("refuses an unknown suite item %s", (item) => {
     expect(() => validateConformanceRegistration(registration({familyExclusions:{personal:{items:{[item]:"Unavailable"}}}})))
       .toThrow(/Invalid conformance registration:.*item/);
   });
@@ -134,4 +137,66 @@ it("accepts an exclusion after its missing reason is supplied", () => {
 it.each([undefined, "true", 1])("refuses a non-boolean write-check declaration: %j", (runsWriteChecks) => {
   expect(() => validateConformanceRegistration(registration({ runsWriteChecks })))
     .toThrow(/Invalid conformance registration:.*runsWriteChecks/);
+});
+
+describe("conformance runs", () => {
+  it.each([
+    ["a gap", { first: [1, 6], rest: [8, 18] }],
+    ["an overlap", { first: [1, 7], rest: [7, 18] }],
+    ["a reversed range", { first: [6, 1], rest: [7, 18] }],
+    ["an unknown item", { first: [1, 6], rest: [7, 19] }],
+  ])("refuses item ranges with %s", (_name, ranges) => {
+    const probe = { ...registration(), runs: { ranges } } as unknown as ConformanceRegistration;
+    expect(() => validateConformanceRegistration(probe)).toThrow(/Invalid conformance registration:.*(item range|every suite item exactly once)/);
+  });
+
+  it.each([
+    ["a missing part", { first: [1, 6], a: { items: [7, 18], part: [1, 3] }, b: { items: [7, 18], part: [2, 3] } }],
+    ["a repeated part", { first: [1, 6], a: { items: [7, 18], part: [1, 2] }, b: { items: [7, 18], part: [1, 2] } }],
+    ["parts that disagree on their count", { first: [1, 6], a: { items: [7, 18], part: [1, 2] }, b: { items: [7, 18], part: [2, 3] } }],
+    ["a part past its count", { first: [1, 6], a: { items: [7, 18], part: [1, 2] }, b: { items: [7, 18], part: [3, 2] } }],
+    ["a range of one part", { first: [1, 6], a: { items: [7, 18], part: [1, 1] } }],
+    ["a range declared both whole and in parts",
+      { first: [1, 6], rest: [7, 18], a: { items: [7, 18], part: [1, 2] }, b: { items: [7, 18], part: [2, 2] } }],
+  ])("refuses range parts with %s", (_name, ranges) => {
+    const probe = { ...registration(), runs: { ranges } } as unknown as ConformanceRegistration;
+    expect(() => validateConformanceRegistration(probe)).toThrow(/Invalid conformance registration:.*(part|every suite item exactly once)/);
+  });
+
+  it("gives each case of a range to exactly one of its parts, with part sizes within one case", () => {
+    const whole = { ...registration(), runs: { ranges: { first: [1, 6], rest: [7, 18] } } } as unknown as ConformanceRegistration;
+    const split = { ...registration(), runs: { ranges: { first: [1, 6], "rest-1": { items: [7, 18], part: [1, 3] },
+      "rest-2": { items: [7, 18], part: [2, 3] }, "rest-3": { items: [7, 18], part: [3, 3] } } } } as unknown as ConformanceRegistration;
+    expect(() => validateConformanceRegistration(split)).not.toThrow();
+    const cases = collectRunCases(whole, { range: "rest" });
+    const parts = ["rest-1", "rest-2", "rest-3"].map((range) => collectRunCases(split, { range }));
+    expect(cases.length).toBeGreaterThan(30);
+    expect(new Set(cases).size).toBe(cases.length);
+    expect(parts.flat().sort()).toEqual([...cases].sort());
+    const sizes = parts.map((part) => part.length);
+    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+    expect(collectRunCases(split, { range: "first" })).toEqual(collectRunCases(whole, { range: "first" }));
+  });
+
+  it("lists the cases a live file registers, skipping an item exclusion for a family that registered assertions there", () => {
+    const probe = registration({ familyExclusions: { "work-item": { items: { 1: "Probe" } } } });
+    const inventory = [...collectConformanceCoverage(probe).cases].flatMap(([item, ids]) => [...ids].map((id) => `${item}: ${id}`));
+    expect(inventory.length).toBeGreaterThan(30);
+    expect(inventory).not.toContain("1: work-item: item 1");
+    expect(collectRunCases(probe)).toEqual(inventory);
+  });
+
+  it("checks exclusions and the per-change subset against every case of the registration, whatever a file runs", () => {
+    const probe: ConformanceRegistration = { ...registration({ familyExclusions: { "work-item": { assertions: { "reopen-read:work-item/meta": "Probe" } } } }),
+      runs: { ranges: { first: [1, 6], rest: [7, 18] }, subset: { 13: ["work-item: reopen-read:work-item/meta"] } } };
+    expect(() => validateConformanceRegistration(probe)).not.toThrow();
+    expect(() => validateConformanceInventory(probe, collectConformanceCoverage(probe))).not.toThrow();
+    const unknownExclusion = { ...probe, declarations: { ...probe.declarations,
+      familyExclusions: { "work-item": { assertions: { "no-such-assertion": "Probe" } } } } };
+    expect(() => validateConformanceInventory(unknownExclusion, collectConformanceCoverage(unknownExclusion)))
+      .toThrow(/unused assertion exclusions work-item: no-such-assertion/);
+    const unknownCase = { ...probe, runs: { subset: { 13: ["work-item: no-such-case"] } } };
+    expect(() => validateConformanceInventory(unknownCase, collectConformanceCoverage(unknownCase)))
+      .toThrow(/per-change subset names unregistered cases item 13: work-item: no-such-case/);
+  });
 });

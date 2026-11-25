@@ -4,11 +4,11 @@ import { createDefaultLocusPorts, requireMarkerExclusivity } from "../../../src/
 describe("lifecycle locus ports", () => {
   it("keeps the default legacy lookup and leaves anchored markers unadmitted", async () => {
     const ports = createDefaultLocusPorts();
-    expect(await ports.findHoldingCheckout({ name: "demo", resolveLegacy: async () => "/legacy-checkout" })).toBe("/legacy-checkout");
+    expect(await ports.findHoldingCheckout({ kind: "creation", slug: "demo", resolveLegacy: async () => "/legacy-checkout" })).toEqual({ kind: "held", path: "/legacy-checkout" });
     expect(await ports.writeAnchoredMarker("/checkout", { spawnedByArc: false, wuName: "demo", spawningIdentity: "test", createdAt: "2026-01-01T00:00:00.000Z" })).toEqual({ kind: "unadmitted" });
   });
   it("preserves the authoritative refusal and its repair", async () => {
     const ports = { ...createDefaultLocusPorts(), checkMarkerExclusivity: async () => ({ kind: "refused" as const, checkoutPath: "/holding-checkout", reason: "Already claimed." }) };
-    await expect(requireMarkerExclusivity(ports, { name: "demo" })).rejects.toThrow("Already claimed.");
+    await expect(requireMarkerExclusivity(ports, { kind: "creation", slug: "demo" })).rejects.toThrow("Already claimed.");
   });
 });

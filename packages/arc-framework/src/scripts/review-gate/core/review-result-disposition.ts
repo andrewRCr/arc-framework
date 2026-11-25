@@ -11,7 +11,7 @@ import {
   type DispositionSourceContext,
 } from "./disposition-records.js";
 import { validateDispositionState } from "./dispositions.js";
-import { parseReviewSourceReference } from "./review-source-reference.js";
+import { parseReviewSourceReferenceForOwner } from "./review-source-reference.js";
 import type { ReviewResult } from "./review-result.js";
 
 /**
@@ -109,19 +109,20 @@ function approvedRecordSourceMatchesResult(
   result: ReviewResult,
 ): boolean {
   const source = record.source;
+  const owner = result.workItem === undefined ? undefined : { repositoryId: result.repositoryId, workItem: result.workItem };
   if (source.kind === "attested-local" && result.kind === "attested-local") {
-    const reference = parseReviewSourceReference(source.receiptRef, "attested-local");
+    const reference = parseReviewSourceReferenceForOwner(source.receiptRef, "attested-local", owner);
     return reference.operationId === result.producerId
       && reference.durableRef === result.receiptRef
       && source.localSourceRef === result.localSourceRef;
   }
   if (source.kind === "frontline" && result.kind === "frontline") {
-    const reference = parseReviewSourceReference(source.outcomeRef, "frontline");
+    const reference = parseReviewSourceReferenceForOwner(source.outcomeRef, "frontline", owner);
     return reference.operationId === result.producerId
       && reference.durableRef === result.outcomeRef;
   }
   if (source.kind === "hosted" && result.kind === "hosted") {
-    const reference = parseReviewSourceReference(source.attemptRef, "hosted");
+    const reference = parseReviewSourceReferenceForOwner(source.attemptRef, "hosted", owner);
     return reference.operationId === result.laneOperationId
       && reference.durableRef === result.producerId
       && source.hostedResultId === result.resultDigest;

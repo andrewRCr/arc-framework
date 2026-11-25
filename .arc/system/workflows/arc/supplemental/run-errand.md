@@ -16,6 +16,10 @@ arc:
 
 # Workflow: Run Errand
 
+**Session-init entry:** Launch receives `mode: "launch"`, an optional `seed` or `fromInbox`, and `isolate`. Use the
+seed as the concern and pass a supplied `fromInbox` selector unchanged to adoption. Resume receives `mode: "resume"`,
+`subjectKind`, `subjectKey`, and `generation` for the exact checkout session-init selected.
+
 Execution body for an **errand** — a single **atomic** concern (one indivisible unit of work, bounded to one
 session) — entered warm from an active session via the `arc-errand` skill, cold via `arc-session` (`--errand`, or
 adopted from session-init's discovery arm), or from a [`drain-inbox`][drain-inbox] hand-off. For the
@@ -83,26 +87,24 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
 
 3. **Open or resume the Errand checkout.**
 
-   - **Launch mode:** invoke `arc errand open <slug> --intent <text> --json`. For an originating
-     `USER-INBOX § Errand` capture, add `--from-inbox <entry-title>` or `--inbox-title-file <path>` (`-` reads
-     stdin). The verb owns both protection modes: full protection allocates the free primary or a provisioned
-     transient and mints the exact v3 identity; partial protection occupies only a safe free primary and creates no
-     branch or portable identity. A warm entry never moves the session home or repurposes its WU checkout.
+   - **Launch mode:** invoke `arc errand open <slug> --intent <text> --json`. For an originating capture, add
+     `--from-inbox <capture-selector>`, passing a supplied `fromInbox` unchanged; manual title-file adoption uses
+     `--inbox-title-file <path>` (`-` reads stdin). Render the result's `recommendedPromptText`, then work from its
+     exact `allocation.checkoutPath`. Full protection allocates the free primary or a provisioned transient and mints
+     the exact v3 identity; partial protection occupies only a safe free primary and creates no branch or portable
+     identity. A warm entry never moves the session home or repurposes its WU checkout.
    - **Isolate posture:** when the session was started with `--isolate`, or the developer asks to keep the primary
      free, add `--isolate` to this and every later `arc errand open` the session makes. Each Errand then gets its
      own provisioned transient and the primary stays free for another session; partial protection refuses it.
-   - **Resume mode:** consume the exact current checkout selected by session-init; its derived transient role is the
-     re-entry authority, so do not invoke `arc errand open` again. A remote-only eligible generation first runs
-     `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
-     candidate's claim ID and expected head; accept only its exact returned generation and path. A recorded head
-     that no longer matches the fetched remote or open change request refuses materialization. Open identities,
-     legacy branch-only candidates, closed or missing change requests, and partial Errands are not materializable.
+   - **Resume mode:** consume only the exact current checkout, `subjectKind`, `subjectKey`, and `generation` selected
+     by session-init.
+     Its derived transient role is the re-entry authority; do not open or materialize another checkout here.
 
-   Execute every subsequent command from `allocation.checkoutPath`. Retain `parentCheckoutPath` when present as the
-   warm-return parent; terminal results own the actual restoration outcome.
+   In Launch mode, execute subsequent commands from `allocation.checkoutPath`; in Resume mode, remain in the selected
+   checkout. Retain `parentCheckoutPath` when present as the warm-return parent; terminal results own restoration.
 
 4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
-   after open, run `arc errand link <slug> --from-inbox <entry-title> --json` (or `--inbox-title-file`). It may add
+   after open, run `arc errand link <slug> --from-inbox <capture-selector> --json` (or `--inbox-title-file`). It may add
    only one exact origin back-pointer to an otherwise linkable v3 claim. Conflicts, legacy records, missing
    captures, and partial mode refuse; never edit the identity or inbox by hand.
 
@@ -266,7 +268,7 @@ remote base all name the same exact head. Any tracked change continues through t
    targetless fields as `policyJudgment.additionalPassAuthorization` on local prepare. At the open PR, the exact
    `arc review status --target <targetRef> --additional-pass '<authorization>'` scope reports that outstanding review.
 
-   **Clean-fix-check successor.** Before standard source dispatch, apply [code-review's successor
+   **Converged-fix-check successor.** Before standard source dispatch, apply [code-review's successor
    decision][code-successor-decision] with the exact Errand subject. An open PR supplies the
    [Errand stop continuation][code-errand-stop]; before PR creation, supply this surface's explicit stop limit.
 
@@ -369,7 +371,7 @@ remote base all name the same exact head. Any tracked change continues through t
    Other outcomes continue below.
 
    Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for
-   each incomplete lane. Before either standard-lane ready source dispatch, apply the clean-fix-check successor check above.
+   each incomplete lane. Before either standard-lane ready source dispatch, apply the successor check above.
    If the Owner has directed that no further standard-review pass be spent, take the exact
    Owner-directed review stop below only from `ready / hosted-request`, `ready / local-prepare`, or
    `approval-required / obtain-ceiling-override`, or `coverage-required / select-coverage` once
@@ -382,6 +384,17 @@ remote base all name the same exact head. Any tracked change continues through t
    offers no request for a head with no recorded review, so for the Errand's first pass, hand it the driver result's own
    `action` unchanged instead. When neither result carries an `action`, stop and surface both typed results and the
    selected source for diagnosis.
+
+   Status returns `review-required / decide-review-continuation` when the head moved past a converged review by
+   changes no approved response made; request nothing on that result alone.
+
+   > [!IMPORTANT]
+   > `workflow-interlock`: Stop at `decide-review-continuation`. Surface `decision.interactionText`, the change since
+   > `decision.reviewedHeadSha`, and a recommendation; await the Owner's choice before requesting review or stopping.
+
+   On `request-complete-pass`, pass `decision.hostedAction` unchanged to `arc review hosted request -`. On
+   `owner-directed-stop`, present the Owner-directed review stop below. Never substitute the driver result's own
+   `action` for this decision.
 
    For `requested / await` and pending results, apply [code-review's hosted await and
    settlement][code-hosted-await-and-settlement] to the returned exact action.
@@ -484,8 +497,12 @@ remote base all name the same exact head. Any tracked change continues through t
    own review verdict. It is a merge blocker separate from ARC's review state, so neither settled review nor an
    Owner-directed stop clears it. `changes-requested` names each blocking review's author, ID, and reviewed commit;
    the host refuses the merge while one stands, so obtain Owner direction to dismiss it or request re-review before
-   the integration interlock. `approval-required` names a host approval still missing. `unavailable` surfaces its
-   `detail`; inspect the PR's native review on the host instead.
+   the integration interlock. To dismiss a review service's review on that direction, pass
+   `{ "schemaVersion": 1, "target": <target>, "review": <blocking review> }` to `arc review hosted dismiss -`, with
+   the exact `{ repository, pullRequest, headSha }` target and the blocking review unchanged. It refuses a person's
+   review or one whose service still has an unresolved thread, and writes the dismissal message itself.
+   `approval-required` names a host approval still missing. `unavailable` surfaces its `detail`; inspect the PR's
+   native review on the host instead.
 
    Under an Owner-directed review stop, `review-required` remains expected; a status refusal or pending/response
    action stops. Recheck the accepted Errand claim, PR, base OID, head, and known review/response state before the
@@ -600,9 +617,17 @@ This separate operation authorizes no merge. Otherwise, continue to the selected
 
 ### Ship — partial protection
 
-No branch and no PR: the Errand is a direct base-branch commit, so there is no merge step. The base push follows
-the project's normal discipline. It cannot pause, await merge, materialize, or hand off; completion must pop the
-exact partial role and remove any originating capture before the session can leave.
+The Errand is a direct base-branch commit on the configured base. Push that head to `origin` through the project's
+normal gates before `arc errand close <slug> --json` can release its occupancy and remove its originating capture.
+
+Follow a `preservation-unproven` refusal's branch, push, and retry instructions. For a gate failure reproduced on
+base, use a passing project-supported runtime or environment where available. If that cannot clear the gate, follow
+[DEV-RULES.ARC § Quality gate failure][dev-rules-arc]: a `fix-now` approval must explicitly cover the prerequisite
+repair within the occupied partial Errand, as a separately approved commit with normal checks. Then perform the
+normal gated push and retry close. A `defer` decision leaves the Errand open; retain its occupancy and capture.
+
+Partial protection cannot pause, await merge, materialize, or hand off; completion must release the exact partial
+role before the session can leave.
 
 ### Complete
 

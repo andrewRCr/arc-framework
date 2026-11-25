@@ -15,13 +15,18 @@
  * @module
  */
 
+import { usesOffBranchState } from "../store/lifecycle-write.js";
 import type { z } from "zod";
-import { StaleWorktreeSweepResultSchema } from "./stale-worktree-sweep-schema.js";
+import { StaleWorktreeSweepResultSchema, type TeardownCommand } from "./stale-worktree-sweep-schema.js";
+import { teardownOperand } from "../work-unit/store-retirement-evidence.js";
+import type { OwnerIdentity } from "../store/identity.js";
 import type { Store } from "../store/contract.js";
 import { readStoreCompletedEvidence } from "../store/lifecycle-completed.js";
 import { selectStoreCleanupTopology, selectStoreWorktreeCleanup } from "./store-worktree-selection.js";
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
+import { validateStoreHuskEvidence } from "../work-unit/store-retirement-husk.js";
+import { quoteShellArgument } from "../release/commit-message-retry.js";
 import {
   decideHuskCleanup,
   decideWorktreeCleanup,
@@ -134,7 +139,7 @@ export type StaleWorktreeReport = (
       stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;
       decision: HuskCleanupDecision | EvidenceUnavailableDecision | { action: "blocked"; reason: "locked" | "unobservable" };
-    }) & { actions?: SessionAction[] };
+    }) & { actions?: SessionAction[]; teardown?: TeardownCommand };
 
 export type StaleWorktreeSweepResult = z.infer<typeof StaleWorktreeSweepResultSchema>;
 
@@ -293,14 +298,14 @@ export async function runStaleWorktreeSweep(
   const primaryWorktreePath = candidates.length === 0 && !storeSelection?.ended.length ? null : await resolvePrimaryWorktreePath(exec);
 
   const worktrees: StaleWorktreeReport[] = await Promise.all(candidates.map((entry) => inspectBranchedRemoval(entry, {
-    options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase,
+    options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase, ended: storeSelection?.ended,
   })));
 
   worktrees.push(...(storeSelection?.releases ?? []));
-  for (const { checkout, name } of storeSelection?.ended ?? []) {
+  for (const { checkout, owner } of storeSelection?.ended ?? []) {
     if (checkout.branch !== null || missingPaths.has(checkout.path)) continue;
-    const report = await inspectBranchedRemoval({ worktreePath: checkout.path, branch: checkout.head }, { options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase });
-    worktrees.push({ ...report, kind: "detached", branch: null, workUnit: name });
+    const report = await inspectBranchedRemoval({ worktreePath: checkout.path, branch: checkout.head }, { options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase, ended: storeSelection?.ended });
+    worktrees.push({ ...report, kind: "detached", branch: null, workUnit: owner.name });
   }
 
   if (!scan.ok) {
@@ -384,6 +389,7 @@ export async function runStaleWorktreeSweep(
 
 async function inspectBranchedRemoval(entry: WorktreeRosterEntry & { branch: string }, context: {
   options: RunStaleWorktreeSweepOptions;
+  ended?: readonly { checkout: RegisteredWorktree; owner: OwnerIdentity }[];
   readMarker: (path: string) => Promise<WorktreeMarkerReadResult>;
   userSurfaceFs: UserSurfaceMigrationFs;
   primaryWorktreePath: string | null;
@@ -399,7 +405,7 @@ async function inspectBranchedRemoval(entry: WorktreeRosterEntry & { branch: str
     exactBaseOid === null
       ? Promise.resolve(false)
       : isLandedInBaseStrict(analysisExec, entry.branch, mergeBase),
-    linkedIdentityGlobalUserSurfacesAreSafe({
+    usesOffBranchState(options.store) ? true : linkedIdentityGlobalUserSurfacesAreSafe({
       primaryWorktreePath,
       worktreePath: entry.worktreePath,
       fs: userSurfaceFs,
@@ -411,9 +417,13 @@ async function inspectBranchedRemoval(entry: WorktreeRosterEntry & { branch: str
     && localDecision.reason === "unmerged"
     ? { action: "blocked" as const, reason: "evidence-unavailable" as const }
     : localDecision.action === "missing" ? { action: "external" as const } : localDecision;
-  const report = { kind: "branched" as const, worktreePath: entry.worktreePath, branch: entry.branch, decision };
+  const owner = context.ended?.find(item => item.checkout.path === entry.worktreePath)?.owner;
+  const operand = owner === undefined || options.store === undefined ? undefined : await teardownOperand(options.store, owner);
+  const teardown = operand === undefined ? undefined : { argv: ["arc", "teardown", operand] as const, text: `arc teardown ${operand}` };
+  const report = { kind: "branched" as const, worktreePath: entry.worktreePath, branch: entry.branch, decision,
+    ...(teardown === undefined ? {} : { teardown }) };
   if (decision.action !== "removable") return report;
-  const name = marker.kind === "present" ? marker.marker.wuName : undefined;
+  const name = operand ?? (marker.kind === "present" ? marker.marker.wuName : undefined);
   return name === undefined ? { ...report, decision: { action: "external" as const } }
     : { ...report, actions: [workUnitTeardownAction(name)] };
 }
@@ -433,16 +443,12 @@ async function inspectHuskRemoval(context: {
   const removalCheck = await checkWorktreeRemoval({ exec, checkoutPath: entry.path, disposition: "remove",
     check: options.projectionRemovalSlots?.check, folderExists: options.folderExists });
   if (removalCheck.kind === "missing") return null;
-  const clean = removalCheck.kind === "removable";
-  let decoded = decodeWorktreeHuskStamp(stamp);
-  let decision: Extract<StaleWorktreeReport, { kind: "husk" }>["decision"] = removalCheck.kind === "refused"
-    && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked")
-    ? { action: "blocked", reason: removalCheck.reason }
-    : decideHuskCleanup({ marker, clean, head: entry.head });
+  let decoded = decodeWorktreeHuskStamp(stamp, { stateOffBranch: options.store?.capabilities.stateOffBranch });
+  let decision = observedHuskDecision({ marker, removalCheck, head: entry.head, decoded });
   const removalBlocked = removalCheck.kind === "refused"
     && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked");
   if (decoded.kind === "current" && !removalBlocked) {
-    const evidence = await inspectCurrentHuskEvidence({ entry, stamp, decoded, options, exactBaseOid, warnings });
+    const evidence = await inspectCurrentHuskEvidence({ entry, marker, stamp, decoded, options, exactBaseOid, warnings });
     if (evidence === "unavailable") decision = { action: "blocked", reason: "evidence-unavailable" };
     if (evidence === "invalid") {
       decoded = { kind: "manual-only", reason: "evidence-mismatch" };
@@ -467,8 +473,19 @@ async function inspectHuskRemoval(context: {
   };
 }
 
+function observedHuskDecision(input: { marker: WorktreeMarkerReadResult; head: string; decoded: DecodedWorktreeHuskStamp;
+  removalCheck: Awaited<ReturnType<typeof checkWorktreeRemoval>> }): Extract<StaleWorktreeReport, { kind: "husk" }>["decision"] {
+  const { marker, removalCheck, head, decoded } = input;
+  if (decoded.kind === "manual-only" && decoded.reason === "pre-store-husk") return { action: "blocked", reason: decoded.reason };
+  if (removalCheck.kind === "refused" && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked")) {
+    return { action: "blocked", reason: removalCheck.reason };
+  }
+  return decideHuskCleanup({ marker, clean: removalCheck.kind === "removable", head });
+}
+
 async function inspectCurrentHuskEvidence(context: {
   entry: RegisteredWorktree;
+  marker: Extract<WorktreeMarkerReadResult, { kind: "present" }>;
   stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>;
   decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>;
   options: RunStaleWorktreeSweepOptions;
@@ -480,9 +497,10 @@ async function inspectCurrentHuskEvidence(context: {
     warnings.push(`Retirement evidence at ${entry.path} could not be revalidated without exact base evidence.`);
     return "unavailable";
   }
-  const valid = await (options.revalidateEvidence === undefined
-    ? revalidateDecodedHuskRetirementEvidenceStrict(options.exec, stamp, decoded, exactBaseOid, options.readBlob)
-    : options.revalidateEvidence(stamp, decoded, exactBaseOid));
+  const valid = await (options.revalidateEvidence !== undefined ? options.revalidateEvidence(stamp, decoded, exactBaseOid)
+    : options.store?.capabilities.stateOffBranch && stamp.subject.kind === "work-unit" ? validateStoreHuskEvidence({ store: options.store, exec: options.exec,
+      marker: context.marker.marker, baseOid: exactBaseOid })
+      : revalidateDecodedHuskRetirementEvidenceStrict(options.exec, stamp, decoded, exactBaseOid, options.readBlob));
   return valid ? "valid" : "invalid";
 }
 
@@ -496,9 +514,9 @@ function withHuskActions(
   if (report.decision.action !== "removable") return report;
   const subject = report.subject;
   if (subject.kind === "work-unit") {
-    const argv = ["arc", "teardown", subject.name,
-      ...(locus.kind === "linked" ? ["--husk", report.worktreePath] : [])];
-    return { ...report, actions: [{ text: argv.join(" "), argv }] };
+    const argv = ["arc", "teardown", subject.uid ?? subject.name,
+      ...(locus.kind === "linked" || subject.uid !== undefined ? ["--husk", report.worktreePath] : [])];
+    return { ...report, actions: [{ text: ["arc teardown", ...argv.slice(2).map(quoteShellArgument)].join(" "), argv }] };
   }
   if (subject.kind === "branch" && locus.kind === "primary") {
     return { ...report, actions: [{ text: `arc teardown --branch ${subject.ref}`,

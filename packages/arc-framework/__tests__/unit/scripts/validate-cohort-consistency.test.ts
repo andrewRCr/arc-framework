@@ -25,9 +25,31 @@ import {
   buildLiveCohortContext,
   buildLiveCohortContextFromDisk,
   deriveScanRoot,
+  resolveCohortValidationContext,
   type LiveCohortContext,
 } from "../../../src/scripts/validate-cohort-consistency.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { createClashDouble } from "../../helpers/store/clash-double.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+
+it.each(["clash", "reuse"] as const)("counts every %s holder in its own cohort", async scenario => {
+  const h = createLifecycleHarness(), slug = scenario === "clash" ? "clashed" : "shared";
+  for (const name of ["first-group", "second-group"]) await h.seed(
+    recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })), cohortDoc(name));
+  const first = await h.seedMeta(scenario === "clash" ? "first" : slug,
+    { cohort: "first-group", state: scenario === "reuse" ? "Shipped" : "Active" }, scenario === "reuse"
+      ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" });
+  const second = await h.seedMeta(scenario === "clash" ? "second" : slug, { cohort: "second-group" });
+  const store = scenario === "clash" ? createClashDouble(h.store, { slug, holders: [first.reference, second.reference] }) : h.store;
+  const resolution = await resolveCohortValidationContext("/memory", store);
+  expect(resolution.diagnostics).toEqual([]);
+  for (const name of ["first-group", "second-group"]) expect(resolution.context?.liveMembersByDir.get(name)).toEqual(new Set([slug]));
+  const files = Object.fromEntries(["first-group", "second-group"].map(name =>
+    [`.arc/backlog/planned/${name}/cohort-${name}.md`, cohortDoc(name, { members: [slug] })]));
+  expect(validateFiles(Object.keys(files), fakeReader(files), resolution.context, true)).toEqual({ pass: true, diagnostics: [] });
+});
 
 function fakeReader(files: Record<string, string>) {
   return (path: string) => {

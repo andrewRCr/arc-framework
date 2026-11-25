@@ -32,6 +32,8 @@ export type TransitionReferenceProjectionResult =
 export interface ReferenceArtifactSnapshot {
   path: string;
   content: string;
+  /** Dependency slots already retained by the store's identity-based reconcile. */
+  heldDependencyEdges?: readonly string[];
 }
 
 /** One evidenced interpretation of an artifact filename's owner and preserved suffix. */
@@ -148,9 +150,9 @@ export function planReferenceReconcile(input: ReferenceReconcileInput): Referenc
   const resolutions = new Map<string, ReferenceTransitionResolution>();
   const referencedSubjects = [...outcomes.keys()]
     .filter((subject) => input.artifacts.some((artifact) => {
-      const cohortFieldRanges = cohortFieldValueRanges(artifact.content);
+      const ignoredRanges = nonNarrativeFieldRanges(artifact, subject);
       return slugOffsets(artifact.content, subject)
-        .some((offset) => !insideAnyRange(offset, cohortFieldRanges))
+        .some((offset) => !insideAnyRange(offset, ignoredRanges))
         || [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)]
           .some((match) => match[1] !== "cohort" && artifactOwner(input.artifactOwners, match[1] ?? "", match[2] ?? "").subject === subject);
     }))
@@ -171,7 +173,6 @@ export function planReferenceReconcile(input: ReferenceReconcileInput): Referenc
   const advisories: ReferenceAdvisory[] = [];
   for (const artifact of [...input.artifacts].sort((left, right) => byteSort(left.path, right.path))) {
     const codeRanges: Array<{ start: number; end: number }> = [];
-    const cohortFieldRanges = cohortFieldValueRanges(artifact.content);
     const replacements: TrackedReferenceReplacement[] = [];
     const nextContent = artifact.content.replace(
       ARTIFACT_CODE_SPAN,
@@ -211,8 +212,9 @@ export function planReferenceReconcile(input: ReferenceReconcileInput): Referenc
         || resolution.kind === "absent"
         || resolution.kind === "decompose"
       ) continue;
+      const ignoredRanges = nonNarrativeFieldRanges(artifact, subject);
       for (const offset of slugOffsets(artifact.content, subject)) {
-        if (insideAnyRange(offset, codeRanges) || insideAnyRange(offset, cohortFieldRanges)) continue;
+        if (insideAnyRange(offset, codeRanges) || insideAnyRange(offset, ignoredRanges)) continue;
         advisories.push(advisoryAt(
           artifact,
           offset,
@@ -241,6 +243,33 @@ function ambiguousArtifactOwners(input: ReferenceReconcileInput,
     return owners.length > 1 && owners.some((owner) => outcomes.has(owner.subject))
       ? [{ subject: match[2] ?? "", reason: "ambiguous-history" as const }] : [];
   }));
+}
+
+function nonNarrativeFieldRanges(artifact: ReferenceArtifactSnapshot, subject: string): Array<{ start: number; end: number }> {
+  const ranges = cohortFieldValueRanges(artifact.content);
+  if (!artifact.heldDependencyEdges?.includes(subject)) return ranges;
+  const preamble = metadataPreamble(artifact.content);
+  if (preamble === null) return ranges;
+  const marker = /^[ \t>*+-]*\*\*Depends On:\*\*/mu.exec(preamble.content);
+  if (marker === null) return ranges;
+  let first = true, offset = preamble.offset + marker.index;
+  for (const line of preamble.content.slice(marker.index).split(/(?<=\n)/u)) {
+    if (!first && (line.trim() === "" || /^[ \t>*+-]*\*\*[^*]+:\*\*/u.test(line)
+      || /^#{1,6} /u.test(line) || !/^\s/u.test(line))) break;
+    ranges.push({ start: offset + (first ? marker[0].length : 0), end: offset + line.length });
+    first = false;
+    offset += line.length;
+  }
+  return ranges;
+}
+
+function metadataPreamble(content: string): { content: string; offset: number } | null {
+  const heading = /^# .*$/mu.exec(content);
+  if (heading === null) return null;
+  const offset = heading.index + heading[0].length;
+  const body = content.slice(offset);
+  const boundary = /^## |^[ \t]*---[ \t]*\r?$/mu.exec(body);
+  return { content: body.slice(0, boundary?.index), offset };
 }
 
 function cohortFieldValueRanges(content: string): Array<{ start: number; end: number }> {

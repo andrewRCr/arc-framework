@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted (2026-11-04).
 
 The Class model is decided here — a three-value weight (`light` / `heavy` / `novel`) — and its constitutional core
 ships with Class Model Foundation — the DEV-RULES.ARC rule, the AGENT-BRIEF vocabulary, the `classify-work-unit`
@@ -10,6 +10,9 @@ triage method, the meta `Class` schema, and the model's elaboration in `strategy
 realization — the three spec forms' templates and the per-stage planning-depth grammar — is owned downstream by
 `scalable-authoring-pipeline`, and the cohort / `Cohort`-record semantics by `decomposition-machinery`.
 Promote to Accepted when those ratify the spec-form and cohort pieces.
+
+The promotion condition is met: the Class model, spec-form templates, per-stage planning-depth grammar, and cohort
+semantics have shipped.
 
 ## Context
 

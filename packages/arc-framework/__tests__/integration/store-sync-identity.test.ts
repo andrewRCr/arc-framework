@@ -14,7 +14,7 @@ describe("Store identity publication", () => {
     success(await h.a.store.write(syncPut()));
     const before = (await h.remote("git", ["rev-parse", syncErrandRef])).stdout;
     for (let repetition = 0; repetition < 2; repetition++) {
-      expect(success(await h.a.store.sync()).publishes[1]).toEqual({ status: "pushed", families: ["work-item", "claims"] });
+      expect(success(await h.a.store.push()).publishes[1]).toEqual({ status: "pushed", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number) });
       expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(before);
     }
   });
@@ -27,7 +27,7 @@ describe("Store identity publication", () => {
     const other = syncRecord();
     const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "beta" }));
     success(await h.b.store.write({ ...syncPut(), reference, content: serializeTransientIdentityRecord({ ...other, slug: reference.owner.name, branch: "chore/beta" }) }));
-    expect(success(await h.a.store.sync()).publishes[1]).toEqual({ status: "reconciled", families: ["work-item", "claims"] });
+    expect(success(await h.a.store.push()).publishes[1]).toEqual({ status: "reconciled", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number) });
     expect((await h.remote("git", ["ls-tree", "--name-only", syncErrandRef])).stdout.split("\n").sort()).toEqual(["alpha", "beta"]);
   });
 
@@ -38,7 +38,7 @@ describe("Store identity publication", () => {
     h.a.ports.remote = async () => "origin";
     success(await h.b.store.write(syncPut("remote")));
     const before = (await h.remote("git", ["rev-parse", syncErrandRef])).stdout;
-    expect(success(await h.a.store.sync()).publishes[1]).toMatchObject({ status: "conflict", families: ["work-item", "claims"], condition: expect.stringContaining("alpha"), remedy: { text: expect.stringContaining("repair") } });
+    expect(success(await h.a.store.push()).publishes[1]).toMatchObject({ status: "conflict", families: ["work-item", "claims"], condition: expect.stringContaining("alpha"), remedy: { text: expect.stringContaining("repair") } });
     expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(before);
     expect(success(await h.a.store.read({ reference: syncErrand })).content).toContain("local");
   });
@@ -61,7 +61,7 @@ describe("Store identity publication", () => {
     };
     let ticks = 0;
     h.a.ports.clock = () => new Date(ticks++ * 125);
-    expect(success(await h.a.store.sync()).publishes[1]).toMatchObject({ status: "failed", families: ["work-item", "claims"], failure: {
+    expect(success(await h.a.store.push()).publishes[1]).toMatchObject({ status: "failed", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number), failure: {
       code: "retries-exhausted", class: "recoverable", retryCount: MAX_RECONCILE_ATTEMPTS + 1, waitedMs: 125,
     } });
     expect(attempts).toBe(MAX_RECONCILE_ATTEMPTS + 1);
@@ -76,6 +76,6 @@ describe("Store identity publication", () => {
       if (args[0] === "push" && args.includes(syncErrandRef)) throw original;
       return base(command, args, options);
     };
-    await expect(h.a.store.sync()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
+    await expect(h.a.store.push()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
   });
 });

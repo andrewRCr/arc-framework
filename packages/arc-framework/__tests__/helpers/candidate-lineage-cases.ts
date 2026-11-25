@@ -36,6 +36,7 @@ const NATIVE_CASES = {
     "keeps an open-ended work-unit companion current across archive relocation",
     "refuses two live artifacts that collapse onto one canonical Candidate key",
     "clears a Candidate no response can explain through a deliberately re-rooted lineage",
+    "continues pre-publication from the applicability selector its refusal carries",
     "refuses an exact re-root continuation after its staged subject changes",
     "resolves review responses and deliberate re-rooting from an archived Shipped record",
     "does not advance a completed Candidate while another work unit owns the checkout",

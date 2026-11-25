@@ -115,3 +115,18 @@ describe("resolveGitConfigOverride", () => {
     ).resolves.toEqual({ value: "always", source: "default" });
   });
 });
+
+
+it("refuses an unreadable Git policy instead of falling through, then accepts a repaired read", async () => {
+  const failure = makeGitProcessError({ command: "git", args: ["config", "--get", "arc.testPolicy"],
+    exitCode: 1, signal: "SIGTERM", stdout: "", stderr: "" });
+  const exec = vi.fn().mockRejectedValueOnce(failure).mockResolvedValueOnce({ stdout: "manual\n" });
+  const readFile = readFileWithYaml(`${YAML_KEY}: prompt\n`);
+  const resolve = () => resolveGitConfigOverride<TestPolicy>({ exec, readFile, cwd: "/fake/repo",
+    gitConfigKey: "arc.testPolicy", yamlKey: YAML_KEY, defaultValue: "always",
+    isValidValue: isValidTestPolicy, validValues: VALID_VALUES });
+  await expect(resolve()).rejects.toBe(failure);
+  expect(readFile).not.toHaveBeenCalled();
+  await expect(resolve()).resolves.toEqual({ value: "manual", source: "git-config" });
+  expect(readFile).not.toHaveBeenCalled();
+});

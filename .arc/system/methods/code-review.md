@@ -104,9 +104,11 @@ closure requires the policy's proved chain. A pending or failed invocation spend
 ceilings count complete coverage only; frontline keeps its recorded completed-pass accounting.
 
 After a material fix, follow the driver's `delegated-agent` action even when hosted sources rank first. Fix and delta
-checks run locally; never force a hosted incremental request. After a converged look, configured rank selects a
-complete successor. A local complete alternative carries `coverageAdmission: { requestedCoverage: "complete" }`
-without correction scope. Never infer an incremental basis or carry an earlier review to a new head by agent judgment.
+checks run locally; never force a hosted incremental request. After a converged look, configured rank selects a complete
+successor. When the look's minor fixes were approved at the `full` verification scope, the driver also offers their
+local fix check and selects it at the ceiling; weigh it by [the convergence rule][convergence] before the complete
+successor runs. A local complete alternative carries `coverageAdmission: { requestedCoverage: "complete" }` without
+correction scope. Never infer an incremental basis or carry an earlier review to a new head by agent judgment.
 
 For a plain commit after convergence, follow the returned delta check without a coverage question. Under
 `incremental`, it may close an Errand before or after its PR, the same checkpoint-advanced Candidate, or the published
@@ -122,30 +124,42 @@ that limit rather than manufacturing an admission.
 
 ### Successor decision
 
-**Signature:** Before dispatch after a clean fix check under `full-final`, take the exact lane subject and available
-Owner-stop continuation; leave a recommendation and the selected continuation, without launching a reviewer.
+**Signature:** After a converged fix check under `full-final`, before the next look is admitted, take the exact lane
+subject and available Owner-stop continuation; leave a recommendation and the selected continuation, without launching
+a reviewer.
+
+Convergence follows [review-model's rule][convergence], not a clean result alone: a fix check converges when its
+approved set fixes no verified material finding, so minor-only findings and deferred or rejected material findings
+converge too. `arc review local prepare` admits a local look as a hosted request admits a hosted one; decide before
+either runs. After a fix check, a `ready` policy result with `payload.coverage: complete` means the next look is a
+complete pass, so this decision comes first.
 
 Run `arc review lane read -`, deriving the request from `arc review lane read --schema`. For a delivery member, supply
 its exact head as `memberHeadObjectId`; otherwise use the caller's Candidate or Errand subject. Follow a refusal's
-remedy. When `payload.lastLook` has `coverage: incremental` and `outcome: clean`, use `payload.facts` for advisory
-judgment: recommend another complete pass while new defect classes keep appearing in previously read code or a fix
-round introduced new design; otherwise recommend stopping. Prefer a different source for a successor pass. State the
-recommendation, its reasons, and what would change it. A complete pass never replaces a required fix check.
+remedy. Recommend only stopping or a look `payload.nextLooks` admits: its `incremental` look when it names one, or a
+complete pass, which at `ceiling-decision` needs § Ceiling override. A `disabled` lane or a `refusal` admits no look;
+surface which. When `payload.lastLook` has `coverage: incremental`, the fix checks have converged, which says nothing
+about code the fixes did not touch; an `incremental` look still named is a fix check of minor fixes at the `full`
+verification scope, recommended by [review-model's convergence rule][convergence]. Apply [review-model's successor
+passes][successor-passes] to `payload.facts`, weighing the last complete pass's critical and major count, the
+complete-pass series, and [the re-inspection test][re-inspection]. Prefer a different source for a successor pass. State
+the recommendation, its reasons, and what would change it. A complete pass never replaces a required fix check.
 
 Honor an existing decision for this exact successor across unchanged re-entry. Otherwise, when recommending stopping,
-use the [stop line][stop-line] before source dispatch. An unavailable stop is a disclosed limit, never a clean result
-or an invented terminus. The pre-publication caller also runs this check when a non-null hosted-first `reservation`
-appears before convergence verification or publication, retaining that reservation when review continues.
+use the [stop line][stop-line] before the next look is admitted. An unavailable stop is a disclosed limit, never a clean
+result or an invented terminus. The pre-publication caller also runs this check when a non-null hosted-first
+`reservation` appears before convergence verification or publication, retaining that reservation when review continues.
 
 ### Coverage selection
 
 **Signature:** At `coverage-required / select-coverage` or `select-coverage`, take the typed response obligation and
 listed choices; leave one selected coverage admission or the caller's accepted stop.
 
-While `payload.responseRequired` is true, complete the [findings round][findings-round] first, including a converged
-fix check's minor fixes. Once false, recommend a listed choice from the latest confirmed signal and exact correction.
-Offer an available Owner stop alongside the next look, disclosing when approved material fixes have not been
-re-examined. A decline leaves the approved set unchanged and follows the caller's stop continuation.
+While `payload.responseRequired` is true, complete the [findings round][findings-round] first, including a converged fix
+check's minor fixes. Once false, recommend a listed choice from the latest confirmed signal and exact correction; after
+a converged look, a listed fix check covers minor fixes at the `full` verification scope, recommended by [review-model's
+convergence rule][convergence]. Offer an available Owner stop alongside the next look, disclosing when approved material
+fixes have not been re-examined. A decline leaves the approved set unchanged and follows the caller's stop continuation.
 
 Off delivery, invoke ordinary `arc review local prepare -` for its question. Render
 `payload.coverageSelectionAction.interactionText` and the listed choices verbatim. On delivery, status owns that
@@ -193,8 +207,10 @@ admission authorization or the caller's stop, without requesting a pass.
 
 For the standard lane, run the schema-derived lane read with the same exact subject and member selector. Follow a
 refusal's remedy. From `payload.facts`, show `completePasses` against `ceiling` and `fixChecksSinceLastComplete` rounds.
-Recommend another complete pass or stopping with expected signal, cost, and what would change the recommendation.
-The ceiling bounds autonomous spending, not advice, and the recommendation grants no pass authority.
+Recommend another complete pass or stopping by [review-model's successor passes][successor-passes], with expected
+signal, cost, and what would change the recommendation. An incremental look that `payload.nextLooks` names runs outside
+the ceiling and needs no override. The ceiling bounds autonomous spending, not advice, and the recommendation grants no
+pass authority.
 
 Render the exact consequence and any supplied `terminusAction.offer.interactionText`, then stop. Only explicit
 approval of that consequence admits its one complete pass. Re-enter the caller's same target/lane or status scope with
@@ -218,7 +234,9 @@ effective triage override changes presentation; its header, Decisions block, and
 the assessment, the successor recommendation, and what approval releases. Obtain complete-set approval over the exact
 report and canonical set before any mutation or commitment. A complete no-action record-only set also needs approval for
 its exact target before continuing. The approver need not repeat the digest. Submit the exact approved set and its
-advisory fix tags through the second call; follow only its returned action through [review-response][review-response].
+advisory fix tags through the second call, with the lane's resolve request as `policyRequest`: set its lane, target,
+scope mode and `completedPasses` as the first call's `payload.approvalPolicyBinding` gives them, and end its attempts
+in that binding's findings attempt. Follow only the returned action through [review-response][review-response].
 
 That approval is the fix round's structured gate under [DEV-RULES.ARC's review-increment
 invariant][review-increment-invariant]. Apply only the approved fixes, preserving
@@ -227,6 +245,12 @@ the caller's review-fix quality request and verification over the actual new tar
 never carry to a moved head. A changed scope, non-mechanical failure, ambiguous host state, or new finding returns to
 the approver. For a bound delivery, execute its typed correction/authoring continuation rather than substituting
 manual writes or another checkout. Complete any [before-fix settlement][hosted-settlement] before changing the head.
+
+Between fix rounds, run the commit and push gates plus the tests that exercise each fix. Record the local evidence
+each round rests on. Dispatch the project's hosted CI once, at the converged head to be verified or published.
+A later code change requires a new qualification; a cancelled or infrastructure-failed run may be retried at the same
+head and verification target under the project's existing retry rules; retain both attempts. Isolate a failure at
+convergence by bisecting the fix rounds.
 
 Commit the verified fixes atomically where the configured interlock releases them; manual settings retain their stop:
 
@@ -310,6 +334,7 @@ With no settlement plan, perform only the description upkeep below.
 
 Follow [review-response's channel boundary][channel-boundary]. For `reply-and-resolve`, invoke
 `arc review hosted settle -` for each active phase ID with `payload.hostedSettlementPlan.actorIdentity` unchanged.
+Write each `reply` as the account's owner, under [pull-request-format's rule for posted text][posted-text].
 Complete every `beforeFixFindingIds` entry against the unchanged originating `target` and `fixTarget: null` before
 any approved fix changes the head. Return control to the ongoing [findings round][findings-round] for its approved
 fix, verification, commit, verified-fix replay, and push; never restart its proposal. After-fix settlement waits for
@@ -323,8 +348,10 @@ those tests. On GitHub, use `gh pr edit <n> --body-file <path>` before review re
 this upkeep to the terminal request after a delivery-owned pushed correction and before its next action.
 
 Then settle every `afterFixFindingIds` entry against the originating `target` plus the verified changed `fixTarget`.
-For a delivery member, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
-`payload.hostedFixTarget` unchanged; never derive it from the checkout.
+A `beforeFixFindingIds` entry missed before the push settles the same way: its `stale-target / retry` carries that
+request as `remedy.stdin`, passed unchanged through `remedy.argv`. For a delivery member, require
+`delivery-member-advanced` or idempotent `delivery-member-current` and pass `payload.hostedFixTarget` unchanged;
+never derive it from the checkout.
 
 A `not-applicable` finding appears in neither phase: no hosted settle, reply, resolution, or compensating summary. At
 `head-pending / retry`, surface `remedy.text` and end this attempt; later re-entry passes `remedy.stdin` unchanged
@@ -353,7 +380,7 @@ Do not turn a declined pass into completed review, weaken carrier-native require
 response evidence; leave exact conversational authority for the caller's reviewed merge lane or an explicit stop.
 
 When the Owner explicitly asks to end further standard-review spending, declines at a disposition turn the pass a fix
-triggers, or redirects an `approval-required / obtain-ceiling-override` decision, or the clean-fix-check successor check
+triggers, or redirects an `approval-required / obtain-ceiling-override` decision, or the successor decision
 recommends stopping, present one exact offer before treating that direction as approval. A settled-response
 `coverage-required / select-coverage` also admits this offer; while `payload.responseRequired` is true, perform the
 approved response first. A `terminal-failure / stop` reporting a trusted provider completion receipt without a
@@ -395,6 +422,8 @@ coordinates cannot be recovered.
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [review-model]: review-model.md
 [convergence]: review-model.md#convergence-and-permission
+[re-inspection]: review-model.md#tags-and-the-re-inspection-test
+[successor-passes]: review-model.md#successor-passes
 [code-review-author]: code-review-author.md
 [code-review-frontline]: code-review-frontline.md
 [code-review-standard]: code-review-standard.md
@@ -403,6 +432,7 @@ coordinates cannot be recovered.
 [review-response]: review-response.md
 [review-chunking]: review-chunking.md
 [pull-request-format]: pull-request-format.md
+[posted-text]: pull-request-format.md#other-text-posted-under-the-account
 [channel-boundary]: review-response.md#keep-response-etiquette-at-the-channel-boundary
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
 [stop-line]: #stop-line

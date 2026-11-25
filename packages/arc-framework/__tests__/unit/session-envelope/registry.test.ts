@@ -35,6 +35,7 @@ import { RetiredSubdirDetectionResultSchema } from "../../../src/lib/session-ini
 import { ClassCompositionSchema } from "../../../src/lib/status/class-composition.js";
 import { TaskListCursorSchema } from "../../../src/lib/task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../../../src/lib/task-list/file-cursor.js";
+import { SessionInitAgendaSchema } from "../../../src/commands/agenda/schema.js";
 import {
   SessionInitProbeResultSchema,
   SessionRecoverProbeResultSchema,
@@ -82,6 +83,7 @@ describe("session-envelope schema registry", () => {
       "remote-failure-reason",
       "retired-subdir-detection",
       "session-action",
+      "session-init-agenda",
       "session-init-envelope",
       "session-init-recovery",
       "session-init-user",
@@ -106,6 +108,7 @@ describe("session-envelope schema registry", () => {
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict)).toBe(RecoveryAuditVerdictSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditReport)).toBe(RecoverAuditReportSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope)).toBe(SessionInitProbeResultSchema);
+    expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionInitAgenda)).toBe(SessionInitAgendaSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope)).toBe(SessionRecoverProbeResultSchema);
     const advisorySchemas = [
       [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],

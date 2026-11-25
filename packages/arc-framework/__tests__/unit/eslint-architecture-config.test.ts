@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 const ESLINT_CONFIG_LOAD_TIMEOUT = 10_000;
 const packageRoot = resolve(import.meta.dirname, "../..");
 const eslint = new ESLint({ cwd: packageRoot });
+// Parse supplied text even under `CI`, where typescript-eslint otherwise builds its program from disk once.
+const textLinter = new ESLint({ cwd: packageRoot,
+  overrideConfig: { languageOptions: { parserOptions: { disallowAutomaticSingleRunInference: true } } } });
 
 async function architectureOptions(filename: string): Promise<unknown> {
   const configuration = await eslint.calculateConfigForFile(resolve(packageRoot, filename)) as
@@ -15,6 +18,29 @@ async function architectureOptions(filename: string): Promise<unknown> {
 }
 
 describe("composed architecture configuration", () => {
+  it("keeps the window family's remaining boundaries while exempting its private store reads", async () => {
+    const filename = "src/scripts/cutover-window/main.ts";
+    expect(await architectureOptions(filename)).toEqual([2, [
+      "clack", "store-reference", "layout-private", "configured-identity",
+    ]]);
+    const configuration = await eslint.calculateConfigForFile(resolve(packageRoot, filename)) as
+      { rules: Record<string, unknown> };
+    expect(configuration.rules["arc/store-raw-state"]).toBeUndefined();
+    expect(configuration.rules["arc/surface-names"]).toBeUndefined();
+    expect(configuration.rules["arc/work-unit-paths"]).toBeUndefined();
+  }, ESLINT_CONFIG_LOAD_TIMEOUT);
+
+  it("permits private store imports only within the window family", async () => {
+    const inside = await textLinter.lintText('import "../../lib/store/in-repo/meta.js";\nimport "../../lib/store/ref/context.js";\n',
+      { filePath: resolve(packageRoot, "src/scripts/cutover-window/main.ts") });
+    expect(inside.flatMap(result => result.messages.filter(message => message.ruleId === "arc/architecture-imports")))
+      .toEqual([]);
+    const outside = await textLinter.lintText('import "../lib/store/in-repo/meta.js";\nimport "../lib/store/ref/context.js";\n',
+      { filePath: resolve(packageRoot, "src/scripts/run-focused-lint.ts") });
+    expect(outside.flatMap(result => result.messages.filter(message => message.ruleId === "arc/architecture-imports")))
+      .toHaveLength(2);
+  }, ESLINT_CONFIG_LOAD_TIMEOUT);
+
   it("resolves the global package restriction for a source module", async () => {
     expect(await architectureOptions("src/lib/config/status-reader.ts")).toEqual([2, ["clack", "store-production", "store-reference", "layout-private", "configured-identity"]]);
   }, ESLINT_CONFIG_LOAD_TIMEOUT);
@@ -41,6 +67,9 @@ describe("composed architecture configuration", () => {
     }],
     ["src/lib/store/in-repo/meta.ts", {
       "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": [2, ["surface-names"]], "arc/work-unit-paths": [2, ["work-unit-paths"]],
+    }],
+    ["src/lib/store/registry.ts", {
+      "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": undefined, "arc/work-unit-paths": [2, ["work-unit-paths"]],
     }],
     ["src/lib/layout/projection.ts", {
       "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": undefined, "arc/work-unit-paths": undefined,
@@ -103,7 +132,7 @@ describe("composed architecture configuration", () => {
     ["src/lib/config/status-reader.ts", 'CallExpression[callee.name="parseIdentifierList"]'],
     [
       "src/lib/active/meta-reader.ts",
-      'ImportDeclaration[source.value=/\\/store\\//]:not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])',
+      'ImportDeclaration[source.value=/\\/store\\//]:not([importKind="type"]):not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])',
     ],
     ["src/lib/errand/promote.ts", 'Identifier[name=/^(MetaProjectionOverrides|renderMetaProjectionFile)$/]'],
     ["src/lib/config/status-reader.ts", 'VariableDeclaration[kind="const"] > VariableDeclarator[id.name="DEFAULTS"]'],

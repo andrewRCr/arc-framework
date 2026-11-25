@@ -1,28 +1,28 @@
 /** Native process boundary shared by declared checks and CI invocation playback. */
 import { mkdtemp, open, rm } from "node:fs/promises";
-import { constants, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
-import { environmentForGitCwd } from "../git/process-executor.js";
-import type { CheckContentContext } from "../../handlers/check/run.js";
+import { whichCommandSync } from "which-command";
+import { environmentForGitCwd, sanitizeGitRepositoryEnvironment } from "../git/process-executor.js";
+import { displayLines, NOTICE_LIMIT } from "./display-text.js";
+import { CHECK_EXECUTION_ENVIRONMENT, type CheckContentContext } from "./environment-policy.js";
+import { signalExitCode } from "./signal-exit-code.js";
 
-/** The exit status a shell reports for a command a signal ended: 128 plus the signal's number. */
-function signalExitCode(signal: NodeJS.Signals | undefined): number | undefined {
-  const number = signal === undefined ? undefined : constants.signals[signal];
-  return number === undefined ? undefined : 128 + number;
+/** Receives a check's output as it is written, one chunk at a time. */
+export type OutputForwarder = (chunk: Uint8Array, stream: "stdout" | "stderr") => void;
+
+/** An output transform that hands each chunk to `forward` as it arrives and passes it on unchanged to the capture. */
+function forwarding(forward: OutputForwarder, stream: "stdout" | "stderr") {
+  return { binary: true as const, *transform(chunk: Uint8Array) { forward(chunk, stream); yield chunk; } };
 }
 
-/** Longest notice a check may report, so it stays one short line of the summary. */
-const NOTICE_LIMIT = 200;
 /** Bytes read from the start of a notice file, so a large write to it never reaches memory. */
 const NOTICE_READ_BYTES = 4096;
 
-function checkEnvironment(cwd: string, noticeFile?: string, content?: CheckContentContext, indexFile?: string): NodeJS.ProcessEnv {
-  const env = { ...(environmentForGitCwd(cwd) ?? process.env) };
-  delete env.ARC_CHECK_BASE;
-  delete env.ARC_CHECK_TREE;
-  delete env.ARC_CHECK_MERGED;
-  delete env.ARC_CHECK_NOTICE;
+function checkEnvironment(cwd: string, noticeFile?: string, content?: CheckContentContext, indexFile?: string, supplied?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const inherited = supplied === undefined ? environmentForGitCwd(cwd) ?? process.env : sanitizeGitRepositoryEnvironment(supplied);
+  const env = Object.fromEntries(Object.entries(inherited).filter(([name]) => !CHECK_EXECUTION_ENVIRONMENT.has(name.toUpperCase())));
   if (noticeFile !== undefined) env.ARC_CHECK_NOTICE = noticeFile;
   if (indexFile !== undefined) env.GIT_INDEX_FILE = indexFile;
   if (content !== undefined) {
@@ -45,11 +45,8 @@ async function readNoticeStart(noticeFile: string): Promise<string> {
 }
 
 async function readNotice(noticeFile: string, exitCode: number): Promise<{ notice?: string; notRunReason?: string }> {
-  const text = await readNoticeStart(noticeFile).catch(() => "");
-  // A bare carriage return breaks a line too, and other control characters become spaces, so a notice
-  // printed inside a summary line cannot move the cursor over that line. The command and a runner wrapping it
-  // may each write a line, so every line is kept.
-  const lines = text.split(/\r\n|\r|\n/u).map(part => part.replace(/\p{Cc}+/gu, " ").trim()).filter(part => part !== "");
+  // The command and a runner wrapping it may each write a line, so every line is kept.
+  const lines = displayLines(await readNoticeStart(noticeFile).catch(() => ""));
   const notRun = exitCode === 0 ? undefined : lines.find(line => line.startsWith("not run:"));
   return { ...(lines.length === 0 ? {} : { notice: lines.join("; ").slice(0, NOTICE_LIMIT) }),
     ...(notRun === undefined ? {} : { notRunReason: notRun.slice("not run:".length).trim().slice(0, NOTICE_LIMIT) || "runner reported no check result" }) };
@@ -60,21 +57,30 @@ async function readNotice(noticeFile: string, exitCode: number): Promise<{ notic
  * any runner wrapping it, may append lines such as where it ran or how long it waited to the file `ARC_CHECK_NOTICE`
  * names; each appends rather than replacing the file, so neither erases the other's, and the lines are joined into
  * one short notice. A nonzero exit with a `not run:` line reports unavailable execution separately.
- * The notice is best effort: when no file can be created, the command runs without one.
+ * The notice is best effort: when no file can be created, the command runs without one. A `forward` callback receives
+ * each output chunk as the command writes it, while the returned output still holds all of it.
  * @param command - Literal executable and arguments
  * @param cwd - Check working directory
  * @param content - Coordinates exposed to file checks
- * @param policy - Shell, output and checked-index policy
+ * @param policy - Shell, output, checked-index, live output forwarding and optional supplied child-environment policy
  * @returns Native execution status, with a signal's end reported as a shell's exit status for it, diagnostics, and
  * any notice the command reported
  */
-export async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string } = {}): Promise<{ started: boolean; exitCode: number; stdout: string; output: string; notice?: string; notRunReason?: string }> {
+export async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string; environment?: NodeJS.ProcessEnv; forward?: OutputForwarder } = {}): Promise<{ started: boolean; exitCode: number; stdout: string; output: string; notice?: string; notRunReason?: string }> {
   const noticeDirectory = await mkdtemp(join(tmpdir(), "arc-check-notice-")).catch(() => undefined);
   const noticeFile = noticeDirectory === undefined ? undefined : join(noticeDirectory, "notice");
   try {
-    const result = await execa(command[0] ?? "", command.slice(1), {
-      cwd, env: checkEnvironment(cwd, noticeFile, content, policy.indexFile), extendEnv: false, stdin: "ignore",
+    const executable = command[0] ?? "";
+    const env = checkEnvironment(cwd, noticeFile, content, policy.indexFile, policy.environment);
+    // An unresolved Windows command falls back to cmd.exe, whose failure is not a check result.
+    if (process.platform === "win32" && !policy.shell && !resolvesOnWindows(executable, cwd, env)) {
+      return { started: false, exitCode: 1, stdout: "", output: "Check executable was not found; check its path and PATH, then retry." };
+    }
+    const { forward } = policy;
+    const result = await execa(executable, command.slice(1), {
+      cwd, env, extendEnv: false, stdin: "ignore",
       reject: false, shell: policy.shell ?? false, stripFinalNewline: !policy.rawStdout,
+      ...(forward === undefined ? {} : { stdout: forwarding(forward, "stdout"), stderr: forwarding(forward, "stderr") }),
     });
     const started = result.exitCode !== undefined || result.signal !== undefined;
     const exitCode = result.exitCode ?? signalExitCode(result.signal) ?? 1;
@@ -85,4 +91,10 @@ export async function runCheckProcess(command: readonly string[], cwd: string, c
   } finally {
     if (noticeDirectory !== undefined) await rm(noticeDirectory, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+function resolvesOnWindows(executable: string, cwd: string, env: NodeJS.ProcessEnv): boolean {
+  const pathName = Object.keys(env).reverse().find(name => name.toUpperCase() === "PATH");
+  try { return whichCommandSync(executable, { cwd, path: pathName === undefined ? "" : env[pathName] ?? "" }) !== undefined; }
+  catch { return false; }
 }

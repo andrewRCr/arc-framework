@@ -53,9 +53,16 @@ function refuseReexports(file: ts.SourceFile, sources: Readonly<Record<string, s
       "command-input.inventory.unclassified");
   }
 }
+function lazyBindingLookup(file: ts.SourceFile): ModuleBindings["lookup"] {
+  let lookup: ModuleBindings["lookup"] | undefined;
+  return (identifier) => {
+    lookup ??= syntaxBindingLookup(file);
+    return lookup(identifier);
+  };
+}
 function canonicalBinding(module: ModuleBindings, identifier: ts.Identifier): ImportedBinding | undefined {
   const binding = module.imports.get(identifier.text);
-  return binding !== undefined && module.lookup(identifier) === binding.declaration && canonicalFiles.includes(binding.file)
+  return binding !== undefined && canonicalFiles.includes(binding.file) && module.lookup(identifier) === binding.declaration
     ? binding : undefined;
 }
 function memberOwner(expression: ts.Expression, symbol: string): ts.Expression | undefined {
@@ -81,7 +88,7 @@ function namespaceFunction(module: ModuleBindings, identifier: ts.Identifier): t
 }
 function refuseUnsupportedReferences(module: ModuleBindings): void {
   const visit = (node: ts.Node): void => {
-    if (ts.isIdentifier(node) && isSyntaxValueReference(node)) {
+    if (ts.isIdentifier(node) && module.imports.has(node.text) && isSyntaxValueReference(node)) {
       const binding = canonicalBinding(module, node);
       if (binding !== undefined && ["*", "declarePromptSite", "prompt"].includes(binding.exported)) {
         let expression = binding.exported === "*" ? namespaceFunction(module, node) : node;
@@ -195,13 +202,17 @@ function passingCalls(module: ModuleBindings, modules: ReadonlyMap<string, Modul
 /**
  * Resolve prompt constant bindings and concrete calls from one immutable text snapshot.
  * @param sources - Source-relative module texts
+ * @param parsed - Syntax trees already parsed from these exact texts, reused by path
  * @returns Reusable parsed files and passing-call identities
  */
-export function buildPromptSourceIndex(sources: Readonly<Record<string, string>>): PromptSourceIndex {
+export function buildPromptSourceIndex(
+  sources: Readonly<Record<string, string>>,
+  parsed: ReadonlyMap<string, ts.SourceFile> = new Map(),
+): PromptSourceIndex {
   const modules = new Map<string, ModuleBindings>(Object.entries(sources).map(([path, text]) => {
-    const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const file = parsed.get(path) ?? ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
     refuseReexports(file, sources);
-    return [path, { file, imports: importedBindings(file, sources), sites: new Map(), lookup: syntaxBindingLookup(file) }] as const;
+    return [path, { file, imports: importedBindings(file, sources), sites: new Map(), lookup: lazyBindingLookup(file) }] as const;
   }));
   for (const module of modules.values()) refuseUnsupportedReferences(module);
   for (const module of modules.values()) collectDeclarations(module);

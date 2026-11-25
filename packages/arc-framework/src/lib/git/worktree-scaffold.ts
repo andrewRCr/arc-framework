@@ -10,6 +10,8 @@
  * scaffolds with `createdByArc: false` so this pass keeps that marker; a
  * cold-start enters a worktree it did not create and scaffolds directly, also
  * `createdByArc: false`, so no marker is written (cleanup there stays advisory).
+ * Operational scaffolds commit the record last and return its minted owner;
+ * their callers bind the checkout marker after that batch commits.
  *
  * The git/fs mechanics live here (testable) rather than in agent workflow
  * bash. The originating session is never disturbed: it writes to the target
@@ -21,7 +23,8 @@
 import type { Store } from "../store/contract.js";
 import type { LocusPorts } from "../work-unit/locus-ports.js";
 import { usesOffBranchState, batchLifecycleWrites } from "../store/lifecycle-write.js";
-import { OwnerIdentitySchema, recordReferences } from "../store/identity.js";
+import { settleCreationSlugEdges } from "../store/creation-slug-settlement.js";
+import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../store/identity.js";
 import { renderMetaFile as renderStoreMeta } from "../store/kinds/meta/writers.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
@@ -119,14 +122,16 @@ export interface ScaffoldWorktreeParams {
  * cold-start into an externally-created worktree passes `false` and no marker
  * lands (cleanup stays advisory). `origin`, when supplied, populates the meta's
  * `Origin` from an issue reference. Other fields render at their defaults.
+ * The operational arm returns its committed owner and leaves marker binding to the caller.
  *
  * @param ctx - I/O context and template directory.
  * @param params - Target worktree root, branch, and scaffold inputs.
+ * @returns The owner returned by the operational create batch, or no owner on the tracked in-repo arm.
  */
 export async function scaffoldIntoWorktree(
   ctx: SpawnWorktreeContext,
   params: ScaffoldWorktreeParams,
-): Promise<void> {
+): Promise<OwnerIdentity | undefined> {
   const slug = SlugSchema.parse(params.wuName);
   if (usesOffBranchState(ctx.store) && ctx.store !== undefined) {
     const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
@@ -137,11 +142,11 @@ export async function scaffoldIntoWorktree(
       ...(params.origin === undefined ? {} : { origin: params.origin }),
       ...(params.lastCompleted === undefined ? {} : { lastCompleted: params.lastCompleted }),
     });
-    const result = await batchLifecycleWrites(ctx.store, [{ action: "put", reference, expected: null, content, placement: { kind: "active" } }], { verb: "start", lifecycleAction: "create" });
+    const settlement = await settleCreationSlugEdges(ctx.store, slug, reference.owner);
+    const result = await batchLifecycleWrites(ctx.store, [{ action: "put", reference, expected: null, content, placement: { kind: "active" } },
+      ...settlement.writes], { verb: "start", lifecycleAction: "create" }, settlement.observations);
     if (result.status === "refused") throw new Error(`${result.refusal.condition} ${result.refusal.remedy.text}`);
-    await writeWorktreeOwnershipMarker(params.worktreePath, { createdByArc: params.createdByArc ?? true,
-      createdFor: { kind: "work-unit", name: params.wuName }, spawningIdentity: params.spawningIdentity, now: params.now });
-    return;
+    return result.result.writes[0]?.reference.owner;
   }
   const activeDir = materializeArcPath(
     params.worktreePath,

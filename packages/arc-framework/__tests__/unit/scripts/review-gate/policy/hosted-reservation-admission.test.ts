@@ -829,7 +829,6 @@ describe("hosted reservation admission", () => {
       },
       dispositionStore: {
         readDispositionRecord: () => Promise.resolve(null),
-        appendDispositionRecord: () => Promise.reject(new Error("read-only test store")),
       },
       confirmTarget: () => Promise.resolve(terminalResult.target),
     })).resolves.toMatchObject({

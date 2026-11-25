@@ -41,7 +41,9 @@
  */
 
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
-import { checkRetiringCheckout, describeRemovalRefusal, type WorktreeRemovalOptions } from "../../git/worktree-removal.js";
+import {
+  checkRetiringCheckout, describeRemovalRefusal, describeSpawnLock, lockSpawnedCheckout, type SpawnLock, type WorktreeRemovalOptions,
+} from "../../git/worktree-removal.js";
 import type { WorktreeMarkerReadResult } from "../../git/worktree-marker.js";
 
 import { join } from "node:path";
@@ -222,7 +224,7 @@ export type ParkResult =
 
 /** The outcome of a `resume` attempt — a rejection, or the re-attached meta path. */
 export type ResumeResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; worktreePath?: string; spawnLock?: SpawnLock }
   | {
       status: "resumed";
       outcome: TransitionOutcome;
@@ -235,6 +237,10 @@ export type ResumeResult =
        * switching branches first would discard the staged removal, orphaning the pointer.
        */
       inPlaceCheckoutPending: boolean;
+      /** The fresh worktree the branch re-attached in; absent in place. */
+      worktreePath?: string;
+      /** The lock that worktree carries once the resume has otherwise completed; absent in place. */
+      spawnLock?: SpawnLock;
     };
 
 /** Translate the projection fields carried by an Active pointer into semantic values. */
@@ -649,21 +655,13 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   };
 
   const roadmapHandler = ctx.executor.sideEffects?.["reconcile-roadmap"];
-  const deferredRoadmap: Array<Parameters<NonNullable<typeof roadmapHandler>>[0]> = [];
-  const transitionExecutor = roadmapHandler === undefined
-    ? ctx.executor
-    : {
-        ...ctx.executor,
-        sideEffects: {
-          ...ctx.executor.sideEffects,
-          "reconcile-roadmap": (effectCtx: Parameters<typeof roadmapHandler>[0]) => {
-            deferredRoadmap.push(effectCtx);
-            return Promise.resolve(undefined);
-          },
-        },
-      };
-  const outcome = await executeTransition(transitionExecutor, { verb: "resume", slug: name, inputs });
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+  const { outcome, spawned, deferredRoadmap } = await runProtectedResumeTransition(ctx.executor, name, inputs);
+  if (outcome.status !== "ok") return {
+    status: "rejected",
+    reason: spawned.worktreePath === undefined ? outcome.message
+      : `resume partially applied at ${spawned.worktreePath}: ${outcome.message}`,
+    ...spawned,
+  };
 
   // Remove the tracked-branch pointer-record and prune the emptied parked dir.
   // Spawn re-attaches in a separate worktree (cwd stays on the tracked branch), so
@@ -680,6 +678,7 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     return {
       status: "rejected",
       reason: `resume partially applied: branch re-attached, but the pointer-record removal failed — ${detail}`,
+      ...spawned,
     };
   }
   const parkedAbs = join(ctx.executor.cwd, parkedSubdir);
@@ -704,9 +703,10 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     ? outcome
     : { ...outcome, advisories };
 
-  return {
+  return resumeCompletion({
     status: "resumed",
     outcome: completedOutcome,
+    ...spawned,
     metaPath: resolveArcPath({
       kind: "work-unit-artifact",
       placement: { kind: "active", scope: { kind: "project" } },
@@ -715,5 +715,81 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     }),
     branch,
     inPlaceCheckoutPending: params.inPlace === true,
+  });
+}
+
+function resumeCompletion(result: Extract<ResumeResult, { status: "resumed" }>): ResumeResult {
+  if (result.worktreePath !== undefined && result.spawnLock?.kind === "failed") return {
+    status: "rejected", worktreePath: result.worktreePath, spawnLock: result.spawnLock,
+    reason: `checkout retained: ${describeSpawnLock(result.worktreePath, result.spawnLock) ?? result.spawnLock.detail}`
+      + " After locking it, continue work in the retained checkout; the placement has already applied.",
+  };
+  return result;
+}
+
+type RoadmapEffect = Parameters<NonNullable<NonNullable<ExecuteTransitionContext["sideEffects"]>["reconcile-roadmap"]>>[0];
+
+interface ProtectedResumeTransition {
+  outcome: Extract<TransitionOutcome, { status: "ok" }> | { status: "failed"; message: string };
+  spawned: { worktreePath?: string; spawnLock?: SpawnLock };
+  deferredRoadmap: RoadmapEffect[];
+}
+
+/** Protect a successful placement after both returned finalization failures and thrown post-spawn effects. */
+async function runProtectedResumeTransition(
+  executor: ExecuteTransitionContext, slug: string, inputs: TransitionInputs,
+): Promise<ProtectedResumeTransition> {
+  const transition = resumeTransitionExecutor(executor);
+  let outcome: ProtectedResumeTransition["outcome"];
+  try {
+    const result = await executeTransition(transition.executor, { verb: "resume", slug, inputs });
+    outcome = result.status === "ok" ? result : { status: "failed", message: result.message };
+  } catch (error) {
+    if (transition.spawnedPath() === undefined) throw error;
+    outcome = { status: "failed", message: error instanceof Error ? error.message : String(error) };
+  }
+  const worktreePath = transition.spawnedPath();
+  const spawnLock = worktreePath === undefined ? undefined : executor.exec === undefined
+    ? { kind: "failed" as const, detail: "resume ran without a Git executor" }
+    : await lockSpawnedCheckout(executor.exec, worktreePath);
+  return {
+    outcome, deferredRoadmap: transition.deferredRoadmap,
+    spawned: {
+      ...(worktreePath === undefined ? {} : { worktreePath }),
+      ...(spawnLock === undefined ? {} : { spawnLock }),
+    },
+  };
+}
+
+/**
+ * The executor a resume's transition runs through: ROADMAP reconciliation waits until the pointer-record is gone, and
+ * a fresh worktree's path is kept so the resume can lock it once nothing can roll the spawn back.
+ */
+function resumeTransitionExecutor(executor: ExecuteTransitionContext): {
+  executor: ExecuteTransitionContext; deferredRoadmap: RoadmapEffect[]; spawnedPath: () => string | undefined;
+} {
+  const deferredRoadmap: RoadmapEffect[] = [];
+  let spawnedPath: string | undefined;
+  const reconcile = executor.reconcileWorkUnitWorktree;
+  return {
+    deferredRoadmap,
+    spawnedPath: () => spawnedPath,
+    executor: {
+      ...executor,
+      reconcileWorkUnitWorktree: async (op) => {
+        const placed = await reconcile(op);
+        if (op.mutation === "spawn" && op.inPlace !== true && placed.mutation === "spawn") spawnedPath = placed.worktreePath;
+        return placed;
+      },
+      ...(executor.sideEffects?.["reconcile-roadmap"] === undefined ? {} : {
+        sideEffects: {
+          ...executor.sideEffects,
+          "reconcile-roadmap": (effectCtx: RoadmapEffect) => {
+            deferredRoadmap.push(effectCtx);
+            return Promise.resolve(undefined);
+          },
+        },
+      }),
+    },
   };
 }

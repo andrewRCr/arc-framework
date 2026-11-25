@@ -426,7 +426,8 @@ type ActiveOperationScenario =
   | "selected-change-terminal-authoring-before"
   | "selected-change-terminal-authoring-applied";
 
-async function positionFixture(
+/** Produce an initialized repository with canonical delivery plan and execution state. */
+export async function positionFixture(
   activeOperation?: ActiveOperationScenario,
   options: { reviewChunkingThresholdLines?: number; memberTwoLineCount?: number } = {},
 ) {
@@ -1040,7 +1041,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       changeRequest: { repository: "owner/repo", pullRequest: 42 },
-    }), null);
+    }, 1), null);
     await git(fixture.repository, [
       "add",
       ".arc/active",
@@ -1596,7 +1597,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       changeRequest: { repository: "owner/repo", pullRequest: 42 },
-    }), null);
+    }, 1), null);
     const taskListPath = join(fixture.repository, ".arc", "active", "tasks-delivery-plan-record.md");
     const taskList = [
       "# Task List: Delivery Plan Record",
@@ -1979,7 +1980,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       candidateSubjectDigest: candidate.subject.subjectDigest,
       reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
-    }), null);
+    }, 1), null);
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install direct pending fixture"]);
     const correctionHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
@@ -2518,7 +2519,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       candidateSubjectDigest: durableSubject.subjectDigest,
       reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
-    });
+    }, 1);
     const publicContinuation = projectDeliveryPublicReviewContinuation({
       plan: fixture.plan,
       state,
@@ -3100,6 +3101,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]).then((line) => line.split("\t")[0]));
   });
 
+  // About 85 s on a hosted runner shared with other E2E files, up to 110 s,
+  // most of it in thirteen review-fix continuations.
   it("drives a registered review correction through superseded verification to hosted review", async () => {
     const fixture = await positionFixture("registered-current", {
       reviewChunkingThresholdLines: 2,
@@ -3214,7 +3217,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
-    }), null);
+    }, 1), null);
     await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
     const oldTarget = createReviewTarget({
@@ -4506,7 +4509,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         effectLog: [],
       });
     }
-  }, 120_000);
+  }, 240_000);
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {
     const fixture = await positionFixture();

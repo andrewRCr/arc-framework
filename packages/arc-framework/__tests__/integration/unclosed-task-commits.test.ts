@@ -4,6 +4,25 @@ import { makeUnclosedTaskFixture } from "../helpers/unclosed-task-commits.js";
 import { computeUnclosedTaskCommits } from "../../src/lib/locus/unclosed-task-commits.js";
 import { UnclosedTaskCommitsSchema } from "../../src/lib/locus/unclosed-task-commits-schema.js";
 import { prepareTaskClose } from "../../src/lib/work-unit/verbs/task-close.js";
+it("preserves a failed base observation and agrees with task close after repair", async () => {
+  const h = await makeUnclosedTaskFixture(), fresh = await h.commit("fresh\n"), before = await h.readMeta();
+  const failure = Object.assign(new Error("Base probe output was incomplete"), { exitCode: 1, isMaxBuffer: true });
+  const original = h.input.exec;
+  let broken = true;
+  h.input.exec = async (command, args, options) => {
+    if (broken && args[1] === "rev-parse" && args[4] === "refs/remotes/origin/main^{commit}") throw failure;
+    return original(command, args, options);
+  };
+  await expect(computeUnclosedTaskCommits(h.input)).rejects.toBe(failure);
+  expect(await h.readMeta()).toEqual(before);
+  broken = false;
+  const listing = await computeUnclosedTaskCommits(h.input), close = await prepareTaskClose(h.input, {});
+  expect(listing?.status).toBe("available");
+  expect(close.status).toBe("prepared");
+  if (listing?.status !== "available" || close.status !== "prepared") throw new Error("Expected repaired capture inventory");
+  expect(listing.commits.map(commit => commit.sha)).toEqual([fresh]);
+  expect(listing.commits).toEqual(close.snapshot?.commits);
+});
 it.each(["adopted", "reactivated", "promoted"] as const)("matches the close set on an %s work unit's branch", async arm => {
   const h = await makeUnclosedTaskFixture(), prior = await h.commit("prior\n"), excluded = await h.capture(prior);
   const fresh = await h.commit("fresh\n");

@@ -1,0 +1,186 @@
+/** A passing check acquires the complete restore point from the explicit importing checkout. */
+import { realpath, readFile, writeFile, mkdir, rm } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import type { WindowHostPort } from "../../src/scripts/cutover-window/host.js";
+import { expect, it } from "vitest";
+import { windowFixture } from "../helpers/cutover-window/fixture.js";
+import { checkFixture } from "../helpers/cutover-window/check.js";
+import { seedTransients, transientSourceRef } from "../helpers/store/import-transients.js";
+import { listWindowRefs } from "../../src/scripts/cutover-window/git.js";
+import { WindowRefusal } from "../../src/scripts/cutover-window/result.js";
+import { readWindowHold, discardUnfinishedWindowHold } from "../../src/scripts/cutover-window/hold.js";
+
+it("records the flip, registered checkout, branch tips, and all three ref inventories", async () => {
+  const h = await windowFixture();
+  const head = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const alpha = (await h.git("git", ["rev-parse", "feat/alpha"])).stdout.trim();
+  const identity = await seedTransients(h, []);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const trackingRef = "refs/arc-remotes/origin/user/andrew/errands";
+  await h.git("git", ["update-ref", trackingRef, identity]);
+  expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+  const held = await readWindowHold({ repo: h.root, exec: h.git, execInput: h.ports.execInput });
+  expect(held.record).toEqual({ version: 1, reviewGateDigest: expect.stringMatching(/^[a-f0-9]{64}$/u), flip: h.flip,
+    worktrees: [{ path: expect.any(String), head, branch: "main", personalDigest: expect.stringMatching(/^[a-f0-9]{64}$/u) }],
+    branches: { host: { main: head, "feat/alpha": alpha, [h.flip.branch]: h.flip.head }, live: expect.objectContaining({ main: { local: head, origin: head, reasons: expect.any(Array) },
+      "feat/alpha": { local: alpha, origin: alpha, reasons: expect.any(Array) } }), local: { main: head, "feat/alpha": alpha, [h.flip.branch]: h.flip.head },
+      origin: { main: head, "feat/alpha": alpha, [h.flip.branch]: h.flip.head } },
+    refs: { local: { [transientSourceRef]: identity }, origin: { [transientSourceRef]: identity }, tracking: { [trackingRef]: identity } },
+  });
+  expect(await Promise.all(held.record.worktrees.map(row => realpath(row.path)))).toEqual([await realpath(h.root)]);
+  expect((await h.git("git", ["rev-parse", "refs/arc-window/complete"])).stdout.trim()).toBe(held.tip);
+  expect((await h.git("git", ["rev-parse", "refs/arc-window/origin/" + transientSourceRef])).stdout.trim()).toBe(identity);
+  expect((await h.git("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
+}, 30_000);
+
+
+it("exposes acquired origin refs before the record write and a record before the marker write", async () => {
+  const h = await windowFixture();
+  const identity = await seedTransients(h, []);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const states: { step: string; origin: string | undefined; record: boolean; complete: boolean }[] = [];
+  expect(await checkFixture(h, { step: async step => {
+    const refs = await listWindowRefs({ repo: h.root, exec: h.git }, ["refs/arc-window/"]);
+    states.push({ step, origin: refs.get("refs/arc-window/origin/" + transientSourceRef),
+      record: refs.has("refs/arc-window/record"), complete: refs.has("refs/arc-window/complete") });
+  } })).toMatchObject({ exit: 0, result: { status: "passed" } });
+  expect(states).toEqual([
+    { step: "check.record", origin: identity, record: false, complete: false },
+    { step: "check.complete", origin: identity, record: true, complete: false },
+  ]);
+}, 30_000);
+
+it("refuses a fresh check over the incomplete hold a kill between the record and marker leaves, until it is removed", async () => {
+  const h = await windowFixture();
+  const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
+  let killed = new Map<string, string>();
+  expect(await checkFixture(h, { step: async step => {
+    if (step !== "check.complete") return;
+    killed = await listWindowRefs(io, ["refs/arc-window/"]);
+    throw new Error("Window acquisition interrupted");
+  } })).toMatchObject({ exit: 1, result: { status: "stopped" } });
+  expect(killed.has("refs/arc-window/record")).toBe(true);
+  expect(killed.has("refs/arc-window/complete")).toBe(false);
+  for (const [ref, tip] of killed) await h.git("git", ["update-ref", ref, tip]);
+  await expect(readWindowHold(io)).rejects.toMatchObject({ findings: [expect.objectContaining({ condition: expect.stringContaining("incomplete") })] });
+  expect(await checkFixture(h)).toMatchObject({ exit: 1, result: { status: "refused" } });
+  expect(await listWindowRefs(io, ["refs/arc-window/"])).toEqual(killed);
+  for (const [ref, tip] of killed) await h.git("git", ["update-ref", "-d", ref, tip]);
+  expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
+it("discards its acquired hold when an error stops it after origin acquisition, so the retry passes", async () => {
+  const h = await windowFixture();
+  await seedTransients(h, []);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
+  let acquired = new Map<string, string>();
+  expect(await checkFixture(h, { step: async step => {
+    if (step !== "check.record") return;
+    acquired = await listWindowRefs(io, ["refs/arc-window/"]);
+    throw new Error("A personal path could not be read");
+  } })).toMatchObject({ exit: 1, result: { status: "stopped" } });
+  expect(acquired.has(`refs/arc-window/origin/${transientSourceRef}`)).toBe(true);
+  expect(await listWindowRefs(io, ["refs/arc-window/"])).toEqual(new Map());
+  expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
+it("records the flip head from its fetched tip when the local flip branch is behind it", async () => {
+  const h = await windowFixture();
+  await h.git("git", ["checkout", h.flip.branch]);
+  await h.git("git", ["commit", "--allow-empty", "-m", "Advance the flip on the host"]);
+  const fetched = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  await h.git("git", ["push", "origin", h.flip.branch]);
+  await h.git("git", ["checkout", "main"]);
+  await h.git("git", ["branch", "-f", h.flip.branch, h.flip.head]);
+  const checked = await checkFixture(h);
+  expect(checked, checked.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+  const held = await readWindowHold({ repo: h.root, exec: h.git, execInput: h.ports.execInput });
+  expect(held.record.flip).toEqual({ ...h.flip, head: fetched });
+}, 30_000);
+
+it("cleans its acquired hold on an explicit refusal while preserving canonical refs", async () => {
+  const h = await windowFixture();
+  await seedTransients(h, []);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const before = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
+  expect(await checkFixture(h, { step: step => {
+    if (step === "check.complete") return Promise.reject(new WindowRefusal([{ subject: "pre-marker condition",
+      condition: "The window cannot continue.", remedy: "Repair the condition and retry." }]));
+    return Promise.resolve();
+  } })).toMatchObject({ exit: 1, result: { status: "refused", findings: [expect.objectContaining({ subject: "pre-marker condition" })] } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(before);
+  expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
+it("never discards a completed hold as partial acquisition cleanup", async () => {
+  const h = await windowFixture();
+  expect(await checkFixture(h)).toMatchObject({ exit: 0 });
+  const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
+  const held = await readWindowHold(io);
+  const refs = await listWindowRefs(io, ["refs/arc-window/"]);
+  await expect(discardUnfinishedWindowHold(io)).rejects.toMatchObject({ findings: [expect.objectContaining({
+    condition: expect.stringContaining("completion marker"), remedy: expect.stringContaining("Preserve"),
+  })] });
+  expect(await listWindowRefs(io, ["refs/arc-window/"])).toEqual(refs);
+  expect(await readWindowHold(io)).toEqual(held);
+}, 30_000);
+
+
+it.each([{ headBranch: "feat/other", baseBranch: "main" }, { headBranch: "feat/window-flip", baseBranch: "other" }])(
+  "refuses a flip request that does not identify the intended branch into main: %j", async target => {
+    const h = await windowFixture();
+    const original = await readFile(h.listingPath, "utf8");
+    const request = { number: h.flip.pullRequest, ...target };
+    await writeFile(h.listingPath, JSON.stringify({ open: [request], flip: { ...request, autoMergeArmed: false } }));
+    expect(await checkFixture(h)).toMatchObject({ exit: 1, result: { status: "refused", findings: [expect.objectContaining({
+      subject: "flip pull request", remedy: expect.stringContaining("retry"),
+    })] } });
+    expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc-window/"])).stdout.trim()).toBe("");
+    await writeFile(h.listingPath, original);
+    expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+  }, 30_000,
+);
+
+it("refuses a flip branch named like an inherited property that has no ref, and passes naming the real branch", async () => {
+  const h = await windowFixture();
+  expect(await checkFixture({ ...h, flip: { ...h.flip, branch: "constructor" } })).toMatchObject({ exit: 1, result: { status: "refused",
+    findings: [expect.objectContaining({ subject: "constructor", condition: "The named flip branch cannot be resolved." })] } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc-window/"])).stdout.trim()).toBe("");
+  expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
+it("refuses supplied facts on a hosted remote before reading their file or any host facts", async () => {
+  const h = await windowFixture();
+  await h.git("git", ["remote", "set-url", "origin", "https://host.invalid/owner/repo.git"]);
+  const host: WindowHostPort = {
+    refs: async () => { throw new Error("Unexpected host read"); },
+    pullRequests: async () => { throw new Error("Unexpected host read"); },
+    mergeSettings: async () => { throw new Error("Unexpected host read"); },
+    discoverRepository: async () => { throw new Error("Unexpected host read"); },
+  };
+  expect(await checkFixture({ ...h, listingPath: join(h.root, ".arc-fixture/missing.json") }, { host }))
+    .toMatchObject({ exit: 1, result: { status: "refused", findings: [expect.objectContaining({ subject: "host facts" })] } });
+  await h.git("git", ["remote", "set-url", "origin", h.origin]);
+  expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
+it("reports independent checkout, decomposition, and request failures together and passes after all repairs", async () => {
+  const h = await windowFixture(), unfinished = join(h.root, "unfinished.txt");
+  const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
+  const directory = join(common, "arc/decompose-worktrees"), staged = join(directory, "pending");
+  await writeFile(unfinished, "Work still in progress.\n");
+  await mkdir(directory, { recursive: true }); await writeFile(staged, "A staged decomposition.\n");
+  await writeFile(h.listingPath, JSON.stringify({ ...h.pullRequests,
+    open: [...h.pullRequests.open, { number: 8, headBranch: "feat/other", baseBranch: "main" }] }));
+  const refused = await checkFixture(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { findings: expect.arrayContaining([
+    expect.objectContaining({ subject: expect.stringContaining(h.root), condition: expect.stringContaining("dirty") }),
+    expect.objectContaining({ subject: staged, condition: expect.stringContaining("decomposition") }),
+    expect.objectContaining({ subject: "pull request #8" }),
+  ]) } });
+  expect(await listWindowRefs({ repo: h.root, exec: h.git }, ["refs/arc-window/"])).toEqual(new Map());
+  await rm(unfinished); await rm(staged); await writeFile(h.listingPath, JSON.stringify(h.pullRequests));
+  const repaired = await checkFixture(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);

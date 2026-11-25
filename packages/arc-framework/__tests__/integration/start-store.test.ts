@@ -8,6 +8,7 @@ import { runGraduate, runCreateNew } from "../../src/commands/start.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { readWorktreeLock } from "../helpers/worktree-lock.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { readWorktreeMarker, writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
@@ -46,6 +47,36 @@ describe("store-backed start checkouts", () => {
     expect((await h.exec("git", ["branch", "--list", "plan/*"])).stdout).toBe("");
     expect(parseMetaRecord(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).content).owner).toBe("starter");
   }, timeout);
+  it("graduates --here in a checkout another tool placed and leaves that checkout unlocked", async () => {
+    const h = await fixture(); const placed = join(h.root, "placed");
+    await h.exec("git", ["worktree", "add", "--detach", placed, "main"]);
+    const ctx = buildExecutorContext({ cwd: placed, io: { ...h.io, exec: makeGitExec(placed) }, store: h.store,
+      projectId: async () => "repo", identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
+    expect(await runGraduate(ctx, { name: "demo", inPlace: true, spawningIdentity: "starter" })).toMatchObject({ status: "graduated" });
+    expect(await readWorktreeLock(h.exec, placed)).toBeUndefined();
+  }, timeout);
+  it("graduates into a detached checkout locked with the projection's reason", async () => {
+    const h = await fixture();
+    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "graduated", worktreePath: h.path, metaPath: ".arc/active/current/meta-demo.md" });
+    expect(await readWorktreeLock(h.exec, h.path)).toBe(PROJECTION_LOCK_REASON);
+  }, timeout);
+  it("refuses unreadable destination layout before committing graduation and succeeds after repair", async () => {
+    const h = await fixture();
+    await writeFile(join(h.root, ".git", "info", "exclude"), ".arc/system/arc-config.yml\n");
+    const reconcile = h.ctx.reconcileWorkUnitWorktree;
+    const ctx = { ...h.ctx, reconcileWorkUnitWorktree: async (op: Parameters<typeof reconcile>[0]) => {
+      const result = await reconcile(op);
+      if (result.mutation === "spawn") {
+        const config = join(result.worktreePath, ".arc", "system", "arc-config.yml");
+        await writeFile(config, "branch.protection: invalid\n");
+      }
+      return result;
+    } };
+    expect(await runGraduate(ctx, h.params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("configuration") });
+    expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+    expect(await stat(h.path).catch(() => null)).toBeNull();
+    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "graduated", metaPath: ".arc/active/current/meta-demo.md" });
+  }, timeout);
   it.each([undefined, PROJECTION_LOCK_REASON])("repairs a folderless detached target before graduation, lock=%s", async (lock) => {
     const h = await fixture(); await h.exec("git", ["worktree", "add", "--detach", h.path, "main"]);
     if (lock !== undefined) await h.exec("git", ["worktree", "lock", "--reason", lock, h.path]);
@@ -59,7 +90,7 @@ describe("store-backed start checkouts", () => {
   it("refuses a foreign target lock before the store write and preserves the lock", async () => {
     const h = await fixture(); await h.exec("git", ["worktree", "add", "--detach", h.path, "main"]);
     await h.exec("git", ["worktree", "lock", "--reason", "operator", h.path]); await rm(h.path, { recursive: true });
-    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "rejected", reason: expect.stringContaining(`git worktree unlock ${h.path}`) });
+    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "rejected", reason: expect.stringContaining(`git worktree unlock '${h.path}'`) });
     expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).version).toEqual(h.meta.version);
     expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain("locked operator");
     expect(await stat(h.path).catch(() => null)).toBeNull();
@@ -107,7 +138,7 @@ it.each(["start", "materialize", "materialize-without-base-refs"])("activates fr
     await exec("git", ["update-ref", "-d", "refs/heads/main"]);
     await exec("git", ["update-ref", "-d", "refs/remotes/origin/main"]);
   }
-  expect(await runActivate({ ...h.ctx, cwd: h.path, exec, projectId: async () => "repo", currentWuReconcile: buildStoreCurrentWuReconcile(h.store) },
+  expect(await runActivate({ ...h.ctx, cwd: h.path, exec, projectId: async () => "repo", currentWuReconcile: buildStoreCurrentWuReconcile(h.path, h.store) },
     { name: "demo", toBranch: "feat/demo", baseBranch: "main", nextAction: "Begin work" })).toMatchObject({ status: "activated" });
   expect((await exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(refreshed);
   expect(await readFile(join(h.path, "new-base"), "utf8")).toBe("new base content\n");

@@ -5,7 +5,7 @@ import {
   OwnerIdentitySchema, RecordVersionSchema, StateVersionSchema, recordReferences,
   CallerProvenanceSchema, LinksSchema, ConflictRecordSchema, CheckoutClaimSchema, LookupResultSchema,
   MutationSchema, WriteInputSchema, BatchInputSchema, batchResultSchema, StoreRefusalSchema,
-  storeResultSchema, ListingOutcomeSchema, ListingFilterSchema, StoreRecordSchema, SyncResultSchema,
+  storeResultSchema, ListingOutcomeSchema, ListingFilterSchema, StoreRecordSchema, PushResultSchema,
   StoreCapabilitiesSchema, UNSUPPORTED_CASES, ListingDiagnosticSchema, writeResultSchema,
 } from "../../../../src/lib/store/index.js";
 import { z } from "zod";
@@ -175,6 +175,17 @@ describe("whole-record conflict values", () => {
 });
 
 describe("refusals and outcomes", () => {
+  it("accepts typed lookup tiers and refuses malformed tie facts", () => {
+    const refusal = { code: "ambiguous-match", class: "recoverable", condition: "Several holders", remedy,
+      candidates: [reference, reference] };
+    for (const tie of [{ liveness: "live", name: "current" }, { liveness: "completed", name: "former" }, { liveness: "live" }]) {
+      expect(StoreRefusalSchema.safeParse({ ...refusal, tie }).success).toBe(true);
+    }
+    expect(StoreRefusalSchema.safeParse(refusal).success).toBe(true);
+    for (const tie of [{}, { liveness: "active" }, { liveness: "live", name: "alias" }, { liveness: "live", extra: true }]) {
+      expect(StoreRefusalSchema.safeParse({ ...refusal, tie }).success).toBe(false);
+    }
+  });
   it("retains typed placement-only diagnostic evidence and rejects incompatible claims", () => {
     const value = { kind: "malformed", key: "meta", condition: "Invalid placement", remedy, rule: "placement" };
     expect(ListingDiagnosticSchema.parse(value)).toEqual(value);
@@ -226,11 +237,11 @@ describe("refusals and outcomes", () => {
     expect(StoreRecordSchema.safeParse({ reference: transition, content: "transition", version, formatVersion: 1, conflicts: [] }).success).toBe(true);
   });
   it("reports no remote and no identity independently while other families publish", () => {
-    const result = { states: [{ status: "no-remote" }, { status: "no-identity", families: ["personal"], remedy: { text: "Configure arc.identity" } }], publishes: [{ status: "pushed", families: ["work-item"] }] };
-    expect(SyncResultSchema.safeParse(result).success).toBe(true);
-    expect(SyncResultSchema.safeParse({ ...result, publishes: [{ status: "pushed", families: [] }] }).success).toBe(false);
-    expect(SyncResultSchema.safeParse({ states: [{ status: "no-identity", families: [], remedy }], publishes: [] }).success).toBe(false);
-    expect(SyncResultSchema.safeParse({ states: [{ status: "no-remote" }, { status: "no-remote" }], publishes: [] }).success).toBe(false);
+    const result = { states: [{ status: "no-remote" }, { status: "no-identity", families: ["personal"], remedy: { text: "Configure arc.identity" } }], pulls: [], publishes: [{ status: "pushed", families: ["work-item"], retryCount: 0, waitedMs: 0 }] };
+    expect(PushResultSchema.safeParse(result).success).toBe(true);
+    expect(PushResultSchema.safeParse({ ...result, pulls: [], publishes: [{ status: "pushed", families: [], retryCount: 0, waitedMs: 0 }] }).success).toBe(false);
+    expect(PushResultSchema.safeParse({ states: [{ status: "no-identity", families: [], remedy }], pulls: [], publishes: [] }).success).toBe(false);
+    expect(PushResultSchema.safeParse({ states: [{ status: "no-remote" }, { status: "no-remote" }], pulls: [], publishes: [] }).success).toBe(false);
   });
   it("exposes only whether state lives off branch", () => {
     expect(StoreCapabilitiesSchema.safeParse({ stateOffBranch: true }).success).toBe(true);

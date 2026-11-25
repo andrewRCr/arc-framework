@@ -14,15 +14,15 @@ export interface HelpPage {
 /** Task groups keyed by namespace path, with help-only member ordering. */
 export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, readonly string[]])[]>> = {
   "": [
-    ["Inspect work and context:", ["status", "view", "active", "locus", "inbox", "log", "recover"]],
-    ["Plan and organize work:", ["start", "stub", "promote", "demote", "rename", "decompose", "plan", "set-class", "set-stage", "finalize", "repoint-design"]],
+    ["Inspect work and context:", ["status", "agenda", "view", "active", "locus", "inbox", "log", "recover"]],
+    ["Plan and organize work:", ["start", "stub", "promote", "demote", "rename", "cohort", "decompose", "plan", "set-class", "set-stage", "finalize", "repoint-design"]],
     ["Run and resume work:", ["activate", "deactivate", "park", "pause", "handover", "resume", "materialize", "reopen", "abandon", "task", "wu", "attest", "candidate"]],
     ["Review and land work:", ["review", "publish", "integrate", "merge", "base", "delivery", "release", "archive", "teardown"]],
-    ["Run errands and synchronize:", ["errand", "route", "housekeep", "handoff", "sync", "user"]],
-    ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "schema"]],
+    ["Run errands and synchronize:", ["errand", "route", "housekeep", "handoff", "save", "sync", "user"]],
+    ["Set up and maintain ARC:", ["init", "join", "editor", "update", "health", "diff", "selection", "check", "config", "schema"]],
   ],
   review: [
-    ["Choose review work:", ["pre-publication", "resolve", "changeset", "lane"]],
+    ["Choose review work:", ["pre-publication", "resolve", "changeset", "lane", "adversarial"]],
     ["Run and respond:", ["frontline", "hosted", "local", "respond", "reduce", "terminus"]],
     ["Check readiness:", ["status", "readiness", "checks", "change-request", "merge-method"]],
     ["Clear planning changes:", ["planning-lane", "planning-grooming"]],
@@ -106,6 +106,16 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   ...Object.fromEntries(automaticRequestPaths.map((path) => [path, {
     summary: COMMAND_SUMMARIES[path], notes: requestSourceNotes,
   }])),
+  "store repair-review-roots": {
+    summary: COMMAND_SUMMARIES["store repair-review-roots"],
+    purpose: "Preview competing approvals and explicitly select one eligible branch while retaining every approved response.",
+    notes: requestNotes,
+    examples: [
+      ["arc store repair-review-roots --schema", "Read the preview/apply request schema"],
+      ["arc store repair-review-roots preview.json", "Preview an exact owner's producer before choosing a root"],
+      ["arc store repair-review-roots - < apply.json", "Apply an explicit choice using its fresh preview basis"],
+    ],
+  },
   "errand merge": {
     summary: COMMAND_SUMMARIES["errand merge"],
     notes: [["Input and output:", "Read the exact approved merge request from a JSON file or - for stdin. "
@@ -165,7 +175,10 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   "review changeset resolve": { summary: COMMAND_SUMMARIES["review changeset resolve"], notes: requestNotes },
   "review planning-grooming resolve": { summary: COMMAND_SUMMARIES["review planning-grooming resolve"], notes: requestNotes },
   "review frontline run": { summary: COMMAND_SUMMARIES["review frontline run"], notes: requestNotes },
-  "review hosted await": { summary: COMMAND_SUMMARIES["review hosted await"], notes: requestNotes },
+  "review hosted await": { summary: COMMAND_SUMMARIES["review hosted await"], notes: [...requestNotes, ["Timing:",
+    "timeoutSeconds defaults to review.hosted_await_timeout_seconds and initialPollIntervalSeconds to "
+    + "review.hosted_await_initial_poll_interval_seconds. A request above the 1800-second timeout or 60-second "
+    + "interval limit waits at the limit, and the result's diagnostics name what the call used."]] },
   "review reduce": { summary: COMMAND_SUMMARIES["review reduce"], notes: requestNotes },
   "review respond": { summary: COMMAND_SUMMARIES["review respond"], notes: requestNotes },
   "review hosted request": {
@@ -176,13 +189,17 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
     ],
     notes: requestNotes,
   },
+  "review adversarial": { summary: COMMAND_SUMMARIES["review adversarial"], notes: [["Related:", "arc review adversarial record --help"]] },
+  "review adversarial record": { summary: COMMAND_SUMMARIES["review adversarial record"], notes: requestNotes },
   "review lane": { summary: COMMAND_SUMMARIES["review lane"], notes: [["Related:", "arc review lane read --help"]] },
   "review lane read": { summary: COMMAND_SUMMARIES["review lane read"], notes: requestNotes },
   "review readiness": { summary: COMMAND_SUMMARIES["review readiness"], notes: requestNotes },
   "review frontline resolve": { summary: COMMAND_SUMMARIES["review frontline resolve"], notes: requestNotes },
   "review hosted settle": { summary: COMMAND_SUMMARIES["review hosted settle"], notes: requestNotes },
+  "review hosted dismiss": { summary: COMMAND_SUMMARIES["review hosted dismiss"], notes: requestNotes },
   "review local prepare": { summary: COMMAND_SUMMARIES["review local prepare"], notes: requestNotes },
   "review local attest": { summary: COMMAND_SUMMARIES["review local attest"], notes: requestNotes },
+  "review local cancel": { summary: COMMAND_SUMMARIES["review local cancel"], notes: requestNotes },
   "review local resume": { summary: COMMAND_SUMMARIES["review local resume"], notes: requestNotes },
   "review terminus accept": { summary: COMMAND_SUMMARIES["review terminus accept"], notes: requestNotes },
   "review": { summary: COMMAND_SUMMARIES["review"], notes: [["Related:", "arc review resolve --help"]] },

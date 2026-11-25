@@ -1,13 +1,26 @@
-/** Fresh-admission continuation for an exact frontline retry refused over its old admission. */
+/** Recoverable continuations for frontline base validation and exact admission retries. */
 
+import { LocalTargetDerivationError } from "../hosts/local/repository-target.js";
+import type { NativeReviewFactPorts } from "../core/ports.js";
+import { readStoredFrontlineRetryCeilingOverride } from "./native-frontline-retry-authority.js";
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import type { FrontlineAdmission } from "../core/frontline-admission.js";
 import { FrontlineAdmissionError } from "../core/frontline-admission-error.js";
 import { frontlineRetryCeilingOverride } from "../core/frontline-retry-contract.js";
 import type { LaneProgressState } from "../core/operation-state-schema.js";
 import { FrontlineRunRequestSchema } from "../core/frontline-run-command-schema.js";
-import { FrontlineResolveRequestSchema } from "../policy/frontline-command-schema.js";
+import { FrontlineResolveRequestSchema, frontlineResolveRequestFromAdmission } from "../policy/frontline-command-schema.js";
 import { FrontlineOperationRetryError } from "../policy/frontline-operation.js";
+
+/** Carry the unchanged resolve request after the local base branch has been fast-forwarded. */
+export function frontlineResolveRemedy(error: unknown, submittedRequest: unknown): SpineRemedy | undefined {
+  if (!(error instanceof LocalTargetDerivationError) || error.reason !== "diff-base-mismatch") return undefined;
+  const request = FrontlineResolveRequestSchema.parse(submittedRequest);
+  return spineRemedy(error.message,
+    `Fast-forward the local base branch '${request.target.baseRef}' from its upstream in its owning checkout, `
+      + "then retry frontline resolution",
+    ["arc", "review", "frontline", "resolve", "-"], request);
+}
 
 /**
  * Compose safe resolver guidance without reusing admitted facts across different targets.
@@ -33,13 +46,8 @@ export function frontlineRetryRemedy(error: unknown, submittedRequest: unknown):
   const source = admission.frontlineReview.source;
   if (source === null) return undefined;
   const resolverRequest = FrontlineResolveRequestSchema.parse({
-    schemaVersion: 1,
+    ...frontlineResolveRequestFromAdmission(admission),
     target: request.target,
-    changeSet: admission.routing.facts,
-    invocation: {
-      mode: admission.frontlineReview.reasons.includes("invocation-force") ? "force" : "inherit",
-      ...(admission.frontlineReview.reasons.includes("source-invocation") ? { sourceId: source.sourceId } : {}),
-    },
     ...(!staleRetry || error.ceilingOverride === undefined
       ? {} : { policyJudgment: { ceilingOverride: error.ceilingOverride } }),
     ...(admission.lineage.kind === "delivery-member"
@@ -61,18 +69,22 @@ export function frontlineRetryRemedy(error: unknown, submittedRequest: unknown):
  * @param owner - The validated lane owner used to admit the run
  * @param admission - The exact stored admission
  * @param run - Durable execution and retry validation
+ * @param nativeFacts - Selected portable authority when execution holds no authorization history
  * @returns The normal run result; refusals retain their original classification
  */
 export async function withFrontlineRetryAuthorization<T>(
   owner: LaneProgressState | null,
   admission: FrontlineAdmission,
   run: () => Promise<T>,
+  nativeFacts?: NativeReviewFactPorts,
 ): Promise<T> {
   try {
     return await run();
   } catch (error) {
     if (error instanceof FrontlineOperationRetryError && error.reason === "stale-admission") {
-      throw new FrontlineOperationRetryError(error.message, error.reason, frontlineRetryCeilingOverride(owner, admission));
+      const override = nativeFacts === undefined ? frontlineRetryCeilingOverride(owner, admission)
+        : await readStoredFrontlineRetryCeilingOverride(nativeFacts, admission);
+      throw new FrontlineOperationRetryError(error.message, error.reason, override);
     }
     throw error;
   }

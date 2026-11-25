@@ -30,6 +30,7 @@
  * @module
  */
 
+import { TeardownCommandSchema } from "./stale-worktree-sweep-schema.js";
 import { readOrphanStoreCandidates, type OrphanStoreOptions, type OrphanStoreCandidate } from "./orphan-store-candidates.js";
 import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
@@ -61,6 +62,7 @@ export const OrphanBranchReportSchema = z.union([
     merged: z.boolean(),
     actions: SessionActionsSchema.optional(),
     shippedWorkUnit: SlugSchema.nullable(),
+    teardown: TeardownCommandSchema.optional(),
     blockingReason: z.null().optional(),
   }),
   z.strictObject({
@@ -252,6 +254,7 @@ async function orphanWorkLanded(exec: GitExec, branch: string, base: string, str
 
 function withOrphanActions(report: OrphanBranchReport): OrphanBranchReport {
   if (report.shippedWorkUnit !== null) {
+    if (report.teardown !== undefined) return { ...report, actions: [{ ...report.teardown, argv: [...report.teardown.argv] }] };
     return { ...report, actions: [{ text: `arc teardown ${report.shippedWorkUnit}`,
       argv: ["arc", "teardown", report.shippedWorkUnit] }] };
   }
@@ -285,7 +288,7 @@ function storeOrphanReport(candidate: OrphanStoreCandidate, merged: boolean): Or
   const { branch, authority: { record, link } } = candidate;
   const shippedWorkUnit = record.reference.kind === "work-item/meta" && record.placement?.kind === "completed"
     && link.linkedAs === "created" ? SlugSchema.parse(record.reference.owner.name) : null;
-  const report = withOrphanActions({ branch, merged, shippedWorkUnit });
+  const report = withOrphanActions({ branch, merged, shippedWorkUnit, ...(candidate.teardown === undefined ? {} : { teardown: candidate.teardown }) });
   return link.linkedAs === "adopted" && !merged ? { branch, merged, shippedWorkUnit, actions: [{
     text: `Branch ${branch} is kept for its owner. Its owner may run git branch -D ${branch} after preserving its work.`,
   }] } : report;

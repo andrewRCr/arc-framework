@@ -13,8 +13,9 @@
  * @module
  */
 
+import { buildErrandNextResult, resolveErrandNext, type ErrandNextResult } from "../commands/errand-next.js";
 import { runStoreErrandOverlap } from "../lib/errand/store-overlap.js";
-import { resolveQueueExecutionOffer, QueueOfferProblemSchema, type QueueExecutionOffer } from "../lib/inbox/offer.js";
+import { resolveQueueExecutionOffer, type QueueExecutionOffer } from "../lib/inbox/offer.js";
 import { formatErrandQueueReport } from "./errand-queue-report.js";
 import { prepareHandlerErrandAdoption, completePartialQueueDrop, prepareHandlerErrandReturn, settleStorePartialCapture, reportPriorErrand } from "./errand-entry-storage.js";
 import { prepareErrandReturn } from "../lib/inbox/errand-return.js";
@@ -22,6 +23,10 @@ import { restoreErrandInboxOrigin, type ErrandInboxOrigin } from "../lib/errand/
 
 
 import { openDefaultStore } from "./lifecycle-shared.js";
+import { openErrandTerminalStore, selectErrandTerminalSubject } from "./errand-terminal-store.js";
+import { preCutoverBuildSealed } from "./pre-cutover-seal.js";
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
+import { StoreImportedError } from "../lib/store/store-imported.js";
 import { readRuntimeErrand } from "../lib/store/errand-runtime-transactions.js";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -59,7 +64,6 @@ import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { createGitExec, createUserIOContext } from "../lib/io-context.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import {
-  openOrdinaryErrandAtRuntime,
   openOrdinaryErrandAtRuntimeWithDisposition,
 } from "../lib/errand/open-runtime.js";
 import { ERRAND_SLUG_INPUT_REMEDY } from "../lib/errand/open.js";
@@ -114,15 +118,14 @@ import {
 } from "../lib/user-sync/inbox-writer.js";
 import {
   resolveExecutionNextOffer,
-  resolveExecutionStartupOffer,
   type ExecutionOfferResolution,
-  type ExecutionStartupOfferResolution,
 } from "../lib/user-sync/execution-offer.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
+import { warnSpawnLock } from "./spawn-lock.js";
 
 type ErrandHandlerOperation = "errand-leave" | "errand-close" | "errand-abandon";
 type ErrandResultEmitter = (result: ErrandTerminalResult, json: boolean) => void;
@@ -142,92 +145,6 @@ export interface ErrandNextOptions {
 /** Validated input for resolving the next queued Errand. */
 export const ErrandNextInputSchema = z.object({ json: z.boolean().optional() }).strict();
 
-const ErrandNextOfferSchema = z.strictObject({
-  kind: z.literal("errand"),
-  key: z.string().min(1),
-  parentCheckoutPath: z.null(),
-});
-
-/** Typed queue-head result consumed by `arc-session --errand --next`. */
-export const ErrandNextResultSchema = z.discriminatedUnion("state", [
-  z.strictObject({
-    leftOut: z.array(QueueOfferProblemSchema).optional(),
-    skipped: z.array(QueueOfferProblemSchema).optional(),
-    schemaVersion: z.literal(1),
-    mode: z.literal("errand-next"),
-    state: z.literal("available"),
-    nextAction: z.literal("open-errand"),
-    nextOffer: ErrandNextOfferSchema,
-    recommendedPromptText: z.string().min(1),
-  }),
-  z.strictObject({
-    leftOut: z.array(QueueOfferProblemSchema).optional(),
-    skipped: z.array(QueueOfferProblemSchema).optional(),
-    schemaVersion: z.literal(1),
-    mode: z.literal("errand-next"),
-    state: z.literal("empty"),
-    nextAction: z.literal("none"),
-    nextOffer: z.null(),
-    recommendedPromptText: z.string().min(1),
-  }),
-  z.strictObject({
-    leftOut: z.array(QueueOfferProblemSchema).optional(),
-    skipped: z.array(QueueOfferProblemSchema).optional(),
-    schemaVersion: z.literal(1),
-    mode: z.literal("errand-next"),
-    state: z.literal("refused"),
-    nextAction: z.literal("stop"),
-    nextOffer: z.null(),
-    reason: z.string().min(1),
-    remedy: z.string().min(1),
-    retryCommand: z.literal("arc errand next --json"),
-    recommendedPromptText: z.string().min(1),
-  }),
-]);
-export type ErrandNextResult = z.infer<typeof ErrandNextResultSchema>;
-
-/** Project one queue read into the closed startup-selection contract. */
-export function buildErrandNextResult(
-  resolution: ExecutionStartupOfferResolution,
-  refusalRemedy?: string,
-): ErrandNextResult {
-  if (resolution.kind === "refused") {
-    const remedy = refusalRemedy ?? resolution.remedy ?? "Repair the reported `USER-INBOX` condition.";
-    return ErrandNextResultSchema.parse({
-      schemaVersion: 1,
-      mode: "errand-next",
-      state: "refused",
-      nextAction: "stop",
-      nextOffer: null,
-      reason: resolution.reason,
-      remedy,
-      retryCommand: "arc errand next --json",
-      recommendedPromptText: "The execute-bound Errand queue could not be read safely: "
-        + `${resolution.reason} ${remedy} Retry with \`arc errand next --json\`.`,
-    });
-  }
-  if (resolution.nextOffer === null) {
-    return ErrandNextResultSchema.parse({
-      schemaVersion: 1,
-      mode: "errand-next",
-      ...(resolution.leftOut === undefined ? {} : { leftOut: resolution.leftOut, skipped: resolution.skipped }),
-      state: "empty",
-      nextAction: "none",
-      nextOffer: null,
-      recommendedPromptText: "No execute-bound Errand is queued.",
-    });
-  }
-  return ErrandNextResultSchema.parse({
-    schemaVersion: 1,
-    mode: "errand-next",
-    ...(resolution.leftOut === undefined ? {} : { leftOut: resolution.leftOut, skipped: resolution.skipped }),
-    state: "available",
-    nextAction: "open-errand",
-    nextOffer: { ...resolution.nextOffer, parentCheckoutPath: null },
-    recommendedPromptText: `Next execute-bound Errand: ${resolution.nextOffer.key}.`,
-  });
-}
-
 /** Resolve the stable first execute-bound capture without opening or mutating it. */
 export async function handleErrandNext(
   opts: ErrandNextOptions,
@@ -245,24 +162,8 @@ export async function handleErrandNext(
   try {
     const cwd = requireArcProjectRoot();
     const identity = cwd === null ? null : await resolveIdentity({ exec: errandGitExec(context) });
-    if (cwd === null || identity === null) {
-      emitErrandNextResult(buildErrandNextResult({
-        kind: "refused",
-        reason: cwd === null
-          ? "ARC project root is unavailable."
-          : "No identity resolved — set arc.identity before selecting an Errand.",
-      }, cwd === null
-        ? "Run from an ARC project checkout."
-        : "Set `arc.identity` for this checkout."), opts.json === true);
-      return;
-    }
-    const resolution = await resolveCurrentExecutionStartupOffer({
-      cwd,
-      io: createUserIOContext(context?.subprocess),
-      identity,
-      parentCheckoutPath: null,
-    });
-    emitErrandNextResult(buildErrandNextResult(resolution), opts.json === true);
+    const result = await resolveErrandNext({ cwd, identity, io: createUserIOContext(context?.subprocess) });
+    emitErrandNextResult(result, opts.json === true);
   } catch (error) {
     emitErrandNextResult(buildErrandNextResult({
       kind: "refused",
@@ -308,6 +209,11 @@ async function runErrandHandlerBoundary(
   recommendedPromptText: string,
   run: () => Promise<void>,
 ): Promise<void> {
+  if (await preCutoverBuildSealed(resolveArcRoot(process.cwd()))) {
+    emit(createErrandTerminalResult({ outcome: "refused", operation, subject: null, checkoutPath: null, generation: null,
+      reason: "store-imported", recommendedPromptText: new StoreImportedError().message }), json);
+    return;
+  }
   try {
     await run();
   } catch (error) {
@@ -333,6 +239,11 @@ async function runErrandEntryHandlerBoundary(
   recommendedPromptText: string,
   run: () => Promise<void>,
 ): Promise<void> {
+  if (await preCutoverBuildSealed(resolveArcRoot(process.cwd()))) {
+    emit(createErrandOperationResult({ outcome: "refused", operation, reason: "store-imported",
+      recommendedPromptText: new StoreImportedError().message }), json);
+    return;
+  }
   try {
     await run();
   } catch (error) {
@@ -722,7 +633,7 @@ async function runErrandOpenHandler(
   const createdAt = new Date().toISOString();
   let result: ErrandOperationResult;
   try {
-    result = await openOrdinaryErrandAtRuntime({
+    const execution = await openOrdinaryErrandAtRuntimeWithDisposition({
       store,
       companionWrites: entryWrites,
       provenanceVerb: "errand-open",
@@ -751,6 +662,8 @@ async function runErrandOpenHandler(
       exec: io.exec,
       execInput: io.execInput,
     });
+    ({ result } = execution);
+    warnSpawnLock(execution.spawnLock?.checkoutPath, execution.spawnLock?.lock);
   } catch (err) {
     result = createErrandOperationResult({
       outcome: "error",
@@ -860,6 +773,10 @@ export async function handleErrandLink(
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  if (await preCutoverBuildSealed(cwd)) {
+    emitErrandLinkFailure("locus.errand-link.identity", new StoreImportedError().message, opts.json === true, "store-imported");
+    return;
+  }
 
   const { settings } = await readConfigSettings(cwd);
   if (settings["branch.protection"] !== "full") {
@@ -959,7 +876,7 @@ function emitErrandLinkFailure(
   code: ErrandErrorCode,
   message: string,
   json: boolean,
-  reason?: "full-protection-required",
+  reason?: "full-protection-required" | "store-imported",
 ): void {
   emitErrandLinkResult(createErrandOperationResult(reason === undefined ? {
     outcome: "error",
@@ -1110,6 +1027,7 @@ export async function handleErrandMaterialize(
           execInput: io.execInput,
         });
         const { result } = execution;
+        warnSpawnLock(execution.spawnLock?.checkoutPath, execution.spawnLock?.lock);
         const materialized = createErrandOperationResult({
           ...result,
           operation: "errand-materialize",
@@ -1230,9 +1148,11 @@ export async function handleErrandLeave(
         emitErrandLeaveFailure("locus.errand-leave.identity", "The stdin Git boundary is unavailable.", opts.json === true);
         return;
       }
+      const store = openDefaultStore(cwd, io.exec);
       let observedAuthority: ErrandTerminalAuthority | null = null;
       const result = await leaveOrdinaryErrandAtRuntime({
-      store: openDefaultStore(cwd, io.exec),
+        store,
+        projectionRemovalSlots: createProjectionRemovalSlots({ store, identity }),
         slug: parsed.data.slug,
         state: parsed.data.state,
         protection,
@@ -1241,7 +1161,7 @@ export async function handleErrandLeave(
         identity,
         exec: io.exec,
         execInput: io.execInput,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: parsed.data.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
       });
@@ -1313,7 +1233,7 @@ export interface ErrandCloseOptions {
 /** Validated input for closing an errand. */
 export const ErrandCloseInputSchema = z
   .object({
-    slug: SlugSchema,
+    slug: z.union([SlugSchema, z.uuid()]),
     confirmForeignGeneration: ErrandTerminalGenerationSchema.optional(),
     json: z.boolean().optional(),
   })
@@ -1390,12 +1310,13 @@ async function runErrandCloseHandler(
   }
 
   const io = createUserIOContext(context?.subprocess);
-  if (!io.execInput) {
-    emitErrandCloseFailure("locus.errand-close.identity", "The stdin Git boundary is unavailable.", opts.json === true);
-    return;
-  }
-
-  const store = openDefaultStore(cwd, io.exec);
+  const opened = openErrandTerminalStore({ cwd, subject: slug, io,
+    refuse: (code, message) => { emitErrandCloseFailure(`locus.errand-close.${code}`, message, opts.json === true); } });
+  if (opened === null) return;
+  const { store, execInput } = opened;
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity });
+  const selected = await selectErrandTerminalSubject(store, slug, "errand-close");
+  if (selected.kind === "stop") { emitErrandCloseResult(selected.result, opts.json === true); return; }
   const inboxContext = { store, identity, now: () => new Date() };
   let captureDisposition: "removed" | "retained" | "absent" = "absent";
   const queueReport: { value: QueueExecutionOffer | null } = { value: null };
@@ -1404,11 +1325,12 @@ async function runErrandCloseHandler(
   try {
     if (protection === "partial") {
       result = await settlePartialErrandAtRuntime({
-        slug,
+        slug: selected.slug,
         action: "close",
+        projectionRemovalSlots,
         base,
         exec: io.exec,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         settleInbox: async (binding) => {
@@ -1446,14 +1368,17 @@ async function runErrandCloseHandler(
       });
     } else {
       result = await closeOrdinaryErrandAtRuntime({
-      store,
-        slug,
+        store,
+        projectionRemovalSlots,
+        selectedRecord: selected.selectedRecord,
+        operand: slug,
+        slug: selected.slug,
         base,
         protection: "full",
         identity,
         exec: io.exec,
-        execInput: io.execInput,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        execInput,
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         ...(store.capabilities.stateOffBranch ? { prepareInbox: async (parentCheckoutPath: string | null) => {
@@ -1552,29 +1477,6 @@ async function resolveCurrentExecutionNextOffer(options: {
   });
 }
 
-async function resolveCurrentExecutionStartupOffer(options: {
-  cwd: string;
-  io: ReturnType<typeof createUserIOContext>;
-  identity: string;
-  parentCheckoutPath: string | null;
-}): Promise<ExecutionStartupOfferResolution> {
-  const store = openDefaultStore(options.cwd, options.io.exec);
-  if (store.capabilities.stateOffBranch) {
-    const offer = await resolveQueueExecutionOffer({ store, identity: options.identity, now: () => new Date() }, options.parentCheckoutPath);
-    return offer.status === "refused" ? { kind: "refused", reason: offer.refusal.condition, remedy: offer.refusal.remedy.text } : { kind: "resolved", ...offer.result };
-  }
-  const { postImage } = await withLockedUserInbox(
-    { cwd: options.cwd, io: options.io, identity: options.identity },
-    () => ({ result: null }),
-  );
-  if (postImage.state === "missing") {
-    return { kind: "resolved", nextOffer: null };
-  }
-  return resolveExecutionStartupOffer({
-    content: postImage.content,
-    parentCheckoutPath: options.parentCheckoutPath,
-  });
-}
 
 export function formatErrandCloseResult(
   result: ErrandTerminalResult,
@@ -1617,7 +1519,7 @@ export interface ErrandAbandonOptions {
 /** Validated input for abandoning an errand. */
 export const ErrandAbandonInputSchema = z
   .object({
-    slug: SlugSchema,
+    slug: z.union([SlugSchema, z.uuid()]),
     confirmForeignGeneration: ErrandTerminalGenerationSchema.optional(),
     json: z.boolean().optional(),
   })
@@ -1682,15 +1584,13 @@ async function runErrandAbandonHandler(
     return;
   }
   const io = createUserIOContext(context?.subprocess);
-  if (!io.execInput) {
-    emitErrandAbandonFailure(
-      "locus.errand-abandon.identity",
-      "The stdin Git boundary is unavailable.",
-      opts.json === true,
-    );
-    return;
-  }
-  const store = openDefaultStore(cwd, io.exec);
+  const opened = openErrandTerminalStore({ cwd, subject: input.slug, io,
+    refuse: (code, message) => { emitErrandAbandonFailure(`locus.errand-abandon.${code}`, message, opts.json === true); } });
+  if (opened === null) return;
+  const { store, execInput } = opened;
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity });
+  const selected = await selectErrandTerminalSubject(store, input.slug, "errand-abandon");
+  if (selected.kind === "stop") { emitErrandAbandonResult(selected.result, opts.json === true); return; }
   let returnPlan: import("../lib/inbox/errand-return.js").ErrandReturn | null = null;
   let result: TerminalOperationOutcome;
   let observedAuthority: ErrandTerminalAuthority | null = null;
@@ -1698,11 +1598,12 @@ async function runErrandAbandonHandler(
     returnPlan = await prepareHandlerErrandReturn(input.slug, protection, { store, identity, now: () => new Date() });
     if (protection === "partial") {
       result = await settlePartialErrandAtRuntime({
-        slug: input.slug,
+        slug: selected.slug,
         action: "abandon",
+        projectionRemovalSlots,
         base,
         exec: io.exec,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: input.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         settleInbox: async (binding) => {
@@ -1721,16 +1622,19 @@ async function runErrandAbandonHandler(
       });
     } else {
       result = await abandonOrdinaryErrandAtRuntime({
-      store,
+        store,
+        projectionRemovalSlots,
+        selectedRecord: selected.selectedRecord,
+        operand: input.slug,
         companionWrites: returnPlan?.writes,
         provenanceVerb: "errand-abandon",
-        slug: input.slug,
+        slug: selected.slug,
         protection: "full",
         base,
         identity,
         exec: io.exec,
-        execInput: io.execInput,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        execInput,
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: input.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         clearExecuteBound: async (record, settlementCheckoutPath) => {
@@ -2147,6 +2051,12 @@ async function runErrandPromoteHandler(
         true,
       );
     }
+    return;
+  }
+  if (await preCutoverBuildSealed(cwd)) {
+    emitErrandPromoteResult(createErrandPromotionResult({ outcome: "refused", operation: "errand-promote", subject: null,
+      checkoutPath: null, generation: null, reason: "store-imported", recommendedPromptText: new StoreImportedError().message }),
+    opts.json === true);
     return;
   }
 

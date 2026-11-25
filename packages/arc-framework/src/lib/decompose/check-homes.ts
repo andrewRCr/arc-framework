@@ -57,7 +57,8 @@ async function resolveHome(ctx: DecomposeContext, destinationId: string, slug: s
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) });
   if (lookup.status === "refused") return lookup.refusal.code === "not-found"
     ? invalidHome(slug, locus, "does not resolve to a work unit") : decomposeStoreRefusal(lookup.refusal);
-  if (lookup.result.reference.kind !== "work-item/meta") return invalidHome(slug, locus, "resolves to an Errand");
+  if (lookup.result.reference.kind !== "work-item/meta") return invalidHome(slug, locus,
+    lookup.result.reference.kind === "cohort/document" ? "resolves to a cohort rather than a work unit" : "resolves to an Errand");
   const primary = await store.read({ reference: lookup.result.reference });
   if (primary.status === "refused") return primary.refusal.code === "not-found"
     ? invalidHome(slug, locus, "has no primary record") : decomposeStoreRefusal(primary.refusal);

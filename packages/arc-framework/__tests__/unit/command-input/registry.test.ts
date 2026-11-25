@@ -73,6 +73,7 @@ describe("command-input schema adapter and registry", () => {
       "delivery plan inventory schema",
       "errand next",
       "errand queue",
+      "selection",
       "schema list",
       "schema install",
     ];

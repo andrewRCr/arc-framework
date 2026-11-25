@@ -88,6 +88,7 @@ export function approvedRecord(
     verifiedSeverity: null;
     disposition: "reject";
   }) & { title?: string })[],
+  proposedVerification: "targeted" | "focused" | "full" = "full",
 ) {
   const set = createDispositionSet({
     schemaVersion: 2,
@@ -100,7 +101,7 @@ export function approvedRecord(
       sourceBindingId: result.sourceBindingId, outcomeDigest: result.resultDigest } } : {
       rubricVersion: result.requirement.rubricVersion, rubricDigest: result.requirement.rubricDigest }),
     proposedBy: "arc-cli/0.1.0",
-    proposedVerification: "full",
+    proposedVerification,
     findings: judgments.map((judgment, index) => {
       const finding = result.findings[index];
       if (finding === undefined) throw new Error("missing producer finding");

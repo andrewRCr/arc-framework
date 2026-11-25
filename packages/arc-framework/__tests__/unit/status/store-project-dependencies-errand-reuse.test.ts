@@ -41,7 +41,7 @@ async function fixture(retarget: boolean, reuse: boolean) {
 }
 
 async function project(store: Store) {
-  const input = await readStoreProjectViewInput({ store, reviewAfterDays: 14 });
+  const input = await readStoreProjectViewInput({ cwd: "/project", store, reviewAfterDays: 14 });
   if (input.status !== "ok") throw new Error(input.refusal.condition);
   return composeProjectReadinessViewResult(input.result);
 }
@@ -53,7 +53,7 @@ it.each([false, true])("keeps an edge to an archived slug reused by a live Erran
   expect(result.facts.find(fact => fact.slug === "dependent")).toMatchObject({ readiness: "blocked",
     dependencySatisfaction: "unsatisfied", unsatisfiedDependencies: [h.edge] });
   expect(result.warnings).toMatchObject([{ code: "dangling-dependency", workUnit: "dependent", dependency: h.edge }]);
-  const ready = await readStoreUserReady({ store: h.store, reviewAfterDays: 14, identity: "test-user" });
+  const ready = await readStoreUserReady({ cwd: "/project", store: h.store, reviewAfterDays: 14, identity: "test-user" });
   expect(ready).toMatchObject({ status: "ok", result: { rows: [],
     warnings: [{ code: "dangling-dependency", workUnit: "dependent", dependency: h.edge }] } });
 });
@@ -75,7 +75,7 @@ it.each([false, true])("retains an archived-target lookup refusal and recovers a
   expect(recovered.facts.find(fact => fact.slug === "dependent")).toMatchObject({ readiness: "ready",
     dependencySatisfaction: "satisfied", unsatisfiedDependencies: [] });
   expect(recovered.warnings).toEqual([]);
-  expect(await readStoreUserReady({ store, reviewAfterDays: 14, identity: "test-user" })).toMatchObject({ status: "ok",
+  expect(await readStoreUserReady({ cwd: "/project", store, reviewAfterDays: 14, identity: "test-user" })).toMatchObject({ status: "ok",
     result: { rows: [{ workUnit: "dependent" }], warnings: [] } });
 });
 
@@ -91,7 +91,7 @@ it("keeps the latest completed work unit standing when only archived metas tie o
   lifecycleSuccess(await h.store.write({ ...recordPut(earlier, {
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q3") },
   }), provenance: { verb: "archive", lifecycleAction: "archive" } }));
-  const input = await readStoreProjectViewInput({ store: h.store, reviewAfterDays: 14 });
+  const input = await readStoreProjectViewInput({ cwd: "/project", store: h.store, reviewAfterDays: 14 });
   if (input.status !== "ok") throw new Error(input.refusal.condition);
   expect(input.result.records.find(record => record.slug === "reused")).toMatchObject({ state: "Shipped", priority: "P3" });
   const result = composeProjectReadinessViewResult(input.result);

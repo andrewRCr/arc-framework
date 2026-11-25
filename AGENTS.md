@@ -20,6 +20,9 @@ the retry remains stale, or any other failure occurs, stop and follow that comma
 failure or recovery path. For `npx arc recover audit ...`, preserve the recovery marker
 when stopping. Do not generalize this repair beyond the complete stale-build refusal.
 
+The dev CLI rebuilds a stale build and runs the command again on its own, so this refusal
+appears only when that rebuild fails, or in a checkout from before the CLI did so.
+
 ## Review guidelines
 
 > _These guidelines govern **requested hosted code reviews** via the review gate (for example, a hosted Codex

@@ -21,17 +21,17 @@ describe("reference archive publication", () => {
       completed.push({ store, record: success(await store.read({ reference: result.reference })), saved: success(await store.version()) });
     }
     const first = completed[rightFirst ? 1 : 0]!, second = completed[rightFirst ? 0 : 1]!;
-    success(await first.store.sync());
-    success(await second.store.sync());
-    success(await first.store.sync());
+    success(await first.store.push());
+    success(await second.store.push());
+    success(await first.store.push());
     for (const store of [left, right, remote]) {
       expect(success(await store.read({ reference: first.record.reference })).placement).toEqual({ ...placement, sequence: "01" });
       expect(success(await store.read({ reference: second.record.reference })).placement).toEqual({ ...placement, sequence: "02" });
     }
     for (const entry of completed) expect(success(await entry.store.read({ reference: entry.record.reference, asOf: entry.saved }))).toEqual(entry.record);
     const final = success(await remote.version());
-    expect(success(await left.sync()).publishes[0]?.status).toBe("noop");
-    expect(success(await right.sync()).publishes[0]?.status).toBe("noop");
+    expect(success(await left.push()).publishes[0]?.status).toBe("noop");
+    expect(success(await right.push()).publishes[0]?.status).toBe("noop");
     expect(success(await remote.version())).toBe(final);
   });
   it.each([false, true])("preserves published positions and coherently renumbers incoming companions; remote first: %s", async (remoteFirst) => {
@@ -47,13 +47,13 @@ describe("reference archive publication", () => {
       return { primary: StoreRecordSchema.parse(success(await store.read({ reference: primary.reference }))), task: StoreRecordSchema.parse(success(await store.read({ reference: task }))) };
     };
     const first = await make(publishFirst, "published");
-    if (!remoteFirst) success(await local.sync());
+    if (!remoteFirst) success(await local.push());
     const second = await make(incoming, "incoming");
     const beforeLocal = success(await local.version()), beforeRemote = success(await remote.version());
     const secondStore = remoteFirst ? local : remote;
     const secondAnchor = success(await secondStore.version());
     expect(second.primary.placement).toEqual({ ...placement, sequence: remoteFirst ? "01" : "02" });
-    success(await local.sync());
+    success(await local.push());
     for (const store of [local, remote]) {
       expect(success(await store.read({ reference: first.primary.reference }))).toEqual(first.primary);
       const published = StoreRecordSchema.parse(success(await store.read({ reference: second.primary.reference })));
@@ -73,7 +73,7 @@ describe("reference archive publication", () => {
     }
     expect(success(await secondStore.read({ reference: second.primary.reference, asOf: secondAnchor }))).toEqual(second.primary);
     const finalLocal = success(await local.version()), finalRemote = success(await remote.version());
-    expect(success(await local.sync()).publishes[0]?.status).toBe("noop");
+    expect(success(await local.push()).publishes[0]?.status).toBe("noop");
     expect(success(await local.version())).toBe(finalLocal);
     expect(success(await remote.version())).toBe(finalRemote);
   });
@@ -91,7 +91,7 @@ describe("reference archive publication", () => {
     }
     const errand = fixture.reference("work-item/record", "errand");
     success(await fixture.store.write({ action: "put", reference: errand, expected: null, content: fixture.content(errand), placement, provenance: testProvenance }));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     for (const store of [fixture.store, remote]) {
       for (const [index, record] of incoming.entries()) expect(success(await store.read({ reference: record.reference })).placement).toEqual({ ...placement, sequence: String(index + 2).padStart(2, "0") });
       expect(success(await store.read({ reference: errand })).placement).toEqual(placement);
@@ -110,7 +110,7 @@ describe("reference archive publication", () => {
       const reference = fixture.reference("work-item/meta", "published-during-cas");
       await remote.write({ action: "put", reference, expected: null, content: fixture.content(reference), placement, provenance: testProvenance });
     };
-    expect(success(await local.sync()).publishes[0]?.status).toBe("reconciled");
+    expect(success(await local.push()).publishes[0]?.status).toBe("reconciled");
     expect(success(await remote.read({ reference: incoming })).placement).toEqual({ ...placement, sequence: "02" });
     expect(success(await local.history({ reference: incoming }))).toHaveLength(2);
   });
@@ -129,10 +129,10 @@ describe("reference archive publication", () => {
       const reference = RecordReferenceSchema.parse({ ...moving, owner: { ...moving.owner, name: `moving-${remote.state.counter}` } });
       await remote.write({ action: "put", reference, expected: null, content: fixture.content(reference), placement, provenance: testProvenance });
     };
-    expect(success(await local.sync()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
+    expect(success(await local.push()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
     expect(local.state).toEqual(saved);
     memoryRemote.beforePublish = undefined;
-    success(await local.sync());
+    success(await local.push());
     expect(success(await local.read({ reference: incoming })).placement).toEqual({ ...placement, sequence: "04" });
     expect(success(await remote.read({ reference: incoming })).placement).toEqual({ ...placement, sequence: "04" });
   });

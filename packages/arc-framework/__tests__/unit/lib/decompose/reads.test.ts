@@ -16,7 +16,7 @@ it("observes additive, preview, and apply through the public store boundary", as
   const h = await createDecomposeReadFixture();
   const counted = createCountingStore(h.store);
   h.ctx.executor.store = counted.store;
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   expect(await runStoreDecomposeAdditive(h.ctx, "origin", "execute", { cutMap: h.map, cutMapPath: "cut.json" })).toMatchObject({ status: "ok" });
   expect(counted.observations().length).toBeGreaterThan(0);
   counted.reset();
@@ -83,7 +83,7 @@ async function measure(scaled: boolean) {
   await rememberOwners();
   const counted = createCountingStore(h.store);
   h.ctx.executor.store = counted.store;
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   expect(await runStoreDecomposeAdditive(h.ctx, "origin", "execute", { cutMap: h.map, cutMapPath: "cut.json" })).toMatchObject({ status: "ok" });
   const additive = counted.observations();
   if (scaled) await lengthenHistories(h);

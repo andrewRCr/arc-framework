@@ -1,9 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   handleDeliveryEntryInspect,
   type DeliveryEntryInspectHandlerDependencies,
 } from "../../../src/handlers/delivery-entry.js";
+import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
+import { LifecycleCommandRefusalSchema } from "../../../src/handlers/lifecycle-shared.js";
+
+const previousExitCode = process.exitCode;
+afterEach(() => { vi.restoreAllMocks(); process.exitCode = previousExitCode; });
 
 function dependencies(result: unknown): DeliveryEntryInspectHandlerDependencies {
   return {
@@ -83,6 +88,35 @@ describe("delivery entry handler", () => {
     expect(deps.inspect).toHaveBeenCalledOnce();
     if (result.status === "refused") expect(deps.setExitCode).toHaveBeenCalledWith(1);
     else expect(deps.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("names a native store refusal's own remedy when inspection fails, and routes once the store is repaired", async () => {
+    const refusal = nativeListingRefusal();
+    const route = { status: "not-applicable", nextAction: "continue-work-unit", recommendedActionText: "Continue." };
+    const deps = dependencies(route);
+    vi.mocked(deps.inspect).mockRejectedValueOnce(refusal);
+    let stdout = "";
+    vi.spyOn(process.stdout, "write").mockImplementation(chunk => { stdout += String(chunk); return true; });
+    const emitted = async () => {
+      stdout = "";
+      await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+      return JSON.parse(stdout || vi.mocked(deps.write).mock.calls.at(-1)?.[0] as string) as unknown;
+    };
+
+    expect(LifecycleCommandRefusalSchema.parse(await emitted())).toMatchObject({ status: "rejected",
+      reason: refusal.refusal.condition, refusal: refusal.refusal,
+      remedy: { text: expect.stringContaining(refusal.refusal.remedy.text) } });
+    expect(process.exitCode).toBe(1);
+    expect(await emitted()).toEqual({ schemaVersion: 1, command: "delivery entry inspect", ...route });
+  });
+
+  it("refuses an unavailable inspection without a remedy it cannot name", async () => {
+    const deps = dependencies({ status: "not-applicable" });
+    vi.mocked(deps.inspect).mockRejectedValueOnce(new Error("unreadable checkout"));
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+
+    expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toEqual({ schemaVersion: 1,
+      command: "delivery entry inspect", status: "refused", reason: "inspection-unavailable" });
   });
 
   it("rejects malformed attended input before reading delivery facts", async () => {

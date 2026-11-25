@@ -7,14 +7,16 @@
  * @module
  */
 
+import type { StoreRecord } from "../store/read.js";
 import type { Store } from "../store/contract.js";
 import { createStore } from "../store/create.js";
-import { createDefaultStorePorts } from "../store/default-ports.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
-import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration } from "./worktree-marker.js";
-import { SlugSchema } from "../kernel/index.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration, type WorktreeMarker } from "./worktree-marker.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { lstat } from "node:fs/promises";
 import { readTerminalWorkUnitLineage } from "../locus/store-terminal-work-unit.js";
+import { classifyUnboundMarker } from "../locus/unbound-marker.js";
 
 import { validateState } from "../kernel/schema/vocabulary.js";
 import { z } from "zod";
@@ -23,6 +25,7 @@ import { parseMetaRecord } from "../active/meta-reader.js";
 import { type ParsedMetaRecord } from "../active/meta-schema.js";
 
 import type { GitExec } from "./exec.js";
+import { nativeGitPath } from "../local-path-identity.js";
 import {
   parseGitWorktreePorcelainZ,
   type GitWorktreePorcelainRecord,
@@ -246,18 +249,20 @@ type FolderStat = (path: string) => Promise<unknown>;
 /**
  * Read registered topology and observe each registration's physical folder once.
  *
- * Missing paths read absent; other observation failures retain presence.
+ * Missing paths read absent; other observation failures retain presence. Paths take the host's native spelling.
  * @param exec - Injectable command executor (local only — no remote)
  * @param lstatPath - Folder observation boundary, defaulting to Node lstat
+ * @param platform - Platform whose path spelling the topology uses
  * @returns A bounded topology snapshot or an explicit read/parse failure
  */
 export async function scanRegisteredWorktrees(
   exec: GitExec,
   lstatPath: FolderStat = lstat,
+  platform: NodeJS.Platform = process.platform,
 ): Promise<RegisteredWorktreeScanResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]), platform);
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
@@ -450,8 +455,12 @@ function buildEntry(
   };
 }
 
-function parseWorktreeList(result: { stdout: string }): GitWorktreePorcelainRecord[] {
-  return parseGitWorktreePorcelainZ(result.stdout);
+function parseWorktreeList(
+  result: { stdout: string },
+  platform: NodeJS.Platform = process.platform,
+): GitWorktreePorcelainRecord[] {
+  return parseGitWorktreePorcelainZ(result.stdout)
+    .map((worktree) => ({ ...worktree, path: nativeGitPath(worktree.path, platform) }));
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {
@@ -478,9 +487,15 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
       const ownership = decodeWorktreeMarkerOwnership(marker.marker);
       if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit") return entry;
       entry.workUnit = ownership.subject.name;
-      const lookup = await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(entry.workUnit) } });
+      if (marker.marker.husk?.subject.kind === "work-unit") return { ...entry, retired: true as const };
+      const unbound = await unboundRosterWarning(store, worktree.path, marker.marker, ownership.subject.uid);
+      if (unbound !== null) {
+        warnings.push(unbound);
+        return entry;
+      }
+      const lookup = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, entry.workUnit, ownership.subject.uid) });
       if (lookup.status === "refused") {
-        if (lookup.refusal.code === "not-found" && await readTerminalWorkUnitLineage(store, entry.workUnit) !== null) {
+        if (lookup.refusal.code === "not-found" && await readTerminalWorkUnitLineage(store, ownership.subject.uid ?? entry.workUnit) !== null) {
           entry.retired = true;
           return entry;
         }
@@ -490,16 +505,21 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
       if (read.status === "refused") { warnings.push(`${worktree.path}: ${read.refusal.condition} ${read.refusal.remedy.text}`); return entry; }
       if (read.result.conflicts.length > 0) throw new Error(
         `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry the roster.`);
-      if (read.result.placement !== undefined) entry.placement = read.result.placement.kind;
-      Object.assign(entry, storeRosterFields(ParsedMetaRecordSchema.parse(read.result.fields)));
+      Object.assign(entry, storeRosterFields(read.result));
     } catch (error) { warnings.push(`${worktree.path}: ${error instanceof Error ? error.message : String(error)}`); }
     return entry;
   }));
   return { entries, warnings };
 }
+async function unboundRosterWarning(store: Store, cwd: string, marker: WorktreeMarker, uid?: string): Promise<string | null> {
+  if (uid !== undefined || marker.husk !== undefined) return null;
+  return (await classifyUnboundMarker({ store, cwd, marker })).reason;
+}
 
-function storeRosterFields(fields: ParsedMetaRecord): Partial<WorktreeRosterEntry> {
+function storeRosterFields(record: StoreRecord): Partial<WorktreeRosterEntry> {
+  const fields = ParsedMetaRecordSchema.parse(record.fields);
   return {
+    ...(record.placement === undefined ? {} : { placement: record.placement.kind }),
     ...(fields.owner === null ? {} : { identity: fields.owner }),
     ...(fields.state === null ? {} : { state: validateState(fields.state) }),
     ...(fields.cohort === null ? {} : { cohort: fields.cohort }),

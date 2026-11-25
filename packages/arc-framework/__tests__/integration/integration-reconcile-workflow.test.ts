@@ -36,6 +36,9 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toContain("payload.recommendedActionText");
     expect(step).toContain("payload.selectionPromptText");
     expect(step).toContain("payload.resolutionSelector");
+    expect.soft(step).toContain("`selectedBy`");
+    expect.soft(step).toContain("`choice`");
+    expect.soft(step).toContain("`targetedEvidenceRef`");
     expect(step).toContain("arc candidate applicability resolve {name} -");
     expect(step).toContain("`resolved / commit-selection`");
     expect(step).toContain("`exact-replay / commit-selection`");

@@ -1,8 +1,9 @@
 /** Recovery projection from one exact entering-checkout frame. */
 
-import { posix } from "node:path";
+import { posix, win32 } from "node:path";
 import { z } from "zod";
 
+import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
@@ -134,7 +135,7 @@ function workUnitContext(
   return {
     frame: RecoveryLocusFrameSchema.parse({
       kind: "resolved",
-      subject,
+      subject: { kind: subject.kind, key: subject.key },
       checkoutPath: row.checkout.path,
       parentCheckoutPath: null,
       workflow: recoveryWorkflowForWorkUnit(context),
@@ -156,6 +157,8 @@ function transientContext(
 ): RecoveryLocusContext {
   const parent = resolveParentWorkUnit(options.state.roster, row.parentCheckoutPath);
   const workflow = transientWorkflow(subject);
+  const parentLoadSet = parent === null || row.parentCheckoutPath === null ? null
+    : anchorParentArtifacts(parent, row.parentCheckoutPath, options.identity);
   return {
     frame: RecoveryLocusFrameSchema.parse({
       kind: "resolved",
@@ -165,12 +168,60 @@ function transientContext(
       workflow: workflow.name,
       sessionType: parent?.sessionType ?? null,
     }),
-    loadSet: appendRecoveryWorkflow(parent?.loadSet ?? baseLoadSet(options), workflow.path),
+    loadSet: appendRecoveryWorkflow(parentLoadSet ?? baseLoadSet(options), workflow.path),
     taskCursor: parent?.sessionType === "planning" ? null : parent?.taskCursor ?? null,
   };
 }
 
 type RecoveryParentWorkUnitContext = NonNullable<DerivedCheckoutRow["context"]> & { workflow: string; workUnit: string };
+
+/**
+ * Anchor the parent work unit's own artifacts to the parent checkout.
+ *
+ * A transient's recovery reads from its own checkout, where the parent's meta, task list, session notes, and cohort
+ * document do not exist. The shared ARC context and workflows stay checkout-relative.
+ */
+function anchorParentArtifacts(
+  parent: RecoveryParentWorkUnitContext,
+  parentCheckoutPath: string,
+  identity: string | null,
+): LoadSetManifest {
+  const owned = new Set([
+    parent.metaPath,
+    parent.taskListPath,
+    parent.cohortDocPath,
+    parentSessionNotesPath(parent.workUnit, identity),
+  ]);
+  return {
+    manifestVersion: parent.loadSet.manifestVersion,
+    entries: parent.loadSet.entries.map((entry) => owned.has(entry.path)
+      ? { ...entry, path: anchorParentPath(parentCheckoutPath, entry.path) }
+      : entry),
+  };
+}
+
+/**
+ * Resolve a parent-owned load-set path from the parent checkout, joined in the checkout path's own style.
+ *
+ * @param parentCheckoutPath - The transient's marker parent checkout
+ * @param path - A path the parent's load set names; an absolute path is returned unchanged
+ * @returns The path a transient's recovery reads the parent artifact from
+ */
+export function anchorParentPath(parentCheckoutPath: string, path: string): string {
+  if (posix.isAbsolute(path) || win32.isAbsolute(path)) return path;
+  return parentCheckoutPath.startsWith("/") ? posix.join(parentCheckoutPath, path) : win32.join(parentCheckoutPath, path);
+}
+
+function parentSessionNotesPath(workUnit: string, identity: string | null): string | null {
+  const owner = SlugSchema.safeParse(identity);
+  const unit = SlugSchema.safeParse(workUnit);
+  if (!owner.success || !unit.success) return null;
+  return resolveArcPath({
+    kind: "user-document",
+    identity: owner.data,
+    document: { kind: "session-notes", workUnit: unit.data },
+  });
+}
 
 /** Resolve inherited context only for the exact selected transient and its healthy marker parent. */
 export function resolveRecoveryParentContext(state: DerivedLocusFrame, frame: RecoveryLocusFrame): RecoveryParentWorkUnitContext | null {
@@ -220,7 +271,8 @@ function recoveryWorkflowForWorkUnit(
   return context.stage;
 }
 
-function transientWorkflow(
+/** Resolve the owning workflow for an already selected transient subject. */
+export function transientWorkflow(
   subject: Exclude<DerivedCheckoutSubject, { kind: "work-unit" }>,
 ): { name: string; path: string } {
   switch (subject.kind) {

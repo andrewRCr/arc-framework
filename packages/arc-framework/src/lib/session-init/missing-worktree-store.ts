@@ -1,4 +1,5 @@
 /** Missing-folder repairs use the linked work item's placement and branch authority. */
+import { teardownOperand } from "../work-unit/store-retirement-evidence.js";
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import type { Store } from "../store/contract.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
@@ -7,8 +8,8 @@ import { missingRegistrationActions } from "./missing-worktree-folders.js";
 import type { SessionAction } from "./actions.js";
 /** Resolve a branch registration without inferring work ownership from branch spelling. */
 export async function readStoreMissingFolderActions(input: { store: Store; projectId?: () => Promise<string>; warnings?: string[] },
-  checkout: { path: string; branch: string | null }, locked: boolean): Promise<SessionAction[] | null> {
-  const plain = () => missingRegistrationActions(checkout.path, { locked });
+  checkout: { path: string; branch: string | null }, lock: string | null | undefined): Promise<SessionAction[] | null> {
+  const plain = () => missingRegistrationActions(checkout.path, { lock });
   if (checkout.branch === null) return plain();
   let project;
   try { project = await resolveProjectIdentity(input.projectId ?? createProjectIdentityReader(input.store)); }
@@ -36,5 +37,5 @@ export async function readStoreMissingFolderActions(input: { store: Store; proje
     return null;
   }
   const link = links[0];
-  return link.linkedAs === "created" ? missingRegistrationActions(checkout.path, { locked, workUnitName: read.result.reference.owner.name }) : plain();
+  return link.linkedAs === "created" ? missingRegistrationActions(checkout.path, { lock, workUnitName: await teardownOperand(input.store, read.result.reference.owner) }) : plain();
 }

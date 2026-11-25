@@ -29,6 +29,8 @@ export interface PromotionFrameReceipt {
   originEntry: string | null;
   originEntrySourceDigest: CanonicalDigest | null;
   metaCommitted: boolean;
+  /** Operational owner binding; absent for tracked in-repo promotion. */
+  uid?: string;
 }
 
 export type PromotionFrameResult = PromotionFrameReceipt

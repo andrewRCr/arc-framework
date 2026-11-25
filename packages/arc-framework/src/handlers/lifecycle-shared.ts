@@ -1,13 +1,16 @@
 /** Ambient context, executor binding, and reporting shared by lifecycle command adapters. */
 
+import { SessionActionsSchema } from "../lib/session-init/actions.js";
+import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { readFile, readdir } from "node:fs/promises";
-import type { Remedy } from "../lib/store/refusal.js";
-import type { StoreRefusal } from "../lib/store/refusal.js";
+import { StoreRefusalSchema, type Remedy, type StoreRefusal } from "../lib/store/refusal.js";
+import type { RecordReference } from "../lib/store/identity.js";
 import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
 import type { Store } from "../lib/store/contract.js";
+import type { OwnerIdentity } from "../lib/store/identity.js";
 import type { GitExec } from "../lib/git/exec.js";
 import * as p from "../lib/terminal.js";
 import { z } from "zod";
@@ -59,6 +62,10 @@ export interface VerbBase {
   locusPorts?: LocusPorts;
   /** Optional store injection preserved through executor binding. */
   store?: Store;
+  /** Already resolved project identity shared with nested operations. */
+  projectId?: () => Promise<string>;
+  /** Exact work-item generation selected by the invocation. */
+  workItem?: OwnerIdentity;
   /** Ephemeral provenance of this exact default instance; replacing it preserves injection. */
   defaultStoreBinding?: { store: Store; reopen: (cwd: string, exec: GitExec) => Store };
   identity: string;
@@ -137,6 +144,7 @@ export async function buildExecutor(base: VerbBase) {
     cwd: base.cwd,
     ...(base.locusPorts === undefined ? {} : { locusPorts: base.locusPorts }),
     ...(base.store === undefined ? {} : { store: base.store }),
+    ...(base.projectId === undefined ? {} : { projectId: base.projectId }),
     ...(reopenStore === undefined ? {} : { reopenStore }),
     io: base.io,
     identity: base.identity,
@@ -177,34 +185,61 @@ export function reportOutcome(label: string, lines: string[], outcome: Transitio
  */
 export function refuse(reason: string, refusal?: StoreRefusal, remedy?: Remedy): void {
   const recovery = refusal?.remedy ?? remedy;
-  const details = `${refusal === undefined ? "" : `${refusal.code}: `}${reason}${recovery === undefined ? "" : `\n${recovery.text}`}`;
+  const holders = refusal?.code === "ambiguous-match" ? refusal.candidates.map(renderRefusalCandidate) : [];
+  const details = [`${refusal === undefined ? "" : `${refusal.code}: `}${reason}`, ...holders,
+    ...(recovery === undefined ? [] : [recovery.text])].join("\n");
   const command = recovery?.argv?.map((value) => /^[A-Za-z0-9_./:@+-]+$/u.test(value) ? value : quoteShellArgument(value)).join(" ");
   p.log.error(command === undefined ? details : `${details}\n${command}`);
   process.exitCode = 1;
 }
 
-/** Refuse with the failed invariant and the one command that advances from it. */
+const holderLabels: Partial<Record<RecordReference["kind"], string>> = {
+  "work-item/meta": "work unit", "work-item/record": "Errand", "cohort/document": "cohort",
+};
+/** Render a selected holder's lifecycle type, current name, and generation. */
+export function renderRefusalCandidate(reference: RecordReference): string {
+  const label = holderLabels[reference.kind] ?? reference.kind;
+  const uid = reference.owner.type === "person" ? undefined : reference.owner.uid;
+  return `${label} \`${reference.owner.name}\` (UID ${uid ?? "unavailable"})`;
+}
+
+/** Lifecycle refusals preserve a corrective command or exact checkout recovery actions. */
 export const LifecycleCommandRefusalSchema = z.strictObject({
   status: z.literal("rejected"),
   reason: z.string().min(1),
-  remedy: SpineRemedySchema,
+  remedy: z.union([SpineRemedySchema, SessionActionsSchema]),
+  refusal: StoreRefusalSchema.optional(),
 });
+
+/** Render every checkout-bound recovery exit for an unbound work-unit target. */
+export function refuseUnboundTarget(unbound: Pick<UnboundMarkerClassification, "reason" | "exits">, json = false): void {
+  if (!json) { refuse(unbound.reason); return; }
+  const envelope = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason: unbound.reason, remedy: unbound.exits });
+  process.stdout.write(`${JSON.stringify(envelope)}\n`);
+  process.exitCode = 1;
+}
 
 /**
  * Report a refusal with its recovery command.
  * @param reason - Refusal diagnostic.
  * @param remedy - Exact recovery guidance.
  * @param json - Whether to emit the canonical refusal as JSON.
+ * @param refusal - Complete store evidence, when the refusal came from the store.
  * @returns Nothing.
  */
-export function refuseWithRemedy(reason: string, remedy: SpineRemedy | Remedy, json = false): void {
-  const recovery = "invariant" in remedy ? remedy : spineRemedy(reason, remedy.text, remedy.argv ?? ["arc", "status", "--json"]);
+export function refuseWithRemedy(reason: string, remedy: SpineRemedy | Remedy, json = false, refusal?: StoreRefusal): void {
+  const repair = refusal?.code === "ambiguous-match" ? refusal.remedy : undefined;
+  const recovery = repair === undefined
+    ? "invariant" in remedy ? remedy : spineRemedy(reason, remedy.text, remedy.argv ?? ["arc", "status", "--json"])
+    : SpineRemedySchema.parse({ invariant: reason, ...repair, argv: repair.argv ?? ["arc", "status", "--json"] });
   if (json) {
-    const refusal = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy: recovery });
-    process.stdout.write(`${JSON.stringify(refusal)}\n`);
+    const envelope = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy: recovery,
+      ...(refusal === undefined ? {} : { refusal }) });
+    process.stdout.write(`${JSON.stringify(envelope)}\n`);
     process.exitCode = 1;
     return;
   }
+  if (refusal !== undefined) { refuse(reason, refusal, repair ?? remedy); return; }
   if ("invariant" in remedy) refuse(`${reason}\n${remedy.text}`);
   else refuse(reason, undefined, remedy);
 }

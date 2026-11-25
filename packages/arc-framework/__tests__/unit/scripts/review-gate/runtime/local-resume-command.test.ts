@@ -272,7 +272,6 @@ describe("local resume command", () => {
       },
       dispositionStore: {
         readDispositionRecord: async () => null,
-        appendDispositionRecord: vi.fn(),
       },
       confirmTarget: async () => ({ state: "current" as const, target: records.operation.target }),
       materialize,
@@ -306,7 +305,6 @@ describe("local resume command", () => {
       },
       dispositionStore: {
         readDispositionRecord: vi.fn(),
-        appendDispositionRecord: vi.fn(),
       },
       confirmTarget: async () => ({ state: "current" as const, target: records.operation.target }),
       materialize,
@@ -361,7 +359,6 @@ describe("local resume command", () => {
       },
       dispositionStore: {
         readDispositionRecord: vi.fn(),
-        appendDispositionRecord: vi.fn(),
       },
       confirmTarget: async () => currency === "current"
         ? { state: "current", target: records.operation.target }
@@ -408,7 +405,6 @@ describe("local resume command", () => {
       },
       dispositionStore: {
         readDispositionRecord: vi.fn(),
-        appendDispositionRecord: vi.fn(),
       },
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       materialize,
@@ -463,7 +459,6 @@ describe("local resume command", () => {
       receiptStore: { readReceipts, appendReceipt },
       dispositionStore: {
         readDispositionRecord: vi.fn(),
-        appendDispositionRecord: vi.fn(),
       },
       confirmTarget: async () => ({
         state: "stale-target",
@@ -529,7 +524,6 @@ describe("local resume command", () => {
       },
       dispositionStore: {
         readDispositionRecord: async () => null,
-        appendDispositionRecord: vi.fn(),
       },
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       materialize: vi.fn(),
@@ -576,7 +570,6 @@ describe("local resume command", () => {
       },
       dispositionStore: {
         readDispositionRecord: vi.fn(),
-        appendDispositionRecord: vi.fn(),
       },
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       materialize: vi.fn(),

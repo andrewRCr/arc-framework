@@ -8,7 +8,7 @@ import type { Store } from "../store/contract.js";
 import { recordReferences, sameReference, type RecordReference } from "../store/identity.js";
 import { WorkUnitReadPlacementSchema } from "../store/placement.js";
 import { workItemArtifactPath } from "../store/lifecycle-storage.js";
-import type { StoreSyncPort } from "../store/operational-sync.js";
+import { bindStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
 import type { StoreRecord } from "../store/read.js";
 import { readStateHistory } from "./state-history.js";
 
@@ -22,8 +22,9 @@ export interface StoreRestateCandidates {
  * @param input - Selected store, work item, restating person and synchronization port.
  * @returns Null before the first stored handoff, otherwise operational changes.
  */
-export async function deriveStoreRestateCandidates(input: { store: Store; workUnit: RecordReference; identity: string; sync?: StoreSyncPort }): Promise<StoreRestateCandidates | null> {
-  const { store, workUnit, sync } = input;
+export async function deriveStoreRestateCandidates(input: { cwd: string; store: Store; workUnit: RecordReference; identity: string; sync?: StoreSyncPort }): Promise<StoreRestateCandidates | null> {
+  const { store, workUnit } = input;
+  const sync = input.sync ?? bindStoreSyncPort(store);
   const current = await readStateHistory(() => store.version(), sync);
   const meta = await readStateHistory(() => store.read({ reference: workUnit, asOf: current }), sync);
   const fields = ParsedMetaRecordSchema.parse(meta.fields);
@@ -47,7 +48,7 @@ export async function deriveStoreRestateCandidates(input: { store: Store; workUn
   }
   return { commit: fields.commitAtHandoff, tasks: [...tasks],
     notes: changes.some((entry) => sameReference(entry.reference, notes))
-      ? [workItemArtifactPath(meta.reference.owner.name, "notes", WorkUnitReadPlacementSchema.parse(meta.placement), fields.cohort)] : [] };
+      ? [await workItemArtifactPath(input.cwd, meta.reference.owner.name, "notes", WorkUnitReadPlacementSchema.parse(meta.placement), fields.cohort)] : [] };
 }
 function closedTasks(content: string): Set<string> {
   const scan = scanTaskListStructure(content);

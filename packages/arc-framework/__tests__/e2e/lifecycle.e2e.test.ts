@@ -2,8 +2,8 @@
  * Lifecycle E2E test.
  *
  * Golden path: init → verify installed → modify files → health shows changes →
- * diff shows correct output → update → customizations preserved → health
- * still shows modified (customized file differs from pristine).
+ * diff shows correct output → commit → update → customizations preserved →
+ * health still shows modified (customized file differs from pristine).
  *
  * This is the "beta is functional enough" success criterion exercised
  * end-to-end in a single test.
@@ -12,7 +12,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, expect, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, commitAll } from "./helpers.js";
 
 async function runHealthCheck(cwd: string): Promise<string> {
   const result = await runArc(["health"], cwd);
@@ -75,7 +75,8 @@ describe("lifecycle", () => {
     expect(diffOutput).toContain("DEV-RULES.PROJECT.md");
     expect(diffOutput).toContain("My Custom Quality Gate");
 
-    // --- Update preserves customization ---
+    // --- Commit the customization; update preserves it ---
+    await commitAll(tmpDir);
     const update = await runArc(["update"], tmpDir);
     expect(update.exitCode).toBe(0);
 

@@ -48,7 +48,7 @@ it("detects a changed conflict set at an unchanged subject version and can obser
   for (const key of ["first-clash", "second-clash"]) {
     const reference = RecordReferenceSchema.parse({ owner: observed.reference.owner, kind: "work-item/conflict-record", key });
     const content = JSON.stringify(ConflictRecordSchema.parse({ record: observed.reference,
-      location: { kind: "hunk", start: 1, end: 2 }, base: "base", current: { content: "current", label },
+      baseVersion: null, currentLines: 1, incomingLines: 1, location: { kind: "hunk", start: 1, end: 2 }, base: "base", current: { content: "current", label },
       incoming: { content: "incoming", label } }));
     success(await fixture.store.write({ action: "put", reference, expected: null, content, provenance: testProvenance }));
     conflicts.push(success(await fixture.store.read({ reference })));

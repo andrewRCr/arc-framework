@@ -38,7 +38,7 @@ import { writeMetaDesign } from "../../store/kinds/meta/writers.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /** The executor capability the design repoint needs — nothing more. */
-export type RepointDesignContext = Pick<ExecuteTransitionContext, "writeDesignField" | "store">;
+export type RepointDesignContext = Pick<ExecuteTransitionContext, "cwd" | "writeDesignField" | "store">;
 
 /** The planning moment driving the repoint. */
 export type RepointDesignEvent = "draft-created" | "spec-finalized";
@@ -113,10 +113,11 @@ async function repointThroughStore(ctx: RepointDesignContext, name: string, even
   if (event === "spec-finalized" && ParsedMetaRecordSchema.parse(record.fields).state === "Planning") {
     content = writeMetaNextAction(writeMetaCurrentWorkflow(content, "generate-tasks"), BEGIN_CURRENT_WORKFLOW_SENTINEL);
   }
+  const metaPath = await workUnitMetaPath(ctx.cwd, record);
   const written = await batchLifecycleWrites(ctx.store, [recordPut(record, { content })],
     { verb: "repoint-design", lifecycleAction: event });
   return written.status === "refused" ? { status: "rejected", reason: written.refusal.condition, refusal: written.refusal }
-    : { status: "ok", metaPath: workUnitMetaPath(record), design: next.length === 0 ? "[none]" : next.join(", ") };
+    : { status: "ok", metaPath, design: next.length === 0 ? "[none]" : next.join(", ") };
 }
 
 function repointedDesign(current: readonly string[], draft: string, spec: string, event: RepointDesignEvent): string[] {

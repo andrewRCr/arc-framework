@@ -156,7 +156,7 @@ must match the current Candidate and carries the ordered sources and exact oblig
   pre-publication policy fields.
 - `continue-pre-publication-review` remains the singleton continuation while a pre-publication action is still owed.
   Invoke `integrationBoundary.nextAction.command` and apply [code-review's successor decision][code-successor-decision]
-  to its clean-fix-check continuation, including a hosted-first reservation before convergence verification or
+  to its converged-fix-check continuation, including a hosted-first reservation before convergence verification or
   publication. That private continuation carries explicit acceptance through `lanes.standard.terminus`. After it settles
   and the exact PR is open, re-enter the singleton status route above.
 
@@ -184,8 +184,8 @@ scope and any supplied member terminus. Carry an approved consequence through `-
 WU-scoped status command for delivery, or `arc review status --target '{targetRef}'` for an ordinary singleton.
 
 A `review-hosted-request` or `review-local-prepare` result may also carry `terminusAction` after an earlier complete
-pass. Surface it as an optional Owner alternative. The clean-fix-check recommendation above determines whether to stop
-for that choice; otherwise, absent explicit acceptance, execute the returned review action unchanged.
+pass. Surface it as an optional Owner alternative. The successor decision's recommendation above determines whether to
+stop for that choice; otherwise, absent explicit acceptance, execute the returned review action unchanged.
 
 Apply [code-review's convergence procedure][code-convergence] to the concluded look and returned applicability.
 A delivery's authorized additional complete pass is exact JSON in `--additional-pass` on the same WU-scoped status
@@ -509,11 +509,12 @@ selection; only the recorded selection acts. A `judgmentRequired: false` result 
 fires the method.
 
 After an explicit `covered`, `targeted-check`, or `changed` choice, compose the strict input from
-`payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, add the completed check's
-evidence reference; the review movement check runs at most once for a movement. Other evidence kinds retain their
-ordinary bounded verification. Then invoke `arc candidate applicability resolve {name} -` with that input.
-For `covered` or `targeted-check`, `resolved / commit-selection` and `exact-replay / commit-selection` leave the
-Candidate selection staged. Request `arc check gate commit` over that correction, then commit:
+`payload.resolutionSelector`, adding `selectedBy` (the selecting actor) and `choice`. For `targeted-check`, also add
+`targetedEvidenceRef`, the completed check's evidence reference; the review movement check runs at most once for a
+movement. Other evidence kinds retain their ordinary bounded verification. Then invoke
+`arc candidate applicability resolve {name} -` with that input. For `covered` or `targeted-check`,
+`resolved / commit-selection` and `exact-replay / commit-selection` leave the Candidate selection staged.
+Request `arc check gate commit` over that correction, then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -619,8 +620,12 @@ No commit or push may occur after `ready`.
 Re-enter status once over the checkpointed head, in Step 2's status scope, and surface its `hostReview`, the host's
 own review verdict — a merge blocker the ready evidence does not clear. `changes-requested` names each blocking
 review's author, ID, and reviewed commit; the host refuses the merge while one stands, so obtain Owner direction to
-dismiss it or request re-review before merge. `approval-required` names a host approval still missing. On
-`unavailable` or a status refusal, surface the detail and inspect the PR's native review on the host instead.
+dismiss it or request re-review before merge. To dismiss a review service's review on that direction, pass
+`{ "schemaVersion": 1, "target": <target>, "review": <blocking review> }` to `arc review hosted dismiss -`, with the
+exact `{ repository, pullRequest, headSha }` target and the blocking review unchanged. It refuses a person's review or
+one whose service still has an unresolved thread, and writes the dismissal message itself. `approval-required` names
+a host approval still missing. On `unavailable` or a status refusal, surface the detail and inspect the PR's native
+review on the host instead.
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the ready evidence and `hostReview` read. Surface each,
@@ -703,25 +708,26 @@ after a partial teardown skips what is already done:
   preservation, the remote head is left intact and surfaced;
 - from outside a distinct linked worktree, removes it after the existing clean and user-surface guards;
 - from inside that worktree, preflights cleanliness, preservation, and every user-surface reconciliation before
-  detaching `HEAD`; on success it reaps refs but leaves the current directory as a live terminal husk;
+  detaching `HEAD`; the personal `arc.selfTeardownMode` preference defaults to `husk`, leaving an unlocked,
+  stamped terminal husk after reaping refs. With `remove`, the CLI moves to primary and removes the checkout;
 - keeps the primary/in-place arm unchanged — switch away from the WU branch and reap refs without husking;
 - prunes the stale remote-tracking ref a deleted remote branch left behind.
 
 Interpret a self-teardown result explicitly:
 
-- **Husk created:** This session remains live in a detached, disposable worktree. Report whether the local branch
-  was reaped. If it survived an operational delete failure, report the exact ref and retry `arc teardown <wu-name>`
-  from this husk or the primary; remote deletion is skipped on that attempt and prune still runs. When the marker was
-  stamped, the husk can be removed later by re-running teardown from outside or accepting the primary worktree's
-  stale-worktree offer. When the marker is absent, malformed, or could not be extended, report an externally managed
-  husk: remove/prune it manually from outside; do not promise a sweep backstop. Never reuse a husk for new work.
+- **Husk created:** Report that the folder remains, whether its branch was reaped, and the verb's exact outside
+  removal command. Never reuse a husk for new work. If ref cleanup failed, retain the verb's exact retry route.
+  From primary, `arc teardown` previews stamped husks and `arc teardown --yes` removes eligible ones, listing
+  every removed or retained path with its reason. Unstamped and externally managed checkouts remain untouched.
+- **Checkout removed:** Report that the invoking shell or agent session is now in a deleted directory; run all
+  subsequent commands from the reported primary checkout. On Windows, `remove` falls back to a husk with a notice.
 - **Cannot husk:** Dirty tree, unproven preservation, and blocked user-surface reconciliation are atomic refusals —
   the worktree remains branched and unchanged. Resolve a dirty tree or user-surface block and re-run. If preservation
   cannot be proven in place, inspect and dispose from outside the worktree. Stop at this step until the refusal is
   resolved; there is no `--force` escape.
 
 An outside re-run may physically remove only a clean stamped husk whose live `HEAD` still equals its stamp. A dirty
-or moved-`HEAD` husk is refused; a re-run from inside the husk never removes its own cwd.
+or moved-`HEAD` husk is refused. The no-argument sweep refuses to run from inside a husk.
 
 Then run the [same-session finalize pass][session-handoff-finalize] as an opportunistic early catch — a no-op
 unless this session opened another PR that has merged outside an attended ceremony (a concurrent WU, or this one

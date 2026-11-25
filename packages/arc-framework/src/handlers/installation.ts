@@ -19,7 +19,7 @@ import { getFrameworkVersion, checkLatestVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import { normalizeGitRejection } from "../lib/git/process-error.js";
-import { runWithSpinner, isHandledError, requireArcProjectRoot } from "./shared.js";
+import { runWithSpinner, isHandledError, requireArcProjectRoot, requireGitRepo } from "./shared.js";
 import { createSyncOutput } from "../lib/sync-output.js";
 import { readChangelog, filterChangelogRange, buildChangelogDisplay } from "../lib/changelog.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
@@ -40,7 +40,7 @@ export const installationCommandInputPolicyDeclarations = [{
 // --- Update ---
 
 export async function handleUpdate(
-  options: { quiet?: boolean } = {},
+  options: { quiet?: boolean; keepLocalWithoutBaseline?: boolean } = {},
   interaction?: InteractionContext,
 ): Promise<void> {
   p.intro("arc update");
@@ -52,10 +52,15 @@ export async function handleUpdate(
   try {
     const cwd = requireArcProjectRoot();
     if (!cwd) return;
+    const io = createIOContext(interaction?.subprocess);
+    if (!(await requireGitRepo(io.exec))) return;
     const result = await runWithSpinner(
       output,
       "Updating ARC framework files...",
-      () => runUpdate({ cwd, io: createIOContext(interaction?.subprocess), templateDir, recipe }),
+      () => runUpdate({
+        cwd, io, templateDir, recipe,
+        keepLocalWithoutBaseline: options.keepLocalWithoutBaseline === true,
+      }),
       "Update complete.",
     );
 

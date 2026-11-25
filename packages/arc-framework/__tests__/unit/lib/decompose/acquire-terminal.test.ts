@@ -188,7 +188,7 @@ it("recognizes a sibling only by its own birth name even when it takes another m
   const first = lifecycleSuccess(await h.store.read({ reference: h.applied.report.members[0]!.meta }));
   await h.seedRetiredWorkUnit(first);
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" },
-    { sourceSlug: "member-b", targetSlug: "member-a" })).toMatchObject({ status: "renamed" });
+    { operand: "member-b", targetSlug: "member-a" })).toMatchObject({ status: "renamed" });
   const store = oncePerRecord(h.store);
   const result = await acquireDecomposeTerminal({ ...h.ctx, executor: { ...h.ctx.executor, store } }, "origin");
   if (result.status === "refused") throw new Error(JSON.stringify(result));

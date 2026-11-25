@@ -58,6 +58,24 @@ describe("default capture set", () => {
     if (repaired.status === "available") expect(repaired.commits.map((value) => value.sha)).toEqual([sha]);
   });
 
+  it("preserves an interrupted tracking-base probe instead of including base commits, then retries", async () => {
+    const onBase = await commit("already on tracking base\n");
+    await exec("git", ["update-ref", "refs/remotes/origin/main", onBase]);
+    const current = await commit("task work\n");
+    const failure = Object.assign(new Error("Tracking base probe interrupted"), { exitCode: 1, signal: "SIGTERM" });
+    let broken = true;
+    const guarded: GitExec = async (command, args, options) => {
+      if (broken && args[1] === "rev-parse" && args[4] === "refs/remotes/origin/main^{commit}") throw failure;
+      return exec(command, args, options);
+    };
+    const input = { exec: guarded, cwd, baseBranch: "main", repository: "project", refresh: false };
+    await expect(computeDefaultCaptureSet(input)).rejects.toBe(failure);
+    broken = false;
+    const repaired = await computeDefaultCaptureSet(input);
+    expect(repaired.status).toBe("available");
+    if (repaired.status === "available") expect(repaired.commits.map(value => value.sha)).toEqual([current]);
+  });
+
   it("resolves linked, detached, unlinked and branchless checkouts distinctly", async () => {
     const link = { repository: "project", ref: "feat/work", linkedAs: "created" as const, excluded: [] };
     const input = { exec, cwd, repository: "project", branches: [link] };

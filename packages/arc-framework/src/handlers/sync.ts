@@ -48,6 +48,8 @@
  */
 
 import { access } from "node:fs/promises";
+import type { Store } from "../lib/store/contract.js";
+import { restoreSyncProjection } from "../lib/store/projection/sync-materialization.js";
 
 import {
   buildSaveSummary,
@@ -79,6 +81,8 @@ import {
   type PushabilityCondition,
 } from "../lib/git/index.js";
 import { executeInboundPull } from "../lib/git/inbound-pull.js";
+import { StoreImportedError, storeImportedRefusal } from "../lib/store/store-imported.js";
+import { preCutoverBuildSealed } from "./pre-cutover-seal.js";
 import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { createPushGateId, readCheckoutPushGateRefusal, type PushGateRefusal } from "../lib/checks/push-gate-record.js";
 import { pushBranchBoundedNotesExport } from "../lib/user-sync/branch-bounded-notes-export.js";
@@ -99,10 +103,7 @@ import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
 import type { PromptOutcome } from "../lib/command-input/prompter.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
-import {
-  ARC_PROJECT_ROOT_ERROR,
-  resolveUserIdentity,
-} from "./shared.js";
+import { ARC_PROJECT_ROOT_ERROR, resolveUserIdentity } from "./shared.js";
 import { inspectSyncWorktree } from "./sync-worktree-inspection.js";
 import { writeSyncAuditEntry } from "./sync-audit.js";
 
@@ -405,7 +406,7 @@ type ExecutedOutcome = Omit<
 export async function handleSync(
   opts: SyncOptions = {},
   output: SyncOutput = createSyncOutput(opts.json === true),
-  context: InteractionContext,
+  context: InteractionContext, store: Store,
 ): Promise<void> {
   output.intro("arc sync");
 
@@ -421,12 +422,8 @@ export async function handleSync(
     throw err;
   }
 
-  const cwd = resolveArcRoot(process.cwd());
-  if (!cwd) {
-    output.log.error(ARC_PROJECT_ROOT_ERROR);
-    emitErrorEnvelope(opts, "no-arc-project");
-    return;
-  }
+  const cwd = await prepareSyncRoot(opts, output, store);
+  if (!cwd) return;
 
   const io = createUserIOContext(context.subprocess);
   const resolvedSettings = await resolveAllSettings({
@@ -1348,6 +1345,23 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
   }
 }
 
+/** The ARC root sync runs in, or null once it has reported why sync cannot run here. */
+async function prepareSyncRoot(opts: SyncOptions, output: SyncOutput, store: Store): Promise<string | null> {
+  const cwd = resolveArcRoot(process.cwd());
+  if (!cwd) {
+    output.log.error(ARC_PROJECT_ROOT_ERROR);
+    emitErrorEnvelope(opts, "no-arc-project");
+    return null;
+  }
+  if (await preCutoverBuildSealed(cwd)) {
+    output.log.error(formatError(new StoreImportedError()));
+    emitErrorEnvelope(opts, "store-imported");
+    return null;
+  }
+  await restoreSyncProjection(store, cwd, opts);
+  return cwd;
+}
+
 /**
  * Emit the early-return envelope for handler paths where matrix execution
  * never started (identity unresolved, cwd not under an ARC project).
@@ -1363,11 +1377,11 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
  */
 function emitErrorEnvelope(
   opts: SyncOptions,
-  reason: "identity-absent" | "no-arc-project",
+  reason: "identity-absent" | "no-arc-project" | "store-imported",
 ): void {
   process.exitCode = 1;
   if (opts.json === true) {
-    const envelope = { cell: "none", reason };
+    const envelope = { cell: "none", reason, ...(reason === "store-imported" ? { refusal: storeImportedRefusal() } : {}) };
     process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
   }
 }

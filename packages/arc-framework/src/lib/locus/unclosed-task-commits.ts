@@ -5,7 +5,7 @@ import { computeDefaultCaptureSet, resolveLinkedCheckoutBranch, type DefaultCapt
 import type { SessionAction } from "../session-init/actions.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { resolveTaskListCursor } from "../task-list/cursor.js";
-import { readWorkUnit } from "../store/lifecycle-write.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { readLifecycleView } from "../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
 import { recordReferences } from "../store/identity.js";
@@ -19,13 +19,14 @@ export type UnclosedTaskCommits =
   | (TaskRefusal & { actions: SessionAction[] });
 /** Boundaries for one selected entering work unit, never an entire checkout roster. */
 export interface ComputeUnclosedTaskCommitsInput {
-  store?: Store; slug: string; cwd: string; baseBranch: string; exec: GitExec; execRaw?: RawGitExec; projectId?: () => Promise<string>;
+  store?: Store; slug: string; uid?: string; cwd: string; baseBranch: string; exec: GitExec; execRaw?: RawGitExec; projectId?: () => Promise<string>;
 }
 /** Compute once after entering work-unit selection; inactive or in-repo contexts carry no listing. */
 export async function computeUnclosedTaskCommits(input: ComputeUnclosedTaskCommitsInput): Promise<UnclosedTaskCommits | null> {
   const store = input.store;
   if (!store?.capabilities.stateOffBranch) return null;
-  const meta = await readWorkUnit(store, input.slug);
+  const claimed = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, input.slug, input.uid) });
+  const meta = claimed.status === "refused" ? claimed : await store.read({ reference: claimed.result.reference });
   if (meta.status === "refused") return projectRefusal(input, storeRefusal(meta.refusal));
   const fields = ParsedMetaRecordSchema.safeParse(meta.result.fields);
   if (!fields.success) return projectRefusal(input, refuseTask("Work-unit metadata does not read.", "Repair the work-unit metadata, then retry."));
@@ -35,7 +36,7 @@ export async function computeUnclosedTaskCommits(input: ComputeUnclosedTaskCommi
   if (resolveTaskListCursor(tasks.result.content).status === "no-open-task") return null;
   const targets = prepareTaskTargets(tasks.result.content, [], "close");
   if (targets.status === "refused") return projectRefusal(input, targets);
-  const inventory = await inventoryRefusal(store);
+  const inventory = await inventoryRefusal(input.cwd, store);
   if (inventory !== null) return projectRefusal(input, inventory);
   const project = await projectIdentity(input, store);
   if (project.status === "refused") return projectRefusal(input, project);
@@ -46,8 +47,8 @@ export async function computeUnclosedTaskCommits(input: ComputeUnclosedTaskCommi
   if (snapshot.status === "refused") return baseRefusal(input, snapshot.reason, snapshot.remedy);
   return { status: "available", commits: snapshot.commits, actions: closeActions(input, snapshot.commits, fields.data.pause !== null), warnings: snapshot.warnings };
 }
-async function inventoryRefusal(store: Store): Promise<TaskRefusal | null> {
-  const view = await readLifecycleView(store);
+async function inventoryRefusal(checkoutRoot: string, store: Store): Promise<TaskRefusal | null> {
+  const view = await readLifecycleView(checkoutRoot, store);
   if (view.status === "refused") return storeRefusal(view.refusal);
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { return refuseTask(error instanceof Error ? error.message : String(error), "Repair the named lifecycle records, then retry the task verb.", "inventory-incomplete"); }

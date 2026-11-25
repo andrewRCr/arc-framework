@@ -38,6 +38,9 @@ import {
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from
   "../../../../../src/scripts/review-gate/core/ports.js";
+import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
+import { createReviewDecisionPort } from "../../../../../src/lib/store/kinds/review/decision/access.js";
+import { resolveNativeExtraPassJudgment } from "../../../../../src/scripts/review-gate/runtime/native-extra-pass.js";
 import {
   readLaneProgressAcrossLineage,
   recordLaneAttempt,
@@ -204,11 +207,12 @@ const defaultStandardReview = projectStandardReviewObligation(resolveReviewRouti
 function hostedFindingsResult(
   producerId: string,
   pullRequest: number,
+  projection = defaultStandardReview,
 ): ReviewResult {
   if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
   const requirement = createReviewRequirement({
     target: immutableTarget.target,
-    projection: defaultStandardReview,
+    projection,
     acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
     initialAdmission: "automatic",
   });
@@ -270,9 +274,6 @@ function evidenceDependencies(results: readonly ReviewResult[]) {
     },
     dispositionStore: {
       readDispositionRecord: vi.fn(async (producerId: string) => dispositions.get(producerId) ?? null),
-      appendDispositionRecord: vi.fn(async () => {
-        throw new Error("unexpected disposition write");
-      }),
     },
     readResponsePerformance: vi.fn(async () => null),
   };
@@ -289,9 +290,6 @@ function dependencies(
     },
     dispositionStore: {
       readDispositionRecord: vi.fn(async () => null),
-      appendDispositionRecord: vi.fn(async () => {
-        throw new Error("unexpected disposition write");
-      }),
     },
     readResponsePerformance: vi.fn(async () => null),
     confirmIncrementalApplicability: vi.fn(async () => "applicable" as const),
@@ -336,6 +334,71 @@ function memoryOperationStore(): ReviewOperationStateStore {
       return { version: expectedVersion + 1 };
     },
   };
+}
+
+function twoMemberCeilingFixture() {
+  const first = deliveryMemberTarget({
+    deliverableCharacter: "1",
+    baseCharacter: "2",
+    headCharacter: "3",
+  });
+  const second = deliveryMemberTarget({
+    deliverableCharacter: "4",
+    baseCharacter: "3",
+    headCharacter: "5",
+  });
+  const firstResult = frontlineCleanResult("first-clean", first);
+  const deps = Object.assign(dependencies({
+    ...evidenceDependencies([firstResult]),
+    readAssurance: async () => ({
+      ...resolvedAssurance,
+      activity: { selfReview: true, frontlineReview: true },
+    }),
+    readLanePolicy: async (lane) => lane === "frontline"
+      ? { sources: ["coderabbit-cli", "codex-cli"], maxPasses: 2 }
+      : { sources: ["codex-pr"], maxPasses: 2 },
+    readLaneProgress: async (lane, headSha) => lane === "frontline" && headSha === first.target.headSha
+      ? {
+          status: "recorded" as const,
+          completedPasses: 1,
+          completePasses: 1,
+          attempts: [{
+            attemptId: "first-clean",
+            logicalPass: 1,
+            sourceId: "coderabbit-cli",
+            outcome: "clean" as const,
+          }],
+        }
+      : lane === "frontline"
+        ? {
+            status: "recorded" as const,
+            completedPasses: 2,
+            completePasses: 2,
+            attempts: [{
+              attemptId: "second-rate-limited",
+              logicalPass: 2,
+              sourceId: "coderabbit-cli",
+              outcome: "rate-limited" as const,
+            }],
+          }
+        : { status: "recorded" as const, completedPasses: 0, completePasses: 0, attempts: [] },
+    readReservationTarget: async (_workUnit, singleton) => ({
+      status: "resolved" as const,
+      target: {
+        kind: "delivery" as const,
+        repository: singleton.repository,
+        planId: DELIVERY_PLAN_ID,
+        workUnitId: WORK_UNIT_ID,
+      },
+    }),
+  }), {
+    readDeliveryReviewTargets: async () => ({
+      status: "composed" as const,
+      planId: DELIVERY_PLAN_ID,
+      targets: [first, second],
+    }),
+  });
+  return { first, second, deps };
 }
 
 describe("composePrePublicationReviewRequest", () => {
@@ -873,68 +936,27 @@ describe("composePrePublicationReviewRequest", () => {
     });
   });
 
+  it("applies a native frontline ceiling judgment to the selected member alone, whatever the others' counts", async () => {
+    const { first, second, deps } = twoMemberCeilingFixture();
+    const h = createReviewHarness(), owner = (await h.seedMeta("example")).reference.owner;
+    const facts = { decisions: createReviewDecisionPort(h.store, owner), readProjectId: async () => "arc-framework/example" };
+    const native: PrePublicationCompositionDependencies = { ...deps, stateOffBranch: true,
+      resolveExtraPassJudgment: async context => (await resolveNativeExtraPassJudgment({ ...context, facts,
+        repositoryId: context.repositoryId ?? "arc-framework/example", actor: "owner", now: "2026-10-30T12:00:00Z" })).judgment };
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example",
+      lanes: { frontline: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } } }, native);
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(second.target);
+    expect(composition.request.frontline.ceilingOverride).toMatchObject({
+      target: { headSha: second.target.headSha }, exhaustedPassCount: 2, nextPass: 3 });
+    const decisions = await facts.decisions.list();
+    expect(decisions.status === "complete" && decisions.records.map(({ value }) => value.subject.headSha)).toEqual([second.target.headSha]);
+    expect(first.target.headSha).not.toBe(second.target.headSha);
+  });
+
   it("applies a frontline ceiling override only to its bound outstanding delivery member", async () => {
-    const first = deliveryMemberTarget({
-      deliverableCharacter: "1",
-      baseCharacter: "2",
-      headCharacter: "3",
-    });
-    const second = deliveryMemberTarget({
-      deliverableCharacter: "4",
-      baseCharacter: "3",
-      headCharacter: "5",
-    });
-    const firstResult = frontlineCleanResult("first-clean", first);
-    const deps = Object.assign(dependencies({
-      ...evidenceDependencies([firstResult]),
-      readAssurance: async () => ({
-        ...resolvedAssurance,
-        activity: { selfReview: true, frontlineReview: true },
-      }),
-      readLanePolicy: async (lane) => lane === "frontline"
-        ? { sources: ["coderabbit-cli", "codex-cli"], maxPasses: 2 }
-        : { sources: ["codex-pr"], maxPasses: 2 },
-      readLaneProgress: async (lane, headSha) => lane === "frontline" && headSha === first.target.headSha
-        ? {
-            status: "recorded" as const,
-            completedPasses: 1,
-            completePasses: 1,
-            attempts: [{
-              attemptId: "first-clean",
-              logicalPass: 1,
-              sourceId: "coderabbit-cli",
-              outcome: "clean" as const,
-            }],
-          }
-        : lane === "frontline"
-          ? {
-              status: "recorded" as const,
-              completedPasses: 2,
-              completePasses: 2,
-              attempts: [{
-                attemptId: "second-rate-limited",
-                logicalPass: 2,
-                sourceId: "coderabbit-cli",
-                outcome: "rate-limited" as const,
-              }],
-            }
-          : { status: "recorded" as const, completedPasses: 0, completePasses: 0, attempts: [] },
-      readReservationTarget: async (_workUnit, singleton) => ({
-        status: "resolved" as const,
-        target: {
-          kind: "delivery" as const,
-          repository: singleton.repository,
-          planId: DELIVERY_PLAN_ID,
-          workUnitId: WORK_UNIT_ID,
-        },
-      }),
-    }), {
-      readDeliveryReviewTargets: async () => ({
-        status: "composed" as const,
-        planId: DELIVERY_PLAN_ID,
-        targets: [first, second],
-      }),
-    });
+    const { first, second, deps } = twoMemberCeilingFixture();
     const lanes = {
       frontline: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } },
     };
@@ -1056,12 +1078,16 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.standard.standardReview.reasons).toContain("unknown-change-set");
   });
 
-  it("routes a supplied change set through the router rather than the unestablished default", async () => {
+  it.each([
+    ["asserts it known", { changeSetState: "known" }],
+    ["omits its state", {}],
+    ["asserts it unknown", { changeSetState: "unknown" }],
+  ])("routes a supplied change set whose caller %s through the router, not the unestablished default", async (_label, state) => {
     const composition = await composePrePublicationReviewRequest(
       {
         workUnit: "example",
         changeSet: {
-          changeSetState: "known",
+          ...state,
           contentKind: "documentation",
           reviewRisk: "routine",
           changeDeterminacy: "ordinary",
@@ -1076,7 +1102,9 @@ describe("composePrePublicationReviewRequest", () => {
     if (composition.status !== "composed") return;
     expect(composition.request.standard.standardReview.obligation).toBe("exempt");
     expect(composition.request.standard.standardReview.reasons).not.toContain("unknown-change-set");
+    expect(composition.request.routingFacts.changeSetState).toBe("known");
     expect(composition.advisories).toHaveLength(0);
+    expect(composition.routingDiagnostics).toBeUndefined();
   });
 
   it("reduces supplied facts in the composition rather than accepting a caller's obligation", async () => {
@@ -1124,6 +1152,7 @@ describe("composePrePublicationReviewRequest", () => {
     ["an unrecognized fact value", { changeSetState: "known", contentKind: "prose" }, "contentKind"],
     ["an unrecognized fact key", { changeSetState: "known", blastRadius: "wide" }, "blastRadius"],
     ["a non-record change set", "documentation", "$"],
+    ["a change set missing facts", { contentKind: "documentation" }, "reviewRisk"],
   ])("normalizes %s to the conservative route and says why", async (_label, changeSet, path) => {
     const composition = await composePrePublicationReviewRequest(
       { workUnit: "example", changeSet },
@@ -1136,6 +1165,38 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.standard.standardReview.reasons).toContain("unknown-change-set");
     expect(composition.advisories).toHaveLength(1);
     expect(composition.advisories[0]).toContain(path);
+    expect(composition.routingDiagnostics).toContain(path);
+  });
+
+  it("refuses a producer prepared under other facts with both routings, and composes once they match", async () => {
+    const prepared = { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+      ownership: "self", surfaceAuthority: "ordinary" };
+    const project = (facts: Record<string, string>) => {
+      const projection = projectStandardReviewObligation(resolveReviewRouting({ schemaVersion: 1,
+        changeSetState: "known", ...facts, assurance: resolvedAssurance.assurance, activity: resolvedAssurance.activity,
+      }).decision);
+      return { ...projection, reasons: [...projection.reasons].sort() };
+    };
+    const producer = hostedFindingsResult("attempt-1", 42, project(prepared));
+    const compose = (changeSet: Record<string, string>) => composePrePublicationReviewRequest(
+      { workUnit: "example", changeSet }, dependencies({
+        ...evidenceDependencies([producer]),
+        resolveTarget: async () => ({ status: "resolved", target: { ...resolvedTarget.target, pullRequest: 42 } }),
+        readLaneProgress: async (lane) => lane === "standard"
+          ? { status: "recorded", completedPasses: 1, completePasses: 1,
+              attempts: [{ attemptId: "attempt-1", logicalPass: 1, sourceId: "codex-pr", outcome: "findings" }] }
+          : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
+      }));
+
+    expect(await compose({ ...prepared, reviewRisk: "routine" })).toMatchObject({
+      status: "refused",
+      code: "invalid-input",
+      routingMismatch: {
+        producerReview: project(prepared),
+        requestReview: { ...project({ ...prepared, reviewRisk: "routine" }), reasons: expect.any(Array) },
+      },
+    });
+    expect(await compose(prepared)).toMatchObject({ status: "composed" });
   });
 
   it("binds each lane's scope and ceiling judgment to the resolved target and lane", async () => {
@@ -1451,7 +1512,6 @@ describe("composePrePublicationReviewRequest", () => {
           readDispositionRecord: async (producerId) => producerId === predecessor.producerId
             ? record
             : null,
-          appendDispositionRecord: async () => { throw new Error("unexpected disposition write"); },
         },
         readResponsePerformance,
         readLaneProgress: async (lane) => lane === "standard"
@@ -1512,7 +1572,7 @@ describe("composePrePublicationReviewRequest", () => {
 
   it.each([
     ["a missing Candidate record", { readCandidate: async (): Promise<CandidateRead> => ({ status: "missing" }) }, "No managed Candidate record", undefined],
-    ["an unexplained reviewable delta", { readCandidate: async (): Promise<CandidateRead> => ({ status: "blocked", reason: "Run full work-unit verification." }) }, "Run full work-unit verification.", "candidate-unexplained-delta"],
+    ["an unexplained reviewable delta", { readCandidate: async (): Promise<CandidateRead> => ({ status: "blocked", reason: "Run full work-unit verification.", continuation: { kind: "re-enter" } }) }, "Run full work-unit verification.", "candidate-unexplained-delta"],
     ["an unbindable rubric", { readAssurance: async (): Promise<AssuranceRead> => ({ status: "refused", reason: "rubric unavailable" }) }, "rubric unavailable", undefined],
     ["unresolvable origin coordinates", { resolveTarget: async (): Promise<TargetRead> => ({ status: "refused", reason: "no origin" }) }, "no origin", undefined],
   ] as const)("refuses on %s", async (_label, override, expected, expectedCode) => {
@@ -1524,6 +1584,8 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.status).toBe("refused");
     expect(composition.status === "refused" && composition.reason).toContain(expected);
     expect(composition.status === "refused" ? composition.code : undefined).toBe(expectedCode);
+    expect(composition.status === "refused" ? composition.candidateContinuation : undefined)
+      .toEqual(expectedCode === undefined ? undefined : { kind: "re-enter" });
   });
 
   it("does not read assurance, target, or progress once the Candidate read refuses", async () => {

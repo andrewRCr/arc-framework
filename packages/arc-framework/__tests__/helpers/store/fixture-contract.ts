@@ -1,4 +1,4 @@
-/** Backend-neutral hooks and named exclusions used by the seventeen-item conformance suite. */
+/** Backend-neutral hooks and named exclusions used by the eighteen-item conformance suite. */
 
 import type {
   FamilyId, KindId, KindDefinition, RecordReference, RefusalCode, StateVersion, Store, StoreResult,
@@ -6,7 +6,7 @@ import type {
 } from "../../../src/lib/store/index.js";
 
 /** The numbered contract item, kept stable across every backend fixture. */
-export type SuiteItem = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+export type SuiteItem = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
 /** One refusal scenario; interim unsupported cases and missing identity have their own names. */
 export type RecoveryCaseId = Exclude<RefusalCode, "unsupported" | "not-found">
   | `unsupported:${UnsupportedCase}` | "not-found:name" | "not-found:identity"
@@ -71,4 +71,23 @@ export interface ConformanceFixture {
 export interface ConformanceRegistration {
   declarations: FixtureDeclarations;
   create(registryOverrides?: Partial<Record<KindId, Partial<KindDefinition>>>): ConformanceFixture | Promise<ConformanceFixture>;
+  /** How the registration's files divide its cases; absent when one file runs them all. */
+  runs?: ConformanceRuns;
 }
+
+/** A registration's declared per-change subset and the item range each of its split files runs. */
+export interface ConformanceRuns {
+  /** Case IDs, by item, that a per-change run selects. */
+  subset?: Partial<Record<SuiteItem, readonly string[]>>;
+  /** Each split file's item range or part of one; together they cover every case once. */
+  ranges?: Readonly<Record<string, ItemRange>>;
+}
+
+/** One split file's cases: every case of an item range, given as its first and last item, or one part of a range. */
+export type ItemRange = readonly [SuiteItem, SuiteItem] | ItemRangePart;
+
+/** Part `index` of `of`: every `of`-th case of the range's items in registration order, starting at case `index`. */
+export interface ItemRangePart { readonly items: readonly [SuiteItem, SuiteItem]; readonly part: readonly [number, number] }
+
+/** The cases one file runs: every case, one declared item range, or the declared per-change subset. */
+export type ConformanceRun = { range: string } | "subset";

@@ -304,7 +304,7 @@ Update session state files before ending session:
 **Task List**: [filename of task list, e.g., tasks-config-parser.md]
   [OR: [none associated] for planning/boundary work between task lists]
 **Next Task**: Task 3.3 — Write unit tests (line ~247)
-  [REQUIRED when following task list — triple-anchor format enables graduated lookup at session init]
+  [REQUIRED when following task list — use triple-anchor format]
   [Always points to the next task to work on (or continue if mid-task). Never [none] when incomplete tasks remain.]
   [Omit only when no task list exists or all tasks are complete.]
 **Last Completed**: Task 3.2 — Add validation logic
@@ -667,10 +667,11 @@ Dispatch only on its typed state and action:
       branch containment-safe, removes any distinct worktree, and prunes stale remote-tracking refs;
     - run the [Notes-sync leg](#notes-sync-leg) to re-anchor the saved user note onto the merged HEAD.
 - `none / create-change-request`, `merged-stale-head / reconcile-head`, `closed-unmerged / reopen-change-request`,
-  `ambiguous / stop`, or `blocked / stop` → **failed / blocked** — surface loudly, for both the manual- and
-  auto-merge lanes.
-- `open / reuse-change-request` → **still-pending** — hand to the session-init completion sweep; no action this
-  session.
+  `blocked / stop`, or `ambiguous / stop` without `headAhead` → **failed / blocked** — surface loudly, for both the
+  manual- and auto-merge lanes.
+- `open / reuse-change-request`, or `ambiguous / stop` with `headAhead: true` (the open request lags only a newer
+  head that is unpushed or not yet seen by the host) → **still-pending** — hand to the session-init completion
+  sweep; no action this session.
 
 ## Notes-sync leg
 

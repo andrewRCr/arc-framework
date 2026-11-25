@@ -1,6 +1,9 @@
 ---
 purpose: Restore ARC operating context after harness compaction from the latest compaction seed.
 audience: agent
+arc:
+  methods:
+    - read-load-set
 ---
 
 # Workflow: Session Recovery
@@ -106,12 +109,9 @@ stop condition already fired.
 
 ## 3. Rehydrate The Load Set
 
-Load `report.recover.loadSet.value.entries`; the manifest order is the context order, not a
-serial-read requirement. Issue independent reads in a single tool message when the platform
-supports parallel reads. Never wait on one document before issuing the next unless locating a
-slice genuinely depends on the earlier read. Never load from the seed's paths. The harness
-summary is authoritative for the volatile work in progress, but not for ARC operating
-context; verify it against the recovered files when it names a task.
+Use `report.recover.loadSet.value.entries` as the recovery read plan; never load from the seed's paths. The harness
+summary is authoritative for the volatile work in progress, but not for ARC operating context; verify it against the
+recovered files when it names a task.
 
 Run checkout-relative reads and every resumed project command from the resolved
 `report.recover.recoveryFrame.value.checkoutPath`. A recovery audit invoked from primary may have selected a
@@ -130,30 +130,13 @@ the resumed step does not need. Two classes sit outside it:
 - **Design artifacts.** `spec-*`, `notes-*`, and the task list beyond the manifest's `partial-strategic` slice
   are not manifest members. Load them at their step trigger.
 
-Apply each entry's `readMode`:
+For any `partial-strategic` entry, require verified `taskCursor.section` and `taskCursor.leaf` anchors from the audit
+report. If the report lacks a verified anchor, stop. Do not fall back to the active meta file's `**Next Task:**`.
 
-- `full` - read the whole file.
-- `partial-section` - read only the named heading section.
-- `partial-strategic` - read the active task-list header, current phase preamble, and current
-  task section. Use the verified `taskCursor.section` and `taskCursor.leaf` anchors from the
-  audit report. If the report lacks a verified anchor, stop. Do not fall back to the active
-  meta file's `**Next Task:**`. Slice the task list as follows:
-    1. Header — read the content above the first `## **Phase` heading.
-    2. Current phase preamble — derive the phase id from `taskCursor.section.id` by stripping the leaf segment (`5.3` ->
-       `5`, `3.R.e` -> `3.R`), then read from `## **Phase {id}:**` through the line before the first checkbox under that
-       phase.
-    3. Current task section — start at `taskCursor.section.lineHint`, falling back to the
-       section id and title only if the hint is stale, and read through the line before the
-       next parent task or phase heading. The `taskCursor.leaf` identifies the executable
-       checkbox inside that section.
-
-  If offsets are needed, build one structural map from phase/task headings rather than repeated
-  ad hoc searches. Stop if the current task section cannot be located — the verified anchor is
-  then wrong, which is not yours to resolve. A missing header or phase preamble is a
-  structural-convention miss instead: surface it and continue with the slices that resolved.
-
-Preserve the manifest order when reconciling loaded content and deciding what procedural
-context applies, even when the reads complete out of order.
+Execute the read plan with the [read-load-set][read-load-set] method, using those verified anchors for strategic
+reads. Stop automatic recovery if the method cannot locate the current task section; preserve the pending marker.
+A missing header or phase preamble is a structural-convention miss: surface it and continue with the slices that
+resolve.
 
 The load set already includes the state-selected lifecycle workflow when the recovered state has one. Open-task
 execution maps to `process-task-loop`; ordinary execution closeout maps to `verify-work-unit`; scoped
@@ -211,3 +194,7 @@ On-demand context loaded mid-task before compaction is not restored here; reload
 normal trigger if the resumed work needs it again. If the harness summary says compaction happened
 inside a nested workflow such as `archive-work-unit`, load that workflow through its normal trigger
 after base recovery is complete.
+
+---
+
+[read-load-set]: ../../../methods/read-load-set.md

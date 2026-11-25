@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { splitEntryList } from "../../../../../src/lib/store/concurrency/entries.js";
 import { mergeEntryText } from "../../../../../src/lib/store/concurrency/entry-merge.js";
 import { entryVersion } from "../../../../../src/lib/store/kinds/entry-fields.js";
-import { RecordReferenceSchema } from "../../../../../src/lib/store/identity.js";
+import { RecordReferenceSchema, RecordVersionSchema } from "../../../../../src/lib/store/identity.js";
 
 it.each([
   { change: "separator", section: "Inbox", body: "base", separator: "\n\n\n", survives: false },
@@ -19,6 +19,6 @@ it.each([
   if (a === undefined || b === undefined) throw new Error("Fixture must contain an entry");
   expect(entryVersion(a) === entryVersion(b)).toBe(!survives);
   const merged = mergeEntryText({ record: RecordReferenceSchema.parse({ owner: { type: "project", name: "inbox" }, kind: "project-inbox/inbox" }),
-    base, current, incoming: "", currentLabel: { actor: "current", time: "2026-01-01T00:00:00Z" }, incomingLabel: { actor: "incoming", time: "2026-01-01T00:00:00Z" } }, config);
+    baseVersion: RecordVersionSchema.parse("record:fixture:base"), base, current, incoming: "", currentLabel: { actor: "current", time: "2026-01-01T00:00:00Z" }, incomingLabel: { actor: "incoming", time: "2026-01-01T00:00:00Z" } }, config);
   expect(first(merged.content) !== undefined).toBe(survives);
 });

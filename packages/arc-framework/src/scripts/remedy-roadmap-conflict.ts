@@ -8,6 +8,7 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { basename } from "node:path";
@@ -101,6 +102,6 @@ export async function runRoadmapConflictAutoRemedyCommand(): Promise<void> {
 const modulePath = fileURLToPath(import.meta.url);
 // Preserve the source-script fallback without treating the importing bundle (`dist/cli.js`) as
 // this module's entrypoint. Bundlers rewrite import.meta.url for every bundled source module.
-if (basename(modulePath).startsWith("remedy-roadmap-conflict.") && modulePath === process.argv[1]) {
+if (basename(modulePath).startsWith("remedy-roadmap-conflict.") && await isMainModule(import.meta, process.argv[1])) {
   void runRoadmapConflictAutoRemedyCommand();
 }

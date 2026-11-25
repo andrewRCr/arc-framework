@@ -1,5 +1,11 @@
 /** Source-authoritative orchestration for `arc review respond`. */
+import { requireResponseErrand, staleErrandResponseEnvelope } from "./respond-errand-context.js";
+import { requireNativeReviewDecisionReferences, withoutReviewDecisionReferences } from "../policy/review-grant-references.js";
 import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-report-inputs.js";
+import {
+  approvalPolicyBindingMismatches,
+  type ApprovalPolicyBinding,
+} from "../policy/approval-policy-binding.js";
 import {
   readApprovedResponseReport,
   readResponsePassAssessment,
@@ -12,6 +18,7 @@ import { type ProvisionalStandardPassFacts } from "./provisional-pass-assessment
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
+import { validateNativeExtraPassReferences, type NativeExtraPassInput } from "./native-extra-pass.js";
 import {
   CandidateManagedRecordV1Schema,
   CandidateVerificationApplicabilitySchema,
@@ -54,6 +61,7 @@ import { SeverityGatingPolicySchema } from "../core/severity-gating-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import {
   computeConditionalPassAuthorizationId,
+  conditionalPassFollowsProducer,
   type LaneResponsePerformance,
 } from "../core/operation-state-schema.js";
 import {
@@ -65,6 +73,7 @@ import type {
   ReviewResultReader,
 } from "../core/ports.js";
 import type { ReviewResult } from "../core/review-result.js";
+import type { DesignExportResult } from "../../../lib/work-unit/design-export.js";
 import {
   dispositionSourceContextForResult,
   validateApprovedDispositionRecordForResult,
@@ -80,6 +89,7 @@ import {
 } from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
+  type BoundReviewSourceReference,
 } from "../core/review-source-reference.js";
 import { consumeFixAuthorization, createFixAuthorization } from "../core/fix-authorization.js";
 import { projectReviewResponse } from "../core/response-plan.js";
@@ -104,7 +114,7 @@ import {
 import {
   projectFrontlineFollowUpAdvice,
 } from "../policy/frontline-follow-up.js";
-import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
+import type { FrontlineReviewOutcome } from "../policy/frontline-outcome.js";
 import type { DeliveryLocalReviewAdmission } from
   "../policy/delivery-local-review-admission.js";
 import {
@@ -114,6 +124,7 @@ import {
 } from "../policy/review-policy-driver.js";
 import type { LanePolicyConfig } from "../policy/lane-policy-config.js";
 import type { CommitInterlock, PushInterlock } from "../../../lib/config/resolved-settings.js";
+import { rethrowNativeRefusal, isNativeTypedRefusal } from "../../../lib/store/native-refusal.js";
 
 const AuthorDispositionFieldsSchema = z.strictObject({
   findingId: ReviewFindingIdentitySchema,
@@ -286,6 +297,11 @@ export interface CandidateLineageBinding {
   unstagedReviewablePaths: readonly string[];
 }
 
+/** The tracked file holding a written Candidate record, absent where the record is stored off the branch. */
+interface CandidateResponseRecordPath {
+  recordPath?: string;
+}
+
 interface HostedDispositionFindingBinding {
   readonly findingId: string;
   readonly disposition: "fix" | "defer" | "reject";
@@ -293,6 +309,13 @@ interface HostedDispositionFindingBinding {
 }
 
 export interface RespondCommandDependencies {
+  /** Present when the invocation's store keeps review state off the branch. */
+  stateOffBranch?: true;
+  /** Off the branch, read the recorded decision a supplied extra-pass reference names. */
+  extraPassFacts?: NativeExtraPassInput["facts"];
+  /** Decode source coordinates under the invocation's selected storage arm and owner. */
+  parseSourceReference?: (reference: string, kind: BoundReviewSourceReference["kind"])
+    => BoundReviewSourceReference | Promise<BoundReviewSourceReference>;
   withOperationLock<T>(operationId: string, action: () => Promise<T>): Promise<T>;
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
@@ -333,8 +356,10 @@ export interface RespondCommandDependencies {
     workUnit: string;
     record: CandidateManagedRecordV1;
     expectedRecordVersion: string;
-  }): Promise<{ recordPath: string }>;
-  stageCandidateResponse(workUnit: string): Promise<{ recordPath: string }>;
+  }): Promise<CandidateResponseRecordPath>;
+  stageCandidateResponse(workUnit: string): Promise<CandidateResponseRecordPath>;
+  /** Re-export a Candidate's changed stored specification after its performed response. */
+  exportCandidateDesign?(workUnit: string): Promise<DesignExportResult | null>;
   rebindSingletonPublicationResponse(input: {
     workUnit: string;
     response: CandidateReviewResponseEvidenceV1;
@@ -486,11 +511,13 @@ export class UnchangedVerifiedFixTargetError extends RespondCommandError {
 }
 
 interface ResolvedResponseSource {
+  /** Producer claim corroborated after acquiring this response's operation lock. */
+  errand?: ErrandReviewBinding;
   result: ReviewResult;
   operationId: string;
   repositoryId: string;
   target: ReviewTarget;
-  findings: FrontlineExecutionOutcome["findings"];
+  findings: FrontlineReviewOutcome["findings"];
   sourceIdentity: string;
   source: ApprovedDispositionRecord["source"];
   dispositionContext: DispositionSourceContext;
@@ -498,7 +525,7 @@ interface ResolvedResponseSource {
   laneLineage?: LaneSubjectLineage;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
   responseBinding?: BoundFrontlineResponseBinding;
-  frontlineOutcome?: FrontlineExecutionOutcome;
+  frontlineOutcome?: FrontlineReviewOutcome;
   hostedAttempt?: {
     operationId: string;
     attemptId: string;
@@ -515,48 +542,69 @@ interface ResolvedResponseSource {
   };
 }
 
-function approvedPolicyVehicleMatches(
-  request: ReviewPolicyCommandRequest,
-  source: ResolvedResponseSource,
-): boolean {
+/** The pull request a findings producer is bound to, with its repository, or none for a pre-PR producer. */
+function approvedPolicyVehicle(source: ResolvedResponseSource): Pick<ApprovalPolicyBinding, "pullRequest" | "repository"> {
   if (source.result.kind === "hosted") {
-    return request.target.pullRequest === source.result.hostedTarget.pullRequest
-      && request.target.repository.toLowerCase()
-        === source.result.hostedTarget.repository.toLowerCase();
+    return { pullRequest: source.result.hostedTarget.pullRequest, repository: source.result.hostedTarget.repository };
   }
   if (source.result.kind === "attested-local" && source.result.deliveryAdmission !== undefined) {
-    return request.target.pullRequest === source.result.deliveryAdmission.target.pullRequest
-      && request.target.repository.toLowerCase()
-        === source.result.deliveryAdmission.target.repository.toLowerCase();
+    const { target } = source.result.deliveryAdmission;
+    return { pullRequest: target.pullRequest, repository: target.repository };
   }
-  return request.target.pullRequest === null;
+  return { pullRequest: null };
 }
 
-function approvedPolicyTargetMatches(
-  request: ReviewPolicyCommandRequest,
-  source: ResolvedResponseSource,
-): boolean {
-  const expectedLane = source.result.kind === "frontline" ? "frontline" : "standard";
-  return request.lane === expectedLane
-    && request.target.headSha === source.target.headSha
-    && approvedPolicyVehicleMatches(request, source)
-    && (request.scopeSelection?.mode ?? "whole-target") === source.result.admission.scopeMode
-    && (request.scopeSelection === undefined
-      || canonicalize(request.scopeSelection.target) === canonicalize(request.target));
+/** What the approved call's policy request must carry to name this findings producer. */
+function approvalPolicyBinding(source: ResolvedResponseSource): ApprovalPolicyBinding {
+  return {
+    lane: source.result.kind === "frontline" ? "frontline" : "standard",
+    headSha: source.target.headSha,
+    ...approvedPolicyVehicle(source),
+    scopeMode: source.result.admission.scopeMode,
+    completedPasses: source.result.admission.logicalPass,
+    finalAttempt: { outcome: "findings", reviewOperationId: source.operationId },
+  };
 }
 
 function validateApprovedResponsePolicyBinding(
   request: ReviewPolicyCommandRequest,
   source: ResolvedResponseSource,
 ): void {
-  const terminal = request.attempts.at(-1);
-  if (!approvedPolicyTargetMatches(request, source)
-    || request.completedPasses !== source.result.admission.logicalPass
-    || terminal?.outcome !== "findings"
-    || terminal.reviewOperationId !== source.operationId) {
+  const mismatches = approvalPolicyBindingMismatches(request, approvalPolicyBinding(source));
+  if (mismatches.length > 0) {
     throw new RespondCommandError(
       "invalid-input",
-      "approved response policy request must name the exact findings producer, lane, pass, scope, and target; correct the request and retry the same approval",
+      `approved response policy request must name the exact findings producer, lane, pass, scope, and target: `
+        + `${mismatches.join("; ")}; set those fields as the proposal's approvalPolicyBinding gives them and retry the `
+        + "same approval",
+    );
+  }
+}
+
+/** Refuse a conditional next-pass authorization its capture would refuse, before the approval is recorded. */
+function validateConditionalNextPassAuthorization(
+  authorization: z.infer<typeof RespondConditionalNextPassAuthorizationSchema> | undefined,
+  dispositions: ApprovedDispositionSet,
+  source: ResolvedResponseSource,
+): void {
+  if (authorization === undefined) return;
+  if (!dispositions.dispositionSet.findings.some(({ disposition }) => disposition === "fix")) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "conditional next-pass authorization re-reviews an approved fix, and these dispositions approve none; approve "
+        + "a fix, or omit the authorization and its ceiling override, then retry the approval",
+    );
+  }
+  if (authorization.authorizedBy !== source.actors.approverIdentity) {
+    throw new RespondCommandError("invalid-input", "conditional next-pass authorizer is not the active local identity");
+  }
+  const producerPass = source.result.admission.logicalPass;
+  if (!conditionalPassFollowsProducer(authorization, producerPass)) {
+    throw new RespondCommandError(
+      "invalid-input",
+      `conditional next-pass authorization must exhaust the producer's logical pass ${producerPass} and name pass `
+        + `${producerPass + 1}; set exhaustedPassCount and nextPass to those values in the authorization and the `
+        + "ceiling override, then retry the same approval",
     );
   }
 }
@@ -568,13 +616,15 @@ interface PerformedResponseContinuation {
 
 type RespondSource = z.infer<typeof ReviewResponseSettlementSourceSchema>;
 
-function parseSourceReference(
+async function parseSourceReference(
   reference: string,
   kind: "attested-local" | "frontline" | "hosted",
-) {
+  dependencies: RespondCommandDependencies,
+): Promise<BoundReviewSourceReference> {
   try {
-    return parseReviewSourceReference(reference, kind);
+    return await (dependencies.parseSourceReference ?? parseReviewSourceReference)(reference, kind);
   } catch (error) {
+    rethrowNativeRefusal(error);
     throw new RespondCommandError(
       "invalid-input",
       error instanceof Error ? error.message : "malformed review source reference",
@@ -672,17 +722,10 @@ async function resolveLocalSource(
   request: RespondSource & { kind: "attested-local" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
-  const reference = parseSourceReference(request.receiptRef, "attested-local");
+  const reference = await parseSourceReference(request.receiptRef, "attested-local", dependencies);
   const result = await dependencies.resultReader.readResult(reference.operationId);
   if (result.kind !== "attested-local" || result.receiptRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "local response source snapshot mismatch");
-  }
-  if (result.vehicle.kind === "errand") {
-    const activeErrand = await dependencies.resolveActiveErrand();
-    if (activeErrand === null || activeErrand.key !== result.vehicle.identity
-      || activeErrand.claimId !== result.vehicle.claimId) {
-      throw new RespondCommandError("invalid-input", "local review Errand claim does not match the active Errand");
-    }
   }
   if (result.originalOutcome !== "findings") {
     throw new RespondCommandError("invalid-input", "local response requires a findings receipt");
@@ -710,7 +753,7 @@ async function resolveFrontlineSource(
   request: RespondSource & { kind: "frontline" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
-  const reference = parseSourceReference(request.outcomeRef, "frontline");
+  const reference = await parseSourceReference(request.outcomeRef, "frontline", dependencies);
   const result = await dependencies.resultReader.readResult(reference.operationId);
   if (result.kind !== "frontline" || result.outcomeRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "frontline response source snapshot mismatch");
@@ -745,7 +788,7 @@ async function resolveHostedSource(
   request: RespondSource & { kind: "hosted" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
-  const reference = parseSourceReference(request.attemptRef, "hosted");
+  const reference = await parseSourceReference(request.attemptRef, "hosted", dependencies);
   const result = await dependencies.resultReader.readResult(reference.durableRef);
   if (result.kind !== "hosted" || result.laneOperationId !== reference.operationId) {
     throw new RespondCommandError("corrupt-state", "hosted response source snapshot mismatch");
@@ -978,19 +1021,32 @@ async function replayCandidateResponse(
       dependencies,
       matching.responseId,
     );
+    const diagnostics = await exportCandidateResponseDesign(source, lineage.workUnit, dependencies);
     return RespondEnvelopeSchema.parse({
       ...header,
+      diagnostics,
       state: "candidate-current",
       nextAction: "continue-review",
       payload: {
         operationId: source.operationId,
         candidateId: currentness.candidateId,
-        recordPath,
+        ...(recordPath === undefined ? {} : { recordPath }),
         implementationChanged: currentness.implementationChanged,
         dispositionReportText,
         ...continuation,
       },
     });
+}
+
+async function exportCandidateResponseDesign(source: ResolvedResponseSource, workUnit: string,
+  dependencies: RespondCommandDependencies): Promise<Array<{ code: string; message: string }>> {
+  if (source.target.kind === "delivery-member" || source.responseBinding?.deliveryMember !== undefined
+    || source.hostedAttempt?.vehicle !== undefined || source.deliveryAdmission !== undefined) return [];
+  const exported = await dependencies.exportCandidateDesign?.(workUnit);
+  if (exported == null) return [];
+  return [{ code: "design-exported", message: exported.overwritten
+    ? `Re-exported ${exported.path}, replacing the existing copy with the stored specification.`
+    : `Exported the stored specification to ${exported.path}.` }];
 }
 
 function candidateAuthorityBindingMatches(
@@ -1129,15 +1185,17 @@ async function persistCandidateResponse(
     dependencies,
     response.responseId,
   );
+  const diagnostics = await exportCandidateResponseDesign(source, lineage.workUnit, dependencies);
   return RespondEnvelopeSchema.parse({
     ...header,
+    diagnostics,
     state: "candidate-advanced",
     nextAction: "continue-review",
     payload: {
       operationId: source.operationId,
       candidateId: response.candidateId,
       responseId: response.responseId,
-      recordPath,
+      ...(recordPath === undefined ? {} : { recordPath }),
       implementationChanged: response.implementationChanged,
       dispositionReportText,
       ...continuation,
@@ -1654,6 +1712,7 @@ export async function respondToReviewCommand(
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const request = RespondRequestSchema.parse(requestInput);
+  if ("policyRequest" in request) requireNativeReviewDecisionReferences(dependencies.stateOffBranch === true, request.policyRequest);
   let source: ResolvedResponseSource;
   try {
     source = request.source.kind === "attested-local"
@@ -1662,7 +1721,7 @@ export async function respondToReviewCommand(
         ? await resolveFrontlineSource(request.source, dependencies)
         : await resolveHostedSource(request.source, dependencies);
   } catch (error) {
-    if (error instanceof RespondCommandError
+    if (error instanceof RespondCommandError || isNativeTypedRefusal(error)
       || (typeof error === "object" && error !== null && "code" in error
         && (error.code === "invalid-input" || error.code === "corrupt-state"))) {
       throw error;
@@ -1672,6 +1731,7 @@ export async function respondToReviewCommand(
       error instanceof Error ? error.message : "review response source cannot be validated",
     );
   }
+  const unreferenced = await withoutResponseDecisionReferences(request, source, dependencies);
   return dependencies.withOperationLock(
     laneContinuationOperationId({
       lane: source.result.kind === "frontline" ? "frontline" : "standard",
@@ -1679,8 +1739,30 @@ export async function respondToReviewCommand(
       headSha: source.target.headSha,
       lineage: source.result.admission.lineage,
     }),
-    () => respondToResolvedReviewCommand(request, source, dependencies),
+    () => respondToResolvedReviewCommand(unreferenced, source, dependencies),
   );
+}
+
+/**
+ * Off the branch, require each supplied decision reference to name the live grant of its kind within the response's
+ * reach — its lane, producer lineage and head, completed count, and policy target — then drop it, since a stored
+ * response keeps none. The repository arm has already refused any reference.
+ */
+async function withoutResponseDecisionReferences(request: z.infer<typeof RespondRequestSchema>, source: ResolvedResponseSource,
+  dependencies: RespondCommandDependencies): Promise<z.infer<typeof RespondRequestSchema>> {
+  if (!("policyRequest" in request)) return request;
+  const policy = request.policyRequest;
+  const ceiling = policy.ceilingOverride?.decisionKey === undefined ? undefined : policy.ceilingOverride;
+  const additional = policy.additionalPassAuthorization?.decisionKey === undefined ? undefined : policy.additionalPassAuthorization;
+  if (ceiling !== undefined || additional !== undefined) {
+    if (dependencies.extraPassFacts === undefined) throw new Error("Restore the selected native review decisions, then retry the response.");
+    await validateNativeExtraPassReferences({ facts: dependencies.extraPassFacts, repositoryId: source.repositoryId,
+      subject: { lineage: source.result.admission.lineage, headSha: source.target.headSha, subjectDigest: null },
+      lane: policy.lane, completedPasses: policy.completedPasses, policyTarget: policy.target,
+      ...(ceiling === undefined ? {} : { ceilingOverride: ceiling }),
+      ...(additional === undefined ? {} : { additionalPassAuthorization: additional }) });
+  }
+  return { ...request, policyRequest: withoutReviewDecisionReferences(policy) };
 }
 
 async function withdrawConditionalResponseAuthority(
@@ -1836,9 +1918,8 @@ async function prepareResponseProposal(
     const proposal = prepareDispositionProposal(request, source);
     const { assessment: provisionalPassAssessment, standardFacts } = await readResponsePassAssessment(source.result, proposal, dependencies);
     const release = await proposedApprovalRelease(source, proposal, supersession, dependencies);
-    const report = await readProposedResponseReport({ proposal, release, producerFindings: source.findings,
-      assessment: provisionalPassAssessment, report: request.report, standardFacts,
-      readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });
+    const report = readProposedResponseReport({ proposal, release, producerFindings: source.findings,
+      assessment: provisionalPassAssessment, report: request.report, standardFacts });
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-respond",
@@ -1851,6 +1932,7 @@ async function prepareResponseProposal(
         ...(supersession === undefined ? {} : { supersession }),
         ...report,
         provisionalPassAssessment,
+        approvalPolicyBinding: approvalPolicyBinding(source),
       },
     });
 }
@@ -2090,7 +2172,11 @@ async function resolveResponsePosition(
       ? null
       : projectEffectiveCandidateCurrentness(lineage.effective);
     if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
-      return { kind: "refused" as const, envelope: staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget) };
+      return { kind: "refused" as const, envelope: source.errand === undefined
+        ? staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget)
+        : staleErrandResponseEnvelope({ operationId: source.operationId, attemptedTarget: confirmation.attemptedTarget,
+          currentTarget: confirmation.currentTarget, errand: source.errand, result: source.result,
+          record: await dependencies.dispositionStore.readDispositionRecord(source.operationId) }) };
     }
     // Lifecycle ceremony may commit around an unchanged Candidate after its review target was minted.
     // The managed Candidate subject, not the stale whole-repository target, is authoritative for whether
@@ -2216,7 +2302,7 @@ async function settleNewApprovedResponse(
         source.responseBinding?.candidate.target ?? source.target,
       );
   const errand = lineage === null && deliveryMember === null
-    ? await dependencies.resolveActiveErrand()
+    ? source.errand ?? await dependencies.resolveActiveErrand()
     : null;
   const authoringResolution = await resolveCandidateMemberAuthoring(source, lineage, plan, dependencies);
   if (authoringResolution.kind === "refused") return authoringResolution.envelope;
@@ -2579,6 +2665,8 @@ async function respondToResolvedReviewCommand(
   source: ResolvedResponseSource,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
+  const errand = await requireResponseErrand(source.result, () => dependencies.resolveActiveErrand());
+  if (errand !== null) source.errand = errand;
   const verifiedFix = "verifiedFix" in request ? request.verifiedFix : undefined;
   const settledFixTarget = "settledFixTarget" in request ? request.settledFixTarget : undefined;
   const supersession = "supersedes" in request ? request.supersedes : undefined;
@@ -2632,14 +2720,7 @@ async function respondToResolvedReviewCommand(
   }
   validateActors(dispositions, source.actors);
   validateFindings(dispositions, source);
-  const conditionalAuthorization = request.conditionalNextPassAuthorization;
-  if (conditionalAuthorization !== undefined
-    && conditionalAuthorization.authorizedBy !== source.actors.approverIdentity) {
-    throw new RespondCommandError(
-      "invalid-input",
-      "conditional next-pass authorizer is not the active local identity",
-    );
-  }
+  validateConditionalNextPassAuthorization(request.conditionalNextPassAuthorization, dispositions, source);
   const dispositionReportText = await readApprovedResponseReport({ dispositions, producerFindings: source.findings,
     producerId: source.operationId, incomingTags: request.tags, settlementReplay: false,
     readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });

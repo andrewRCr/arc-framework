@@ -36,6 +36,7 @@ export interface AuthorizeErrandTerminalOptions {
   readonly frame: DerivedLocusFrame;
   readonly operation: ErrandTerminalOperation;
   readonly subject: ErrandTerminalSubject;
+  readonly operand?: string;
   readonly confirmForeignGeneration?: string;
   readonly retryArguments?: readonly string[];
 }
@@ -208,7 +209,7 @@ function renderOffBranchRefusal(
     : `on branch '${row.checkout.branch}'`;
   return `Errand '${options.subject.slug}' remains assigned to checkout ${row.checkout.path}, but that checkout is `
     + `${observedBranch} instead of '${row.identity.branch}'. Restore ${row.checkout.path} to `
-    + `'${row.identity.branch}', then retry arc errand close ${options.subject.slug} from that checkout.`;
+    + `'${row.identity.branch}', then retry arc errand close ${options.operand ?? options.subject.slug} from that checkout.`;
 }
 
 function destructiveEffect(operation: ErrandTerminalOperation): string {
@@ -225,7 +226,7 @@ function renderRetry(options: AuthorizeErrandTerminalOptions, generation: string
     "arc",
     "errand",
     options.operation,
-    options.subject.slug,
+    options.operand ?? options.subject.slug,
     ...(options.retryArguments ?? []),
     "--confirm-foreign-generation",
     generation,

@@ -1,13 +1,13 @@
 /** exhaustive refusal validation followed by actual successful continuation. */
 
-import { expect, it } from "vitest";
-import { StoreRefusalSchema, SyncResultSchema, sameReference, type StoreRefusal, type StoreResult } from "../../../src/lib/store/index.js";
+import { expect } from "vitest";
+import { StoreRefusalSchema, PushResultSchema, sameReference, type StoreRefusal, type StoreResult } from "../../../src/lib/store/index.js";
 import { refusalRecoveryTable } from "./recovery.js";
-import { assertion, recordAssertion, success, type SuiteContext } from "./suite-tools.js";
+import { assertion, caseSkip, caseTest, recordAssertion, success, type SuiteContext } from "./suite-tools.js";
 
 function observedRefusal(result: StoreResult<unknown>): StoreRefusal {
   if (result.status === "refused") return StoreRefusalSchema.parse(result.refusal);
-  const sync = SyncResultSchema.parse(result.result);
+  const sync = PushResultSchema.parse(result.result);
   const failed = sync.publishes.find((publish) => publish.status === "failed");
   expect(failed?.status).toBe("failed");
   if (failed?.status !== "failed") throw new Error("Expected a classified failed publish");
@@ -26,12 +26,12 @@ export function registerRecoveryAssertions(context: SuiteContext): void {
       recordAssertion(context, family, scenario.id);
       const exclusion = context.registration.declarations.familyExclusions[family];
       const familyReason = exclusion?.items?.[context.item] ?? exclusion?.assertions?.[scenario.id];
-      if (familyReason) it.skip(`${family}: ${name} — ${familyReason}`, () => {});
+      if (familyReason) caseSkip(context, `${family}: ${scenario.id}`, `${family}: ${name} — ${familyReason}`);
       else eligible = true;
     }
-    if (reason) { it.skip(`${name} — ${reason}`, () => {}); continue; }
+    if (reason) { caseSkip(context, scenario.id, `${name} — ${reason}`); continue; }
     if (!eligible) continue;
-    it(name, async () => {
+    caseTest(context, scenario.id, name, async () => {
       const fixture = await context.registration.create();
       const operation = await fixture.produce(scenario.id);
       const failure = observedRefusal(await operation.run());
@@ -49,7 +49,7 @@ export function registerRecoveryAssertions(context: SuiteContext): void {
       expect(failure.remedy.text.trim().length).toBeGreaterThan(0);
       await fixture.repair(scenario.id);
       const continued = success(await operation.run());
-      const synced = SyncResultSchema.safeParse(continued);
+      const synced = PushResultSchema.safeParse(continued);
       if (synced.success) expect(synced.data.publishes.every((publish) => ["pushed", "noop", "reconciled"].includes(publish.status))).toBe(true);
     });
   }

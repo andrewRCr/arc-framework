@@ -43,11 +43,11 @@ it.each(["Depends On", "Cohort"] as const)("refuses moving a started member's %s
 it("requires a renamed member's original name before revising and admits the native rename remedy", async () => {
   const h = await createDecomposeTerminalFixture();
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "member-b", targetSlug: "renamed-b" })).toMatchObject({ status: "renamed" });
+    { operand: "member-b", targetSlug: "renamed-b" })).toMatchObject({ status: "renamed" });
   expect(await runStoreDecomposeRevision(h.ctx, "origin", { cutMap: h.map, cutMapPath: "revised.json" }))
     .toMatchObject({ status: "refused", reason: "member-renamed", remedy: { argv: ["arc", "rename", "renamed-b", "member-b"] } });
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "renamed-b", targetSlug: "member-b" })).toMatchObject({ status: "renamed" });
+    { operand: "renamed-b", targetSlug: "member-b" })).toMatchObject({ status: "renamed" });
   await apply(h);
 });
 

@@ -102,11 +102,11 @@ async function readTaskBasis(ctx: TaskVerbContext, ids: readonly string[], opera
   if (meta.status === "refused") return taskStoreRefusal(meta.refusal);
   const fields = ParsedMetaRecordSchema.safeParse(meta.result.fields);
   if (!fields.success) return refuseTask("Work-unit metadata does not read.", "Repair the work-unit metadata, then retry.");
-  const pause = await checkAdvancingPause(store, ctx.slug);
+  const pause = await checkAdvancingPause(store, ctx.slug, meta.result);
   if (pause.status === "rejected") return pause.refusal === undefined ? { status: "refused", code: "paused", reason: pause.reason,
     remedy: { text: `Run arc resume ${ctx.slug}.`, argv: ["arc", "resume", ctx.slug] } }
     : taskStoreRefusal(pause.refusal);
-  const inventory = await readTaskInventory(store);
+  const inventory = await readTaskInventory(ctx.cwd, store);
   if (inventory !== undefined) return inventory;
   const tasks = await store.read({ reference: recordReferences["work-item/task-list"](meta.result.reference.owner) });
   if (tasks.status === "refused") return taskStoreRefusal(tasks.refusal);
@@ -135,8 +135,8 @@ async function explicitCommits(ctx: TaskVerbContext, requested: readonly string[
 function taskStoreRefusal(refusal: StoreRefusal): TaskRefusal {
   return { status: "refused", code: refusal.code, reason: refusal.condition, remedy: refusal.remedy, refusal };
 }
-async function readTaskInventory(store: Store): Promise<TaskRefusal | undefined> {
-  const view = await readLifecycleView(store);
+async function readTaskInventory(checkoutRoot: string, store: Store): Promise<TaskRefusal | undefined> {
+  const view = await readLifecycleView(checkoutRoot, store);
   if (view.status === "refused") return taskStoreRefusal(view.refusal);
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { return refuseTask(error instanceof Error ? error.message : String(error), "Repair the named lifecycle records, then retry the task verb.", "inventory-incomplete"); }

@@ -1,7 +1,7 @@
 /** Request membership and kind share one cumulative deadline model. */
 import { expect, it } from "vitest";
 import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.js";
-import { checkRequestDeadline, checkResultKind, selectRequestChecks } from "../../../../src/lib/checks/gates.js";
+import { checkRequestDeadline, checkResultKind, selectIncrementDeferredChecks, selectRequestChecks } from "../../../../src/lib/checks/gates.js";
 import type { CheckForm } from "../../../../src/lib/checks/request.js";
 const checks = CheckDeclarationSchema.parse({ checks: {
   selected: { command: ["check"], mode: "selection" },
@@ -19,6 +19,15 @@ it.each([
   { form: { kind: "pre-commit" }, ids: ["commit"] },
 ] satisfies { form: CheckForm; ids: string[] }[])("selects $ids for $form", ({ form, ids }) => {
   expect(selectRequestChecks(checks, form).map(([id]) => id)).toEqual(ids);
+});
+it.each([
+  { form: { kind: "increment" }, ids: ["push"] },
+  { form: { kind: "segment" }, ids: [] },
+  { form: { kind: "pre-commit" }, ids: [] },
+  { form: { kind: "gate", gate: "commit" }, ids: [] },
+  { form: { kind: "run", ids: ["commit"] }, ids: [] },
+] satisfies { form: CheckForm; ids: string[] }[])("leaves $ids to the push for $form", ({ form, ids }) => {
+  expect(selectIncrementDeferredChecks(checks, form).map(([id]) => id)).toEqual(ids);
 });
 it("labels early files feedback separately from enforcement and gives named runs no deadline", () => {
   expect(checkResultKind({ kind: "increment" }, checks.commit!)).toBe("enforcement");

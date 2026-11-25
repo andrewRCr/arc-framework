@@ -47,7 +47,9 @@ it.each(["inbound-held", "source-conflict", "cut-in-flight"] as const)("repeats 
     const reference = recordReferences["work-item/conflict-record"](h.primary.reference.owner, "11111111");
     const label = { actor: "other-writer", time: "2026-10-19T00:00:00.000Z" };
     lifecycleSuccess(await h.store.write({ action: "put", reference, expected: null,
-      content: JSON.stringify({ record: h.draft.reference, location: { kind: "hunk", start: 0, end: 1 },
+      content: JSON.stringify({ record: h.draft.reference, baseVersion: h.draft.version,
+      currentLines: h.draft.content.replace(/\n$/, "").split("\n").length, incomingLines: 1,
+      location: { kind: "hunk", start: 0, end: h.draft.content.replace(/\n$/, "").split("\n").length },
         base: h.draft.content, current: { content: h.draft.content, label }, incoming: { content: "# Competing content\n", label } }),
       provenance: { verb: "sync", lifecycleAction: "merge" } }));
     repair = async () => {

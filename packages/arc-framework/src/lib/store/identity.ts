@@ -2,11 +2,22 @@
 
 import { z } from "zod";
 import { SlugSchema, validateManagedPath } from "../kernel/index.js";
+import { validateCompanionKey } from "../layout/index.js";
 import { KIND_SHAPES, type KindId, type KeyedKindId, type SingletonKindId } from "./catalog.js";
+
+/**
+ * The UIDs an owner identity admits, in the lowercase form stored names carry, as a regular expression source for
+ * finding a UID inside a ref name or stored path, so a name matches only where its owner identity would parse.
+ */
+export const STORED_UID_SOURCE = "(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+  + "|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)";
+
+/** One UID grammar shared by stored names, owner handles, and retained identity facts. */
+export const StoredUidSchema = z.string().regex(new RegExp(`^${STORED_UID_SOURCE}$`, "u"));
 
 /** Owner identity without presentation paths or former names. */
 export const OwnerIdentitySchema = z.union([
-  z.strictObject({ type: z.enum(["work-item", "cohort", "project"]), name: SlugSchema, uid: z.uuid().optional() }),
+  z.strictObject({ type: z.enum(["work-item", "cohort", "project"]), name: SlugSchema, uid: StoredUidSchema.optional() }),
   z.strictObject({ type: z.literal("person"), name: SlugSchema }),
 ]).brand<"StoreOwnerIdentity">();
 /** A validated owner handle, opaque in construction. */
@@ -35,6 +46,9 @@ const keySchemas = {
     try { validateManagedPath(value); return true; } catch { return false; }
   }, "Expected a managed relative path"),
 };
+const companionKeySchema = z.string().min(1).refine(value => {
+  try { validateCompanionKey(value); return true; } catch { return false; }
+}, "Expected a canonical companion key");
 /** Within-owner key; its exact shape is selected by the kind registry. */
 export const RecordKeySchema = z.union([z.string().min(1), keySchemas.pass]);
 /** A validated record key. */
@@ -50,7 +64,7 @@ export const RecordReferenceSchema = z.strictObject({
   if (value.owner.type !== shape.owner) context.addIssue({ code: "custom", message: "Owner namespace disagrees with kind" });
   if (shape.key === null) {
     if (value.key !== undefined) context.addIssue({ code: "custom", message: "Singleton records take no key" });
-  } else if (!keySchemas[shape.key].safeParse(value.key).success) {
+  } else if (!(value.kind === "work-item/companion" ? companionKeySchema : keySchemas[shape.key]).safeParse(value.key).success) {
     context.addIssue({ code: "custom", message: "Expected the kind's declared key shape" });
   }
 }).brand<"StoreRecordReference">();

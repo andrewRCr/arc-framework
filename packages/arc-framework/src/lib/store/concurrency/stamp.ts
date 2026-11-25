@@ -14,13 +14,19 @@ export function stampEntryIds(content: string, config: EntryListConfig, random: 
     if (part.kind !== "entry" || part.id !== undefined) return part;
     const id = drawId(used,random);
     used.add(id);
-    return {...part,id,bytes:insertId(part,config,id)};
+    return {...part,id,bytes:insertEntryId(part,config,id)};
   });
   return rejoinEntryList({parts});
 }
 
 
-function insertId(entry: ListEntry, config: EntryListConfig, id: string): string {
+/** Insert one entry's managed ID line in its kind's line form, outside any comment.
+ * @param entry - The entry, which carries no ID.
+ * @param config - Entry grammar and managed fields.
+ * @param id - The ID to insert.
+ * @returns The entry's bytes with the ID line inserted.
+ */
+export function insertEntryId(entry: ListEntry, config: EntryListConfig, id: string): string {
   const { shape } = config;
   const lines = [...entry.bytes.matchAll(/[^\n]*(?:\n|$)/gu)].filter((line)=>line[0].length > 0);
   const visible = [...maskComments(entry.bytes).matchAll(/[^\n]*(?:\n|$)/gu)].filter((line)=>line[0].length > 0);

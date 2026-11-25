@@ -24,6 +24,7 @@ import {
   runArcWithStdin,
 } from "./helpers.js";
 import { advanceBaseStep, movementPaths } from "../helpers/base-advance.js";
+import { initializedRepository } from "../helpers/initialized-repository.js";
 import {
   copyPreparedRepository,
   prepareRepositoryTemplate,
@@ -212,9 +213,7 @@ describe("arc errand merge", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
@@ -300,9 +299,7 @@ describe("arc errand check", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
@@ -608,10 +605,7 @@ describe("arc errand leave", () => {
   let repository: string;
 
   beforeEach(async () => {
-    repository = await createTempRepo();
-    const initialized = await runArc(["init", "--yes", "--name", "test-project"], repository);
-    expect(initialized.exitCode).toBe(0);
-    await git(repository, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    repository = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -664,10 +658,7 @@ describe("arc errand open", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -900,13 +891,7 @@ describe("tracked ROADMAP regen with errand records", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(
-      ["init", "--yes", "--name", "test-project", "--pm-mode", "arc-in-git"],
-      tmpDir,
-    );
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("arc-in-git-and-committed");
     await setFullProtection(tmpDir);
   });
 
@@ -959,10 +944,7 @@ describe("arc errand close", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -1727,10 +1709,7 @@ describe("arc errand abandon", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
     await setFullProtection(tmpDir);
   });
 
@@ -1886,10 +1865,7 @@ describe("arc errand retire", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -1910,10 +1886,7 @@ describe("arc errand promote", () => {
 
   beforeEach(async () => {
     remoteDir = null;
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -2033,10 +2006,7 @@ describe("the Errand close boundary after the base advances", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {

@@ -1,5 +1,13 @@
 /** Production adapters for the local review prepare command. */
+import { validateLocalDeliveryAdmission } from "./local-prepare-delivery-admission.js";
+import { createNativeLocalPassJudgmentResolver } from "./native-local-pass-judgments.js";
+import { bindJudgment } from "../policy/review-execution-admission.js";
+import { requireNativeReviewDecisionReferences } from "../policy/review-grant-references.js";
+import { readLocalReviewReceipts } from "./local-outcome-receipts.js";
+import { sweepLocalReviewMaterializations } from "./local-source-sweep-composition.js";
+import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
 import { readReviewLaneHistory } from "./lane-history.js";
 import { projectFixedFindingPointers } from "../core/fixed-finding-pointers.js";
 import { deriveNextPassFacts } from "../policy/next-pass-facts.js";
@@ -8,18 +16,13 @@ import { createLocalReviewSubjectResolver, type LocalReviewCandidateReader } fro
 import { readLocalDeltaAdmissionSurface, readReservedWorkUnitObligation } from "./local-reserved-obligation.js";
 import { deriveReviewNextPassContextFromAttempts } from "../policy/review-next-pass.js";
 
-
 import { createCandidateResponseHeadContinuationReader } from "./candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
 
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
-import type { GitExec } from "../../../lib/git/exec.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
+import { createReviewCompositionContext } from "./composition-context.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
-import { canonicalize } from "../../../lib/kernel/index.js";
-import {
-  LocalReviewOperationStateStore,
-} from "../hosts/local/operation-state-store.js";
 import {
   resolveRepositoryIdentity,
   withRepositoryLocalReviewLock,
@@ -62,23 +65,16 @@ import {
   resolveLocalReviewPolicyBinding,
   validateLocalReviewPolicySelection,
 } from "../policy/local-review-policy.js";
-import { RepositoryLocalReviewSourceSweepAdapter } from "../hosts/local/source-sweep.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import {
   confirmCurrentDispositionSet,
-  LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
-import { sweepLocalReviewSources } from "../core/local-source-sweep.js";
 import type { LocalPrepareDependencies } from "./local-prepare.js";
-import { resolveReviewStatus } from "../status.js";
-import { createReviewStatusPort } from "../status-composition.js";
-import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
-import {
-  readCandidateRecord,
-  readRepositoryCandidateSupersessionChain,
-} from "../../../lib/work-unit/candidate-record-store.js";
+import { readCandidateRecord } from "../../../lib/store/kinds/review/candidate/access.js";
+import { readRepositoryCandidateSupersessionChain } from "../../../lib/store/kinds/review/candidate/history.js";
+
 import { createLocalFrontlineSourcePreferenceReader } from
   "../hosts/local/frontline-source-preferences.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
@@ -106,8 +102,11 @@ function createLocalPolicyRequest(
   request: Parameters<LocalPrepareDependencies["validatePolicyAdmission"]>[0],
   policyTarget: { repository: string; pullRequest: number | null; headSha: string },
   sources: readonly string[],
+  native: boolean,
 ) {
-  const { standardReview, completedPasses, attempts, judgment } = request;
+  requireNativeReviewDecisionReferences(native, request.judgment);
+  const { standardReview, completedPasses, attempts } = request;
+  const { judgment, ceilingOverride, additionalPassAuthorization } = bindJudgment({ target: policyTarget, judgment: request.judgment });
   const invocation = judgment?.invocation ?? (sources.length === 0 || sources.includes("delegated-agent")
     ? { mode: "force" as const, sourceId: "delegated-agent" } : undefined);
       const policyRequest = {
@@ -122,26 +121,8 @@ function createLocalPolicyRequest(
           ? {}
           : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
         ...(invocation === undefined ? {} : { invocation }),
-        ...(judgment?.ceilingOverride === undefined
-          ? {}
-          : {
-              ceilingOverride: {
-                ...judgment.ceilingOverride,
-                target: policyTarget,
-                lane: "standard" as const,
-              },
-            }),
-        ...(judgment?.additionalPassAuthorization === undefined
-          ? {}
-          : {
-              additionalPassAuthorization: {
-                precedingProducerId: judgment.additionalPassAuthorization.precedingProducerId,
-                completedPasses: judgment.additionalPassAuthorization.completedPasses,
-                nextPass: judgment.additionalPassAuthorization.nextPass,
-                target: { ...policyTarget, headSha: judgment.additionalPassAuthorization.headSha },
-                lane: "standard" as const,
-              },
-            }),
+        ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
+        ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }),
         ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
       };
   return policyRequest;
@@ -150,10 +131,10 @@ function createLocalPolicyRequest(
 async function validateLocalPolicyAdmission(
   request: Parameters<LocalPrepareDependencies["validatePolicyAdmission"]>[0],
   context: {
-    input: { cwd: string; exec: GitExec };
+    input: LocalReviewInvocationInput;
     resultReader: ReturnType<typeof createRepositoryReviewResultReader>;
-    dispositionStore: LocalApprovedDispositionRecordStore;
-    operationStore: LocalReviewOperationStateStore;
+    dispositionStore: ApprovedDispositionRecordReader;
+    operationStore: ReviewOperationStateStore;
   },
 ): ReturnType<LocalPrepareDependencies["validatePolicyAdmission"]> {
   const {
@@ -174,9 +155,9 @@ async function validateLocalPolicyAdmission(
       const policyTarget = await resolveLocalPolicyTarget(
         context.input, repositoryId, target, settings["branch.base"],
       );
-      const policyRequest = createLocalPolicyRequest(request, policyTarget, policy.sources);
+      const policyRequest = createLocalPolicyRequest(request, policyTarget, policy.sources, context.operationStore.stateOffBranch === true);
       const candidate = lineage.kind === "candidate" && workUnitId !== undefined
-        ? await readCandidateRecord(context.input.cwd, workUnitId)
+        ? await readCandidateRecord(context.input.cwd, workUnitId, { store: context.input.store, exec: context.input.exec, owner: context.input.workItem })
         : null;
       const confirmContribution = createLocalContributionConfirmation({
         context, repositoryId, baseRef: settings["branch.base"], policyTarget, candidate,
@@ -216,7 +197,7 @@ async function validateLocalPolicyAdmission(
         dispositionStore: context.dispositionStore, repositoryId, headSha: target.headSha, lineage, workUnitId,
         resolveSupersessionAncestors: createLocalReviewCandidateReader(context.input).readSupersessionAncestors });
       const facts = await deriveNextPassFacts({ ...history, nextPassContext, target, ceiling: policy.maxPasses,
-        exec: createRawGitExec(context.input.cwd) });
+        exec: context.input.rawGit ?? createRawGitExec(context.input.cwd) });
       const coverage = resolveLocalReviewCoverageSelection({
         policy: unresolved, target, sourceId: "delegated-agent", standardReview, nextPassContext, facts,
         ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
@@ -234,16 +215,18 @@ async function validateLocalPolicyAdmission(
         incrementalBasis: nextPassContext.incremental?.basis };
 }
 
-/** Bind Candidate reads at the existing repository storage boundary. */
-export function createLocalReviewCandidateReader(input: { cwd: string; exec: GitExec }): LocalReviewCandidateReader {
+/** Bind Candidate reads to the invocation's selected store. */
+export function createLocalReviewCandidateReader(options: ReviewInvocationInput): LocalReviewCandidateReader {
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  const reviewRecordStore = input.store;
   return {
-    read: workUnitId => readCandidateRecord(input.cwd, workUnitId),
+    read: workUnitId => readCandidateRecord(input.cwd, workUnitId, { store: reviewRecordStore, owner: input.workItem }),
     readSupersessionAncestors: async (workUnitId, candidateId) => {
-      const record = await readCandidateRecord(input.cwd, workUnitId);
+      const record = await readCandidateRecord(input.cwd, workUnitId, { store: reviewRecordStore, owner: input.workItem });
       if (record === null || record.attestation.candidateId !== candidateId) {
         throw new Error("Candidate supersession authority is unavailable for local review");
       }
-      return readRepositoryCandidateSupersessionChain({ cwd: input.cwd, workUnit: workUnitId, record, exec: input.exec });
+      return readRepositoryCandidateSupersessionChain({ ...input, workUnit: workUnitId, record });
     },
   };
 }
@@ -259,23 +242,24 @@ function localHistoryDependencies(context: Parameters<typeof validateLocalPolicy
 }
 
 /** Bind local prepare to the current repository, managed methods, and Git-common stores. */
-export function createLocalPrepareDependencies(input: {
-  exec: GitExec;
-  cwd: string;
-}): LocalPrepareDependencies {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
+export function createLocalPrepareDependencies(input: LocalReviewInvocationInput): LocalPrepareDependencies {
+  return createBoundLocalPrepareDependencies({ ...input, ...createReviewCompositionContext(input) });
+}
+
+/** Retain one operational store throughout local admission and its nested Candidate reads. */
+function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput & ReturnType<typeof createReviewCompositionContext>): LocalPrepareDependencies {
+  const { publisher, family } = input;
+  const operationStore = family.ports.inFlight;
   const sourceStore = new RepositoryLocalReviewSourceStore(publisher);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-  const resultReader = createRepositoryReviewResultReader(publisher);
-  const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
+  const dispositionStore = family.ports.dispositions;
+  const resultReader = createRepositoryReviewResultReader(publisher, input);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
-    receiptStore ??= resolveRepositoryIdentity(publisher)
+    receiptStore ??= resolveRepositoryIdentity(publisher, undefined, input)
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };
-  let liveContext: Promise<ResolvedLocalReviewLiveContext> | null = null;
+  let liveContext: Promise<ResolvedLocalReviewLiveContext> | null = input.localLiveContext ?? null;
   const readLive = () => {
     liveContext ??= readLocalReviewLiveContext(input);
     return liveContext;
@@ -283,10 +267,26 @@ export function createLocalPrepareDependencies(input: {
   const memberLookup = new RepositoryDeliveryMemberLookup(input);
   const methodFiles = createLocalReviewMethodFilePort({ cwd: input.cwd });
   const rubricPort = createLocalReviewRubricBindingPort({ cwd: input.cwd });
+  const subjects = createLocalReviewSubjectResolver({ ...input, readLive, candidateReader: createLocalReviewCandidateReader(input) });
+  const deriveTarget: LocalPrepareDependencies["deriveTarget"] = async (repositoryId, member) => {
+    const config = await readConfigSettings(input.cwd);
+    const boundary = {
+      exec: input.exec,
+      cwd: input.cwd,
+      baseRef: config.settings["branch.base"],
+      repositoryId,
+    };
+    return member === undefined
+      ? deriveLocalReviewTarget(boundary)
+      : composeDeliveryMemberTarget({ ...boundary, member });
+  };
+  const validateDeliveryAdmission: LocalPrepareDependencies["validateDeliveryAdmission"] =
+    admission => validateLocalDeliveryAdmission(input, admission);
 
   return {
     laneSourceId: "delegated-agent",
     operationStore,
+    ...(family.mode === "stored" ? { outcomes: family.ports.outcomes } : {}),
     sourceStore,
     now: () => new Date().toISOString(),
     withLaneOperationLock: (coordinates, action) => withRepositoryReviewOperationLock(
@@ -303,35 +303,15 @@ export function createLocalPrepareDependencies(input: {
       dispositionSetId,
     ),
     withLocalReviewLock: (action) => withRepositoryLocalReviewLock(input.exec, input.cwd, action),
-    sweep: async () => {
-      const receiptStore = await receipts();
-      await withRepositoryLocalReviewLock(input.exec, input.cwd, async () => {
-        await sweepLocalReviewSources({
-          listOperationIds: () => sweepAdapter.listOperationIds(),
-          readOperation: (operationId) => operationStore.readOperation(operationId),
-          readReceipts: (targetId) => receiptStore.readReceipts(targetId),
-          release: (operationId) => sweepAdapter.releaseWithinLock(operationId),
-          now: () => new Date().toISOString(),
-        });
-      });
-    },
-    readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),
-    resolveRepositoryId: () => resolveRepositoryIdentity(publisher),
+    sweep: () => sweepLocalReviewMaterializations(input, { publisher, operationStore,
+      readReceipts: async targetId => (await receipts()).readReceipts(targetId), now: () => new Date().toISOString() }),
+    readReceipts: async (targetId) => readLocalReviewReceipts({ receiptStore: await receipts(),
+      ...(family.mode === "stored" ? { outcomes: family.ports.outcomes } : {}) }, targetId),
+    resolveRepositoryId: () => resolveRepositoryIdentity(publisher, undefined, input),
     readCurrentHeadSha: async () => (await input.exec("git", ["rev-parse", "HEAD"], {
       cwd: input.cwd,
     })).stdout.trim(),
-    deriveTarget: async (repositoryId, member) => {
-      const config = await readConfigSettings(input.cwd);
-      const boundary = {
-        exec: input.exec,
-        cwd: input.cwd,
-        baseRef: config.settings["branch.base"],
-        repositoryId,
-      };
-      return member === undefined
-        ? deriveLocalReviewTarget(boundary)
-        : composeDeliveryMemberTarget({ ...boundary, member });
-    },
+    deriveTarget,
     confirmTarget: (target) => confirmLocalReviewTarget({
       exec: input.exec,
       cwd: input.cwd,
@@ -352,7 +332,8 @@ export function createLocalPrepareDependencies(input: {
         memberLookup,
       },
     ),
-    ...createLocalReviewSubjectResolver({ ...input, readLive, candidateReader: createLocalReviewCandidateReader(input) }),
+    ...subjects,
+    resolvePassJudgments: createNativeLocalPassJudgmentResolver({ input, operationStore, subjects, deriveTarget, validateDeliveryAdmission }),
     composeAssurance: async (authority: LocalReviewAuthority) => {
       const live = await readLive();
       // A member's assurance is its owning work unit's: same meta, same work
@@ -391,37 +372,8 @@ export function createLocalPrepareDependencies(input: {
       });
     },
     ...localHistoryDependencies({ input, resultReader, dispositionStore, operationStore }),
-    readReservedWorkUnitObligation: (vehicle, lineage) => readReservedWorkUnitObligation(input.cwd, vehicle, lineage),
-    validateDeliveryAdmission: async (admission) => {
-      const before = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId);
-      const reservation = before.boundary?.reservation;
-      if (reservation === null || reservation === undefined
-        || reservation.target.kind !== "delivery"
-        || reservation.target.workUnitId !== admission.vehicle.workUnitId
-        || reservation.target.planId !== admission.vehicle.planId
-        || !reservation.sources.includes(admission.sourceId)) {
-        throw new Error("Local delivery-member review has no matching standard-review reservation.");
-      }
-      const current = await resolveReviewStatus({
-        target: admission.statusTarget,
-        ...(admission.ceilingOverride === undefined
-          ? {}
-          : { ceilingOverride: admission.ceilingOverride }),
-        ...(admission.additionalPassAuthorization === undefined ? {}
-          : { additionalPassAuthorization: admission.additionalPassAuthorization }),
-        coverage: admission.requestedCoverage,
-        sourceId: admission.sourceId,
-      }, createReviewStatusPort(input));
-      if (current.nextAction !== "review-local-prepare"
-        || canonicalize(current.action) !== canonicalize(admission)) {
-        throw new Error("Local delivery-member review no longer has exact driver admission.");
-      }
-      const after = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId);
-      if (after.version !== before.version) {
-        throw new Error("Local delivery-member review authority changed during admission validation.");
-      }
-      return reservation.obligation;
-    },
+    readReservedWorkUnitObligation: (vehicle, lineage) => readReservedWorkUnitObligation(input.cwd, vehicle, lineage, { store: input.store, exec: input.exec, owner: input.workItem }),
+    validateDeliveryAdmission,
     describeSource: (operationId, target, coverageAdmission) => createLocalReviewSourceDescriptor({
       exec: input.exec,
       cwd: input.cwd,

@@ -24,7 +24,7 @@ it.each([
     ? runStoreDecomposeDiscard(h.ctx, "origin", { applyAuthority })
     : runStoreDecomposeRevision(h.ctx, "origin", { cutMap: map, cutMapPath: "revised.json" }, { applyAuthority });
   const pause = { store: h.store, cwd: "/repo", baseBranch: "main", now: () => new Date("2026-10-19T00:00:00Z"),
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null },
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) },
     exec: scriptGitExec([{ match: ["remote"], responses: [{ stdout: "" }, { stdout: "" }] }]).exec };
   const preview = await run();
   if (preview.status !== "ok" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));

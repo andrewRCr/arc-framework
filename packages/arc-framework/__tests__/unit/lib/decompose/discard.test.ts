@@ -1,4 +1,6 @@
 /** Discard previews and exact atomic removal of an authenticated cut. */
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
+import { prepareDecomposeDiscard } from "../../../../src/lib/decompose/discard-plan.js";
 import { expect, it } from "vitest";
 import { observedDecomposeWrite } from "../../../helpers/store/decompose-batch.js";
 import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
@@ -120,7 +122,7 @@ it("preserves only the competing write on a discard batch conflict and permits f
 it("removes a renamed member by its authenticated generation", async () => {
   const h = await createDecomposeTerminalFixture();
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "member-a", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
+    { operand: "member-a", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
   const plan = await preview(h);
   expect(plan.removals.filter(reference => reference.owner.name === "delta")).toHaveLength(2);
   expect((await runStoreDecomposeDiscard(h.ctx, "origin", { applyAuthority: plan.applyAuthority })).status).toBe("ok");
@@ -141,7 +143,7 @@ it("removes a sibling renamed to an abandoned member's slug exactly once", async
   const h = await createDecomposeTerminalFixture();
   await h.seedRetiredWorkUnit(lifecycleSuccess(await readWorkUnit(h.store, "member-a")));
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "member-b", targetSlug: "member-a" })).toMatchObject({ status: "renamed" });
+    { operand: "member-b", targetSlug: "member-a" })).toMatchObject({ status: "renamed" });
   const plan = await preview(h);
   expect(plan.removals.filter(reference => reference.kind === "work-item/meta")).toHaveLength(1);
   expect(new Set(plan.removals.map(reference => JSON.stringify(reference))).size).toBe(plan.removals.length);
@@ -154,14 +156,14 @@ it("closes a real sync conflict through its subject removal rather than directly
   const member = lifecycleSuccess(await readWorkUnit(h.store, "member-a"));
   const remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const other = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   for (const [store, text] of [[h.store, "Local authoring"], [other, "Remote authoring"]] as const) {
     const record = lifecycleSuccess(await store.read({ reference: member.reference }));
     lifecycleSuccess(await store.write({ ...recordPut(record, { content: writeMetaNextAction(record.content, text) }),
       provenance: { verb: "write-back", lifecycleAction: "edit" } }));
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: member.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const plan = await preview(h);
@@ -222,3 +224,29 @@ async function measureDiscard(scaled: boolean) {
 it("keeps discard observations flat with long histories and unrelated work", async () => {
   expect(await measureDiscard(true)).toEqual(await measureDiscard(false));
 }, 30_000);
+
+it("acquires an authenticated member group after its name becomes clashed", async () => {
+  const h = await createDecomposeTerminalFixture();
+  const primary = lifecycleSuccess(await readWorkUnit(h.store, "member-a"));
+  const other = await h.seedStub("other");
+  const draft = lifecycleSuccess(await h.store.read({ reference: recordReferences["work-item/draft"](primary.reference.owner) }));
+  const store = createClashDouble(h.store, { slug: "member-a", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  lifecycleSuccess(await readWorkUnit(store, "member-a"));
+  const result = await prepareDecomposeDiscard({ ...h.ctx, executor: { ...h.ctx.executor, store } }, "origin");
+  expect(result).toMatchObject({ status: "ok" });
+  if (result.status === "refused") throw Error(JSON.stringify(result));
+  expect(result.result.records).toEqual(expect.arrayContaining([primary, draft]));
+  expect(result.result.writes).toContainEqual({ action: "remove", reference: draft.reference, expected: draft.version });
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+});
+
+it("decomposes a reused slug's live group and preserves its completed records", async () => {
+  const h = await createDecomposeTerminalFixture({ reused: true });
+  expect(h.applied.report).toBeDefined();
+  const origin = lifecycleSuccess(await readWorkUnit(h.store, "origin"));
+  expect(origin.reference).toEqual(h.primary.reference);
+  expect(lifecycleSuccess(await readWorkUnit(h.store, "member-a")).placement).toMatchObject({ kind: "backlog" });
+  if (h.archived === undefined || h.archivedDraft === undefined) throw Error("Expected completed origin group");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archivedDraft.reference }))).toEqual(h.archivedDraft);
+});

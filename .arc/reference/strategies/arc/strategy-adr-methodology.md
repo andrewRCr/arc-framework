@@ -34,8 +34,9 @@ along with its context and consequences.
 
 **Key Characteristics:**
 
-- **Stable:** Once accepted, an ADR's decision is final — corrections and amendments are permitted but the
-  decision itself changes only through [supersession](#superseded). See [Amending Accepted ADRs](#amending-accepted-adrs)
+- **Stable:** Once the change that accepts an ADR merges, its decision is final — corrections and amendments are
+  permitted but the decision itself changes only through [supersession](#superseded).
+  See [Amending Accepted ADRs](#amending-accepted-adrs).
 - **Sequential:** Numbered sequentially (001, 002, 003...), numbers never reused
 - **Concise:** Typically 1-2 pages, focusing on decision and context, not implementation details
 - **Discoverable:** Stored in version control alongside code, easily searchable
@@ -106,17 +107,17 @@ Every ADR follows this five-section structure:
 
 ### 2. Status
 
-**Format:** Single line indicating current state
+**Format:** The section's first line states the current status. Later paragraphs may record how it was reached.
 
 **Valid States:**
 
-- `Proposed` - Decision under consideration, not yet implemented
-- `Accepted` - Decision approved and implemented (or ready to implement)
+- `Proposed` - Written but not yet accepted: in an unmerged change, or on the base branch awaiting acceptance
+- `Accepted (YYYY-MM-DD)` - Set in the delivering change before it merges, dated the day of the flip
 - `Deprecated` - Decision no longer valid but not replaced
 - `Superseded by ADR-XXX` - Decision replaced by a new ADR
 
-**Note:** Once status is `Accepted`, the ADR's decision is final. Corrections and amendments are permitted
-under specific rules — see [Amending Accepted ADRs](#amending-accepted-adrs).
+**Note:** The record locks when the change that sets `Accepted` merges. Corrections and amendments then follow
+specific rules — see [Amending Accepted ADRs](#amending-accepted-adrs).
 
 ### 3. Context
 
@@ -154,6 +155,22 @@ Document what becomes easier or harder as a result.
 
 **Template:** See [template-adr.md](../../templates/arc/template-adr.md) for the copy-ready starting point.
 
+### Reader independence
+
+An ADR's Context, Decision, and Consequences meet `spec-review`'s Reader independence check: their meaning stands
+without planning history. Its Reference boundaries supply these three rules:
+
+- "Judge what supplies meaning, not tokens."
+- "ARC terms and artifact names are valid subject matter when their required meaning is established or defined locally."
+- "The substantive thesis stands without tracking fields; they supply no missing design."
+
+These sentences come from [spec-review][spec-review]; a change to them carries here. Status is the tracking slot.
+A new ADR meets the rule across its body. An edit to an existing ADR meets it over the changed footprint, including
+removals and affected surrounding obligations and definitions.
+
+Process narration doing the explaining goes, such as "surfaced during Task 5.2" or "ships with work unit X".
+A project's own domain vocabulary stays.
+
 ---
 
 ## Naming Conventions
@@ -185,25 +202,42 @@ Document what becomes easier or harder as a result.
 
 ### Proposed
 
-**When:** ADR drafted but decision not yet finalized
+**When:** Written with the implementation, in the change that completes the work; in a multi-member delivery, this
+is the terminal member. This timing holds even when a planning stage recommends the ADR earlier.
+
+Until then the draft, and then the spec, carries the decision, its rationale, and its ADR disposition as binding
+design. The spec records each disposition in its design substrate (an `outline`'s Decision(s), an RFC's Proposed
+Design, a PRD's Requirements), beside its decision or in one list there, and lists each new or amended ADR among what
+the delivering change delivers. A `new ADR` or `amendment` disposition makes the spec at least an `outline`; a
+`brief` carries only dispositions that deliver nothing, `none` or covered by an ADR already on the base branch,
+and need not record them. No ADR file exists during planning: an earlier recommendation is a disposition first.
 
 **Process:**
 
-1. Create ADR file with Status: Proposed
-2. Commit to git
-3. Discuss and update based on feedback
-4. Update status to Accepted when finalized
+1. Write the ADR file reading `Proposed`.
+2. Edit it freely through implementation, verification, and review.
+3. Set `Accepted (YYYY-MM-DD)` in the delivering change before it merges.
+
+A Proposed ADR already on the base branch stays editable until the change that accepts it, and locks when that
+change merges. An intervening change may edit it or rename it without changing its number, without accepting it.
+No change may add an ADR as Proposed or return an ADR to Proposed.
 
 ### Accepted
 
-**When:** Decision finalized and ready for (or already) implemented
+**When:** The delivering change's work is complete, before it merges.
 
 **Process:**
 
-1. Update Status from Proposed to Accepted
-2. Ensure Context and Decision sections are complete
-3. Commit alongside implementation (or just before starting)
-4. ADR decision is now final — see [Amending Accepted ADRs](#amending-accepted-adrs) for what changes are permitted
+1. Set Status to `Accepted (YYYY-MM-DD)`, dated the day of the flip.
+2. Ensure Context, Decision, and Consequences are complete.
+3. Deliver the ADR with the implementation; the decision locks when that change merges. Until then it stays freely
+   editable, including after the status flip.
+
+When later work realizes an Accepted decision, note the realization timing in the ADR and append learnings as dated
+amendments. A decision that genuinely unfolds in separable phases may be split into one record per phase.
+
+A project can enforce this rule at its merge gate by refusing a change that adds an ADR reading Proposed, returns
+one to Proposed, or removes a Status section.
 
 ### Deprecated
 
@@ -245,10 +279,10 @@ inline guidance for each section (Context, Decision, Consequences with Positive/
 
 ## Amending Accepted ADRs
 
-An accepted ADR's **decision is final** · `[invariant]` — the Context, Decision, and original Consequences sections
-represent the point-in-time record and should not be rewritten. However, strict "never touch the file"
-immutability creates practical friction (typos persist, broken links accumulate, implementation learnings have
-nowhere to go).
+An accepted ADR's **decision is final once the change that accepts it merges** · `[invariant]` — the Context,
+Decision, and original Consequences sections then represent the point-in-time record and should not be rewritten.
+However, strict "never touch the file" immutability creates practical friction (typos persist, broken links
+accumulate, implementation learnings have nowhere to go).
 
 ARC uses a three-tier model that preserves the spirit of immutability while accommodating real-world needs:
 
@@ -260,6 +294,7 @@ Fix without ceremony. No new ADR required.
 - Broken links and updated file paths
 - Formatting fixes (markdown lint, whitespace)
 - Correcting factual errors in metadata (dates, names)
+- Renumbering an ADR whose number collides with another's, together with the records that cite it by number
 
 **Rule:** The fix must not change the meaning of any section. If you're unsure whether a rewording changes
 meaning, treat it as a Tier 2 amendment.
@@ -308,3 +343,5 @@ When the decision itself changes, write a new ADR and update the original's stat
 | Choose a different technology than decided  | Supersession                        |
 
 ---
+
+[spec-review]: ../../../system/methods/spec-review.md

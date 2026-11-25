@@ -14,6 +14,7 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 type DeliveryPlanRead =
   | { readonly status: "absent" }
@@ -140,6 +141,7 @@ export async function composePreBindingDeliveryReviewTargets(
     }
     return { status: "composed", planId: plan.planId, targets };
   } catch (error) {
+    rethrowNativeRefusal(error);
     const detail = (error instanceof Error ? error.message : String(error))
       .replace(/\s+/gu, " ")
       .trim()

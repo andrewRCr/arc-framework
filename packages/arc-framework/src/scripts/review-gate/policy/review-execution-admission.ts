@@ -10,6 +10,7 @@ import {
   type ReviewPolicyRequest,
   type ReviewResolveEnvelope,
 } from "./review-policy-driver.js";
+import { consistentReviewDecisionReference } from "./review-grant-references.js";
 import type { ReviewAdditionalPassAuthorization } from "./review-additional-pass.js";
 
 interface StandardExecutionInput {
@@ -108,24 +109,36 @@ function assertConsistentAdditionalAuthority(
   }
 }
 
-function bindJudgment(input: StandardExecutionInput) {
+/** Bind standard-lane grant forms consistently while preserving their stored authority references. */
+export function bindJudgment(input: Pick<StandardExecutionInput, "target" | "judgment" | "ceilingOverride" | "additionalPassAuthorization">): {
+  judgment?: ReviewLaneJudgment; ceilingOverride?: ReviewCeilingOverride; additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
+} {
   const judgment = input.judgment === undefined
     ? undefined : ReviewLaneJudgmentSchema.parse(input.judgment);
   const suppliedCeiling = input.ceilingOverride === undefined
     ? undefined : ReviewCeilingOverrideSchema.parse(input.ceilingOverride);
   assertConsistentCeilingAuthority(suppliedCeiling, judgment);
-  const ceilingOverride = suppliedCeiling ?? (judgment?.ceilingOverride === undefined
+  const ceilingKey = consistentReviewDecisionReference(suppliedCeiling, judgment?.ceilingOverride);
+  const conditional = suppliedCeiling?.conditionalPassAuthorizationId ?? judgment?.ceilingOverride?.conditionalPassAuthorizationId;
+  if (ceilingKey !== undefined && conditional !== undefined) throw new Error("Use an ordinary decision reference or an approved-fix authorization, not both.");
+  const ceiling = suppliedCeiling ?? (judgment?.ceilingOverride === undefined
     ? undefined : { ...judgment.ceilingOverride, target: input.target, lane: "standard" as const });
+  const ceilingOverride = ceiling === undefined ? undefined : ReviewCeilingOverrideSchema.parse({ ...ceiling,
+    ...(ceilingKey === undefined ? {} : { decisionKey: ceilingKey }) });
   const additional = judgment?.additionalPassAuthorization;
   assertConsistentAdditionalAuthority(input.additionalPassAuthorization, judgment);
-  const additionalPassAuthorization = input.additionalPassAuthorization ?? (additional === undefined
+  const additionalKey = consistentReviewDecisionReference(input.additionalPassAuthorization, additional);
+  const additionalValue = input.additionalPassAuthorization ?? (additional === undefined
     ? undefined : {
         target: { ...input.target, headSha: additional.headSha },
         lane: "standard" as const,
         precedingProducerId: additional.precedingProducerId,
         completedPasses: additional.completedPasses,
         nextPass: additional.nextPass,
+        ...(additional.decisionKey === undefined ? {} : { decisionKey: additional.decisionKey }),
       });
+  const additionalPassAuthorization = additionalValue === undefined ? undefined : { ...additionalValue,
+    ...(additionalKey === undefined ? {} : { decisionKey: additionalKey }) };
   return { judgment, ceilingOverride, additionalPassAuthorization };
 }
 

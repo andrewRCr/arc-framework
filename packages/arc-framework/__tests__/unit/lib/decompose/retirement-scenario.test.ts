@@ -1,3 +1,4 @@
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 /** Complete retirement cuts across source kinds and cohort placements. */
 import { expect, it } from "vitest";
 import { createDecomposeRetirementScenario } from "../../../fixtures/decompose-retirement-scenario.js";
@@ -59,7 +60,7 @@ it.each([[false, false], [false, true], [true, false], [true, true]] as const)("
   const applied = await runStoreDecomposeFinish(h.ctx, "demo", { applyAuthority: preview.result.applyAuthority });
   expect(applied).toMatchObject({ status: "ok", result: { kind: "applied" } });
   if (applied.status === "refused" || applied.result.kind !== "applied") throw Error(JSON.stringify(applied));
-  if (started) expect(applied.result.continuation?.argv).toEqual(["arc", "teardown", "demo"]);
+  if (started) expect(applied.result.continuation?.argv).toEqual(["arc", "teardown", boundWorkUnitSubject(h.meta).uid]);
   else expect(applied.result.continuation).toBeUndefined();
   h.teardown.readMarker = readMarker;
   const changes = lifecycleSuccess(await h.store.changes({ from: before, to: lifecycleSuccess(await h.store.version()) }));
@@ -80,7 +81,7 @@ it.each([[false, false], [false, true], [true, false], [true, true]] as const)("
     const written = preview.result.writes.find(write => write.action === "put" && write.reference.kind === "cohort/document");
     expect(written?.action === "put" ? written.content : "").toContain("<!-- arc:decompose-fanout:demo:start -->");
   }
-  expect(await runStoreTeardown(h.teardown, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down" });
+  expect(await runStoreTeardown(h.teardown, { subject: { kind: "slug", slug: boundWorkUnitSubject(h.meta).uid }, base: "main" })).toMatchObject({ status: "torn-down" });
   expect(h.files.has(h.markerPath)).toBe(false);
   expect(h.files.get("/repo/local.txt")).toBe("Retained personal content.");
   expect(await runStoreDecomposeFinish(h.ctx, "demo")).toMatchObject({ status: "ok", result: { kind: "landed", members: [{ name: "member-a" }, { name: "member-b" }] } });

@@ -3,9 +3,19 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createGhRequiredChecksPort } from "../../../../../../src/scripts/review-gate/hosts/github/checks-await.js";
-import type { HostedProcessRunner } from "../../../../../../src/scripts/review-gate/hosted/gh-process.js";
+import { HostedProcessError, type HostedProcessRunner } from "../../../../../../src/scripts/review-gate/hosted/gh-process.js";
 
 describe("GitHub required-check port", () => {
+  it("recovers a required-check head read from one HTTP 503", async () => {
+    const head = "a".repeat(40);
+    const run = vi.fn<HostedProcessRunner["run"]>()
+      .mockRejectedValueOnce(new HostedProcessError("HTTP 503", "HTTP 503", 1, 503))
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ head: { sha: head } }), stderr: "" });
+
+    await expect(createGhRequiredChecksPort({ run }).readHead("owner/repo", 42, new AbortController().signal))
+      .resolves.toBe(head);
+  });
+
   it("observes individual check failures outside required-check authority", async () => {
     const run = vi.fn(async (args: string[]) => {
       if (args.includes("--required")) throw new Error("observed checks must not use the required-only query");

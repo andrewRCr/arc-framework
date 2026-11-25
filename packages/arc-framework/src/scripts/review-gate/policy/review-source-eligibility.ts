@@ -55,13 +55,35 @@ function selectDeltaReviewSources(configured: readonly string[], forced: string 
   return { sources: ["delegated-agent"], refusal: null, reason };
 }
 
-/** Select fresh-pass candidates without changing the list that binds recorded attempts. */
-export function selectReviewSources(request: Pick<ReviewPolicyRequest,
-  "lane" | "invocation" | "sources" | "selectionSources" | "configuredSources" | "nextPassContext">): {
+const HOSTED_FIX_CHECK_DIAGNOSTIC = {
+  code: "hosted-incremental-unsupported",
+  message: "Hosted review requests use complete coverage; fix checks run locally.",
+};
+
+type ReviewSourceSelection = {
   sources: readonly string[];
   refusal: ReviewDiagnostic | null;
   reason?: ReviewDiagnostic;
-} {
+};
+
+function selectMaterialFixReviewSources(configured: readonly string[], selection: readonly string[],
+  forced: string | undefined): ReviewSourceSelection {
+  if (!configured.includes("delegated-agent")) {
+    return { sources: [], refusal: {
+      code: "material-fix-local-source-unconfigured",
+      message: "The pass after material fixes requires delegated-agent, which review.standard_sources omits.",
+    } };
+  }
+  if ((forced !== undefined && forced !== "delegated-agent") || !selection.includes("delegated-agent")) {
+    return { sources: [], refusal: LOCAL_FIX_REVIEW_DIAGNOSTIC };
+  }
+  return { sources: ["delegated-agent"], refusal: null, reason: LOCAL_FIX_REVIEW_DIAGNOSTIC };
+}
+
+/** Select fresh-pass candidates without changing the list that binds recorded attempts. */
+export function selectReviewSources(request: Pick<ReviewPolicyRequest,
+  "lane" | "invocation" | "sources" | "selectionSources" | "configuredSources" | "nextPassContext" | "chosenCoverage">,
+): ReviewSourceSelection {
   const forced = request.lane === "standard" && request.invocation?.mode === "force"
     ? request.invocation.sourceId : undefined;
   const selection = request.selectionSources ?? request.sources;
@@ -70,16 +92,13 @@ export function selectReviewSources(request: Pick<ReviewPolicyRequest,
     return selectDeltaReviewSources(configured, forced);
   }
   if (request.lane === "standard" && request.nextPassContext?.convergence === "unconverged") {
-    if (!configured.includes("delegated-agent")) {
-      return { sources: [], refusal: {
-        code: "material-fix-local-source-unconfigured",
-        message: "The pass after material fixes requires delegated-agent, which review.standard_sources omits.",
-      } };
-    }
-    if ((forced !== undefined && forced !== "delegated-agent") || !selection.includes("delegated-agent")) {
-      return { sources: [], refusal: LOCAL_FIX_REVIEW_DIAGNOSTIC };
-    }
-    return { sources: ["delegated-agent"], refusal: null, reason: LOCAL_FIX_REVIEW_DIAGNOSTIC };
+    return selectMaterialFixReviewSources(configured, selection, forced);
+  }
+  // A chosen fix check after a converged look runs locally, whatever the configured rank of the complete pass beside it.
+  if (request.lane === "standard" && request.chosenCoverage === "incremental"
+    && request.nextPassContext?.incremental?.basis === "fix-check" && configured.includes("delegated-agent")) {
+    return forced === undefined || forced === "delegated-agent" ? { sources: ["delegated-agent"], refusal: null }
+      : { sources: [], refusal: HOSTED_FIX_CHECK_DIAGNOSTIC };
   }
   if (forced !== undefined && !selection.includes(forced)) {
     return { sources: [], refusal: {

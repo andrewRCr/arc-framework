@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execa } from "execa";
 
 import {
   cleanupTempDir,
@@ -19,7 +20,10 @@ describe("change-facts executable", () => {
   let repo: string;
   let base: string;
   let head: string;
-  const hostilePath = "name\n$(touch should-not-exist).ts";
+  // Windows disallows newlines in filenames, so use legal shell metacharacters there.
+  const hostilePath = process.platform === "win32"
+    ? "name & (literal).ts"
+    : "name\n$(touch should-not-exist).ts";
 
   beforeAll(async () => {
     repo = await createTempRepo("arc-change-facts-");
@@ -67,6 +71,23 @@ describe("change-facts executable", () => {
       ],
     });
     await expect(access(join(repo, "should-not-exist"))).rejects.toThrow();
+  });
+
+  it.each([
+    "packages/arc-framework/src/lib/checks/runner/planning.ts",
+    "packages/arc-framework/src/handlers/check/run.ts",
+    "packages/arc-framework/src/lib/checks/forecast.ts",
+    "packages/arc-framework/__tests__/integration/check-symlink-cwd.test.ts",
+    "packages/arc-framework/__tests__/unit/lib/checks/runner/source-platform-paths.test.ts",
+    "packages/arc-framework/__tests__/integration/check-runner-platform-spelling.test.ts",
+    "packages/arc-framework/__tests__/e2e/check-runner-platform.e2e.test.ts",
+    "packages/arc-framework/__tests__/fixtures/checks/prepared-execution.ts",
+  ])("targets runner foundation path %s through the executable projection", async path => {
+    const result = await execa(process.execPath, [MODULE_PATH, "portability-paths"], {
+      cwd: repo, input: Buffer.from(`${path}\0`), reject: false,
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toBe("true");
   });
 
   it("lets cwd select the repository despite inherited Git-local environment", async () => {

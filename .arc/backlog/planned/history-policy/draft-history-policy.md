@@ -131,6 +131,49 @@
 - _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
   Coordination (2026-10-14).
 
+### `[ ]` **Give the integration checkpoint a typed continuation for a base merge with substantive conflicts**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Give `arc base merge` an arm for ordinary catch-up with base", and § Settled inputs.
+
+- _Observation:_ when base and the Candidate conflict in more than ROADMAP, `arc integrate checkpoint` returns
+  `blocked / stop` (reason `conflict`) with the remedy "Resolve the reported conflict paths before retrying: `arc base
+  drift --json`". That remedy is an advisory read: it reports `verdict: reconcile` and the overlap, and names no command
+  that advances. `arc base merge` covers only a clean merge or a ROADMAP-only conflict, and `integrate-work-unit.md`
+  Step 10 has no arm for this case. The agent has to hand-roll the merge (`git merge --no-commit`), decide on its own
+  that it is a merge commit rather than a rebase, and infer the gates after it (`arc check new-head --from <pre-merge
+  head>`, push, re-checkpoint). It also has to work out that DEV-RULES.ARC's provisional-candidate exception, which
+  names only a typed base reconcile, does not cover a hand-resolved merge, so an approval gate is owed before the
+  commit. Separately, `arc hook-remedy-roadmap-conflict` exits 0 silently while other paths are still unresolved; it
+  acts only once every other conflict is staged, and says nothing about why it skipped.
+
+- _Approach:_ a typed arm such as `arc base merge --expected-base --expected-head` that, on substantive conflict,
+  leaves the merge in progress and returns the conflicted paths and an exact continuation: resolve, stage, approval
+  gate, commit, new-head check, push, re-checkpoint. Add the matching Step 10 arm, and state whether the
+  provisional-candidate exception covers it. Make the ROADMAP remedy say why it skipped. Neighbor: `history-policy`
+  already holds "Give `arc base merge` an arm for ordinary catch-up with base", which is a different case; check whether
+  one verb arm serves both.
+
+- _Captured during:_ `cohort-identity-verbs` integration Step 10, checkpoint at head `295c27b6ae` against `main`
+  `2538476f80` (13 conflicting paths), 2026-11-10 (Owner-directed capture).
+
+### `[ ]` **Offer an opt-in confirm step in the force-push advisory**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Open, "The pre-push backstop".
+
+- _Observation:_ the force-push pre-push hook warns and exits 0 when a pushed ref would overwrite a non-ancestor
+  remote tip (ADR-025's advisory default). A pre-push hook runs before data reaches the remote, so it could offer a
+  real abort, but confirming by default is high-friction and can break GUI and non-TTY clients. Under
+  `rewrite-with-lease`, a lease-guarded rewrite is expected, so the warning's trigger is the policy's to set.
+
+- _Approach:_ an opt-in setting such as `push.force_confirm: warn | confirm`, default `warn`. Under `confirm`, prompt
+  `[y/N]` only on a TTY, with a non-interactive proceed-with-warning fallback so CI and agent pushes never hang.
+
+- _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07 (first captured during `merge-safety-mechanism`).
+
 ---
 
 ## Problem / Motivation

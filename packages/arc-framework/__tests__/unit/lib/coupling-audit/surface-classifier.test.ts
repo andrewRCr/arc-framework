@@ -11,6 +11,8 @@ describe("classifySurface", () => {
     ["packages/arc-framework/arc/reference/templates/arc/template-adr.md", "template"],
     ["packages/arc-framework/src/lib/classification.ts", "code"],
     ["packages/arc-framework/bin/arc.js", "code"],
+    ["packages/arc-framework/examples/check-runner/local-process.mjs", "code"],
+    ["packages/arc-framework/examples/check-runner/README.md", "prose"],
     ["packages/arc-framework/eslint/architecture-imports.ts", "code"],
     ["packages/arc-framework/eslint/architecture-config.ts", "code"],
     ["packages/arc-framework/arc/system/.internal/githooks/pre-commit", "code"],
