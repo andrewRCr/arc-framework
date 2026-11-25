@@ -1,7 +1,7 @@
 /** Internal staging-only compiler bootstrap; it never accesses live publication. */
+import { isMainModule } from "../lib/main-module.mjs";
 import { lstat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { bundleRequire } from "bundle-require";
 import { repositoryInputKeys } from "../lib/build-inputs.js";
 import type { BuildMode } from "../lib/build-entry.js";
@@ -42,7 +42,7 @@ async function runCompilerBootstrap(): Promise<void> {
     graphs: { ...graphs, controls: repositoryInputKeys(loaded.dependencies, packageRoot) } }));
 }
 
-if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+if (await isMainModule(import.meta, process.argv[1])) {
   void runCompilerBootstrap().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

@@ -7,10 +7,20 @@ import { readSettledLockHolder } from "../helpers/read-lock-holder.js";
 import {
   BUILD_ARTIFACT_LOCK_NAME, TEST_CONTROLLER_TOKEN_ENV, withBuildArtifactOwnership, withTestArtifactOwnership,
 } from "../../src/lib/build-ownership.js";
-import { classifyAdvisoryLockRead } from "../../src/lib/advisory-lock.js";
+import {
+  acquireAdvisoryLock, classifyAdvisoryLockRead, releaseAdvisoryLockConfirmed, renewAdvisoryLock,
+} from "../../src/lib/advisory-lock.js";
+import { atomicCreateFile } from "../../src/lib/fs.js";
+import { ADVISORY_LEASE_DURATION_MS } from "../../src/lib/renewable-lease.js";
 import { shouldSkipDevBuildStaleness } from "../../src/lib/dev-check.js";
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { withLocalHeavyTestAdmission } from "../../src/lib/local-test-admission.js";
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve = (): void => undefined;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
 
 function admissionGit(root: string) {
   return scriptGitExec([
@@ -97,6 +107,84 @@ it("acquires CPU admission before checkout artifacts and releases both after the
   } finally {
     release?.();
     await Promise.allSettled([first, second]);
+    await rm(packageRoot, { recursive: true, force: true });
+  }
+});
+
+it("waits for a delayed predecessor heartbeat during a later artifact confirmation", async () => {
+  const packageRoot = await mkdtemp(join(tmpdir(), "arc-artifact-heartbeat-"));
+  const lockPath = join(packageRoot, BUILD_ARTIFACT_LOCK_NAME);
+  const delayed = deferred();
+  const acquireMaintenance = deferred();
+  const holdingMaintenance = deferred();
+  const releaseMaintenance = deferred();
+  let maintenanceHeld = false;
+  const predecessor = await acquireAdvisoryLock(lockPath, { leaseDurationMs: ADVISORY_LEASE_DURATION_MS });
+  const heartbeat = renewAdvisoryLock(predecessor, ADVISORY_LEASE_DURATION_MS, {
+    exclusiveCreate: async (path, content) => {
+      delayed.resolve();
+      await acquireMaintenance.promise;
+      await atomicCreateFile(path, content);
+      maintenanceHeld = true;
+      holdingMaintenance.resolve();
+      await releaseMaintenance.promise;
+    },
+  });
+  const heartbeatEndedEarly = heartbeat.then(() => { throw new Error("Predecessor heartbeat finished early"); });
+  try {
+    await Promise.race([delayed.promise, heartbeatEndedEarly]);
+    await releaseAdvisoryLockConfirmed(predecessor);
+
+    await withBuildArtifactOwnership({ packageRoot, operation: "publish build" }, async (lease) => {
+      await lease.confirmOwnership();
+      acquireMaintenance.resolve();
+      await Promise.race([holdingMaintenance.promise, heartbeatEndedEarly]);
+      try {
+        expect(await readSettledLockHolder(lockPath)).toMatchObject({ token: lease.token });
+        expect(await readSettledLockHolder(lockPath + ".break")).toMatchObject({ token: predecessor.token + ":break" });
+        await expect(lease.confirmOwnership()).resolves.toBeUndefined();
+        await expect(heartbeat).resolves.toBe("ownership-lost");
+        expect(await readSettledLockHolder(lockPath)).toMatchObject({ token: lease.token });
+      } finally {
+        releaseMaintenance.resolve();
+      }
+    }, {
+      scheduleEvery: () => () => undefined,
+      renewLock: async (handle, duration) => {
+        try { return await renewAdvisoryLock(handle, duration); }
+        finally {
+          if (maintenanceHeld) releaseMaintenance.resolve();
+        }
+      },
+    });
+  } finally {
+    acquireMaintenance.resolve();
+    releaseMaintenance.resolve();
+    await Promise.allSettled([heartbeat]);
+    await rm(packageRoot, { recursive: true, force: true });
+  }
+});
+
+it("refuses artifact confirmation when the ownership record is unreadable", async () => {
+  const packageRoot = await mkdtemp(join(tmpdir(), "arc-artifact-unreadable-"));
+  let unreadable = true;
+  try {
+    await withBuildArtifactOwnership({ packageRoot, operation: "publish build" }, async (lease) => {
+      await expect(lease.confirmOwnership()).rejects.toThrow("Checkout artifact lock ownership cannot be confirmed");
+      await expect(lease.confirmOwnership()).resolves.toBeUndefined();
+    }, {
+      scheduleEvery: () => () => undefined,
+      renewLock: async (handle, duration) => await renewAdvisoryLock(handle, duration, {
+        readFile: async (path) => {
+          if (unreadable && path === handle.path) {
+            unreadable = false;
+            throw Object.assign(new Error("Unusable ownership record"), { code: "EACCES" });
+          }
+          return await readFile(path, "utf8");
+        },
+      }),
+    });
+  } finally {
     await rm(packageRoot, { recursive: true, force: true });
   }
 });

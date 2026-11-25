@@ -3,8 +3,9 @@
  *
  * The guard lives in action hooks inside `cli.ts`, whose module body parses and
  * runs on import — so it is reachable only from outside the process. Holding
- * the compaction-seed exemption and refresh eligibility at that call site is
- * the design, which puts this coverage here rather than in a unit test.
+ * the rebuild and re-run, the compaction-seed exemption and refresh eligibility
+ * at that call site is the design, which puts this coverage here rather than in
+ * a unit test.
  */
 
 import { execFile } from "node:child_process";
@@ -17,11 +18,13 @@ import { promisify } from "node:util";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { assertCliBuilt, CLI_PATH } from "../helpers/cli-spawn.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 import { makeNativeBuildFixture } from "../helpers/native-build-fixture.js";
 import { copyLiveDependencies } from "../helpers/copy-live-dependencies.js";
 import { buildOwnedArtifacts } from "../../src/lib/build-entry.js";
 import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
+import { DEV_BUILD_RERUN_ENV } from "../../src/lib/dev-check.js";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -47,8 +50,11 @@ async function staleBundle(): Promise<string> {
   return join(dist, "cli.js");
 }
 
-/** Build a throwaway package layout whose content stamp reports stale. */
-async function contentStaleBundle(): Promise<string> {
+/**
+ * Build a throwaway package layout whose content stamp reports stale.
+ * @param change - Source appended to the qualified CLI entry
+ */
+async function contentStaleBundle(change = "\n// changed after qualified compilation\n"): Promise<string> {
   const { root, packageRoot: fixture } = await makeNativeBuildFixture();
   fixtures.push(root);
   const source = await readFile(join(packageRoot, "src/cli.ts"), "utf8");
@@ -56,16 +62,18 @@ async function contentStaleBundle(): Promise<string> {
   await withBuildArtifactOwnership({ packageRoot: fixture, operation: "stale guard fixture" }, async (lease) => {
     await buildOwnedArtifacts(lease, "fast");
   });
-  await writeFile(join(fixture, "src/cli.ts"), `${source}\n// changed after qualified compilation\n`);
+  await writeFile(join(fixture, "src/cli.ts"), `${source}${change}`);
   return join(fixture, "dist/cli.js");
 }
 
-async function runStale(bundlePath: string, args: string[], cwd: string) {
+async function runStale(bundlePath: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}) {
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, [bundlePath, ...args], {
       cwd,
-      timeout: 30_000,
-      env: { ...process.env, NO_COLOR: "1" },
+      // A stale run may rebuild the bundle before it runs the command.
+      timeout: 2 * CALL_LIMIT,
+      // CI forbids test-time builds, which the guard's rebuild would refuse.
+      env: { ...process.env, NO_COLOR: "1", ARC_E2E_SKIP_BUILD: undefined, ...env },
     });
     return { stdout, stderr, exitCode: 0 };
   } catch (err: unknown) {
@@ -105,29 +113,44 @@ afterEach(async () => {
 });
 
 describe("stale-build guard", () => {
-  it("does not attribute content-hash staleness to the newest source mtime", async () => {
+  it("rebuilds a content-stale bundle, naming its inputs as the cause, and runs the command on it", async () => {
     const bundle = await contentStaleBundle();
     const cwd = await ownProjectRoot();
 
-    const result = await runStale(bundle, ["status"], cwd);
+    const stale = await runStale(bundle, ["status"], cwd);
+    const fresh = await runStale(bundle, ["status"], cwd);
 
-    expect(result.stderr).toContain("Build input identity does not match.");
-    expect(result.stderr).not.toContain("src/cli.ts changed");
-  });
+    expect(stale.stderr).toContain("info: rebuilding the stale arc dev build (Build input identity does not match.");
+    expect(stale.stderr).not.toContain("src/cli.ts changed");
+    expect(stale.stderr).not.toContain("Refusing");
+    expect(fresh.stderr).not.toContain("rebuilding");
+    expect({ stdout: stale.stdout, exitCode: stale.exitCode })
+      .toEqual({ stdout: fresh.stdout, exitCode: fresh.exitCode });
+  }, 6 * CALL_LIMIT);
 
-  it("refuses an ordinary command against a stale bundle", async () => {
-    const bundle = await staleBundle();
+  it("refuses an ordinary command when its stale bundle cannot be rebuilt", async () => {
+    const bundle = await contentStaleBundle("\nexport const unbuildable = ;\n");
     const cwd = await ownProjectRoot();
 
     const result = await runStale(bundle, ["status"], cwd);
 
-    // Both branches embed the same stale-build sentence, and an ordinary
-    // command exits non-zero in a bare fixture for reasons of its own — so
-    // neither the sentence nor the exit code discriminates. The refusal clause
-    // does.
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("error: arc could not rebuild the dev build (the build exited with code 1).");
+    expect(result.stderr).toContain("Refusing `arc status` against stale dist; run `npm run build:fast`, then retry.");
+  }, 5 * CALL_LIMIT);
+
+  it("refuses a stale re-run without rebuilding again", async () => {
+    const bundle = await staleBundle();
+    const cwd = await ownProjectRoot();
+
+    const result = await runStale(bundle, ["status"], cwd, { [DEV_BUILD_RERUN_ENV]: "1" });
+
+    // An ordinary command exits non-zero in a bare fixture for reasons of its
+    // own, so the exit code does not discriminate. The refusal clause does.
+    expect(result.stderr).not.toContain("rebuilding");
     expect(result.stderr).toContain("Refusing `arc status` against stale dist");
     expect(result.stderr).toContain("run `npm run build:fast`, then retry.");
-  });
+  }, 3 * CALL_LIMIT);
 
   it("lets the compaction-seed write proceed and still names the stale build", async () => {
     const bundle = await staleBundle();
@@ -140,6 +163,7 @@ describe("stale-build guard", () => {
     );
 
     expect(result.stderr).not.toContain("Refusing");
+    expect(result.stderr).not.toContain("rebuilding");
     expect(result.stderr).toContain("arc dev build is stale");
     expect(result.stderr).toContain("Run `npm run build:fast` before relying on output.");
     expect(result.stderr).not.toContain("could not refresh the dev build");

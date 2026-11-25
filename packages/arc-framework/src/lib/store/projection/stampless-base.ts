@@ -3,11 +3,13 @@ import { KIND_REGISTRY } from "../registry.js";
 import { mergeEntryText } from "../concurrency/entry-merge.js";
 import { mergeLineText } from "../concurrency/line-merge.js";
 import { stampEntryIds } from "../concurrency/stamp.js";
+import type { RecordVersion } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import { recoverBase, type HistoryMemo, type RecoveredBase } from "./base-recovery.js";
 import { readHistoricalBaseContent, type BaseSelectionContext } from "./base-content.js";
 import type { WriteBackBaseDecision } from "./base-selection.js";
 import { gitBlobId } from "./blob-id.js";
+import type { RecordEntry } from "./index-schema.js";
 import { readRetainedBase, RetainedBaseUnavailable } from "./taken-in.js";
 import type { TakeInRequest } from "./take-in-port.js";
 import { restoreWriteBackIds } from "./write-back-ids.js";
@@ -26,6 +28,7 @@ export async function selectStamplessBase(
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const unfinished = unfinishedRecordingRefusal(request.entry);
   if (unfinished !== null) return { status: "refused", refusal: unfinished };
+  if (request.entry.adoption?.kind === "write-back") return selectAttachedBase(context, request.entry, content);
   const blob = request.base.kind === "blob" ? request.base.blob : request.entry.base.blob;
   const carried = await resolveCarriedBase(context, request, content, blob);
   if (carried.status === "refused" || carried.result.kind === "held") return carried;
@@ -38,6 +41,23 @@ export async function selectStamplessBase(
   if (agreement.status === "refused") return { status: "ok", result: { kind: "held",
     readRefusal: agreement.refusal, mark: { reason: agreement.refusal.condition, remedy: agreement.refusal.remedy } } };
   return agreement.result ? carried : { status: "ok", result: ambiguousBase() };
+}
+
+/**
+ * A file attached to a record that already existed recorded no base of its own: its entry names the version the record
+ * held at attachment, which the file may never have held. Only content some stored version holds names its base. A hold
+ * already drawn shows the person the entry's version, so from then on only keeping that side settles without its token.
+ */
+async function selectAttachedBase(context: BaseContext, entry: RecordEntry, content: string): Promise<StoreResult<WriteBackBaseDecision>> {
+  const stamp = gitBlobId(content, context.format);
+  const selected = (version: RecordVersion): StoreResult<WriteBackBaseDecision> => ({ status: "ok",
+    result: { kind: "selected", base: { kind: "stored", version }, stamp } });
+  if (!context.recoveringBase && stamp === entry.base.blob) return selected(entry.base.version);
+  if (entry.refused?.reason === "bases-disagree") return { status: "ok", result: ambiguousBase() };
+  const history = await context.memo.read(entry.reference);
+  if (history.status === "refused") return history;
+  const match = history.result.find(each => each.content === content)?.version ?? null;
+  return match === null ? { status: "ok", result: ambiguousBase() } : selected(match);
 }
 
 async function compareCandidates(

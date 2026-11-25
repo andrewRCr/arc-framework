@@ -47,6 +47,22 @@ const devBuildRefreshSubprocessPolicy = {
   subprocess: "close-stdin" as const,
 };
 
+/**
+ * The stale-build guard's launches run before every command, and the inventory has no program-wide declaration, so they
+ * are claimed beside the development build's post-action refresh as a representative, not a record of their reach.
+ */
+const devBuildGuardSites = [
+  declareInteractionSite(
+    { file: "lib/dev-check.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+    { ...devBuildRefreshSubprocessPolicy, mutationBoundary: "pre-action development build preparation" },
+  ),
+  declareInteractionSite(
+    { file: "lib/dev-check.ts", kind: "subprocess", callee: "spawn", occurrence: 2 },
+    { ...devBuildRefreshSubprocessPolicy, mutationBoundary: "re-run of the command on the rebuilt development build",
+      subprocess: "terminal-prompts" },
+  ),
+];
+
 const nativeDeliveryCommandPaths: ReadonlySet<string> = new Set([
   "delivery native link",
   "delivery native land-prepare",
@@ -198,5 +214,6 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       { file: "lib/dev-check.ts", kind: "subprocess", callee: "execFile", occurrence: 1 },
       devBuildRefreshSubprocessPolicy,
     ),
+    ...devBuildGuardSites,
   ],
 }))] satisfies readonly CommandInputDeclaration[];

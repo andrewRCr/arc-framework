@@ -110,9 +110,7 @@ it.runIf(process.platform !== "win32")("recovers the same clean claim after its 
   }
 }, RECOVERY_TIMEOUT_MS);
 
-// The anchored CLI runs under `script`, a pseudo-terminal Windows lacks; the integration Errand suite covers setup
-// failure and repair there.
-it.runIf(process.platform !== "win32")("cleans up capability-off failed setup and opens after setup repair", async () => {
+it("cleans up capability-off failed setup and opens after setup repair", async () => {
   const primary = await createTempRepo("arc-open-personal-recovery-");
   const remote = `${primary}-remote.git`;
   let spawned: string | null = null;
@@ -126,7 +124,7 @@ it.runIf(process.platform !== "win32")("cleans up capability-off failed setup an
     await mkdir(join(primary, "scripts"), { recursive: true });
     await writeFile(join(primary, "scripts", "personal-setup.cjs"), `
 const fs = require("node:fs");
-if (!fs.existsSync(process.argv[2])) {
+if (!fs.existsSync(${JSON.stringify(repaired)})) {
   fs.mkdirSync(".arc/user/test-user", { recursive: true });
   fs.writeFileSync(".arc/user/test-user/personal.md", "Saved during failed setup.\\n");
   process.exitCode = 1;
@@ -134,7 +132,7 @@ if (!fs.existsSync(process.argv[2])) {
 `);
     const configPath = join(primary, ".arc/system/arc-config.yml");
     let config = (await readFile(configPath, "utf8")).replace("branch.protection: partial", "branch.protection: full");
-    const setup = `worktree.post_create: node scripts/personal-setup.cjs ${JSON.stringify(repaired)}`;
+    const setup = "worktree.post_create: node scripts/personal-setup.cjs";
     config = /^worktree.post_create:/mu.test(config)
       ? config.replace(/^worktree.post_create:.*$/mu, setup) : `${config}\n${setup}\n`;
     await writeFile(configPath, config);
