@@ -173,6 +173,77 @@ it("refuses to mint while the registry tracking ref is locked and adopts the pub
   expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
 }, 90_000);
 
+async function publishedRegistry() {
+  const remote = await bareRemote(), publisher = await repository(remote);
+  await init(publisher, null);
+  const { id } = await readProjectIdentityBinding(publisher.store);
+  expect(await publisher.store.push()).toMatchObject({ status: "ok" });
+  return { remote, id };
+}
+
+it.each(["preconfigured", "newly designated"])("refuses a divergent registry from a %s publisher and adopts its ID after repair", async (role) => {
+  const { remote, id } = await publishedRegistry();
+  const target = await repository(remote);
+  if (role === "preconfigured") await git(target.cwd, "config", "remote.origin.arc-state", "push");
+  const registry = "refs/arc/project/registry", tracking = "refs/arc-remotes/origin/project/registry";
+  const { tip } = await plantRef(target.cwd, tracking, []);
+
+  const attempt = init(target, null).then(async () => ({ sourceId: id, installedId: (await readProjectIdentityBinding(target.store)).id }));
+  await expect(attempt).rejects.toMatchObject({ code: "init.state-remote",
+    why: expect.stringContaining(`The fetched tip of ${registry} does not descend from the last head seen`),
+    whatToDo: expect.stringContaining("Take theirs"),
+  });
+  expect(await git(target.cwd, "rev-parse", tracking)).toBe(tip);
+  await expect(readProjectIdentityBinding(target.store)).rejects.toThrow("Project identity record is missing.");
+
+  const seen = "refs/arc/tmp/seen/origin/project/registry";
+  await git(target.cwd, "fetch", "--atomic", "--no-tags", "--refmap=", "origin", `+${registry}:${tracking}`, `+${registry}:${seen}`);
+  await git(target.cwd, "update-ref", registry, tracking, "0".repeat(tip.length));
+  await init(target, null);
+  expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
+}, 90_000);
+
+it("reports an unreadable publisher registry and adopts the published ID once it can be read", async () => {
+  const { remote, id } = await publishedRegistry();
+  const target = await repository(remote);
+  await git(target.cwd, "config", "remote.origin.arc-state", "push");
+  const condition = "An object required by refs/arc/project/registry is missing.";
+  const remedy = { text: "Restore the missing object from a complete copy, then retry the pull." };
+  vi.spyOn(target.store, "pull").mockResolvedValueOnce({ status: "ok", result: { states: [], pulls: [{
+    status: "noop", remote: "origin", role: "state", families: ["project-registry"],
+    notices: [{ kind: "namespace-corrupt", ref: "refs/arc/project/registry", condition, remedy }],
+  }] } });
+
+  await expect(init(target, null)).rejects.toMatchObject({ code: "init.state-remote", why: condition,
+    whatToDo: expect.stringContaining(remedy.text),
+  });
+  await expect(readProjectIdentityBinding(target.store)).rejects.toThrow("Project identity record is missing.");
+  await init(target, null);
+  expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
+}, 90_000);
+
+it("installs with the publisher's ID while a secondary read source's registry tracking ref is locked", async () => {
+  const { remote, id } = await publishedRegistry();
+  const { remote: reader } = await publishedRegistry();
+  const target = await repository(remote);
+  await git(target.cwd, "config", "remote.origin.arc-state", "push");
+  await git(target.cwd, "remote", "add", "reader", reader);
+  await git(target.cwd, "config", "remote.reader.arc-state", "read");
+  const lock = join(target.cwd, ".git", "refs/arc-remotes/reader/project/registry.lock");
+  await mkdir(dirname(lock), { recursive: true });
+  await writeFile(lock, "");
+  const pull = vi.spyOn(target.store, "pull");
+
+  await expect.soft(init(target, null)).resolves.not.toBeNull();
+  expect(pull.mock.settledResults[0]).toMatchObject({ type: "fulfilled", value: { status: "ok", result: { pulls: [
+    expect.objectContaining({ remote: "origin", role: "state", status: "pulled", notices: [] }),
+    expect.objectContaining({ remote: "reader", role: "read",
+      notices: expect.arrayContaining([expect.objectContaining({ kind: "tracking-update-failed", ref: "refs/arc/project/registry" })]),
+    }),
+  ] } } });
+  expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
+}, 90_000);
+
 it("refuses a moved state remote before minting and adopts the original ID on retry", async () => {
   const destination = await bareRemote(), project = await repository(destination);
   await init(project, null);

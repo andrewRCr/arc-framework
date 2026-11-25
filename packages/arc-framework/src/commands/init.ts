@@ -371,8 +371,9 @@ async function prepareStateRemote(store: Store, designate: () => Promise<StoreCr
   if (result.status === "designation-needed") throw stateRemoteError("ARC could not pull the designated state remote", {
     condition: `Remote ${result.remote} needs a store designation.`, remedy: result.remedy,
   });
-  const notice = result.notices?.find(item => item.kind === "tracking-update-failed"
-    && item.ref === "refs/arc/project/registry");
+  // Read sources can supply the project identity only when there is no publisher.
+  const publisher = pulled.result.pulls.find(({ role }) => role === "state");
+  const notice = (publisher?.notices ?? result.notices)?.find(item => "ref" in item && item.ref === "refs/arc/project/registry");
   if (notice) throw stateRemoteError("ARC could not pull the project registry", notice);
 }
 
