@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "rewrap-delivery-rebuild-draft",
+  "claimId": "a03c3d040e76a50cb50519817cfa9d2d",
+  "createdAt": "2026-11-25T17:32:31.862Z",
+  "updatedAt": "2026-11-25T17:32:31.862Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Rewrap the six under-wrapped lines of draft-delivery-rebuild-continuity.md on main",
+  "branch": "chore/rewrap-delivery-rebuild-draft",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
