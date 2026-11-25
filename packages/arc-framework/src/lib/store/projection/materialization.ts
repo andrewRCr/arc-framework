@@ -4,8 +4,9 @@ import { recordProjectionSweep } from "./end-work.js";
 import { projectionTimingNow, recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
 import { prepareMaterializationSelection, refreshMaterializationLinks } from "./materialization-selection.js";
 import { projectionSettings } from "./settings.js";
-import { join } from "node:path";
-import { ensureGitExcludePatterns } from "../../git/exclude.js";
+import { dirname, join } from "node:path";
+import { classifyFilesystemAccessFault } from "../../fs.js";
+import { ensureGitExcludePatterns, type GitExcludeResult } from "../../git/exclude.js";
 import { nodeWorktreeMarkerIgnoreFs } from "../../git/worktree-marker.js";
 import { readProjectionInventory } from "./inventory.js";
 import { retainUncertainProjectionPaths } from "./placement-evidence.js";
@@ -60,11 +61,13 @@ export type ProjectionMaterializationResult = { readonly kind: "materialized"; r
   | { readonly kind: "refused"; readonly index: ProjectionIndex; readonly mark: RefusedMark };
 
 /** Name Git's exclude file and its repair when the projection cannot add its patterns there; nothing has been laid. */
-function excludeRefusedMark(failure: { readonly path?: string; readonly error: unknown }): RefusedMark {
+function excludeRefusedMark(failure: Extract<GitExcludeResult, { ok: false }>): RefusedMark {
   const file = failure.path ?? "Git's info/exclude";
   const cause = failure.error instanceof Error ? failure.error.message : String(failure.error);
-  return { reason: `Projection could not update ${file}: ${cause}`,
-    remedy: { text: `Make ${file} a regular file ARC can read and write, then run the command again.` } };
+  const repair = failure.lockPath !== undefined && classifyFilesystemAccessFault(failure.error) !== undefined
+    ? `Make the directory ${dirname(failure.lockPath)} writable by ARC so it can create the exclude lock`
+    : `Make ${file} a regular file ARC can read and write`;
+  return { reason: `Projection could not update ${file}: ${cause}`, remedy: { text: `${repair}, then run the command again.` } };
 }
 
 /** Lay the complete visible inventory while preserving every file without a trustworthy basis. */

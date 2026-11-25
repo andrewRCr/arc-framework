@@ -58,9 +58,14 @@ function rethrowUnlessGone(error: unknown): void {
 // The codes a create carries when the Git directory refuses writes: permissions, or a read-only filesystem.
 const UNWRITABLE_CODES: ReadonlySet<string> = new Set(["EACCES", "EPERM", "EROFS"]);
 
-function unwritableCode(error: unknown): string | null {
+class ProjectionLockCreateRefused extends Error {
+  constructor(readonly code: string, cause: unknown) { super(code, { cause }); }
+}
+
+function rethrowCreateError(error: unknown): never {
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
-  return code !== undefined && UNWRITABLE_CODES.has(code) ? code : null;
+  if (code !== undefined && UNWRITABLE_CODES.has(code)) throw new ProjectionLockCreateRefused(code, error);
+  throw error;
 }
 
 /** Process and lockfile boundaries, native by default. */
@@ -96,27 +101,28 @@ async function enter(
   location: ProjectionLocation, lockFiles: LockFiles, options: { readonly maxWaitMs?: number }, deps: ProjectionLockDependencies,
 ): Promise<{ readonly handle: AdvisoryLockHandle; readonly startedAt: number } | ProjectionLockResult<never>> {
   try {
-    if (await ensureProjectionStateFolder(location) === "gone") return { status: "gone" };
+    if (await ensureProjectionStateFolder(location).catch(rethrowCreateError) === "gone") return { status: "gone" };
     const startedAt = deps.now();
     const acquired = await acquire(join(location.stateDir, PROJECTION_LOCK_FILE), lockFiles, options, deps);
     return "status" in acquired ? acquired : { handle: acquired, startedAt };
   } catch (error) {
-    const code = unwritableCode(error);
-    if (code === null) throw error;
-    return { status: "unwritable", report: `The worktree's Git directory ${location.gitDir} is not writable (${code}).` };
+    if (!(error instanceof ProjectionLockCreateRefused)) throw error;
+    return { status: "unwritable", report: `The worktree's Git directory ${location.gitDir} is not writable (${error.code}).` };
   }
 }
 
-type LockFiles = Pick<AdvisoryLockOptions, "exclusiveCreate" | "readFile">;
+type LockFiles = Pick<AdvisoryLockOptions, "readFile"> & { readonly exclusiveCreate: typeof createInExistingFolder };
 
 async function acquire(
   lockPath: string, lockFiles: LockFiles, options: { readonly maxWaitMs?: number }, deps: ProjectionLockDependencies,
 ): Promise<AdvisoryLockHandle | ProjectionLockResult<never>> {
+  const processScope = await deps.resolveProcessScope();
   let lastSeen: AdvisoryLockContention["holder"] | null = null;
   try {
     return await acquireAdvisoryLock(lockPath, {
       ...lockFiles, ...(options.maxWaitMs === undefined ? {} : { maxWaitMs: options.maxWaitMs }),
-      pid: deps.pid, processInstance: deps.processInstance, processScope: await deps.resolveProcessScope(),
+      exclusiveCreate: (path, content) => lockFiles.exclusiveCreate(path, content).catch(rethrowCreateError),
+      pid: deps.pid, processInstance: deps.processInstance, processScope,
       leaseDurationMs: ADVISORY_LEASE_DURATION_MS, now: deps.now,
       onWait: ({ holder }) => { lastSeen = holder; },
     });

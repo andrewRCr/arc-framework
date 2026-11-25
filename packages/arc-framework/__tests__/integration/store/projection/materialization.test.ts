@@ -10,9 +10,9 @@ import { bindSpawnMaterialization, materializeSpawnedProjection } from "../../..
 import { ProjectionPartitionMismatch } from "../../../../src/lib/store/projection/index-memory.js";
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
 import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
-import { access, mkdtemp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { access, chmod, constants, mkdtemp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createEngineFixture, configureEngineCheckout, overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
@@ -200,11 +200,40 @@ it("leaves an unmaterialized worktree retryable when Git's exclude file cannot b
   const refused = await materialize(target);
   expect(refused).toMatchObject({ status: "done", value: { kind: "refused", mark: {
     reason: expect.stringContaining(exclude), remedy: { text: expect.stringContaining(exclude) } } } });
+  if (refused.status !== "done" || refused.value.kind !== "refused") throw new Error("Expected an exclude refusal");
+  expect(refused.value.mark.reason).toMatch(/EISDIR|directory/i);
+  expect(refused.value.mark.remedy.text).toMatch(/regular file/i);
   expect(await readProjectionIndex(target.location, true)).toMatchObject({ kind: "unusable", cause: "missing" });
   await rm(exclude, { recursive: true });
   await writeFile(exclude, content);
   expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized" } });
   expect(parseStampedFile(await readFile(join(target.checkout, ".arc/active/current/meta-work-item-one.md"), "utf8")).content).toBe(target.primary.content);
+});
+
+it.skipIf(process.platform === "win32" || process.getuid?.() === 0)("names the repair when Git's info directory denies lock creation", async () => {
+  const target = await fixture();
+  const resolved = await target.h.exec("git", ["rev-parse", "--path-format=absolute", "--git-path", "info/exclude"],
+    { cwd: target.checkout });
+  const exclude = resolved.stdout.trim();
+  const info = dirname(exclude);
+  const mode = (await stat(info)).mode & 0o7777;
+  await chmod(info, 0o555);
+  try {
+    expect((await stat(exclude)).isFile()).toBe(true);
+    await access(exclude, constants.R_OK | constants.W_OK);
+    const refused = await materialize(target);
+    if (refused.status !== "done" || refused.value.kind !== "refused") throw new Error("Expected an exclude refusal");
+    const { reason, remedy } = refused.value.mark;
+    expect(reason).toMatch(/EACCES|permission denied/i);
+    expect(reason).toContain("exclude.arc.lock");
+    expect.soft(remedy.text).toMatch(/writ|permission|chmod/i);
+    expect.soft(remedy.text, "The repair must identify the directory where the lock is created")
+      .toMatch(/directory|folder/i);
+    expect.soft(remedy.text).toContain(info);
+  } finally {
+    await chmod(info, mode);
+  }
+  expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized" } });
 });
 
 
