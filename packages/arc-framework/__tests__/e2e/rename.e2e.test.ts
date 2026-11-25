@@ -28,7 +28,6 @@ import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/po
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 
 const execFileAsync = promisify(execFile);
@@ -594,9 +593,11 @@ describe("arc rename on the store", () => {
     await git(checkout, ["add", "work.txt"]);
     await git(checkout, ["commit", "-m", "feat: unlanded work"]);
     await git(checkout, ["push", "-u", "origin", "feat/old-name"]);
-    const renamed = RecordReferenceSchema.parse({ ...meta.reference, owner: { ...meta.reference.owner, name: "new-name" } });
-    return { checkout, meta, record: (name: "old-name" | "new-name") =>
-      readStoreRecord(fixture.repo, SlugSchema.parse("test-user"), name === "old-name" ? meta.reference : renamed) };
+    return { checkout, meta, record: () => readStoreRecord(fixture.repo, SlugSchema.parse("test-user"), meta.reference) };
+  }
+
+  async function expectStoredName(h: Awaited<ReturnType<typeof startedWorkUnit>>, name: "old-name" | "new-name"): Promise<void> {
+    expect((await h.record()).reference.owner).toEqual({ ...h.meta.reference.owner, name });
   }
 
   it("renames a backlog stub in one store write, committing nothing and leaving main checked out", async () => {
@@ -622,6 +623,7 @@ describe("arc rename on the store", () => {
   it("renames an in-place work unit, its checkout's ownership, and its published branch", async () => {
     const fixture = await storeFixture();
     const h = await startedWorkUnit(fixture, { spawned: false });
+    await expect(expectStoredName(h, "new-name")).rejects.toMatchObject({ name: "AssertionError" });
 
     const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
 
@@ -632,7 +634,8 @@ describe("arc rename on the store", () => {
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/new-name");
     expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).toBe("");
     expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).not.toBe("");
-    await expect(h.record("new-name")).resolves.toBeDefined();
+    await expectStoredName(h, "new-name");
+    await expect(expectStoredName(h, "old-name")).rejects.toMatchObject({ name: "AssertionError" });
     const marker = JSON.parse(await readFile(join(fixture.repo, ".arc", "system", ".internal", "worktree-marker.json"), "utf8")) as {
       wuName: string; createdFor: { name: string } };
     expect(marker).toMatchObject({ wuName: "new-name", createdFor: { name: "new-name" } });
@@ -641,7 +644,7 @@ describe("arc rename on the store", () => {
   it.each([false, true])("refuses a rename to the work unit's own name, changing nothing, json=%s", async json => {
     const fixture = await storeFixture();
     const h = await startedWorkUnit(fixture, { spawned: false });
-    const before = await h.record("old-name");
+    const before = await h.record();
     const remote = await git(fixture.repo, ["ls-remote", "--heads", "origin"]);
 
     const renamed = await runArcNoTty(["rename", "old-name", "old-name", ...(json ? ["--json"] : [])], fixture.repo);
@@ -649,7 +652,7 @@ describe("arc rename on the store", () => {
     expect(renamed.exitCode).toBe(1);
     if (json) expect(JSON.parse(renamed.stdout)).toMatchObject({ status: "rejected", reason: "Rename needs distinct source and target names." });
     else expect(renamed.stdout + renamed.stderr).toContain("Rename needs distinct source and target names.");
-    expect(await h.record("old-name")).toEqual(before);
+    expect(await h.record()).toEqual(before);
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/old-name");
     expect(await git(fixture.repo, ["ls-remote", "--heads", "origin"])).toBe(remote);
   }, 30_000);
@@ -668,7 +671,7 @@ describe("arc rename on the store", () => {
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/old-name");
     expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).not.toBe("");
     expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).toBe("");
-    await expect(h.record("old-name")).resolves.toBeDefined();
+    await expectStoredName(h, "old-name");
   }, 30_000);
 
   it("self-renames from its spawned checkout, deferring the checkout's move until it runs from outside", async () => {

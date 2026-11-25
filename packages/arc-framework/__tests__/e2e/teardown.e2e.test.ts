@@ -11,6 +11,7 @@ import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 
 const { join } = posix;
 async function fixturePath(path: string): Promise<string> {
@@ -45,12 +46,13 @@ async function gitFailureEnvironment(dir: string,
   return { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` };
 }
 
-/** Read the outside removal a self-teardown prints for its remaining folder: the primary checkout to run it from, and
- * the work unit's UID and husk path it names. */
-function printedHuskContinuation(output: string): { from: string; uid: string; husk: string } {
-  const match = /From the primary checkout (.+?), run: arc teardown (\S+) --husk '([^']+)'/u.exec(unwrapPresentationOutput(output));
+/** Verify the printed husk operand and read the primary checkout and UID for replay. */
+function printedHuskContinuation(output: string, worktree: string): { from: string; uid: string } {
+  const match = /From the primary checkout (.+?), run: arc teardown (\S+) --husk ([^\r\n]+)/u
+    .exec(unwrapPresentationOutput(output));
   if (match === null) throw new Error(`No outside removal was printed:\n${output}`);
-  return { from: match[1]!, uid: match[2]!, husk: match[3]! };
+  expect(match[3]?.trimEnd()).toBe(quoteShellArgument(normalize(worktree)));
+  return { from: match[1]!, uid: match[2]! };
 }
 
 /** Build the linked teardown fixture from an initialized repository. */
@@ -394,10 +396,9 @@ describe("arc teardown (CLI surface)", () => {
     const output = unwrapPresentationOutput(result.stdout + result.stderr);
     expect(result.exitCode, output).toBe(0);
     expect(output).toMatch(/folder remains/iu);
-    const { from, uid, husk } = printedHuskContinuation(output);
+    const { from, uid } = printedHuskContinuation(output, worktree);
     expect(await realpath(from)).toBe(await realpath(tmpDir));
     expect(uid).toMatch(/^[0-9a-f-]{36}$/u);
-    expect(await realpath(husk)).toBe(await realpath(worktree));
     expect(await stat(worktree)).toMatchObject({});
   });
 
@@ -450,15 +451,14 @@ describe("arc teardown (CLI surface)", () => {
   it.each(["linux", "xterm-256color"])("reports outside husk replay as physical removal under %s", async term => {
     tmpDir = await initializedRepository("initialized");
     if (process.platform === "win32") await git(tmpDir, ["config", "core.longpaths", "true"]);
-    worktreeParent = await mkdtemp(join(tmpdir(), `arc-teardown-e2e-wt-${process.platform === "win32" ? "│" : "|│"}-${"long-".repeat(24)}`));
+    worktreeParent = await mkdtemp(join(tmpdir(), `arc-teardown-O'Brien-${process.platform === "win32" ? "│" : "|│"}-${"long-".repeat(24)}`));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const created = await runArc(["teardown", "demo"], worktree);
     expect(created.exitCode).toBe(0);
-    const { from, uid, husk } = printedHuskContinuation(created.stdout + created.stderr);
+    const { from, uid } = printedHuskContinuation(created.stdout + created.stderr, worktree);
     expect(await realpath(from)).toBe(await realpath(tmpDir));
-    expect(await realpath(husk)).toBe(await realpath(worktree));
 
-    const replay = await runArc(["teardown", uid, "--husk", husk], from, { env: { TERM: term, CI: "true", FORCE_COLOR: "0", NO_COLOR: "1" } });
+    const replay = await runArc(["teardown", uid, "--husk", worktree], from, { env: { TERM: term, CI: "true", FORCE_COLOR: "0", NO_COLOR: "1" } });
     const output = replay.stdout + replay.stderr;
     expect(output).toMatch(process.platform !== "win32" && term === "linux" ? /\|\r?\n\|/u : /│\r?\n│/u);
     expect(output).not.toContain(normalize(worktree));

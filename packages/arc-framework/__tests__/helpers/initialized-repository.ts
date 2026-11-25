@@ -55,7 +55,7 @@ async function buildInitializedStart(start: InitializedStart): Promise<string> {
  * @returns The copy's root.
  */
 export async function initializedRepository(start: InitializedStart): Promise<string> {
-  const selection = process.env[IN_REPO_STORE_OVERRIDE] === undefined ? "ref" : "in-repo";
+  const selection = process.env[IN_REPO_STORE_OVERRIDE] ? "in-repo" : "ref";
   const shape = initializedShape(start, selection), key = `${start}:${selection}`;
   let template = initializedTemplates.get(key);
   if (template === undefined) {

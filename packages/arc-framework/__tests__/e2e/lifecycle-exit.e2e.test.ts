@@ -1256,27 +1256,28 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
 describe("lifecycle exit on the store (CLI seam)", () => {
   let repo: string;
-  let origin: string;
   let checkouts: string;
 
-  beforeEach(async () => {
-    repo = await createTempRepo("arc-exit-store-");
+  beforeEach(async ({ onTestFinished }) => {
+    const root = await createTempRepo("arc-exit-store-");
+    repo = root;
+    onTestFinished(async () => {
+      await git(root, ["worktree", "prune"]).catch(() => undefined);
+      await cleanupTempDir(root);
+    });
     const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
     expect(init.exitCode, init.stdout + init.stderr).toBe(0);
     await commitFixtureBypassingHooks(repo, "arc init");
-    origin = await mkdtemp(join(tmpdir(), "arc-exit-store-origin-"));
-    checkouts = await mkdtemp(join(tmpdir(), "arc-exit-store-wt-"));
+    const origin = await mkdtemp(join(tmpdir(), "arc-exit-store-origin-"));
+    onTestFinished(() => removeGitBackedDir(origin));
+    const checkoutRoot = await mkdtemp(join(tmpdir(), "arc-exit-store-wt-"));
+    checkouts = checkoutRoot;
+    onTestFinished(() => removeGitBackedDir(checkoutRoot));
     await git(origin, ["init", "--bare", "--initial-branch=main"]);
     await git(repo, ["remote", "add", "origin", origin]);
     await git(repo, ["push", "-u", "origin", "main"]);
     const designated = await runArc(["store", "remote", "origin", "push"], repo);
     expect(designated.exitCode, designated.stdout + designated.stderr).toBe(0);
-  });
-
-  afterEach(async () => {
-    await git(repo, ["worktree", "prune"]).catch(() => undefined);
-    for (const path of [checkouts, origin]) await removeGitBackedDir(path);
-    await cleanupTempDir(repo);
   });
 
   /** An Active work unit held in the store, its created branch carrying unlanded work in the linked checkout ARC

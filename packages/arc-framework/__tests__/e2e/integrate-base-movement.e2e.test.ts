@@ -59,7 +59,7 @@ const TASKS = "# Task List: Example\n\n- [x] Verification complete\n";
 /** Whether the running case is on the store, which holds the work unit's records off the branch, rather than on the
  * in-repo store, which keeps them as tracked files a case commits. */
 function onStore(): boolean {
-  return process.env[IN_REPO_STORE_OVERRIDE] === undefined;
+  return !process.env[IN_REPO_STORE_OVERRIDE];
 }
 
 /**

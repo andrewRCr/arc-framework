@@ -38,7 +38,7 @@ async function reportsDesignAndOwner(tmpDir: string, { design, purpose, owner }:
     : makeMetaFixture("topic", { state: "Planning", design: [...design], owner });
   const document = design[0];
   const content = "- **Purpose:** Make routing readable. Explain the rest.\n";
-  if (process.env[IN_REPO_STORE_OVERRIDE] === undefined) {
+  if (!process.env[IN_REPO_STORE_OVERRIDE]) {
     const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(init.exitCode, init.stderr).toBe(0);
     await seedWorkUnit(tmpDir, "topic", { identity: "test-user", content: meta,

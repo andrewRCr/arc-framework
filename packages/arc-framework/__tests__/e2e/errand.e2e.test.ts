@@ -137,7 +137,7 @@ function expectOpenErrand(errand: Awaited<ReturnType<typeof readErrand>>, claimI
 
 /** Designate `origin` as the state remote, which only the store keeps. */
 async function designateStateRemote(cwd: string): Promise<void> {
-  if (process.env[IN_REPO_STORE_OVERRIDE] !== undefined) return;
+  if (process.env[IN_REPO_STORE_OVERRIDE]) return;
   const designated = await runArc(["store", "remote", "origin", "push"], cwd);
   expect(designated.exitCode, designated.stderr).toBe(0);
 }

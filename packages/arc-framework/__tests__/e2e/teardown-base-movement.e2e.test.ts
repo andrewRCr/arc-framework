@@ -90,7 +90,7 @@ async function shippedWithLiveBase(): Promise<string> {
   await git(repository, ["merge", "--no-ff", HEAD_REF, "-m", `merge: ${WORK_UNIT}`]);
   await git(repository, ["push", "origin", "main"]);
 
-  if (process.env[IN_REPO_STORE_OVERRIDE] === undefined) {
+  if (!process.env[IN_REPO_STORE_OVERRIDE]) {
     // The store holds the shipped work unit completed, linked to its branch, as archival leaves it, where `arc init`
     // never ran; no archival commit reaches the base.
     await seedProjectIdentity(repository, SlugSchema.parse("test-user"));

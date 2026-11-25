@@ -53,7 +53,7 @@ async function createBareRemote(repository: string): Promise<string> {
   await git(repository, ["remote", "add", "origin", remote]);
   await git(repository, ["push", "-u", "origin", "main"]);
   // Only the store keeps a state remote.
-  if (process.env[IN_REPO_STORE_OVERRIDE] === undefined) {
+  if (!process.env[IN_REPO_STORE_OVERRIDE]) {
     const designated = await runArc(["store", "remote", "origin", "push"], repository);
     expect(designated.exitCode, designated.stderr).toBe(0);
   }
