@@ -34,7 +34,7 @@ what you need to know to contribute.
     npm run lint:ts
     npm run lint:sh
     npm run typecheck
-    npm test
+    npm run test:full
     npm run build
     ```
 
@@ -103,7 +103,7 @@ runs automatically, but you can run checks manually:
 | TypeScript lint  | `npm run lint:ts`    | Code style and type-checked rules |
 | Shell lint       | `npm run lint:sh`    | Hook and script issues            |
 | Type checking    | `npm run typecheck`  | Type errors (strict mode)         |
-| Tests            | `npm test`           | Unit, integration, and E2E        |
+| Tests            | `npm test`           | Unit, unit-mocks, and integration |
 | Build            | `npm run build`      | Build verification                |
 
 ## Areas to Contribute

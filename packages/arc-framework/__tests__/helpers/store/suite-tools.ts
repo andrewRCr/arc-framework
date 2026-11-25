@@ -1,0 +1,184 @@
+/** Shared assertion registration and faithful record setup for store conformance. */
+
+import { expect, it } from "vitest";
+import {
+  FAMILY_IDS, KIND_REGISTRY, familyOf, singletonReference, type FamilyId, type KindId, type Links,
+  type RecordReference, type StoreRecord, type StoreResult, type WritePlacement, type WriteInput, type Mutation,
+} from "../../../src/lib/store/index.js";
+import type { ConformanceFixture, ConformanceRegistration, SuiteItem } from "./fixture-contract.js";
+
+/** One numbered item's backend registration context. */
+export interface SuiteContext { item: SuiteItem; registration: ConformanceRegistration; coverage?: AssertionCoverage; selects?: CaseSelection }
+/** Whether this file runs one case; every case registers whether or not it runs. */
+export type CaseSelection = (item: SuiteItem, id: string) => boolean;
+/** Assertion names registered, exclusion declarations actually reported, and every case ID, for one whole registration. */
+export interface AssertionCoverage { registered: Map<SuiteItem, Map<FamilyId, Set<string>>>; used: Set<string>; cases: Map<SuiteItem, Set<string>> }
+/** Create an isolated assertion inventory.
+ * @returns Empty registration, exclusion, and case inventories.
+ */
+export function createAssertionCoverage(): AssertionCoverage { return { registered: new Map(), used: new Set(), cases: new Map() }; }
+// A hang guard only: range files sharing a small runner slow the heaviest sync case past the 30 s default, and the
+// timing suite's budgets, not this limit, hold the store's speed.
+const CASE_TIMEOUT_MS = 90_000;
+/** Register one case: record its ID and run it when this file selects it.
+ * @param context - Item, registration, inventory, and this file's selection.
+ * @param id - The case's ID within its item, which a declared subset names.
+ * @param name - The test name.
+ * @param test - The case body.
+ */
+export function caseTest(context: SuiteContext, id: string, name: string, test: () => Promise<void>): void {
+  if (registerCase(context, id)) it(name, test, CASE_TIMEOUT_MS);
+}
+/** Register one excluded case: record its ID and report it as skipped when this file selects it.
+ * @param context - Item, registration, inventory, and this file's selection.
+ * @param id - The case's ID within its item.
+ * @param name - The skipped test's name, carrying its reason.
+ */
+export function caseSkip(context: SuiteContext, id: string, name: string): void {
+  if (registerCase(context, id)) it.skip(name, () => {});
+}
+function registerCase(context: SuiteContext, id: string): boolean {
+  const coverage = context.coverage;
+  if (coverage) {
+    let ids = coverage.cases.get(context.item);
+    if (!ids) { ids = new Set(); coverage.cases.set(context.item, ids); }
+    ids.add(id);
+  }
+  return context.selects?.(context.item, id) ?? true;
+}
+/** Record a registered family assertion without opening a backend.
+ * @param context - Item and optional inventory.
+ * @param family - Served family.
+ * @param name - Exact registered assertion name.
+ */
+export function recordAssertion(context: SuiteContext, family: FamilyId, name: string): void {
+  const coverage = context.coverage;
+  if (!coverage) return;
+  let item = coverage.registered.get(context.item);
+  if (!item) { item = new Map(); coverage.registered.set(context.item, item); }
+  let names = item.get(family);
+  if (!names) { names = new Set(); item.set(family, names); }
+  names.add(name);
+  const excluded = context.registration.declarations.familyExclusions[family];
+  if (!excluded?.items?.[context.item] && excluded?.assertions?.[name]) coverage.used.add(`${family}:${name}`);
+}
+/** Find item exclusions that have no per-family assertion to report them.
+ * @param context - Completed item registration.
+ * @returns Named empty items and their declared reasons.
+ */
+export function emptyItemExclusions(context: SuiteContext): { family: FamilyId; reason: string }[] {
+  return context.registration.declarations.families.flatMap((family) => {
+    const reason = context.registration.declarations.familyExclusions[family]?.items?.[context.item];
+    return reason && !context.coverage?.registered.get(context.item)?.get(family)?.size ? [{ family, reason }] : [];
+  });
+}
+/** Name each family the fixture leaves unserved, in registry order.
+ * @param registration - Validated fixture declarations.
+ * @returns Each unserved family and its declared reason.
+ */
+export function unservedFamilyExclusions(registration: ConformanceRegistration): { family: FamilyId; reason: string }[] {
+  return FAMILY_IDS.flatMap((family) => {
+    const reason = registration.declarations.unservedFamilies[family];
+    return reason ? [{ family, reason }] : [];
+  });
+}
+/** Refuse assertion exclusions that never selected a registered assertion.
+ * @param registration - Declared exclusions.
+ * @param coverage - Actual registration inventory.
+ */
+export function validateUsedAssertionExclusions(registration: ConformanceRegistration, coverage: AssertionCoverage): void {
+  const unused = registration.declarations.families.flatMap((family) =>
+    Object.keys(registration.declarations.familyExclusions[family]?.assertions ?? {})
+      .filter((name) => !coverage.used.has(`${family}:${name}`)).map((name) => `${family}: ${name}`));
+  if (unused.length) throw new Error(`Invalid conformance registration: unused assertion exclusions ${unused.join(", ")}`);
+}
+/** Stable caller provenance used by setup writes; behavior tests override it where relevant. */
+export const testProvenance = { verb: "merge", lifecycleAction: "test", codeHead: "a".repeat(40) };
+/** Provenance for a fixture that renames a record directly to build a state the rename verb cannot reach, such as a former
+ * name still cited elsewhere. The verb's own batches are admitted only where preparing them again yields the same batch. */
+export const fixtureRenameProvenance = { verb: "fixture", lifecycleAction: "rename" } as const;
+
+/** Assert success at the public operation boundary and unwrap its contract result.
+ * @param envelope - Backend operation result.
+ * @returns Its successful payload after recording a meaningful failed assertion otherwise.
+ */
+export function success<T>(envelope: StoreResult<T>): T {
+  expect(envelope.status, JSON.stringify(envelope)).toBe("ok");
+  if (envelope.status !== "ok") throw new Error(`Unexpected refusal ${envelope.refusal.code}`);
+  return envelope.result;
+}
+
+/** Register an assertion or a named reasoned skip from one family's fixture declarations.
+ * @param context - Stable numbered item and backend fixture factory.
+ * @param family - Family under test.
+ * @param name - Stable assertion name used by per-assertion exclusions.
+ * @param test - Behavior driven entirely through fixture hooks and the public store.
+ * @param inapplicableReason - Named mechanism limitation when the behavior does not apply.
+ */
+export function assertion(context: SuiteContext, family: FamilyId, name: string, test: (fixture: ConformanceFixture) => Promise<void>, inapplicableReason?: string): void {
+  if (!context.registration.declarations.families.includes(family)) return;
+  recordAssertion(context, family, name);
+  const exclusions = context.registration.declarations.familyExclusions[family];
+  const reason = exclusions?.items?.[context.item] ?? exclusions?.assertions?.[name] ?? inapplicableReason;
+  const id = `${family}: ${name}`;
+  if (reason) caseSkip(context, id, `${id} — ${reason}`);
+  else caseTest(context, id, id, async () => { await test(await context.registration.create()); });
+}
+
+/** Register one named behavior for each served role selected by its declared mechanism.
+ * @param context - Item and fixture registration.
+ * @param name - Assertion role, prefixed to each kind identifier.
+ * @param test - Per-kind observable behavior.
+ * @param select - Optional applicability filter from registry data.
+ * @param inapplicableReason - Explicit mechanism reason reported for each selected kind.
+ */
+export function everyKind(context: SuiteContext, name: string, test: (fixture: ConformanceFixture, reference: RecordReference) => Promise<void>, select: (kind: KindId) => boolean = () => true, inapplicableReason?: string): void {
+  for (const family of context.registration.declarations.families) {
+    const kinds = (Object.keys(KIND_REGISTRY) as KindId[]).filter((kind) => KIND_REGISTRY[kind].family === family && select(kind));
+    for (const kind of kinds) assertion(context, family, `${name}:${kind}`, (fixture) => test(fixture, fixture.reference(kind)), inapplicableReason);
+  }
+}
+
+/** Seed a kind with valid content, first creating its work-item primary where required.
+ * @param fixture - Fresh backend-neutral hooks.
+ * @param reference - Record to create.
+ * @param content - Optional valid content override.
+ * @param placement - Primary placement, defaulting to active.
+ * @param links - Optional primary traceability links.
+ * @returns The newly readable record with its canonical identity and exact version.
+ */
+export async function seed(fixture: ConformanceFixture, reference: RecordReference, content?: string, placement: WritePlacement = { kind: "active" }, links?: Links): Promise<StoreRecord> {
+  const primary = reference.kind === "work-item/meta" || reference.kind === "work-item/record";
+  if (reference.owner.type === "work-item" && ["work-item", "review"].includes(familyOf(reference.kind)) && !primary) {
+    const root = singletonReference(reference.owner, reference.kind === "work-item/description" ? "work-item/record" : "work-item/meta");
+    const existing = await fixture.store.read({ reference: root });
+    if (existing.status === "refused") success(await fixture.store.write({ action: "put", reference: root,
+      content: fixture.content(root), expected: null, placement: { kind: "active" }, provenance: testProvenance }));
+  }
+  success(await fixture.store.write({ action: "put", reference, content: content ?? fixture.content(reference), expected: null,
+    provenance: testProvenance, ...(primary ? { placement, ...(links === undefined ? {} : { links }) } : {}) }));
+  return success(await fixture.store.read({ reference }));
+}
+
+/** Build a valid update using each record's own version, including primary placement.
+ * @param fixture - Backend-neutral content hook.
+ * @param record - Record whose version the caller observed.
+ * @param content - Intended replacement bytes.
+ * @returns A typed mutation suitable for a write or atomic batch.
+ */
+export function update(fixture: ConformanceFixture, record: StoreRecord, content = fixture.content(record.reference, "changed")) {
+  const primary = record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record";
+  const placement = record.placement?.kind === "completed" ? { kind: "completed" as const, quarter: record.placement.quarter } : record.placement;
+  return { action: "put" as const, reference: record.reference, content, expected: record.version,
+    provenance: testProvenance, ...(primary && placement ? { placement } : {}) };
+}
+
+/** Remove single-write provenance when composing an atomic batch with its own provenance.
+ * @param write - Valid single-write request.
+ * @returns The mutation carried inside the batch.
+ */
+export function mutationOf(write: WriteInput): Mutation {
+  const { provenance, ...mutation } = write;
+  void provenance;
+  return mutation;
+}

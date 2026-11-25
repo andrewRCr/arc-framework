@@ -1,9 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   handleDeliveryEntryInspect,
   type DeliveryEntryInspectHandlerDependencies,
 } from "../../../src/handlers/delivery-entry.js";
+import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
+import { LifecycleCommandRefusalSchema } from "../../../src/handlers/lifecycle-shared.js";
+
+const previousExitCode = process.exitCode;
+afterEach(() => { vi.restoreAllMocks(); process.exitCode = previousExitCode; });
 
 function dependencies(result: unknown): DeliveryEntryInspectHandlerDependencies {
   return {
@@ -39,12 +44,41 @@ describe("delivery entry handler", () => {
       recommendedActionText: "Resume.",
     },
     {
+      status: "correction-routing-required", nextAction: "plan-review-fix",
+      planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
+      selectedDeliverableId: `sha256:${"b".repeat(64)}`,
+      entryMode: "execution",
+      derivedFrom: { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" },
+      recommendedActionText: "Plan correction.",
+    },
+    {
+      status: "continue-publication", nextAction: "continue-publication",
+      planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
+      publicationAction: {
+        kind: "continue-publication",
+        command: "git push -u origin feat/example",
+        interactionText: "Resume publication.",
+      },
+      recommendedActionText: "Resume publication.",
+    },
+    {
+      status: "resolve-delivery-status", nextAction: "resolve-delivery-status",
+      planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
+      deliveryStatusAction: {
+        kind: "resolve-delivery-status",
+        workUnitId: "example",
+        command: "arc review status --work-unit example",
+        interactionText: "Resume hosted member review.",
+      },
+      recommendedActionText: "Resume hosted member review.",
+    },
+    {
       status: "refused", nextAction: "stop", reason: "evidence-conflict",
       recommendedActionText: "Resolve conflict.",
     },
   ])("preserves the $status route through its strict envelope", async (result) => {
     const deps = dependencies(result);
-    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
 
     expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toEqual({
       schemaVersion: 1,
@@ -56,10 +90,98 @@ describe("delivery entry handler", () => {
     else expect(deps.setExitCode).not.toHaveBeenCalled();
   });
 
+  it("names a native store refusal's own remedy when inspection fails, and routes once the store is repaired", async () => {
+    const refusal = nativeListingRefusal();
+    const route = { status: "not-applicable", nextAction: "continue-work-unit", recommendedActionText: "Continue." };
+    const deps = dependencies(route);
+    vi.mocked(deps.inspect).mockRejectedValueOnce(refusal);
+    let stdout = "";
+    vi.spyOn(process.stdout, "write").mockImplementation(chunk => { stdout += String(chunk); return true; });
+    const emitted = async () => {
+      stdout = "";
+      await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+      return JSON.parse(stdout || vi.mocked(deps.write).mock.calls.at(-1)?.[0] as string) as unknown;
+    };
+
+    expect(LifecycleCommandRefusalSchema.parse(await emitted())).toMatchObject({ status: "rejected",
+      reason: refusal.refusal.condition, refusal: refusal.refusal,
+      remedy: { text: expect.stringContaining(refusal.refusal.remedy.text) } });
+    expect(process.exitCode).toBe(1);
+    expect(await emitted()).toEqual({ schemaVersion: 1, command: "delivery entry inspect", ...route });
+  });
+
+  it("refuses an unavailable inspection without a remedy it cannot name", async () => {
+    const deps = dependencies({ status: "not-applicable" });
+    vi.mocked(deps.inspect).mockRejectedValueOnce(new Error("unreadable checkout"));
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+
+    expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toEqual({ schemaVersion: 1,
+      command: "delivery entry inspect", status: "refused", reason: "inspection-unavailable" });
+  });
+
   it("rejects malformed attended input before reading delivery facts", async () => {
     const deps = dependencies({ status: "not-applicable" });
     vi.mocked(deps.readText).mockResolvedValue("{}");
-    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+
+    expect(deps.inspect).not.toHaveBeenCalled();
+    expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
+
+  it("accepts the closed integration-entry arm without attended dispositions", async () => {
+    const deps = dependencies({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: "Continue singleton integration.",
+    });
+    vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "integrating" }));
+
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+
+    expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "integrating" }, undefined);
+    expect(deps.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("accepts the closed execution-entry arm without attended dispositions", async () => {
+    const deps = dependencies({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: "Continue ordinary task execution.",
+    });
+    vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "execution" }));
+
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+
+    expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "execution" }, undefined);
+    expect(deps.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("accepts the closed pre-publication entry arm without attended dispositions", async () => {
+    const deps = dependencies({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: "Continue singleton pre-publication.",
+    });
+    vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "prepublication" }));
+
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+
+    expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "prepublication" }, undefined);
+    expect(deps.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("rejects mixed attended and integration-entry arms", async () => {
+    const deps = dependencies({ status: "not-applicable" });
+    vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({
+      entryMode: "integrating",
+      boundaryDisposition: "delivery-candidate",
+      provisionalDisposition: "not-applicable",
+    }));
+
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
 
     expect(deps.inspect).not.toHaveBeenCalled();
     expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toMatchObject({

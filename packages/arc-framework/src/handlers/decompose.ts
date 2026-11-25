@@ -1,0 +1,391 @@
+/** CLI adapters and command input for work-unit decomposition and extraction. */
+
+import { join, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { z } from "zod";
+import { readConfigSettings } from "../lib/config/status-reader.js";
+import { canonicalize } from "../lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../lib/kernel/schema/vocabulary.js";
+import { createUserIOContext, readGitBlobBytes, readGitObjectBytes } from "../lib/io-context.js";
+import { getArcTemplatePath, resolveArcRoot } from "../lib/paths.js";
+import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3-preflight.js";
+import {
+  executeGitV3DecomposeCommand,
+  executeGitV3ExtractionCommand,
+  GitV3DecomposeCommandRefusalSchema,
+  GitV3ExtractionCommandRefusalSchema,
+} from "../lib/work-unit/git-decompose-v3-operation.js";
+import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-finish.js";
+import {
+  V3DecomposeCoreRefusalSchema,
+  v3DecomposeRemedy,
+  type V3DecomposeInvocation,
+  type V3DecomposeCoreRefusal,
+} from "../lib/work-unit/decompose-v3-refusal.js";
+import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
+import { advanceGitDecomposeTransitionBase } from
+  "../lib/work-unit/git-decompose-transition-base-advancement.js";
+import { decodeV3DecomposeCutMap, type V3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
+import {
+  DECOMPOSE_MODE_KEYS,
+  decomposeOptionSelected,
+  isDecomposeMachineReadableInvocation,
+} from "../lib/work-unit/decompose-command-routing.js";
+import { resolveUserIdentity } from "./shared.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import { type InteractionContext } from "../lib/command-input/interaction-context.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { refuse } from "./lifecycle-shared.js";
+import { RemedySchema } from "../lib/store/refusal.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import type { Store } from "../lib/store/contract.js";
+import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
+
+export {
+  DECOMPOSE_MACHINE_READABLE_KEYS,
+  DECOMPOSE_MODE_KEYS,
+  isDecomposeMachineReadableInvocation,
+} from "../lib/work-unit/decompose-command-routing.js";
+
+function emitV3DecomposeRefusal(
+  input: unknown,
+  mode: "preflight" | "execute" | "extract" | "finish" | "advance-base",
+): void {
+  const refusal = mode === "execute"
+    ? GitV3DecomposeCommandRefusalSchema.parse(input)
+    : mode === "extract"
+      ? GitV3ExtractionCommandRefusalSchema.parse(input)
+      : V3DecomposeCoreRefusalSchema.parse(input);
+  process.stdout.write(`${canonicalize(refusal)}\n`);
+  const cause = (refusal.reason === "occupation-failed" || refusal.reason === "post-occupation-revalidation-failed")
+    && refusal.locus !== undefined ? `Cause: ${refusal.locus}\n` : "";
+  process.stderr.write(`${refusal.reason}\n${cause}${refusal.remedy.text}\n`);
+  process.exitCode = 1;
+}
+
+/** Decomposition modes consumed by schema exclusivity and machine-readable routing. */
+export const DecomposeCommandInputSchema = z.object({
+  origin: SlugSchema,
+  preflight: z.literal(true).optional(),
+  execute: z.string().trim().min(1).optional(),
+  extract: z.string().trim().min(1).optional(),
+  finish: z.union([z.literal(true), z.string().trim().min(1)]).optional(),
+  revise: z.union([z.literal(true), z.string().trim().min(1)]).optional(),
+  discard: z.literal(true).optional(),
+  apply: CanonicalDigestSchema.optional(),
+  advanceBase: z.string().trim().min(1).optional(),
+}).strict().superRefine((value, refinement) => {
+  const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
+  if (modes !== 1) {
+    refinement.addIssue({
+      code: "custom",
+      message: "Exactly one of --preflight, --execute, --extract, --finish, --revise, --discard, or --advance-base is required.",
+    });
+  }
+  if (value.apply !== undefined && value.finish === undefined && typeof value.revise !== "string" && value.discard !== true) {
+    refinement.addIssue({
+      code: "custom",
+      path: ["apply"],
+      message: "--apply is valid only with --finish, --revise <cut-map>, or --discard.",
+    });
+  }
+});
+/** Validated decomposition invocation, including optional-value Commander forms. */
+export type DecomposeCommandInput = z.infer<typeof DecomposeCommandInputSchema>;
+
+function v3DecomposeInvocation(
+  input: z.infer<typeof DecomposeCommandInputSchema>,
+): V3DecomposeInvocation {
+  if (input.preflight === true) return { mode: "preflight", origin: input.origin };
+  if (input.execute !== undefined) {
+    return { mode: "execute", origin: input.origin, cutMapPath: input.execute };
+  }
+  if (input.extract !== undefined) {
+    return { mode: "extract", origin: input.origin, cutMapPath: input.extract };
+  }
+  if (typeof input.finish === "string") {
+    return input.apply === undefined
+      ? { mode: "finish-preview", origin: input.origin, cutMapPath: input.finish }
+      : {
+          mode: "finish-apply",
+          origin: input.origin,
+          cutMapPath: input.finish,
+          applyAuthority: input.apply,
+        };
+  }
+  if (input.advanceBase !== undefined) {
+    return { mode: "advance-base", origin: input.origin, cutMapPath: input.advanceBase };
+  }
+  throw new Error("Validated decomposition input has no selected mode.");
+}
+
+function v3DecomposeEmissionMode(
+  invocation: V3DecomposeInvocation,
+): "preflight" | "execute" | "extract" | "finish" | "advance-base" {
+  return invocation.mode === "finish-preview" || invocation.mode === "finish-apply"
+    ? "finish"
+    : invocation.mode;
+}
+
+/** Options for `arc decompose`. */
+export interface DecomposeOptions {
+  /** Emit one exact machine-derived starter map without mutation. */
+  preflight?: true;
+  /** Stage one exact repository result from a canonical completed cut map. */
+  execute?: string;
+  /** Stage one additive result while preserving the source origin. */
+  extract?: string;
+  /** Preview a map's source thinning or finish a stored cut. */
+  finish?: string | true;
+  /** Emit fresh revision authoring or preview a completed revision map. */
+  revise?: string | true;
+  /** Preview discarding a stored cut. */
+  discard?: true;
+  /** Apply the exact finish, revision, or discard preview authority. */
+  apply?: string;
+  /** Advance one committed full-protection candidate from its canonical completed cut map. */
+  advanceBase?: string;
+}
+
+const DecomposeDispatchRefusalSchema = z.strictObject({
+  status: z.literal("refused"), reason: z.string().min(1), class: z.enum(["recoverable", "terminal"]),
+  locus: z.string().min(1).optional(), remedy: RemedySchema,
+});
+export type DecomposeDispatchRefusal = z.infer<typeof DecomposeDispatchRefusalSchema>;
+
+function emitDecomposeOutcome(result: { status: "ok"; result: unknown } | DecomposeDispatchRefusal): void {
+  const payload: unknown = result.status === "refused" ? result : typeof result.result === "string" ? JSON.parse(result.result) : result.result;
+  process.stdout.write(`${canonicalize(payload)}\n`);
+  if (result.status === "refused") {
+    process.stderr.write(`${result.reason}\n${result.remedy.text}\n`);
+    process.exitCode = 1;
+  }
+}
+
+function inRepoDecomposeDispatchRefusal(input: z.infer<typeof DecomposeCommandInputSchema>): DecomposeDispatchRefusal | undefined {
+  if (input.revise !== undefined || input.discard === true) return DecomposeDispatchRefusalSchema.parse({
+    status: "refused", reason: "unsupported", class: "recoverable",
+    remedy: { text: "Until the flip a rejected cut stays staged, or as its ARC-owned candidate, for explicit cleanup direction." },
+  });
+  if (input.finish === true) return DecomposeDispatchRefusalSchema.parse({
+    status: "refused", reason: "finish-map-operand", class: "recoverable", locus: "finish",
+    remedy: { text: `Supply the completed cut map with arc decompose ${input.origin} --finish <cut-map>.` },
+  });
+  return undefined;
+}
+
+async function readAdvanceBaseMap(
+  cwd: string, origin: string, cutMapPath: string,
+): Promise<{ status: "ready"; map: V3DecomposeCutMap } | Omit<V3DecomposeCoreRefusal, "remedy">> {
+  let completedMap: unknown;
+  try {
+    completedMap = JSON.parse(await readFile(resolve(cwd, cutMapPath), "utf8"));
+  } catch {
+    return { status: "refused", reason: "map:invalid", locus: cutMapPath };
+  }
+  const decoded = decodeV3DecomposeCutMap(completedMap);
+  if (decoded.status === "rejected") return {
+    status: "refused", reason: `map:${decoded.issue.code}`,
+    locus: decoded.issue.path || cutMapPath, message: decoded.issue.message,
+  };
+  if (decoded.value.machine.source.origin !== origin) return {
+    status: "refused", reason: "map:origin", locus: "machine.source.origin",
+    evidence: { expected: origin, actual: decoded.value.machine.source.origin },
+  };
+  return { status: "ready", map: decoded.value };
+}
+
+/**
+ * Dispatch one closed v3 decomposition command mode.
+ *
+ * @param origin - Planning source slug to authenticate and inspect.
+ * @param opts - Closed command mode and its exact cut-map operands.
+ * @param context - Optional interaction context supplying subprocess execution.
+ * @returns A promise that resolves after emitting one canonical result or refusal.
+ */
+export async function handleDecompose(
+  origin: string | undefined,
+  opts: DecomposeOptions,
+  context?: InteractionContext,
+  overrides: { store?: Store; locusPorts?: LocusPorts } = {},
+): Promise<void> {
+  const parsed = DecomposeCommandInputSchema.safeParse({ origin: origin?.trim(), ...opts });
+  if (!parsed.success) {
+    const diagnostic = z.prettifyError(parsed.error);
+    if (isDecomposeMachineReadableInvocation(opts)) {
+      process.stderr.write(`${diagnostic}\n`);
+      process.exitCode = 1;
+    } else {
+      refuse(diagnostic);
+    }
+    return;
+  }
+  const cwd = resolveArcRoot();
+  if (cwd === null) {
+    process.stderr.write("Not inside an ARC project (no .arc/ directory found walking up from cwd).\n");
+    process.exitCode = 1;
+    return;
+  }
+  const io = createUserIOContext(context?.subprocess);
+  const store = overrides.store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: io.exec }));
+  if (usesOffBranchState(store)) {
+    const { runStoreDecomposeCommand } = await import("./decompose-store.js");
+    emitDecomposeOutcome(await runStoreDecomposeCommand(parsed.data, { cwd, io, store, locusPorts: overrides.locusPorts }));
+    return;
+  }
+  const dispatchRefusal = inRepoDecomposeDispatchRefusal(parsed.data);
+  if (dispatchRefusal !== undefined) { emitDecomposeOutcome(dispatchRefusal); return; }
+  const invocation = v3DecomposeInvocation(parsed.data);
+  const emissionMode = v3DecomposeEmissionMode(invocation);
+  try {
+    const { settings, warnings } = await readConfigSettings(cwd);
+    for (const warning of warnings) process.stderr.write(`${warning}\n`);
+    if (parsed.data.preflight === true) {
+      const result = await createGitV3DecomposePreflight({
+        cwd,
+        exec: io.exec,
+        readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
+      }, settings["branch.base"], parsed.data.origin);
+      if (result.status === "rejected") {
+        const locus = "locus" in result ? result.locus : undefined;
+        const evidence = "evidence" in result ? result.evidence : undefined;
+        emitV3DecomposeRefusal({
+          status: "refused",
+          reason: result.reason,
+          ...(locus === undefined ? {} : { locus }),
+          ...(evidence === undefined ? {} : { evidence }),
+          remedy: v3DecomposeRemedy({
+            invocation,
+            reason: result.reason,
+            ...(locus === undefined ? {} : { locus }),
+          }),
+        }, emissionMode);
+        return;
+      }
+      process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
+      return;
+    }
+    const cohortTemplate = new Uint8Array(await readFile(join(
+      getArcTemplatePath(),
+      "reference",
+      "templates",
+      "arc",
+      "work-unit",
+      "template-cohort.md",
+    )));
+    const repository = {
+      cwd,
+      exec: io.exec,
+      readBlob: (ref: string, path: string) => readGitBlobBytes(cwd, ref, path),
+      readObject: (oid: string, objectKind: string) => readGitObjectBytes(cwd, oid, objectKind),
+      cohortTemplate,
+    };
+    const protection = settings["branch.protection"] === "full" ? "full" : "partial";
+    if (typeof parsed.data.finish === "string") {
+      const applyAuthority = parsed.data.apply ?? null;
+      const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
+        cwd,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.finish,
+        applyAuthority,
+      }));
+      if (result.status === "refused") {
+        emitV3DecomposeRefusal(result, emissionMode);
+        return;
+      }
+      process.stdout.write(`${canonicalize(result)}\n`);
+      return;
+    }
+    if (parsed.data.execute !== undefined) {
+      const result = await executeGitV3DecomposeCommand({
+        ...repository,
+        spawningIdentity: await resolveUserIdentity(io.exec),
+      }, {
+        protection,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.execute,
+      });
+      if (result.status !== "staged") {
+        emitV3DecomposeRefusal(result, "execute");
+        return;
+      }
+      process.stdout.write(`${canonicalize(result)}\n`);
+      return;
+    }
+    if (parsed.data.extract !== undefined) {
+      const result = await executeGitV3ExtractionCommand({
+        ...repository,
+        spawningIdentity: await resolveUserIdentity(io.exec),
+      }, {
+        protection,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.extract,
+      });
+      if (result.status !== "staged") {
+        emitV3DecomposeRefusal(result, "extract");
+        return;
+      }
+      process.stdout.write(`${canonicalize(result)}\n`);
+      return;
+    }
+    if (parsed.data.advanceBase !== undefined) {
+      const decoded = await readAdvanceBaseMap(cwd, parsed.data.origin, parsed.data.advanceBase);
+      const result = decoded.status === "ready"
+        ? await advanceGitDecomposeTransitionBase(repository, {
+            protection,
+            baseBranch: settings["branch.base"],
+            completedMap: decoded.map,
+          })
+        : decoded;
+      if (result.status === "refused") {
+        emitV3DecomposeRefusal({
+          ...result,
+          remedy: v3DecomposeRemedy({
+            invocation,
+            reason: result.reason,
+            ...("message" in result && typeof result.message === "string" ? { message: result.message } : {}),
+            ...(result.locus === undefined ? {} : { locus: result.locus }),
+          }),
+        }, "advance-base");
+        return;
+      }
+      process.stdout.write(`${canonicalize(result)}\n`);
+      return;
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    const locus = detail.trim() === "" ? undefined : detail;
+    emitV3DecomposeRefusal({
+      status: "refused",
+      reason: "unexpected-error",
+      ...(locus === undefined ? {} : { locus }),
+      remedy: v3DecomposeRemedy({
+        invocation,
+        reason: "unexpected-error",
+        ...(locus === undefined ? {} : { locus }),
+      }),
+    }, emissionMode);
+  }
+}
+
+/** Command-owned decomposition input. */
+export const decomposeCommandInputRegistration = {
+    commandPath: "decompose",
+    schema: DecomposeCommandInputSchema,
+    schemaFields: {
+      "operand.origin": "origin",
+      "option.preflight": "preflight",
+      "option.execute": "execute",
+      "option.extract": "extract",
+      "option.finish": "finish",
+      "option.revise": "revise",
+      "option.discard": "discard",
+      "option.apply": "apply",
+      "option.advance-base": "advanceBase",
+    },
+  } as const satisfies CommandInputRegistration;

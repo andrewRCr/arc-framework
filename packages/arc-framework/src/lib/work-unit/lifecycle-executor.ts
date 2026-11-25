@@ -25,7 +25,15 @@
  * @module
  */
 
+import type { BatchResult } from "../store/write.js";
+import type { LocusPorts } from "./locus-ports.js";
+import type { RawGitExec } from "../git/exec.js";
 import { posix } from "node:path";
+import type { Store } from "../store/contract.js";
+import type { StoreRecord } from "../store/read.js";
+import type { StoreRefusal, Remedy } from "../store/refusal.js";
+import { executeStoreTransition, resumeStoreTransitionFinalization } from "./lifecycle-store-executor.js";
+import type { StoreTransitionInputs, LifecycleGitContinuation, LifecycleRollbackRecovery } from "./store-transition-types.js";
 
 import {
   type MetaFieldName,
@@ -77,16 +85,22 @@ import {
  * side-effect + encoding sets; Phase-4 verbs extend it as they add operands.
  */
 export interface TransitionInputs {
+  /** Prepared record bases and physical steps on the off-branch state arm. */
+  storeTransition?: StoreTransitionInputs;
   /** Sole mutation authority for a backlog `start` graduation. */
   graduationTransaction?: ValidatedGraduationTransaction;
   /** Destination directory for a `relocate` artifacts leg (source derived from the meta path). */
   toDir?: string;
+  /** Canonical meta path created by a `scaffold` leg, staged before ROADMAP renders. */
+  scaffoldMetaPath?: string;
   /** The branch op for a declared `reconcile-branch` leg — its `mutation` must match the edge. */
   branchOp?: ReconcileBranchOp;
   /** The worktree op for a declared `reconcile-work-unit-worktree` leg — its `mutation` must match the edge. */
   worktreeOp?: ReconcileWorkUnitWorktreeOp;
   /** Values for soft fields whose disposition is `"input"` — required when the field applies. */
   softFields?: Partial<Record<keyof SoftFieldDispositions, string>>;
+  /** Explicit destination-workflow override for a task-resuming lifecycle edge. */
+  currentWorkflowOverride?: string;
   /** The WU's resolved `Class` — the `class-resolved` guard input (`promote`). */
   class?: string;
   /** Persist a newly acquired Class in the relocated meta during promotion finalization. */
@@ -123,10 +137,16 @@ export interface TransitionInputs {
 // ---------------------------------------------------------------------------
 
 /** The outcome of validating one guard. */
-export type GuardResult = { ok: true } | { ok: false; message: string };
+export type GuardResult = { ok: true; bind?: { expected: Buffer } } | { ok: false; message: string; remedy?: Remedy };
 
 /** Everything a guard predicate reads — pure over the built index + inputs. */
 export interface GuardContext {
+  /** Operational state bound at the invocation boundary. */
+  store?: Store;
+  /** Exact selected primary, absent for creation. */
+  primary?: StoreRecord;
+  /** Materialize alone may bind an eligible unbound marker. */
+  admitUnbound?: boolean;
   index: LifecycleIndex;
   slug: string;
   position: LifecyclePosition | null;
@@ -139,11 +159,12 @@ export type GuardValidator = (ctx: GuardContext) => GuardResult | Promise<GuardR
 /**
  * The guards that resolve purely over inputs / state — wired in the executor.
  * The index-aware foot-gun guards (`name-collision` / `worktree-occupancy`, plus
- * the IO `worktree-clean`) are supplied by the caller via
+ * IO guards) are supplied by the caller via
  * {@link ExecuteTransitionContext.guardValidators}; an edge that declares a guard
  * with no validator after the merge is rejected before any mutation.
  */
 export const DEFAULT_GUARD_VALIDATORS: Partial<Record<GuardId, GuardValidator>> = {
+  unpaused: () => ({ ok: true }),
   "class-resolved": ({ inputs }) =>
     inputs.class !== undefined && inputs.class !== "" && inputs.class !== "TBD" && inputs.class !== "[TBD]"
       ? { ok: true }
@@ -212,6 +233,14 @@ export type ArtifactRunner = (params: {
  * later phase introduces.
  */
 export interface ExecuteTransitionContext {
+  /** Locus-owned claim ports preserved across checkout rebinding. */
+  locusPorts?: LocusPorts;
+  /** Byte-preserving Git executor for lifecycle code links. */
+  execRaw?: RawGitExec;
+  /** Operational state contract opened once by the invoking verb. */
+  store?: Store;
+  /** Stable project identity supplied by the selected backend. */
+  projectId?: () => Promise<string>;
   /** Repository root containing `.arc/`. */
   cwd: string;
   /** Re-bind the same production/test seams to another repository root when a verb shifts locus. */
@@ -254,7 +283,7 @@ export interface ExecuteTransitionContext {
   /**
    * Write the meta `Current Workflow` bullet field at `metaPath` (read → rewrite
    * → write). The workflow-pointer sibling of {@link writeBranchField}: `stage`
-   * is a planning-stage basename, a live publication lifecycle workflow, or
+   * is a planning-stage basename, a live non-planning lifecycle workflow, or
    * `[none]` when the current phase carries no workflow pointer.
    */
   writeCurrentWorkflowField: (metaPath: string, stage: string) => Promise<void>;
@@ -364,6 +393,10 @@ const LEG_ORDER: readonly EncodingLeg[] = [
 export type TransitionOutcome =
   | {
       status: "ok";
+      /** Exact atomic Store result when the transition persisted operational records. */
+      storeBatch?: BatchResult;
+      /** Physical continuation after the records have already persisted. */
+      continuation?: LifecycleGitContinuation;
       verb: Verb;
       from: LifecyclePosition | null;
       to: LifecyclePosition | null;
@@ -389,9 +422,12 @@ export type TransitionOutcome =
       suggestion: string | null;
     }
   | {
-      /** Rejected before any mutation — illegal edge, guard failure, or missing input. */
+      /** Rejected before normal completion; failed physical rollback carries its remaining recovery. */
       status: "rejected";
-      stage: "lookup" | "guard" | "inputs";
+      stage: "lookup" | "guard" | "inputs" | "store" | "git";
+      recovery?: LifecycleRollbackRecovery;
+      refusal?: StoreRefusal;
+      remedy?: Remedy;
       message: string;
     }
   | {
@@ -454,6 +490,7 @@ function positionsEqual(a: LifecyclePosition | null, b: LifecyclePosition | null
 }
 
 function sourceWorkflowFor(record: TransitionRecord): string | undefined {
+  if (record.verb === "archive") return record.from?.phase === "Integrating" ? "integrate-work-unit" : "process-task-loop";
   return TRANSITIONS.find((candidate) =>
     candidate.verb === record.inverse
     && candidate.to !== null
@@ -468,7 +505,7 @@ function sourceWorkflowFor(record: TransitionRecord): string | undefined {
  * choose, so it resolves to no edge (a `lookup` rejection). Single-edge
  * transitions are unaffected.
  */
-function selectEdge(
+export function resolveTransitionEdge(
   verb: Verb,
   position: LifecyclePosition | null,
   commitment: Location | undefined,
@@ -511,6 +548,9 @@ export async function executeTransition(
   params: { verb: Verb; slug: string; inputs: TransitionInputs },
 ): Promise<TransitionOutcome> {
   const { verb, slug, inputs } = params;
+  if (ctx.store?.capabilities.stateOffBranch === true) {
+    return executeStoreTransition({ ...ctx, store: ctx.store }, params);
+  }
 
   // 1. Build the index once (the lone fs touch) and resolve current state.
   const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
@@ -522,9 +562,9 @@ export async function executeTransition(
       };
 
   // 2. Look up the legal edge for (verb, from); reject illegal / unknown.
-  const record = selectEdge(verb, position, inputs.commitment);
+  const record = resolveTransitionEdge(verb, position, inputs.commitment);
   if (record === undefined) {
-    return { status: "rejected", stage: "lookup", message: lookupRejection(verb, position) };
+    return { status: "rejected", stage: "lookup", message: transitionLookupRejection(verb, position) };
   }
 
   // 3. Validate every declared guard; reject on the first failure, no mutation.
@@ -535,7 +575,7 @@ export async function executeTransition(
       return { status: "rejected", stage: "guard", message: `guard \`${guard}\` is not wired.` };
     }
     const result = await validator({ index, slug, position, inputs });
-    if (!result.ok) return { status: "rejected", stage: "guard", message: result.message };
+    if (!result.ok) return { status: "rejected", stage: "guard", message: result.message, ...(result.remedy === undefined ? {} : { remedy: result.remedy }) };
   }
 
   // 4. Validate the wiring + required inputs the edge needs, before any mutation.
@@ -602,7 +642,7 @@ export async function executeTransition(
   // tracked snapshot the ceremony will commit.
   const sideEffectsFired: SideEffectId[] = [];
   for (const id of record.sideEffects) {
-    if (id === "reconcile-roadmap") continue;
+    if (id === "reconcile-roadmap" || defersWorkspaceClose(record, id)) continue;
     const handler = activeCtx.sideEffects?.[id];
     // Presence was validated in step 4; the guard here narrows the type.
     if (handler === undefined) continue;
@@ -640,10 +680,10 @@ export async function executeTransition(
       ? await applyCurrentWorkflowField(ctx, record, metaPath, inputs)
       : null;
 
-    // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
-    //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
-    //     the fs seam unstaged — without this a git-mv'd meta keeps stale indexed
-    //     content and a commit ships the pre-rewrite state.
+    // 8.5 Stage the meta the content legs rewrote or the scaffold leg created.
+    //     `relocate-artifacts` stages its `git mv`, but content writes and new
+    //     scaffolds go through the fs seam unstaged. ROADMAP must see the final
+    //     indexed meta before it renders.
     failedWrite = "stageMeta";
     const wroteMeta =
       legsFired.includes("setPhase") ||
@@ -652,15 +692,20 @@ export async function executeTransition(
       currentWorkflowWritten !== null ||
       softFieldsWritten.length > 0;
     const stageMeta = ctx.stageMeta;
-    if (inputs.graduationTransaction === undefined && wroteMeta && metaPath !== null && stageMeta !== undefined) {
+    const stagePath = record.encodingUpdates.artifacts === "scaffold"
+      ? inputs.scaffoldMetaPath
+      : wroteMeta && metaPath !== null
+        ? effectiveMetaPath(record, metaPath, inputs)
+        : undefined;
+    if (inputs.graduationTransaction === undefined && stagePath !== undefined && stageMeta !== undefined) {
       try {
-        await stageMeta(effectiveMetaPath(record, metaPath, inputs));
+        await stageMeta(stagePath);
       } catch (error) {
         const sourceWorkflow = sourceWorkflowFor(record);
         if (currentWorkflowWritten !== null && sourceWorkflow !== undefined) {
           try {
             await (ctx.writeCurrentWorkflowRecoveryMarker ?? ctx.writeCurrentWorkflowField)(
-              effectiveMetaPath(record, metaPath, inputs),
+              stagePath,
               sourceWorkflow,
             );
           } catch {
@@ -680,6 +725,8 @@ export async function executeTransition(
       message: err instanceof Error ? err.message : String(err),
     };
   }
+
+  await closeWorkspaceAfterRecords(activeCtx, record, slug, inputs, sideEffectsFired, advisories);
 
   // 8.75 Render ROADMAP from the now-complete staged transition. The production
   // adapter degrades render/write failures to advisories, preserving the
@@ -708,6 +755,30 @@ export async function executeTransition(
   };
 }
 
+function defersWorkspaceClose(record: TransitionRecord, id: SideEffectId): boolean {
+  return id === "user-workspace" && record.to?.location !== "active";
+}
+
+async function closeWorkspaceAfterRecords(
+  ctx: ExecuteTransitionContext,
+  record: TransitionRecord,
+  slug: string,
+  inputs: TransitionInputs,
+  fired: SideEffectId[],
+  advisories: string[],
+): Promise<void> {
+  if (!record.sideEffects.includes("user-workspace") || !defersWorkspaceClose(record, "user-workspace")) return;
+  const handler = ctx.sideEffects?.["user-workspace"];
+  if (handler === undefined) return;
+  try {
+    const advisory = await handler({ cwd: ctx.cwd, slug, from: record.from, to: record.to, inputs });
+    if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+    fired.push("user-workspace");
+  } catch (error) {
+    advisories.push(`Records persisted, but workspace close failed (${String(error)}). Run \`arc user close ${slug}\`.`);
+  }
+}
+
 /**
  * Finish a phase transition whose meta projection or staging failed after its phase and side effects landed.
  *
@@ -724,34 +795,36 @@ export async function resumeTransitionFinalization(
     replayNonRoadmapSideEffects?: boolean;
   },
 ): Promise<TransitionOutcome | null> {
+  if (ctx.store?.capabilities.stateOffBranch === true) return resumeStoreTransitionFinalization({ ...ctx, store: ctx.store }, params.slug);
   const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
   const position = resolveSlugPosition(index, params.slug);
   if (position === null) return null;
+  const metaPath = index.get(params.slug)?.path ?? null;
+  if (metaPath === null) return null;
+  const meta = parseMetaRecord(await ctx.indexFs.readFile(posix.join(ctx.cwd, metaPath)));
   const matches = TRANSITIONS.filter((candidate) =>
     candidate.verb === params.verb
     && candidate.to !== null
-    && positionsEqual(candidate.to, position));
+    && positionsEqual(candidate.to, position)
+    && sourceWorkflowFor(candidate) === meta.currentWorkflow);
   const record = matches.length === 1 ? matches[0] : undefined;
-  const metaPath = index.get(params.slug)?.path ?? null;
-  if (record === undefined || metaPath === null) return null;
+  if (record === undefined) return null;
   const sourceWorkflow = sourceWorkflowFor(record);
   if (sourceWorkflow === undefined) return null;
-  const meta = parseMetaRecord(await ctx.indexFs.readFile(posix.join(ctx.cwd, metaPath)));
-  if (meta.currentWorkflow !== sourceWorkflow) return null;
 
   const validators = { ...DEFAULT_GUARD_VALIDATORS, ...ctx.guardValidators };
   for (const guard of record.guards) {
     const validator = validators[guard];
     if (validator === undefined) return null;
     const result = await validator({ index, slug: params.slug, position, inputs: params.inputs });
-    if (!result.ok) return { status: "rejected", stage: "guard", message: result.message };
+    if (!result.ok) return { status: "rejected", stage: "guard", message: result.message, ...(result.remedy === undefined ? {} : { remedy: result.remedy }) };
   }
 
   const sideEffectsFired: SideEffectId[] = [];
   const advisories: string[] = [];
   if (params.replayNonRoadmapSideEffects === true) {
     for (const id of record.sideEffects) {
-      if (id === "reconcile-roadmap") continue;
+      if (id === "reconcile-roadmap" || defersWorkspaceClose(record, id)) continue;
       const handler = ctx.sideEffects?.[id];
       if (handler === undefined) return null;
       const advisory = await handler({
@@ -788,6 +861,9 @@ export async function resumeTransitionFinalization(
         }
         throw error;
       }
+    }
+    if (params.replayNonRoadmapSideEffects === true) {
+      await closeWorkspaceAfterRecords(ctx, record, params.slug, params.inputs, sideEffectsFired, advisories);
     }
     if (record.sideEffects.includes("reconcile-roadmap")) {
       const handler = ctx.sideEffects?.["reconcile-roadmap"];
@@ -827,7 +903,7 @@ export async function resumeTransitionFinalization(
 }
 
 /** Compose the rejection message for a `(verb, from)` cell with no legal edge. */
-function lookupRejection(verb: Verb, position: LifecyclePosition | null): string {
+export function transitionLookupRejection(verb: Verb, position: LifecyclePosition | null): string {
   if (position === null) {
     return `\`${verb}\` has no edge from a nonexistent work unit — it requires an existing one.`;
   }
@@ -894,6 +970,9 @@ function validateInputs(
   }
   if ((e.artifacts === "scaffold" || e.artifacts === "remove") && ctx.scaffoldOrRemove === undefined) {
     return `the \`${e.artifacts}\` artifact disposition has no runner wired.`;
+  }
+  if (e.artifacts === "scaffold" && (inputs.scaffoldMetaPath === undefined || ctx.stageMeta === undefined)) {
+    return "the `scaffold` artifact disposition requires a meta path and staging seam.";
   }
   if (!atomicStart && e.reconcileBranch !== undefined) {
     if (inputs.branchOp === undefined) return "this transition reconciles a branch but no `branchOp` was supplied.";
@@ -1021,8 +1100,7 @@ function effectiveMetaPath(
 export function establishedBranch(inputs: TransitionInputs): string | null {
   const branchOp = inputs.branchOp;
   if (branchOp?.mutation === "rename") return branchOp.toBranch;
-  if (branchOp?.mutation === "delete") return "[none]";
-  if (inputs.worktreeOp?.mutation === "spawn") return inputs.worktreeOp.branch;
+  if (inputs.worktreeOp?.mutation === "spawn") return inputs.worktreeOp.branch ?? null;
   return null;
 }
 
@@ -1063,7 +1141,8 @@ async function applyCurrentWorkflowField(
   inputs: TransitionInputs,
 ): Promise<string | null> {
   if (!softFieldsApply(record) || metaPath === null) return null;
-  const workflow = record.encodingUpdates.setCurrentWorkflowField
+  const workflow = inputs.currentWorkflowOverride
+    ?? record.encodingUpdates.setCurrentWorkflowField
     ?? (record.encodingUpdates.clearCurrentWorkflowField === true ? "[none]" : null);
   if (workflow === null) return null;
   await ctx.writeCurrentWorkflowField(effectiveMetaPath(record, metaPath, inputs), workflow);

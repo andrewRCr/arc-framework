@@ -25,6 +25,7 @@ function frame(): DerivedLocusFrame {
   };
   const row = {
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: BRANCH,

@@ -7,18 +7,22 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import { resolve } from "node:path";
+import * as p from "../lib/terminal.js";
 
-import { resolveIdentity, isGitRepo, type GitExec } from "../lib/git/index.js";
+import { resolveIdentity, isGitRepo, resolvePrimaryWorktreePath, type GitExec } from "../lib/git/index.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
+import { assertNever } from "../lib/kernel/index.js";
 import {
   UserSaveError,
   type UserFetchResult,
   type UserPullResult,
 } from "../commands/user.js";
-import { gitExec } from "../lib/io-context.js";
 import { gitFailureText, isGitProcessError } from "../lib/git/process-error.js";
+import { prompt } from "../lib/command-input/prompter.js";
+import type { PromptSite } from "../lib/command-input/declaration.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { SyncOutput } from "../lib/sync-output.js";
 
 // --- Spinner ---
@@ -57,6 +61,51 @@ export async function runWithSpinner<T>(
   } catch (err) {
     spinner.stop("Failed.");
     throw err;
+  }
+}
+
+/**
+ * Run one operation with animated or stable progress according to the resolved
+ * invocation interaction policy.
+ *
+ * @param context - Invocation context carrying presenter capability.
+ * @param label - Stable start label.
+ * @param doneLabel - Stable successful-completion label.
+ * @param fn - Operation to run.
+ * @param isOk - Classifier for successful result values.
+ * @param failedLabel - Stable failed-completion label.
+ * @returns The operation result.
+ */
+export async function runWithInteractionProgress<T>(
+  context: Pick<InteractionContext, "subprocess">,
+  label: string,
+  doneLabel: string,
+  fn: () => Promise<T>,
+  isOk: (value: T) => boolean,
+  failedLabel = "Failed.",
+): Promise<T> {
+  if (context.subprocess.presenters === "allowed") {
+    const spinner = p.spinner();
+    spinner.start(label);
+    try {
+      const value = await fn();
+      spinner.stop(isOk(value) ? doneLabel : failedLabel);
+      return value;
+    } catch (error) {
+      spinner.stop(failedLabel);
+      throw error;
+    }
+  }
+
+  p.log.info(label);
+  try {
+    const value = await fn();
+    if (isOk(value)) p.log.info(doneLabel);
+    else p.log.error(failedLabel);
+    return value;
+  } catch (error) {
+    p.log.error(failedLabel);
+    throw error;
   }
 }
 
@@ -150,10 +199,8 @@ export function reportUserFetchOutcome(
       process.exitCode = 1;
       return;
     }
-    default: {
-      const _exhaustive: never = result;
-      return _exhaustive;
-    }
+    default:
+      return assertNever(result);
   }
 }
 
@@ -167,7 +214,7 @@ function capitalize(value: string): string {
  * Resolve identity for user commands. Requires arc.identity to be set.
  * Throws UserFacingError if identity is not configured.
  */
-export async function resolveUserIdentity(exec = gitExec): Promise<string> {
+export async function resolveUserIdentity(exec: GitExec): Promise<string> {
   const identity = await resolveIdentity({ exec });
   if (!identity) {
     throw new UserFacingError({
@@ -181,20 +228,23 @@ export async function resolveUserIdentity(exec = gitExec): Promise<string> {
 }
 
 /**
- * Resolve identity with optional interactive prompt (for init/join).
- * Returns null if identity cannot be resolved and no prompt is available.
+ * Resolve identity through the caller's declared question and invocation context.
+ * @param site - Caller-owned identity question
+ * @param context - Invocation interaction capability and authority
+ * @param exec - Injectable Git executor
+ * @returns The configured or acquired identity, or null on refusal or cancellation
  */
-export async function resolveIdentityWithPrompt(interactive: boolean): Promise<string | null> {
+export async function resolveIdentityWithPrompt(
+  site: PromptSite<"text">, context: InteractionContext, exec: GitExec,
+): Promise<string | null> {
   return resolveIdentity({
-    exec: gitExec,
-    prompt: interactive ? async (message: string, defaultValue?: string) => {
-      const result = await p.text({
-        message,
-        defaultValue,
-        placeholder: defaultValue,
+    exec,
+    prompt: async (message, defaultValue) => {
+      const outcome = await prompt(site, context, {
+        message, defaultValue, placeholder: defaultValue, runtimeDefault: defaultValue,
       });
-      return result;
-    } : undefined,
+      return outcome.kind === "answered" ? outcome.value : "";
+    },
   });
 }
 
@@ -239,8 +289,8 @@ export async function resolveCurrentBranchName(exec: GitExec): Promise<string | 
  * Guard: require a git repository. Logs a user-facing error and sets exit
  * code if not in a git repo. Returns true if the guard passes.
  */
-export async function requireGitRepo(): Promise<boolean> {
-  if (await isGitRepo(gitExec)) return true;
+export async function requireGitRepo(exec: GitExec): Promise<boolean> {
+  if (await isGitRepo(exec)) return true;
   p.log.error(formatError(new UserFacingError({
     code: "GIT_MISSING",
     whatHappened: "Not inside a git repository",
@@ -249,4 +299,34 @@ export async function requireGitRepo(): Promise<boolean> {
   })));
   process.exitCode = 1;
   return false;
+}
+
+/** Require setup's primary-worktree entry to name a checkout rather than its Git metadata. */
+export async function requireSetupGitRepo(exec: GitExec, command: "init" | "join"): Promise<boolean> {
+  if (!(await requireGitRepo(exec))) return false;
+  try {
+    const primary = await resolvePrimaryWorktreePath(exec);
+    if (primary === null) throw new Error("Git did not report the primary worktree path.");
+    const { stdout } = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+    const commonDir = stdout.trim();
+    if (commonDir === "") throw new Error("Git did not report the common Git directory.");
+    if (resolve(primary) !== resolve(commonDir)) return true;
+
+    throw new UserFacingError({
+      code: "git.setup-layout-unsupported",
+      whatHappened: "ARC setup does not support this separate Git directory",
+      why: "Git lists the metadata directory as the primary worktree after 'git init --separate-git-dir'.",
+      whatToDo: `Use a normal clone whose primary checkout contains a .git directory, then retry your 'arc ${command}' command.`,
+    });
+  } catch (error) {
+    const failure = error instanceof UserFacingError ? error : new UserFacingError({
+      code: "git.setup-layout-unavailable",
+      whatHappened: "Cannot verify the primary checkout for ARC setup",
+      why: error instanceof Error ? error.message : String(error),
+      whatToDo: `Check that 'git worktree list --porcelain' and 'git rev-parse --git-common-dir' succeed, then retry your 'arc ${command}' command.`,
+    });
+    p.log.error(formatError(failure));
+    process.exitCode = 1;
+    return false;
+  }
 }

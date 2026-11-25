@@ -1,1 +1,1 @@
-{"edges":[],"kind":"abandon","origin":"review-gate-github-adapter","schemaVersion":1,"successors":[]}
+{"incoming":[],"kind":"abandon","origin":{"name":"review-gate-github-adapter"},"schemaVersion":2,"successors":[]}

@@ -1,0 +1,94 @@
+/** Bind Owner authorization and native extra-pass judgments to the selected pre-publication invocation. */
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
+import { SlugSchema, type CanonicalDigest } from "../../../lib/kernel/index.js";
+import type { ReviewInFlightPort } from "../core/ports.js";
+import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import type { ReviewInvocationInput } from "../runtime/invocation.js";
+import { readNativeApprovedFixPassJudgment } from "../runtime/native-frontline-window.js";
+import { createCandidateResponseHeadContinuationReader } from "../runtime/candidate-response-head-continuation.js";
+import { createReviewCompositionContext } from "../runtime/composition-context.js";
+import { resolveNativeInvocationExtraPassJudgment } from "../runtime/native-extra-pass.js";
+import { nativeSavedGrantMatches } from "../runtime/native-saved-grants.js";
+import { prepareNativeReviewTerminus, type PreparedNativeReviewTerminus } from "../runtime/native-terminus-write.js";
+import { resolveNativeReviewTerminus } from "../runtime/native-terminus.js";
+import type { ReviewLaneJudgment, ReviewPolicyBoundRequest } from "./review-policy-driver.js";
+import type { NativeOwnerAcceptedReviewTerminus } from "./review-terminus.js";
+import type { OwnerTerminusAuthorityRead, ReviewLane, PrePublicationCompositionDependencies } from "./pre-publication-contract.js";
+
+/** Preserve Owner-only terminus authorization while recording ordinary judgments under the active identity. */
+export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput, store: ReviewInFlightPort):
+  Pick<PrePublicationCompositionDependencies, "readOwnerTerminusAuthority" | "resolveExtraPassJudgment" | "recordedGrantMatches" | "resolveNativeTerminus" | "prepareNativeTerminusDecision"> {
+  return { readOwnerTerminusAuthority: async workUnit => {
+    const name = SlugSchema.parse(workUnit);
+    let live: Awaited<ReturnType<typeof readLocalReviewLiveContext>>;
+    try { live = await readLocalReviewLiveContext(input); }
+    catch (error) {
+      rethrowNativeRefusal(error);
+      return { status: "refused", reason: `The Work Unit Owner could not be resolved: ${error instanceof Error ? error.message : String(error)}` };
+    }
+    if (live.context.workUnit?.identity !== name) {
+      return { status: "refused", reason: "The current checkout does not resolve the requested work unit." };
+    }
+    if (live.context.activeIdentity === null) {
+      return { status: "refused", reason: "No active ARC identity is configured for Owner authorization." };
+    }
+    if (live.context.activeIdentity !== live.context.workUnit.owner) {
+      return { status: "refused", reason: "The active identity does not match the Work Unit Owner." };
+    }
+    return { status: "authorized", ownerIdentity: live.context.workUnit.owner };
+  }, ...(input.store?.capabilities.stateOffBranch !== true ? {} : {
+    recordedGrantMatches: async context => {
+      const facts = store.nativeFacts;
+      if (facts === undefined) throw new Error("Resolve the selected native review facts before comparing extra-pass judgments.");
+      return nativeSavedGrantMatches(facts, context, createCandidateResponseHeadContinuationReader({
+        ...input, operationStore: store, dispositionStore: createReviewCompositionContext(input).family.ports.dispositions }));
+    },
+    prepareNativeTerminusDecision: async context => {
+      const facts = store.nativeFacts;
+      if (facts === undefined) throw new Error("Resolve the selected native review facts before recording its terminus.");
+      return prepareNativeReviewTerminus({ facts, ...context, now: new Date().toISOString() });
+    },
+    resolveNativeTerminus: async context => {
+      const facts = store.nativeFacts;
+      if (facts === undefined) throw new Error("Resolve the selected native review facts before reading its terminus.");
+      return resolveNativeReviewTerminus({ facts, ...context });
+    },
+    resolveExtraPassJudgment: async context => {
+      const facts = store.nativeFacts;
+      if (facts === undefined) throw new Error("Resolve the selected native review facts before reading extra-pass judgments.");
+      const result = await resolveNativeInvocationExtraPassJudgment(input, facts, { ...context,
+        repositoryId: context.repositoryId ?? await facts.readProjectId() });
+      if (context.judgment?.ceilingOverride !== undefined) return result.judgment;
+      const conditional = await readNativeApprovedFixPassJudgment(facts, { repositoryId: context.repositoryId ?? await facts.readProjectId(),
+        lane: context.lane, lineage: context.subject.lineage, passCount: context.completedPasses,
+        headSha: context.policyTarget.headSha, confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
+          ...input, operationStore: store, dispositionStore: createReviewCompositionContext(input).family.ports.dispositions }) });
+      return conditional === undefined ? result.judgment : { ...result.judgment, ceilingOverride: conditional };
+    },
+  }) };
+}
+
+/** Preserve stored provenance unless this call supplies a newly authorized Owner judgment. */
+export function projectPrePublicationTerminus(input: {
+  lane: ReviewLane; judgment?: ReviewLaneJudgment; authority: OwnerTerminusAuthorityRead | null;
+  completedPasses: number; stored?: NativeOwnerAcceptedReviewTerminus;
+}): Pick<ReviewPolicyBoundRequest, "terminus"> {
+  if (input.lane !== "standard") return {};
+  if (input.judgment?.terminus === undefined) return input.stored === undefined ? {} : { terminus: input.stored };
+  if (input.authority?.status !== "authorized") return {};
+  return { terminus: { schemaVersion: 1, semanticsVersion: "review-terminus/v1", kind: "owner-accepted", lane: "standard",
+    acceptedBy: input.authority.ownerIdentity, completedPasses: input.completedPasses } };
+}
+
+/** Prepare native persistence only for the fresh judgment whose existing Owner check authorized it. */
+export async function preparePrePublicationTerminusDecision(input: {
+  candidateId: CanonicalDigest; subjectDigest: CanonicalDigest; completedPasses: number; judgment?: ReviewLaneJudgment;
+  authority: OwnerTerminusAuthorityRead | null; dependencies: PrePublicationCompositionDependencies;
+}): Promise<PreparedNativeReviewTerminus | undefined> {
+  if (input.judgment?.terminus === undefined || input.authority?.status !== "authorized"
+    || input.dependencies.prepareNativeTerminusDecision === undefined) return undefined;
+  return input.dependencies.prepareNativeTerminusDecision({ subject: {
+    lineage: { kind: "candidate", candidateId: input.candidateId }, headSha: null,
+    subjectDigest: input.subjectDigest }, acceptedBy: input.authority.ownerIdentity,
+    completedPasses: input.completedPasses });
+}

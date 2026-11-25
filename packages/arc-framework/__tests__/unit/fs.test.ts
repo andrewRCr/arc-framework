@@ -5,13 +5,18 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { join } from "node:path";
-import { mkdtemp, readFile, writeFile, rm, mkdir, chmod, readdir } from "node:fs/promises";
+import { join, posix, win32 } from "node:path";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, writeFile, rm, mkdir, chmod, readdir, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 
 import {
   atomicWriteJson,
   createAtomicFileCreator,
+  displayLocalPath,
+  listArcFiles,
+  retryTransientFileSystemRefusal,
   toForwardSlash,
   type AtomicCreateFileContext,
 } from "../../src/lib/fs.js";
@@ -135,7 +140,7 @@ describe("atomicWriteJson", () => {
     expect(JSON.parse(content)).toEqual({ version: "2.0.0" });
   });
 
-  it("cleans up temp file on write failure", async () => {
+  it.skipIf(process.platform === "win32")("cleans up temp file on write failure", async () => {
     // Create a target directory, then make it read-only to trigger rename failure
     const subDir = join(tempDir, "readonly");
     await mkdir(subDir);
@@ -171,6 +176,124 @@ describe("atomicWriteJson", () => {
     const content = await readFile(target, "utf-8");
     expect(JSON.parse(content)).toEqual({ ok: true });
   });
+
+  it.skipIf(process.platform !== "win32")("retries Windows rename-over after a reader releases the target", async () => {
+    const target = join(tempDir, "held.json");
+    await writeFile(target, '{"version":1}\n');
+    const probe = join(tempDir, "probe.tmp");
+    await writeFile(probe, "probe");
+    const escapedTarget = target.replace(/'/g, "''");
+    const script = `
+$held = [System.IO.FileStream]::new('${escapedTarget}', [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+try {
+  [Console]::Out.WriteLine('READY')
+  [Console]::Out.Flush()
+  [void][Console]::In.ReadLine()
+} finally {
+  $held.Dispose()
+}
+`;
+    const holder = spawn("powershell.exe", ["-NoProfile", "-Command", script], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let holderError = "";
+    holder.stderr.setEncoding("utf8");
+    holder.stderr.on("data", (chunk: string) => { holderError += chunk; });
+    const closed = new Promise<number | null>((resolve) => { holder.once("close", resolve); });
+    const ready = new Promise<void>((resolve, reject) => {
+      let stdout = "";
+      holder.stdout.setEncoding("utf8");
+      holder.stdout.on("data", (chunk: string) => {
+        stdout += chunk;
+        if (stdout.includes("READY")) resolve();
+      });
+      holder.once("error", reject);
+      holder.once("close", (code) => { reject(new Error(`Windows holder exited early (${code}): ${holderError}`)); });
+    });
+    let publication: Promise<void> | undefined;
+    let published = false;
+    let publicationError: unknown;
+    try {
+      await ready;
+      await expect(rename(probe, target)).rejects.toMatchObject({
+        code: expect.stringMatching(/^(EPERM|EACCES|EBUSY)$/),
+      });
+      publication = atomicWriteJson(target, { version: 2 }).then(
+        () => { published = true; },
+        (error: unknown) => { published = true; publicationError = error; },
+      );
+      await delay(100);
+      expect(published).toBe(false);
+      expect(await readFile(target, "utf8")).toBe('{"version":1}\n');
+    } finally {
+      holder.stdin.end("\n");
+      expect(await closed).toBe(0);
+    }
+    await publication;
+    if (publicationError) throw publicationError;
+    expect(await readFile(target, "utf8")).toBe('{\n  "version": 2\n}\n');
+  }, 15_000);
+});
+
+describe("retryTransientFileSystemRefusal", () => {
+  it.each(["EPERM", "EBUSY", "EACCES"])("retries a temporary %s refusal", async (code) => {
+    let attempts = 0;
+    const delays: number[] = [];
+    const result = await retryTransientFileSystemRefusal(async () => {
+      attempts += 1;
+      if (attempts < 3) throw Object.assign(new Error("busy"), { code });
+      return "published";
+    }, { sleep: async (ms) => { delays.push(ms); }, random: () => 0 });
+
+    expect(result).toBe("published");
+    expect(attempts).toBe(3);
+    expect(delays).toHaveLength(2);
+    expect(delays[0]).toBeGreaterThan(0);
+    expect(delays[1]).toBeGreaterThan(delays[0] ?? 0);
+  });
+
+  it("does not retry another filesystem error", async () => {
+    const failure = Object.assign(new Error("missing"), { code: "ENOENT" });
+    let attempts = 0;
+    await expect(retryTransientFileSystemRefusal(async () => {
+      attempts += 1;
+      throw failure;
+    }, { sleep: async () => { throw new Error("unexpected delay"); } })).rejects.toBe(failure);
+    expect(attempts).toBe(1);
+  });
+
+  it("ends a persistent refusal after a bounded delay", async () => {
+    const failure = Object.assign(new Error("blocked"), { code: "EPERM" });
+    let attempts = 0;
+    const delays: number[] = [];
+    await expect(retryTransientFileSystemRefusal(async () => {
+      attempts += 1;
+      throw failure;
+    }, { sleep: async (ms) => { delays.push(ms); }, random: () => 0 })).rejects.toBe(failure);
+    expect(attempts).toBeGreaterThan(1);
+    expect(attempts).toBeLessThanOrEqual(10);
+    expect(delays.reduce((total, delay) => total + delay, 0)).toBeLessThanOrEqual(1_000);
+  });
+});
+
+describe("listArcFiles", () => {
+  let arcDir: string;
+
+  beforeEach(async () => {
+    arcDir = await mkdtemp(join(tmpdir(), "arc-list-files-"));
+  });
+
+  afterEach(async () => {
+    await rm(arcDir, { recursive: true, force: true });
+  });
+
+  it("lists no machine-local file under system/.local/", async () => {
+    await mkdir(join(arcDir, "system", ".local", "projection", "aside", "active"), { recursive: true });
+    await writeFile(join(arcDir, "system", ".local", "projection", "reference"), "");
+    await writeFile(join(arcDir, "system", ".local", "projection", "aside", "active", "copy.aside"), "");
+    await writeFile(join(arcDir, "system", "arc-config.yml"), "");
+    expect(await listArcFiles(arcDir)).toEqual(["system/arc-config.yml"]);
+  });
 });
 
 describe("toForwardSlash", () => {
@@ -188,5 +311,26 @@ describe("toForwardSlash", () => {
 
   it("handles empty string", () => {
     expect(toForwardSlash("")).toBe("");
+  });
+});
+
+describe("displayLocalPath", () => {
+  it("shows a path inside the directory relative to it with forward slashes", () => {
+    expect(displayLocalPath("/work/repo", "/work/repo/.arc/user/dev/WORKING-MEMORY.md", posix))
+      .toBe(".arc/user/dev/WORKING-MEMORY.md");
+    expect(displayLocalPath("C:\\work\\repo", "C:\\work\\repo\\.arc\\user\\dev\\WORKING-MEMORY.md", win32))
+      .toBe(".arc/user/dev/WORKING-MEMORY.md");
+    expect(displayLocalPath("C:\\work\\repo", "C:\\work\\repo", win32)).toBe(".");
+  });
+
+  it("shows a path outside the directory absolute in the platform's spelling", () => {
+    expect(displayLocalPath("/work/repo.linked", "/work/repo/.arc/user/dev", posix)).toBe("/work/repo/.arc/user/dev");
+    expect(displayLocalPath("C:\\work\\repo.linked", "C:\\work\\repo\\.arc\\user\\dev", win32))
+      .toBe("C:\\work\\repo\\.arc\\user\\dev");
+    expect(displayLocalPath("D:\\a\\repo", "C:\\Users\\dev\\repo\\.arc", win32)).toBe("C:\\Users\\dev\\repo\\.arc");
+  });
+
+  it("gives a relative input forward slashes", () => {
+    expect(displayLocalPath("C:\\work\\repo", ".arc\\user\\dev", win32)).toBe(".arc/user/dev");
   });
 });

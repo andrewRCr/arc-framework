@@ -57,8 +57,8 @@ for why it was made.
 
 ## Finding ADRs
 
-ADRs are numbered sequentially and filenames contain titles.
-Browse via filesystem - no separate index is maintained to avoid duplication overhead.
+ADRs are numbered sequentially and filenames contain titles. Browse via filesystem - no separate index is maintained to
+avoid duplication overhead.
 
 ```bash
 ls .arc/reference/adr/adr-*.md              # List all ADRs

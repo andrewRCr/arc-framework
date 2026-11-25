@@ -116,8 +116,8 @@ Evidence:
   pure policy functions embedded as private handler helpers.
 - `handleSync(...)` resolves identity, project root, settings, prompt degradation, worktree
   probe state, dry-run/runtime branching, JSON output, and exit code.
-- `execute(...)`, `executeBlockedWorktree(...)`, `executePaired(...)`, and
-  `executeSingleLeg(...)` own runtime side effects.
+- `execute(...)`, `executeBlockedWorktree(...)`, `executePaired(...)`, and `executeSingleLeg(...)` own runtime side
+  effects.
 - Rendering helpers such as `renderPairedResult(...)`, `renderPairedNotesOutcome(...)`,
   `worktreeBlockGuidance(...)`, and `reconcileGuidance(...)` live in the same module.
 

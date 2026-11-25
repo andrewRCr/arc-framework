@@ -148,8 +148,8 @@ filtering.
 
 #### OmniFocus
 
-[OmniFocus Features](https://www.omnigroup.com/omnifocus/features/),
-[Colter Reed — Tracking Urgent and Important Tasks](https://colterreed.com/tracking-urgent-and-important-tasks-in-omnifocus/)
+[OmniFocus Features](https://www.omnigroup.com/omnifocus/features/), [Colter Reed — Tracking Urgent and Important
+Tasks](https://colterreed.com/tracking-urgent-and-important-tasks-in-omnifocus/)
 
 The **Flagged** status marks items of importance; Flagged items appear in the Flagged perspective and
 alongside due items in Forecast. A perspective can filter by "Due or Flagged" to surface immediate priorities.
@@ -277,10 +277,10 @@ idiomatic and not controversial. ARC's "one primary WU at a time per developer" 
 - **Parallel WU start:** Developer assigns self to next issue, moves it to In Progress.
 - **No role annotation needed:** Status + assignee already express the state.
 
-The anti-pattern flagged in
-[Jira documentation](https://community.atlassian.com/forums/App-Central-articles/10-Jira-Status-Anti-Patterns-and-the-10-Minute-Fi/ba-p/3138593)
-is lumping review work under "In Progress" without a distinct "In Review" status. The fix is status
-discipline, not role annotation.
+The anti-pattern flagged in [Jira
+documentation](https://community.atlassian.com/forums/App-Central-articles/10-Jira-Status-Anti-Patterns-and-the-10-Minute-Fi/ba-p/3138593)
+is lumping review work under "In Progress" without a distinct "In Review" status. The fix is status discipline, not role
+annotation.
 
 ### Closest Existing Pattern to ARC's Focus-Role Model
 

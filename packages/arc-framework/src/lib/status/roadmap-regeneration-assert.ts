@@ -15,7 +15,7 @@ import { parseMetaRecord } from "../active/meta-reader.js";
 import { resolveArcPath } from "../layout/index.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
-import { parseTransitionRecord } from "../work-unit/transition-record.js";
+import { parseLineageRecord } from "../store/kinds/lineage/index.js";
 import {
   resolveTransitionRecordRelativePath,
   TRANSITION_RECORD_NAMESPACE,
@@ -75,6 +75,8 @@ export interface IndexProjectViewFsOptions {
 
 /** Options for rendering the staged-index ROADMAP view. */
 export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions {
+  /** Opt into typed purpose facts while retaining the exact same Markdown render. */
+  includePurpose?: boolean;
   /** Optional H1 text without the leading `#`. */
   title?: string;
   /** Base branch for the local-ref oracle. */
@@ -109,14 +111,21 @@ const TRANSITION_RECORD_PATH_RE = new RegExp(
 );
 const CONFLICT_MARKER_RE = /^(?:<{7}(?: .*)?|={7}|>{7}(?: .*)?|\|{7}(?: .*)?)$/mu;
 
+/** What a staged-index name is: a directory prefix, a regular file, or another staged entry kind. */
+type IndexEntryKind = "directory" | "file" | "other";
+
 class IndexDirEntry implements ProjectViewDirEntry {
   constructor(
     readonly name: string,
-    private readonly directory: boolean,
+    private readonly kind: IndexEntryKind,
   ) {}
 
   isDirectory(): boolean {
-    return this.directory;
+    return this.kind === "directory";
+  }
+
+  isFile(): boolean {
+    return this.kind === "file";
   }
 }
 
@@ -225,19 +234,19 @@ export async function resolveStagedTransitionOverlays(
   const recordPaths = stdout.split("\0").filter((path) => TRANSITION_RECORD_PATH_RE.test(path));
   const overlays = (await Promise.all(recordPaths.map(async (path) => {
     const { stdout: content } = await options.exec("git", ["show", `:${path}`], { cwd: options.cwd });
-    const record = parseTransitionRecord(content);
-    if (record === null || path !== resolveTransitionRecordRelativePath(record.origin)) {
+    const record = parseLineageRecord(content);
+    if (record === null || path !== resolveTransitionRecordRelativePath(record.origin.name)) {
       return null;
     }
     if (await readHeadTransitionRecord(options, path) !== null) return null;
     if (record.kind === "decompose") {
-      return createValidatedTransitionOverlay({ origin: record.origin, sourceBranch: `plan/${record.origin}` });
+      return createValidatedTransitionOverlay({ origin: record.origin.name, sourceBranch: `plan/${record.origin.name}` });
     }
     const { stdout: paths } = await options.exec("git", [
       "ls-tree", "-r", "--name-only", "-z", "HEAD", "--", ".arc/active", ".arc/backlog",
     ], { cwd: options.cwd });
     const metaPaths = paths.split("\0").filter((candidate) =>
-      posix.basename(candidate) === `meta-${record.origin}.md`);
+      posix.basename(candidate) === `meta-${record.origin.name}.md`);
     if (metaPaths.length !== 1 || metaPaths[0] === undefined) return null;
     const { stdout: metaContent } = await options.exec(
       "git",
@@ -247,7 +256,7 @@ export async function resolveStagedTransitionOverlays(
     const sourceBranch = parseMetaRecord(metaContent).branch;
     return sourceBranch === null
       ? null
-      : createValidatedTransitionOverlay({ origin: record.origin, sourceBranch });
+      : createValidatedTransitionOverlay({ origin: record.origin.name, sourceBranch });
   }))).filter((overlay): overlay is ValidatedTransitionOverlay => overlay !== null);
   return overlays;
 }
@@ -274,6 +283,7 @@ export async function renderRoadmapFromIndexViewResult(
   ]);
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
+    includePurpose: options.includePurpose === true,
     ...(options.title !== undefined ? { title: options.title } : {}),
     fs,
     localRefs: {
@@ -357,25 +367,30 @@ function repoPath(cwd: string, path: string): string {
 
 async function listIndexDirectory(exec: GitExec, cwd: string, dir: string): Promise<ProjectViewDirEntry[]> {
   const { stdout } = await exec("git", ["ls-files", "--stage", "--", dir], { cwd });
-  const entries = new Map<string, boolean>();
+  const entries = new Map<string, IndexEntryKind>();
   for (const line of stdout.split("\n")) {
-    const indexedPath = pathFromLsFilesStage(line);
-    if (indexedPath === null) continue;
-    const rest = relativeIndexPath(dir, indexedPath);
+    const staged = parseLsFilesStage(line);
+    if (staged === null) continue;
+    const rest = relativeIndexPath(dir, staged.path);
     if (rest === null || rest === "") continue;
     const [name, ...tail] = rest.split("/");
     if (name === undefined || name === "") continue;
-    entries.set(name, (entries.get(name) ?? false) || tail.length > 0);
+    const kind = tail.length > 0 || entries.get(name) === "directory"
+      ? "directory"
+      : staged.regularFile ? "file" : "other";
+    entries.set(name, kind);
   }
   return [...entries.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, directory]) => new IndexDirEntry(name, directory));
+    .map(([name, kind]) => new IndexDirEntry(name, kind));
 }
 
-function pathFromLsFilesStage(line: string): string | null {
+/** Split one `ls-files --stage` row into its path and whether its mode is a regular file's. */
+function parseLsFilesStage(line: string): { path: string; regularFile: boolean } | null {
   const tab = line.indexOf("\t");
   if (tab === -1) return null;
-  return line.slice(tab + 1);
+  const mode = line.slice(0, line.indexOf(" "));
+  return { path: line.slice(tab + 1), regularFile: mode === "100644" || mode === "100755" };
 }
 
 function relativeIndexPath(dir: string, path: string): string | null {

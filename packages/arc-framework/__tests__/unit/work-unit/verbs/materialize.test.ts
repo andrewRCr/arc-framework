@@ -6,6 +6,8 @@
  * the local backlog projection neither authorizes nor blocks that operation.
  */
 
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -65,6 +67,11 @@ function buildCtx(opts: {
   }
 
   const ctx: ExecuteTransitionContext = {
+    exec: scriptGitExec([
+      { match: ["worktree", "list", "--porcelain", "-z"], responses: [{ stdout:
+        worktreePorcelainZ(`worktree ${WORKTREE}\nHEAD ${"a".repeat(40)}\nbranch refs/heads/feat/foo\n`) }] },
+      { match: { prefix: ["worktree", "lock"] }, responses: [{ stdout: "" }] },
+    ]).exec,
     cwd: CWD,
     indexFs: opts.indexFs ?? emptyIndexFs(),
     setPhase: async () => ({ phase: "Active" }),
@@ -74,7 +81,7 @@ function buildCtx(opts: {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       if (op.mutation === "spawn") {
-        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
+        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch ?? null };
       }
       if (op.mutation === "teardown") {
         return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
@@ -110,7 +117,7 @@ describe("runMaterialize", () => {
       readdir: async (path) => {
         lifecycleReads += 1;
         if (path.endsWith("/.arc/backlog/planned")) {
-          return [{ name: "meta-foo.md", isDirectory: () => false }];
+          return [{ name: "meta-foo.md", isDirectory: () => false, isFile: () => true }];
         }
         throw new Error(`ENOENT: ${path}`);
       },

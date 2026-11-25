@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   ROADMAP_RERENDER_COMMAND,
   assertRoadmapRegenerated,
@@ -11,10 +11,11 @@ import {
   type RoadmapRegenerationAssertVerdict,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { collectLifecycleMetaFiles } from "../../../src/lib/work-unit/lifecycle-index.js";
 import {
   resolveTransitionRecordRelativePath,
 } from "../../../src/lib/work-unit/transition-record-store.js";
-import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
@@ -37,10 +38,10 @@ function transitionMeta(slug: string, state: string, branch: string): string {
   return [
     `# Metadata: ${slug}`,
     "",
-    `- **State:** ${state}`,
-    "- **Owner:** andrew",
-    `- **Branch:** ${branch}`,
-    "- **Priority:** P1",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | andrew | ${branch} | — | P1 |`,
+    "",
     "- **Cohort:** [none]",
     "- **Depends On:** [none]",
     "",
@@ -61,12 +62,12 @@ function isStagedTransitionList(args: readonly string[]): boolean {
   ].join("\0");
 }
 
-function transition(origin = "retired"): TransitionRecord {
-  return { schemaVersion: 1, origin, kind: "decompose", successors: ["member"], edges: [] };
+function transition(origin = "retired"): LineageRecord {
+  return LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: origin }, kind: "decompose", successors: [{ name: "member" }], incoming: [] , outgoing: []});
 }
 
 interface StagedTransition {
-  record: TransitionRecord;
+  record: LineageRecord;
   path: string;
 }
 
@@ -87,8 +88,8 @@ function makeStagedTransitionsExec(records: readonly StagedTransition[]): GitExe
 }
 
 function makeStagedTransitionExec(
-  record: TransitionRecord,
-  path = resolveTransitionRecordRelativePath(record.origin),
+  record: LineageRecord,
+  path = resolveTransitionRecordRelativePath(record.origin.name),
 ): GitExec {
   return makeStagedTransitionsExec([{ record, path }]);
 }
@@ -230,6 +231,28 @@ describe("createIndexProjectViewFs", () => {
       ":.arc/backlog/planned/ready/meta-ready.md",
     ], { cwd: "/repo" });
   });
+
+  it("lists a staged symlink as neither file nor directory, so the lifecycle walk skips it", async () => {
+    const link = ".arc/active/meta-linked twin.md";
+    const real = ".arc/active/meta-real.md";
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (args[0] !== "ls-files") throw new Error(`unexpected git args: ${args.join(" ")}`);
+      const dir = args.at(-1) ?? "";
+      const rows = [`120000 object-id 0\t${link}`, `100755 object-id 0\t${real}`];
+      return { stdout: rows.filter((row) => row.includes(`\t${dir}/`)).join("\n"), stderr: "" };
+    });
+    const fs = createIndexProjectViewFs({ cwd: "/repo", exec });
+
+    const entries = await fs.readdir("/repo/.arc/active");
+
+    expect(entries.map((entry) => [entry.name, entry.isFile(), entry.isDirectory()])).toEqual([
+      ["meta-linked twin.md", false, false],
+      ["meta-real.md", true, false],
+    ]);
+    await expect(collectLifecycleMetaFiles("/repo", fs)).resolves.toEqual([
+      { location: "active", path: `/repo/${real}` },
+    ]);
+  });
 });
 
 describe("resolveStagedTransitionOverlays", () => {
@@ -241,20 +264,20 @@ describe("resolveStagedTransitionOverlays", () => {
       exec: makeStagedTransitionExec(record),
     })).resolves.toMatchObject([{
       kind: "validated",
-      origin: record.origin,
+      origin: record.origin.name,
       sourceBranch: "plan/retired",
     }]);
   });
 
   it("derives direct-transition suppression from the origin meta branch at HEAD", async () => {
-    const record: TransitionRecord = {
-      schemaVersion: 1,
-      origin: "retired",
+    const record: LineageRecord = LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "retired" },
       kind: "rename",
-      successors: ["renamed"],
-      edges: [],
-    };
-    const path = resolveTransitionRecordRelativePath(record.origin);
+      successors: [{ name: "renamed" }],
+      incoming: [],
+    });
+    const path = resolveTransitionRecordRelativePath(record.origin.name);
     const metaPath = ".arc/backlog/planned/retired/meta-retired.md";
     const exec: GitExec = async (_command, args) => {
       if (isStagedTransitionList(args)) return { stdout: `${path}\0`, stderr: "" };
@@ -266,14 +289,14 @@ describe("resolveStagedTransitionOverlays", () => {
         return { stdout: `${metaPath}\0`, stderr: "" };
       }
       if (args[0] === "show" && args[1] === `HEAD:${metaPath}`) {
-        return { stdout: transitionMeta(record.origin, "Planning", "feat/retired"), stderr: "" };
+        return { stdout: transitionMeta(record.origin.name, "Planning", "feat/retired"), stderr: "" };
       }
       throw new Error(`unexpected git args: ${args.join(" ")}`);
     };
 
     await expect(resolveStagedTransitionOverlays({ cwd: "/repo", exec })).resolves.toMatchObject([{
       kind: "validated",
-      origin: record.origin,
+      origin: record.origin.name,
       sourceBranch: "feat/retired",
     }]);
   });
@@ -298,7 +321,7 @@ describe("resolveStagedTransitionOverlays", () => {
       cwd: "/repo",
       exec: makeStagedTransitionsExec(records.map((record) => ({
         record,
-        path: resolveTransitionRecordRelativePath(record.origin),
+        path: resolveTransitionRecordRelativePath(record.origin.name),
       }))),
     })).resolves.toMatchObject([
       { kind: "validated", origin: "retired", sourceBranch: "plan/retired" },

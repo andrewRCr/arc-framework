@@ -6,8 +6,10 @@
  * inspects adapter storage directly.
  */
 
-import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
-import type { ManagedPath } from "../canonical/managed-path.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import type { RecordReference, RecordVersion } from "../store/identity.js";
+import type { ManagedPath } from "../kernel/canonical/managed-path.js";
+import { assertNever } from "../kernel/index.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 
 type DirectRetirementTransition = "abandon" | "park-planning" | "rename";
@@ -31,6 +33,13 @@ export type RetirementEvidenceRef =
       expectedLifecycle: "completed";
       resultDigest: CanonicalDigest;
       baseProofOid: string;
+    }
+  | {
+      kind: "lineage";
+      transition: "abandon" | "decompose";
+      reference: RecordReference;
+      version: RecordVersion;
+      resultDigest: CanonicalDigest;
     }
   | {
       kind: "git-transition";
@@ -148,7 +157,7 @@ export type TeardownAuthorizationDecision =
 export interface RetirementAuthorityPort {
   readSnapshot(scope: RetirementAuthorityScope): Promise<
     | { status: "resolved"; snapshot: RetirementAuthoritySnapshot }
-    | { status: "refused"; reason: TeardownAuthorizationRefusal }
+    | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string }
   >;
 
   authorize(request: TeardownAuthorizationRequest): Promise<TeardownAuthorizationDecision>;
@@ -217,9 +226,7 @@ export function describeTeardownAuthorizationRefusal(reason: TeardownAuthorizati
       return "retirement authority found conflicting evidence";
     case "authority-conflict":
       return "retirement authority changed during the operation";
-    default: {
-      const exhaustive: never = reason;
-      return exhaustive;
-    }
+    default:
+      return assertNever(reason);
   }
 }

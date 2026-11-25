@@ -16,6 +16,7 @@ describe("retirement lifecycle successor readiness", () => {
         argv: ["arc", "start", "ready"],
         text: "arc start ready",
       },
+      actions: [{ text: "arc start ready", argv: ["arc", "start", "ready"] }],
     });
     expect(projectSuccessorReadiness(["alpha", "beta"], true)).toEqual({
       candidates: ["alpha", "beta"],

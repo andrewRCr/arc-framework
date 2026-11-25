@@ -5,8 +5,6 @@ arc:
   methods:
     - branch-format
     - classify-work-unit
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Initialize Work Unit
@@ -83,16 +81,16 @@ git pull origin {base-branch}
 Verify the working tree is clean (`git status`). If there are uncommitted changes from a prior session,
 resolve them before proceeding.
 
-Verify `{base-branch}` is at parity with `origin/{base-branch}` after pull
-(`git rev-list --count {base-branch}..origin/{base-branch}` returns `0`). Non-zero indicates the pull
+Verify `{base-branch}` is at parity with `origin/{base-branch}` after pull (`git
+rev-list --count {base-branch}..origin/{base-branch}` returns `0`). Non-zero indicates the pull
 didn't reach parity — typically a network glitch or a fetch-then-rebase scenario; investigate before
 creating the planning branch. This guard matters most on cross-machine resume, where local
 `{base-branch}` may be arbitrarily behind `origin/{base-branch}` from integration work that landed
 on a sibling clone.
 
 **USER-INBOX backstop warning.** Before creating the planning branch or spawning a worktree, read the
-`inboxState` slot from the current session-init probe if available; otherwise run a fresh read-only probe and
-consume only that slot:
+`inboxState` slot at the current agenda's `residual.inboxState` when available; otherwise run a fresh read-only probe
+and consume only that slot:
 
 ```bash
 arc status --session-init --json
@@ -121,9 +119,9 @@ arc start {name} --new --here   # explicit in-place placement
 ```
 
 The verb creates the planning branch, scaffolds the WU, opens its user workspace, and establishes the checkout as
-WU-owned.
-On a spawned start it also ships the start ceremony and emits the exact next-session recipe; consume that recipe
-and skip Steps 4–6. On `--here`, continue with Steps 4–6 in the now WU-owned checkout. If that checkout is the
+WU-owned. On a spawned start it also ships the start ceremony and emits the
+exact next-session recipe; consume that recipe and skip Steps 4–6. On `--here`,
+continue with Steps 4–6 in the now WU-owned checkout. If that checkout is the
 physical primary, do not allocate transient work there until the WU exits through guarded teardown.
 
 ### 3) Initialize Backlog Subdir to Active · `arc-in-git` only
@@ -159,8 +157,11 @@ spawned WU worktree: post-create provisioning and registered harness-dir copy ha
 session's effective config and scripts resolve from that root. Do not continue planning from the invoking checkout
 after a spawned start succeeds.
 
-- **Claude Code** — if `EnterWorktree` is available, call it with the emitted worktree path, then re-run
-  `/arc-session` in the relocated session.
+- **Claude Code** — tell the user to start a fresh session in the emitted worktree path and invoke `/arc-session`
+  there; the seeded SESSION-NOTES is the handoff bridge. `EnterWorktree` is the escape hatch, for a user who asks to
+  keep this session: call it with the emitted path, then re-run `/arc-session`. The user's terminal stays at the
+  invoking checkout, and Claude Code's worktree guard then refuses edits and some commands that reach outside the
+  worktree, the primary checkout's personal files among them.
 - **Codex CLI** — no live-session relocate. Do not launch nested Codex from a shell escape inside the current
   session. Tell the user to open a fresh terminal (or end this session and reuse the terminal), run
   `codex --cd <worktree-path>`, then invoke `arc-session`. The seeded SESSION-NOTES is the handoff bridge; the
@@ -222,6 +223,8 @@ Remaining fields take their field-model defaults.
 prior session, not from backlog initialization), do not recreate it. Reconcile **Branch**, **Design**,
 **Current Workflow**, and **Next Action** as in Path B; preserve other field values.
 
+Run `arc check increment` over the reconciled meta before this in-place or resumed init commit.
+
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`. Under Path A, stage the relocation moves
 > `arc start` performed (meta + draft-doc + companions) together with the meta-file reconcile edits as a
@@ -242,10 +245,6 @@ edit is trivial (a single-row add into In Flight) — see [DEV-RULES.ARC § Atom
 ### 6) Push Planning Branch
 
 Set upstream for the planning branch.
-
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-  (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
-  an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin plan/{name}`.
@@ -271,15 +270,19 @@ A bounded few in-session review passes alone do **not** cross a floor — that s
 floor, the name/type) plus deterministic CLI.
 
 It promotes an errand already in motion; it does not start one (cold errands enter via `arc-session --errand`).
-Under **partial** protection there is no errand branch — stop the direct base-branch edits, start a normal work
-unit from the base, and carry any landed errand commit as context in the new WU's spec or notes.
+Under **partial** protection there is no errand branch — stop the direct base-branch edits and start a normal work
+unit from the base at the floor's stage: derivation enters `draft-design`; scale enters `Active` for a `brief` +
+task-list backfill. Carry any landed errand commit as context in the new WU's spec or notes.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop before promotion. Surface the floor crossed and its reason, the proposed
-> `{type}/{name}`, and the originating `USER-INBOX` capture (if any); await approval before running the verb.
+> `workflow-interlock`: Stop before promotion. Show the four record answers, identify which flipped, and name the
+> resulting floor. Surface the proposed `{type}/{name}` and the originating `USER-INBOX` capture (if any); await
+> approval before running the verb.
 
-1. **Identify the crossing.** Confirm the current derived subject is the in-flight Errand and name the floor —
-   **derivation** or **scale**. This is the judgment `arc errand promote` cannot make; the rest is deterministic.
+1. **Identify the crossing.** Confirm the current derived subject is the in-flight Errand and apply
+   [classify-work-unit][classify-work-unit] boundary test 1. Question 1 names `scale`; questions 2–4 name
+   `derivation`, which wins when both flip. Name the floor from the answers that flipped. This is the judgment
+   `arc errand promote` cannot make; the rest is deterministic.
 
 2. **Stabilize.** The verb renames the branch, so commit any in-progress errand work as a normal errand checkpoint
    first; never fold implementation into the promotion.
@@ -327,9 +330,6 @@ unit from the base, and carry any landed errand commit as context in the new WU'
 
 5. **Push the WU branch; retire the old remote ref.**
 
-   - **Extensions** · `#pre-push-review`: If `pre-push-review` is active, run its `.actions` before the push —
-     halt-on-fail surfaces an actionable message; fix-and-retry or explicit-invoke bypasses. Otherwise skip.
-
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
 
@@ -342,8 +342,8 @@ unit from the base, and carry any landed errand commit as context in the new WU'
    cross-machine resume.
 
 6. **Continue into the routed planning stage** — by the floor crossed. Do **not** run `activate-work-unit`;
-   promotion already performed the branch-side activation. Resolve `Class`
-   ([classify-work-unit][classify-work-unit]) here if it was not supplied at promotion.
+   promotion already performed the branch-side activation. Resolve `Class` ([classify-work-unit][classify-work-unit])
+   here if it was not supplied at promotion.
 
    - **Derivation** → the meta points at `draft-design`; work the design out, then [create-spec][create-spec], then
      [generate-tasks][generate-tasks].

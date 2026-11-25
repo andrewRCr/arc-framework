@@ -40,17 +40,15 @@ Specifically:
 
 - `decideMatrix(...)`, `decideWorktree(...)`, `decideNotes(...)`, and `cellNameFor(...)`
   are pure policy embedded as private handler helpers.
-- `execute(...)`, `executeBlockedWorktree(...)`, `executePaired(...)`, and
-  `executeSingleLeg(...)` own runtime side effects.
+- `execute(...)`, `executeBlockedWorktree(...)`, `executePaired(...)`, and `executeSingleLeg(...)` own runtime side
+  effects.
 - Rendering helpers (`renderPairedResult(...)`, `renderPairedNotesOutcome(...)`,
   `worktreeBlockGuidance(...)`, `reconcileGuidance(...)`) live in the same module.
 
-The corresponding test files
-(`__tests__/unit/sync.test.ts`, `__tests__/unit/sync-orchestrator.test.ts`) compensate by
-mocking filesystem access, Clack prompts, user command helpers, resolved settings,
-worktree status, push recovery, shared handler helpers, path resolution, and user IO
-context — see audit § P1 (handler tests need heavy module mocks) and § P1 (delegation-
-topology assertions). Tests pass while real composed modules can drift apart.
+The corresponding test files (`__tests__/unit/sync.test.ts`, `__tests__/unit/sync-orchestrator.test.ts`) compensate by
+mocking filesystem access, Clack prompts, user command helpers, resolved settings, worktree status, push recovery,
+shared handler helpers, path resolution, and user IO context — see audit § P1 (handler tests need heavy module mocks)
+and § P1 (delegation- topology assertions). Tests pass while real composed modules can drift apart.
 
 **Why this matters.** Extending release wrappers or handoff sync behavior accumulates
 pressure on an already-broad handler. Interlock Release Wrappers WU1 Phase 5 retrofits
@@ -116,8 +114,7 @@ Test architecture follows the new module boundaries:
 - Verification + buffer: ~1 session.
 
 **Sequencing.** Defer past the parallelism trio (Worktree Foundation + Agile WU
-Lifecycle + Concurrent Work Conventions) and Coord Probe per
-`analysis-cli-architecture-solid-dry-audit.md` § Sequencing Considerations. Parallel
-candidate with Plans A and C once worktree infrastructure unlocks parallel WUs.
+Lifecycle + Concurrent Work Conventions) and Coord Probe per `analysis-cli-architecture-solid-dry-audit.md` § Sequencing
+Considerations. Parallel candidate with Plans A and C once worktree infrastructure unlocks parallel WUs.
 
 ---

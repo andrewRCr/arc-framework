@@ -5,6 +5,7 @@
  * work units touch the target path(s), emitting the overlap facts as JSON for
  * skill consumption. This covers the real path resolution that unit tests stub.
  */
+import { withReviewReport } from "../fixtures/review-report-input.js";
 
 import { execFile, spawn } from "node:child_process";
 import { access, chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -12,18 +13,30 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import {
-  cleanupTempDir,
-  createTempRepo,
+  cleanupTempDir, createTempRepo,
   runArc,
   runArcAnchored,
   runArcAnchoredSequence,
   runArcWithStdin,
 } from "./helpers.js";
+import { advanceBaseStep, movementPaths } from "../helpers/base-advance.js";
+import { initializedRepository } from "../helpers/initialized-repository.js";
+import {
+  copyPreparedRepository,
+  prepareRepositoryTemplate,
+  type PreparedRepositoryTemplate,
+} from "../helpers/prepared-repository.js";
+import { inProcessReview, localReviewResult, type PreparedLocalReview } from "../helpers/in-process-review.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { createRawGitExec } from "../../src/lib/io-context.js";
+import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { makeGitExec } from "../helpers/integration.js";
+import { readErrandRoutedObligation } from "../../src/scripts/review-gate/status-errand.js";
+import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -136,6 +149,27 @@ async function setFullProtection(cwd: string): Promise<void> {
   await writeFile(path, updated, "utf-8");
 }
 
+async function setDelegatedStandardReview(cwd: string): Promise<void> {
+  const path = join(cwd, ".arc", "system", "arc-config.yml");
+  const yaml = await readFile(path, "utf-8");
+  const updated = yaml.replace(
+    "review.standard_sources: []",
+    "review.standard_sources: [delegated-agent]",
+  );
+  if (updated === yaml) {
+    throw new Error("setDelegatedStandardReview: expected empty standard-review source list");
+  }
+  await writeFile(path, updated, "utf-8");
+}
+
+async function setBasePullAlways(cwd: string): Promise<void> {
+  const path = join(cwd, ".arc", "system", "arc-config.yml");
+  const yaml = await readFile(path, "utf-8");
+  const updated = yaml.replace("session.init_pull.base: prompt", "session.init_pull.base: always");
+  if (updated === yaml) throw new Error("setBasePullAlways: expected prompt base-pull policy");
+  await writeFile(path, updated, "utf-8");
+}
+
 async function setPartialProtection(cwd: string): Promise<void> {
   const path = join(cwd, ".arc", "system", "arc-config.yml");
   const yaml = await readFile(path, "utf-8");
@@ -174,6 +208,52 @@ function inspectIdentityCommand(slug: string): readonly string[] {
       + "process.stdout.write(JSON.stringify(value));",
   ];
 }
+
+describe("arc errand merge", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await initializedRepository("initialized");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("refuses an invalid lane through the built destructive command boundary", async () => {
+    const result = await runArcWithStdin(
+      ["errand", "merge", "example", "-", "--json"],
+      tmpDir,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        identity: {
+          slug: "example",
+          claimId: "1".repeat(32),
+          branch: "chore/example",
+          generation: `errand-v1/example/${"1".repeat(32)}`,
+        },
+        approvedTarget: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "chore/example",
+          headSha: "c".repeat(40),
+        },
+        lane: "native-auto-merge",
+        mergeMethod: { method: "merge", policyFingerprint: `sha256:${"d".repeat(64)}` },
+      })}\n`,
+    );
+
+    expect(result.exitCode, result.stderr || result.stdout).toBe(64);
+    expect(JSON.parse(result.stdout) as unknown).toMatchObject({
+      mode: "errand-merge",
+      state: "refused",
+      nextAction: "stop",
+      reason: "invalid-input",
+      lane: null,
+    });
+  });
+});
 
 async function createMergedGhFixture(cwd: string, slug: string, exactHead?: string): Promise<{
   ghDir: string;
@@ -219,9 +299,7 @@ describe("arc errand check", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
@@ -241,137 +319,243 @@ describe("arc errand check", () => {
   });
 });
 
+const reviewRoutingFacts = {
+  contentKind: "code-bearing",
+  reviewRisk: "routine",
+  changeDeterminacy: "ordinary",
+  ownership: "self",
+  surfaceAuthority: "ordinary",
+};
+
+const fixProposal = {
+  proposedVerification: "focused",
+  severityGatingPolicy: { minorGating: "record-only" },
+  findings: [{
+    findingId: "finding-1",
+    sourceVerification: "verified",
+    verificationRefs: ["source:reviewed.txt:1"],
+    verifiedSeverity: "major",
+    disposition: "fix",
+    title: "Finding title",
+    issue: "The reviewer's claim.",
+    rationale: "The reviewed source supports applying this fix.",
+    recommendation: "Apply the fix.",
+    openQuestions: [],
+  }],
+};
+
+/** Approve exactly the disposition set a proposal returned. */
+function approveDispositions(proposed: ReviewEnvelope) {
+  const proposal = (proposed.payload as {
+    proposal: {
+      state: "proposed";
+      dispositionSet: { targetId: string; dispositionSetId: string };
+    };
+  }).proposal;
+  return {
+    ...proposal,
+    state: "approved" as const,
+    approval: {
+      schemaVersion: 2 as const,
+      semanticsVersion: "review-gate/v2" as const,
+      targetId: proposal.dispositionSet.targetId,
+      dispositionSetId: proposal.dispositionSet.dispositionSetId,
+      approvedBy: "test-user",
+      approvedAt: "2026-08-15T21:00:00Z",
+    },
+  };
+}
+
+const verifiedFix = {
+  applicability: "focused",
+  verificationEvidenceRefs: ["verification://focused-fix"],
+};
+
+/** Stage the approved fix to the reviewed change, leaving its commit to the caller. */
+async function stageApprovedFix(repository: string): Promise<void> {
+  await writeFile(join(repository, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+  await git(repository, ["add", "reviewed.txt"]);
+}
+
 describe("arc review respond for an Errand", () => {
-  it("persists and idempotently replays a verified fix without Candidate lineage", async () => {
-    const repository = await createTempRepo("arc-errand-review-response-");
-    let remoteDir: string | null = null;
-    try {
-      const initialized = await runArc(["init", "--yes", "--name", "errand-review"], repository);
+  const initializedShape = { kind: "plain", key: "errand-review-response-initialized-v1" } as const;
+  let initializedTemplate: PreparedRepositoryTemplate | undefined;
+  const dirs: string[] = [];
+
+  beforeAll(async () => {
+    initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
+      const root = await createTempRepo("arc-errand-review-response-");
+      const initialized = await runArc(["init", "--yes", "--name", "errand-review"], root);
       expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
-      await setFullProtection(repository);
-      await git(repository, ["add", "-A"]);
-      await commitFixture(repository, "initialize fixture");
-      remoteDir = await createBareRemote(repository, "review-response");
+      await setFullProtection(root);
+      await setDelegatedStandardReview(root);
+      await git(root, ["add", "-A"]);
+      await commitFixture(root, "initialize fixture");
+      return root;
+    });
+  });
 
-      const opened = await runArcAnchored([
-        "errand", "open", "repair-review-state", "--json",
-      ], repository, { timeout: 60_000 });
-      expect(opened.exitCode, opened.stderr || opened.stdout).toBe(0);
-      await writeFile(join(repository, "reviewed.txt"), "reviewed change\n", "utf8");
-      await git(repository, ["add", "reviewed.txt"]);
-      await commitFixture(repository, "add reviewed change");
+  afterAll(async () => {
+    if (initializedTemplate !== undefined) await cleanupTempDir(initializedTemplate.root);
+  });
 
-      const prepared = await invokeReview(repository, ["review", "local", "prepare", "-"], {
-        schemaVersion: 1,
-        evaluatorIdentity: "reviewer-1",
-        routingFacts: {
-          contentKind: "code-bearing",
-          reviewRisk: "routine",
-          changeDeterminacy: "ordinary",
-          ownership: "self",
-          surfaceAuthority: "ordinary",
-        },
-      });
-      const preparePayload = prepared.payload as {
-        operationId: string;
-        target: { targetId: string; headSha: string; headTree: string };
-        request: { evaluatorIdentity: string };
-        reviewerPayload: {
-          sourceDigest: string;
-          guidanceDigest: string;
-          guidance: { rubricVersion: string; rubricDigest: string };
+  afterEach(async () => {
+    await Promise.all(dirs.splice(0).map((dir) => cleanupTempDir(dir)));
+  });
+
+  /** Open a full-protection Errand whose committed change carries one reviewed major finding. */
+  async function errandWithReviewedFinding() {
+    if (initializedTemplate === undefined) throw new Error("initialized Errand template is unavailable");
+    const repository = await copyPreparedRepository(initializedTemplate, initializedShape);
+    dirs.push(repository);
+    dirs.push(await createBareRemote(repository, "review-response"));
+
+    const opened = await runArcAnchored([
+      "errand", "open", "repair-review-state", "--json",
+    ], repository, { timeout: 60_000 });
+    expect(opened.exitCode, opened.stderr || opened.stdout).toBe(0);
+    await writeFile(join(repository, "reviewed.txt"), "reviewed change\n", "utf8");
+    await git(repository, ["add", "reviewed.txt"]);
+    await commitFixture(repository, "add reviewed change");
+
+    const prepared = (await inProcessReview.prepare(repository, {
+      schemaVersion: 1,
+      evaluatorIdentity: "reviewer-1",
+      routingFacts: reviewRoutingFacts,
+    })).payload as unknown as PreparedLocalReview;
+    await inProcessReview.attest(repository, localReviewResult(prepared, "run-findings", [{
+      findingId: "finding-1",
+      severity: "major",
+      locus: "reviewed.txt:1",
+      evidenceUrlOrId: "review:finding-1",
+    }]));
+    const reduced = await inProcessReview.reduce(repository, { schemaVersion: 1, operationId: prepared.operationId });
+    const source = (reduced.payload as {
+      responseSource: { kind: "attested-local"; receiptRef: string };
+    }).responseSource;
+    return { repository, prepared, source };
+  }
+
+  it("persists and idempotently replays a verified fix without Candidate lineage", async () => {
+    const { repository, source } = await errandWithReviewedFinding();
+    const proposed = await invokeReview(repository, ["review", "respond", "-"], withReviewReport({
+      schemaVersion: 1,
+      source,
+      proposal: fixProposal,
+    }));
+    const dispositions = approveDispositions(proposed);
+    const policyRequest = await responsePolicyRequest(repository, source);
+    await expect(invokeReview(repository, ["review", "respond", "-"], withReviewReport({
+      schemaVersion: 1,
+      source,
+      policyRequest,
+      dispositions,
+    }))).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+
+    const verifiedRequest = { schemaVersion: 1, source, policyRequest, dispositions, verifiedFix };
+    await stageApprovedFix(repository);
+    const uncommitted = await runArcWithStdin(
+      ["review", "respond", "-"],
+      repository,
+      `${JSON.stringify(withReviewReport(verifiedRequest))}\n`,
+    );
+    expect(uncommitted.exitCode).not.toBe(0);
+    const refusal = JSON.parse(uncommitted.stdout) as { remedy: { argv: string[]; stdin: unknown } };
+    expect(refusal).toMatchObject({
+      error: { code: "invalid-input" },
+      diagnostics: [{ code: "repository-precondition", precondition: "clean-worktree" }],
+      remedy: { argv: ["arc", "review", "respond", "-"] },
+    });
+    expect(refusal.remedy.stdin).toEqual(verifiedRequest);
+
+    await commitFixture(repository, "apply approved fix");
+    await expect(invokeReview(repository, refusal.remedy.argv.slice(1), refusal.remedy.stdin))
+      .resolves.toMatchObject({ state: "errand-advanced", nextAction: "continue-review" });
+    await expect(invokeReview(repository, ["review", "respond", "-"], withReviewReport(verifiedRequest)))
+      .resolves.toMatchObject({ state: "errand-current", nextAction: "continue-review" });
+  });
+
+  it("settles the Errand through an incremental correction pass after its verified fix", async () => {
+    const { repository, prepared, source } = await errandWithReviewedFinding();
+    const dispositions = approveDispositions(await inProcessReview.respond(repository, {
+      schemaVersion: 1,
+      source,
+      proposal: fixProposal,
+    }));
+    const policyRequest = await responsePolicyRequest(repository, source);
+    await expect(inProcessReview.respond(repository, { schemaVersion: 1, source, policyRequest, dispositions }))
+      .resolves.toMatchObject({ state: "ready-to-fix" });
+    await stageApprovedFix(repository);
+    await commitFixture(repository, "apply approved fix");
+    await expect(inProcessReview.respond(repository, {
+      schemaVersion: 1, source, policyRequest, dispositions, verifiedFix,
+    })).resolves.toMatchObject({ state: "errand-advanced" });
+
+    const correctionRequest = { schemaVersion: 1, evaluatorIdentity: "reviewer-1", routingFacts: reviewRoutingFacts };
+    const offered = await invokeReview(
+      repository,
+      ["review", "local", "prepare", "-"],
+      correctionRequest,
+    );
+    expect(offered).toMatchObject({ state: "coverage-required", nextAction: "select-coverage" });
+    const selection = offered.payload.coverageSelectionAction as {
+      choices: readonly {
+        requestedCoverage: "incremental" | "complete";
+        correctionScope?: {
+          predecessorProducerId: string;
+          predecessorHeadSha: string;
+          headSha: string;
         };
-      };
-      await invokeReview(repository, ["review", "local", "attest", "-"], {
-        schemaVersion: 1,
-        operationId: preparePayload.operationId,
-        result: {
-          status: "complete",
-          result: "findings",
-          targetId: preparePayload.target.targetId,
-          headSha: preparePayload.target.headSha,
-          headTree: preparePayload.target.headTree,
-          rubricVersion: preparePayload.reviewerPayload.guidance.rubricVersion,
-          rubricDigest: preparePayload.reviewerPayload.guidance.rubricDigest,
-          sourceDigest: preparePayload.reviewerPayload.sourceDigest,
-          guidanceDigest: preparePayload.reviewerPayload.guidanceDigest,
-          evaluatorIdentity: preparePayload.request.evaluatorIdentity,
-          reviewRunId: "run-findings",
-          applicabilityId: null,
-          findings: [{
-            findingId: "finding-1",
-            severity: "major",
-            locus: "reviewed.txt:1",
-            evidenceUrlOrId: "review:finding-1",
-          }],
-        },
-      });
-      const reduced = await invokeReview(repository, ["review", "reduce", "-"], {
-        schemaVersion: 1,
-        operationId: preparePayload.operationId,
-      });
-      const source = (reduced.payload as {
-        responseSource: { kind: "attested-local"; receiptRef: string };
-      }).responseSource;
-      const proposed = await invokeReview(repository, ["review", "respond", "-"], {
-        schemaVersion: 1,
-        source,
-        proposal: {
-          findings: [{
-            findingId: "finding-1",
-            sourceVerification: "verified",
-            verificationRefs: ["source:reviewed.txt:1"],
-            disposition: "fix",
-            rationale: "The reviewed source supports applying this fix.",
-            recommendation: "Apply the fix.",
-            openQuestions: [],
-          }],
-        },
-      });
-      const proposal = (proposed.payload as {
-        proposal: {
-          state: "proposed";
-          dispositionSet: { targetId: string; dispositionSetId: string };
-        };
-      }).proposal;
-      const dispositions = {
-        ...proposal,
-        state: "approved" as const,
-        approval: {
-          schemaVersion: 2 as const,
-          semanticsVersion: "review-gate/v2" as const,
-          targetId: proposal.dispositionSet.targetId,
-          dispositionSetId: proposal.dispositionSet.dispositionSetId,
-          approvedBy: "test-user",
-          approvedAt: "2026-08-15T21:00:00Z",
-        },
-      };
-      await expect(invokeReview(repository, ["review", "respond", "-"], {
-        schemaVersion: 1,
-        source,
-        dispositions,
-      })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
-
-      await writeFile(join(repository, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
-      await git(repository, ["add", "reviewed.txt"]);
-      await commitFixture(repository, "apply approved fix");
-      const verifiedRequest = {
-        schemaVersion: 1,
-        source,
-        dispositions,
-        verifiedFix: {
-          applicability: "focused",
-          verificationEvidenceRefs: ["verification://focused-fix"],
-        },
-      };
-      await expect(invokeReview(repository, ["review", "respond", "-"], verifiedRequest))
-        .resolves.toMatchObject({ state: "errand-advanced", nextAction: "continue-review" });
-      await expect(invokeReview(repository, ["review", "respond", "-"], verifiedRequest))
-        .resolves.toMatchObject({ state: "errand-current", nextAction: "continue-review" });
-    } finally {
-      await cleanupTempDir(repository);
-      if (remoteDir !== null) await cleanupTempDir(remoteDir);
+      }[];
+    };
+    const incremental = selection.choices.find(({ requestedCoverage }) => requestedCoverage === "incremental");
+    if (incremental?.correctionScope === undefined) {
+      throw new Error("changed-head Errand recovery offered no incremental correction scope");
     }
+    expect(incremental.correctionScope).toMatchObject({
+      predecessorProducerId: prepared.operationId,
+      predecessorHeadSha: prepared.target.headSha,
+      headSha: (await git(repository, ["rev-parse", "HEAD"])).trim(),
+    });
+
+    const correctionPrepared = await invokeReview(
+      repository,
+      ["review", "local", "prepare", "-"],
+      { ...correctionRequest, coverageAdmission: incremental },
+    );
+    expect(correctionPrepared).toMatchObject({ state: "ready", nextAction: "launch-review" });
+    const correctionPayload = correctionPrepared.payload as unknown as PreparedLocalReview;
+    await expect(inProcessReview.attest(repository, localReviewResult(correctionPayload, "run-incremental-clean", [])))
+      .resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
+    await expect(inProcessReview.reduce(repository, { schemaVersion: 1, operationId: correctionPayload.operationId }))
+      .resolves.toMatchObject({ state: "advisory-complete", nextAction: "none" });
+    await expect(invokeReview(repository, ["review", "resolve", "-"], {
+      ...policyRequest,
+      target: { ...policyRequest.target, headSha: correctionPayload.target.headSha },
+      completedPasses: 2,
+      invocation: { mode: "force", sourceId: "delegated-agent" },
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "clean",
+        reviewOperationId: correctionPayload.operationId,
+      }],
+    })).resolves.toMatchObject({
+      state: "pass-complete",
+      nextAction: "none",
+      payload: { verifiedTerminalSignal: { coverageAdequate: true } },
+    });
+    await expect(readErrandRoutedObligation({
+      cwd: repository,
+      exec: makeGitExec(repository),
+      rawExec: createRawGitExec(repository),
+      target: {
+        repository: policyRequest.target.repository,
+        headRef: (await git(repository, ["symbolic-ref", "--short", "HEAD"])).trim(),
+        headSha: correctionPayload.target.headSha,
+      },
+      pullRequest: 42,
+      currentBaseOid: (await git(repository, ["rev-parse", "main"])).trim(),
+    })).resolves.toMatchObject({ state: "settled" });
   });
 });
 
@@ -402,16 +586,26 @@ describe("arc errand JSON topology failures", () => {
       await cleanupTempDir(outsideProject);
     }
   });
+
+  it("keeps the project-root refusal's log line off stdout so the JSON result parses", async () => {
+    const outsideProject = await mkdtemp(join(tmpdir(), "arc-outside-project-"));
+    try {
+      const result = await runArc(["errand", "next", "--json"], outsideProject);
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({ mode: "errand-next", state: "refused" });
+      expect(result.stderr).toContain("Not inside an ARC project");
+    } finally {
+      await cleanupTempDir(outsideProject);
+    }
+  });
 });
 
 describe("arc errand leave", () => {
   let repository: string;
 
   beforeEach(async () => {
-    repository = await createTempRepo();
-    const initialized = await runArc(["init", "--yes", "--name", "test-project"], repository);
-    expect(initialized.exitCode).toBe(0);
-    await git(repository, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    repository = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -464,22 +658,141 @@ describe("arc errand open", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("exposes JSON output without retaining the legacy nature-type option", async () => {
+  it("exposes JSON output and branch-type selection", async () => {
     const result = await runArc(["errand", "open", "--help"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("--json");
-    expect(result.stdout).not.toContain("--type");
+    expect(result.stdout).toContain("--type <type>");
+  });
+
+  it("redirects a nested Errand open through the active Errand's leave boundary", async () => {
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "nested-open-remote");
+    try {
+      const opened = await runArc(["errand", "open", "first-errand", "--json"], tmpDir);
+      expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
+
+      const refused = await runArc(["errand", "open", "blocking-errand", "--json"], tmpDir);
+
+      expect(refused.exitCode).toBe(1);
+      expect(JSON.parse(refused.stdout.trim())).toMatchObject({
+        outcome: "refused",
+        operation: "errand-open",
+        reason: "role-conflict",
+        recommendedPromptText: expect.stringMatching(
+          /arc errand leave first-errand --state (?:paused|awaiting-merge) --json/u,
+        ),
+      });
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("leaves the free primary to another session when --isolate provisions a transient", async () => {
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "isolate-remote");
+    let spawnedPath: string | null = null;
+    try {
+      const isolated = await runArc(["errand", "open", "isolated-errand", "--isolate", "--json"], tmpDir);
+      expect(isolated.exitCode, isolated.stdout + isolated.stderr).toBe(0);
+      const opened = JSON.parse(isolated.stdout.trim()) as { allocation?: { checkoutPath?: unknown } };
+      expect(opened).toMatchObject({
+        outcome: "applied",
+        operation: "errand-open",
+        allocation: { kind: "spawned", checkoutPath: expect.any(String) },
+      });
+      spawnedPath = typeof opened.allocation?.checkoutPath === "string" ? opened.allocation.checkoutPath : null;
+      expect(spawnedPath).not.toBe(tmpDir);
+      expect((await git(tmpDir, ["symbolic-ref", "--short", "HEAD"])).trim()).toBe("main");
+
+      const unisolated = await runArc(["errand", "open", "primary-errand", "--json"], tmpDir);
+      expect(unisolated.exitCode, unisolated.stdout + unisolated.stderr).toBe(0);
+      expect(JSON.parse(unisolated.stdout.trim())).toMatchObject({
+        outcome: "applied",
+        operation: "errand-open",
+        allocation: { kind: "primary", checkoutPath: tmpDir },
+      });
+    } finally {
+      if (spawnedPath !== null) {
+        await git(tmpDir, ["worktree", "remove", "--force", spawnedPath]).catch(() => undefined);
+        await cleanupTempDir(spawnedPath);
+      }
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("reports an open Errand's edit to another checkout's check, never to its own", async () => {
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "errand-overlap-remote");
+    let spawnedPath: string | null = null;
+    try {
+      const isolated = await runArc(["errand", "open", "overlapping-errand", "--isolate", "--json"], tmpDir);
+      expect(isolated.exitCode, isolated.stdout + isolated.stderr).toBe(0);
+      const opened = JSON.parse(isolated.stdout.trim()) as { allocation?: { checkoutPath?: unknown } };
+      spawnedPath = typeof opened.allocation?.checkoutPath === "string" ? opened.allocation.checkoutPath : null;
+      expect(spawnedPath).not.toBeNull();
+      const errandCheckout = spawnedPath ?? "";
+      await mkdir(join(errandCheckout, "docs"), { recursive: true });
+      await writeFile(join(errandCheckout, "docs", "x.md"), "# Edited by the Errand\n", "utf-8");
+      const branch = (await git(errandCheckout, ["symbolic-ref", "--short", "HEAD"])).trim();
+
+      const fromPrimary = await runArc(["errand", "check", "--target", "docs/x.md", "--local", "--json"], tmpDir);
+      expect(fromPrimary.exitCode, fromPrimary.stdout + fromPrimary.stderr).toBe(0);
+      const primaryCheck = JSON.parse(fromPrimary.stdout.trim()) as { overlaps: Array<{ worktreePath?: string }> };
+      expect(primaryCheck.overlaps).toEqual([{ branch, worktreePath: errandCheckout, matchedPaths: ["docs/x.md"] }]);
+
+      const fromErrand = await runArc(["errand", "check", "--target", "docs/x.md", "--local", "--json"], errandCheckout);
+      expect(fromErrand.exitCode, fromErrand.stdout + fromErrand.stderr).toBe(0);
+      expect(JSON.parse(fromErrand.stdout.trim())).toMatchObject({ overlaps: [] });
+    } finally {
+      if (spawnedPath !== null) {
+        await git(tmpDir, ["worktree", "remove", "--force", spawnedPath]).catch(() => undefined);
+        await cleanupTempDir(spawnedPath);
+      }
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("refuses --isolate under partial protection with a retry that opens the free primary", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);
+    const remoteDir = await createBareRemote(tmpDir, "partial-isolate-remote");
+    try {
+      const refused = await runArc(["errand", "open", "partial-errand", "--isolate", "--json"], tmpDir);
+
+      expect(refused.exitCode).toBe(1);
+      expect(JSON.parse(refused.stdout.trim())).toMatchObject({
+        outcome: "refused",
+        operation: "errand-open",
+        reason: "full-protection-required",
+        recommendedPromptText: expect.stringContaining("Retry without --isolate"),
+      });
+      expect(refused.stderr).toBe("");
+
+      const retried = await runArc(["errand", "open", "partial-errand", "--json"], tmpDir);
+      expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+      expect(JSON.parse(retried.stdout.trim())).toMatchObject({
+        outcome: "applied",
+        operation: "errand-open",
+        allocation: { kind: "primary", checkoutPath: tmpDir },
+      });
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
   });
 
   it.each([
@@ -532,7 +845,39 @@ describe("arc errand open", () => {
     }
   });
 
-  it("rejects the removed legacy nature-type option before mutation", async () => {
+  it("cuts a warm continuation Errand from the freshly synchronized remote base", async () => {
+    await setFullProtection(tmpDir);
+    await setBasePullAlways(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "warm-continuation-remote");
+    try {
+      const first = await runArcAnchoredSequence([
+        ["errand", "open", "first-warm-errand", "--json"],
+        ["errand", "close", "first-warm-errand", "--json"],
+      ], tmpDir);
+      expect(first.exitCode, first.stdout + first.stderr).toBe(0);
+
+      const localBase = (await git(tmpDir, ["rev-parse", "main"])).trim();
+      const remoteHead = (await git(tmpDir, [
+        "commit-tree", "main^{tree}", "-p", localBase, "-m", "advance remote base",
+      ])).trim();
+      await git(tmpDir, ["push", "origin", `${remoteHead}:refs/heads/main`]);
+      expect((await git(tmpDir, ["rev-parse", "main"])).trim()).toBe(localBase);
+
+      const continued = await runArcAnchoredSequence([
+        ["errand", "open", "continued-warm-errand", "--json"],
+      ], tmpDir);
+      expect(continued.exitCode, continued.stdout + continued.stderr).toBe(0);
+      expect((await git(tmpDir, ["branch", "--show-current"])).trim())
+        .toBe("chore/continued-warm-errand");
+      expect((await git(tmpDir, ["rev-parse", "HEAD"])).trim()).toBe(remoteHead);
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("rejects unsupported branch types before mutation", async () => {
     await setFullProtection(tmpDir);
 
     const result = await runArc(["errand", "open", "new-thing", "--type", "feat"], tmpDir);
@@ -546,13 +891,7 @@ describe("tracked ROADMAP regen with errand records", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(
-      ["init", "--yes", "--name", "test-project", "--pm-mode", "arc-in-git"],
-      tmpDir,
-    );
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("arc-in-git-and-committed");
     await setFullProtection(tmpDir);
   });
 
@@ -605,10 +944,7 @@ describe("arc errand close", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -617,9 +953,18 @@ describe("arc errand close", () => {
 
   it("completes a clean full-protection Errand that has no tracked change", async () => {
     const slug = "operational-only";
+    const offeredTitle = "Run the next queued Errand";
     await setFullProtection(tmpDir);
     await git(tmpDir, ["add", "-A"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(
+      join(inboxDir, "USER-INBOX.md"),
+      `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${offeredTitle}**\n\n`
+        + "- _Disposition:_ `execute-bound`\n\n---\n",
+      "utf-8",
+    );
     const remoteDir = await createBareRemote(tmpDir, slug);
     try {
       const result = await runArcAnchoredSequence([
@@ -633,6 +978,7 @@ describe("arc errand close", () => {
         outcome: "applied",
         operation: "errand-close",
         recommendedPromptText: expect.stringContaining("without a tracked change"),
+        nextOffer: { kind: "errand", key: offeredTitle, parentCheckoutPath: null },
       });
       expect((await git(tmpDir, ["symbolic-ref", "--quiet", "--short", "HEAD"])).trim()).toBe("main");
       expect((await git(tmpDir, ["branch", "--list", `chore/${slug}`])).trim()).toBe("");
@@ -672,12 +1018,21 @@ describe("arc errand close", () => {
 
   it("closes a pushed partial Errand and releases its primary occupancy", async () => {
     const remoteDir = `${tmpDir}-remote.git`;
+    const offeredTitle = "Run the next partial-mode Errand";
     await execFileAsync("git", ["init", "--bare", remoteDir]);
     try {
       await git(tmpDir, ["add", "-A"]);
       await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);
       await git(tmpDir, ["remote", "add", "origin", remoteDir]);
       await git(tmpDir, ["push", "-u", "origin", "main"]);
+      const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+      await mkdir(inboxDir, { recursive: true });
+      await writeFile(
+        join(inboxDir, "USER-INBOX.md"),
+        `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${offeredTitle}**\n\n`
+          + "- _Disposition:_ `execute-bound`\n\n---\n",
+        "utf-8",
+      );
       const result = await runArcAnchoredSequence([
         { command: [process.execPath, CLI_PATH, "errand", "open", "direct-fix", "--json"] },
         { command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "fix direct"] },
@@ -694,6 +1049,7 @@ describe("arc errand close", () => {
         generation: expect.stringMatching(/^sha256:/u),
         checkoutPath: tmpDir,
         settlement: { kind: "capture", disposition: "absent", originEntry: null },
+        nextOffer: { kind: "errand", key: offeredTitle, parentCheckoutPath: null },
       });
       expect(settled).not.toHaveProperty("recordId");
       expect(settled).not.toHaveProperty("leaseId");
@@ -1353,10 +1709,7 @@ describe("arc errand abandon", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
     await setFullProtection(tmpDir);
   });
 
@@ -1364,7 +1717,7 @@ describe("arc errand abandon", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("retires a preserved identity-only claim while retaining its branch", async () => {
+  it("retires a preserved identity-only claim and reaps its zero-delta branch", async () => {
     await seedOpenV3Errand(tmpDir, "discard");
 
     const result = await runArc([
@@ -1379,9 +1732,69 @@ describe("arc errand abandon", () => {
       operation: "errand-abandon",
     });
     expect(result.stderr).toBe("");
-    expect(await git(tmpDir, ["branch", "--list", "chore/discard"])).toContain("chore/discard");
+    expect(await git(tmpDir, ["branch", "--list", "chore/discard"])).toBe("");
     await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:discard"]))
       .rejects.toThrow();
+  });
+
+  it("preserves a branch with a committed result outside base", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "abandon-unique-remote");
+    try {
+      await seedOpenV3Errand(tmpDir, "discard-unique");
+      const baseHead = (await git(tmpDir, ["rev-parse", "main"])).trim();
+      const tree = (await git(tmpDir, ["rev-parse", "main^{tree}"])).trim();
+      const uniqueHead = (await git(tmpDir, ["commit-tree", tree, "-p", baseHead, "-m", "unique errand result"])).trim();
+      await git(tmpDir, ["update-ref", "refs/heads/chore/discard-unique", uniqueHead, baseHead]);
+      await git(tmpDir, ["push", "origin", "chore/discard-unique"]);
+
+      const result = await runArc([
+        "errand", "abandon", "discard-unique",
+        "--confirm-foreign-generation", `errand-v1/discard-unique/${"d".repeat(32)}`,
+        "--json",
+      ], tmpDir);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toMatchObject({ outcome: "applied" });
+      expect(await git(tmpDir, ["rev-parse", "chore/discard-unique"])).toContain(uniqueHead);
+      await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:discard-unique"]))
+        .rejects.toThrow();
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("retains the originating capture and leaves no branch residue for the next session", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "abandon-capture-remote");
+    try {
+      const inboxPath = join(tmpDir, ".arc", "user", "test-user", "USER-INBOX.md");
+      await mkdir(join(tmpDir, ".arc", "user", "test-user"), { recursive: true });
+      await writeFile(inboxPath,
+        "# User Inbox\n\n## Errand\n\n### `[ ]` **Discard capture**\n\n"
+        + "- _Disposition:_ `execute-bound`\n\n- _Observation:_ abandon this claim.\n\n---\n",
+        "utf-8");
+      const sequence = await runArcAnchoredSequence([
+        ["errand", "open", "discard-capture", "--from-inbox", "Discard capture", "--json"],
+        ["errand", "abandon", "discard-capture", "--json"],
+        ["status", "--session-init", "--json"],
+      ], tmpDir);
+
+      expect(sequence.exitCode, sequence.stdout + sequence.stderr).toBe(0);
+      expect(sequence.results[1]).toMatchObject({ outcome: "applied", operation: "errand-abandon" });
+      expect(await readFile(inboxPath, "utf-8")).toContain("**Discard capture**");
+      expect(await readFile(inboxPath, "utf-8")).not.toContain("_Disposition:_ `execute-bound`");
+      expect(await git(tmpDir, ["branch", "--list", "chore/discard-capture"])).toBe("");
+      const nextSession = sequence.results[2] as {
+        derivedLocusState?: { value?: { entering?: { row?: { kind?: string } } } };
+        orphanBranchSweep?: { value?: { orphans?: unknown[] } };
+      };
+      expect(nextSession.derivedLocusState?.value?.entering?.row?.kind).toBe("free-primary");
+      expect(nextSession.orphanBranchSweep?.value?.orphans).toEqual([]);
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
   });
 
   it("returns one JSON error when the configured base is empty", async () => {
@@ -1452,10 +1865,7 @@ describe("arc errand retire", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -1476,10 +1886,7 @@ describe("arc errand promote", () => {
 
   beforeEach(async () => {
     remoteDir = null;
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -1539,6 +1946,7 @@ describe("arc errand promote", () => {
     await git(tmpDir, ["add", "-A"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
     remoteDir = await createBareRemote(tmpDir, "promotion");
+    await resetEditorDocumentsProvisioning(tmpDir);
 
     const prepared = await runArcAnchoredSequence([
       ["errand", "open", slug, "--json"],
@@ -1546,6 +1954,7 @@ describe("arc errand promote", () => {
     ], tmpDir, { timeout: 60_000 });
 
     expect(prepared.exitCode, prepared.stdout + prepared.stderr).toBe(0);
+    await assertEditorDocumentsProvisioned(tmpDir);
     expect(prepared.results).toHaveLength(2);
     const first = prepared.results[1] as {
       checkoutPath?: unknown;
@@ -1590,5 +1999,70 @@ describe("arc errand promote", () => {
       .rejects.toMatchObject({ code: "ENOENT" });
     await expect(git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
       .rejects.toThrow();
+  });
+});
+
+describe("the Errand close boundary after the base advances", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await initializedRepository("initialized-and-committed");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  /**
+   * An ordinary Errand standing at its close boundary, its change request merged at the exact head.
+   *
+   * The branch carries a commit, which is what puts the close on its ordinary path: the base pin sits behind a
+   * no-op shortcut that only an Errand level with its base ever reaches.
+   */
+  async function errandAwaitingClose(slug: string): Promise<{
+    ghDir: string;
+    remoteDir: string;
+    env: Record<string, string>;
+  }> {
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    await seedOpenV3Errand(tmpDir, slug);
+    await git(tmpDir, ["switch", `chore/${slug}`]);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "tracked Errand change"]);
+    const head = (await git(tmpDir, ["rev-parse", "HEAD"])).trim();
+    await git(tmpDir, ["switch", "main"]);
+    return await createMergedGhFixture(tmpDir, slug, head);
+  }
+
+  function closeArgs(slug: string): readonly string[] {
+    return [
+      "errand", "close", slug,
+      "--confirm-foreign-generation", `errand-v1/${slug}/${"d".repeat(32)}`,
+      "--json",
+    ];
+  }
+
+  it("closes the Errand after an advance sharing no path with it", async () => {
+    const slug = "close-base-advanced";
+    const host = await errandAwaitingClose(slug);
+    const before = await git(tmpDir, ["rev-parse", "refs/remotes/origin/main"]);
+    try {
+      // The advance is its own step ahead of the close. The sequence joins steps with `&&`, so it completes
+      // before the close begins rather than interleaving with it — the close reads its precondition inside
+      // itself, and the lane runs under one shell, so this is the closest the arrangement reaches.
+      const result = await runArcAnchoredSequence([
+        advanceBaseStep({ cwd: tmpDir, paths: movementPaths("disjoint", slug).base }),
+        closeArgs(slug),
+      ], tmpDir, { env: host.env });
+
+      expect(await git(host.remoteDir, ["rev-parse", "refs/heads/main"])).not.toBe(before);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
+      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toBe("");
+    } finally {
+      await cleanupTempDir(host.ghDir);
+      await cleanupTempDir(host.remoteDir);
+    }
   });
 });

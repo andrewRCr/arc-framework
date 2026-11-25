@@ -8,8 +8,8 @@ import { baseOptions } from "./tsup.config.js";
  *
  * Everything else is inherited rather than restated, so the artifacts the freshness check and the
  * end-to-end setup read stay regenerated: the esbuild metafile that scopes the hashed input set, the
- * output clean, and the success hook that writes the kernel schema artifact and the content-hash
- * stamp. The clean also drops declarations a prior full build left behind — tsup preserves those
+ * output clean, and the CLI entry. The owning build coordinator publishes qualification evidence.
+ * The clean also drops declarations a prior full build left behind — tsup preserves those
  * only while declaration emit is on, and nothing reads them.
  */
 export const fastOptions = {

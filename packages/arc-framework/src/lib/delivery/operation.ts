@@ -6,13 +6,19 @@ import { canonicalize } from "../kernel/index.js";
 import { validateDeliveryPlanRecord } from "./plan.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
+  DeliveryCanonicalDigestSchema,
+  DeliveryCandidateCleanupHeadV1Schema,
   DeliveryLandEffectV1Schema,
   DeliveryHostEffectIdentityV1Schema,
   DeliveryOperationCommonV1Schema,
   DeliveryOperationSnapshotV1Schema,
+  DeliveryPendingReviewFixVerificationV1Schema,
   DeliveryPublishEffectV1Schema,
   DeliveryStateV1Schema,
+  DeliveryTerminalAuthoringMovementV1Schema,
+  DeliveryTopRemedyEffectV1Schema,
   type DeliveryActiveOperationV1,
+  type DeliveryNativeObservedSuffixMemberV1,
   type DeliveryOperationSnapshotV1,
   type DeliveryPlanV1,
   type DeliveryStateV1,
@@ -27,13 +33,37 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("materialize") }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("rewrite") }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("rewrite"),
+      mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
+      supersedePendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.optional(),
+      terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
+      reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
+      reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
+    }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("teardown") }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("teardown"),
+      mode: z.enum(["member", "closeout-residue"]),
+      candidateHeads: z.array(DeliveryCandidateCleanupHeadV1Schema).refine(
+        (heads) => new Set(heads.map(({ deliverableId }) => deliverableId)).size === heads.length,
+        "candidate cleanup heads must be distinct",
+      ),
+    }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("publish"), effect: DeliveryPublishEffectV1Schema }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("land"), effect: DeliveryLandEffectV1Schema }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("land"),
+      mode: z.enum(["sequential", "native"]),
+      nativeArm: z.enum(["linked-single", "linked-atomic"]).nullable(),
+      effect: DeliveryLandEffectV1Schema,
+    }),
+  DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
+    .extend({ ...reservationFields, kind: z.literal("top-remedy"), effect: DeliveryTopRemedyEffectV1Schema }),
 ]);
 export type DeliveryOperationReservationRequestV1 = z.infer<
   typeof DeliveryOperationReservationRequestV1Schema
@@ -52,6 +82,12 @@ const DeliveryHostAssignedObservationV1Schema = z.discriminatedUnion("kind", [
     outcome: z.literal("applied"),
     snapshot: DeliveryOperationSnapshotV1Schema,
   }),
+  z.strictObject({
+    kind: z.literal("top-remedy"),
+    effect: DeliveryTopRemedyEffectV1Schema,
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
 ]);
 
 const DeliveryHostReconciliationObservationV1Schema = z.discriminatedUnion("outcome", [
@@ -62,14 +98,27 @@ const DeliveryHostReconciliationObservationV1Schema = z.discriminatedUnion("outc
   z.strictObject({ outcome: z.literal("not-applied") }),
   z.strictObject({ outcome: z.literal("ambiguous") }),
 ]);
+const DeliveryTeardownReconciliationObservationV1Schema = z.discriminatedUnion("outcome", [
+  z.strictObject({
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
+  z.strictObject({ outcome: z.literal("not-applied") }),
+  z.strictObject({ outcome: z.literal("ambiguous") }),
+]);
 /** Host-assigned observation used to reconcile an interrupted publish or land. */
 export type DeliveryHostReconciliationObservationV1 = z.infer<
   typeof DeliveryHostReconciliationObservationV1Schema
 >;
+/** Physical outcome used when teardown intentionally retains its exact logical snapshot. */
+export type DeliveryTeardownReconciliationObservationV1 = z.infer<
+  typeof DeliveryTeardownReconciliationObservationV1Schema
+>;
 /** Exact observation accepted by delivery-operation reconciliation. */
 export type DeliveryOperationReconciliationObservationV1 =
   | DeliveryOperationSnapshotV1
-  | DeliveryHostReconciliationObservationV1;
+  | DeliveryHostReconciliationObservationV1
+  | DeliveryTeardownReconciliationObservationV1;
 
 /** Closed failures while reserving the single delivery-operation slot. */
 export type ReserveDeliveryOperationFailure =
@@ -78,6 +127,7 @@ export type ReserveDeliveryOperationFailure =
   | "stale-state"
   | "stale-plan-binding"
   | "operation-active"
+  | "pending-review-fix-verification"
   | "operation-invalid"
   | "unknown-deliverable"
   | "member-sequence-invalid"
@@ -144,7 +194,7 @@ function snapshotFromState(
 }
 
 function followsPlanOrder(plan: DeliveryPlanV1, deliverableIds: readonly string[]): boolean {
-  const positions = new Map(plan.members.map((member, index) => [member.deliverableId, index]));
+  const positions = new Map<string, number>(plan.members.map((member, index) => [member.deliverableId, index]));
   let previous = -1;
   for (const deliverableId of deliverableIds) {
     const position = positions.get(deliverableId);
@@ -152,6 +202,85 @@ function followsPlanOrder(plan: DeliveryPlanV1, deliverableIds: readonly string[
     previous = position;
   }
   return true;
+}
+
+function terminalAuthoringMovementMatchesState(
+  state: DeliveryStateV1,
+  movement: z.infer<typeof DeliveryTerminalAuthoringMovementV1Schema>,
+): boolean {
+  const terminal = state.members.at(-1);
+  // Position observation proves an intermediate publication lease is append-only; settlement
+  // revalidates that exact lease through the host CAS. State binding owns only the H0 -> H2 span.
+  return terminal !== undefined && terminal.deliverableId === movement.deliverableId
+    && terminal.coordinates !== null
+    && canonicalize(terminal.coordinates) === canonicalize(movement.before)
+    && movement.after.base === movement.before.base
+    && movement.after.head !== movement.before.head;
+}
+
+function reviewFixSelectionMatchesState(
+  state: DeliveryStateV1,
+  operation: {
+    readonly mode: "selected-change" | "review-fix" | "provider-refresh" | "provider-adoption";
+    readonly affectedDeliverableIds: readonly string[];
+    readonly reviewFixSelectedDeliverableId?: string;
+    readonly reviewFixVerificationDeliverableIds?: readonly string[];
+  },
+): boolean {
+  if (operation.reviewFixSelectedDeliverableId === undefined) {
+    return operation.reviewFixVerificationDeliverableIds === undefined;
+  }
+  if (operation.reviewFixVerificationDeliverableIds === undefined) return false;
+  const selectedIndex = state.members.findIndex(
+    ({ deliverableId }) => deliverableId === operation.reviewFixSelectedDeliverableId,
+  );
+  const verificationIds = operation.reviewFixVerificationDeliverableIds;
+  const stateOrder = state.members
+    .filter(({ deliverableId }) => verificationIds.includes(deliverableId))
+    .map(({ deliverableId }) => deliverableId);
+  const validSelection = selectedIndex >= 0
+    && selectedIndex < state.members.length - 1
+    && verificationIds.includes(operation.reviewFixSelectedDeliverableId)
+    && new Set(verificationIds).size === verificationIds.length
+    && canonicalize(stateOrder) === canonicalize(verificationIds);
+  if (!validSelection) return false;
+  if (operation.mode === "review-fix") return true;
+  return (operation.mode === "provider-refresh" || operation.mode === "provider-adoption")
+    && operation.affectedDeliverableIds.includes(operation.reviewFixSelectedDeliverableId)
+    && verificationIds.every((deliverableId) => operation.affectedDeliverableIds.includes(deliverableId));
+}
+
+function clearDeliveryOperationReservation(state: DeliveryStateV1): DeliveryStateV1 | null {
+  const operation = state.activeOperation;
+  const selectedDeliverableId = operation?.kind === "rewrite" && operation.mode === "review-fix"
+    ? operation.reviewFixSelectedDeliverableId
+    : undefined;
+  const memberDeliverableIds = operation?.kind === "rewrite" && operation.mode === "review-fix"
+    ? operation.reviewFixVerificationDeliverableIds
+    : undefined;
+  if ((selectedDeliverableId === undefined) !== (memberDeliverableIds === undefined)) return null;
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...state,
+    activeOperation: null,
+    pendingReviewFixVerification: selectedDeliverableId === undefined
+      || memberDeliverableIds === undefined
+      ? state.pendingReviewFixVerification
+      : { selectedDeliverableId, memberDeliverableIds },
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Project the cleared state for one validated retryable reservation.
+ *
+ * @param current - Published reservation state and its store-owned revision
+ * @returns Cleared state with any carried rematerialization verification restored, or null when invalid
+ */
+export function projectDeliveryOperationRetryState(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+): DeliveryStateV1 | null {
+  const active = validateDeliveryActiveOperation(current);
+  return active.status === "valid" ? clearDeliveryOperationReservation(active.state) : null;
 }
 
 /**
@@ -178,6 +307,25 @@ export function validateDeliveryActiveOperation(
     || canonicalize(operation.requested.members.map((member) => member.deliverableId)) !== affectedBytes) {
     return { status: "blocked", reason: "state-invalid" };
   }
+  if (operation.kind === "teardown") {
+    const candidateIds = operation.candidateHeads.map(({ deliverableId }) => deliverableId);
+    const allStateIds = parsedState.data.members.map(({ deliverableId }) => deliverableId);
+    if ((operation.mode === "member"
+      && (operation.affectedDeliverableIds.length !== 1 || candidateIds.length !== 0))
+      || (operation.mode === "closeout-residue"
+        && (canonicalize(operation.affectedDeliverableIds) !== canonicalize(allStateIds)
+          || canonicalize(candidateIds) !== canonicalize(allStateIds)))) {
+      return { status: "blocked", reason: "state-invalid" };
+    }
+  }
+  if (operation.kind === "rewrite" && operation.terminalAuthoringMovement !== undefined
+    && ((operation.mode !== "provider-refresh" && operation.mode !== "provider-adoption")
+      || !terminalAuthoringMovementMatchesState(parsedState.data, operation.terminalAuthoringMovement))) {
+    return { status: "blocked", reason: "state-invalid" };
+  }
+  if (operation.kind === "rewrite" && !reviewFixSelectionMatchesState(parsedState.data, operation)) {
+    return { status: "blocked", reason: "state-invalid" };
+  }
   if (current.revision !== operation.stateRevision + 1
     || operation.boundPlanDigest !== parsedState.data.boundPlan.planDigest
     || canonicalize(snapshotFromState(parsedState.data, operation.affectedDeliverableIds))
@@ -194,7 +342,7 @@ function applyObservedSnapshot(
   const observedByDeliverable = new Map(
     observed.members.map((member) => [member.deliverableId, member]),
   );
-  const parsed = DeliveryStateV1Schema.safeParse({
+  return clearDeliveryOperationReservation({
     ...state,
     target: observed.target,
     members: state.members.map((member) => {
@@ -206,9 +354,7 @@ function applyObservedSnapshot(
         coordinates: result.coordinates,
       };
     }),
-    activeOperation: null,
   });
-  return parsed.success ? parsed.data : null;
 }
 
 function matchesHostAssignedResult(
@@ -276,6 +422,40 @@ export function reserveDeliveryOperation(
   if (parsedState.data.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
   }
+  const pendingVerification = parsedState.data.pendingReviewFixVerification;
+  const rewriteRequest = parsedRequest.data.kind === "rewrite" ? parsedRequest.data : null;
+  const explicitPendingVerificationSupersession = rewriteRequest?.supersedePendingReviewFixVerification;
+  if (explicitPendingVerificationSupersession !== undefined
+    && (rewriteRequest === null || rewriteRequest.mode !== "review-fix" || pendingVerification === null)) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  const supersedesSelectedChangeVerification = pendingVerification !== null
+    && rewriteRequest !== null
+    && rewriteRequest.mode === "selected-change"
+    && canonicalize(rewriteRequest.affectedDeliverableIds)
+      === canonicalize(pendingVerification.memberDeliverableIds)
+    && rewriteRequest.affectedDeliverableIds.length === 1
+    && rewriteRequest.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
+  const supersedesExactPendingVerification = pendingVerification !== null
+    && explicitPendingVerificationSupersession !== undefined
+    && canonicalize(explicitPendingVerificationSupersession) === canonicalize(pendingVerification);
+  const carriesReviewFixContinuation = rewriteRequest?.mode === "review-fix"
+    && (rewriteRequest.reviewFixSelectedDeliverableId !== undefined
+      || rewriteRequest.reviewFixVerificationDeliverableIds !== undefined);
+  if (carriesReviewFixContinuation && explicitPendingVerificationSupersession === undefined) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  if (supersedesExactPendingVerification && rewriteRequest !== null
+    && (rewriteRequest.reviewFixSelectedDeliverableId !== pendingVerification.selectedDeliverableId
+      || canonicalize(rewriteRequest.reviewFixVerificationDeliverableIds)
+        !== canonicalize(pendingVerification.memberDeliverableIds))) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  const supersedesPendingVerification = supersedesSelectedChangeVerification
+    || supersedesExactPendingVerification;
+  if (pendingVerification !== null && !supersedesPendingVerification) {
+    return { status: "refused", reason: "pending-review-fix-verification" };
+  }
 
   const knownDeliverables = new Set(plan.members.map((member) => member.deliverableId));
   if (parsedRequest.data.affectedDeliverableIds.some((deliverableId) => !knownDeliverables.has(deliverableId))) {
@@ -289,6 +469,37 @@ export function reserveDeliveryOperation(
     || canonicalize(parsedRequest.data.requested.members.map((member) => member.deliverableId)) !== affectedBytes) {
     return { status: "refused", reason: "member-sequence-invalid" };
   }
+  if (parsedRequest.data.kind === "teardown") {
+    const candidateIds = parsedRequest.data.candidateHeads.map(({ deliverableId }) => deliverableId);
+    if (parsedRequest.data.mode === "member") {
+      if (parsedRequest.data.affectedDeliverableIds.length !== 1 || candidateIds.length !== 0) {
+        return { status: "refused", reason: "operation-invalid" };
+      }
+    } else {
+      const allIds = plan.members.map(({ deliverableId }) => deliverableId);
+      if (canonicalize(parsedRequest.data.affectedDeliverableIds) !== canonicalize(allIds)
+        || canonicalize(candidateIds) !== canonicalize(allIds)) {
+        return { status: "refused", reason: "operation-invalid" };
+      }
+    }
+  }
+  if (parsedRequest.data.kind === "land"
+    && ((parsedRequest.data.mode === "native") !== (parsedRequest.data.nativeArm !== null))) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  if (parsedRequest.data.kind === "rewrite" && parsedRequest.data.terminalAuthoringMovement !== undefined
+    && ((parsedRequest.data.mode !== "provider-refresh" && parsedRequest.data.mode !== "provider-adoption")
+      || !terminalAuthoringMovementMatchesState(
+        parsedState.data,
+        parsedRequest.data.terminalAuthoringMovement,
+      ))) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  if (parsedRequest.data.kind === "rewrite") {
+    if (!reviewFixSelectionMatchesState(parsedState.data, parsedRequest.data)) {
+      return { status: "refused", reason: "operation-invalid" };
+    }
+  }
   if (canonicalize(snapshotFromState(parsedState.data, parsedRequest.data.affectedDeliverableIds))
     !== canonicalize(parsedRequest.data.before)) {
     return { status: "refused", reason: "before-state-mismatch" };
@@ -296,6 +507,9 @@ export function reserveDeliveryOperation(
 
   const reserved = DeliveryStateV1Schema.safeParse({
     ...parsedState.data,
+    pendingReviewFixVerification: supersedesPendingVerification
+      ? null
+      : parsedState.data.pendingReviewFixVerification,
     activeOperation: {
       operationId: parsedRequest.data.operationId,
       kind: parsedRequest.data.kind,
@@ -304,10 +518,37 @@ export function reserveDeliveryOperation(
       boundPlanDigest: plan.planDigest,
       before: parsedRequest.data.before,
       requested: parsedRequest.data.requested,
+      ...(parsedRequest.data.kind === "rewrite" || parsedRequest.data.kind === "land"
+        || parsedRequest.data.kind === "teardown"
+        ? { mode: parsedRequest.data.mode }
+        : {}),
+      ...(parsedRequest.data.kind === "rewrite"
+        && parsedRequest.data.terminalAuthoringMovement !== undefined
+        ? { terminalAuthoringMovement: parsedRequest.data.terminalAuthoringMovement }
+        : {}),
+      ...(parsedRequest.data.kind === "rewrite"
+        && parsedRequest.data.reviewFixSelectedDeliverableId !== undefined
+        ? { reviewFixSelectedDeliverableId: parsedRequest.data.reviewFixSelectedDeliverableId }
+        : {}),
+      ...(parsedRequest.data.kind === "rewrite"
+        && parsedRequest.data.reviewFixVerificationDeliverableIds !== undefined
+        ? { reviewFixVerificationDeliverableIds: parsedRequest.data.reviewFixVerificationDeliverableIds }
+        : {}),
+      ...(parsedRequest.data.kind === "teardown"
+        ? { candidateHeads: parsedRequest.data.candidateHeads }
+        : {}),
       ...(parsedRequest.data.kind === "publish" || parsedRequest.data.kind === "land"
+        || parsedRequest.data.kind === "top-remedy"
         ? { effect: parsedRequest.data.effect }
         : {}),
       ...(parsedRequest.data.kind === "land" ? { effectIdentity: null } : {}),
+      ...(parsedRequest.data.kind === "land"
+        ? {
+            native: parsedRequest.data.nativeArm === null
+              ? null
+              : { arm: parsedRequest.data.nativeArm, phase: "prepared" as const },
+          }
+        : {}),
     },
   });
   if (!reserved.success) return { status: "refused", reason: "operation-invalid" };
@@ -317,6 +558,136 @@ export function reserveDeliveryOperation(
 export type AttachDeliveryOperationEffectIdentityResult =
   | { readonly status: "attached" | "already-attached"; readonly state: DeliveryStateV1 }
   | { readonly status: "refused"; readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "identity-invalid" | "identity-conflict" };
+
+export type BeginNativeDeliverySubmissionResult =
+  | { readonly status: "begun"; readonly state: DeliveryStateV1 }
+  | {
+      readonly status: "refused";
+      readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "already-submitting";
+    };
+
+/** Advance one exact prepared native reservation to submitting before provider access. */
+export function beginNativeDeliverySubmission(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+  operationId: string,
+): BeginNativeDeliverySubmissionResult {
+  const active = validateDeliveryActiveOperation(current);
+  if (active.status === "blocked") {
+    return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
+  }
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.native === null || active.operation.operationId !== operationId) {
+    return { status: "refused", reason: "wrong-operation" };
+  }
+  if (active.operation.native.phase !== "prepared" || active.operation.effectIdentity !== null) {
+    return { status: "refused", reason: "already-submitting" };
+  }
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...active.state,
+    activeOperation: {
+      ...active.operation,
+      stateRevision: current.revision,
+      native: { ...active.operation.native, phase: "submitting" },
+    },
+  });
+  return parsed.success
+    ? { status: "begun", state: parsed.data }
+    : { status: "refused", reason: "state-invalid" };
+}
+
+export type BeginNativeDeliverySettlementResult =
+  | { readonly status: "begun"; readonly state: DeliveryStateV1 }
+  | {
+      readonly status: "refused";
+      readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "not-submitted";
+    };
+
+/**
+ * What each settlement-phase refusal asks the operator to do, keyed by the condition the transition observed.
+ *
+ * The two a settled landing actually reaches want opposite acts. A record that no longer validates has to be
+ * repaired before anything can be written against it; a record that moved past the revision this settlement read
+ * is cleared by reobserving it, and telling the operator to restore a subject that never changed sends them
+ * after the wrong thing. The other two are carried so a fifth reason cannot be added without an answer.
+ */
+export const DELIVERY_NATIVE_SETTLEMENT_PHASE_REMEDIES: Record<
+  Extract<BeginNativeDeliverySettlementResult, { status: "refused" }>["reason"],
+  string
+> = {
+  "state-invalid":
+    "Keep the reservation and repair the native landing record, which no longer validates, before retrying "
+    + "settlement.",
+  "operation-stale":
+    "Keep the reservation and rerun `arc delivery native land-status` to re-read the landing state, which "
+    + "moved past the revision this settlement observed.",
+  "wrong-operation":
+    "Restore the exact native landing reservation before retrying settlement; the operation the landing record "
+    + "holds is not the one this settlement began under.",
+  "not-submitted":
+    "Submit the native landing before settling it; its reservation is still in the prepared phase.",
+};
+
+/**
+ * Keep every coordinate the reservation already established, admitting only refs it has not recorded yet.
+ *
+ * A settlement that wedges past its first publish reruns from a fresh observation, and that observation cannot
+ * see what the earlier run wrote: the absorbed terminal top is outside the suffix slice, and a member ref moved
+ * by something other than ARC reads back as the head it now sits at. Replacing the record wholesale would swap
+ * a head ARC wrote for one it merely observed, and the head ARC wrote is the only restore target a decline has.
+ */
+function reconcileObservedSuffix(
+  recorded: readonly DeliveryNativeObservedSuffixMemberV1[] | undefined,
+  observed: readonly DeliveryNativeObservedSuffixMemberV1[],
+): readonly DeliveryNativeObservedSuffixMemberV1[] {
+  if (recorded === undefined || recorded.length === 0) return observed;
+  const established = new Map(recorded.map((member) => [member.deliverableId, member]));
+  const observedIds = new Set(observed.map((member) => member.deliverableId));
+  return [
+    ...observed.map((member) => established.get(member.deliverableId) ?? member),
+    ...recorded.filter((member) => !observedIds.has(member.deliverableId)),
+  ];
+}
+
+/**
+ * Record the freshly observed remaining suffix on one submitted native reservation before its refs move.
+ *
+ * @param current - The exact reservation record the settlement observed its suffix under.
+ * @param operationId - The reservation this settlement belongs to.
+ * @param observedSuffix - The complete observed remaining suffix, in plan order. Entries the reservation has
+ *   already recorded are kept over their reobservation; entries it carries and this observation does not are
+ *   carried forward.
+ * @returns The state to publish against `current.revision`, or a closed refusal.
+ */
+export function beginNativeDeliverySettlement(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+  operationId: string,
+  observedSuffix: readonly DeliveryNativeObservedSuffixMemberV1[],
+): BeginNativeDeliverySettlementResult {
+  const active = validateDeliveryActiveOperation(current);
+  if (active.status === "blocked") {
+    return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
+  }
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.native === null || active.operation.operationId !== operationId) {
+    return { status: "refused", reason: "wrong-operation" };
+  }
+  if (active.operation.native.phase === "prepared") return { status: "refused", reason: "not-submitted" };
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...active.state,
+    activeOperation: {
+      ...active.operation,
+      stateRevision: current.revision,
+      native: {
+        ...active.operation.native,
+        phase: "settling",
+        observedSuffix: reconcileObservedSuffix(active.operation.native.observedSuffix, observedSuffix),
+      },
+    },
+  });
+  return parsed.success
+    ? { status: "begun", state: parsed.data }
+    : { status: "refused", reason: "state-invalid" };
+}
 
 /** Attach one provider-assigned async identity to the existing land reservation. */
 export function attachDeliveryOperationEffectIdentity(
@@ -328,7 +699,9 @@ export function attachDeliveryOperationEffectIdentity(
   if (active.status === "blocked") {
     return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
   }
-  if (active.operation.kind !== "land" || active.operation.operationId !== operationId) {
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.native?.phase !== "submitting"
+    || active.operation.operationId !== operationId) {
     return { status: "refused", reason: "wrong-operation" };
   }
   const parsedIdentity = DeliveryHostEffectIdentityV1Schema.safeParse(identity);
@@ -385,7 +758,8 @@ export function acceptDeliveryOperationResult(
 ): AcceptDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
-  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land"
+    || active.operation.kind === "top-remedy";
   const parsedHost = hostAssigned ? DeliveryHostAssignedObservationV1Schema.safeParse(observed) : null;
   if (hostAssigned && (parsedHost === null || !parsedHost.success
     || parsedHost.data.kind !== active.operation.kind
@@ -418,7 +792,25 @@ export function reconcileDeliveryOperation(
 ): ReconcileDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
-  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  if (active.operation.kind === "teardown") {
+    const parsedTeardown = DeliveryTeardownReconciliationObservationV1Schema.safeParse(observed);
+    if (!parsedTeardown.success) return { status: "blocked", reason: "observed-facts-invalid" };
+    if (parsedTeardown.data.outcome === "not-applied") {
+      return { status: "retry", operationId: active.operation.operationId };
+    }
+    if (parsedTeardown.data.outcome === "ambiguous") {
+      return { status: "blocked", reason: "ambiguous-result" };
+    }
+    if (canonicalize(parsedTeardown.data.snapshot) !== canonicalize(active.operation.requested)) {
+      return { status: "blocked", reason: "ambiguous-result" };
+    }
+    const next = applyObservedSnapshot(active.state, parsedTeardown.data.snapshot);
+    return next === null
+      ? { status: "blocked", reason: "state-invalid" }
+      : { status: "adopt", state: next };
+  }
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land"
+    || active.operation.kind === "top-remedy";
   if (hostAssigned) {
     const parsedHost = DeliveryHostReconciliationObservationV1Schema.safeParse(observed);
     if (!parsedHost.success) return { status: "blocked", reason: "observed-facts-invalid" };
@@ -447,7 +839,8 @@ function acceptHostReconciliation(
   active: Extract<ValidateDeliveryActiveOperationResult, { readonly status: "valid" }>,
   observed: z.infer<typeof DeliveryHostAssignedObservationV1Schema>,
 ): ReconcileDeliveryOperationResult {
-  if ((active.operation.kind !== "publish" && active.operation.kind !== "land")
+  if ((active.operation.kind !== "publish" && active.operation.kind !== "land"
+      && active.operation.kind !== "top-remedy")
     || observed.kind !== active.operation.kind
     || canonicalize(observed.effect) !== canonicalize(active.operation.effect)
     || !matchesHostAssignedResult(active.operation, observed.snapshot)) {

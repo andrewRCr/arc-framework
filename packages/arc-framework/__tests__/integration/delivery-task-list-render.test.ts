@@ -31,18 +31,28 @@ function plan() {
     },
     tasks: {
       inventoryDigest: canonicalDigest({ tasks: 1 }),
-      implementation: [{ taskId: "1.1", semanticDigest: canonicalDigest({ task: 1 }) }],
-      verificationTaskId: "2.1",
+      parents: [
+        {
+          taskId: "1.1",
+          semanticDigest: canonicalDigest({ task: 1 }),
+          role: { kind: "implementation" },
+        },
+        {
+          taskId: "2.1",
+          semanticDigest: null,
+          role: { kind: "verification", scope: "work-unit" },
+        },
+      ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [{
       chunkKey: "only",
       title: "Only member",
       contract: "Publish the contract",
       taskIds: ["1.1"],
       designElementIds: [],
-      mainlineLandability: "integration-only",
+      mainlineLandability: "independently-landable",
       deliverableId,
       semanticFingerprint: canonicalDigest({ fingerprint: 1 }),
     }],

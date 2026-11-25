@@ -1,6 +1,7 @@
 /** Strict v3 transient identity record schema coverage. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-assertion.js";
 
 import {
   TransientIdentityRecordSchema,
@@ -56,6 +57,31 @@ function legacy(overrides: Record<string, unknown> = {}): Record<string, unknown
 }
 
 describe("v3 transient identity records", () => {
+  it.each(["feat/fix-output", "fix/another-slug", "feature/fix-output", "fix/fix-output/extra"])("refuses ordinary branch %s", (branch) => {
+    expect(deserializeTransientIdentityRecord(JSON.stringify(ordinary({ branch })), "fix-output")).toMatchObject({ kind: "malformed" });
+  });
+
+  it("keeps routing and grooming identities on their fixed chore branches", () => {
+    const values = [
+      { version: 3, kind: "errand", slug: "inbox-drain", claimId, purpose: "housekeep-routing", branch: "fix/inbox-drain",
+        state: "open", savedHead: null, changeRequest: null, createdAt: timestamp, updatedAt: timestamp },
+      { version: 3, kind: "groom", slug: "groom-alpha", claimId, anchorStub: "alpha", members: ["alpha"], openedBaseHead: head,
+        protection: "full", branch: "refactor/groom-alpha", state: "open", changeRequest: null, createdAt: timestamp, updatedAt: timestamp },
+    ];
+    for (const value of values) assertSchemaRefuses(TransientIdentityRecordSchema, value);
+  });
+  it.each(["fix", "refactor", "hotfix"])("round-trips %s branches through every ordinary lifecycle state", (type) => {
+    const branch = `${type}/fix-output`;
+    const values = [ordinary({ branch }), ordinary({ branch, state: "paused", savedHead: head }),
+      ordinary({ branch, state: "awaiting-merge", changeRequest: { ...changeRequest, headRef: branch } })];
+    for (const value of values) {
+      const decoded = deserializeTransientIdentityRecord(JSON.stringify(value), "fix-output");
+      expect(decoded.kind).toBe("valid");
+      if (decoded.kind !== "valid") throw new Error("Ordinary branch was rejected");
+      expect(deserializeTransientIdentityRecord(serializeTransientIdentityRecord(decoded.record), "fix-output")).toEqual(decoded);
+      expect(projectLocusIdentity(decoded.record)).toMatchObject({ branch, claimId });
+    }
+  });
   it.each([1, 2] as const)("rejects retired v%d identity records", (version) => {
     expect(deserializeTransientIdentityRecord(
       JSON.stringify(legacy({ version })),
@@ -96,7 +122,7 @@ describe("v3 transient identity records", () => {
         state: "open", changeRequest: null, createdAt: timestamp, updatedAt: timestamp,
       },
     ];
-    for (const value of values) expect(TransientIdentityRecordSchema.safeParse(value).success).toBe(true);
+    for (const value of values) assertSchemaAccepts(TransientIdentityRecordSchema, value);
   });
 
   it("enforces origin, state, namespace, member, and exact-key relationships", () => {
@@ -126,7 +152,11 @@ describe("v3 transient identity records", () => {
       },
     ];
     invalid.forEach((value, index) => {
-      expect(TransientIdentityRecordSchema.safeParse(value).success, `invalid case ${index}`).toBe(false);
+      try {
+        assertSchemaRefuses(TransientIdentityRecordSchema, value);
+      } catch (error) {
+        throw new Error(`invalid case ${index}`, { cause: error });
+      }
     });
     expect(deserializeTransientIdentityRecord(JSON.stringify(ordinary()), "different-key"))
       .toMatchObject({ kind: "key-mismatch" });
@@ -162,4 +192,10 @@ describe("invalid identity records", () => {
     expect(deserializeTransientIdentityRecord(JSON.stringify({ version: 99 }), "x"))
       .toEqual({ kind: "unknown-version", version: 99 });
   });
+});
+
+it("round-trips a qualified inbox origin with a null source digest through the record and locus projection", () => {
+  const record = TransientIdentityRecordSchema.parse(ordinary({ origin: "inbox", originEntry: "personal:abcd1234", originEntrySourceDigest: null }));
+  expect(deserializeTransientIdentityRecord(serializeTransientIdentityRecord(record), record.slug)).toEqual({ kind: "valid", record });
+  expect(projectLocusIdentity(record)).toMatchObject({ origin: "inbox", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
 });

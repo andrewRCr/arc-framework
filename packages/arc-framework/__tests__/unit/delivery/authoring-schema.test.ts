@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   createDeliveryAuthoringSnapshot,
@@ -25,14 +26,23 @@ describe("delivery authoring snapshot", () => {
       },
       tasks: {
         inventoryDigest: canonicalDigest([
-          { taskId: "1.1", semanticDigest: taskOneDigest },
-          { taskId: "1.2", semanticDigest: taskTwoDigest },
+          { taskId: "1.1", semanticDigest: taskOneDigest, role: { kind: "implementation" } },
+          { taskId: "1.2", semanticDigest: taskTwoDigest, role: { kind: "implementation" } },
+          {
+            taskId: "2.1",
+            semanticDigest: null,
+            role: { kind: "verification", scope: "work-unit" },
+          },
         ]),
-        implementation: [
-          { taskId: "1.1", semanticDigest: taskOneDigest },
-          { taskId: "1.2", semanticDigest: taskTwoDigest },
+        parents: [
+          { taskId: "1.1", semanticDigest: taskOneDigest, role: { kind: "implementation" } },
+          { taskId: "1.2", semanticDigest: taskTwoDigest, role: { kind: "implementation" } },
+          {
+            taskId: "2.1",
+            semanticDigest: null,
+            role: { kind: "verification", scope: "work-unit" },
+          },
         ],
-        verificationTaskId: "2.1",
       },
       source: {
         entry: "from-tasks",
@@ -55,9 +65,9 @@ describe("delivery authoring snapshot", () => {
       taskIds: ["1.1", "1.2", "2.1"],
       sourceIds: ["phase:1", "task:1.1", "task:1.2"],
     });
-    expect(DeliveryAuthoringSnapshotV1Schema.safeParse({
+    assertSchemaRefuses(DeliveryAuthoringSnapshotV1Schema, {
       ...snapshot,
       candidatePlanDigest: canonicalDigest({ plan: "partial-receipt" }),
-    }).success).toBe(false);
+    });
   });
 });

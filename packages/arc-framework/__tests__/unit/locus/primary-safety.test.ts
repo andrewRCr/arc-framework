@@ -4,17 +4,19 @@ import { describe, expect, it } from "vitest";
 
 import { readPrimarySafety } from "../../../src/lib/locus/primary-safety.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { scriptGitExec, type GitExecCall } from "../../helpers/git-exec-fake.js";
 
 function git(options: { status?: string; branch?: string; fail?: "status" | "branch" }): GitExec {
-  return async (_command, args, execOptions) => {
+  const response = (fact: "status" | "branch", stdout: string) => ({ options: execOptions }: GitExecCall) => {
     if (execOptions?.cwd !== "/primary") throw new Error("ambient checkout used");
-    if (args[0] === "status") {
-      if (options.fail === "status") throw new Error("status unavailable");
-      return { stdout: options.status ?? "", stderr: "" };
-    }
-    if (options.fail === "branch") throw new Error("branch unavailable");
-    return { stdout: `${options.branch ?? "main"}\n`, stderr: "" };
+    if (options.fail === fact) throw new Error(`${fact} unavailable`);
+    return { stdout, stderr: "" };
   };
+  return scriptGitExec([
+    { match: { prefix: ["status"] }, responses: [response("status", options.status ?? "")] },
+    { match: ["rev-parse", "--abbrev-ref", "HEAD"],
+      responses: [response("branch", `${options.branch ?? "main"}\n`)] },
+  ]).exec;
 }
 
 describe("primary checkout safety", () => {

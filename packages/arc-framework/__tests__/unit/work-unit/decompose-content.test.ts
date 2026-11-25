@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   resolveV3DecomposeContentLocator,
   resolveV3DecomposeSourceUnit,
@@ -54,6 +54,57 @@ describe("scanV3DecomposeContent", () => {
     ]);
     expect(Buffer.concat(result.units.map(({ bytes: unitBytes }) => Buffer.from(unitBytes))))
       .toEqual(Buffer.from(bytes(source)));
+  });
+
+  it("emits task-list preamble and H2 phase units while retaining nested task bytes", () => {
+    const source = [
+      "\uFEFF# Tasks",
+      "intro",
+      "## Phase",
+      "lead",
+      "### Task",
+      "body",
+      "```md",
+      "## fenced",
+      "```",
+      "Phase",
+      "-----",
+      "again",
+      "",
+    ].join("\r\n");
+    const original = bytes(source);
+    const result = scanV3DecomposeContent("tasks-sample.md", original);
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(result.units.map(({ locator }) => locator)).toEqual([
+      { artifact: "tasks-sample.md", kind: "preamble" },
+      {
+        artifact: "tasks-sample.md",
+        kind: "section",
+        level: 2,
+        headingSource: "Phase",
+        ancestry: [],
+        occurrence: 0,
+      },
+      {
+        artifact: "tasks-sample.md",
+        kind: "section",
+        level: 2,
+        headingSource: "Phase",
+        ancestry: [],
+        occurrence: 1,
+      },
+    ]);
+    expect(result.units[1]?.content).toContain("### Task\r\nbody\r\n");
+    expect(result.units[1]?.content).toContain("## fenced\r\n");
+    expect(Buffer.concat(result.units.map(({ bytes: unitBytes }) => Buffer.from(unitBytes))))
+      .toEqual(Buffer.from(original));
+    expect(resolveV3DecomposeContentLocator(
+      result.units,
+      result.units[2]?.locator,
+      "tasks-sample.md",
+    )).toEqual({ status: "resolved", unit: result.units[2] });
   });
 
   it("preserves UTF-8 BOM and multibyte stored bytes exactly", () => {
@@ -188,6 +239,23 @@ describe("scanV3DecomposeContent", () => {
       .toEqual(Buffer.from(original));
   });
 
+  it("records exact half-open UTF-8 byte ranges for every emitted unit", () => {
+    const source = "\uFEFFpré\r\n## A\r\n😀\r\n### B\r\nx\r\n## C\r\n";
+    const result = scanV3DecomposeContent("draft-sample.md", bytes(source));
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(result.units.map(({ byteRange }) => byteRange)).toEqual([
+      { start: 0, end: 9 },
+      { start: 9, end: 21 },
+      { start: 21, end: 31 },
+      { start: 31, end: 37 },
+    ]);
+    for (const unit of result.units) {
+      expect(unit.bytes).toEqual(bytes(source).slice(unit.byteRange.start, unit.byteRange.end));
+    }
+  });
+
   it("uses exact preamble and whole-file units when no H2-H6 boundary exists", () => {
     const markdown = bytes("# Root\ntext 😀\r\n");
     const binary = new Uint8Array([0xff, 0x00, 0x7f]);
@@ -197,6 +265,7 @@ describe("scanV3DecomposeContent", () => {
         locator: { artifact: "notes-sample.md", kind: "preamble" },
         content: "# Root\ntext 😀\r\n",
         bytes: markdown,
+        byteRange: { start: 0, end: markdown.length },
       }],
     });
     expect(scanV3DecomposeContent("payload.bin", binary)).toEqual({
@@ -205,6 +274,16 @@ describe("scanV3DecomposeContent", () => {
         locator: { artifact: "payload.bin", kind: "whole-file" },
         content: "\uFFFD\u0000\u007F",
         bytes: binary,
+        byteRange: { start: 0, end: binary.length },
+      }],
+    });
+    expect(scanV3DecomposeContent("empty.md", new Uint8Array())).toEqual({
+      status: "scanned",
+      units: [{
+        locator: { artifact: "empty.md", kind: "preamble" },
+        content: "",
+        bytes: new Uint8Array(),
+        byteRange: { start: 0, end: 0 },
       }],
     });
   });

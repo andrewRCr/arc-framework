@@ -1,6 +1,7 @@
 /** Unit coverage for the schema-backed status probe wire algebra. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import { ProbeErrorSchema, probe } from "../../../src/commands/status/types.js";
@@ -26,6 +27,6 @@ describe("status probe schemas", () => {
     { ok: false, error: { kind: "other", message: "open" } },
     { ok: false, error: { kind: "runtime" } },
   ])("rejects malformed or mixed branches", (input) => {
-    expect(ProbeSchema.safeParse(input).success).toBe(false);
+    assertSchemaRefuses(ProbeSchema, input);
   });
 });

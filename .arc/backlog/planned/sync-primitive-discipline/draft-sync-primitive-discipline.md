@@ -13,14 +13,23 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-### `[ ]` **Bound session-init user-note resolution while Git notes remain the compatibility store**
+### `[ ]` **Make noninteractive user-note sync conflicts resumable after local save**
 
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
-- _Concern:_ one user session-init duplicates an unbounded nearest-note scan, producing roughly 1,276 note-read
-  subprocesses with 638 annotations. Resolve the nearest WU note once per invocation and share it across freshness
-  and disk inspection; bound remaining reads without deepening the compatibility-store architecture.
-- _Boundary:_ preserve causal-maximal selection, off-ancestry fallback, malformed-note handling, and disk drift;
-  keep this separate from the broader session-init Git snapshot work.
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- WU_Target: sync-primitive-discipline
+
+- _Observation:_ `arc user sync -y` encountered concurrent local and remote notes movement during this multi-agent
+  session, preserved the local save, and degraded to save-only because the noninteractive path could not resolve
+  the conflict. The safe refusal is correct, but routine capture work was left without a direct continuation that
+  can publish the already-preserved state once the competing update is reconciled.
+
+- _Approach:_ define a typed, lossless continuation or canonical remedy for the save-only conflict outcome so an
+  agent can resume from its preserved local state without rediscovering sync internals or repeating work. Compose
+  the existing notes lock, reconciliation, and partial-publication evidence; do not auto-select an authoritative
+  side or weaken conflict preservation.
+
+- _Captured during:_ `planning-grooming-review-exemption` Errand queue maintenance, 2026-09-07.
 
 ### `[ ]` **Entry-aware union at push reconcile — resolve the same-commit notes wedge**
 

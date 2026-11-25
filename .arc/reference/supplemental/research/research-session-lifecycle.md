@@ -151,8 +151,7 @@ per-machine and regenerable.
 - **Hoisting variations:** npm hoists to root; pnpm creates central cache + links (isolated);
   Yarn Berry uses zip-based approach
 
-Sources: [Monorepo.tools][monorepo-tools], [pnpm workspaces][pnpm-ws],
-[Turborepo dependency management][turbo-deps]
+Sources: [Monorepo.tools][monorepo-tools], [pnpm workspaces][pnpm-ws], [Turborepo dependency management][turbo-deps]
 
 ### Build System Output Caching (Bazel)
 

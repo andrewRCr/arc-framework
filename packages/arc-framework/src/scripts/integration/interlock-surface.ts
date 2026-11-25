@@ -36,10 +36,6 @@ export const CheckpointInterlockSurfaceSchema = z.strictObject({
     state: z.enum(["clean", "exceptions"]),
     text: z.string().min(1),
   }),
-  extensionReport: z.strictObject({
-    label: z.literal("Extension report"),
-    content: z.null(),
-  }),
 });
 export type CheckpointInterlockSurface = z.infer<typeof CheckpointInterlockSurfaceSchema>;
 
@@ -50,12 +46,14 @@ export type CheckpointInterlockSurface = z.infer<typeof CheckpointInterlockSurfa
  * artifacts carrying review signal, so the approver reads this to self-serve what it excluded.
  *
  * @param input - Exact merge coordinates, candidate-tail reference, review carrier, and machine signals.
- * @returns The deterministic approval text and empty extension-report slot.
+ * @returns The deterministic machine-evidence approval text.
  */
 export function composeCheckpointInterlockSurface(input: {
   approvedHead: string;
   repository: string;
   pullRequest: number;
+  baseRef: string;
+  observedBase: string;
   method: "merge" | "rebase" | "squash";
   candidateTailReference: string;
   reviewLanding: string;
@@ -65,6 +63,10 @@ export function composeCheckpointInterlockSurface(input: {
   const exceptions = signals.filter(({ clean }) => !clean);
   const decision = `Approve merge of ${input.approvedHead} via ${input.method} for `
     + `${input.repository}#${input.pullRequest}.\nCandidate tail: ${input.candidateTailReference}`
+    + `\nNamed target: ${input.baseRef} at last observed base ${input.observedBase}.`
+    + "\nHost policy controls base currency; ARC pins only the approved head."
+    + "\nRequired checks are head-bound, not exact base/head-pair evidence."
+    + "\nBase movement during the host's in-call merge window remains a residual race."
     + `\nReview landed: ${input.reviewLanding}`;
   const text = exceptions.length === 0
     ? `${decision}\nMachine evidence: ${signals.length} checks clean.`
@@ -76,6 +78,5 @@ export function composeCheckpointInterlockSurface(input: {
       state: exceptions.length === 0 ? "clean" : "exceptions",
       text,
     },
-    extensionReport: { label: "Extension report", content: null },
   });
 }

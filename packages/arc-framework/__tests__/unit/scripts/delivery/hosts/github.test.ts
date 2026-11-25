@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import { GhDeliveryHostPort } from "../../../../../src/scripts/delivery/hosts/github.js";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import type { DeliveryNativeStackInput } from "../../../../../src/lib/delivery/native-stack.js";
 import { HostedProcessError } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
 import type { HostedProcessRunner } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
 
 const repository = "andrewRCr/arc-framework";
 const headSha = "a".repeat(40);
+const mergePolicy = {
+  repository,
+  stackPosition: "intermediate" as const,
+  method: "merge" as const,
+  allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
+  policyFingerprint: CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`),
+};
 
 function pull(overrides: Record<string, unknown> = {}) {
   return {
@@ -39,8 +47,8 @@ describe("GhDeliveryHostPort", () => {
   const nativeInput: DeliveryNativeStackInput = {
     repository,
     members: [
-      { deliverableId: `sha256:${"1".repeat(64)}`, changeRequestId: "401", headRef: "delivery/example/first", headSha, baseRef: "main" },
-      { deliverableId: `sha256:${"2".repeat(64)}`, changeRequestId: "402", headRef: "delivery/example/second", headSha: "b".repeat(40), baseRef: "delivery/example/first" },
+      { deliverableId: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`), changeRequestId: "401", headRef: "delivery/example/first", headSha, baseRef: "main" },
+      { deliverableId: CanonicalDigestSchema.parse(`sha256:${"2".repeat(64)}`), changeRequestId: "402", headRef: "delivery/example/second", headSha: "b".repeat(40), baseRef: "delivery/example/first" },
     ],
   };
 
@@ -74,6 +82,136 @@ describe("GhDeliveryHostPort", () => {
       "-F", "pull_requests[]=401", "-F", "pull_requests[]=402",
     ]);
     expect(calls.flat()).not.toContain("stack");
+  });
+
+  it("accepts the provider stack listing that omits member base objects", async () => {
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, head: { ref: "delivery/example/first", sha: headSha } },
+        { number: 402, head: { ref: "delivery/example/second", sha: "b".repeat(40) } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(nativeInput))
+      .resolves.toEqual({ status: "registered", stackNumber: 9 });
+  });
+
+  it("recognizes the registered unlanded suffix after GitHub retains a merged prefix", async () => {
+    const second = nativeInput.members[1]!;
+    const remaining: DeliveryNativeStackInput = {
+      repository,
+      members: [{ ...second, baseRef: "main" }],
+    };
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, state: "closed", merged_at: "2026-09-14T04:06:01Z",
+          head: { ref: "delivery/example/first", sha: headSha } },
+        { number: 402, state: "open", merged_at: null,
+          head: { ref: second.headRef, sha: second.headSha } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(remaining))
+      .resolves.toEqual({ status: "registered", stackNumber: 9 });
+  });
+
+  it.each([
+    { label: "an invalid head SHA", prefix: { number: 401, head: { ref: "delivery/example/first", sha: "invalid" } } },
+    { label: "a nonpositive PR number", prefix: { number: 0, head: { ref: "delivery/example/first", sha: headSha } } },
+    { label: "an invalid merge timestamp", prefix: { number: 401,
+      head: { ref: "delivery/example/first", sha: headSha }, merged_at: "invalid" } },
+  ])("does not discard a merged prefix with $label", async ({ prefix }) => {
+    const second = nativeInput.members[1]!;
+    const remaining: DeliveryNativeStackInput = {
+      repository,
+      members: [{ ...second, baseRef: "main" }],
+    };
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { state: "closed", merged_at: "2026-09-14T04:06:01Z", ...prefix },
+        { number: 402, state: "open", merged_at: null,
+          head: { ref: second.headRef, sha: second.headSha } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(remaining)).resolves.toEqual({
+      status: "partial",
+      affectedDeliverableIds: [second.deliverableId],
+    });
+  });
+
+  it("excludes a chained dependent request from the registered-member predicate", async () => {
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
+        {
+          number: 403,
+          head: { ref: "delivery/example/top", sha: "c".repeat(40) },
+          base: { ref: "delivery/example/second" },
+        },
+        {
+          number: 402,
+          head: { ref: "delivery/example/second", sha: "b".repeat(40) },
+          base: { ref: "delivery/example/first" },
+        },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(nativeInput))
+      .resolves.toEqual({ status: "registered", stackNumber: 9 });
+  });
+
+  it("still reports a genuinely mismatched requested member after dependent filtering", async () => {
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
+        {
+          number: 403,
+          head: { ref: "delivery/example/top", sha: "c".repeat(40) },
+          base: { ref: "delivery/example/second" },
+        },
+        {
+          number: 402,
+          head: { ref: "delivery/example/second", sha: "d".repeat(40) },
+          base: { ref: "delivery/example/first" },
+        },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(nativeInput)).resolves.toEqual({
+      status: "partial",
+      affectedDeliverableIds: [nativeInput.members[1]?.deliverableId],
+    });
+  });
+
+  it("reads an empty stack listing as unregistered", async () => {
+    await expect(new GhDeliveryHostPort(runner([])).observe(nativeInput))
+      .resolves.toEqual({ status: "unregistered" });
+  });
+
+  it("keeps multiple exact stack matches ambiguous", async () => {
+    const pullRequests = [
+      { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
+      {
+        number: 402,
+        head: { ref: "delivery/example/second", sha: "b".repeat(40) },
+        base: { ref: "delivery/example/first" },
+      },
+    ];
+    const response = [9, 10].map((number) => ({ number, base: { ref: "main" }, pull_requests: pullRequests }));
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(nativeInput))
+      .resolves.toEqual({ status: "ambiguous" });
   });
 
   it("classifies rejected native stack payloads as malformed", async () => {
@@ -190,6 +328,7 @@ describe("GhDeliveryHostPort", () => {
         baseRef: "main",
         state: "open",
         draft: true,
+        mergeCommitSha: null,
       },
     });
     await expect(new GhDeliveryHostPort(runner([])).observeRequest(effect())).resolves.toEqual({ status: "absent" });
@@ -253,28 +392,189 @@ describe("GhDeliveryHostPort", () => {
       .resolves.toEqual({ status: "refused", reason: "foreign" });
   });
 
-  it("maps each configured merge strategy to one exact head-matched mutation", async () => {
-    for (const [strategy, flag] of [["merge", "--merge"], ["rebase", "--rebase"], ["squash", "--squash"]] as const) {
-      const exactRunner: HostedProcessRunner = {
-        run: async (args) => {
-          const expected = [
-            "pr", "merge", "401", "--repo", repository,
-            "--match-head-commit", headSha, flag,
-          ];
-          if (JSON.stringify(args) !== JSON.stringify(expected)) throw new Error("unexpected host mutation");
-          return { stdout: "", stderr: "" };
-        },
+  it("submits the bound intermediate merge at one exact head", async () => {
+    const exactRunner: HostedProcessRunner = {
+      run: async (args) => {
+        const expected = [
+          "pr", "merge", "401", "--repo", repository,
+          "--match-head-commit", headSha, "--merge",
+        ];
+        if (JSON.stringify(args) !== JSON.stringify(expected)) throw new Error("unexpected host mutation");
+        return { stdout: "", stderr: "" };
+      },
+    };
+    await expect(new GhDeliveryHostPort(exactRunner).mergeRequest({
+      providerId: "github",
+      repository,
+      changeRequestId: "401",
+      headSha,
+      baseRef: "main",
+      targetRef: "refs/heads/main",
+      strategy: "merge",
+      mergePolicy,
+    })).resolves.toEqual({ status: "submitted" });
+  });
+
+  it("mints native-stack-required only from a semantic stacked-member rejection", async () => {
+    const stacked: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "stacked pull request requires asynchronous merge",
+        "gh: This pull request is part of a stack. Use the merge-async endpoint. (HTTP 422)",
+        1,
+        422,
+      );
+    } };
+    const effect = {
+      providerId: "github",
+      repository,
+      changeRequestId: "401",
+      headSha,
+      baseRef: "main",
+      targetRef: "refs/heads/main",
+      strategy: "merge",
+      mergePolicy,
+    } as const;
+
+    await expect(new GhDeliveryHostPort(stacked).mergeRequest(effect))
+      .resolves.toEqual({ status: "refused", reason: "native-stack-required" });
+    await expect(new GhDeliveryHostPort(stacked).submitNativeMerge({
+      repository,
+      topChangeRequestId: "401",
+      topHeadSha: headSha,
+      mergeAction: "direct_merge",
+      mergeMethod: "merge",
+    })).resolves.toEqual({ status: "refused", reason: "native-stack-required" });
+    const genericValidation: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError("validation failed", "gh: Validation Failed (HTTP 422)", 1, 422);
+    } };
+    await expect(new GhDeliveryHostPort(genericValidation).mergeRequest(effect))
+      .resolves.toEqual({
+        status: "refused",
+        reason: "unavailable",
+        provider: { kind: "http", status: 422, exitCode: 1 },
+      });
+
+    const conflict: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the merge commit cannot be cleanly created.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(conflict).mergeRequest(effect))
+      .resolves.toEqual({ status: "refused", reason: "conflict" });
+
+    const branchPolicy: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the base branch policy prohibits the merge.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(branchPolicy).mergeRequest(effect))
+      .resolves.toEqual({
+        status: "refused",
+        reason: "unavailable",
+        provider: { kind: "command-failed", exitCode: 1 },
+      });
+
+    const commandFailure: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError("merge failed", "credential-bearing provider output", 2);
+    } };
+    const refused = await new GhDeliveryHostPort(commandFailure).mergeRequest(effect);
+    expect(refused).toEqual({
+      status: "refused",
+      reason: "unavailable",
+      provider: { kind: "command-failed", exitCode: 2 },
+    });
+    expect(refused).not.toHaveProperty("stderr");
+    expect(refused).not.toHaveProperty("stdout");
+  });
+
+  it("reopens a closed terminal request before retargeting it through supported GitHub mutations", async () => {
+    for (const [action, fromBaseRef] of [
+      ["retarget", "delivery/example/previous"],
+      ["reopen-and-retarget", "delivery/example/previous"],
+      ["reopen-and-retarget", "main"],
+    ] as const) {
+      const request = {
+        baseRef: fromBaseRef,
+        state: action === "retarget" ? "open" : "closed",
       };
-      await expect(new GhDeliveryHostPort(exactRunner).mergeRequest({
+      const mutations: string[] = [];
+      const port = new GhDeliveryHostPort({ run: async (args) => {
+        if (args[0] === "pr" && args[1] === "view") {
+          return { stdout: JSON.stringify({ id: "PR_terminal" }), stderr: "" };
+        }
+        if (args[0] === "api" && args[1] === "graphql") {
+          const query = args.find((arg) => arg.startsWith("query="));
+          if (query?.includes("updatePullRequest") !== true || !args.includes("id=PR_terminal")) {
+            throw new Error("invalid pull-request mutation");
+          }
+          const changesBase = query.includes("baseRefName:$base");
+          const opens = query.includes("state:OPEN");
+          if (!opens || changesBase) throw new Error("invalid reopen mutation");
+          mutations.push("reopen");
+          request.state = "open";
+          return { stdout: JSON.stringify({ data: { updatePullRequest: { pullRequest: {
+            baseRefName: request.baseRef,
+            state: request.state.toUpperCase(),
+          } } } }), stderr: "" };
+        }
+        if (args.includes("base=main")) {
+          if (request.state === "closed") {
+            throw new HostedProcessError(
+              "Cannot change the base branch of a closed pull request.",
+              "gh: Validation Failed (HTTP 422)",
+              1,
+              422,
+            );
+          }
+          mutations.push("retarget");
+          request.baseRef = "main";
+          return { stdout: "{}", stderr: "" };
+        }
+        if (args.includes("state=open")) {
+          request.state = "open";
+          return { stdout: "{}", stderr: "" };
+        }
+        throw new Error("unexpected host operation");
+      } });
+      await expect(port.applyTopRemedy({
         providerId: "github",
         repository,
         changeRequestId: "401",
+        headRef: "delivery/example/first",
         headSha,
-        baseRef: "main",
-        targetRef: "refs/heads/main",
-        strategy,
+        triggerRef: "refs/heads/delivery/example/previous",
+        triggerHeadSha: "b".repeat(40),
+        fromBaseRef,
+        protectedBaseRef: "main",
+        action,
       })).resolves.toEqual({ status: "submitted" });
+      expect(request).toEqual({ baseRef: "main", state: "open" });
+      expect(mutations).toEqual(action === "retarget"
+        ? ["retarget"]
+        : fromBaseRef === "main" ? ["reopen"] : ["reopen", "retarget"]);
     }
+    const malformedCalls: string[][] = [];
+    const malformedRunner: HostedProcessRunner = { run: async (args) => {
+      malformedCalls.push(args);
+      return { stdout: "{}", stderr: "" };
+    } };
+    await expect(new GhDeliveryHostPort(malformedRunner).applyTopRemedy({
+      providerId: "other",
+      repository,
+      changeRequestId: "401",
+      headRef: "delivery/example/first",
+      headSha,
+      triggerRef: "refs/heads/delivery/example/previous",
+      triggerHeadSha: "b".repeat(40),
+      fromBaseRef: "delivery/example/previous",
+      protectedBaseRef: "main",
+      action: "retarget",
+    })).resolves.toEqual({ status: "refused", reason: "malformed" });
+    expect(malformedCalls).toEqual([]);
   });
 
   it("normalizes the protected target head and tree without guessing", async () => {
@@ -314,6 +614,11 @@ describe("GhDeliveryHostPort", () => {
       baseRef: "main",
       targetRef: "refs/heads/main",
       strategy: "merge",
-    })).resolves.toEqual({ status: "refused", reason: "unavailable" });
+      mergePolicy,
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "unavailable",
+      provider: { kind: "unexpected" },
+    });
   });
 });

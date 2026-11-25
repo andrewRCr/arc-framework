@@ -1,5 +1,6 @@
-/** Sibling continuation over the global visible execute-bound inbox queue. */
+/** Execute-bound queue selection for startup and sibling continuation. */
 
+import type { QueueOfferProblem } from "../inbox/offer.js";
 import { listExecuteBoundInboxEntries } from "./inbox-writer.js";
 
 export type ExecutionNextOffer = {
@@ -9,8 +10,41 @@ export type ExecutionNextOffer = {
 } | null;
 
 export type ExecutionOfferResolution =
-  | { readonly kind: "resolved"; readonly nextOffer: ExecutionNextOffer }
-  | { readonly kind: "refused"; readonly reason: string };
+  | { readonly kind: "resolved"; readonly nextOffer: ExecutionNextOffer; readonly leftOut?: QueueOfferProblem[]; readonly skipped?: QueueOfferProblem[] }
+  | { readonly kind: "refused"; readonly reason: string; readonly remedy?: string };
+
+export type ExecutionStartupOfferResolution = ExecutionOfferResolution;
+
+/**
+ * Select the first readable execute-bound capture for cold startup.
+ *
+ * @param options - Current inbox bytes and optional warm parent checkout.
+ * @returns The first offer, or an actionable refusal while any queue entry is malformed.
+ */
+export function resolveExecutionStartupOffer(options: {
+  readonly content: string;
+  readonly parentCheckoutPath: string | null;
+}): ExecutionStartupOfferResolution {
+  const listing = listExecuteBoundInboxEntries(options.content);
+  if (listing.diagnostics.length > 0) {
+    return {
+      kind: "refused",
+      reason: `Malformed execute-bound Errand queue. ${listing.diagnostics.join(" ")}`,
+    };
+  }
+  const next = listing.entries[0];
+  if (next !== undefined) {
+    return {
+      kind: "resolved",
+      nextOffer: {
+        kind: "errand",
+        key: next.title,
+        parentCheckoutPath: options.parentCheckoutPath,
+      },
+    };
+  }
+  return { kind: "resolved", nextOffer: null };
+}
 
 /**
  * Select the first marked capture after one execute-bound concern completes.

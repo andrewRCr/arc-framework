@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { WorktreeRemovalResult } from "../../../src/lib/git/worktree-removal.js";
 import type { ErrandTerminalAuthority } from "../../../src/lib/errand/terminal-authority.js";
 import {
   settleTerminalOccupancy,
@@ -17,6 +18,7 @@ function row(primary = false): DerivedCheckoutRow {
   return {
     kind: "transient",
     checkout: {
+      folderPresent: true,
       path: primary ? "/repo" : "/repo/repair",
       head: HEAD,
       branch: "chore/repair",
@@ -46,7 +48,7 @@ function authority(target = row()): Extract<ErrandTerminalAuthority, { kind: "au
   };
 }
 
-function io(result: "removed" | "absent" | "changed" = "removed"): TerminalOccupancyIO {
+function io(result: WorktreeRemovalResult | { kind: "absent" } = { kind: "removed" }): TerminalOccupancyIO {
   return {
     inspect: async () => ({
       branch: "chore/repair",
@@ -54,7 +56,7 @@ function io(result: "removed" | "absent" | "changed" = "removed"): TerminalOccup
       dirty: false,
       markerGeneration: MARKER_GENERATION,
     }),
-    removePrimary: async () => result,
+    removePrimary: async () => "removed",
     removeSpawned: async () => result,
   };
 }
@@ -90,10 +92,36 @@ describe("terminal occupancy settlement", () => {
         ...inspection,
       });
       await expect(settleTerminalOccupancy({
-        authority: authority(),
+        authority: authority(inspection.dirty ? row(true) : row()),
         primaryCheckoutPath: "/repo",
         io: boundaries,
       })).resolves.toMatchObject({ kind: "refused", reason });
     }
+  });
+});
+
+describe("spawned removal outcomes", () => {
+  it.each(["removed", "pruned"] as const)("maps %s to applied", async (kind) => {
+    expect(await settleTerminalOccupancy({ authority: authority(), primaryCheckoutPath: "/repo", io: io({ kind }) }))
+      .toMatchObject({ kind: "applied" });
+  });
+  it("retains a check's refusal and remedy", async () => {
+    expect(await settleTerminalOccupancy({ authority: authority(), primaryCheckoutPath: "/repo",
+      io: io({ kind: "refused", check: { kind: "refused", reason: "unobservable", detail: "status failed" } }),
+    })).toMatchObject({ kind: "refused", reason: "unobservable", message: expect.stringContaining("status failed") });
+  });
+  it("maps a refused persist step to a refusal carrying its remedy", async () => {
+    expect(await settleTerminalOccupancy({ authority: authority(), primaryCheckoutPath: "/repo",
+      io: io({ kind: "failed", step: "persist", detail: "blocked", remedy: { text: "Save the projection.", argv: ["arc", "save"] } }),
+    })).toMatchObject({ kind: "refused", message: "Save the projection." });
+  });
+  it("reports a failed removal as an error", async () => {
+    expect(await settleTerminalOccupancy({ authority: authority(), primaryCheckoutPath: "/repo",
+      io: io({ kind: "failed", step: "remove", detail: "Git failed" }),
+    })).toMatchObject({ kind: "error", message: expect.stringContaining("Git failed") });
+  });
+  it("treats an absent registration as idempotent", async () => {
+    expect(await settleTerminalOccupancy({ authority: authority(), primaryCheckoutPath: "/repo", io: io({ kind: "absent" }) }))
+      .toMatchObject({ kind: "idempotent" });
   });
 });

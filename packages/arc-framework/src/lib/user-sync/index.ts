@@ -19,42 +19,6 @@ export { classifyUserSyncPath, wuNameOfPath, type UserSyncClass } from "./classi
 
 export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
 
-export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parser.js";
-
-export {
-  CrossWuEntryParseSchema,
-  CrossWuEntrySchema,
-  type CrossWuEntry,
-  type EntryParse,
-} from "./schema.js";
-
-export {
-  InboxMutationConflictError,
-  hasExecuteBoundDisposition,
-  inboxEntrySourceDigest,
-  listExecuteBoundInboxEntries,
-  inspectInboxEntry,
-  listInboxEntryTitles,
-  mutateInboxEntries,
-  removeInboxEntry,
-  removeInspectedInboxEntry,
-  requireLiveInboxTitle,
-  type InboxEntryMutation,
-  type InboxMutationConflictCode,
-  type InboxEntryMutationOutcome,
-  type InspectedInboxEntry,
-  type ExecuteBoundInboxEntry,
-  type ExecuteBoundInboxListing,
-  type MutateInboxEntriesResult,
-  type RemoveInboxEntryResult,
-} from "./inbox-writer.js";
-
-export {
-  resolveExecutionNextOffer,
-  type ExecutionNextOffer,
-  type ExecutionOfferResolution,
-} from "./execution-offer.js";
-
 export {
   listAnnotatedNoteCommits,
   listNoteEntries,
@@ -132,9 +96,6 @@ export {
 } from "./compaction-marker.js";
 
 export {
-  isCasRejectionError,
-  isNonFastForwardError,
-  isRemoteUnavailableError,
   isResolvedNoteValid,
   incomingNotesRef,
   incomingFetchRefspec,
@@ -247,11 +208,12 @@ export {
 export {
   acquireAdvisoryLock,
   releaseAdvisoryLock,
-  getNotesLockPath,
   AdvisoryLockTimeoutError,
   type AdvisoryLockHandle,
   type AdvisoryLockOptions,
   type IsProcessAliveFn,
-} from "./notes-lock.js";
+} from "../advisory-lock.js";
+
+export { getNotesLockPath } from "./notes-lock.js";
 
 export type { CrossWuShape } from "./types.js";

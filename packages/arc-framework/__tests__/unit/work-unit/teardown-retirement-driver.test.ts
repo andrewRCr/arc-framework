@@ -1,7 +1,8 @@
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { describe, expect, it } from "vitest";
 
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
-import type { ManagedPath } from "../../../src/lib/canonical/managed-path.js";
+import type { ManagedPath } from "../../../src/lib/kernel/canonical/managed-path.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeHuskStamp } from "../../../src/lib/git/worktree-marker.js";
 import {
@@ -48,12 +49,12 @@ function execWithCompletedProjection(options: { ancestry?: boolean; includeProje
 
 const readBlob: TeardownBlobReader = async (_ref, path: ManagedPath) => blobs.get(path) ?? null;
 
-const stamp: WorktreeHuskStamp = {
+const stamp: WorktreeHuskStamp = makeHuskStamp({
   sha: "a".repeat(40),
   at: "2026-07-16T00:00:00.000Z",
   subject: { kind: "work-unit", name: "sample" },
   branch,
-};
+});
 
 function proof(resultDigest: `sha256:${string}`): Extract<TeardownAuthorizationDecision, { status: "authorized" }> {
   return {

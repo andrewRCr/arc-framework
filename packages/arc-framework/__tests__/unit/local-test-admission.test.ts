@@ -1,0 +1,668 @@
+/** Unit tests for repository-wide admission of subprocess-heavy local test tiers. */
+
+import { describe, expect, it, vi } from "vitest";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
+
+import {
+  isLocalHeavyTestTier,
+  LOCAL_TEST_CONCURRENCY_OVERRIDE,
+  resolveProcessVisibilityScope,
+  withLocalHeavyTestAdmission,
+} from "../../src/lib/local-test-admission.js";
+
+function admissionGit() {
+  return scriptGitExec([
+    { match: ["rev-parse", "--show-toplevel"], responses: [{ stdout: "/repo/worktree-a\n", stderr: "" }] },
+    { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: "/repo/.git\n", stderr: "" }] },
+    { match: ["branch", "--show-current"], responses: [{ stdout: "feat/widget\n", stderr: "" }] },
+  ]).exec;
+}
+
+describe("resolveProcessVisibilityScope", () => {
+  it("uses the Linux PID namespace when procfs exposes it", async () => {
+    await expect(resolveProcessVisibilityScope(
+      "linux",
+      "process-a",
+      async () => "pid:[4026531836]",
+    )).resolves.toBe("pid:[4026531836]");
+  });
+
+  it("uses a stable process-specific unknown scope when Linux procfs is unavailable", async () => {
+    const unavailable = async (): Promise<string> => {
+      throw new Error("procfs unavailable");
+    };
+
+    await expect(resolveProcessVisibilityScope("linux", "process-a", unavailable))
+      .resolves.toBe("linux:unknown:process-a");
+    await expect(resolveProcessVisibilityScope("linux", "process-a", unavailable))
+      .resolves.toBe("linux:unknown:process-a");
+    await expect(resolveProcessVisibilityScope("linux", "process-b", unavailable))
+      .resolves.toBe("linux:unknown:process-b");
+  });
+
+  it("uses the host scope on platforms without Linux PID namespaces", async () => {
+    await expect(resolveProcessVisibilityScope("darwin", "process-a"))
+      .resolves.toBe("darwin:host");
+  });
+});
+
+describe("isLocalHeavyTestTier", () => {
+  it("accepts the routine lane and rejects an unrecognized tier", () => {
+    expect(isLocalHeavyTestTier("lane")).toBe(true);
+    expect(isLocalHeavyTestTier("quick")).toBe(false);
+  });
+});
+
+describe("withLocalHeavyTestAdmission", () => {
+  it("renders a focused holder's diagnostic label without adding a broad tier command", async () => {
+    const lines: string[] = [];
+    const result = await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "focused" }, async () => "complete",
+      { git: admissionGit(), mkdir: async () => {}, resolveProcessScope: async () => "pid:[test]",
+        acquireLock: async (_path, options) => {
+          options?.onWait?.({ holder: { pid: 41, token: "holder", acquiredAt: 0,
+            metadata: options.metadata }, waitedMs: 0 });
+          return { path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" };
+        },
+        releaseLock: async () => {}, writeLine: (line) => lines.push(line),
+      },
+    );
+    expect(result.result).toBe("complete");
+    expect(lines[0]).toContain("queued behind focused tests (PID 41");
+    expect(lines[1]).toContain("starting focused tests");
+    expect(isLocalHeavyTestTier("focused")).toBe(false);
+  });
+
+  it("enters the shared slot after a delete-pending lock directory clears", async () => {
+    let mkdirAttempts = 0;
+    const result = await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "portability" },
+      async () => "complete",
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" })),
+        git: admissionGit(),
+        mkdir: async () => {
+          mkdirAttempts += 1;
+          if (mkdirAttempts < 3) throw Object.assign(new Error("delete pending"), { code: "EPERM" });
+        },
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        resolveProcessScope: async () => "pid:[test]",
+      },
+    );
+
+    expect(result).toEqual({ result: "complete" });
+    expect(mkdirAttempts).toBe(3);
+  });
+
+  it("queues behind the shared holder with useful diagnostics, then releases after the run", async () => {
+    const lines: string[] = [];
+    let clock = Date.parse("2026-09-08T20:00:00.000Z");
+    const action = vi.fn(async () => {
+      clock = Date.parse("2026-09-08T20:02:05.000Z");
+      return "complete";
+    });
+    const releaseLock = vi.fn(async () => {});
+    const acquireLock = vi.fn(async (_path, options) => {
+      options.onWait?.({
+        holder: {
+          pid: 41,
+          acquiredAt: Date.parse("2026-09-08T20:00:00.000Z"),
+          token: "holder",
+          metadata: {
+            schemaVersion: 1,
+            branch: "feat/other",
+            tier: "lane",
+            worktree: "/repo/worktree-b",
+            startedAt: "2026-09-08T20:00:00.000Z",
+          },
+        },
+        waitedMs: 0,
+      });
+      options.onWait?.({
+        holder: "unreadable",
+        waitedMs: 60_000,
+      });
+      clock = Date.parse("2026-09-08T20:01:05.000Z");
+      return { path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" };
+    });
+
+    const result = await withLocalHeavyTestAdmission(
+      {
+        cwd: "/repo/worktree-a/packages/arc-framework",
+        env: {},
+        tier: "integration",
+      },
+      action,
+      {
+        acquireLock,
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        processInstance: "test-process",
+        releaseLock,
+        resolveProcessScope: async () => "pid:[test]",
+        writeLine: (line) => lines.push(line),
+      },
+    );
+
+    expect(result).toEqual({ result: "complete", waitMs: 65_000 });
+    expect(acquireLock).toHaveBeenCalledWith(
+      join("/repo/.git", "arc", "test-suite", ".local-heavy-tests.lock"),
+      expect.objectContaining({
+        leaseDurationMs: 120_000,
+        maxWaitMs: Number.POSITIVE_INFINITY,
+        metadata: {
+          schemaVersion: 1,
+          branch: "feat/widget",
+          tier: "integration",
+          worktree: "/repo/worktree-a",
+          startedAt: "2026-09-08T20:00:00.000Z",
+        },
+        pid: 42,
+        processInstance: "test-process",
+        processScope: "pid:[test]",
+      }),
+    );
+    expect(lines[0]).toContain("queued behind lane tests");
+    expect(lines[0]).toContain("PID 41");
+    expect(lines[0]).toContain("/repo/worktree-b");
+    expect(lines[0]).toContain("This is normal; no action is needed.");
+    expect(lines[1]).toContain("Still queued after 1m");
+    expect(lines[2]).toBe("Local heavy-test slot acquired after waiting 1m 5s; starting integration tests.");
+    expect(releaseLock).toHaveBeenCalledWith({
+      path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock",
+      pid: 42,
+      token: "ours",
+    });
+    expect(action).toHaveBeenCalledOnce();
+  });
+
+  it("renews the crash-recovery lease and installs immediate process-exit cleanup", async () => {
+    const handle = { path: "/repo/.git/lock", pid: 42, token: "ours" };
+    const renewLock = vi.fn(async () => "renewed" as const);
+    const cancelHeartbeat = vi.fn();
+    const unregisterExitCleanup = vi.fn();
+    let heartbeat: (() => void) | undefined;
+    const scheduleEvery = vi.fn((callback: () => void) => {
+      heartbeat = callback;
+      return cancelHeartbeat;
+    });
+    const registerExitCleanup = vi.fn(() => unregisterExitCleanup);
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "e2e" },
+      async () => {
+        heartbeat?.();
+        await vi.waitFor(() => expect(renewLock).toHaveBeenCalledOnce());
+      },
+      {
+        acquireLock: vi.fn(async () => handle),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        pid: 42,
+        registerExitCleanup,
+        releaseLock: vi.fn(async () => {}),
+        renewLock,
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery,
+      },
+    );
+
+    expect(scheduleEvery).toHaveBeenCalledWith(expect.any(Function), 10_000);
+    expect(renewLock).toHaveBeenCalledWith(handle, 120_000);
+    expect(registerExitCleanup).toHaveBeenCalledWith(handle);
+    expect(cancelHeartbeat).toHaveBeenCalledOnce();
+    expect(unregisterExitCleanup).toHaveBeenCalledOnce();
+  });
+
+  it("retries temporary renewal contention but terminates after confirmed ownership loss", async () => {
+    const lines: string[] = [];
+    let heartbeat: (() => void) | undefined;
+    let terminationRequests = 0;
+    const renewLock = vi.fn()
+      .mockResolvedValueOnce("retry" as const)
+      .mockResolvedValueOnce("ownership-lost" as const);
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "portability" },
+      async () => {
+        heartbeat?.();
+        await vi.waitFor(() => expect(renewLock).toHaveBeenCalledTimes(1));
+        expect(terminationRequests).toBe(0);
+        heartbeat?.();
+        await vi.waitFor(() => expect(terminationRequests).toBe(1));
+      },
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock,
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          heartbeat = callback;
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: (line) => lines.push(line),
+      },
+    );
+
+    expect(lines).toContain(
+      "Local heavy-test lock ownership was lost; stopping the admitted test controller.",
+    );
+  });
+
+  it("stops before the last confirmed lease expires when renewal errors persist", async () => {
+    let clock = 0;
+    let heartbeat: (() => void) | undefined;
+    let terminationRequests = 0;
+    const lines: string[] = [];
+    let rejectPendingRenewal: ((reason: unknown) => void) | undefined;
+    const pendingRenewal = new Promise<"renewed">((_resolve, reject) => {
+      rejectPendingRenewal = reject;
+    });
+    const renewLock = vi.fn()
+      .mockRejectedValueOnce(new Error("write denied"))
+      .mockReturnValueOnce(pendingRenewal);
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
+      async () => {
+        clock = 10_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(lines).toContain(
+          "Unable to renew the local heavy-test lock heartbeat: write denied",
+        ));
+        expect(terminationRequests).toBe(0);
+
+        clock = 90_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(renewLock).toHaveBeenCalledTimes(2));
+        clock = 110_000;
+        rejectPendingRenewal?.(new Error("write denied"));
+        await vi.waitFor(() => expect(terminationRequests).toBe(1));
+        expect(lines).toContain(
+          "Unable to renew the local heavy-test lock before its last confirmed lease deadline: write denied; "
+          + "stopping the admitted test controller.",
+        );
+      },
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock,
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          heartbeat = callback;
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: (line) => lines.push(line),
+      },
+    );
+  });
+
+  it("stops before the last confirmed lease expires when retry results persist", async () => {
+    let clock = 0;
+    let heartbeat: (() => void) | undefined;
+    let terminationRequests = 0;
+    const lines: string[] = [];
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
+      async () => {
+        clock = 110_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(terminationRequests).toBe(1));
+      },
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock: vi.fn(async () => "retry" as const),
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          heartbeat = callback;
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: (line) => lines.push(line),
+      },
+    );
+
+    expect(lines).toContain(
+      "Local heavy-test lock could not be renewed before its last confirmed lease deadline; "
+      + "stopping the admitted test controller.",
+    );
+  });
+
+  it("uses the acquired lease deadline after waiting for the shared slot", async () => {
+    let clock = 0;
+    let heartbeat: (() => void) | undefined;
+    let terminationRequests = 0;
+    const renewLock = vi.fn(async () => "retry" as const);
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
+      async () => {
+        clock = 190_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(renewLock).toHaveBeenCalledTimes(1));
+        expect(terminationRequests).toBe(0);
+
+        clock = 290_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(terminationRequests).toBe(1));
+      },
+      {
+        acquireLock: vi.fn(async () => {
+          clock = 180_000;
+          return {
+            path: "/repo/.git/lock",
+            pid: 42,
+            token: "ours",
+            leaseUntil: 300_000,
+          };
+        }),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock,
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          heartbeat = callback;
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: () => {},
+      },
+    );
+  });
+
+  it("stops before lease expiry while a renewal remains pending", async () => {
+    let clock = 0;
+    let terminationRequests = 0;
+    const scheduled: Array<() => void> = [];
+    const lines: string[] = [];
+    const renewLock = vi.fn(() => new Promise<"renewed">(() => {}));
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
+      async () => {
+        scheduled[0]?.();
+        await vi.waitFor(() => expect(renewLock).toHaveBeenCalledOnce());
+
+        clock = 110_000;
+        scheduled[0]?.();
+        expect(terminationRequests).toBe(1);
+      },
+      {
+        acquireLock: vi.fn(async () => ({
+          path: "/repo/.git/lock",
+          pid: 42,
+          token: "ours",
+          leaseUntil: 120_000,
+        })),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock,
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          scheduled.push(callback);
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: (line) => lines.push(line),
+      },
+    );
+
+    expect(lines).toContain(
+      "Local heavy-test lock could not be renewed before its last confirmed lease deadline; "
+      + "stopping the admitted test controller.",
+    );
+  });
+
+  it.each([
+    ["CI", { CI: "true" }],
+    ["the deliberate-contention override", { [LOCAL_TEST_CONCURRENCY_OVERRIDE]: "1" }],
+  ])("bypasses local serialization under %s", async (_label, env) => {
+    const action = vi.fn(async () => "complete");
+    const acquireLock = vi.fn();
+    const git = vi.fn();
+
+    await expect(withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env, tier: "full" },
+      action,
+      { acquireLock, git },
+    )).resolves.toEqual({ result: "complete" });
+
+    expect(action).toHaveBeenCalledOnce();
+    expect(acquireLock).not.toHaveBeenCalled();
+    expect(git).not.toHaveBeenCalled();
+  });
+
+  it("omits the wait reading when the admitted run never queued", async () => {
+    await expect(withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "lane" },
+      async () => "complete",
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        resolveProcessScope: async () => "pid:[test]",
+      },
+    )).resolves.toEqual({ result: "complete" });
+  });
+
+  it("adds its wait to the check notice the environment names, after queueing", async () => {
+    let clock = 0;
+    const appendNotice = vi.fn(async () => {});
+    const admitted = withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: { ARC_CHECK_NOTICE: "/tmp/check/notice" }, tier: "e2e" },
+      async () => "complete",
+      {
+        acquireLock: vi.fn(async (_path, options) => {
+          options?.onWait?.({ holder: "unreadable", waitedMs: 0 });
+          clock = 493_000;
+          return { path: "/repo/.git/lock", pid: 42, token: "ours" };
+        }),
+        appendNotice,
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        resolveProcessScope: async () => "pid:[test]",
+        writeLine: () => {},
+      },
+    );
+
+    await expect(admitted).resolves.toEqual({ result: "complete", waitMs: 493_000 });
+    expect(appendNotice).toHaveBeenCalledExactlyOnceWith("/tmp/check/notice", "waited 8m 13s for the heavy-test slot");
+  });
+
+  it("keeps its wait a separate line after a runner line written without a newline", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "arc-admission-notice-"));
+    try {
+      const notice = join(directory, "notice");
+      await writeFile(notice, "ran locally");
+      let clock = 0;
+      await withLocalHeavyTestAdmission(
+        { cwd: "/repo/worktree-a", env: { ARC_CHECK_NOTICE: notice }, tier: "e2e" },
+        async () => "complete",
+        {
+          acquireLock: vi.fn(async (_path, options) => {
+            options?.onWait?.({ holder: "unreadable", waitedMs: 0 });
+            clock = 493_000;
+            return { path: "/repo/.git/lock", pid: 42, token: "ours" };
+          }),
+          git: admissionGit(),
+          mkdir: vi.fn(async () => undefined),
+          now: () => clock,
+          pid: 42,
+          releaseLock: vi.fn(async () => {}),
+          resolveProcessScope: async () => "pid:[test]",
+          writeLine: () => {},
+        },
+      );
+      const lines = (await readFile(notice, "utf8")).split("\n").filter(line => line !== "");
+      expect(lines).toEqual(["ran locally", "waited 8m 13s for the heavy-test slot"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("adds no notice when the run never queued or no notice is named", async () => {
+    const appendNotice = vi.fn(async () => {});
+    const dependencies = {
+      appendNotice,
+      git: admissionGit(),
+      mkdir: vi.fn(async () => undefined),
+      pid: 42,
+      releaseLock: vi.fn(async () => {}),
+      resolveProcessScope: async () => "pid:[test]",
+      writeLine: () => {},
+    };
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: { ARC_CHECK_NOTICE: "/tmp/check/notice" }, tier: "e2e" },
+      async () => "complete",
+      { ...dependencies, acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })) },
+    );
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "e2e" },
+      async () => "complete",
+      {
+        ...dependencies,
+        git: admissionGit(),
+        acquireLock: vi.fn(async (_path, options) => {
+          options?.onWait?.({ holder: "unreadable", waitedMs: 0 });
+          return { path: "/repo/.git/lock", pid: 42, token: "ours" };
+        }),
+      },
+    );
+    expect(appendNotice).not.toHaveBeenCalled();
+  });
+
+  it("runs the tests when the check notice cannot be written", async () => {
+    const action = vi.fn(async () => "complete");
+    await expect(withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: { ARC_CHECK_NOTICE: "/missing/notice" }, tier: "e2e" },
+      action,
+      {
+        acquireLock: vi.fn(async (_path, options) => {
+          options?.onWait?.({ holder: "unreadable", waitedMs: 0 });
+          return { path: "/repo/.git/lock", pid: 42, token: "ours" };
+        }),
+        appendNotice: vi.fn(async () => { throw new Error("ENOENT"); }),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        resolveProcessScope: async () => "pid:[test]",
+        writeLine: () => {},
+      },
+    )).resolves.toMatchObject({ result: "complete" });
+    expect(action).toHaveBeenCalledOnce();
+  });
+
+  it("releases the slot when the test runner fails", async () => {
+    const failure = new Error("test failure");
+    const releaseLock = vi.fn(async () => {});
+
+    await expect(withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "e2e-focused" },
+      async () => Promise.reject(failure),
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        pid: 42,
+        releaseLock,
+        resolveProcessScope: async () => "pid:[test]",
+      },
+    )).rejects.toBe(failure);
+
+    expect(releaseLock).toHaveBeenCalledOnce();
+  });
+
+  it("keeps synchronous exit cleanup installed until asynchronous release completes", async () => {
+    let finishRelease: (() => void) | undefined;
+    const releaseLock = vi.fn(async () => await new Promise<void>((resolve) => {
+      finishRelease = resolve;
+    }));
+    const unregisterExitCleanup = vi.fn();
+    const run = withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
+      async () => {},
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: admissionGit(),
+        mkdir: vi.fn(async () => undefined),
+        pid: 42,
+        registerExitCleanup: vi.fn(() => unregisterExitCleanup),
+        releaseLock,
+        resolveProcessScope: async () => "pid:[test]",
+      },
+    );
+
+    await vi.waitFor(() => expect(releaseLock).toHaveBeenCalledOnce());
+    expect(unregisterExitCleanup).not.toHaveBeenCalled();
+    finishRelease?.();
+    await run;
+    expect(unregisterExitCleanup).toHaveBeenCalledOnce();
+  });
+
+  it("retains a renewable lease while asynchronous release is pending", async () => {
+    let clock = 1_000;
+    let deadline = clock + 120_000;
+    let heartbeat: (() => void) | undefined;
+    let finishRelease: (() => void) | undefined;
+    const run = withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" }, async () => "complete",
+      {
+        acquireLock: async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours", leaseUntil: deadline }),
+        git: admissionGit(), mkdir: async () => {}, pid: 42, now: () => clock,
+        registerExitCleanup: () => () => {}, resolveProcessScope: async () => "pid:[test]",
+        releaseLock: async () => await new Promise<void>((resolve) => { finishRelease = resolve; }),
+        renewLock: async () => { deadline = clock + 120_000; return "renewed"; },
+        scheduleEvery: (callback) => { heartbeat = callback; return () => {}; },
+      },
+    );
+    await vi.waitFor(() => expect(finishRelease).toBeDefined());
+    clock += 60_000;
+    heartbeat?.();
+    await vi.waitFor(() => expect(deadline).toBe(clock + 120_000));
+    finishRelease?.();
+    await expect(run).resolves.toEqual({ result: "complete" });
+  });
+});

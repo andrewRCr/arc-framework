@@ -12,6 +12,39 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Name the holder at every `[invariant]` firing site, or state the owner's standing once and reach it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: owner-authority-boundary (planned)`
+
+- _Observation:_ An `[invariant]` marker states a constraint but never says whose decision it withholds.
+  `DEV-RULES.ARC` § Rule Authority already carries the holder model — every invariant has a holder, the holder
+  making the reserved decision is the rule working rather than a waiver, and § Whose call resolves the holder from
+  role and governed surface — but that model sits in one place while the markers fire across the whole corpus. At
+  a firing site the constraint reads without its addressee, and the missing half is recoverable only by whoever
+  already holds § Rule Authority in context. The gap is reachability and addressing, not an absent model.
+
+- _Live instance:_ an agent told the Owner that review routing was "not mine or yours to settle by preference",
+  restating an agent-scoped restriction as one binding the principal — over a review policy the Owner authored,
+  including its owner-acceptance terminus. Nothing in the marker at the point of use would have caught that; the
+  correction came from the Owner.
+
+- _Why it matters twice:_ the correctness argument is that an unaddressed invariant reads as universal. The
+  product argument is independent and larger — an agent using ARC to imply the owner has less authority than they
+  do inverts what the methodology is for, and would be a serious defect in an adopter's hands whether or not the
+  underlying call was right.
+
+- _Open fork:_ per-firing-site addressee marking is precise but multiplies markup across every marker in the
+  corpus; a single universal rule — the owner or adopter is never bound by an agent-scoped invariant and their
+  direction governs, with CODEOWNERS-type delegation named as the exception — is one statement but still has to be
+  reachable from where a marker fires. Settle which shape before writing either.
+
+- _Prior art:_ `judgment-authority-model` (completed) shipped the § Rule Authority reading this sharpens; treat its
+  spec and notes as the baseline rather than re-deriving the territory.
+
+- _Captured during:_ `concurrent-integration-characterization` verification close, 2026-09-15.
+
 ### `[ ]` **Rebalance the Errand concept across AGENT-BRIEF.ARC / DEV-RULES.ARC (progressive disclosure)**
 
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
@@ -72,6 +105,34 @@
 - _Fold-in:_ state that each marker attaches to the lead-in of the rule it classifies, and use the amend-scope
   bullet as the worked mixed-class example. Settle the authoritative surface among the rules preamble,
   workflow-authoring conventions, and configurability strategy rather than relying on precedent.
+
+### `[ ]` **Remove extension declarations from candidate domain-rule trigger models**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: rules-restructure`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Scope; § Alternatives — Extension declaration; § Unknowns and Assumptions — Loading surface.
+
+- _Observation:_ The candidate auto-load model declares a domain on an extension and dispatches it at
+  session-init/workflow fire points. Retirement removes this declaration and activation surface.
+
+- _Approach:_ Re-evaluate trigger alternatives against the current domain-rules probe and surviving method/CLI
+  interfaces, without designing an extension migration or reintroducing .actions.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
+### `[ ]` **Weigh moving `DEV-RULES.PROJECT`'s code-execution block behind a code-touching trigger**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Scope, "Design the wiring mechanism — how domain rules auto-load when relevant work is in scope".
+
+- _Observation:_ after the queued condense, about 800 words of `DEV-RULES.PROJECT` serve only code-touching sessions.
+  Three things block a move: this repository's copy lacks the template's domain-rules paragraph, which
+  `spec-session-init-agenda.md` § 11 names the only always-loaded trigger for `domainRules` files; its
+  check-integrity lines must stay loaded; and in execution sessions the trigger fires every time, so the move saves
+  only planning and PM sessions.
+
+- _Captured during:_ the always-loaded audit, a `reviewer` pass for `project-manager.ARC` (2026-11-12; Owner-approved).
 
 ---
 

@@ -1,9 +1,11 @@
-/** Byte-preserving Git acquisition for delivery contribution identity. */
+/** Git-backed structural identity proof for one carried delivery member. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
+import { readMergeTreeComposition } from "../git/merge-tree.js";
+import { compareByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import {
   compareDeliveryContribution,
-  encodeDeliveryContributionPatch,
   type DeliveryContributionCoordinate,
   type DeliveryContributionEndpoints,
   type DeliveryContributionProofResult,
@@ -32,23 +34,59 @@ async function verifyCoordinate(exec: RawGitExec, coordinate: DeliveryContributi
   }
 }
 
-async function isLinearRange(exec: RawGitExec, predecessor: string, member: string): Promise<boolean> {
+function nulFields(bytes: Uint8Array): string[] | null {
   try {
-    await exec(["merge-base", "--is-ancestor", predecessor, member], { objectAccess: "local-only" });
-    const result = await exec(["rev-list", "--parents", `${predecessor}..${member}`], {
-      objectAccess: "local-only",
-    });
-    const lines = text(result.stdout)?.split("\n").filter(Boolean) ?? [];
-    return lines.length > 0 && lines.every((line) => {
-      const fields = line.split(" ");
-      return fields.length === 2 && fields.every((field) => objectId.test(field));
-    });
+    const decoded = decoder.decode(bytes);
+    if (decoded.length > 0 && !decoded.endsWith("\0")) return null;
+    return decoded.split("\0").filter(Boolean);
   } catch {
-    return false;
+    return null;
   }
 }
 
-/** Acquire and compare exact aggregate patches for four already-pinned Git endpoints. */
+function pathList(bytes: Uint8Array): string[] | null {
+  const fields = nulFields(bytes);
+  return fields === null ? null : [...new Set(fields)].sort(compareByCanonicalBytes);
+}
+
+async function readAncestry(
+  exec: RawGitExec,
+  ancestor: string,
+  descendant: string,
+): Promise<"ancestor" | "not-ancestor" | null> {
+  const args = ["merge-base", "--is-ancestor", ancestor, descendant];
+  try {
+    await exec(args, { objectAccess: "local-only" });
+    return "ancestor";
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    return failure.kind === "nonzero-exit" && failure.exitCode === 1 ? "not-ancestor" : null;
+  }
+}
+
+async function uniquePhysicalPredecessor(
+  exec: RawGitExec,
+  refreshedPredecessor: string,
+  oldMember: string,
+): Promise<DeliveryContributionCoordinate | null> {
+  const args = ["merge-base", "--all", refreshedPredecessor, oldMember];
+  try {
+    const result = await exec(args, { objectAccess: "local-only" });
+    const decoded = text(result.stdout);
+    const boundaries = decoded === null
+      ? []
+      : [...new Set(decoded.split(/\s+/u).filter(Boolean))];
+    const [head] = boundaries;
+    if (boundaries.length !== 1 || head === undefined || !objectId.test(head)) return null;
+    const treeResult = await exec(["rev-parse", `${head}^{tree}`], { objectAccess: "local-only" });
+    const tree = text(treeResult.stdout);
+    return tree !== null && objectId.test(tree) ? { head, tree } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Reapply one pinned contribution and compare its structural result to the provider tree. */
 export async function proveGitDeliveryContribution(input: DeliveryContributionEndpoints & {
   readonly exec: RawGitExec;
 }): Promise<DeliveryContributionProofResult> {
@@ -56,35 +94,66 @@ export async function proveGitDeliveryContribution(input: DeliveryContributionEn
     input.before.predecessor, input.before.member, input.after.predecessor, input.after.member,
   ];
   if (!(await Promise.all(coordinates.map(async (coordinate) => verifyCoordinate(input.exec, coordinate))))
-    .every(Boolean)) return { status: "refused", reason: "patch-evidence-invalid" };
-  if (input.before.member.tree === input.after.member.tree) {
-    return compareDeliveryContribution(input);
+    .every(Boolean)) return { status: "refused", reason: "contribution-endpoints-unverified" };
+  const comparison = compareDeliveryContribution({ before: input.before, after: input.after });
+  if (comparison.status === "accepted") return comparison;
+  const composition = await readMergeTreeComposition({
+    exec: input.exec,
+    mergeBase: input.before.predecessor.head,
+    left: input.after.predecessor.head,
+    right: input.before.member.head,
+  });
+  if (composition.state === "unavailable") {
+    return composition.reason === "merge-tree-write-tree-unsupported"
+      ? { status: "refused", reason: "merge-tree-write-tree-unsupported" }
+      : { status: "refused", reason: "git-failure" };
   }
-  const [beforeLinear, afterLinear] = await Promise.all([
-    isLinearRange(input.exec, input.before.predecessor.head, input.before.member.head),
-    isLinearRange(input.exec, input.after.predecessor.head, input.after.member.head),
-  ]);
-  if (!beforeLinear || !afterLinear) return { status: "refused", reason: "patch-evidence-invalid" };
+  if (composition.state === "conflict") {
+    return { status: "refused", reason: "contribution-conflicted", paths: composition.paths };
+  }
+  const reappliedTree = composition.tree;
   try {
-    const formatResult = await input.exec(["rev-parse", "--show-object-format"]);
-    const objectFormat = text(formatResult.stdout);
-    if (objectFormat !== "sha1" && objectFormat !== "sha256") {
-      return { status: "refused", reason: "patch-evidence-invalid" };
+    if (reappliedTree === input.after.member.tree) {
+      return { status: "accepted", proof: "mechanical-reapply" };
     }
-    const args = (predecessor: string, member: string) => [
-      "diff", "--binary", "--full-index", "--no-renames", "--no-ext-diff",
-      "--src-prefix=a/", "--dst-prefix=b/", predecessor, member,
-    ];
-    const [beforePatch, afterPatch] = await Promise.all([
-      input.exec(args(input.before.predecessor.head, input.before.member.head), { objectAccess: "local-only" }),
-      input.exec(args(input.after.predecessor.head, input.after.member.head), { objectAccess: "local-only" }),
-    ]);
-    return compareDeliveryContribution({
-      ...input,
-      beforePatch: encodeDeliveryContributionPatch(objectFormat, beforePatch.stdout),
-      afterPatch: encodeDeliveryContributionPatch(objectFormat, afterPatch.stdout),
-    });
+    const difference = await input.exec([
+      "diff", "--name-only", "-z", "--no-renames", reappliedTree, input.after.member.tree,
+    ], { objectAccess: "local-only" });
+    const paths = pathList(difference.stdout);
+    return paths === null || paths.length === 0
+      ? { status: "refused", reason: "git-failure" }
+      : { status: "refused", reason: "contribution-diverged", paths };
   } catch {
-    return { status: "refused", reason: "patch-evidence-invalid" };
+    return { status: "refused", reason: "git-failure" };
   }
+}
+
+/** Prove one provider-refresh movement while retaining the ordinary contribution contract. */
+export async function proveGitDeliveryProviderRefreshContribution(input: DeliveryContributionEndpoints & {
+  readonly exec: RawGitExec;
+}): Promise<DeliveryContributionProofResult> {
+  const coordinates = [
+    input.before.predecessor, input.before.member, input.after.predecessor, input.after.member,
+  ];
+  if (!(await Promise.all(coordinates.map(async (coordinate) => verifyCoordinate(input.exec, coordinate))))
+    .every(Boolean)) return { status: "refused", reason: "contribution-endpoints-unverified" };
+  const ancestry = await readAncestry(
+    input.exec,
+    input.before.predecessor.head,
+    input.before.member.head,
+  );
+  if (ancestry === null) return { status: "refused", reason: "git-failure" };
+  if (ancestry === "ancestor") return proveGitDeliveryContribution(input);
+  const physicalPredecessor = await uniquePhysicalPredecessor(
+    input.exec,
+    input.after.predecessor.head,
+    input.before.member.head,
+  );
+  if (physicalPredecessor === null) {
+    return { status: "refused", reason: "contribution-endpoints-unverified" };
+  }
+  return proveGitDeliveryContribution({
+    ...input,
+    before: { ...input.before, predecessor: physicalPredecessor },
+  });
 }

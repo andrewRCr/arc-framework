@@ -1,8 +1,14 @@
 inheritance: true
 reviews:
   request_changes_workflow: true
+  review_progress: false
+  review_status: false
   commit_status: true
   fail_commit_status: true
+  tools:
+    eslint:
+      # The hosted sandbox cannot load the custom arc plugin. CI runs lint:ts.
+      enabled: false
   path_instructions:
     - path: "**/*"
       instructions: |

@@ -1,5 +1,6 @@
 /** Pure logical-anchor and constitutive-topology planning for v3 decomposition. */
 
+import { parseCohortDocument, writeCohortDocument } from "../store/kinds/cohort/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { SlugSchema, type Slug } from "../kernel/index.js";
 import type { V3DecomposeCutMap } from "./decompose-v3-schema.js";
@@ -118,10 +119,8 @@ function structurallyMatches(text: string, cohort: string): boolean {
   const leaf = segments.at(-1);
   const parent = segments.length === 2 ? segments[0] : null;
   if (leaf === undefined || !text.startsWith(`# Cohort: \`${leaf}\`\n`)) return false;
-  const parentLines = [...text.matchAll(/^\*\*Parent:\*\* (.+)$/gmu)].map((match) => match[1]);
-  return parent === null
-    ? parentLines.length === 0
-    : parentLines.length === 1 && parentLines[0] === parent;
+  const parsed = parseCohortDocument(text);
+  return parsed.success && parsed.data.parent === parent;
 }
 
 /**
@@ -135,22 +134,12 @@ export function renderV3IncompleteCohort(
   template: Uint8Array,
   cohort: string,
 ): Uint8Array | null {
-  let source: string;
   try {
-    source = decoder.decode(template).replaceAll("\r\n", "\n");
+    const content = writeCohortDocument(decoder.decode(template), cohort, "—", []);
+    return content === null ? null : encoder.encode(content);
   } catch {
     return null;
   }
-  const heading = "# Cohort: `{cohort-name}`\n";
-  const parentStart = source.indexOf("**Parent:** {");
-  const purposeStart = source.indexOf("**Purpose:** {");
-  if (!source.startsWith(heading) || parentStart < heading.length || purposeStart <= parentStart) return null;
-  const identity = source.slice(heading.length, parentStart);
-  const segments = cohort.split("/");
-  const leaf = segments.at(-1);
-  if (leaf === undefined || segments.length < 1 || segments.length > 2) return null;
-  const parent = segments.length === 2 ? `**Parent:** ${segments[0]}\n\n` : "";
-  return encoder.encode(`# Cohort: \`${leaf}\`\n${identity}${parent}**Purpose:** —\n\n---\n`);
 }
 
 function renderCohort(
@@ -256,10 +245,10 @@ function planTopology(input: V3InternalTopologyPlanInput): V3TopologyPlanResult 
     return { status: "refused", refusal: { code: "unexpected-coordination-location" } };
   }
   if (input.placement.kind === "direct-member") {
-    if (constituents.length !== 1) {
+    if (newMembers.length !== 1) {
       return { status: "refused", refusal: { code: "multi-member-cohortless" } };
     }
-    const slug = constituents[0];
+    const slug = input.survivingOrigin ?? newMembers[0];
     if (slug === undefined) return { status: "refused", refusal: { code: "no-new-member" } };
     return {
       status: "planned",
@@ -307,7 +296,7 @@ function planTopology(input: V3InternalTopologyPlanInput): V3TopologyPlanResult 
       parent: input.placement.parent,
       origin: input.origin,
     };
-    const action = planAtCap(input, input.placement.parent, constituents);
+    const action = planAtCap(input, input.placement.parent, newMembers);
     if ("refusal" in action) return { status: "refused", refusal: action.refusal };
     actions.push(action);
   }

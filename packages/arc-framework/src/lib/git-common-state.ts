@@ -5,13 +5,12 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
-import { atomicWriteFile } from "./fs.js";
-import type { GitExec } from "./git/exec.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "./user-sync/notes-lock.js";
-import { resolveGitCommonDir } from "./user-sync/repo-shared-paths.js";
+import { atomicWriteFile, classifyFilesystemAccessFault, type FilesystemAccessFault } from "./fs.js";
+import { resolveGitCommonDir, type GitExec } from "./git/exec.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock.js";
 
 /** Closed review-state namespace vocabulary. */
-export type ReviewStateNamespace = "evidence" | "identity" | "operations" | "outcomes" | "sources";
+export type ReviewStateNamespace = "evidence" | "identity" | "in-flight" | "operations" | "outcomes" | "sources";
 
 /** Closed delivery-state namespace vocabulary. */
 export type DeliveryStateNamespace = "plans" | "state" | "authoring";
@@ -20,7 +19,7 @@ export type DeliveryStateNamespace = "plans" | "state" | "authoring";
 export const GitCommonStateLocationSchema = z.discriminatedUnion("root", [
   z.strictObject({
     root: z.literal("review-gate"),
-    namespace: z.enum(["evidence", "identity", "operations", "outcomes", "sources"]),
+    namespace: z.enum(["evidence", "identity", "in-flight", "operations", "outcomes", "sources"]),
   }),
   z.strictObject({
     root: z.literal("delivery"),
@@ -39,6 +38,30 @@ export type GitCommonStateUpdate<T> =
 export interface GitCommonStatePublisherIO {
   readonly writeFile: typeof atomicWriteFile;
   readonly removeFile: (path: string) => Promise<void>;
+}
+
+/** Sanitized access failure raised by the repository-common state adapter. */
+export class GitCommonStateAccessError extends Error {
+  constructor(
+    public readonly access: "read" | "write",
+    public readonly failureCause: FilesystemAccessFault,
+  ) {
+    super(`Repository-common state ${access} failed: ${failureCause}`);
+    this.name = "GitCommonStateAccessError";
+  }
+}
+
+async function withGitCommonStateAccessFailure<T>(
+  access: "read" | "write",
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const fault = classifyFilesystemAccessFault(error);
+    if (fault !== undefined) throw new GitCommonStateAccessError(access, fault);
+    throw error;
+  }
 }
 
 /** One non-internal entry discovered in a repository-common namespace. */
@@ -108,6 +131,7 @@ function parseAddress(location: unknown, recordName: string): GitCommonStateLoca
 export class RepositoryGitCommonStatePublisher implements GitCommonStatePublisher {
   private readonly writeFile: typeof atomicWriteFile;
   private readonly removeFile: (path: string) => Promise<void>;
+  private commonDir: Promise<string> | undefined;
 
   constructor(
     private readonly exec: GitExec,
@@ -120,20 +144,22 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
 
   async read(location: GitCommonStateLocation, recordName: string): Promise<string | null> {
     const address = parseAddress(location, recordName);
-    const path = await this.recordPath(address, recordName);
-    try {
-      return await readFile(path, "utf8");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-      throw error;
-    }
+    const path = await withGitCommonStateAccessFailure(
+      "read",
+      () => this.recordPath(address, recordName),
+    );
+    return this.readRecord(path);
   }
 
   async list(location: GitCommonStateLocation): Promise<readonly GitCommonStateEntry[]> {
     const address = GitCommonStateLocationSchema.parse(location);
+    const root = await withGitCommonStateAccessFailure("read", () => this.namespaceRoot(address));
     let entries;
     try {
-      entries = await readdir(await this.namespaceRoot(address), { withFileTypes: true });
+      entries = await withGitCommonStateAccessFailure(
+        "read",
+        () => readdir(root, { withFileTypes: true }),
+      );
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw error;
@@ -145,20 +171,7 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
 
   async snapshot(location: GitCommonStateLocation): Promise<readonly GitCommonStateSnapshotEntry[]> {
     const address = GitCommonStateLocationSchema.parse(location);
-    const root = await this.namespaceRoot(address);
-    await mkdir(root, { recursive: true, mode: 0o700 });
-    const lock = await acquireAdvisoryLock(join(root, ".write.lock"));
-    try {
-      const entries = (await readdir(root, { withFileTypes: true }))
-        .filter((entry) => !entry.name.startsWith("."));
-      return await Promise.all(entries.map(async (entry): Promise<GitCommonStateSnapshotEntry> => (
-        entry.isFile()
-          ? { name: entry.name, kind: "file", content: await readFile(join(root, entry.name), "utf8") }
-          : { name: entry.name, kind: "other" }
-      )));
-    } finally {
-      await releaseAdvisoryLock(lock);
-    }
+    return this.withNamespaceLock(address, (root) => this.readSnapshot(root));
   }
 
   async update<T>(
@@ -168,25 +181,17 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
       | Promise<GitCommonStateUpdate<T>>,
   ): Promise<T> {
     const address = parseAddress(location, recordName);
-    const root = await this.namespaceRoot(address);
-    await mkdir(root, { recursive: true, mode: 0o700 });
-    const lock = await acquireAdvisoryLock(join(root, ".write.lock"));
-    try {
-      const current = await this.read(address, recordName);
+    return this.withNamespaceLock(address, async (root) => {
+      const path = join(root, recordName);
+      const current = await this.readRecord(path);
       const next = await update(current);
       if (next.kind === "write") {
-        await this.writeFile(join(root, recordName), next.content);
+        await this.writeRecord(path, next.content);
       } else if (next.kind === "delete") {
-        try {
-          await this.removeFile(join(root, recordName));
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        }
+        await this.deleteRecord(path);
       }
       return next.result;
-    } finally {
-      await releaseAdvisoryLock(lock);
-    }
+    });
   }
 
   async transact<T>(
@@ -202,18 +207,10 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
     }
     for (const recordName of recordNames) parseAddress(address, recordName);
 
-    const root = await this.namespaceRoot(address);
-    await mkdir(root, { recursive: true, mode: 0o700 });
-    const lock = await acquireAdvisoryLock(join(root, ".write.lock"));
-    try {
+    return this.withNamespaceLock(address, async (root) => {
       const current = new Map<string, string | null>();
       for (const recordName of recordNames) {
-        try {
-          current.set(recordName, await readFile(join(root, recordName), "utf8"));
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-          current.set(recordName, null);
-        }
+        current.set(recordName, await this.readRecord(join(root, recordName)));
       }
 
       const next = await transaction(current);
@@ -224,19 +221,13 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
         }
         mutated.add(mutation.recordName);
         if (mutation.kind === "write") {
-          await this.writeFile(join(root, mutation.recordName), mutation.content);
+          await this.writeRecord(join(root, mutation.recordName), mutation.content);
         } else {
-          try {
-            await this.removeFile(join(root, mutation.recordName));
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-          }
+          await this.deleteRecord(join(root, mutation.recordName));
         }
       }
       return next.result;
-    } finally {
-      await releaseAdvisoryLock(lock);
-    }
+    });
   }
 
   async transactSnapshot<T>(
@@ -246,17 +237,8 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
     ) => GitCommonStateTransaction<T> | Promise<GitCommonStateTransaction<T>>,
   ): Promise<T> {
     const address = GitCommonStateLocationSchema.parse(location);
-    const root = await this.namespaceRoot(address);
-    await mkdir(root, { recursive: true, mode: 0o700 });
-    const lock = await acquireAdvisoryLock(join(root, ".write.lock"));
-    try {
-      const directoryEntries = (await readdir(root, { withFileTypes: true }))
-        .filter((entry) => !entry.name.startsWith("."));
-      const current = await Promise.all(directoryEntries.map(async (entry): Promise<GitCommonStateSnapshotEntry> => (
-        entry.isFile()
-          ? { name: entry.name, kind: "file", content: await readFile(join(root, entry.name), "utf8") }
-          : { name: entry.name, kind: "other" }
-      )));
+    return this.withNamespaceLock(address, async (root) => {
+      const current = await this.readSnapshot(root);
       const next = await transaction(current);
       const mutated = new Set<string>();
       for (const mutation of next.mutations) {
@@ -266,23 +248,86 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
         }
         mutated.add(mutation.recordName);
         if (mutation.kind === "write") {
-          await this.writeFile(join(root, mutation.recordName), mutation.content);
+          await this.writeRecord(join(root, mutation.recordName), mutation.content);
         } else {
-          try {
-            await this.removeFile(join(root, mutation.recordName));
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-          }
+          await this.deleteRecord(join(root, mutation.recordName));
         }
       }
       return next.result;
+    });
+  }
+
+  private async withNamespaceLock<T>(
+    location: GitCommonStateLocation,
+    operation: (root: string) => Promise<T>,
+  ): Promise<T> {
+    const root = await withGitCommonStateAccessFailure("read", () => this.namespaceRoot(location));
+    await withGitCommonStateAccessFailure(
+      "write",
+      () => mkdir(root, { recursive: true, mode: 0o700 }),
+    );
+    const lock = await withGitCommonStateAccessFailure(
+      "write",
+      () => acquireAdvisoryLock(join(root, ".write.lock")),
+    );
+    try {
+      return await operation(root);
     } finally {
-      await releaseAdvisoryLock(lock);
+      await withGitCommonStateAccessFailure("write", () => releaseAdvisoryLock(lock));
+    }
+  }
+
+  private async readRecord(path: string): Promise<string | null> {
+    try {
+      return await withGitCommonStateAccessFailure("read", () => readFile(path, "utf8"));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+  }
+
+  private async readSnapshot(root: string): Promise<readonly GitCommonStateSnapshotEntry[]> {
+    const entries = (await withGitCommonStateAccessFailure(
+      "read",
+      () => readdir(root, { withFileTypes: true }),
+    )).filter((entry) => !entry.name.startsWith("."));
+    return Promise.all(entries.map(async (entry): Promise<GitCommonStateSnapshotEntry> => (
+      entry.isFile()
+        ? {
+            name: entry.name,
+            kind: "file",
+            content: await withGitCommonStateAccessFailure(
+              "read",
+              () => readFile(join(root, entry.name), "utf8"),
+            ),
+          }
+        : { name: entry.name, kind: "other" }
+    )));
+  }
+
+  private async writeRecord(path: string, content: string): Promise<void> {
+    await withGitCommonStateAccessFailure("write", () => this.writeFile(path, content));
+  }
+
+  private async deleteRecord(path: string): Promise<void> {
+    try {
+      await withGitCommonStateAccessFailure("write", () => this.removeFile(path));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
 
   private async namespaceRoot(location: GitCommonStateLocation): Promise<string> {
-    return join(await resolveGitCommonDir(this.exec, this.cwd), "arc", location.root, location.namespace);
+    return join(await this.resolveCommonDir(), "arc", location.root, location.namespace);
+  }
+
+  /** The checkout's Git common directory, resolved once per publisher; a failed resolution is retried. */
+  private resolveCommonDir(): Promise<string> {
+    this.commonDir ??= resolveGitCommonDir(this.exec, this.cwd).catch((error: unknown) => {
+      this.commonDir = undefined;
+      throw error;
+    });
+    return this.commonDir;
   }
 
   private async recordPath(location: GitCommonStateLocation, recordName: string): Promise<string> {

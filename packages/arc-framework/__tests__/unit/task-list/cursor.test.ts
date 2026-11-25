@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   TaskListCursorReaderSchema,
@@ -51,7 +52,7 @@ describe("task-list cursor schemas", () => {
     { ...cursor, leaf: { ...cursor.leaf, lineHint: 1.5 } },
     { ...cursor, leaked: true },
   ])("rejects malformed cursors and strict field leakage", (value) => {
-    expect(TaskListCursorSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(TaskListCursorSchema, value);
   });
 
   it("strips persisted cursor unknown keys recursively", () => {
@@ -64,15 +65,15 @@ describe("task-list cursor schemas", () => {
   });
 
   it("rejects cross-branch leakage on result records", () => {
-    expect(TaskListCursorResultSchema.safeParse({
+    assertSchemaRefuses(TaskListCursorResultSchema, {
       status: "no-open-task",
       cursor,
-    }).success).toBe(false);
-    expect(TaskListCursorFileResultSchema.safeParse({
+    });
+    assertSchemaRefuses(TaskListCursorFileResultSchema, {
       status: "missing",
       path: ".arc/active/tasks-fixture.md",
       error: { line: 1, message: "leak" },
-    }).success).toBe(false);
+    });
   });
 });
 
@@ -509,6 +510,24 @@ describe("resolveTaskListCursor", () => {
       error: {
         line: 3,
         message: "subtask marker appeared before any parent task",
+      },
+    });
+  });
+
+  it("returns malformed instead of hiding an open subtask beneath a completed parent", () => {
+    const result = resolveTaskListCursor(taskList([
+      "### `[x]` **1.1 Completed parent**",
+      "",
+      "    - `[ ]` **1.1.a Hidden open child**",
+      "",
+      "### `[ ]` **1.2 Later visible task**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 3,
+        message: "open subtask 1.1.a at line 3 appears beneath completed parent 1.1 at line 1",
       },
     });
   });

@@ -5,6 +5,7 @@
  */
 
 export { renderTokens, renderConditionals, renderConfigOverrides } from "./render.js";
+export { preflightIgnoreFiles } from "./ignore-files.js";
 
 export {
   validateRecipe,
@@ -21,6 +22,7 @@ export {
   writeArcManagedBlock,
   writeArcGitignoreBlock,
   writeArcGitattributesBlock,
+  writeArcIgnoreBlocks,
   type MkdirFn,
   type ReadFileFn,
   type WriteFileFn,

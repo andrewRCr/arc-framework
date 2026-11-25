@@ -2,16 +2,12 @@
 
 import { z } from "zod";
 
-import {
-  effectiveDispositionSeverity,
-  reviewerDispositionNit,
-  reviewerDispositionSeverity,
-  type ApprovedDispositionSet,
-} from "../core/disposition-records.js";
+import type { ApprovedDispositionSet } from "../core/disposition-records.js";
 import { validateDispositionState } from "../core/dispositions.js";
 import { ReviewTargetSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import { fixesMaterialFinding } from "../core/review-convergence.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
-import { FrontlineExecutionOutcomeSchema } from "./frontline-outcome.js";
+import { FrontlineReviewOutcomeSchema } from "./frontline-outcome.js";
 
 export type FrontlineFollowUpDecision =
   | { action: "follow-up"; pass: ReviewPass; target: ReviewTarget }
@@ -41,7 +37,7 @@ export function projectFrontlineFollowUpAdvice(input: {
   outcome: unknown;
   dispositionState?: ApprovedDispositionSet | null;
 }): FrontlineFollowUpAdvice {
-  const outcome = FrontlineExecutionOutcomeSchema.parse(input.outcome);
+  const outcome = FrontlineReviewOutcomeSchema.parse(input.outcome);
   if (outcome.outcome !== "findings") {
     return { action: "stop", reason: `outcome-${outcome.outcome}` };
   }
@@ -59,16 +55,13 @@ export function projectFrontlineFollowUpAdvice(input: {
       return finding !== undefined
         && item.sourceIdentity === outcome.source.sourceId
         && item.locus === finding.locus
-        && reviewerDispositionSeverity(item) === finding.severity
-        && reviewerDispositionNit(item) === finding.nit;
+        && item.reportedSeverity === finding.severity
+        && item.reportedNit === finding.nit;
     })) {
     throw new Error("approved dispositions do not match the frontline outcome");
   }
 
-  const materialFix = dispositionSet.findings.some((item) =>
-    item.disposition === "fix"
-      && (effectiveDispositionSeverity(item) === "major" || effectiveDispositionSeverity(item) === "blocker"));
-  if (!materialFix) return { action: "stop", reason: "no-approved-material-fix" };
+  if (!fixesMaterialFinding(dispositionSet.findings)) return { action: "stop", reason: "no-approved-material-fix" };
   if (outcome.pass >= outcome.maxPasses) return { action: "stop", reason: "pass-cap-exhausted" };
   return {
     action: "follow-up-after-fix",
@@ -93,7 +86,7 @@ export function resolveFrontlineFollowUp(input: {
   if (advice.action === "stop") return advice;
 
   const changedTarget = ReviewTargetSchema.parse(input.changedTarget);
-  const outcome = FrontlineExecutionOutcomeSchema.parse(input.outcome);
+  const outcome = FrontlineReviewOutcomeSchema.parse(input.outcome);
   if (changedTarget.targetId === outcome.target.targetId) {
     return { action: "stop", reason: "target-unchanged" };
   }

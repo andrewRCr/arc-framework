@@ -39,10 +39,12 @@ describe("findMaterializableErrands", () => {
       {
         slug: "fix-typo", claimId: "c".repeat(32), branch: "chore/fix-typo", expectedHead: HEAD,
         state: "paused", originEntry: "Fix typo",
+        actions: [{ text: expect.any(String), argv: ["arc", "errand", "materialize", "fix-typo", "--claim-id", "c".repeat(32), "--expected-head", HEAD, "--json"] }],
       },
       {
         slug: "review", claimId: "c".repeat(32), branch: "chore/review", expectedHead: "b".repeat(40),
         state: "awaiting-merge", originEntry: "Fix typo",
+        actions: [{ text: expect.any(String), argv: ["arc", "errand", "materialize", "review", "--claim-id", "c".repeat(32), "--expected-head", "b".repeat(40), "--json"] }],
       },
     ]);
   });

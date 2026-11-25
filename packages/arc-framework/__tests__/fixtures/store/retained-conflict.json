@@ -1,0 +1,102 @@
+{
+  "notice": {
+    "kind": "ended-with-conflicts",
+    "item": {
+      "type": "work-item",
+      "name": "retained-cli",
+      "uid": "e7a3e81d-b67f-4e42-9b76-689459f7fd3a"
+    },
+    "conflicts": [
+      {
+        "owner": {
+          "type": "work-item",
+          "name": "retained-cli",
+          "uid": "e7a3e81d-b67f-4e42-9b76-689459f7fd3a"
+        },
+        "kind": "work-item/conflict-record",
+        "key": "2ad5943f-b5eb-464e-8cbd-aff628b7c232"
+      }
+    ],
+    "condition": "Ended work item retained-cli (e7a3e81d-b67f-4e42-9b76-689459f7fd3a) retains conflicts: work-item/conflict-record 2ad5943f-b5eb-464e-8cbd-aff628b7c232. The ordinary conflict view does not list these retained records.",
+    "remedy": {
+      "argv": [
+        "arc",
+        "store",
+        "conflict",
+        "e7a3e81d-b67f-4e42-9b76-689459f7fd3a",
+        "work-item/conflict-record",
+        "2ad5943f-b5eb-464e-8cbd-aff628b7c232"
+      ],
+      "text": "Inspect each retained alternative: arc store conflict e7a3e81d-b67f-4e42-9b76-689459f7fd3a work-item/conflict-record 2ad5943f-b5eb-464e-8cbd-aff628b7c232. Preserve wanted content elsewhere before explicitly discarding an alternative with the same command and --discard. This accepts the end's current state; publication follows the next ordinary push."
+    }
+  },
+  "reference": {
+    "owner": {
+      "type": "work-item",
+      "name": "retained-cli",
+      "uid": "e7a3e81d-b67f-4e42-9b76-689459f7fd3a"
+    },
+    "kind": "work-item/conflict-record",
+    "key": "2ad5943f-b5eb-464e-8cbd-aff628b7c232"
+  },
+  "conflict": {
+    "base": {
+      "content": "# Metadata: retained-cli\n\n| **State** | **Owner**    | **Branch** | **Class** | **Priority** |\n| --------- | ------------ | ---------- | --------- | ------------ |\n| `Active`  | `test-owner` | [none]     | [TBD]     | `P3`         |\n\n- **Cohort:** [none]\n- **Depends On:** [none]\n\n- **Origin:** [internal]\n- **Design:** [none]\n- **Task List:** [none]\n- **Review Rubric:** [none]\n\n- **Current Workflow:** [none]\n- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n- **Next Action:** —\n\n- **PR URL:** [none]\n- **Completed:** [none]\n\n---\n",
+      "formatVersion": 1,
+      "placement": {
+        "kind": "active"
+      },
+      "reference": {
+        "kind": "work-item/meta",
+        "owner": {
+          "name": "retained-cli",
+          "type": "work-item",
+          "uid": "e7a3e81d-b67f-4e42-9b76-689459f7fd3a"
+        }
+      },
+      "version": "sha256:a6969aa5460a8e219286e59c48ac230c9cd2fb4bf75c127262b08c0998e7e062"
+    },
+    "current": {
+      "label": {
+        "actor": "andrew@ff5ce1fa-7fd0-4c74-8b69-fb0b40186d04",
+        "time": "2026-10-17T20:15:19.000Z"
+      },
+      "value": null
+    },
+    "incoming": {
+      "label": {
+        "actor": "andrew@40de7036-fdf3-4573-9741-a8e0263cd192",
+        "time": "2026-10-17T20:15:19.000Z"
+      },
+      "value": {
+        "content": "# Metadata: retained-cli\n\n| **State** | **Owner**    | **Branch** | **Class** | **Priority** |\n| --------- | ------------ | ---------- | --------- | ------------ |\n| `Active`  | `test-owner` | [none]     | [TBD]     | `P3`         |\n\n- **Cohort:** [none]\n- **Depends On:** [none]\n\n- **Origin:** [internal]\n- **Design:** [none]\n- **Task List:** [none]\n- **Review Rubric:** [none]\n\n- **Current Workflow:** [none]\n- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n- **Next Action:** —\n\n- **PR URL:** [none]\n- **Completed:** [none]\n\n---\n\nPreserved late alternative.\n",
+        "formatVersion": 1,
+        "placement": {
+          "kind": "active"
+        },
+        "reference": {
+          "kind": "work-item/meta",
+          "owner": {
+            "name": "retained-cli",
+            "type": "work-item",
+            "uid": "e7a3e81d-b67f-4e42-9b76-689459f7fd3a"
+          }
+        },
+        "version": "sha256:d6aa738c11c3e9131108ed287d0b87c9ffe139948dbdefcfe44cd4bc9b9ac3d7"
+      }
+    },
+    "location": {
+      "kind": "record"
+    },
+    "record": {
+      "kind": "work-item/meta",
+      "owner": {
+        "name": "retained-cli",
+        "type": "work-item",
+        "uid": "e7a3e81d-b67f-4e42-9b76-689459f7fd3a"
+      }
+    }
+  },
+  "history": "refs/arc/history/work/e7a3e81d-b67f-4e42-9b76-689459f7fd3a",
+  "exported": "blob\nmark :1\ndata 144\n{\"incoming\":[],\"kind\":\"abandon\",\"origin\":{\"name\":\"retained-cli\",\"uid\":\"e7a3e81d-b67f-4e42-9b76-689459f7fd3a\"},\"schemaVersion\":2,\"successors\":[]}\nblob\nmark :2\ndata 189\n{\"formatVersion\":1,\"formats\":{\"{\\\"kind\\\":\\\"lineage/transition\\\",\\\"ownerUid\\\":\\\"e7a3e81d-b67f-4e42-9b76-689459f7fd3a\\\"}\":1},\"lineage\":{\"e7a3e81d-b67f-4e42-9b76-689459f7fd3a\":\"retained-cli\"}}\nreset refs/arc/project/registry\ncommit refs/arc/project/registry\nmark :3\nauthor Fixture <fixture@example.test> 1792268119 -0500\ncommitter Fixture <fixture@example.test> 1792268119 -0500\ndata 203\nabandon retained-cli\n\nArc-Lifecycle-Action: abandon\nArc-Owner: e7a3e81d-b67f-4e42-9b76-689459f7fd3a\nArc-Batch: a6eea0fb-a912-4b0c-8917-99c2ae967212\nArc-Actor: andrew@ff5ce1fa-7fd0-4c74-8b69-fb0b40186d04\nM 100644 :1 lineage/e7a3e81d-b67f-4e42-9b76-689459f7fd3a.json\nM 100644 :2 metadata-registry.json\n\nblob\nmark :4\ndata 562\n# Metadata: retained-cli\n\n| **State** | **Owner**    | **Branch** | **Class** | **Priority** |\n| --------- | ------------ | ---------- | --------- | ------------ |\n| `Active`  | `test-owner` | [none]     | [TBD]     | `P3`         |\n\n- **Cohort:** [none]\n- **Depends On:** [none]\n\n- **Origin:** [internal]\n- **Design:** [none]\n- **Task List:** [none]\n- **Review Rubric:** [none]\n\n- **Current Workflow:** [none]\n- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n- **Next Action:** —\n\n- **PR URL:** [none]\n- **Completed:** [none]\n\n---\n\nblob\nmark :5\ndata 153\n{\"formatVersion\":1,\"formats\":{\"{\\\"kind\\\":\\\"work-item/meta\\\"}\":1},\"primary\":{\"placement\":{\"kind\":\"active\"},\"role\":\"work-item/meta\"},\"slug\":\"retained-cli\"}\nreset refs/arc/history/work/e7a3e81d-b67f-4e42-9b76-689459f7fd3a\ncommit refs/arc/history/work/e7a3e81d-b67f-4e42-9b76-689459f7fd3a\nmark :6\nauthor Fixture <fixture@example.test> 1792268118 -0500\ncommitter Fixture <fixture@example.test> 1792268118 -0500\ndata 202\nstart retained-cli\n\nArc-Lifecycle-Action: activate\nArc-Owner: e7a3e81d-b67f-4e42-9b76-689459f7fd3a\nArc-Batch: 1c73dd65-d682-4d6e-a5dc-7c4747603e3d\nArc-Actor: andrew@40de7036-fdf3-4573-9741-a8e0263cd192\nM 100644 :4 meta-retained-cli.md\nM 100644 :5 metadata-e7a3e81d-b67f-4e42-9b76-689459f7fd3a.json\n\nblob\nmark :7\ndata 591\n# Metadata: retained-cli\n\n| **State** | **Owner**    | **Branch** | **Class** | **Priority** |\n| --------- | ------------ | ---------- | --------- | ------------ |\n| `Active`  | `test-owner` | [none]     | [TBD]     | `P3`         |\n\n- **Cohort:** [none]\n- **Depends On:** [none]\n\n- **Origin:** [internal]\n- **Design:** [none]\n- **Task List:** [none]\n- **Review Rubric:** [none]\n\n- **Current Workflow:** [none]\n- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n- **Next Action:** —\n\n- **PR URL:** [none]\n- **Completed:** [none]\n\n---\n\nPreserved late alternative.\n\ncommit refs/arc/history/work/e7a3e81d-b67f-4e42-9b76-689459f7fd3a\nmark :8\nauthor Fixture <fixture@example.test> 1792268119 -0500\ncommitter Fixture <fixture@example.test> 1792268119 -0500\ndata 197\nsave retained-cli\n\nArc-Lifecycle-Action: save\nArc-Owner: e7a3e81d-b67f-4e42-9b76-689459f7fd3a\nArc-Batch: e99e6d9b-8df1-4a49-afab-e4763490929b\nArc-Actor: andrew@40de7036-fdf3-4573-9741-a8e0263cd192\nfrom :6\nM 100644 :7 meta-retained-cli.md\n\ncommit refs/arc/history/work/e7a3e81d-b67f-4e42-9b76-689459f7fd3a\nmark :9\nauthor Fixture <fixture@example.test> 1792268119 -0500\ncommitter Fixture <fixture@example.test> 1792268119 -0500\ndata 203\nabandon retained-cli\n\nArc-Lifecycle-Action: abandon\nArc-Owner: e7a3e81d-b67f-4e42-9b76-689459f7fd3a\nArc-Batch: a6eea0fb-a912-4b0c-8917-99c2ae967212\nArc-Actor: andrew@ff5ce1fa-7fd0-4c74-8b69-fb0b40186d04\nfrom :6\nD meta-retained-cli.md\nD metadata-e7a3e81d-b67f-4e42-9b76-689459f7fd3a.json\n\nblob\nmark :10\ndata 2177\n{\"base\":{\"content\":\"# Metadata: retained-cli\\n\\n| **State** | **Owner**    | **Branch** | **Class** | **Priority** |\\n| --------- | ------------ | ---------- | --------- | ------------ |\\n| `Active`  | `test-owner` | [none]     | [TBD]     | `P3`         |\\n\\n- **Cohort:** [none]\\n- **Depends On:** [none]\\n\\n- **Origin:** [internal]\\n- **Design:** [none]\\n- **Task List:** [none]\\n- **Review Rubric:** [none]\\n\\n- **Current Workflow:** [none]\\n- **Last Completed:** [none]\\n- **Next Task:** [none]\\n- **Blockers:** [none]\\n\\n- **Next Action:** —\\n\\n- **PR URL:** [none]\\n- **Completed:** [none]\\n\\n---\\n\",\"formatVersion\":1,\"placement\":{\"kind\":\"active\"},\"reference\":{\"kind\":\"work-item/meta\",\"owner\":{\"name\":\"retained-cli\",\"type\":\"work-item\",\"uid\":\"e7a3e81d-b67f-4e42-9b76-689459f7fd3a\"}},\"version\":\"sha256:a6969aa5460a8e219286e59c48ac230c9cd2fb4bf75c127262b08c0998e7e062\"},\"current\":{\"label\":{\"actor\":\"andrew@ff5ce1fa-7fd0-4c74-8b69-fb0b40186d04\",\"time\":\"2026-10-17T20:15:19.000Z\"},\"value\":null},\"incoming\":{\"label\":{\"actor\":\"andrew@40de7036-fdf3-4573-9741-a8e0263cd192\",\"time\":\"2026-10-17T20:15:19.000Z\"},\"value\":{\"content\":\"# Metadata: retained-cli\\n\\n| **State** | **Owner**    | **Branch** | **Class** | **Priority** |\\n| --------- | ------------ | ---------- | --------- | ------------ |\\n| `Active`  | `test-owner` | [none]     | [TBD]     | `P3`         |\\n\\n- **Cohort:** [none]\\n- **Depends On:** [none]\\n\\n- **Origin:** [internal]\\n- **Design:** [none]\\n- **Task List:** [none]\\n- **Review Rubric:** [none]\\n\\n- **Current Workflow:** [none]\\n- **Last Completed:** [none]\\n- **Next Task:** [none]\\n- **Blockers:** [none]\\n\\n- **Next Action:** —\\n\\n- **PR URL:** [none]\\n- **Completed:** [none]\\n\\n---\\n\\nPreserved late alternative.\\n\",\"formatVersion\":1,\"placement\":{\"kind\":\"active\"},\"reference\":{\"kind\":\"work-item/meta\",\"owner\":{\"name\":\"retained-cli\",\"type\":\"work-item\",\"uid\":\"e7a3e81d-b67f-4e42-9b76-689459f7fd3a\"}},\"version\":\"sha256:d6aa738c11c3e9131108ed287d0b87c9ffe139948dbdefcfe44cd4bc9b9ac3d7\"}},\"location\":{\"kind\":\"record\"},\"record\":{\"kind\":\"work-item/meta\",\"owner\":{\"name\":\"retained-cli\",\"type\":\"work-item\",\"uid\":\"e7a3e81d-b67f-4e42-9b76-689459f7fd3a\"}}}\nblob\nmark :11\ndata 194\n{\"batch\":\"b029f81f-10e4-4380-8710-95e3c75c1c76\",\"formatVersion\":1,\"formats\":{\"{\\\"key\\\":\\\"2ad5943f-b5eb-464e-8cbd-aff628b7c232\\\",\\\"kind\\\":\\\"work-item/conflict-record\\\"}\":1},\"slug\":\"retained-cli\"}\ncommit refs/arc/history/work/e7a3e81d-b67f-4e42-9b76-689459f7fd3a\nmark :12\nauthor Fixture <fixture@example.test> 1792268119 -0500\ncommitter Fixture <fixture@example.test> 1792268119 -0500\ndata 198\nsync retained-cli\n\nArc-Lifecycle-Action: merge\nArc-Owner: e7a3e81d-b67f-4e42-9b76-689459f7fd3a\nArc-Batch: b029f81f-10e4-4380-8710-95e3c75c1c76\nArc-Actor: andrew@40de7036-fdf3-4573-9741-a8e0263cd192\nfrom :8\nmerge :9\nM 100644 :10 conflicts/2ad5943f-b5eb-464e-8cbd-aff628b7c232.json\nD meta-retained-cli.md\nM 100644 :11 metadata-e7a3e81d-b67f-4e42-9b76-689459f7fd3a.json\n"
+}

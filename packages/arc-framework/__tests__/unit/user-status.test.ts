@@ -2847,6 +2847,46 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     expect(result.loadNeeded).toBe(true);
   });
 
+  it("shares one nearest-note discovery across freshness and disk comparison", async () => {
+    const io = buildIO({ refState: "same" });
+    const exec = io.exec;
+    let notesListCalls = 0;
+    io.exec = async (cmd, args, options) => {
+      if (args[0] === "notes" && args[2] === "list") notesListCalls += 1;
+      return exec(cmd, args, options);
+    };
+
+    await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(notesListCalls).toBe(1);
+  });
+
+  it("shares one current-WU resolution when no work unit is active", async () => {
+    const io = buildIO({ refState: "same", currentBranch: "main" });
+    const exec = io.exec;
+    let currentBranchCalls = 0;
+    io.exec = async (cmd, args, options) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+        currentBranchCalls += 1;
+      }
+      return exec(cmd, args, options);
+    };
+
+    await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(currentBranchCalls).toBe(1);
+  });
+
   it("surfaces loadNeeded: false when refs match and disk hash matches note hash", async () => {
     const io = buildIO({ refState: "same", diskMatchesNote: true });
 
@@ -2975,18 +3015,29 @@ describe("buildUserStatusResult worktree qualifier", () => {
     worktree: WorktreeSnapshotAnalysisResult | WorktreeSyncStatusResult | undefined,
     overrides: Partial<Parameters<typeof buildUserStatusResult>[0]> = {},
   ) {
-    const qualifiedWorktree = worktree === undefined || "remoteEvidence" in worktree
-      ? worktree
-      : worktree.state === "remote-unavailable"
+    let qualifiedWorktree: WorktreeSnapshotAnalysisResult | undefined;
+    if (worktree === undefined) {
+      qualifiedWorktree = undefined;
+    } else if ("remoteEvidence" in worktree) {
+      qualifiedWorktree = worktree;
+    } else {
+      const base = {
+        state: worktree.state,
+        ahead: worktree.ahead,
+        behind: worktree.behind,
+        branch: worktree.branch,
+      };
+      qualifiedWorktree = worktree.state === "remote-unavailable"
         ? worktree.failureReason === undefined
-          ? { ...worktree, remoteEvidence: "pending-fetch" as const }
-          : { ...worktree, remoteEvidence: "unreachable" as const, failureReason: worktree.failureReason }
+          ? { ...base, remoteEvidence: "pending-fetch" as const }
+          : { ...base, remoteEvidence: "unreachable" as const, failureReason: worktree.failureReason }
         : {
-            ...worktree,
+            ...base,
             remoteEvidence: ["skipped", "no-upstream", "detached-head", "no-remote"].includes(worktree.state)
               ? "not-applicable" as const
               : "exact" as const,
           };
+    }
     return buildUserStatusResult({
       identity: "andrew",
       diskState: "same",

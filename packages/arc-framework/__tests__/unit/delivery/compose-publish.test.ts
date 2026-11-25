@@ -23,6 +23,7 @@ import type {
   DeliveryStateStore,
 } from "../../../src/lib/delivery/ports.js";
 import type { DeliveryTaskListRenderer } from "../../../src/lib/delivery/task-list-render.js";
+import type { DeliveryTaskInventoryEntry } from "../../../src/lib/delivery/task-inventory.js";
 import {
   canonicalDigest,
   canonicalize,
@@ -30,6 +31,7 @@ import {
 } from "../../../src/lib/kernel/index.js";
 import {
   DeliveryPlanAuthoringInputV1Schema,
+  DeliveryPlanIdSchema,
   type DeliveryPlanV1,
   type DeliveryStateV1,
 } from "../../../src/lib/delivery/schema.js";
@@ -41,12 +43,32 @@ import {
 const PLAN_ID = "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1";
 const OTHER_PLAN_ID = "9cd88752-ef99-4e21-a41f-234bc98f35e0";
 
-function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
+function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, memberCount: 1 | 2 = 1) {
   const taskDigest = canonicalDigest({ goal: "Implement" });
+  const memberParents: DeliveryTaskInventoryEntry[] = [
+    {
+      taskId: "1.1",
+      semanticDigest: taskDigest,
+      role: { kind: "verification" as const, scope: "member" as const },
+    },
+    ...(memberCount === 2 ? [{
+      taskId: "2.1",
+      semanticDigest: taskDigest,
+      role: { kind: "verification" as const, scope: "member" as const },
+    }] : []),
+  ];
+  const workUnitVerificationTaskId = memberCount === 1 ? "2.1" : "3.1";
+  const parents: DeliveryTaskInventoryEntry[] = [
+    ...memberParents,
+    {
+      taskId: workUnitVerificationTaskId,
+      semanticDigest: null,
+      role: { kind: "verification" as const, scope: "work-unit" },
+    },
+  ];
   const taskInventory = {
-    inventoryDigest: canonicalDigest([{ taskId: "1.1", semanticDigest: taskDigest }]),
-    implementation: [{ taskId: "1.1", semanticDigest: taskDigest }],
-    verificationTaskId: "2.1",
+    inventoryDigest: canonicalDigest(parents),
+    parents,
   } as const;
   const designInventory = {
     artifacts: [{ artifactId: "spec.md", revisionDigest: canonicalDigest({ spec: 1 }) }],
@@ -62,20 +84,34 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
     source: {
       entry: "from-tasks",
       inputs: { taskListPath: "tasks.md" },
-      facts: { phaseGroups: [{ phaseId: "1", taskIds: ["1.1"] }] },
-      identitySequence: ["phase:1", "task:1.1"],
+      facts: {
+        phaseGroups: memberParents.map(({ taskId }) => ({ phaseId: taskId.split(".")[0]!, taskIds: [taskId] })),
+      },
+      identitySequence: [
+        ...memberParents.flatMap(({ taskId }) => [`phase:${taskId.split(".")[0]!}`, `task:${taskId}`]),
+        `task:${workUnitVerificationTaskId}`,
+      ],
     },
   });
   const slots = {
-    projection: { kind: "wu-integration-target" as const },
+    projection: { kind: "stack-to-main" as const },
     boundary: { kind: "phase-aligned" as const },
-    members: [{
-      chunkKey: "only",
-      title: "Only member",
-      contract: "Publish the contract",
-      designElementIds: [],
-      mainlineLandability: "integration-only" as const,
-    }],
+    members: [
+      {
+        chunkKey: "only",
+        title: "Only member",
+        contract: "Publish the contract",
+        designElementIds: [],
+        mainlineLandability: "independently-landable" as const,
+      },
+      ...(memberCount === 2 ? [{
+        chunkKey: "terminal",
+        title: "Terminal member",
+        contract: "Integrate the work unit",
+        designElementIds: [],
+        mainlineLandability: "independently-landable" as const,
+      }] : []),
+    ],
     seams: [],
   };
   const authoredMember = slots.members[0];
@@ -90,18 +126,21 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
       semanticsVersion: "delivery-plan/v1",
       workUnitId: "delivery-plan-record",
       design: { artifacts: [{ artifactId: "spec.md" }], elements: [] },
-      tasks: { implementation: [{ taskId: "1.1" }], verificationTaskId: "2.1" },
+      tasks: { parents: parents.map(({ taskId, role }) => ({ taskId, role })) },
       entry: "from-tasks",
       projection: slots.projection,
-      members: [{
-        ...authoredMember,
-        taskIds: ["1.1"],
-      }],
+      members: slots.members.map((member, index) => ({
+        ...member,
+        taskIds: [memberParents[index]!.taskId],
+      })),
       seams: [],
     }),
     boundary: slots.boundary,
-    contributionStepIds: ["step-1"],
-    memberContributionSteps: [{ chunkKey: "only", contributionStepIds: ["step-1"] }],
+    contributionStepIds: slots.members.map((_member, index) => `step-${index + 1}`),
+    memberContributionSteps: slots.members.map((member, index) => ({
+      chunkKey: member.chunkKey,
+      contributionStepIds: [`step-${index + 1}`],
+    })),
   };
   return { record, projection, slots, taskInventory, designInventory };
 }
@@ -192,7 +231,7 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
     this.current = plan;
     return {
       status: "ok" as const,
-      value: { currentDigest: plan.planDigest as CanonicalDigest },
+      value: { currentDigest: plan.planDigest },
     };
   }
 
@@ -205,13 +244,22 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
     this.events.push("publish");
     if (this.refusePublication) return { status: "refused" as const, reason: "version-conflict" as const };
     if (this.current?.planDigest === plan.planDigest) {
-      return { status: "ok" as const, value: { currentDigest: plan.planDigest as CanonicalDigest } };
+      return { status: "ok" as const, value: { currentDigest: plan.planDigest } };
     }
     if ((this.current?.planDigest ?? null) !== expectedCurrentDigest) {
       return { status: "refused" as const, reason: "version-conflict" as const };
     }
     this.current = plan;
-    return { status: "ok" as const, value: { currentDigest: plan.planDigest as CanonicalDigest } };
+    return { status: "ok" as const, value: { currentDigest: plan.planDigest } };
+  }
+
+  async removeCurrent(planId: string, expectedCurrentDigest: CanonicalDigest) {
+    if (this.current === null) return { status: "ok" as const, value: { removed: false } };
+    if (this.current.planId !== planId || this.current.planDigest !== expectedCurrentDigest) {
+      return { status: "refused" as const, reason: "version-conflict" as const };
+    }
+    this.current = null;
+    return { status: "ok" as const, value: { removed: true } };
   }
 }
 
@@ -251,6 +299,15 @@ class MemoryStateStore implements DeliveryStateStore<DeliveryStateV1> {
     }
     this.current = { revision: expectedRevision + 1, value };
     return { status: "ok" as const, value: this.current };
+  }
+
+  async remove(planId: string, expectedRevision: number) {
+    if (this.current === null) return { status: "ok" as const, value: { removed: false } };
+    if (this.current.value.planId !== planId || this.current.revision !== expectedRevision) {
+      return { status: "refused" as const, reason: "version-conflict" as const };
+    }
+    this.current = null;
+    return { status: "ok" as const, value: { removed: true } };
   }
 
   async resolveMember() {
@@ -309,7 +366,7 @@ function amendedFixture(
   current: DeliveryPlanV1,
   memberPatch: Partial<DeliveryCompositionProjection["authoring"]["members"][number]>,
 ) {
-  const value = fixture(current.planDigest as CanonicalDigest);
+  const value = fixture(current.planDigest, current.members.length === 1 ? 1 : 2);
   const slots = DeliveryAuthoringSlotsV1Schema.parse({
     ...value.slots,
     members: value.slots.members.map((member) => ({ ...member, ...memberPatch })),
@@ -420,7 +477,7 @@ describe("delivery plan publication orchestration", () => {
     const first = plans.current;
     if (first === null) throw new Error("expected first plan");
 
-    const other = { ...first, planId: OTHER_PLAN_ID as typeof first.planId };
+    const other = { ...first, planId: DeliveryPlanIdSchema.parse(OTHER_PLAN_ID) };
     const conflictingPlans = new MemoryPlanStore(other);
     const conflictValue = fixture();
     await expect(composer(
@@ -432,7 +489,7 @@ describe("delivery plan publication orchestration", () => {
       reason: "plan-already-exists",
     });
 
-    const successorValue = fixture(first.planDigest as CanonicalDigest);
+    const successorValue = fixture(first.planDigest);
     const successorAuthoring = new MemoryAuthoringStore(successorValue.record);
     await expect(composer(successorAuthoring, plans, new MemoryRenderer()).compose(input(successorValue)))
       .resolves.toMatchObject({
@@ -483,7 +540,7 @@ describe("delivery plan publication orchestration", () => {
     const renderer = new MemoryRenderer();
     await expect(composer(authoring, plans, renderer, states).compose({
       ...input(successor),
-      landedDeliverableIds: [first.members[0]!.deliverableId as CanonicalDigest],
+      landedDeliverableIds: [first.members[0]!.deliverableId],
     })).resolves.toEqual({ status: "refused", reason: "landed-member-changed" });
     expect(authoring.calls).toEqual([]);
     expect(renderer.calls).toEqual([]);
@@ -524,6 +581,46 @@ describe("delivery plan publication orchestration", () => {
         members: [{ ref: "refs/heads/member-only" }],
       },
     });
+  });
+
+  it("does not publish a successor while selected-member verification is pending", async () => {
+    const firstValue = fixture(null, 2);
+    const plans = new MemoryPlanStore();
+    await composer(
+      new MemoryAuthoringStore(firstValue.record),
+      plans,
+      new MemoryRenderer(),
+    ).compose(input(firstValue));
+    const first = plans.current;
+    if (first === null) throw new Error("expected first plan");
+
+    const successor = amendedFixture(first, {});
+    const state = boundState(first);
+    const states = new MemoryStateStore({
+      ...state,
+      value: {
+        ...state.value,
+        pendingReviewFixVerification: {
+          selectedDeliverableId: first.members[0]!.deliverableId,
+          memberDeliverableIds: [first.members[0]!.deliverableId],
+        },
+      },
+    });
+    const renderer = new MemoryRenderer();
+    const boundPlans = new MemoryPlanStore(first);
+
+    await expect(composer(
+      new MemoryAuthoringStore(successor.record),
+      boundPlans,
+      renderer,
+      states,
+    ).compose(input(successor))).resolves.toEqual({
+      status: "refused",
+      reason: "pending-review-fix-verification",
+    });
+    expect(boundPlans.calls).toEqual([]);
+    expect(states.calls).toEqual([]);
+    expect(renderer.calls).toEqual([]);
   });
 
   it("requires fresh landed facts before classifying a bound successor", async () => {

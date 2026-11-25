@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 
 import {
   createReviewRequirement,
@@ -56,6 +57,8 @@ function fixture() {
       runtimeIdentity: "local-attestor-1",
       mechanism: "local-runtime",
     },
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
     generation: 0,
     requestMechanism: "automatic",
   });
@@ -76,8 +79,8 @@ function fixture() {
     headTree: target.headTree,
     rubricVersion: requirement.rubricVersion,
     rubricDigest: requirement.rubricDigest,
-    sourceDigest: `sha256:${"1".repeat(64)}`,
-    guidanceDigest: `sha256:${"2".repeat(64)}`,
+    sourceDigest: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
+    guidanceDigest: CanonicalDigestSchema.parse(`sha256:${"2".repeat(64)}`),
     evaluatorIdentity: carrier.request.evaluatorIdentity,
     reviewRunId: "run-1",
     applicabilityId: null,
@@ -99,6 +102,7 @@ describe("local review attestation", () => {
           severity: "major" as const,
           locus: "src/index.ts:1",
           evidenceUrlOrId: "local:finding-1",
+          sourceOrdinal: 1,
         }] : [],
       },
       currentTarget: async () => records.target,

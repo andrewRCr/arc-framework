@@ -14,8 +14,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, stat, mkdir, writeFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
+import { lint } from "markdownlint/promise";
 
-import { runColdStart, runCreateNew, deriveColdStartWuName } from "../../../src/commands/start.js";
+import {
+  buildStartSessionNotesSeed,
+  deriveColdStartWuName,
+  runColdStart,
+  runCreateNew,
+} from "../../../src/commands/start.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
@@ -68,7 +74,7 @@ async function pathExists(p: string): Promise<boolean> {
 }
 
 function ctx(io: UserIOContext) {
-  return { io, internalTemplateDir: getInternalTemplatePath() };
+  return { io, internalTemplateDir: getInternalTemplatePath(), writeEditorDocuments: async () => ({ ok: true as const, documents: [] }) };
 }
 
 /** Write a minimal `arc-config.yml` (flat dotted keys) into a worktree's `.arc/system/`. */
@@ -99,6 +105,27 @@ describe("deriveColdStartWuName", () => {
     expect(deriveColdStartWuName("  ", "feat/widget")).toBeNull();
     expect(deriveColdStartWuName("Not-A-Slug", "feat/widget")).toBeNull();
     expect(deriveColdStartWuName("has space", "feat/widget")).toBeNull();
+  });
+});
+
+describe("buildStartSessionNotesSeed", () => {
+  it("keeps the seeded Markdown lint-clean for a long accepted slug", async () => {
+    const longName = "a".repeat(100);
+    const seed = buildStartSessionNotesSeed({
+      wuName: longName,
+      branch: `plan/${longName}`,
+      kind: "create-new",
+      commit: "[start ceremony pending]",
+    });
+    const results = await lint({
+      strings: { "SESSION-NOTES.md": seed },
+      config: {
+        default: false,
+        MD013: { line_length: 120, code_blocks: false, tables: false },
+      },
+    });
+
+    expect(results["SESSION-NOTES.md"]).toEqual([]);
   });
 });
 
@@ -331,7 +358,6 @@ describe("runColdStart — spec-input classification (--from)", () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.value.origin).toBe("#42");
-    expect(outcome.value.design).toBeUndefined();
 
     const record = parseMetaRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")),
@@ -339,19 +365,24 @@ describe("runColdStart — spec-input classification (--from)", () => {
     expect(record.origin).toBe("#42");
   });
 
-  it("routes an ARC spec artifact to Design", async () => {
-    const outcome = await runColdStart(ctx(io), {
-      worktreePath: worktree,
-      branch: "feat/widget",
-      identity: "andrew",
-      from: "spec-widget.md",
-    });
-
-    expect(outcome.ok).toBe(true);
-    if (!outcome.ok) return;
-    expect(outcome.value.design).toBe("spec-widget.md");
-    expect(outcome.value.origin).toBeUndefined();
-  });
+  it.each(["./draft-widget.md", "./spec-widget.md", "https://example.com/spec-widget.md"])(
+    "passes %s through as a document while entering draft-design",
+    async (from) => {
+      const outcome = await runColdStart(ctx(io), {
+        worktreePath: worktree,
+        branch: "feat/widget",
+        identity: "andrew",
+        from,
+      });
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+      expect(outcome.value.passthrough).toEqual({ kind: "document", value: from });
+      const record = parseMetaRecord(await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")));
+      expect(record.design).toEqual([]);
+      expect(record.currentWorkflow).toBe("draft-design");
+      expect(record.origin).toBe("internal");
+    },
+  );
 
   it("passes a plain document through without setting Origin or Design", async () => {
     const outcome = await runColdStart(ctx(io), {
@@ -364,7 +395,6 @@ describe("runColdStart — spec-input classification (--from)", () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.value.origin).toBeUndefined();
-    expect(outcome.value.design).toBeUndefined();
     expect(outcome.value.passthrough).toEqual({ kind: "document", value: "./design-notes.md" });
   });
 

@@ -7,6 +7,20 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concern pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`)._
+
+### `[ ]` **Witness review-fix verification as independently inspectable evidence**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: verification-fixture-evidence`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ review-fix settlement can accept a free-form claim that verification ran, collapsing the witness and
+  the attesting actor into one uncheckable field.
+- _Fold-in:_ define the smallest independently produced receipt or fixture observation that proves the relevant
+  check ran at the fix target, preserving justified deferral when no safe witness is available.
+
 ## Problem / Motivation
 
 The delivery-integrity verification path currently presents a false binary when a criterion requires live host

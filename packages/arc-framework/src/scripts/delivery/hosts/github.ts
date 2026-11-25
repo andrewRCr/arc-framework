@@ -1,16 +1,22 @@
 /** GitHub CLI implementation of the provider-neutral delivery host boundary. */
 
+import { z } from "zod";
+
 import type {
   DeliveryHostChangeRequest,
+  DeliveryHostMergeResult,
   DeliveryHostMutationResult,
   DeliveryHostOpenRequest,
   DeliveryHostPort,
+  DeliveryHostProviderFailure,
   DeliveryHostRequestObservation,
+  DeliveryTopRemedyHostPort,
 } from "../../../lib/delivery/host.js";
 import type {
   DeliveryChangeRequestV1,
   DeliveryLandEffectV1,
   DeliveryPublishEffectV1,
+  DeliveryTopRemedyEffectV1,
 } from "../../../lib/delivery/schema.js";
 import { HostedProcessError, type HostedProcessRunner } from "../../review-gate/hosted/gh-process.js";
 import type {
@@ -27,6 +33,7 @@ import type {
 } from "../../../lib/delivery/native-landing.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const mergedAtTimestamp = z.iso.datetime({ offset: true });
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -42,6 +49,64 @@ function parse(text: string): unknown {
   }
 }
 
+function requiresNativeStackMerge(error: unknown): boolean {
+  if (!(error instanceof HostedProcessError) || error.httpStatus !== 422) return false;
+  const detail = `${error.message}\n${error.stderr}\n${error.stdout}`;
+  return /\bstack(?:ed)?\b/iu.test(detail)
+    && /(?:merge-async|asynchronous merge|stack merge)/iu.test(detail);
+}
+
+function isMergeConflict(error: unknown): boolean {
+  if (!(error instanceof HostedProcessError)) return false;
+  const detail = `${error.message}\n${error.stderr}\n${error.stdout}`;
+  return /\bis not mergeable:\s*the merge commit cannot be cleanly created\b/iu.test(detail);
+}
+
+function deliveryHostProviderFailure(error: unknown): DeliveryHostProviderFailure {
+  if (error instanceof HostedProcessError) {
+    return error.httpStatus === null
+      ? { kind: "command-failed", exitCode: error.exitCode }
+      : { kind: "http", status: error.httpStatus, exitCode: error.exitCode };
+  }
+  if (error instanceof Error && error.name === "TimeoutError") return { kind: "timed-out" };
+  if (error instanceof Error && error.name === "AbortError") return { kind: "canceled" };
+  return { kind: "unexpected" };
+}
+
+function isDependentNativeRequest(
+  value: unknown,
+  requestedIds: ReadonlySet<string>,
+  highestHeadRef: string,
+): boolean {
+  const request = record(value);
+  const head = record(request?.head);
+  const base = record(request?.base);
+  return request !== null && Number.isSafeInteger(request.number) && (request.number as number) > 0
+    && !requestedIds.has(String(request.number))
+    && typeof head?.ref === "string" && head.ref !== ""
+    && typeof head.sha === "string" && objectId.test(head.sha)
+    && base?.ref === highestHeadRef;
+}
+
+function nativeRequestBaseRef(
+  requests: readonly unknown[],
+  index: number,
+  stackBaseRef: string,
+): string | null {
+  const request = record(requests[index]);
+  if (request === null) return null;
+  if (request.base !== undefined) {
+    const base = record(request.base);
+    return typeof base?.ref === "string" && base.ref !== "" ? base.ref : null;
+  }
+  if (index === 0) return stackBaseRef;
+  const predecessor = record(requests[index - 1]);
+  const predecessorHead = record(predecessor?.head);
+  return typeof predecessorHead?.ref === "string" && predecessorHead.ref !== ""
+    ? predecessorHead.ref
+    : null;
+}
+
 function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
   const request = record(value);
   const head = record(request?.head);
@@ -52,10 +117,13 @@ function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
   const state = request?.state;
   const merged = request?.merged;
   const mergedAt = request?.merged_at;
+  const mergeCommitSha = request?.merge_commit_sha;
   if (request === null || !Number.isSafeInteger(number) || (number as number) <= 0
     || (state !== "open" && state !== "closed")
     || (merged !== undefined && typeof merged !== "boolean")
     || (mergedAt !== undefined && mergedAt !== null && (typeof mergedAt !== "string" || mergedAt === ""))
+    || (mergeCommitSha !== undefined && mergeCommitSha !== null
+      && (typeof mergeCommitSha !== "string" || !objectId.test(mergeCommitSha)))
     || typeof request.draft !== "boolean"
     || typeof head?.ref !== "string" || head.ref === ""
     || typeof head.sha !== "string" || !objectId.test(head.sha)
@@ -71,6 +139,7 @@ function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
     baseRef: base.ref,
     state: merged === true || typeof mergedAt === "string" ? "merged" : state,
     draft: request.draft,
+    mergeCommitSha: typeof mergeCommitSha === "string" ? mergeCommitSha : null,
   };
 }
 
@@ -99,7 +168,7 @@ function exactObservation(
 }
 
 /** GitHub observations and mutations through the existing bounded `gh` runner. */
-export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStackPort,
+export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHostPort, DeliveryNativeStackPort,
   DeliveryNativeStackUnlinkPort, DeliveryNativeMergeHostPort {
   constructor(private readonly runner: HostedProcessRunner) {}
 
@@ -118,21 +187,43 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
         const stack = record(candidate);
         const number = stack?.number;
         const base = record(stack?.base);
+        const stackBaseRef = base?.ref;
         const requests = stack?.pull_requests;
-        if (!Number.isSafeInteger(number) || typeof base?.ref !== "string" || base.ref === ""
+        if (!Number.isSafeInteger(number) || typeof stackBaseRef !== "string" || stackBaseRef === ""
           || !Array.isArray(requests)) return { status: "malformed" };
         const firstMember = input.members[0];
-        let exact = requests.length === input.members.length && base.ref === firstMember?.baseRef;
-        if (base.ref !== firstMember?.baseRef && firstMember !== undefined) {
+        const highestMember = input.members.at(-1);
+        const firstIndex = requests.findIndex((request) => (
+          String(record(request)?.number) === firstMember?.changeRequestId
+        ));
+        const preceding = firstIndex > 0 ? requests.slice(0, firstIndex) : [];
+        const landedPrefix = preceding.length > 0 && preceding.every((request) => {
+          const member = record(request);
+          const head = record(member?.head);
+          return member !== null && Number.isSafeInteger(member.number) && (member.number as number) > 0
+            && member.state === "closed"
+            && mergedAtTimestamp.safeParse(member.merged_at).success
+            && typeof head?.ref === "string" && head.ref.length > 0
+            && typeof head.sha === "string" && objectId.test(head.sha);
+        });
+        const remainingRequests = landedPrefix ? requests.slice(firstIndex) : requests;
+        const requestedIds = new Set(input.members.map((member) => member.changeRequestId));
+        const dependentIndexes = highestMember === undefined ? [] : remainingRequests.flatMap((request, index) => (
+          isDependentNativeRequest(request, requestedIds, highestMember.headRef) ? [index] : []
+        ));
+        const comparedRequests = dependentIndexes.length === 1
+          ? remainingRequests.filter((_, index) => index !== dependentIndexes[0])
+          : remainingRequests;
+        let exact = comparedRequests.length === input.members.length && stackBaseRef === firstMember?.baseRef;
+        if (stackBaseRef !== firstMember?.baseRef && firstMember !== undefined) {
           affected.add(firstMember.deliverableId);
         }
         for (const [index, member] of input.members.entries()) {
-          const request = record(requests[index]);
+          const request = record(comparedRequests[index]);
           const head = record(request?.head);
-          const requestBase = record(request?.base);
           const matchesMember = String(request?.number) === member.changeRequestId
             && head?.ref === member.headRef && head.sha === member.headSha
-            && requestBase?.ref === member.baseRef;
+            && nativeRequestBaseRef(comparedRequests, index, stackBaseRef) === member.baseRef;
           if (!matchesMember) affected.add(member.deliverableId);
           exact &&= matchesMember;
         }
@@ -216,6 +307,9 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
       }
       if (error instanceof HostedProcessError && error.httpStatus === 404) {
         return { status: "refused", reason: "unsupported" };
+      }
+      if (requiresNativeStackMerge(error)) {
+        return { status: "refused", reason: "native-stack-required" };
       }
       return { status: "refused", reason: "unavailable" };
     }
@@ -308,18 +402,57 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
     }
   }
 
-  async mergeRequest(effect: DeliveryLandEffectV1): Promise<DeliveryHostMutationResult> {
+  async mergeRequest(effect: DeliveryLandEffectV1): Promise<DeliveryHostMergeResult> {
     if (effect.providerId !== "github") return { status: "refused", reason: "malformed" };
     try {
-      const strategyFlag = effect.strategy === "merge" ? "--merge"
-        : effect.strategy === "rebase" ? "--rebase" : "--squash";
       await this.runner.run([
         "pr", "merge", effect.changeRequestId, "--repo", effect.repository,
-        "--match-head-commit", effect.headSha, strategyFlag,
+        "--match-head-commit", effect.headSha, "--merge",
       ]);
       return { status: "submitted" };
-    } catch {
-      return { status: "refused", reason: "unavailable" };
+    } catch (error) {
+      return requiresNativeStackMerge(error)
+        ? { status: "refused", reason: "native-stack-required" }
+        : isMergeConflict(error)
+          ? { status: "refused", reason: "conflict" }
+        : { status: "refused", reason: "unavailable", provider: deliveryHostProviderFailure(error) };
+    }
+  }
+
+  async applyTopRemedy(effect: DeliveryTopRemedyEffectV1): Promise<DeliveryHostMutationResult> {
+    const parts = effect.repository.split("/");
+    if (effect.providerId !== "github" || parts.length !== 2 || parts.some((part) => part === "")
+      || !/^[1-9][0-9]*$/u.test(effect.changeRequestId)
+      || effect.protectedBaseRef.startsWith("refs/") || effect.protectedBaseRef === "") {
+      return { status: "refused", reason: "malformed" };
+    }
+    try {
+      const requestPath = `repos/${effect.repository}/pulls/${effect.changeRequestId}`;
+      if (effect.action === "reopen-and-retarget") {
+        const identityResult = await this.runner.run([
+          "pr", "view", effect.changeRequestId, "--repo", effect.repository, "--json", "id",
+        ]);
+        const nodeId = record(parse(identityResult.stdout))?.id;
+        if (typeof nodeId !== "string" || nodeId === "") {
+          return { status: "refused", reason: "malformed" };
+        }
+        const reopen = "mutation($id:ID!){updatePullRequest(input:{pullRequestId:$id,"
+          + "state:OPEN}){pullRequest{id}}}";
+        await this.runner.run([
+          "api", "graphql", "--raw-field", `query=${reopen}`, "-F", `id=${nodeId}`,
+        ]);
+      }
+      if (effect.fromBaseRef !== effect.protectedBaseRef) {
+        await this.runner.run([
+          "api", requestPath, "--method", "PATCH", "-f", `base=${effect.protectedBaseRef}`,
+        ]);
+      }
+      return { status: "submitted" };
+    } catch (error) {
+      return {
+        status: "refused",
+        reason: error instanceof HostedProcessError && error.httpStatus === 422 ? "malformed" : "unavailable",
+      };
     }
   }
 

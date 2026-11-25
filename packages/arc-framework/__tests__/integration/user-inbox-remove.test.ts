@@ -7,7 +7,7 @@
  * missing inbox).
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -20,9 +20,11 @@ import {
   withLockedUserInbox,
   type UserIOContext,
 } from "../../src/commands/user.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock } from "../../src/lib/advisory-lock.js";
 import { contentDigest } from "../../src/lib/canonical/content-digest.js";
-import { inboxEntrySourceDigest } from "../../src/lib/user-sync/index.js";
-import type { ExecResult, GitExec } from "../../src/lib/git/exec.js";
+import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 const IDENTITY = "tester";
 
@@ -44,12 +46,10 @@ const INBOX = `# User Inbox
 let cwd: string;
 let inboxPath: string;
 
-function io(exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
-  if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
-    return { stdout: join(cwd, ".git") + "\n", stderr: "" };
-  }
-  throw new Error(`unexpected git command: ${args.join(" ")}`);
-})): UserIOContext {
+function io(exec: GitExec = scriptGitExec([
+  { match: ["rev-parse", "--git-common-dir"],
+    responses: [{ stdout: join(cwd, ".git") + "\n", stderr: "" }] },
+]).exec): UserIOContext {
   return {
     exec,
     readFile: (path) => readFile(path, "utf-8"),
@@ -62,17 +62,16 @@ function io(exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
 }
 
 function execReturningWorktrees(primary: string, linked: string): GitExec {
-  return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
-      return { stdout: join(primary, ".git") + "\n", stderr: "" };
-    }
-    expect(args).toEqual(["worktree", "list", "--porcelain", "-z"]);
-    return {
-      stderr: "",
-      stdout: `worktree ${primary}\0HEAD ${"1".repeat(40)}\0branch refs/heads/main\0\0`
-        + `worktree ${linked}\0HEAD ${"2".repeat(40)}\0branch refs/heads/feat/demo\0\0`,
-    };
-  });
+  return scriptGitExec([
+    { match: ["rev-parse", "--git-common-dir"],
+      responses: [{ stdout: join(primary, ".git") + "\n", stderr: "" }] },
+    { match: ["worktree", "list", "--porcelain", "-z"],
+      responses: [{
+        stderr: "",
+        stdout: `worktree ${primary}\0HEAD ${"1".repeat(40)}\0branch refs/heads/main\0\0`
+          + `worktree ${linked}\0HEAD ${"2".repeat(40)}\0branch refs/heads/feat/demo\0\0`,
+      }] },
+  ]).exec;
 }
 
 beforeEach(async () => {
@@ -151,6 +150,35 @@ describe("runUserInboxRemove", () => {
 });
 
 describe("runUserInboxMutation", () => {
+  it("preserves replacement and release failures, leaves the preimage intact, and permits retry", async () => {
+    const operation = new Error("atomic inbox replacement failed");
+    const release = new Error("inbox lock release reported a failure");
+    const mutation = {
+      kind: "mark" as const, title: "Keep me", sourceDigest: inboxEntrySourceDigest(INBOX, "Keep me"),
+    };
+    const options = { cwd, io: io(), identity: IDENTITY, mutations: [mutation] };
+    let lockPath: string | undefined;
+    const failure = await runUserInboxMutation(options, {
+      acquireLock: async (path) => {
+        const handle = await acquireAdvisoryLock(path, { token: "inbox-failure-owner" });
+        lockPath = handle.path;
+        return handle;
+      },
+      atomicReplace: async () => {
+        if (lockPath === undefined) throw new Error("expected the injected acquisition");
+        expect(JSON.parse(await readFile(lockPath, "utf8"))).toMatchObject({ token: "inbox-failure-owner" });
+        throw operation;
+      },
+      releaseLock: async (handle) => { await releaseAdvisoryLock(handle); throw release; },
+    }).then(() => undefined, (error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure).toMatchObject({ errors: [operation, release], message: operation.message, cause: operation });
+    expect(await readFile(inboxPath, "utf8")).toBe(INBOX);
+    await expect(runUserInboxMutation(options)).resolves.toMatchObject({ changed: true });
+    expect(await readFile(inboxPath, "utf8")).toContain("- _Disposition:_ `execute-bound`");
+  });
+
   it("digests an exact locked post-image without interpreting its contents", async () => {
     const malformed = "# User Inbox\n\n## Errand\n\n### malformed managed entry\n";
     await writeFile(inboxPath, malformed, "utf-8");
@@ -179,6 +207,18 @@ describe("runUserInboxMutation", () => {
     if (result.postImage.state !== "present") throw new Error("expected a present post-image");
     expect(await readFile(inboxPath, "utf-8")).toBe(result.postImage.content);
     expect(result.postImage.content.match(/- _Disposition:_ `execute-bound`/g)).toHaveLength(2);
+  });
+
+  it("uses the requested batch order as the file-ordered execution queue", async () => {
+    const titles = ["Keep me", "Fix the flaky log assertion"];
+
+    const result = await markCurrentInboxEntriesExecuteBound({ cwd, io: io(), identity: IDENTITY, titles });
+
+    expect(result.changed).toBe(true);
+    const after = await readFile(inboxPath, "utf-8");
+    expect(after.indexOf("### `[ ]` **Keep me**")).toBeLessThan(
+      after.indexOf("### `[ ]` **Fix the flaky log assertion**"),
+    );
   });
 
   it("serializes concurrent mark and remove writers without losing either update", async () => {

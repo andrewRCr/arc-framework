@@ -1,7 +1,7 @@
 /** Typed write and rollback port for terminal transition history. */
 
 import type { GitExec } from "../git/exec.js";
-import type { TransitionRecord } from "./transition-record.js";
+import type { LineageRecord } from "../store/kinds/lineage/index.js";
 import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 /** Closed terminal history write result. */
@@ -17,8 +17,8 @@ export type TerminalTransitionRecordRollbackResult =
 
 /** Terminal verbs' storage-independent history port. */
 export interface TerminalTransitionRecordWriter {
-  record(record: TransitionRecord): Promise<TerminalTransitionRecordWriteResult>;
-  rollback(record: TransitionRecord): Promise<TerminalTransitionRecordRollbackResult>;
+  record(record: LineageRecord): Promise<TerminalTransitionRecordWriteResult>;
+  rollback(record: LineageRecord): Promise<TerminalTransitionRecordRollbackResult>;
 }
 
 /** In-repository terminal writer dependencies. */
@@ -26,7 +26,7 @@ export interface InRepoTerminalTransitionRecordWriterDeps {
   cwd: string;
   exec: GitExec;
   isOriginOccupied(origin: string): Promise<boolean>;
-  createRecord(record: TransitionRecord): Promise<void>;
+  createRecord(record: LineageRecord): Promise<void>;
   removeRecord(origin: string): Promise<void>;
 }
 
@@ -36,10 +36,10 @@ export function createInRepoTerminalTransitionRecordWriter(
 ): TerminalTransitionRecordWriter {
   return {
     record: async (record) => {
-      const path = resolveTransitionRecordRelativePath(record.origin);
+      const path = resolveTransitionRecordRelativePath(record.origin.name);
       try {
         if (await isGitPathOccupied(deps, path)) return { status: "origin-occupied" };
-        if (await deps.isOriginOccupied(record.origin)) return { status: "origin-occupied" };
+        if (await deps.isOriginOccupied(record.origin.name)) return { status: "origin-occupied" };
       } catch (error) {
         return {
           status: "unavailable",
@@ -82,17 +82,17 @@ async function isGitPathOccupied(
 
 async function rollbackRecord(
   deps: InRepoTerminalTransitionRecordWriterDeps,
-  record: TransitionRecord,
+  record: LineageRecord,
 ): Promise<TerminalTransitionRecordRollbackResult> {
   const failures: string[] = [];
-  const path = resolveTransitionRecordRelativePath(record.origin);
+  const path = resolveTransitionRecordRelativePath(record.origin.name);
   const indexFailure = await retryCleanup(async () => {
     await deps.exec("git", ["rm", "-f", "--cached", "--ignore-unmatch", "--", path], { cwd: deps.cwd });
   });
   if (indexFailure !== null) failures.push(`index cleanup failed after retry: ${indexFailure}`);
   const removalFailure = await retryCleanup(async () => {
     try {
-      await deps.removeRecord(record.origin);
+      await deps.removeRecord(record.origin.name);
     } catch (error) {
       if (!isNodeError(error) || error.code !== "ENOENT") throw error;
     }

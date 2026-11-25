@@ -23,6 +23,8 @@ const LIFECYCLE_ROOTS = [
   ".arc/completed",
 ] as const;
 const META_PATH_RE = /(?:^|\/)meta-[^/]+\.md$/u;
+/** An `ls-tree` row for a regular file; symlinks, gitlinks, and trees do not match. */
+const REGULAR_FILE_ROW_RE = /^100(?:644|755) blob [0-9a-f]+\t(.+)$/u;
 
 /** Inputs for {@link createProjectViewRefSnapshot}. */
 export interface ProjectViewRefSnapshotOptions {
@@ -50,6 +52,10 @@ class SnapshotDirEntry implements ProjectViewDirEntry {
   isDirectory(): boolean {
     return this.directory;
   }
+
+  isFile(): boolean {
+    return !this.directory;
+  }
 }
 
 /**
@@ -65,7 +71,7 @@ export async function createProjectViewRefSnapshot(
   try {
     ({ stdout } = await options.exec(
       "git",
-      ["ls-tree", "--full-tree", "-r", "--name-only", options.ref, "--", ...LIFECYCLE_ROOTS],
+      ["ls-tree", "--full-tree", "-r", options.ref, "--", ...LIFECYCLE_ROOTS],
       { cwd: options.cwd },
     ));
   } catch (err) {
@@ -77,7 +83,10 @@ export async function createProjectViewRefSnapshot(
 
   const paths = stdout
     .split("\n")
-    .map((line) => line.trim())
+    .flatMap((line) => {
+      const path = REGULAR_FILE_ROW_RE.exec(line)?.[1];
+      return path === undefined ? [] : [path];
+    })
     .filter((path) =>
       META_PATH_RE.test(path)
       && filename(path) === `meta-${options.slug}.md`

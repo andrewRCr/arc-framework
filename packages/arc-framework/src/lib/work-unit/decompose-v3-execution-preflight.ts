@@ -1,18 +1,24 @@
 /** Read and revalidate one completed v3 cut map before result planning. */
 
-import { canonicalize } from "../canonical/canonical-json.js";
+import { canonicalize } from "../kernel/canonical/canonical-json.js";
 import {
   decodeV3DecomposeCutMap,
   type V3DecomposeCutMap,
+  type V3DecomposeMapIssue,
 } from "./decompose-v3-schema.js";
 import {
   revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
   type V3DecomposePreflightMismatch,
 } from "./decompose-v3-preflight.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
+
+type V3DecomposeMapReason = `map:${V3DecomposeMapIssue["code"]}` | "map:non-canonical";
 
 export type V3DecomposeExecutionPreflightMismatch =
   | "completed-map"
+  | V3DecomposeMapReason
+  | "unexpected-error"
   | V3DecomposePreflightMismatch
   | `git-preflight:${string}`;
 
@@ -24,6 +30,7 @@ export interface V3DecomposeExecutionPreflightDependencies {
       status: "rejected";
       reason: Exclude<V3DecomposeExecutionPreflightMismatch, "completed-map">;
       locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
     }
   >;
 }
@@ -38,22 +45,27 @@ export type V3DecomposeExecutionPreflightResult =
     status: "stale";
     reason: V3DecomposeExecutionPreflightMismatch;
     locus: string;
+    message?: string;
+    evidence?: V3DecomposeRefusalEvidence;
   };
 
 function decodeCanonicalMap(
   bytes: Uint8Array,
   cutMapPath: string,
-): { map: V3DecomposeCutMap } | { locus: string } {
+): { map: V3DecomposeCutMap } | Extract<V3DecomposeExecutionPreflightResult, { status: "stale" }> {
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     const parsed: unknown = JSON.parse(text);
     const decoded = decodeV3DecomposeCutMap(parsed);
-    if (decoded.status === "rejected") return { locus: decoded.issue.path };
+    if (decoded.status === "rejected") return {
+      status: "stale", reason: `map:${decoded.issue.code}`,
+      locus: decoded.issue.path || cutMapPath, message: decoded.issue.message,
+    };
     return text === `${canonicalize(decoded.value)}\n`
       ? { map: decoded.value }
-      : { locus: cutMapPath };
+      : { status: "stale", reason: "map:non-canonical", locus: cutMapPath };
   } catch {
-    return { locus: cutMapPath };
+    return { status: "stale", reason: "completed-map", locus: cutMapPath };
   }
 }
 
@@ -73,12 +85,15 @@ export async function revalidateV3DecomposeExecutionPreflight(
     return { status: "stale", reason: "completed-map", locus: cutMapPath };
   }
   const decoded = decodeCanonicalMap(bytes, cutMapPath);
-  if ("locus" in decoded) {
-    return { status: "stale", reason: "completed-map", locus: decoded.locus };
-  }
+  if ("status" in decoded) return decoded;
   const completedMap = decoded.map;
   if (completedMap.machine.source.origin !== origin) {
-    return { status: "stale", reason: "completed-map", locus: "machine.source.origin" };
+    return {
+      status: "stale",
+      reason: "completed-map",
+      locus: "machine.source.origin",
+      evidence: { expected: origin, actual: completedMap.machine.source.origin },
+    };
   }
 
   const refreshed = await deps.resolvePreflight(origin);
@@ -89,6 +104,7 @@ export async function revalidateV3DecomposeExecutionPreflight(
       locus: refreshed.locus !== undefined
         ? refreshed.locus
         : "machine.source",
+      ...(refreshed.evidence === undefined ? {} : { evidence: refreshed.evidence }),
     };
   }
   const binding = revalidateV3DecomposeCutMapBinding(completedMap, refreshed.preflight);

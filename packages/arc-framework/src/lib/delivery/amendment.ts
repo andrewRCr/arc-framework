@@ -3,6 +3,7 @@
 import { assertCanonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import { validateDeliveryPlanRecord, validateDeliveryPlanRevision } from "./plan.js";
 import type { DeliveryPlanV1 } from "./schema.js";
+import { isDeliveryTaskAssignable } from "./task-inventory.js";
 
 /** Inputs to one side-effect-free amendment classification. */
 export interface ClassifyDeliveryPlanAmendmentInput {
@@ -75,8 +76,12 @@ export function classifyDeliveryPlanAmendment(
   const proposedMembers = new Map(input.proposed.members.map((member) => (
     [asCanonicalDigest(member.deliverableId), member]
   )));
-  const currentTasks = new Map(input.current.tasks.implementation.map((task) => [task.taskId, task.semanticDigest]));
-  const proposedTasks = new Map(input.proposed.tasks.implementation.map((task) => [task.taskId, task.semanticDigest]));
+  const currentTasks = new Map(input.current.tasks.parents
+    .filter(isDeliveryTaskAssignable)
+    .map((task) => [task.taskId, canonicalize({ semanticDigest: task.semanticDigest, role: task.role })]));
+  const proposedTasks = new Map(input.proposed.tasks.parents
+    .filter(isDeliveryTaskAssignable)
+    .map((task) => [task.taskId, canonicalize({ semanticDigest: task.semanticDigest, role: task.role })]));
   const currentDesign = new Map(input.current.design.elements.map((element) => (
     [element.elementId, element.semanticDigest]
   )));

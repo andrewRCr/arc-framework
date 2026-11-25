@@ -6,15 +6,19 @@ import {
   affectedPaths,
   resolveChangeSet,
   type ChangeSet,
-  type RawGitExec,
 } from "../change-facts.js";
 import { ChangeSetSchema } from "../change-facts.schema.js";
+import type { RawGitExec } from "../git/exec.js";
+import {
+  supportsMergeTreeWriteTree,
+  type MergeTreeCapabilityRefusalReason,
+} from "../git/merge-tree-capability.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import { parseCommitMessage } from "../commit-check/parser.js";
 import {
   isTaskNonReferenceContext,
   parseTaskReference,
-  type ParsedTaskReference,
-  type ParsedTaskReferenceItem,
+  expandTaskReference,
 } from "../commit-check/task-reference.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 import {
@@ -34,6 +38,7 @@ import { bindDesignInventory } from "./design-inventory.js";
 import { DeliveryPlanAuthoringInputV1Schema } from "./schema.js";
 import {
   buildDeliveryTaskInventory,
+  isDeliveryTaskAssignable,
   type DeliveryTaskInventory,
 } from "./task-inventory.js";
 
@@ -66,7 +71,7 @@ export type InspectDeliveryBranchRefusal = {
     | "divergence-boundary-missing"
     | "divergence-boundary-ambiguous"
     | "first-parent-history-malformed"
-    | "merge-tree-write-tree-unsupported"
+    | MergeTreeCapabilityRefusalReason
     | "ambient-purity-unproven"
     | "change-facts-unknown";
 };
@@ -200,7 +205,7 @@ export type PrepareDeliveryFromBranchAuthoringResult =
       | "invalid-design-inventory"
       | "task-list-malformed"
       | "verification-phase-missing"
-      | "verification-task-ambiguous"
+      | "work-unit-verification-task-ambiguous"
       | "invalid-authoring-identity"
       | "commit-attribution-unreadable"
       | "contribution-step-missing"
@@ -243,8 +248,6 @@ export async function inspectDeliveryBranch(input: {
   const cumulativeSet = new Set<string>();
   const cumulativePaths: string[] = [];
   const steps: DeliveryBranchStep[] = [];
-  const capabilities = { mergeTreeWriteTree: null as boolean | null };
-
   for (const commit of commits) {
     let parents: string[];
     try {
@@ -265,7 +268,7 @@ export async function inspectDeliveryBranch(input: {
     if (changeSet.changeSet === "unknown") {
       return { status: "refused", reason: "change-facts-unknown" };
     }
-    const classification = await classifyStep(input.exec, commit, parents, base, capabilities);
+    const classification = await classifyStep(input.exec, commit, parents, base);
     if (classification.status === "refused") return classification;
     if (classification.value === "contribution") {
       for (const path of affectedPaths(changeSet.changes)) {
@@ -284,7 +287,7 @@ export async function inspectDeliveryBranch(input: {
     });
   }
   const boundary = steps[0];
-  if (boundary === undefined || !await isAncestor(input.exec, boundary.predecessor, base)) {
+  if (boundary === undefined || await isAncestor(input.exec, boundary.predecessor, base) !== true) {
     return { status: "refused", reason: "divergence-boundary-missing" };
   }
   if (boundary.commit !== commits[0]) {
@@ -406,8 +409,7 @@ export function resolveDeliveryFromBranchProjection(input: {
       elements: input.snapshot.design.elements.map(({ elementId }) => ({ elementId })),
     },
     tasks: {
-      implementation: input.snapshot.tasks.implementation.map(({ taskId }) => ({ taskId })),
-      verificationTaskId: input.snapshot.tasks.verificationTaskId,
+      parents: input.snapshot.tasks.parents.map(({ taskId, role }) => ({ taskId, role })),
     },
     entry: "from-branch",
     projection: input.slots.projection,
@@ -599,10 +601,7 @@ async function deriveTaskAttributions(
   readonly reason: "commit-attribution-unreadable";
 }> {
   const orderedTaskIds = taskListIds(taskListContent);
-  const parentTaskIds = [
-    ...inventory.implementation.map((task) => task.taskId),
-    inventory.verificationTaskId,
-  ];
+  const parentTaskIds = inventory.parents.map((task) => task.taskId);
   const taskAttributions: {
     readonly commit: string;
     readonly referencedTaskIds: readonly string[];
@@ -663,26 +662,6 @@ function taskListIds(content: string): string[] {
   ));
 }
 
-function expandTaskReference(
-  reference: ParsedTaskReference,
-  orderedTaskIds: readonly string[],
-): string[] {
-  const expanded = reference.items.flatMap((item) => expandTaskReferenceItem(item, orderedTaskIds));
-  return [...new Set(expanded)];
-}
-
-function expandTaskReferenceItem(
-  item: ParsedTaskReferenceItem,
-  orderedTaskIds: readonly string[],
-): string[] {
-  if (item.kind === "single") return [item.taskId];
-  const start = orderedTaskIds.indexOf(item.startTaskId);
-  const end = orderedTaskIds.indexOf(item.endTaskId);
-  return start !== -1 && end >= start
-    ? orderedTaskIds.slice(start, end + 1)
-    : [item.startTaskId, item.endTaskId];
-}
-
 function resolveToParentInventory(
   taskIds: readonly string[],
   parentTaskIds: readonly string[],
@@ -712,7 +691,8 @@ function taskIdsForSegment(
   const represented = new Set(attributions
     .filter((attribution) => commitIds.includes(attribution.commit))
     .flatMap((attribution) => attribution.taskIds));
-  return snapshot.tasks.implementation
+  return snapshot.tasks.parents
+    .filter(isDeliveryTaskAssignable)
     .map((task) => task.taskId)
     .filter((taskId) => represented.has(taskId));
 }
@@ -722,7 +702,6 @@ async function classifyStep(
   commit: string,
   parents: readonly string[],
   base: string,
-  capabilities: { mergeTreeWriteTree: boolean | null },
 ): Promise<
   | { readonly status: "classified"; readonly value: DeliveryBranchStep["classification"] }
   | { readonly status: "refused"; readonly reason: InspectDeliveryBranchRefusal["reason"] }
@@ -730,13 +709,13 @@ async function classifyStep(
   if (parents.length === 1) return { status: "classified", value: "contribution" };
   if (parents.length !== 2) return { status: "refused", reason: "ambient-purity-unproven" };
   const secondParent = parents[1];
-  if (secondParent === undefined || !await isAncestor(exec, secondParent, base)) {
+  if (secondParent === undefined) return { status: "refused", reason: "ambient-purity-unproven" };
+  const ancestry = await isAncestor(exec, secondParent, base);
+  if (ancestry === null) return { status: "refused", reason: "ambient-purity-unproven" };
+  if (!ancestry) {
     return { status: "classified", value: "contribution" };
   }
-  if (capabilities.mergeTreeWriteTree === null) {
-    capabilities.mergeTreeWriteTree = await supportsMergeTreeWriteTree(exec, parents[0] ?? "");
-  }
-  if (!capabilities.mergeTreeWriteTree) {
+  if (!await supportsMergeTreeWriteTree(exec, parents[0])) {
     return { status: "refused", reason: "merge-tree-write-tree-unsupported" };
   }
   try {
@@ -753,21 +732,16 @@ async function classifyStep(
   }
 }
 
-async function supportsMergeTreeWriteTree(exec: RawGitExec, commit: string): Promise<boolean> {
+async function isAncestor(exec: RawGitExec, ancestor: string, descendant: string): Promise<boolean | null> {
+  const args = ["merge-base", "--is-ancestor", ancestor, descendant];
   try {
-    const output = await gitLines(exec, ["merge-tree", "--write-tree", commit, commit]);
-    return output.some((line) => /^[0-9a-f]{40,64}$/u.test(line));
-  } catch {
-    return false;
-  }
-}
-
-async function isAncestor(exec: RawGitExec, ancestor: string, descendant: string): Promise<boolean> {
-  try {
-    await exec(["merge-base", "--is-ancestor", ancestor, descendant]);
+    await exec(args);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    return failure.kind === "nonzero-exit" && failure.exitCode === 1 && failure.stderr.trim() === ""
+      ? false
+      : null;
   }
 }
 

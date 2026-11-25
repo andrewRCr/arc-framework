@@ -12,7 +12,7 @@
  * the topology without re-implementing the bootstrap.
  */
 
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
@@ -56,6 +56,11 @@ export interface MultiCloneOptions {
   cloneA?: CloneSetupOptions;
   /** Configuration for clone B. */
   cloneB?: CloneSetupOptions;
+  /**
+   * Build `origin`, `cloneA`, and `cloneB` inside this existing directory rather than in fresh temporary ones, so
+   * the whole topology can be copied as one tree.
+   */
+  parent?: string;
 }
 
 /** Options controlling a same-machine sibling-worktree setup. */
@@ -144,8 +149,15 @@ function resolveCloneOptions(
   };
 }
 
-async function seedOrigin(origin: string): Promise<void> {
-  const seed = await mkdtemp(join(tmpdir(), "arc-mc-seed-"));
+/** A fresh temporary directory, or the named one created inside `parent`. */
+async function placeDirectory(parent: string | undefined, prefix: string, name: string): Promise<string> {
+  if (parent === undefined) return mkdtemp(join(tmpdir(), prefix));
+  const directory = join(parent, name);
+  await mkdir(directory);
+  return directory;
+}
+
+async function seedOrigin(origin: string, seed: string): Promise<void> {
   try {
     await execFileAsync("git", ["init", "--initial-branch=main", seed]);
     await disableAutoGc(seed);
@@ -165,10 +177,9 @@ async function seedOrigin(origin: string): Promise<void> {
 
 async function createClone(
   origin: string,
-  prefix: string,
+  dir: string,
   options: Required<CloneSetupOptions>,
 ): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), prefix));
   await execFileAsync("git", ["clone", "--config", "gc.auto=0", origin, dir]);
   await execFileAsync("git", ["config", "user.name", options.authorName], { cwd: dir });
   await execFileAsync("git", ["config", "user.email", options.authorEmail], { cwd: dir });
@@ -212,20 +223,22 @@ export async function setupMultiClone(
   };
 
   try {
-    const origin = await mkdtemp(join(tmpdir(), "arc-mc-origin-"));
+    const origin = await placeDirectory(options.parent, "arc-mc-origin-", "origin");
     createdPaths.push(origin);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
     await disableAutoGc(origin);
 
     if (initialCommit) {
-      await seedOrigin(origin);
+      await seedOrigin(origin, await placeDirectory(options.parent, "arc-mc-seed-", "seed"));
     }
 
-    const cloneA = await createClone(origin, "arc-mc-cloneA-", cloneAOptions);
+    const cloneA = await placeDirectory(options.parent, "arc-mc-cloneA-", "cloneA");
     createdPaths.push(cloneA);
+    await createClone(origin, cloneA, cloneAOptions);
 
-    const cloneB = await createClone(origin, "arc-mc-cloneB-", cloneBOptions);
+    const cloneB = await placeDirectory(options.parent, "arc-mc-cloneB-", "cloneB");
     createdPaths.push(cloneB);
+    await createClone(origin, cloneB, cloneBOptions);
 
     return { origin, cloneA, cloneB, cleanup };
   } catch (err) {
@@ -261,10 +274,11 @@ export async function setupWorktreeSiblings(
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
     await disableAutoGc(origin);
 
-    await seedOrigin(origin);
+    await seedOrigin(origin, await placeDirectory(undefined, "arc-mc-seed-", "seed"));
 
-    const primary = await createClone(origin, "arc-wt-primary-", primaryOptions);
+    const primary = await placeDirectory(undefined, "arc-wt-primary-", "primary");
     createdPaths.push(primary);
+    await createClone(origin, primary, primaryOptions);
 
     const worktreeParent = await mkdtemp(join(tmpdir(), "arc-wt-siblings-"));
     createdPaths.push(worktreeParent);

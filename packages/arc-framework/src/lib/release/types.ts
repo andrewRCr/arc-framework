@@ -1,11 +1,9 @@
 /**
  * Public type surface for the release-wrapper validation library.
  *
- * Pins the refusal taxonomy, authorization-decision shape, audit-entry
- * schema, and shared refusal-formatter signature consumed by the release
- * commit/push handlers and the sync audit-log retrofit. Importing from
- * this module gives callers the single source of truth for the names and
- * shapes — internal modules are not reached into directly.
+ * Pins the refusal taxonomy, authorization-decision shape, and shared
+ * refusal-formatter signature consumed by the release commit/push handlers.
+ * Audit-entry contracts are owned by `schema.ts`.
  *
  * Type declarations only; no runtime. Compiler-validated.
  *
@@ -19,29 +17,8 @@ import type {
 import type { PushabilityCondition } from "../git/index.js";
 import type { RefusalCode } from "./schema.js";
 
-export type {
-  AuditCommand,
-  AuditEntry,
-  AuditInterlockState,
-  AuditOutcome,
-  AuditWorkUnit,
-  RefusalCode,
-} from "./schema.js";
-
 // --- Refusal taxonomy ---
 
-/**
- * Numeric exit code emitted on refusal. Stable surface: test suites,
- * harness gates, and downstream tooling match on these values.
- *
- * Code 15 (`arg-grammar-fallthrough`) is runtime-emitted by `arc release
- * push` when positional `<remote> <branch>` arguments do not match the
- * wrapper's fixed target (`origin <current-branch>`). The detail payload
- * carries the attempted and expected refs so the refusal message can name
- * both. Arg-grammar issues outside this narrow check still fall through to
- * git's parser; the code's name preserves the broader category for future
- * detections.
- */
 /** Stable string identifier for each refusal code. Pairs 1-to-1 with `RefusalCode`. */
 export type RefusalIdentifier =
   | "ambiguous-active-wu"
@@ -50,7 +27,8 @@ export type RefusalIdentifier =
   | "branch-protection-violation"
   | "pushability-precheck-failed"
   | "arg-grammar-fallthrough"
-  | "commit-message-preflight-failed";
+  | "commit-message-preflight-failed"
+  | "close-precheck-failed";
 
 /**
  * Mapping from `RefusalCode` to `RefusalIdentifier`. Single source of
@@ -65,9 +43,18 @@ export const REFUSAL_IDENTIFIERS: Readonly<Record<RefusalCode, RefusalIdentifier
   14: "pushability-precheck-failed",
   15: "arg-grammar-fallthrough",
   16: "commit-message-preflight-failed",
+  17: "close-precheck-failed",
 };
 
 // --- Authorization decision ---
+
+/**
+ * Why `arc release commit` refused an amend it otherwise accepts: `HEAD` is
+ * already on these remote-tracking refs, or they could not be read.
+ */
+export type PushedHeadReading =
+  | { kind: "pushed"; refs: readonly string[] }
+  | { kind: "unreadable"; detail: string };
 
 /**
  * Per-code discriminated payload returned by interlock-validation logic.
@@ -90,7 +77,7 @@ export type AuthorizationDecision =
         | { key: "arc.commitInterlock"; value: CommitInterlock }
         | { key: "arc.pushInterlock"; value: PushInterlock };
     }
-  | { kind: "refuse"; code: 12; identifier: "destructive-flag"; flag: string }
+  | { kind: "refuse"; code: 12; identifier: "destructive-flag"; flag: string; head?: PushedHeadReading }
   | { kind: "refuse"; code: 13; identifier: "branch-protection-violation"; branch: string }
   | {
       kind: "refuse";
@@ -113,7 +100,8 @@ export type AuthorizationDecision =
       code: 16;
       identifier: "commit-message-preflight-failed";
       reason: "validation" | "input";
-    };
+    }
+  | { kind: "refuse"; code: 17; identifier: "close-precheck-failed"; check: string; reason: string; remedy: string };
 
 // --- Refusal-message helper signature ---
 

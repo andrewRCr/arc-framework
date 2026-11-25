@@ -7,6 +7,20 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concern pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`)._
+
+### `[ ]` **Generalize lean compaction-seed projection over one session snapshot**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: session-init-performance`), housekeep drain (2026-09-07);
+  captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ batching per-path Candidate reads is an immediate Errand, but the durable performance boundary is a
+  lean compaction projection derived from the same invocation-scoped repository snapshot as session init.
+- _Fold-in:_ bound whole-request Git work, share already-established projections, and preserve typed failures. Do
+  not deepen Git notes as durable architecture while `strategy-storage-evolution.md` keeps them transitional.
+
 ## Problem / Motivation
 
 Session-init independently composes several Git-backed projections: selected base and refs, registered checkouts,

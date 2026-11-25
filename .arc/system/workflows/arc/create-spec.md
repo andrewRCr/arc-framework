@@ -5,19 +5,21 @@ purpose: >-
 audience: collaborative (human and agent)
 arc:
   methods:
+    - route-discovered-work
     - resolve-planning-depth
     - classify-work-unit
     - assess-boundary-fit
     - assess-draft-readiness
     - assess-design-proportionality
     - spec-review
-    - adversarial-review
-    - design-audit
-  extensions:
-    - pre-spec-finalization-review
+    - planning-review
+    - source-grounding
 ---
 
 # Workflow: Create Spec
+
+For every write — authoring, revision, gate iteration, and folds — a claim that states what shipped code does names
+the code that does it, in backticked symbol form, per [source-grounding][source-grounding].
 
 The second authoring stage — peer to [draft-design](draft-design.md) and [generate-tasks](generate-tasks.md).
 It crystallizes the design into a **spec** at the form the work demands: a one-paragraph `brief`, a
@@ -71,11 +73,25 @@ let its produced shape indicate the form — a rich, fully-shaped draft feeds `d
 determinacy-confirm feeds `brief` / `outline`. With no draft, read the standing `Class` plus the problem
 directly, narrowing to a **brief-vs-outline** disambiguation.
 
-If a draft carries an `## Inbound Buffer — Pending Integration` section, **integrate those routed notes into the
-draft body first** (or consciously reject each) — the buffer is a transit zone that must drain before the draft
-feeds the spec, never carried forward as-is. Then assess formalization-readiness via the
-[assess-draft-readiness][assess-draft-readiness] method; on **not-ready**, surface the returned gaps and resolve
-them inline (or return to drafting) before investing in spec writing.
+Run `arc user inbox-list --target {name} --json` for the captures that still name this work unit, held or not; a
+`refused` listing stops here until its remedy is applied. If the draft still holds inbound entries or the listing is
+`named`, run [route-discovered-work][route-discovered-work] at this owner's-pass entry-check fire-point before the
+draft feeds the spec:
+
+```yaml
+route-discovered-work:
+  entry: each held inbound entry, and each listed capture
+  door: owner's planning pass
+  host: this work unit
+```
+
+Show each outcome and its `_Shapes:_`, any Owner-decided pair, the coupled target's horizon advisory, and any wait
+the binding names at the Owner's pass. On confirmation, execute through the binding and leave the dispositions
+table; no entry stays held at this ready-making pass. Remove each routed capture with `arc user inbox-remove`, or
+rewrite it in place when its outcome is itself a capture. Re-run the listing, and continue only once it reports
+`clear`. Then assess formalization-readiness via the [assess-draft-readiness][assess-draft-readiness] method; on
+**not-ready**, surface the returned gaps and resolve them inline (or return to drafting) before investing in spec
+writing.
 
 The resolved form is this stage's default — re-selectable, never below the derivation floor; it selects the
 discovery pass below and the template at Write and save. The `**Class:**` decision is live from this read but
@@ -88,16 +104,18 @@ this form**, then closes the remaining gaps. With a settled draft this is target
 exploration; without one it covers the same ground from the problem directly. The pass is discover-then-write:
 work the block for the resolved form, then write and lightly iterate (Write and save, below). If discovery
 surfaces heavier derivation than the form assumed, fire the re-entry valve per
-[resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry — re-resolve the form higher, or route to
-`draft-design` when the design direction is unshaped — rather than patch-and-limp.
+[resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry. For a form-only signal below `high`,
+re-resolve the form higher. At `high`, offer a return to discovery over the named section at the resolved form,
+the `Novel` ratchet when invention is required, or boundary assessment for separable concerns. An accepted return
+ends the loop as `re-entered`; re-run spec-review over that section, then offer a fresh loop with a fresh cap and
+the ended loop's findings as context. An unshaped design direction still routes to `draft-design`.
 
 ### Proportionality guard (all forms)
 
-As discovery crystallizes the settled design, run
-[`assess-design-proportionality`][assess-design-proportionality] with the chartered problem, the current spec
-candidate, and key existing substrate pointers when useful. Apply it at every form. On `proportionate`, continue
-silently. On `revise`, correct a wrong named mechanism, shape, or interface in the spec candidate when the design
-is already settled; when the finding exposes an unshaped or under-derived direction, fire
+As discovery crystallizes the settled design, run [`assess-design-proportionality`][assess-design-proportionality] with
+the chartered problem, the current spec candidate, and key existing substrate pointers when useful. Apply it at every
+form. On `proportionate`, continue silently. On `revise`, correct a wrong named mechanism, shape, or interface in the
+spec candidate when the design is already settled; when the finding exposes an unshaped or under-derived direction, fire
 [`resolve-planning-depth`][resolve-planning-depth]'s mid-stage re-entry valve and return to `draft-design`.
 
 ### Scope-boundary carry-forward (all forms)
@@ -213,7 +231,7 @@ section body you otherwise replace wholesale — keep it, along with the `brief`
 where that form applies:
 
 ```text
-_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 ```
 
 **Naming:** The `{name}` descriptor in the spec filename becomes the work unit's identifier across all artifacts
@@ -236,42 +254,23 @@ only when nothing is on disk yet):
 
 ## Finalize — review, retire the draft, persist `Class`, commit
 
-Re-run [`assess-design-proportionality`][assess-design-proportionality] over the saved spec before self-review.
-Handle `revise` through the same in-place correction or `draft-design` re-entry routing as the discovery guard;
-the finalization boundary proceeds only on `proportionate`.
-
-Before surfacing the spec for approval, run the [spec-review][spec-review] self-review on what you just wrote —
-a coherence + grounding pass scaled to the form (it collapses to a single minimal check at `brief`). Fold in the
-fixes it surfaces; carry anything that needs a decision into the review below. A finding that reopens design is
-a derivation signal — fire the re-entry valve per [resolve-planning-depth][resolve-planning-depth] § Mid-stage
-re-entry (route it to the design, never patch it into the spec).
-
-- **Extensions** · `#pre-spec-finalization-review`: If `pre-spec-finalization-review` appears in the
-  active-extensions list (established at session init), load and execute its
-  [`.actions`][pre-spec-finalization-review] — a team's own spec-review ceremony layered on the default
-  self-review. Otherwise, skip.
-
-The finalization boundary also carries an advisory adversarial fire-point — design _and_ artifact attacked from
-fresh context, distinct from both the self-review above and any team extension:
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; surface a
-> neutral offer at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
+Run [planning-review's author checks][planning-author-checks] and [independent offer][planning-offer] at this
+stage gate, then its [findings and pass record][planning-findings].
 
 ```yaml
-adversarial-review:
-  rubric:          # assess-design-proportionality + design-audit + spec-review at the resolved form
-  artifacts:       # spec-{name}.md + draft-{name}.md (when one fed it) + non-exhaustive key-file pointers
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  prior-findings:  # pass two onward; omitted on pass one
+planning-review:
+  artifact: spec
+  artifacts:       # spec-{name}.md + draft when present + neutral key-file pointers
+  class:           # resolved Class
+  form:            # resolved spec form
+  prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
 
+Run `arc check increment` over the saved specification and report its result at Gate 1.
+
 > [!IMPORTANT]
-> `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
-> spec location and the self-review findings for a full read and feedback. Iteration loops here against the saved
+> `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and checked with `spec-review`.
+> Surface the spec location and the spec-check findings for a full read and feedback. Iteration loops here against the saved
 > spec — amend and re-surface until the spec is right. This approval means the spec is correct; it does **not**
 > authorize the irreversible finalize actions below · `[invariant]`.
 
@@ -288,11 +287,13 @@ If a `draft-*.md` document fed into this spec, retire it now. Drafts are ephemer
 are deleted once the spec captures the conclusions (see [Work Planning Strategy][work-planning] § Draft
 Documents).
 
-1. **Audit for reference content**: Scan the draft for implementation detail, design rationale, or context the
-   spec doesn't capture but would be valuable during task generation or execution. Migrate this to a
-   `notes-*.md` file alongside the spec (same directory). Keep the notes header minimal (title + contents only)
-   — no purpose block, no provenance to the draft, no commit metadata. See [DEV-RULES.ARC][dev-rules-arc] §
-   Documentation Boundaries.
+1. **Audit for reference content**: Distinguish binding obligations, settled decisions, and their decisive rationale
+   from supplemental execution context. If binding content is missing, absorb it into the specification and return
+   to [spec-review][spec-review] and the existing review/iteration and finalization approvals before migrating content
+   or deleting the draft. Route unsettled design through the existing design re-entry. Only supplemental context
+   valuable during task generation or execution may migrate to a `notes-*.md` file alongside the spec; notes cannot
+   become the sole home of binding design. Keep the notes header minimal (title + contents only) — no purpose block,
+   no provenance to the draft, no commit metadata. See [DEV-RULES.ARC][dev-rules-arc] § Documentation Boundaries.
 2. **Delete the draft**: `git rm` the `draft-*.md` file (and any supplemental files that fed into it, unless
    they have independent archival value — e.g., research files may belong in
    `reference/supplemental/research/`).
@@ -306,12 +307,11 @@ Documents).
    handoff resumes in generate-tasks. Skip otherwise (no meta file exists pre-init under non-planning-branch
    flows).
 
-**Post-settle coherence re-read** (always-on, in-context): when folds landed after the self-review —
-adversarial-pass findings, Gate 1 iteration amendments — re-fire `spec-review`'s coherence slice over the
-settled spec as the last step before the commit below. The final pass's folds are otherwise never re-attacked.
+After substeps 1-3, stage all edits — spec save (Write and save), draft deletion + `notes-*` migration, meta update.
 
-After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
-save, arc-in-git), draft deletion + `notes-*` migration, meta update.
+Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. When notes
+migration or later authored-text edits, including the reread, changed files after the first request, run
+`arc check increment` again before the commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -340,7 +340,6 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [assess-boundary-fit]: ../../methods/assess-boundary-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [spec-review]: ../../methods/spec-review.md
-[pre-spec-finalization-review]: ../../extensions/pre-spec-finalization-review.md
 [template-spec-brief]: ../../../reference/templates/arc/work-unit/spec/template-spec-brief.md
 [template-spec-outline]: ../../../reference/templates/arc/work-unit/spec/template-spec-outline.md
 [template-spec-detailed-prd]: ../../../reference/templates/arc/work-unit/spec/template-spec-detailed-prd.md
@@ -349,3 +348,10 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [integrate-work-unit]: work-unit-lifecycle/integrate-work-unit.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[source-grounding]: ../../methods/source-grounding.md
+[route-discovered-work]: ../../methods/route-discovered-work.md
+
+[planning-author-checks]: ../../methods/planning-review.md#author-checks
+[planning-offer]: ../../methods/planning-review.md#independent-offer
+[planning-findings]: ../../methods/planning-review.md#findings-and-pass-record
+[planning-reread]: ../../methods/planning-review.md#post-settle-reread

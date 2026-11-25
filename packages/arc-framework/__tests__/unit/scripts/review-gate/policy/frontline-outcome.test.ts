@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import {
   FrontlineExecutionOutcomeSchema,
@@ -52,6 +53,7 @@ describe("frontline outcome normalization", () => {
       severity: "major",
       locus: "src/review.ts:42",
       evidenceUrlOrId: "provider:item-1",
+      sourceOrdinal: 1,
     }] as const;
 
     expect(normalizeFrontlineOutcome({
@@ -67,6 +69,26 @@ describe("frontline outcome normalization", () => {
       source,
       target,
       pass: 1,
+    });
+  });
+
+  it("rejects frontline findings whose ordinals do not match complete capture order", () => {
+    assertSchemaRefuses(FrontlineExecutionOutcomeSchema, {
+      schemaVersion: 1,
+      semanticsVersion: "frontline-review/v1",
+      outcome: "findings",
+      source,
+      target,
+      pass: 1,
+      maxPasses: 2,
+      findings: [{
+        findingId: "finding-1",
+        severity: "major",
+        locus: "src/review.ts:42",
+        evidenceUrlOrId: "provider:item-1",
+        sourceOrdinal: 2,
+      }],
+      reason: null,
     });
   });
 
@@ -142,11 +164,11 @@ describe("frontline outcome normalization", () => {
       pass: 1,
       maxPasses: 2,
     });
-    expect(FrontlineExecutionOutcomeSchema.safeParse({ ...unavailable, reason: null }).success).toBe(false);
-    expect(FrontlineExecutionOutcomeSchema.safeParse({
+    assertSchemaRefuses(FrontlineExecutionOutcomeSchema, { ...unavailable, reason: null });
+    assertSchemaRefuses(FrontlineExecutionOutcomeSchema, {
       ...unavailable,
       reason: { class: "invalid-output" },
-    }).success).toBe(false);
+    });
   });
 
   it("rejects a pass beyond the resolved allowance", () => {

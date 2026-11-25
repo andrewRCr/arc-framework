@@ -7,8 +7,8 @@ export interface ActivatableMethodDefinition {
 
 /** Closed activatable-method registry; method names and defaults derive from this value. */
 export const ACTIVATABLE_METHOD_REGISTRY = Object.freeze({
-  "self-review": Object.freeze({ defaultActive: true }),
-  "frontline-review": Object.freeze({ defaultActive: false }),
+  "code-review-author": Object.freeze({ defaultActive: true }),
+  "code-review-frontline": Object.freeze({ defaultActive: false }),
 } as const satisfies Record<string, ActivatableMethodDefinition>);
 
 /** Registered activatable method name. */

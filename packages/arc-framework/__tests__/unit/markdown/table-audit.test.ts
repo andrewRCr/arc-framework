@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 import {
   auditTableMigrationFile,
@@ -102,9 +103,10 @@ describe("table migration audit", () => {
   it("pins one HEAD commit before loading immutable baselines", async () => {
     const baseline = encoder.encode("| A |\n| - |\n| 表 |\n");
     const transformed = transformGfmTables({ path: "docs/table.md", bytes: baseline });
-    const exec = vi.fn(async (_command: string, args: string[]) => ({
-      stdout: args[0] === "rev-parse" ? "a".repeat(40) : "docs/table.md",
-    }));
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "a".repeat(40) }] },
+      { match: { prefix: ["ls-files"] }, responses: [{ stdout: "docs/table.md" }] },
+    ]);
     const readBaseline = vi.fn(async () => baseline);
 
     const result = await prepareTableMigrationAudit({
@@ -133,9 +135,10 @@ describe("table migration audit", () => {
     await expect(prepareTableMigrationAudit({
       root: "/repo",
       paths: ["docs/missing.md"],
-      exec: vi.fn(async (_command: string, args: string[]) => ({
-        stdout: args[0] === "rev-parse" ? "b".repeat(40) : "docs/missing.md",
-      })),
+      exec: scriptGitExec([
+        { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "b".repeat(40) }] },
+        { match: { prefix: ["ls-files"] }, responses: [{ stdout: "docs/missing.md" }] },
+      ]).exec,
       lstat: vi.fn(async () => ({
         isFile: () => true,
         isDirectory: () => false,

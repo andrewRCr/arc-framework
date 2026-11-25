@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.shards.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "node_modules/.cache/tsc/shard-integration.tsbuildinfo"
+  },
+  "include": [
+    "__tests__/integration"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "__tests__/integration/store-ref-*",
+    "__tests__/integration/store"
+  ]
+}

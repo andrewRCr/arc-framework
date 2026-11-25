@@ -17,10 +17,11 @@ describe("base-drift register composition", () => {
     const overlap: OverlapEvidence = {
       status: "available", substantivePaths: [], regenerablePaths: ["ROADMAP"],
     };
-    const result = composeBaseDriftRegister("main", 4, complete, overlap);
+    const result = composeBaseDriftRegister("main", 4, complete, overlap, "disjoint");
     expect(result.kind).toBe("calm");
     expect(result.text).toContain("1 sibling integration ahead");
-    expect(result.text).toContain("Merge when convenient; required before integration.");
+    expect(result.text).toContain("Movement is disjoint.");
+    expect(result.text).toContain("typed checkpoint decides whether integration proceeds, reconciles, or stops");
   });
 
   it("lets substantive contention lead and appends evidence degradation", () => {
@@ -33,10 +34,12 @@ describe("base-drift register composition", () => {
       substantivePaths: ["a", "b", "c", "d"],
       regenerablePaths: [],
     };
-    const result = composeBaseDriftRegister("main", 4, integration, overlap);
+    const result = composeBaseDriftRegister("main", 4, integration, overlap, "overlapping");
     expect(result.kind).toBe("attention");
     expect(result.text).toContain("`a`, `b`, `c`, and 1 more");
     expect(result.text).toContain("unclassified base movement");
+    expect(result.text).toContain("Movement is overlapping.");
+    expect(result.text).toContain("typed checkpoint decides whether integration proceeds, reconciles, or stops");
   });
 
   it("degrades when overlap could not be established", () => {
@@ -45,8 +48,49 @@ describe("base-drift register composition", () => {
       2,
       complete,
       { status: "unavailable", reason: "merge-base-failed" },
+      "unknown",
     );
     expect(result.kind).toBe("degraded");
     expect(result.text).toContain("overlap analysis was unavailable");
+    expect(result.text).toContain("Movement is unknown.");
+    expect(result.text).toContain("typed checkpoint decides whether integration proceeds, reconciles, or stops");
+  });
+
+  it("keeps disjoint movement explicit when integration evidence is incomplete", () => {
+    const result = composeBaseDriftRegister(
+      "main",
+      2,
+      {
+        coverage: "partial", scannedCommitCount: 1, events: [], unclassifiedCommitCount: 1,
+        truncated: false, limitations: ["unclassified-commits"],
+      },
+      { status: "available", substantivePaths: [], regenerablePaths: [] },
+      "disjoint",
+    );
+    expect(result.kind).toBe("degraded");
+    expect(result.text).toContain("Movement is disjoint.");
+    expect(result.text).not.toContain("requires reconciliation before integration");
+  });
+});
+
+describe("base-drift register composition over a base that cannot be compared from", () => {
+  const unavailableText = "overlap analysis was unavailable";
+
+  it("narrates a history leaving more than one base in its own terms", () => {
+    const result = composeBaseDriftRegister("main", 4, complete, { status: "ambiguous" }, "unknown");
+
+    expect(result.kind).toBe("degraded");
+    expect(result.text).toContain("more than one merge base");
+    expect(result.text).toContain("Movement is unknown.");
+    expect(result.text).not.toContain(unavailableText);
+  });
+
+  it("narrates a history sharing no ancestor in its own terms", () => {
+    const result = composeBaseDriftRegister("main", 4, complete, { status: "unrelated" }, "unknown");
+
+    expect(result.kind).toBe("degraded");
+    expect(result.text).toContain("no common ancestor");
+    expect(result.text).toContain("Movement is unknown.");
+    expect(result.text).not.toContain(unavailableText);
   });
 });

@@ -6,7 +6,7 @@
 
 import { isAbsolute, posix, resolve } from "node:path";
 
-import { canonicalize, digestBytes } from "../canonical/canonical-json.js";
+import { canonicalize, digestBytes } from "../kernel/canonical/canonical-json.js";
 import type { GitExec } from "../git/exec.js";
 import { parseGitWorktreePorcelain } from "../git/worktree-porcelain.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
@@ -124,7 +124,10 @@ async function readTreeArtifacts(
       || !matcher.test(basename)
       || objectKind !== "blob"
       || (mode !== "100644" && mode !== "100755")) {
-      captureRefusal("source-shape", `Unexpected stored artifact ${path}.`);
+      captureRefusal("source-shape", `Unexpected stored artifact ${path}. `
+        + `Rename a regular file to <kind>-${input.slug}.md and place it directly inside ${input.sourceDirectory}, `
+        + "or move this entry out of the directory. Commit the repair to the configured base branch "
+        + `(and push or merge it there when origin is available), then rerun arc start ${input.slug}.`);
     }
     const bytes = await deps.readBlob(input.sourceRef, path);
     if (bytes === null) captureRefusal("source-shape", `Stored artifact disappeared: ${path}.`);

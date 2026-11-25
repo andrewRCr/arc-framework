@@ -2,6 +2,7 @@
  * Unit tests for hooks-path classification (missing core.hooksPath guard).
  */
 
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -11,6 +12,7 @@ import {
   resolveHooksPathVerdict,
   type HooksPathGitExec,
 } from "../../../src/lib/git/hooks-path.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 describe("isDisabledHooksPath", () => {
   it("recognizes intentional no-op paths", () => {
@@ -111,13 +113,14 @@ describe("formatMissingHooksPathMessage", () => {
 
 describe("resolveHooksPathVerdict", () => {
   it("builds git args, classifies a present absolute hooks path, and records config", async () => {
-    const calls: Array<{ command: string; args: readonly string[]; cwd: string }> = [];
-    const exec: HooksPathGitExec = async (command, args, opts) => {
-      calls.push({ command, args: [...args], cwd: opts.cwd });
-      if (args[0] === "rev-parse") return { stdout: "/worktree/.husky/_\n" };
-      if (args[0] === "config") return { stdout: ".husky/_\n" };
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    };
+    const scripted = scriptGitExec([
+      { match: ["rev-parse", "--path-format=absolute", "--git-path", "hooks"],
+        responses: [{ stdout: "/worktree/.husky/_\n" }] },
+      { match: ["config", "--get", "core.hooksPath"],
+        responses: [{ stdout: ".husky/_\n" }] },
+    ]);
+    const exec: HooksPathGitExec = (command, args, opts) =>
+      scripted.exec(command, [...args], opts);
     const pathExists = vi.fn(() => true);
 
     await expect(resolveHooksPathVerdict("/worktree", exec, pathExists)).resolves.toEqual({
@@ -125,7 +128,7 @@ describe("resolveHooksPathVerdict", () => {
       resolvedPath: "/worktree/.husky/_",
       reason: "present",
     });
-    expect(calls).toEqual([
+    expect(scripted.calls.map(({ command, args, options }) => ({ command, args, cwd: options?.cwd }))).toEqual([
       {
         command: "git",
         args: ["rev-parse", "--path-format=absolute", "--git-path", "hooks"],
@@ -141,27 +144,34 @@ describe("resolveHooksPathVerdict", () => {
   });
 
   it("treats config --get rejection as unset and resolves relative hooks paths", async () => {
-    const exec: HooksPathGitExec = async (_command, args) => {
-      if (args[0] === "rev-parse") return { stdout: "relative-hooks\n" };
-      if (args[0] === "config") throw new Error("exit 1: key unset");
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    };
+    const scripted = scriptGitExec([
+      { match: ["rev-parse", "--path-format=absolute", "--git-path", "hooks"],
+        responses: [{ stdout: "relative-hooks\n" }] },
+      { match: ["config", "--get", "core.hooksPath"],
+        responses: [{ failure: { exitCode: 1, stderr: "exit 1: key unset" } }] },
+    ]);
+    const exec: HooksPathGitExec = (command, args, opts) =>
+      scripted.exec(command, [...args], opts);
 
+    const relativeHooks = resolve("/worktree", "relative-hooks");
     await expect(
-      resolveHooksPathVerdict("/worktree", exec, (path) => path === "/worktree/relative-hooks"),
+      resolveHooksPathVerdict("/worktree", exec, (path) => path === relativeHooks),
     ).resolves.toEqual({
       kind: "ok",
-      resolvedPath: "/worktree/relative-hooks",
+      resolvedPath: relativeHooks,
       reason: "unset-default-present",
     });
   });
 
   it("returns missing when the resolved hooks directory does not exist", async () => {
-    const exec: HooksPathGitExec = async (_command, args) => {
-      if (args[0] === "rev-parse") return { stdout: "/worktree/.husky/_\n" };
-      if (args[0] === "config") return { stdout: ".husky/_\n" };
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    };
+    const scripted = scriptGitExec([
+      { match: ["rev-parse", "--path-format=absolute", "--git-path", "hooks"],
+        responses: [{ stdout: "/worktree/.husky/_\n" }] },
+      { match: ["config", "--get", "core.hooksPath"],
+        responses: [{ stdout: ".husky/_\n" }] },
+    ]);
+    const exec: HooksPathGitExec = (command, args, opts) =>
+      scripted.exec(command, [...args], opts);
 
     await expect(
       resolveHooksPathVerdict("/worktree", exec, () => false),

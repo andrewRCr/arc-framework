@@ -1,11 +1,52 @@
 # Draft: ARC Coordination Service (Coordinated tier)
 
-- **Origin:** [internal] — split out of `draft-arc-backend.md` at the storage-substrate grooming (2026-07-17), so
+- **Origin:** [internal] — split out of `draft-storage-contract.md` at the storage-substrate grooming (2026-07-17), so
   the git-only substrate (tiers 1–3) could promote to planned while the service tier stays a someday-target.
 - **Cohort:** [none]
 - **Purpose:** The **Coordinated** tier of the storage substrate: a coordination layer fronting the same git
   backing store, for deployments whose needs outgrow a plain shared remote — per-record authorization,
   event-log gatekeeping, richer heal/refresh contracts, high-parallelism arbitration.
+
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Replace arc-coordination-service's `arc-backend` vocabulary**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: arc-coordination-service`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The draft still speaks in `arc-backend` terms — its tiers and "moved from arc-backend" — which the
+  `state-storage` re-cut renamed to `storage-contract` and ADR-035 re-shaped into backends behind one contract. It is
+  also the recorded home for the deferred service backend, per-record authorization, and very high write parallelism
+  (`storage-contract` C14).
+- _Approach:_ Re-frame the draft against ADR-035's backends and the storage contract's interface at next grooming.
+
+### `[ ]` **Revisit the scale envelope and the service backend's premise against the current storage design**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its premise — the Coordinated tier as where scale beyond a plain shared remote goes; ADR-035 item 7's design
+  envelope; `strategy-storage-evolution.md`'s envelope statement and Principle 10 (service-optional).
+
+- _Observation:_ ADR-035 item 7 and `strategy-storage-evolution.md` state a design envelope of about ten people running
+  about six sessions each, with larger scale deferred to a service backend. That service was conceived before the
+  current storage and projection design and has not been revisited against it. Owner direction (2026-11-10): ARC should
+  work at 1, 10, 50, or 150 developers, with larger teams deferred, and the current design is expected to scale without
+  a service. The store's own per-command cost already passes the projection's whole no-change budget (10 ms on Linux,
+  60 ms on Windows) in that range: `version()` lists every live ref, about one per stub, and at 23 work units a month
+  per person (this repository's measured rate) 50 people hold about 5,900 refs, about 73 ms a command on Windows, and
+  150 about 17,700, about 132 ms on Windows and 25 ms on Linux (per-ref constants from `notes-projection-worktrees.md`
+  § Spike 4, packed refs; loose refs cost about 72 µs each on Windows). The growth model there ran only k=2 and k=8.
+
+- _Approach:_ realign ADR-035 item 7 and `strategy-storage-evolution.md` with the 1–150 target, by amendment or
+  supersession under the ADR methodology's tiers, and re-examine what, if anything, the service backend is still for.
+  `projection-team-scale`'s draft challenges the envelope in its own analysis and anchors its design at 1, 10, 50, and
+  150 people; the document edits come here.
+
+- _Captured during:_ `projection-team-scale` draft-design, 2026-11-10 (Owner-approved). Also raised to the
+  project-manager session for triage, since the store-side costs reach beyond the projection.
 
 ---
 

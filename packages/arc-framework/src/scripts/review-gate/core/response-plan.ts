@@ -1,7 +1,6 @@
 /** Deterministic state planning for one bounded local review-response cycle. */
 
 import { validateDispositionState } from "./dispositions.js";
-import { reviewerDispositionNit, reviewerDispositionSeverity } from "./disposition-records.js";
 import { createFixAuthorization } from "./fix-authorization.js";
 import { validateReviewTarget } from "./gate-contract-v2.js";
 import {
@@ -82,8 +81,8 @@ function findingsMatch(input: ReviewResponseInput): boolean {
     const finding = normalized.get(item.findingId);
     return finding !== undefined
       && finding.locus === item.locus
-      && finding.severity === reviewerDispositionSeverity(item)
-      && finding.nit === reviewerDispositionNit(item);
+      && finding.severity === item.reportedSeverity
+      && finding.nit === item.reportedNit;
   });
 }
 

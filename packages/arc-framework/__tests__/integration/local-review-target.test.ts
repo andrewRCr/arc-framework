@@ -16,6 +16,7 @@ import {
   composeDeliveryMemberTarget,
   confirmLocalReviewTarget,
   deriveLocalReviewTarget,
+  deriveLocalReviewTargetFromCoordinates,
   LocalTargetDerivationError,
 } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 
@@ -71,6 +72,40 @@ describe("canonical local review target derivation", () => {
     await expectInvalid(nonCommit, "non-commit-head");
   });
 
+  it("tells a history with two best bases from one with none, deriving from neither", async () => {
+    // Two merges of the same pair in opposite parent orders — the one shape that leaves two best common
+    // ancestors with neither reachable from the other, so no single base defines the change set.
+    const ambiguous = await createRepository();
+    await git(ambiguous, "switch", "-c", "feature");
+    await writeFile(join(ambiguous, "feature.txt"), "feature\n", "utf8");
+    await git(ambiguous, "add", "feature.txt");
+    await git(ambiguous, "commit", "-m", "feature side");
+    const featureSide = await git(ambiguous, "rev-parse", "HEAD");
+    await git(ambiguous, "switch", "main");
+    await writeFile(join(ambiguous, "base.txt"), "base\n", "utf8");
+    await git(ambiguous, "add", "base.txt");
+    await git(ambiguous, "commit", "-m", "base side");
+    const baseSide = await git(ambiguous, "rev-parse", "HEAD");
+    await git(ambiguous, "switch", "feature");
+    await git(ambiguous, "merge", "--no-ff", "-m", "feature merge", baseSide);
+    await git(ambiguous, "switch", "main");
+    await git(ambiguous, "merge", "--no-ff", "-m", "base merge", featureSide);
+    await git(ambiguous, "switch", "feature");
+
+    await expectInvalid(ambiguous, "ambiguous-merge-base");
+
+    // The same channel, a different condition: a branch sharing no ancestor with the base has no
+    // comparison point at all, where the one above has two. Reading them as one reason would put the
+    // reviewed change set back on whichever of the two an unrecorded choice exposed.
+    const unrelated = await createRepository();
+    await git(unrelated, "switch", "--orphan", "unrelated");
+    await writeFile(join(unrelated, "other.txt"), "other\n", "utf8");
+    await git(unrelated, "add", "other.txt");
+    await git(unrelated, "commit", "-m", "unrelated root");
+
+    await expectInvalid(unrelated, "no-merge-base");
+  });
+
   it("derives exact commits, merge base, and trees from a clean repository", async () => {
     const root = await createRepository();
     await git(root, "switch", "-c", "feature");
@@ -90,6 +125,34 @@ describe("canonical local review target derivation", () => {
       headSha: await git(root, "rev-parse", "HEAD"),
       headTree: await git(root, "rev-parse", "HEAD^{tree}"),
     });
+  });
+
+  it("derives canonical identity and trees from caller-held exact commit coordinates", async () => {
+    const root = await createRepository();
+    const base = await git(root, "rev-parse", "HEAD");
+    await writeFile(join(root, "tracked.txt"), "next\n", "utf8");
+    await git(root, "commit", "-am", "next");
+    const head = await git(root, "rev-parse", "HEAD");
+
+    for (const kind of ["change-set", "delivery-member"] as const) {
+      const target = await deriveLocalReviewTargetFromCoordinates({
+        exec,
+        cwd: root,
+        repositoryId,
+        coordinates: { kind, baseRef: "main", diffBaseSha: base, headSha: head },
+      });
+
+      expect(target).toMatchObject({
+        kind,
+        repositoryId,
+        baseRef: "main",
+        diffBaseSha: base,
+        diffBaseTree: await git(root, "rev-parse", `${base}^{tree}`),
+        headSha: head,
+        headTree: await git(root, "rev-parse", `${head}^{tree}`),
+      });
+      expect(target.targetId).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    }
   });
 
   it("reports a stale target when coordinates move before publication", async () => {
@@ -128,7 +191,7 @@ describe("member-coordinate target derivation", () => {
     };
   }
 
-  /** A control branch two commits ahead of `main`, standing in for a two-member stack. */
+  /** A work-unit branch two commits ahead of `main`, standing in for a two-member stack. */
   async function createStack(): Promise<{
     root: string;
     predecessorSha: string;
@@ -278,8 +341,12 @@ describe("member-coordinate target derivation", () => {
         planId: "3f1b7c2e-4a5d-4e6f-8a9b-0c1d2e3f4a5b",
         deliverableId: `sha256:${"1".repeat(64)}`,
         workUnitId: "owning-work-unit",
+        baseRef: "main",
+        candidateHead: overrides.head,
+        successorHeads: [],
         isFinalMember: false,
         ...overrides,
+        headRef: overrides.headRef === undefined ? "delivery/plan/member-1" : overrides.headRef,
       };
     }
 

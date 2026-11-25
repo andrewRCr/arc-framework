@@ -1,31 +1,32 @@
 # Strategy Document Index
 
-**Purpose:** Quick reference to codified strategy guidance. Consult relevant strategies before implementing
-work in their domains.
-
 ## ARC Framework Strategies
 
-These ship with the framework and cover development methodology applicable to any project.
 Strategies marked **(arc-in-git)** are only present when arc-in-git Project Management mode is active
 (`pm.mode: arc-in-git`); those marked **(team mode)** only when `team.mode: true` — both in `arc-config.yml`.
 
 - `arc/strategy-adr-methodology.md`
-    - Consult when: writing an ADR, deciding whether a decision warrants one
+    - ALWAYS load before writing, amending, or accepting an ADR; `assess-draft-readiness` carries the planning-close
+      test of which decisions warrant one.
 - `arc/strategy-configurability-architecture.md`
-    - Consult when: working on config, extensions, or methods infrastructure
+    - Consult when: working on config or methods infrastructure
 - `arc/strategy-planning-module.md` **(arc-in-git)** - What arc-in-git installs, routing/promotion, scaling
   boundaries
     - Consult when: working with backlog structure, routing deferred work, evaluating PM mode fit
 - `arc/strategy-file-classification.md`
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
+- `arc/strategy-integration.md`
+    - ALWAYS load before designing or changing one work unit's publication boundary, delivery landing window,
+      terminal merge authority, or post-landing closeout; do not distribute integration doctrine across lifecycle
+      workflows.
 - `arc/strategy-work-planning.md` - Planning pipeline, depth model, spec forms (brief/outline/detailed), layered
   specs
     - ALWAYS load when the planning workflow in hand does not settle it — which spec form fits, how layered specs
       compose, where the pipeline's stage boundaries fall; the `resolve-planning-depth` method and the
       `draft-design` / `create-spec` workflows cover routine depth resolution and authoring.
-- `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
-    - Consult when: escalating a gate failure, or identifying a non-obvious integration checkpoint — routine
-      per-task and per-unit gate runs are covered by the `quality-gate-commands` method
+- `arc/strategy-quality-gates.md`
+    - ALWAYS load before choosing a check's deadline or deciding whether related tests can hold the push gate;
+      do not infer coverage from an import graph alone. Verb help and remedies cover routine selection and execution.
 - `arc/strategy-session-operations.md`
     - ALWAYS load before placing new guidance content in a loading tier, or authoring an interlock, recovery, or
       handoff step — the tier classification criteria and loading mechanisms have no leaner surface;
@@ -40,7 +41,7 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - Companion: `template-tasks.md` for skeletons; `generate-tasks.md` § Finalize the task list for the pre-save
       checklist
 - `arc/strategy-workflow-authoring.md`
-    - ALWAYS load before authoring or editing a workflow file — frontmatter, method or extension declarations,
+    - ALWAYS load before authoring or editing a workflow file — frontmatter, method declarations,
       interlock markers, routing class tags; do not copy the shape from an existing workflow.
 - `arc/strategy-team-coordination.md` **(team mode)**
     - ALWAYS load before assigning or transferring work-unit ownership across developers, or setting
@@ -55,19 +56,6 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
       classification, branch, and archival calls.
 
 ## Project Strategies
-
-Create project-specific strategies in `project/` as your project's patterns emerge.
-See `project/README.md` for guidance on when to create one.
-
-**Example project strategies** (illustrations — these files don't exist until you
-create them):
-
-- `project/strategy-authentication.md` - Auth flow, session management
-- `project/strategy-testing-methodology.md` - Testing patterns, coverage expectations
-- `project/strategy-service-layer.md` - Business logic organization, DI patterns
-- `project/strategy-type-safety.md` - Type checking approach, policy decisions
-- `project/style/strategy-component-styling.md` - Component patterns, design system
-- `project/style/strategy-color-tokens.md` - Color token reference, naming conventions
 
 ---
 

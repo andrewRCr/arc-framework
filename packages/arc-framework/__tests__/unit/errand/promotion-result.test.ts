@@ -1,6 +1,7 @@
 /** Exact public result contract for Errand promotion. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   createErrandPromotionResult,
@@ -33,7 +34,7 @@ describe("ErrandPromotionResultSchema", () => {
 
     expect(ErrandPromotionResultSchema.parse(result)).toEqual(result);
     for (const retired of ["recordId", "leaseId", "activeLocusPath", "sessionHomePath"] as const) {
-      expect(ErrandPromotionResultSchema.safeParse({ ...result, [retired]: null }).success).toBe(false);
+      assertSchemaRefuses(ErrandPromotionResultSchema, { ...result, [retired]: null });
     }
   });
 

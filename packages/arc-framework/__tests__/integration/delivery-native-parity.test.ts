@@ -6,7 +6,13 @@ import {
   type DeliveryNativeStackInput,
 } from "../../src/lib/delivery/native-stack.js";
 import { selectNativeDeliveryLandingArm } from "../../src/lib/delivery/native-landing.js";
-import { adoptDeliveryTerminalMerge } from "../../src/lib/delivery/terminal.js";
+import { composeDeliveryTerminalClaim } from "../../src/lib/delivery/terminal-integration.js";
+import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  projectCandidateCurrentness,
+} from "../../src/lib/work-unit/candidate-attestation.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 
@@ -28,42 +34,64 @@ async function terminalProjection(landingBatches: readonly (readonly string[])[]
   if (JSON.stringify(landedDeliverableIds) !== JSON.stringify(expectedIds)) {
     throw new Error("landing batches must cover the exact ordered non-terminal remainder");
   }
-  let members = initial.members.map((member, index) => index === initial.members.length - 1 ? {
-    deliverableId: member.deliverableId, ref: null, changeRequest: null, coordinates: null,
-  } : member);
-  for (const batch of landingBatches) {
-    const landed = new Set(batch);
-    members = members.map((member) => landed.has(member.deliverableId) ? {
-      deliverableId: member.deliverableId, ref: null, changeRequest: null, coordinates: null,
-    } : member);
-  }
+  const candidateHead = "e".repeat(40);
+  const candidateTree = "f".repeat(40);
+  const members = initial.members.map((member, index, all) => ({
+    ...member,
+    changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+    coordinates: index === all.length - 1
+      ? { ...member.coordinates!, head: candidateHead, tree: candidateTree }
+      : member.coordinates,
+  }));
   const state = {
     ...initial,
     members,
   };
-  const targetBefore = state.target!.coordinates!;
-  const targetAfter = { head: "e".repeat(40), tree: "f".repeat(40) };
-  const result = await adoptDeliveryTerminalMerge({
-    resolution: { status: "delivery", plan, current: { revision: 8, value: state } },
-    repository: "owner/repo",
-    retainedControlRef: "refs/heads/feat/control",
-    retainedControlHead: "c".repeat(40),
-    landedDeliverableIds,
-    request: {
-      binding: { providerId: "github", changeRequestId: "99" },
-      repository: "owner/repo", headRepository: "owner/repo", headRef: "feat/control",
-      headSha: "c".repeat(40), baseRef: state.target!.ref.replace("refs/heads/", ""),
-      state: "merged", draft: false,
-    },
-    targetBefore,
-    targetAfter,
-    proveResidual: async () => ({ status: "accepted", proof: "tree-equality" }),
-    stateStore: { publish: async (_planId, value, revision) => ({
-      status: "ok", value: { revision: revision + 1, value },
-    }) },
+  const subject = createCandidateSubjectSnapshot([{
+    path: "feature.ts",
+    digest: canonicalDigest({ content: "candidate" }),
+    mode: "100644",
+    treatment: "reviewable",
+  }]);
+  const record = {
+    schemaVersion: 1 as const,
+    semanticsVersion: "candidate-attestation/v1" as const,
+    attestation: createCandidateAttestation({
+      workUnit: plan.workUnitId,
+      subject,
+      baseRevision: initial.target!.coordinates!.head,
+      attestedBy: "reviewer",
+      attestedAt: "2026-08-21T12:00:00.000Z",
+      verificationEvidenceRef: "verification://candidate",
+    }),
+    subject,
+    transitions: [],
+    lineageAttestations: [],
+  };
+  const candidate = projectCandidateCurrentness({
+    record,
+    current: { revision: candidateHead, subject },
   });
-  if (result.status !== "attached") throw new Error("terminal fixture must attach");
-  return result.state.value;
+  if (candidate.status !== "current") throw new Error("terminal fixture Candidate must be current");
+  const predecessor = state.members.at(-2)!.coordinates!;
+  return composeDeliveryTerminalClaim({
+    record,
+    candidate,
+    plan,
+    state,
+    landings: state.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      head: member.coordinates!.head,
+    })),
+    terminalDelta: {
+      predecessor: { head: predecessor.head, tree: predecessor.tree },
+      member: { head: candidateHead, tree: candidateTree },
+    },
+    readCandidateCoordinate: async (head) => head === candidateHead
+      ? { head: candidateHead, tree: candidateTree }
+      : null,
+    proveResidual: async () => ({ status: "accepted", proof: "tree-equality" }),
+  });
 }
 
 describe("native delivery degradation parity", () => {
@@ -94,7 +122,7 @@ describe("native delivery degradation parity", () => {
     expect(calls).toEqual(["observe-linked", "unlink", "observe-unlinked"]);
   });
 
-  it("authorizes only the exact nonterminal set and converges sequential, degraded, and atomic terminal state", async () => {
+  it("authorizes only the exact nonterminal set and converges sequential, degraded, and atomic terminal claim", async () => {
     const singleton = selectNativeDeliveryLandingArm({
       plan, landedPrefix: [], observation: { status: "registered", stackNumber: 7 },
       mergeStrategy: "merge", mergeAction: "direct", explicitAtomic: false,

@@ -1,3 +1,4 @@
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 /**
  * Unit tests for the `teardown` verb — the arc-state authority gate, branch
  * resolution (slug enumeration + ambiguity), and the presence-guarded dispatch
@@ -7,7 +8,12 @@
  * orchestration is asserted in isolation.
  */
 
-import { describe, it, expect } from "vitest";
+import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
+import { describe, it, expect, onTestFinished } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   runBranchTeardown,
@@ -15,15 +21,18 @@ import {
   type TeardownContext,
 } from "../../../../src/lib/work-unit/verbs/teardown.js";
 import { contentDigest } from "../../../../src/lib/canonical/content-digest.js";
-import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
+import { validateManagedPath } from "../../../../src/lib/kernel/canonical/managed-path.js";
 import { artifactGroupDigest } from "../../../../src/lib/canonical/content-digest.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
-import type { WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
+import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import type { RetirementAuthorityPort } from "../../../../src/lib/work-unit/retirement-authority.js";
 import type { TeardownSelection } from "../../../../src/lib/work-unit/teardown-selection.js";
 import type { RetireWorktreeOptions } from "../../../../src/lib/work-unit/teardown-worktree-transaction.js";
 import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
+import { readCheckoutLayoutContext } from "../../../../src/lib/store/checkout-layout.js";
+import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
+import { nodeReconcileWorkUnitWorktreeFs } from "../../../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 
 const CWD = "/repo";
 
@@ -76,7 +85,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   const addChildDir = (parent: string, name: string): void => {
     const entries = ensureDir(parent);
     if (!entries.some((e) => e.name === name && e.isDirectory())) {
-      entries.push({ name, isDirectory: () => true });
+      entries.push({ name, isDirectory: () => true, isFile: () => false });
     }
   };
 
@@ -92,18 +101,18 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
         parent = `${parent}/${seg}`;
       }
     }
-    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
+    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false, isFile: () => true });
     files.set(`${dirAbs}/${filename}`, metaFixtureContent(meta));
   }
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       if (entries === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       if (content === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve(content);
     },
@@ -269,6 +278,7 @@ function installStatefulPrimaryProjection(
   ctx.scanWorktrees = async () => ({
     ok: true,
     worktrees: [{
+      folderPresent: true,
       path: CWD,
       head: primaryBranch === "plan/demo" ? "abc" : "deadbeef",
       branch: primaryBranch,
@@ -308,10 +318,12 @@ function enableSelfHusk(ctx: TeardownContext): () => WorktreeMarker | null {
   ctx.cwd = CWD;
   ctx.worktreeFs = {
     pathExists: async () => false,
-    directoryExists: async () => false,
+    directoryExists: async () => true,
     copyDirectory: async () => {},
+    copyFileIfAbsent: async () => {},
     readFile: async () => "",
     writeFile: async () => {},
+    withLock: async (_path, operation) => operation(),
     mkdir: async () => {},
     readDir: async () => [],
     removeFile: async () => {},
@@ -339,12 +351,14 @@ function markerWithHusk(pathBranch = "feat/demo"): WorktreeMarker {
     createdFor: { kind: "work-unit", name: "demo" },
     spawningIdentity: "andrew",
     createdAt: "2026-07-14T19:00:00.000Z",
-    husk: {
+    husk: makeHuskStamp({
       sha: "def",
       at: "2026-07-14T20:00:00.000Z",
       subject: { kind: "work-unit", name: "demo" },
       branch: pathBranch,
-    },
+      authorization: "merged-preserved", remoteRef: null,
+      evidence: { kind: "shipped", expectedLifecycle: "completed", resultDigest: SHIPPED_RESULT_DIGEST, baseProofOid: "abc" },
+    }),
   };
 }
 
@@ -368,6 +382,7 @@ function selection(
   return {
     kind: "clear",
     checkout: {
+      folderPresent: true,
       path: checkoutPath,
       head: checkoutPath === "/repo" ? "abc" : "def",
       branch: checkoutPath === "/repo" ? "main" : "feat/demo",
@@ -411,6 +426,8 @@ function branchMarkerWithHusk(branch: string): WorktreeMarker {
       at: "2026-07-14T20:00:00.000Z",
       subject: { kind: "branch", ref: branch },
       branch,
+      authorization: "merged-preserved", remoteRef: null,
+      evidence: { kind: "shipped", expectedLifecycle: "completed", resultDigest: canonicalDigest({ subject: { kind: "branch", ref: branch } }), baseProofOid: "abc" },
     },
   };
 }
@@ -419,7 +436,7 @@ describe("runTeardown — arc-state authority gate", () => {
   it("authorizes a `completed/` WU through the compatibility seam when protection is omitted", async () => {
     const { ctx } = buildCtx([SHIPPED_META], { branches: [] });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
   });
@@ -430,7 +447,7 @@ describe("runTeardown — arc-state authority gate", () => {
       worktreePorcelain: "worktree /repo\nHEAD def\nbranch refs/heads/feat/demo\n",
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
   });
@@ -442,7 +459,7 @@ describe("runTeardown — arc-state authority gate", () => {
     });
 
     const result = await runTeardown(ctx, {
-      name: "demo",
+      subject: { kind: "slug", slug: "demo" },
       base: "main",
       protection: "full",
     });
@@ -464,6 +481,44 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(authorityReadIndex).toBeGreaterThan(fetchIndex);
   });
 
+  it("refuses unavailable completed evidence and completes after the same-command retry", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE_META], {
+      baseMetas: [SHIPPED_META],
+      branches: ["feat/demo"],
+    });
+    const baseExec = ctx.exec;
+    let completedReadUnavailable = true;
+    ctx.exec = async (command, args, options) => {
+      if (completedReadUnavailable && args[0] === "ls-tree" && args.includes(".arc/completed/")) {
+        throw new Error("completed tree unavailable");
+      }
+      return await baseExec(command, args, options);
+    };
+
+    const refused = await runTeardown(ctx, {
+      subject: { kind: "slug", slug: "demo" },
+      base: "main",
+      protection: "full",
+    });
+
+    expect(refused).toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(
+        /could not read completed lifecycle evidence from `origin\/main`.*retry the same teardown command/iu,
+      ),
+    });
+    expect(calls).not.toContainEqual(expect.arrayContaining(["for-each-ref"]));
+
+    completedReadUnavailable = false;
+    const retried = await runTeardown(ctx, {
+      subject: { kind: "slug", slug: "demo" },
+      base: "main",
+      protection: "full",
+    });
+
+    expect(retried.status).toBe("torn-down");
+  });
+
   it("fails closed when the configured lifecycle authority ref cannot be resolved", async () => {
     const { ctx, calls } = buildCtx([ACTIVE_META], {
       branches: ["feat/demo"],
@@ -471,7 +526,7 @@ describe("runTeardown — arc-state authority gate", () => {
     });
 
     const result = await runTeardown(ctx, {
-      name: "demo",
+      subject: { kind: "slug", slug: "demo" },
       base: "main",
       mode: "abandoned",
       protection: "full",
@@ -480,6 +535,7 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/could not resolve lifecycle authority ref `origin\/main`/i);
+    expect(result.reason).toMatch(/retry the same teardown command/i);
     expect(calls).not.toContainEqual(expect.arrayContaining(["for-each-ref"]));
   });
 
@@ -490,14 +546,16 @@ describe("runTeardown — arc-state authority gate", () => {
     });
 
     const result = await runTeardown(ctx, {
-      name: "demo",
+      subject: { kind: "slug", slug: "demo" },
       base: "main",
       protection: "full",
     });
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/could not resolve lifecycle authority ref `origin\/main`/i),
+      reason: expect.stringMatching(
+        /could not resolve lifecycle authority ref `origin\/main`.*retry the same teardown command/i,
+      ),
     });
     expect(calls).not.toContainEqual(expect.arrayContaining(["ls-tree"]));
   });
@@ -505,7 +563,7 @@ describe("runTeardown — arc-state authority gate", () => {
   it("refuses a nonexistent WU", async () => {
     const { ctx } = buildCtx([], { branches: [] });
 
-    const result = await runTeardown(ctx, { name: "ghost", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "ghost" }, base: "main" });
 
     expect(result.status).toBe("rejected");
   });
@@ -515,7 +573,7 @@ describe("runTeardown — branch resolution", () => {
   it("resolves the WU branch by slug regardless of type prefix and reaps it", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main", "feat/demo"] });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -527,7 +585,7 @@ describe("runTeardown — branch resolution", () => {
   it("is a no-op on the branch arm when no local branch maps (already reaped), still prunes", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"] });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -541,7 +599,7 @@ describe("runTeardown — branch resolution", () => {
   it("refuses when more than one local branch maps to the slug (ambiguous)", async () => {
     const { ctx } = buildCtx([SHIPPED_META], { branches: ["feat/demo", "fix/demo"] });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -556,7 +614,7 @@ describe("runTeardown — branch resolution", () => {
       branchSurvivesDelete: true,
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -581,7 +639,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       message: "The teardown target belongs to another identity.",
     });
 
-    await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
+    await expect(runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).resolves.toMatchObject({
       status: "rejected",
       reason: expect.stringMatching(/another identity/iu),
     });
@@ -600,7 +658,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       retire: async () => { throw new Error("target selection changed under lock"); },
     };
 
-    await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
+    await expect(runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).resolves.toMatchObject({
       status: "rejected",
       reason: expect.stringMatching(/selection changed under lock/iu),
     });
@@ -619,7 +677,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       retire: async () => { throw new Error("ownership marker generation changed under lock"); },
     };
 
-    await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
+    await expect(runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).resolves.toMatchObject({
       status: "rejected",
       reason: expect.stringMatching(/marker generation changed/iu),
     });
@@ -663,7 +721,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       },
     };
 
-    await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
+    await expect(runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).resolves.toMatchObject({
       status: "rejected",
       reason: expect.stringMatching(/lifecycle authority changed/iu),
     });
@@ -687,7 +745,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       },
     };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -715,7 +773,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       worktreePorcelain: porcelain,
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -744,7 +802,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
     ctx.readMarker = async () => ({ kind: "present", marker });
     const retirementCalls = installLockedRemoval(ctx);
 
-    await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
+    await expect(runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).resolves.toMatchObject({
       status: "torn-down",
       worktreeRemoved: "/repo-feat-demo",
     });
@@ -775,7 +833,7 @@ describe("runTeardown — linked self-husk", () => {
       revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
     };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(result).toMatchObject({ status: "rejected", huskRefusal: "authorization-refused" });
     expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
@@ -788,7 +846,7 @@ describe("runTeardown — linked self-husk", () => {
     });
     enableSelfHusk(ctx);
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -819,7 +877,7 @@ describe("runTeardown — linked self-husk", () => {
       return selection(input.checkoutPath, input.subject);
     };
 
-    await expect(runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" }))
+    await expect(runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" }))
       .resolves.toMatchObject({ status: "torn-down", husk: { outcome: "created" } });
     expect(readStampedMarker()?.husk).toEqual({
       sha: "def",
@@ -850,7 +908,7 @@ describe("runTeardown — linked self-husk", () => {
       message: "The teardown target belongs to a different subject.",
     });
 
-    await expect(runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" }))
+    await expect(runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" }))
       .resolves.toMatchObject({ status: "rejected", reason: expect.stringMatching(/different subject/iu) });
     expect(calls).not.toContainEqual(["git", "switch", "--detach", "def"]);
   });
@@ -865,7 +923,7 @@ describe("runTeardown — linked self-husk", () => {
     ctx.exec = async (cmd, args, opts) =>
       args[0] === "status" ? { stdout: " M dirty.ts" } : baseExec(cmd, args, opts);
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result).toMatchObject({ status: "rejected", huskRefusal: "dirty" });
     expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
@@ -884,7 +942,7 @@ describe("runTeardown — linked self-husk", () => {
       revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
     };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result).toMatchObject({ status: "rejected", huskRefusal: "authorization-refused" });
     expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
@@ -899,12 +957,12 @@ describe("runTeardown — linked self-husk", () => {
     const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
     const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
     if (ctx.worktreeFs === undefined) throw new Error("self-husk filesystem seam missing");
-    ctx.worktreeFs.readDir = async (path) => path.endsWith("/.arc/user")
+    ctx.worktreeFs.readDir = async (path) => fixturePath(path).endsWith("/.arc/user")
       ? [directory("andrew")]
       : [file("FUTURE.md")];
-    ctx.worktreeFs.readFile = async (path) => path.startsWith("/repo/.arc/user") ? "linked\n" : "primary\n";
+    ctx.worktreeFs.readFile = async (path) => fixturePath(path).startsWith("/repo/.arc/user") ? "linked\n" : "primary\n";
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result).toMatchObject({ status: "rejected", huskRefusal: "user-surfaces" });
     expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
@@ -919,19 +977,19 @@ describe("runTeardown — linked self-husk", () => {
     const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
     const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
     if (ctx.worktreeFs === undefined) throw new Error("self-husk filesystem seam missing");
-    ctx.worktreeFs.readDir = async (path) => path.endsWith("/.arc/user")
+    ctx.worktreeFs.readDir = async (path) => fixturePath(path).endsWith("/.arc/user")
       ? [directory("andrew")]
       : [file("FUTURE.md")];
     let linkedReads = 0;
     ctx.worktreeFs.readFile = async (path) => {
-      if (path.startsWith("/repo/.arc/user")) {
+      if (fixturePath(path).startsWith("/repo/.arc/user")) {
         linkedReads += 1;
         return "linked\n";
       }
       return linkedReads === 1 ? "linked\n" : "primary\n";
     };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result).toMatchObject({ status: "rejected", huskRefusal: "user-surfaces" });
     expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
@@ -945,7 +1003,7 @@ describe("runTeardown — linked self-husk", () => {
     enableSelfHusk(ctx);
     ctx.stampHusk = async () => { throw new Error("disk full"); };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -962,7 +1020,7 @@ describe("runTeardown — linked self-husk", () => {
     });
     enableSelfHusk(ctx);
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -994,7 +1052,7 @@ describe("runTeardown — linked self-husk", () => {
       }),
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1013,17 +1071,17 @@ describe("runTeardown — detached husk replay", () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
 
-    const ambiguous = await runTeardown(ctx, { name: "demo", base: "main" });
+    const ambiguous = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
     expect(ambiguous).toMatchObject({ status: "rejected" });
 
-    const selected = await runTeardown(ctx, { name: "demo", base: "main", huskPath: "/repo.husk-two" });
+    const selected = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath: "/repo.husk-two" });
     expect(selected).toMatchObject({ status: "torn-down", worktreeRemoved: "/repo.husk-two" });
     expect(calls).toContainEqual(["git", "worktree", "remove", "/repo.husk-two"]);
   });
 
   it("refuses a relative husk selector", async () => {
     const { ctx } = buildCtx([SHIPPED_META], { branches: ["main"] });
-    expect(await runTeardown(ctx, { name: "demo", base: "main", huskPath: "relative/husk" })).toMatchObject({
+    expect(await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath: "relative/husk" })).toMatchObject({
       status: "rejected",
       reason: expect.stringMatching(/absolute/iu),
     });
@@ -1036,7 +1094,7 @@ describe("runTeardown — detached husk replay", () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1055,7 +1113,7 @@ describe("runTeardown — detached husk replay", () => {
       ? { kind: "malformed", message: "invalid marker", path: `${path}/marker.json` }
       : { kind: "present", marker: markerWithHusk() };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", huskPath: "/repo.husk" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath: "/repo.husk" });
 
     expect(result).toMatchObject({ status: "torn-down", worktreeRemoved: "/repo.husk" });
     if (result.status !== "torn-down") return;
@@ -1077,7 +1135,7 @@ describe("runTeardown — detached husk replay", () => {
       }),
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1100,7 +1158,7 @@ describe("runTeardown — detached husk replay", () => {
       }),
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result).toMatchObject({ status: "torn-down", worktreeRemoved: "/repo.husk", remoteBranchDeleted: true });
     const remoteIdx = calls.findIndex((call) => call[1] === "push" && call.some((arg) => arg.includes("force-with-lease")));
@@ -1123,7 +1181,7 @@ describe("runTeardown — detached husk replay", () => {
       marker: markerWithCurrentHusk(null, metaFixtureDigest(restartedMeta)),
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, worktreeRemoved: null });
     expect(calls.some((call) => call[1] === "update-ref" && call[2] === "-d")).toBe(false);
@@ -1137,7 +1195,7 @@ describe("runTeardown — detached husk replay", () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1156,7 +1214,7 @@ describe("runTeardown — detached husk replay", () => {
     });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk("feat/demo") });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -1176,7 +1234,7 @@ describe("runTeardown — detached husk replay", () => {
     });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk("feat/demo") });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -1193,7 +1251,7 @@ describe("runTeardown — detached husk replay", () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -1208,12 +1266,12 @@ describe("runTeardown — detached husk replay", () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],
       worktreePorcelain: porcelain,
-      branchDeleteThrows: true,
+      updateRefThrows: true,
       branchSurvivesDelete: true,
     });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1221,7 +1279,7 @@ describe("runTeardown — detached husk replay", () => {
     expect(result.branchDeleted).toBe(false);
     expect(result.worktreeRemoved).toBeNull();
     expect(result.notices).toHaveLength(1);
-    expect(result.notices[0]).toMatch(/retry teardown from the husk or primary/iu);
+    expect(result.notices[0]).toMatch(/Could not compare-and-delete local branch/iu);
     expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
   });
 
@@ -1232,7 +1290,7 @@ describe("runTeardown — detached husk replay", () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("rejected");
     expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
@@ -1243,7 +1301,7 @@ describe("runTeardown — base refresh before the reap-safety check", () => {
   it("fetches `origin/<base>` before the merged-safe delete (order-independent reap)", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     // The base is refreshed (fetch `origin main`) ahead of the containment-gated
@@ -1261,7 +1319,7 @@ describe("runTeardown — remote-head cleanup (shipped)", () => {
   it("deletes the live remote head when the landed-in-base proof holds", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1284,7 +1342,7 @@ describe("runTeardown — remote-head cleanup (shipped)", () => {
       cherryOutput: "+ deadbeef",
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1307,7 +1365,7 @@ describe("runTeardown — remote-head cleanup (shipped)", () => {
       return baseExec(cmd, args);
     };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1324,7 +1382,7 @@ describe("runTeardown — remote-head cleanup (shipped)", () => {
       return baseExec(cmd, args);
     };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1343,7 +1401,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       worktreePorcelain: "worktree /repo\nHEAD def\nbranch refs/heads/plan/demo\n",
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(result.status).toBe("torn-down");
   });
@@ -1354,7 +1412,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       worktreePorcelain: "worktree /repo\nHEAD def\nbranch refs/heads/plan/demo\n",
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(result.status).toBe("torn-down");
   });
@@ -1364,7 +1422,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
 
     ctx.indexFs = buildIndexFs([ACTIVE_META]);
     const result = await runTeardown(ctx, {
-      name: "demo",
+      subject: { kind: "slug", slug: "demo" },
       base: "main",
       mode: "abandoned",
       protection: "full",
@@ -1392,7 +1450,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
     };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(result).toMatchObject({ status: "rejected", huskRefusal: "authorization-refused" });
     expect(calls.some((call) => call[1] === "branch" && call[2] === "-D")).toBe(false);
@@ -1402,7 +1460,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
   it("mode selection routes correctly: shipped uses the containment-gated delete, not force", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "shipped" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "shipped" });
 
     expect(result.status).toBe("torn-down");
     // The merged-safe path consults containment before any delete; the force path
@@ -1419,7 +1477,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       worktreePorcelain: porcelain,
     });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1441,7 +1499,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     let authorizationCount = 0;
     installRemoteDeleteAuthority(ctx, () => { authorizationCount += 1; });
 
-    const first = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const first = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(first).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false });
     if (first.status !== "torn-down") return;
@@ -1449,7 +1507,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     expect(currentPrimaryBranch()).toBe("plan/demo");
     expect(calls.some((call) => call[1] === "switch")).toBe(false);
 
-    const retry = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const retry = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(retry).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
     expect(authorizationCount).toBe(2);
@@ -1473,7 +1531,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       revalidate: baseAuthority.revalidate,
     };
 
-    const first = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const first = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(first).toMatchObject({ status: "torn-down", branchDeleted: false });
     if (first.status !== "torn-down") return;
@@ -1485,7 +1543,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       ["git", "switch", "plan/demo"],
     ]);
 
-    const retry = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const retry = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(retry).toMatchObject({ status: "torn-down", branchDeleted: true });
     expect(authorizationCount).toBe(2);
@@ -1502,7 +1560,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     });
     enableSelfHusk(ctx);
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -1535,7 +1593,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
     };
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" });
 
     expect(result).toMatchObject({
       status: "rejected",
@@ -1675,4 +1733,20 @@ describe("runBranchTeardown — recordless cheap branches", () => {
       expect(calls).toEqual([]);
     },
   );
+});
+
+it("invalidates an anchored checkout's cached claim after in-repo teardown releases its marker", async () => {
+  const root = await mkdtemp(join(tmpdir(), "teardown-in-repo-layout-"));
+  onTestFinished(async () => { await rm(root, { recursive: true, force: true }); beginProjectionCommand(); });
+  await writeWorktreeMarker(root, { spawnedByArc: false, wuName: "demo", createdFor: { kind: "work-unit", name: "demo" },
+    spawningIdentity: "andrew", createdAt: "2026-11-05T00:00:00Z" });
+  const porcelain = `worktree /repo\nHEAD ${"a".repeat(40)}\nbranch refs/heads/main\n\n`
+    + `worktree ${root}\nHEAD ${"b".repeat(40)}\nbranch refs/heads/feat/demo\n`;
+  const { ctx } = buildCtx([SHIPPED_META], { branches: ["feat/demo"], worktreePorcelain: porcelain });
+  ctx.readMarker = readWorktreeMarker;
+  ctx.worktreeFs = { ...nodeReconcileWorkUnitWorktreeFs, directoryExists: async () => true };
+  expect((await readCheckoutLayoutContext(root)).claim).toBe("demo");
+  expect(await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down" });
+  expect(await readWorktreeMarker(root)).toEqual({ kind: "absent" });
+  expect((await readCheckoutLayoutContext(root)).claim).toBeNull();
 });

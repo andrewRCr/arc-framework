@@ -1,0 +1,180 @@
+/** Store-backed frame steps composed by ordinary Errand promotion. */
+import { SlugSchema, type CanonicalDigest } from "../kernel/index.js";
+import { TransientIdentityRecordV3Schema, type TransientIdentityRecordV3 } from "./identity-record.js";
+import type { OrdinaryErrandRecord } from "./identity-transitions.js";
+import type { PromoteFloor, PromoteOrdinaryErrandDependencies, PromotionFrameReceipt, PromotionFrameResult } from "./promote.js";
+import { renderMetaFile } from "../store/kinds/meta/writers.js";
+import { ParsedMetaRecordSchema, MetaPrioritySchema, MetaWorkClassSchema } from "../active/meta-schema.js";
+import { RecordReferenceSchema, sameReference } from "../store/identity.js";
+import { batchLifecycleWrites, mergeLifecycleLinks, recordWritePlacement, workUnitMetaPath } from "../store/lifecycle-write.js";
+import { workBranchName } from "../store/lifecycle-branch.js";
+import { GitProcessError } from "../git/process-error.js";
+import type { GitExec } from "../git/exec.js";
+import type { Store, HistoryEntry } from "../store/contract.js";
+import { CommitShaSchema } from "../store/links.js";
+import type { StoreRecord } from "../store/read.js";
+import { ownerHolderRequest } from "../work-unit/locus-ports.js";
+import { checkCreationAdmission, renderCreationAdmissionRefusal } from "../store/creation-admission.js";
+import { settleCreationSlugEdges } from "../store/creation-slug-settlement.js";
+/** Caller-owned checkout frame metadata stays outside these storage steps. */
+export interface StorePromotionOptions {
+  store: Store; exec: GitExec; repository: string; slug: string; name: string; type?: string;
+  floor: PromoteFloor; owner: string; identity: string; priority?: string; class?: string;
+  checkout: (record: OrdinaryErrandRecord, mode: "replaceFrame" | "recoverPromoted", uid: string) => Promise<StorePromotionCheckoutResult>;
+}
+/** Exact checkout selected by caller-owned terminal or recovery authority. */
+export type StorePromotionCheckoutResult = ({ kind: "ready" } & Pick<PromotionFrameReceipt, "checkoutPath" | "allocation" | "parentCheckoutPath">)
+  | Exclude<PromotionFrameResult, PromotionFrameReceipt>;
+type BoundStorePromotionOptions = StorePromotionOptions & { cwd: string; frame: Pick<PromotionFrameReceipt, "checkoutPath" | "allocation" | "parentCheckoutPath"> };
+/** Storage-facing dependency slots; settlement remains the runtime caller's responsibility. */
+export type StorePromotionSteps = Pick<PromoteOrdinaryErrandDependencies, "readIdentity" | "recoverPromoted" | "replaceFrame" | "retire">;
+
+/** Build expected-version role change and its recoverable branch cut.
+ * @param options - Bound store, Git, target, floor, and checkout metadata.
+ * @returns Identity, frame, recovery, and retirement steps for the existing composition.
+ */
+export function createStorePromotionSteps(options: StorePromotionOptions): StorePromotionSteps {
+  let basis: StoreRecord | undefined;
+  return {
+    readIdentity: async () => {
+      const primary = await readPrimary(options);
+      if (primary.kind !== "ready") return primary;
+      basis = primary.record ?? undefined;
+      if (basis === undefined || basis.reference.kind === "work-item/meta" || basis.placement?.kind !== "active") return { kind: "ready", record: null };
+      try {
+        const record = TransientIdentityRecordV3Schema.parse(JSON.parse(basis.content));
+        const reason = sourceOwnerRefusal(options.identity, record);
+        return reason === null ? { kind: "ready", record } : { kind: "refused", reason };
+      }
+      catch (error) { return { kind: "error", message: message(error) }; }
+    },
+    recoverPromoted: async () => recover(options),
+    replaceFrame: async (source) => {
+      if (basis === undefined || basis.reference.kind !== "work-item/record") return refused("No exact Errand primary was read before promotion.");
+      return replace(options, source, basis);
+    },
+    retire: () => Promise.resolve({ kind: "idempotent" }),
+  };
+}
+async function readPrimary(options: StorePromotionOptions): Promise<{ kind: "ready"; record: StoreRecord | null } | { kind: "refused"; reason: string }> {
+  const lookup = await options.store.lookup({ kind: "slug", slug: SlugSchema.parse(options.slug) });
+  if (lookup.status === "refused") return lookup.refusal.code === "not-found" ? { kind: "ready", record: null }
+    : { kind: "refused", reason: `${lookup.refusal.condition} ${lookup.refusal.remedy.text}` };
+  const read = await options.store.read({ reference: lookup.result.reference });
+  if (read.status === "refused") return { kind: "refused", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
+  const conflict = primaryConflict(read.result);
+  return conflict === undefined ? { kind: "ready", record: read.result } : { kind: "refused", reason: conflict };
+}
+async function replace(input: StorePromotionOptions, source: OrdinaryErrandRecord, basis: StoreRecord): Promise<PromotionFrameResult> {
+  const admission = await checkCreationAdmission(input.store, input.name, [basis.reference.owner]);
+  if (admission.kind !== "free") {
+    const rendered = renderCreationAdmissionRefusal(input.name, admission);
+    return refused(`${rendered.condition} ${rendered.remedy.text}`);
+  }
+  const checkout = await input.checkout(source, "replaceFrame", ownerHolderRequest(basis).uid);
+  if (checkout.kind !== "ready") return checkout;
+  const options: BoundStorePromotionOptions = { ...input, cwd: checkout.checkoutPath, frame: checkout };
+  const branch = `${options.type ?? "feat"}/${options.name}`;
+  const inherited = basis.links?.branches?.find((link) => link.repository === options.repository && workBranchName(link.ref) === source.branch);
+  if (inherited === undefined) return refused("The Errand's exact repository-qualified branch link is missing.");
+  await options.exec("git", ["check-ref-format", "--branch", branch], { cwd: options.cwd });
+  if (await localBranchExists(options, branch)) return refused(`The target branch ${branch} already exists; choose another work-unit name or type.`);
+  const tip = CommitShaSchema.parse((await options.exec("git", ["--no-replace-objects", "rev-parse", "--verify", `refs/heads/${source.branch}^{commit}`],
+    { cwd: options.cwd, objectAccess: "local-only" })).stdout.trim());
+  const reference = RecordReferenceSchema.parse({ ...basis.reference, kind: "work-item/meta", owner: { ...basis.reference.owner, name: options.name } });
+  const content = promotionMeta(options, source);
+  const placement = recordWritePlacement(basis);
+  const links = mergeLifecycleLinks(basis.links, { branches: [{ repository: options.repository, ref: branch, linkedAs: "created", excluded: inherited.excluded }] });
+  const settlement = await settleCreationSlugEdges(options.store, options.name, reference.owner);
+  const metaPath = await workUnitMetaPath(options.cwd, { ...basis, reference });
+  const written = await batchLifecycleWrites(options.store, [{ action: "put", reference, expected: basis.version, content,
+    ...(placement === undefined ? {} : { placement }), links }, ...settlement.writes],
+  { verb: "errand-promote", lifecycleAction: "promote", codeHead: tip }, settlement.observations);
+  if (written.status === "refused") return refused(`${written.refusal.code}: ${written.refusal.condition}\n${written.refusal.remedy.text}`);
+  await options.exec("git", ["branch", branch, tip], { cwd: options.cwd });
+  await options.exec("git", ["switch", branch], { cwd: options.cwd });
+  const meta = await options.store.read({ reference });
+  if (meta.status === "refused") return refused(meta.refusal.condition);
+  const conflict = primaryConflict(meta.result);
+  if (conflict !== undefined) return refused(conflict);
+  return receipt(options, meta.result, source, branch, "applied", metaPath);
+}
+function primaryConflict(record: StoreRecord): string | undefined {
+  return record.conflicts.length === 0 ? undefined
+    : `The promotion primary has unresolved conflicts: ${record.conflicts.map((reference) => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry this promotion.`;
+}
+function promotionMeta(options: StorePromotionOptions, source: OrdinaryErrandRecord): string {
+  return renderMetaFile(options.name, { owner: options.owner, state: options.floor === "derivation" ? "Planning" : "Active",
+    currentWorkflow: options.floor === "derivation" ? "draft-design" : "process-task-loop",
+    nextAction: options.floor === "derivation" ? "Resolve the design before further implementation." : "Backfill a brief spec and task list, then continue implementation.",
+    promotionReceipt: `errand-v1/${source.slug}/${source.claimId}`,
+    ...(options.priority === undefined ? {} : { priority: MetaPrioritySchema.parse(options.priority) }),
+    ...(options.class === undefined ? {} : { workClass: MetaWorkClassSchema.parse(options.class) }) });
+}
+async function recover(options: StorePromotionOptions): Promise<PromotionFrameResult | null> {
+  const read = await readPrimary(options);
+  if (read.kind !== "ready") return refused(read.reason);
+  if (read.record === null || read.record.reference.kind !== "work-item/meta") return null;
+  const meta = read.record, fields = ParsedMetaRecordSchema.parse(meta.fields);
+  const history = await options.store.history({ reference: meta.reference });
+  if (history.status === "refused") return refused(history.refusal.condition);
+  const recovered = sourceFromHistory(history.result, fields.promotionReceipt, meta);
+  if (recovered === undefined || meta.reference.owner.name !== options.name) return refused("The primary lacks this exact Errand promotion receipt and history.");
+  const { source, tip } = recovered;
+  const ownerFailure = sourceOwnerRefusal(options.identity, source);
+  if (ownerFailure !== null) return { kind: "refused", reason: "identity-conflict", message: ownerFailure };
+  const checkout = await options.checkout(source, "recoverPromoted", ownerHolderRequest(meta).uid);
+  if (checkout.kind !== "ready") return checkout;
+  const bound: BoundStorePromotionOptions = { ...options, cwd: checkout.checkoutPath, frame: checkout };
+  if (tip === undefined) return refused("The promotion role-write history lacks its exact cut commit. Inspect and repair that evidence before retrying this promotion.");
+  const branch = `${options.type ?? "feat"}/${options.name}`;
+  const linked = meta.links?.branches?.some((link) => link.repository === options.repository && link.ref === branch && link.linkedAs === "created");
+  if (!linked) return refused("The promoted work branch's created link is missing.");
+  const metaPath = await workUnitMetaPath(bound.cwd, meta);
+  const current = await localBranchTip(bound, branch);
+  if (current !== undefined && current !== tip) return refused(
+    `Promotion branch conflict: ${branch} is at ${current}, but the role write recorded ${tip}. Preserve the existing branch, repair the target to that recorded cut (or move the unrelated branch aside), then retry this exact promotion.`);
+  if (current === undefined) await options.exec("git", ["branch", branch, tip], { cwd: bound.cwd });
+  await options.exec("git", ["switch", branch], { cwd: bound.cwd });
+  return receipt(bound, meta, source, branch, "idempotent", metaPath);
+}
+function sourceOwnerRefusal(identity: string, source: TransientIdentityRecordV3): string | null {
+  if (source.kind !== "errand" || source.purpose !== "errand") return null;
+  if (source.owner === undefined) return `Errand ${source.slug}: owner is missing. Repair its owner, then retry promotion.`;
+  return source.owner === identity ? null : `Errand ${source.slug} is owned by ${source.owner}. Run this promotion as its owner ${source.owner}.`;
+}
+function sourceFromHistory(entries: readonly HistoryEntry[],
+  promotionReceipt: string | null, meta: StoreRecord): { source: OrdinaryErrandRecord; tip: string | undefined } | undefined {
+  for (const [index, entry] of entries.entries()) {
+    if (entry.reference.kind !== "work-item/record" || entry.content === null) continue;
+    let decoded: unknown; try { decoded = JSON.parse(entry.content); } catch { continue; }
+    const parsed = TransientIdentityRecordV3Schema.safeParse(decoded);
+    if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand") continue;
+    const source = parsed.data;
+    if (promotionReceipt !== `errand-v1/${source.slug}/${source.claimId}`) continue;
+    const role = entries[index - 1];
+    const provenance = role?.provenance;
+    const tip = role?.reference.kind === "work-item/meta" && sameReference(role.reference, meta.reference)
+      && provenance !== undefined && "verb" in provenance && provenance.verb === "errand-promote"
+      && provenance.lifecycleAction === "promote" ? provenance.codeHead : undefined;
+    return { source, tip };
+  }
+  return undefined;
+}
+function receipt(options: BoundStorePromotionOptions, meta: StoreRecord, source: OrdinaryErrandRecord, branch: string,
+  kind: "applied" | "idempotent", metaPath: string): PromotionFrameReceipt {
+  return { ...options.frame, kind, subject: { slug: source.slug, claimId: source.claimId },
+    generation: `errand-v1/${source.slug}/${source.claimId}`, branch, metaPath,
+    metaCommitted: true, uid: ownerHolderRequest(meta).uid, originEntry: source.originEntry,
+    originEntrySourceDigest: source.origin === "inbox" ? source.originEntrySourceDigest as CanonicalDigest | null : null };
+}
+async function localBranchExists(options: BoundStorePromotionOptions, branch: string): Promise<boolean> {
+  return (await localBranchTip(options, branch)) !== undefined;
+}
+async function localBranchTip(options: BoundStorePromotionOptions, branch: string): Promise<string | undefined> {
+  try { return CommitShaSchema.parse((await options.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `refs/heads/${branch}^{commit}`],
+    { cwd: options.cwd, objectAccess: "local-only" })).stdout.trim()); }
+  catch (error) { if (error instanceof GitProcessError && error.exitCode === 1) return undefined; throw error; }
+}
+function refused(message: string): PromotionFrameResult { return { kind: "refused", reason: "promotion-source-invalid", message }; }
+function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }

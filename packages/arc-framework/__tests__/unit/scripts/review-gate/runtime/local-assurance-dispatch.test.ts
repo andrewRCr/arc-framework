@@ -110,7 +110,7 @@ function compose() {
 }
 
 describe("local review assurance dispatch", () => {
-  it("composes work-unit assurance from the control locus's meta for a member", async () => {
+  it("composes work-unit assurance from the originating locus's meta for a member", async () => {
     live.meta = meta();
     const composed = await compose().composeAssurance(authority(memberVehicle));
 
@@ -126,7 +126,7 @@ describe("local review assurance dispatch", () => {
     const member = await dependencies.composeAssurance(authority(memberVehicle));
     const workUnit = await dependencies.composeAssurance(authority(workUnitVehicle));
     const errand = await dependencies.composeAssurance(
-      authority({ kind: "errand", identity: "repair-review-state" }),
+      authority({ kind: "errand", identity: "repair-review-state", claimId: "claim-1" }),
     );
     if (member.status !== "resolved"
       || workUnit.status !== "resolved"
@@ -182,12 +182,12 @@ describe("local review assurance dispatch", () => {
     // Not a tautology: the Errand arm an unrouted member falls to digests differently,
     // which attest reports as changed guidance rather than as a misrouted vehicle.
     await expect(attest.resolveGuidanceDigest(
-      authority({ kind: "errand", identity: "repair-review-state" }),
+      authority({ kind: "errand", identity: "repair-review-state", claimId: "claim-1" }),
       state,
     )).resolves.not.toBe(published.guidance.guidanceDigest);
   });
 
-  it("resolves respond's actors from the control locus without naming a member", async () => {
+  it("resolves respond's actors from the originating locus without naming a member", async () => {
     // Respond consumes only the author and runtime identities, and the delivery
     // read is what a selector would reach — an exec fake proves neither ran.
     const respond = createRespondDependencies({ exec: vi.fn() as never, cwd: "/repo" });

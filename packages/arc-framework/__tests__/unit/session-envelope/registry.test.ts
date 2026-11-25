@@ -2,6 +2,9 @@
 
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { ActiveSessionInitResultSchema } from "../../../src/commands/active/schema.js";
+import { ConfigSessionInitResultSchema } from "../../../src/commands/config/status.js";
+import { DomainRulesSessionInitResultSchema } from "../../../src/commands/constitution/status.js";
 
 import { SchemaError } from "../../../src/lib/kernel/index.js";
 import {
@@ -12,10 +15,17 @@ import { LoadSetManifestSchema } from "../../../src/lib/load-set/types.js";
 import { LoadSetAuditVerdictSchema } from "../../../src/lib/load-set/audit.js";
 import { CompactionSeedSchema } from "../../../src/lib/compaction-seed/schema.js";
 import { RecoveryAuditVerdictSchema } from "../../../src/lib/recover/audit.js";
+import { ReleaseRoutingValueSchema } from "../../../src/lib/release/routing.js";
 import { RecoverAuditReportSchema } from "../../../src/lib/recover/report.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../../../src/lib/git/base-branch-sync.js";
+import { BaseDistanceSnapshotResultSchema } from "../../../src/lib/git/base-distance.js";
+import { DirtyStateResultSchema } from "../../../src/lib/git/dirty-state.js";
+import { WorktreeSnapshotAnalysisResultSchema } from "../../../src/lib/git/worktree-sync.js";
+import { WorktreeRosterResultSchema } from "../../../src/lib/git/worktree-roster.js";
+import { CurrentHuskAdvisorySchema } from "../../../src/lib/session-init/current-husk-advisory.js";
 import { CascadeResolutionSchema } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../../src/lib/session-init/errand-staleness-sweep.js";
+import { HooksPathSessionAdvisorySchema } from "../../../src/lib/session-init/hooks-path-advisory.js";
 import { InboxStateResultSchema } from "../../../src/lib/session-init/inbox-state.js";
 import { MaterializableWorkUnitDiscoveryResultSchema } from "../../../src/lib/session-init/materializable-work-units.js";
 import { NotesCompactionSessionAdvisoryResultSchema } from "../../../src/lib/session-init/notes-compaction-advisory.js";
@@ -25,22 +35,38 @@ import { RetiredSubdirDetectionResultSchema } from "../../../src/lib/session-ini
 import { ClassCompositionSchema } from "../../../src/lib/status/class-composition.js";
 import { TaskListCursorSchema } from "../../../src/lib/task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../../../src/lib/task-list/file-cursor.js";
+import { SessionInitAgendaSchema } from "../../../src/commands/agenda/schema.js";
 import {
   SessionInitProbeResultSchema,
   SessionRecoverProbeResultSchema,
 } from "../../../src/commands/status/schema.js";
 
 describe("session-envelope schema registry", () => {
+  it("omits the retired lifecycle probe schema from discovery", () => {
+    expect(createSessionEnvelopeRegistry().get("extensions-session-init")).toBeUndefined();
+  });
+
   it("composes fresh kernel registries with the shared family records", () => {
     const first = createSessionEnvelopeRegistry();
     const second = createSessionEnvelopeRegistry();
 
     expect(first.ids()).toEqual([
+      "active-session-init",
       "base-branch-sync",
+      "base-distance",
       "cascade-resolution",
       "class-composition",
       "compaction-seed",
+      "config-session-init",
+      "current-husk-advisory",
+      "current-wu-reconcile",
+      "derived-locus-frame",
+      "dirty-state",
+      "domain-rules-session-init",
       "errand-staleness-sweep",
+      "errand-state",
+      "hooks-path-session-advisory",
+      "inbound-back-pressure",
       "inbox-state",
       "load-set-audit-verdict",
       "load-set-manifest",
@@ -48,19 +74,30 @@ describe("session-envelope schema registry", () => {
       "notes-compaction-session-advisory",
       "orphan-branch-sweep",
       "partial-push-marker-surface",
+      "paused-work",
       "priority",
       "recovery-audit-report",
       "recovery-audit-verdict",
+      "release-routing",
       "remote-evidence",
       "remote-failure-reason",
       "retired-subdir-detection",
+      "session-action",
+      "session-init-agenda",
       "session-init-envelope",
+      "session-init-recovery",
+      "session-init-user",
       "session-recover-envelope",
+      "session-work-unit-state",
       "slug",
+      "stale-worktree-sweep",
       "task-list-cursor",
       "task-list-cursor-file-result",
+      "user-reference-reconcile",
       "work-class",
       "work-unit-state",
+      "worktree-roster",
+      "worktree-sync",
     ]);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.loadSetManifest)).toBe(LoadSetManifestSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.taskListCursor)).toBe(TaskListCursorSchema);
@@ -71,6 +108,7 @@ describe("session-envelope schema registry", () => {
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict)).toBe(RecoveryAuditVerdictSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditReport)).toBe(RecoverAuditReportSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope)).toBe(SessionInitProbeResultSchema);
+    expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionInitAgenda)).toBe(SessionInitAgendaSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope)).toBe(SessionRecoverProbeResultSchema);
     const advisorySchemas = [
       [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
@@ -83,6 +121,16 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.classComposition, ClassCompositionSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.cascadeResolution, CascadeResolutionSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.baseDistance, BaseDistanceSnapshotResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.currentHuskAdvisory, CurrentHuskAdvisorySchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.dirtyState, DirtyStateResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.configSessionInit, ConfigSessionInitResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.hooksPathSessionAdvisory, HooksPathSessionAdvisorySchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.releaseRouting, ReleaseRoutingValueSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.worktreeRoster, WorktreeRosterResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.worktreeSync, WorktreeSnapshotAnalysisResultSchema],
     ] as const;
     for (const [id, schema] of advisorySchemas) {
       expect(first.get(id)).toBe(schema);

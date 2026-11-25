@@ -8,19 +8,26 @@
  * @module
  */
 
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import type { StoreRefusal, Remedy } from "../../store/refusal.js";
+import { runStoreMaterialize } from "./materialize-store.js";
 import {
   type ExecuteTransitionContext,
   type TransitionInputs,
 } from "../lifecycle-executor.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
+import { describeSpawnLock, lockSpawnedCheckout, type SpawnLock } from "../../git/worktree-removal.js";
 
 /** Default spawned materialize — create a local branch from `origin/<branch>` in a fresh worktree. */
 export interface MaterializeSpawnParams {
   /** WU name. */
   name: string;
   /** Remote branch short name, e.g. `feat/demo`. */
-  branch: string;
+  branch?: string;
+  /** Configured base and current identity on the store arm. */
+  baseBranch?: string;
+  identity?: string;
   /** Fresh-worktree placement (the default). */
   inPlace?: false;
   /** Resolved `worktree.location_template` — where the materialized worktree lands. */
@@ -42,9 +49,14 @@ export interface MaterializeInPlaceParams {
   /** WU name. */
   name: string;
   /** Remote branch short name, e.g. `feat/demo`. */
-  branch: string;
+  branch?: string;
+  /** Configured base and current identity on the store arm. */
+  baseBranch?: string;
+  identity?: string;
   /** Re-attach in the current worktree — no fresh worktree. */
   inPlace: true;
+  /** Identity bound to the anchored marker on the store arm. */
+  spawningIdentity?: string;
 }
 
 /** The operational inputs a materialize supplies. */
@@ -52,17 +64,19 @@ export type MaterializeParams = MaterializeSpawnParams | MaterializeInPlaceParam
 
 /** The outcome of a materialize attempt. */
 export type MaterializeResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; worktreePath?: string; spawnLock?: SpawnLock }
   | {
       status: "materialized";
       /** The materialized branch. */
-      branch: string;
+      branch: string | null;
       /** Whether the materialize landed in the current checkout. */
       inPlace: boolean;
       /** Exact checkout allocated for the fetched branch. */
       worktreePath: string;
       /** Provisioning notices surfaced by the placement primitive. */
       advisories: string[];
+      /** The lock a fresh worktree carries once its placement has returned; absent in place. */
+      spawnLock?: SpawnLock;
     };
 
 /** Remote-tracking branch ref used as the base for a fresh materialize spawn. */
@@ -81,10 +95,28 @@ function remoteBranch(branch: string): string {
  * @param params - The target WU and branch placement mode.
  * @returns A rejection, or the materialized branch.
  */
+export type MaterializeContext = Pick<ExecuteTransitionContext, "guardValidators" | "reconcileWorkUnitWorktree" | "store">
+  & Partial<Pick<ExecuteTransitionContext, "cwd" | "exec" | "projectId" | "locusPorts">>;
+
+/** Place a legacy remote branch or an owned store record in a checkout. */
 export async function runMaterialize(
-  ctx: Pick<ExecuteTransitionContext, "guardValidators" | "reconcileWorkUnitWorktree">,
+  ctx: MaterializeContext,
   params: MaterializeParams,
 ): Promise<MaterializeResult> {
+  const result = usesOffBranchState(ctx.store) ? await runStoreMaterialize(ctx, params) : await materializeInRepo(ctx, params);
+  if (result.status !== "materialized" || result.inPlace) return result;
+  const spawnLock = ctx.exec === undefined
+    ? { kind: "failed" as const, detail: "materialize ran without a Git executor" }
+    : await lockSpawnedCheckout(ctx.exec, result.worktreePath);
+  if (spawnLock.kind === "failed") return {
+    status: "rejected", worktreePath: result.worktreePath, spawnLock,
+    reason: `checkout retained: ${describeSpawnLock(result.worktreePath, spawnLock) ?? spawnLock.detail}`
+      + " After locking it, continue work in the retained checkout; the placement has already applied.",
+  };
+  return { ...result, spawnLock };
+}
+
+async function materializeInRepo(ctx: MaterializeContext, params: MaterializeParams): Promise<MaterializeResult> {
   const { name, branch } = params;
   if (!isSlugSafe(name)) {
     return {
@@ -92,12 +124,12 @@ export async function runMaterialize(
       reason: "`materialize` requires a slug-safe name (`[a-z0-9-]`, no path separators or dot segments).",
     };
   }
-  if (branch.trim() === "") {
+  if (branch === undefined || branch.trim() === "") {
     return { status: "rejected", reason: "`materialize` requires a remote branch." };
   }
 
   const worktreeOp: NonNullable<TransitionInputs["worktreeOp"]> = params.inPlace
-    ? { mutation: "spawn", inPlace: true, branch, wuName: name, createBranch: false }
+    ? { mutation: "spawn", inPlace: true, branch, wuName: name, createBranch: false, ...(params.spawningIdentity === undefined ? {} : { spawningIdentity: params.spawningIdentity }) }
     : {
         mutation: "spawn",
         branch,

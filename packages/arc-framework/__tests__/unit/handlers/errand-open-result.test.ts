@@ -1,6 +1,8 @@
 /** Errand mutation human and JSON command-boundary parity. */
 
-import { describe, expect, it } from "vitest";
+import { stripVTControlCharacters } from "node:util";
+
+import { describe, expect, it, vi } from "vitest";
 
 import {
   formatErrandAbandonResult,
@@ -8,6 +10,7 @@ import {
   formatErrandLinkResult,
   formatErrandOpenResult,
   formatErrandPromoteResult,
+  handleErrandOpen,
 } from "../../../src/handlers/errand.js";
 import { createErrandOperationResult } from "../../../src/lib/errand/operation-result.js";
 import { createErrandPromotionResult } from "../../../src/lib/errand/promotion-result.js";
@@ -183,5 +186,32 @@ describe("errand promote result rendering", () => {
       text: "Refused [promotion-source-invalid]: Promotion source changed.",
       exitCode: 1,
     });
+  });
+});
+
+
+describe.each([true, false])("Errand open invalid slug output (json=%s)", (json) => {
+  it.each(["", " ", "fix.output"])("reports the accepted format and retry for %j", async (slug) => {
+    const output: string[] = [];
+    const previousExitCode = process.exitCode;
+    const capture = (chunk: string | Uint8Array) => { output.push(String(chunk)); return true; };
+    const stdout = vi.spyOn(process.stdout, "write").mockImplementation(capture);
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(capture);
+    try {
+      await handleErrandOpen(slug, { json });
+      const text = stripVTControlCharacters(output.join(""));
+      if (json) {
+        const result = JSON.parse(text);
+        expect(result).toMatchObject({ outcome: "error", operation: "errand-open",
+          error: { code: "locus.errand-open.input" } });
+        expect(result.recommendedPromptText).toContain("lowercase alphanumeric segments joined by hyphens");
+        expect(result.recommendedPromptText).toContain("arc errand open");
+      }
+      expect(text).toContain("lowercase alphanumeric segments joined by hyphens");
+      expect(text).toContain("arc errand open");
+      expect(process.exitCode).toBe(1);
+    } finally {
+      stdout.mockRestore(); stderr.mockRestore(); process.exitCode = previousExitCode;
+    }
   });
 });

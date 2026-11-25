@@ -1,9 +1,4 @@
-import { join } from "node:path";
-
-import { ensureDir } from "../../lib/template/index.js";
-import { CROSS_WU_INSTANCE_FILES } from "../../lib/setup.js";
-import { resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
-import { SlugSchema } from "../../lib/kernel/index.js";
+import { openPersonalIdentityStore, preparePersonalIdentitySetup, seedPersonalIdentityRecords } from "../../lib/personal-identity-setup.js";
 import type { UserAddOptions } from "./types.js";
 
 /**
@@ -23,13 +18,7 @@ export async function runUserAdd(
   options: UserAddOptions,
 ): Promise<void> {
   const { cwd, io, identity, internalTemplateDir } = options;
-  const userDir = (await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec }))
-    .identityGlobalRoot;
-
-  await ensureDir(userDir, io.mkdir);
-
-  for (const filename of CROSS_WU_INSTANCE_FILES) {
-    const content = await io.readFile(join(internalTemplateDir, "user", filename));
-    await io.writeFile(join(userDir, filename), content);
-  }
+  const store = options.store ?? openPersonalIdentityStore(cwd, io.exec, identity);
+  const prepared = await preparePersonalIdentitySetup({ ...options, store, command: "add" });
+  await seedPersonalIdentityRecords({ prepared: prepared ?? { store }, identity, io, internalTemplateDir });
 }

@@ -1,6 +1,6 @@
 /** Exact-head change-request resolution behavior. */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   resolveChangeRequest,
@@ -29,6 +29,7 @@ function port(overrides: Partial<ChangeRequestResolutionPort> = {}): ChangeReque
     readHeadRef: async () => ({ local: headSha, remote: headSha }),
     listByHead: async () => [],
     searchByHeadSha: async () => [],
+    isAncestor: async () => false,
     ...overrides,
   };
 }
@@ -129,10 +130,106 @@ describe("exact-head change-request resolution", () => {
           headRef,
           "--head-sha",
           movedHead,
-          "--json",
         ],
       },
     });
+  });
+
+  it("marks one open request whose head the requested head descends from", async () => {
+    const movedHead = "b".repeat(40);
+    const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: headSha }),
+      listByHead: async () => [candidate()],
+      isAncestor,
+    }));
+
+    expect(result).toMatchObject({
+      state: "ambiguous",
+      nextAction: "stop",
+      candidates: [{ number: 42, headRefOid: headSha }],
+      headAhead: true,
+      remedy: { invariant: "An open change request exists at a different head." },
+    });
+    expect(isAncestor).toHaveBeenCalledExactlyOnceWith(headSha, movedHead);
+  });
+
+  it("leaves the mark off when the open request's head is not behind the requested head", async () => {
+    const movedHead = "b".repeat(40);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: headSha }),
+      listByHead: async () => [candidate()],
+      isAncestor: async () => false,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", nextAction: "stop" });
+    expect(result).not.toHaveProperty("headAhead");
+  });
+
+  it("marks the request when the remote tip lies between its head and the requested head", async () => {
+    const movedHead = "b".repeat(40);
+    const remoteHead = "c".repeat(40);
+    const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: remoteHead }),
+      listByHead: async () => [candidate()],
+      isAncestor,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", headAhead: true });
+    expect(isAncestor.mock.calls).toEqual([[headSha, movedHead], [remoteHead, movedHead]]);
+  });
+
+  it("marks the request when the host has not caught up with an already pushed head", async () => {
+    const movedHead = "b".repeat(40);
+    const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: movedHead }),
+      listByHead: async () => [candidate()],
+      isAncestor,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", headAhead: true });
+    expect(isAncestor.mock.calls).toEqual([[headSha, movedHead], [movedHead, movedHead]]);
+  });
+
+  it("leaves the mark off when the remote tip has diverged from the requested head", async () => {
+    const movedHead = "b".repeat(40);
+    const remoteHead = "c".repeat(40);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: remoteHead }),
+      listByHead: async () => [candidate()],
+      isAncestor: async (ancestor) => ancestor === headSha,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", nextAction: "stop" });
+    expect(result).not.toHaveProperty("headAhead");
+  });
+
+  it("leaves the mark off when the remote branch is absent", async () => {
+    const movedHead = "b".repeat(40);
+    const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: null }),
+      listByHead: async () => [candidate()],
+      isAncestor,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", nextAction: "stop" });
+    expect(result).not.toHaveProperty("headAhead");
+    expect(isAncestor).not.toHaveBeenCalled();
+  });
+
+  it("reads no ancestry when several requests make the host state ambiguous", async () => {
+    const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
+    const result = await resolveChangeRequest(request, port({
+      listByHead: async () => [candidate(), candidate({ number: 43, url: "https://github.com/owner/repo/pull/43" })],
+      isAncestor,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", nextAction: "stop" });
+    expect(result).not.toHaveProperty("headAhead");
+    expect(isAncestor).not.toHaveBeenCalled();
   });
 
   it("shell-quotes an unusual valid branch name without changing the structured remedy", async () => {
@@ -155,7 +252,6 @@ describe("exact-head change-request resolution", () => {
           unusualHeadRef,
           "--head-sha",
           movedHead,
-          "--json",
         ],
         text: expect.stringContaining("'feat/operator'\"'\"'s-review'"),
       },
@@ -206,6 +302,27 @@ describe("exact-head change-request resolution", () => {
 
   it("blocks a change request that targets a different configured base", async () => {
     await expect(resolveChangeRequest(request, port({
+      listByHead: async () => [candidate({ baseRefName: "release" })],
+    }))).resolves.toMatchObject({ state: "blocked", reason: "base-mismatch" });
+  });
+
+  it("accepts a caller-resolved delivery-member base", async () => {
+    await expect(resolveChangeRequest({
+      ...request,
+      acceptableBaseRefs: ["delivery/plan-1/member-1"],
+    }, port({
+      listByHead: async () => [candidate({ baseRefName: "delivery/plan-1/member-1" })],
+    }))).resolves.toMatchObject({
+      state: "open",
+      candidate: { number: 42, baseRefName: "delivery/plan-1/member-1" },
+    });
+  });
+
+  it("still blocks an unrelated base when delivery-member bases are admitted", async () => {
+    await expect(resolveChangeRequest({
+      ...request,
+      acceptableBaseRefs: ["delivery/plan-1/member-1"],
+    }, port({
       listByHead: async () => [candidate({ baseRefName: "release" })],
     }))).resolves.toMatchObject({ state: "blocked", reason: "base-mismatch" });
   });

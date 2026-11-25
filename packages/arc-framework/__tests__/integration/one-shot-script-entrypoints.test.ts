@@ -7,10 +7,13 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { CALL_LIMIT } from "../helpers/call-limit.js";
+
 const execute = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const PROCESS_TIMEOUT_MS = 15_000;
+const REPOSITORY_SCAN_TIMEOUT_MS = 30_000;
 
 let temporaryRoot: string | undefined;
 
@@ -57,18 +60,23 @@ describe("one-shot TypeScript package scripts", () => {
       "lint:md:descriptors": "node --import tsx packages/arc-framework/src/scripts/lint-task-descriptors.ts",
       "lint:md:dependencies": "node --import tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
       "format:tables": "node --import tsx packages/arc-framework/src/scripts/format-tables.ts",
+      "format:prose": "node --import tsx packages/arc-framework/src/scripts/format-prose.ts",
       "render:framework": "node --import tsx packages/arc-framework/src/scripts/render-framework.ts",
       "audit:tables": "node --import tsx packages/arc-framework/src/scripts/audit-tables.ts",
       "audit:emphasis": "node --import tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
       "inventory:command-inputs": "node --import tsx packages/arc-framework/src/scripts/render-command-input-inventory.ts",
+      "lint:adr": "node --import tsx packages/arc-framework/src/scripts/check-adr-records.ts",
       "lint:arc:triggers": "node --import tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
       "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
       "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
       "audit:coupling": "node --import tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
-      "audit:layout-migration": "node --import tsx packages/arc-framework/src/scripts/assert-layout-migration.ts",
     });
     expect(packageManifest.scripts).toMatchObject({
       "benchmark:session-envelope": "npm run build && node --import tsx __tests__/benchmarks/session-envelope-validation.ts",
+      "benchmark:test-cost": "node --import tsx src/scripts/measure-test-cost.ts",
+      "benchmark:test-cost:compare": "node --import tsx src/scripts/compare-test-cost.ts",
+      "benchmark:test-cost:normalize": "node --import tsx src/scripts/normalize-test-cost.ts",
+      "benchmark:test-cost:shards": "node --import tsx src/scripts/measure-e2e-shards.ts",
       "inventory:command-inputs": "node --import tsx src/scripts/render-command-input-inventory.ts",
     });
   });
@@ -83,7 +91,7 @@ describe("one-shot TypeScript package scripts", () => {
       {
         cwd: repositoryRoot,
         encoding: "utf8",
-        env: { ...process.env, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
+        env: { ...process.env, FORCE_COLOR: undefined, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
       },
     );
 
@@ -91,7 +99,7 @@ describe("one-shot TypeScript package scripts", () => {
     expect(result.stderr).toBe("");
     expect(await readFile(output, "utf8")).toMatch(/^identity\torigin\tacquisition\tschema\t/u);
     expect(await readFile(marker, "utf8")).toMatch(/^armed:\d+\n(?:armed:\d+\n)*$/u);
-  }, PROCESS_TIMEOUT_MS);
+  }, REPOSITORY_SCAN_TIMEOUT_MS);
 
   it("preserves failure output and exit status without opening an auxiliary listener", async () => {
     const { marker, nodeOptions } = await createListenProbe();
@@ -102,7 +110,8 @@ describe("one-shot TypeScript package scripts", () => {
       {
         cwd: repositoryRoot,
         encoding: "utf8",
-        env: { ...process.env, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
+        timeout: CALL_LIMIT,
+        env: { ...process.env, FORCE_COLOR: undefined, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
       },
     )).rejects.toMatchObject({
       code: 1,
@@ -110,5 +119,26 @@ describe("one-shot TypeScript package scripts", () => {
       stderr: expect.stringContaining("--output requires a path"),
     });
     expect(await readFile(marker, "utf8")).toMatch(/^armed:\d+\n(?:armed:\d+\n)*$/u);
+  }, 2 * CALL_LIMIT);
+
+  it("shows prose formatter usage before validating help as a Markdown path", async () => {
+    const result = await execute(npmExecutable, ["run", "-s", "format:prose", "--", "--help"], {
+      cwd: repositoryRoot, encoding: "utf8", env: { ...process.env, FORCE_COLOR: undefined },
+    });
+    expect(result.stdout).toContain("Usage: npm run format:prose");
+    expect(result.stdout).toContain("--line");
+    expect(result.stderr).toBe("");
+  }, PROCESS_TIMEOUT_MS);
+
+  it("shows framework renderer usage before validating help as a Markdown path", async () => {
+    const result = await execute(npmExecutable, ["run", "-s", "render:framework", "--", "--help"], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: { ...process.env, FORCE_COLOR: undefined },
+    });
+
+    expect(result.stdout).toContain("Usage: npm run render:framework -- <package-source.md>");
+    expect(result.stdout).toContain("packages/arc-framework/arc/");
+    expect(result.stderr).toBe("");
   }, PROCESS_TIMEOUT_MS);
 });

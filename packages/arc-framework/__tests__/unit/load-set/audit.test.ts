@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   LoadSetAuditVerdictSchema,
@@ -71,18 +72,18 @@ describe("auditLoadSetManifest", () => {
 
   it("rejects malformed comparisons and inconsistent status flags", () => {
     const verdict = auditLoadSetManifest({ baseline: BASELINE, fresh: cloneManifest(BASELINE) });
-    expect(LoadSetAuditVerdictSchema.safeParse({ ...verdict, diverged: true }).success).toBe(false);
-    expect(LoadSetAuditVerdictSchema.safeParse({
+    assertSchemaRefuses(LoadSetAuditVerdictSchema, { ...verdict, diverged: true });
+    assertSchemaRefuses(LoadSetAuditVerdictSchema, {
       ...verdict,
       diff: {
         ...verdict.diff,
         pathDrifts: [{ index: -1, expected: BASELINE.entries[0], actual: BASELINE.entries[0] }],
       },
-    }).success).toBe(false);
-    expect(LoadSetAuditVerdictSchema.safeParse({
+    });
+    assertSchemaRefuses(LoadSetAuditVerdictSchema, {
       ...verdict,
       diff: { ...verdict.diff, membership: { added: [{ path: "bad" }], removed: [] } },
-    }).success).toBe(false);
+    });
   });
 
   it("flags membership additions and removals", () => {
@@ -339,7 +340,7 @@ describe("auditLoadSetManifest", () => {
             readMode: { kind: "partial-strategic" },
           },
           {
-            path: ".arc/system/extensions/post-context-load.md",
+            path: ".arc/reference/strategies/project/extra-context.md",
             readMode: { kind: "full" },
           },
         ],
@@ -353,7 +354,7 @@ describe("auditLoadSetManifest", () => {
         membership: {
           added: [
             {
-              path: ".arc/system/extensions/post-context-load.md",
+              path: ".arc/reference/strategies/project/extra-context.md",
             },
           ],
           removed: [],

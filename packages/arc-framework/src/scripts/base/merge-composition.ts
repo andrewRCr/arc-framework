@@ -1,8 +1,14 @@
 /** Production Git composition for the exact-base merge procedure. */
 
+import { writeFile } from "node:fs/promises";
+
 import { boundedGitInvocation, type GitExec } from "../../lib/git/exec.js";
 import { DEFAULT_NETWORK_TIMEOUT_MS } from "../../lib/git/remote-ref-reader.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
+import {
+  applyRoadmapConflictAutoRemedy,
+  type RoadmapConflictAutoRemedyResult,
+} from "../../lib/status/roadmap-conflict-auto-remedy.js";
 import type { BaseMergePort } from "./merge.js";
 
 async function resolveOid(exec: GitExec, cwd: string, ref: string): Promise<string> {
@@ -28,11 +34,23 @@ async function mergeInProgress(exec: GitExec, cwd: string): Promise<boolean> {
   }
 }
 
-async function hasUnmergedEntries(exec: GitExec, cwd: string): Promise<boolean> {
-  return (await exec("git", ["diff", "--name-only", "--diff-filter=U"], {
+async function readUnmergedEntries(exec: GitExec, cwd: string): Promise<string[]> {
+  const stdout = (await exec("git", ["diff", "--name-only", "--diff-filter=U"], {
     cwd,
     objectAccess: "local-only",
-  })).stdout.trim() !== "";
+  })).stdout.trim();
+  return stdout === "" ? [] : [...new Set(stdout.split(/\r?\n/u).filter(Boolean))].sort();
+}
+
+async function resolveParents(exec: GitExec, cwd: string, commitOid: string): Promise<string[]> {
+  const fields = (await exec("git", ["rev-list", "--parents", "-n", "1", commitOid], {
+    cwd,
+    objectAccess: "local-only",
+  })).stdout.trim().split(/\s+/u);
+  if (fields.shift() !== commitOid || fields.some((field) => !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(field))) {
+    throw new Error("Git returned malformed merge-parent evidence.");
+  }
+  return fields;
 }
 
 /**
@@ -46,6 +64,10 @@ export function createBaseMergePort(input: {
   baseBranch: string;
   exec: GitExec;
   fetchTimeoutMs?: number;
+  applyRegenerableConflict?: (
+    baseOid: string,
+    headOid: string,
+  ) => Promise<RoadmapConflictAutoRemedyResult>;
 }): BaseMergePort {
   const remoteBaseRef = `refs/remotes/origin/${input.baseBranch}`;
   return {
@@ -67,9 +89,10 @@ export function createBaseMergePort(input: {
       }
       return resolveOid(input.exec, input.cwd, `${remoteBaseRef}^{commit}`);
     },
-    containsBase: async (baseOid) => {
+    refreshHead: () => resolveOid(input.exec, input.cwd, "HEAD"),
+    isAncestor: async (ancestorOid, descendantOid) => {
       try {
-        await input.exec("git", ["merge-base", "--is-ancestor", baseOid, "HEAD"], {
+        await input.exec("git", ["merge-base", "--is-ancestor", ancestorOid, descendantOid], {
           cwd: input.cwd,
           objectAccess: "local-only",
         });
@@ -79,19 +102,121 @@ export function createBaseMergePort(input: {
         throw error;
       }
     },
-    mergeAppendOnly: async (baseOid) => {
+    mergeAppendOnly: async (baseOid, headOid, conflictRemedy) => {
       const status = (await input.exec("git", ["status", "--porcelain=v1"], {
         cwd: input.cwd,
         objectAccess: "local-only",
       })).stdout;
       if (status !== "") throw new Error("The candidate worktree must be clean before merging its base.");
       const before = await resolveOid(input.exec, input.cwd, "HEAD");
+      if (before !== headOid) return { status: "head-moved", actualHead: before };
       try {
-        await input.exec("git", ["merge", "--no-edit", baseOid], { cwd: input.cwd });
-        return "merged";
+        await input.exec("git", [
+          "-c", "merge.directoryRenames=false", "merge", "--no-ff", "--no-edit", baseOid,
+        ], { cwd: input.cwd });
+        const after = await resolveOid(input.exec, input.cwd, "HEAD");
+        const parents = await resolveParents(input.exec, input.cwd, after);
+        if (parents.length !== 2 || parents[0] !== headOid || parents[1] !== baseOid) {
+          const failure = new Error("Git created a merge commit with unexpected parents.");
+          const actualPredecessor = parents[0];
+          if (parents.length !== 2
+            || actualPredecessor !== headOid
+            || await resolveOid(input.exec, input.cwd, "HEAD") !== after) throw failure;
+          try {
+            await input.exec("git", ["update-ref", "HEAD", headOid, after], { cwd: input.cwd });
+            await input.exec("git", ["reset", "--hard", "HEAD"], { cwd: input.cwd });
+            const [restored, clean, stillMerging] = await Promise.all([
+              resolveOid(input.exec, input.cwd, "HEAD"),
+              input.exec("git", ["status", "--porcelain=v1"], {
+                cwd: input.cwd,
+                objectAccess: "local-only",
+              }).then(({ stdout }) => stdout === ""),
+              mergeInProgress(input.exec, input.cwd),
+            ]);
+            if (restored !== headOid || !clean || stillMerging) {
+              throw new Error("Git could not remove the unexpected merge commit.");
+            }
+          } catch (error) {
+            throw new Error("Git could not remove the unexpected merge commit.", { cause: error });
+          }
+          throw failure;
+        }
+        return { status: "merged", headOid: after };
       } catch (error) {
         if (!await mergeInProgress(input.exec, input.cwd)) throw error;
-        const contentConflict = await hasUnmergedEntries(input.exec, input.cwd);
+        const conflictPaths = await readUnmergedEntries(input.exec, input.cwd);
+        const contentConflict = conflictPaths.length > 0;
+        let remedyRefusal: string | null = null;
+        if (contentConflict && conflictRemedy === "regenerate-roadmap") {
+          try {
+            const remedy = input.applyRegenerableConflict === undefined
+              ? await applyRoadmapConflictAutoRemedy({
+                  cwd: input.cwd,
+                  exec: input.exec,
+                  writeFile,
+                  baseBranch: input.baseBranch,
+                  baseRevision: baseOid,
+                  renderedRef: baseOid,
+                })
+              : await input.applyRegenerableConflict(baseOid, headOid);
+            remedyRefusal = remedy.status === "applied"
+              ? remedy.indeterminate ? "The readiness render was indeterminate." : null
+              : remedy.status === "skipped"
+                ? `The readiness conflict remedy was skipped (${remedy.reason}).`
+                : `The readiness conflict remedy failed: ${remedy.message}`;
+            if (remedyRefusal === null) {
+              if ((await readUnmergedEntries(input.exec, input.cwd)).length > 0) {
+                remedyRefusal = "The readiness conflict remedy left unmerged paths.";
+              } else {
+                const [currentHead, currentMergeHead] = await Promise.all([
+                  resolveOid(input.exec, input.cwd, "HEAD"),
+                  resolveOid(input.exec, input.cwd, "MERGE_HEAD"),
+                ]);
+                if (currentHead !== headOid || currentMergeHead !== baseOid) {
+                  remedyRefusal = "The merge coordinates moved during readiness regeneration.";
+                } else {
+                  await input.exec("git", ["diff", "--quiet", "--", ".arc/backlog/ROADMAP.md"], {
+                    cwd: input.cwd,
+                    objectAccess: "local-only",
+                  });
+                  await input.exec("git", ["commit", "--no-edit", "--no-verify"], { cwd: input.cwd });
+                  const after = await resolveOid(input.exec, input.cwd, "HEAD");
+                  const parents = await resolveParents(input.exec, input.cwd, after);
+                  const clean = (await input.exec("git", ["status", "--porcelain=v1"], {
+                    cwd: input.cwd,
+                    objectAccess: "local-only",
+                  })).stdout === "";
+                  if (parents.length === 2 && parents[0] === headOid && parents[1] === baseOid && clean) {
+                    return { status: "merged", headOid: after };
+                  }
+                  if (parents[0] === headOid && await resolveOid(input.exec, input.cwd, "HEAD") === after) {
+                    await input.exec("git", ["update-ref", "HEAD", headOid, after], { cwd: input.cwd });
+                    await input.exec("git", ["reset", "--hard", "HEAD"], { cwd: input.cwd });
+                  }
+                  remedyRefusal = "The regenerated merge did not preserve the exact parents and clean tree.";
+                }
+              }
+            }
+          } catch (remedyError) {
+            remedyRefusal = remedyError instanceof Error ? remedyError.message : String(remedyError);
+          }
+        }
+        if (!await mergeInProgress(input.exec, input.cwd)) {
+          if (remedyRefusal !== null) {
+            const [restored, clean] = await Promise.all([
+              resolveOid(input.exec, input.cwd, "HEAD"),
+              input.exec("git", ["status", "--porcelain=v1"], {
+                cwd: input.cwd,
+                objectAccess: "local-only",
+              }).then(({ stdout }) => stdout === ""),
+            ]);
+            if (restored !== before || !clean) {
+              throw new Error("Git could not restore the pre-merge candidate state.", { cause: error });
+            }
+            return { status: "remedy-refused", detail: remedyRefusal };
+          }
+          throw error;
+        }
         await input.exec("git", ["merge", "--abort"], { cwd: input.cwd });
         const [after, clean, stillMerging] = await Promise.all([
           resolveOid(input.exec, input.cwd, "HEAD"),
@@ -104,9 +229,20 @@ export function createBaseMergePort(input: {
         if (after !== before || !clean || stillMerging) {
           throw new Error("Git could not restore the pre-merge candidate state.", { cause: error });
         }
+        if (remedyRefusal !== null) return { status: "remedy-refused", detail: remedyRefusal };
         if (!contentConflict) throw error;
-        return "conflict";
+        return {
+          status: "conflict",
+          detail: `Merge conflicts remain in: ${conflictPaths.join(", ")}.`,
+        };
       }
+    },
+    changedPaths: async (fromOid, toOid) => {
+      const stdout = (await input.exec("git", ["diff", "--name-only", "-z", "--no-renames", fromOid, toOid], {
+        cwd: input.cwd,
+        objectAccess: "local-only",
+      })).stdout;
+      return stdout.split("\0").filter(Boolean);
     },
   };
 }

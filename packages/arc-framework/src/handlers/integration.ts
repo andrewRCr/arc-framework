@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createGitExec } from "../lib/io-context.js";
@@ -17,6 +17,10 @@ import {
 } from "../scripts/integration/checkpoint.js";
 import { createIntegrationCheckpointDependencies } from "../scripts/integration/checkpoint-composition.js";
 import { createIntegrationMergeDependencies } from "../scripts/integration/merge-composition.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
+import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   IntegrationMergeResultSchema,
   mergeIntegration,
@@ -48,24 +52,6 @@ const integrationMergeInputRegistration = {
   schemaFields: { "operand.name": "name", "option.checkpoint": "checkpoint" },
 } satisfies CommandInputRegistration;
 
-const integrationCheckpointJsonPolicy = declareCliOptionSite("json", {
-  acquisition: "machine-mode",
-  schemaOwnership: "none",
-  cancellation: "not-applicable",
-  automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-  mutationBoundary: "output selection",
-  subprocess: "none",
-});
-
-const integrationMergeJsonPolicy = declareCliOptionSite("json", {
-  acquisition: "machine-mode",
-  schemaOwnership: "none",
-  cancellation: "not-applicable",
-  automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-  mutationBoundary: "output selection",
-  subprocess: "none",
-});
-
 /** Command-input schema registrations owned by integration procedures. */
 export const integrationCommandInputRegistrations = [
   integrationCheckpointInputRegistration,
@@ -76,20 +62,18 @@ export const integrationCommandInputRegistrations = [
 export const integrationCommandInputPolicyDeclarations = [{
   commandPath: "integrate checkpoint",
   aliases: [],
-  sites: [integrationCheckpointJsonPolicy],
+  sites: [],
 }, {
   commandPath: "integrate merge",
   aliases: [],
-  sites: [integrationMergeJsonPolicy],
+  sites: [],
 }] as const satisfies readonly CommandInputDeclaration[];
 
-export interface IntegrationCheckpointOptions {
-  json?: boolean;
-}
+/** `arc integrate checkpoint` takes no options; the verb always emits its typed verdict. */
+export type IntegrationCheckpointOptions = Record<string, never>;
 
 export interface IntegrationMergeOptions {
   checkpoint: string;
-  json?: boolean;
 }
 
 export interface IntegrationCheckpointHandlerDependencies {
@@ -107,8 +91,22 @@ export interface IntegrationMergeHandlerDependencies {
 }
 
 function stableOperationFailureDetail(error: unknown): string {
-  const detail = (error instanceof Error ? error.message : String(error)).trim();
-  return detail === "" ? "The integration operation failed without diagnostic detail." : detail;
+  const message = error instanceof ProjectIdentityError && error.failure.remedy.argv !== undefined
+    ? spineRemedy(error.failure.reason, error.failure.remedy.text, error.failure.remedy.argv).text
+    : error instanceof Error ? error.message : String(error);
+  const detail = message.replace(/\s+/gu, " ").trim();
+  return (detail || "The integration operation failed without diagnostic detail.").slice(0, 4_096);
+}
+
+async function resolveIntegrationReviewInvocation(options: ReviewInvocationInput, workUnit: string): Promise<ReviewInvocationInput> {
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  if (!input.store.capabilities.stateOffBranch) return input;
+  await input.projectId();
+  const selected = await resolveNamedReviewWorkUnitInvocation(input, workUnit);
+  if (selected.workItem === undefined) {
+    throw new Error(`No stored work unit is named \`${workUnit}\`. Name the work unit to integrate, then retry.`);
+  }
+  return selected;
 }
 
 /** Run the integration checkpoint for one exact work-unit name. */
@@ -117,13 +115,14 @@ export async function handleIntegrationCheckpoint(
   _options: IntegrationCheckpointOptions,
   interaction?: InteractionContext,
   overrides: Partial<IntegrationCheckpointHandlerDependencies> = {},
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: IntegrationCheckpointHandlerDependencies = {
     resolveRoot: () => resolveArcRoot(),
-    checkpoint: (root, workUnit) => checkpointIntegration(
+    checkpoint: async (root, workUnit) => checkpointIntegration(
       { schemaVersion: 1, workUnit },
-      createIntegrationCheckpointDependencies({ cwd: root, exec }),
+      createIntegrationCheckpointDependencies(await resolveIntegrationReviewInvocation({ ...invocation, cwd: root, exec }, workUnit)),
     ),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
@@ -166,13 +165,14 @@ export async function handleIntegrationMerge(
   options: IntegrationMergeOptions,
   interaction?: InteractionContext,
   overrides: Partial<IntegrationMergeHandlerDependencies> = {},
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: IntegrationMergeHandlerDependencies = {
     resolveRoot: () => resolveArcRoot(),
-    merge: (root, workUnit, checkpoint) => mergeIntegration(
+    merge: async (root, workUnit, checkpoint) => mergeIntegration(
       { schemaVersion: 1, workUnit, checkpointHandle: checkpoint },
-      createIntegrationMergeDependencies({ cwd: root, exec, workUnit }),
+      createIntegrationMergeDependencies({ ...invocation, cwd: root, exec, workUnit }),
     ),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },

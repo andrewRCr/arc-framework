@@ -16,6 +16,7 @@ export interface SubjectTopologyExpectation {
 export interface DerivedWorkUnitSubject {
   readonly kind: "work-unit";
   readonly key: string;
+  readonly uid?: string;
 }
 
 /** Transient subject selected by marker or identity authority. */
@@ -151,7 +152,7 @@ export function deriveCheckoutRole(facts: CheckoutRoleAuthorityFacts): Authority
   if (unreadable.length > 0) {
     return { kind: "unresolved-checkout", topology: facts.topology, diagnostics: unreadable };
   }
-  const candidates = [facts.marker, facts.lifecycle, facts.identity].flatMap((evidence) =>
+  const candidates = [facts.lifecycle, facts.marker, facts.identity].flatMap((evidence) =>
     evidence.kind === "present" ? [{
       subject: evidence.subject,
       expectedTopology: evidence.expectedTopology,
@@ -182,9 +183,11 @@ export function deriveCheckoutRole(facts: CheckoutRoleAuthorityFacts): Authority
 }
 
 function sameSubject(left: DerivedCheckoutSubject, right: DerivedCheckoutSubject): boolean {
-  return left.kind === right.kind
-    && left.key === right.key
-    && (left.kind === "work-unit" || right.kind === "work-unit" || left.claimId === right.claimId);
+  if (left.kind === "work-unit" && right.kind === "work-unit") {
+    return left.uid !== undefined && right.uid !== undefined ? left.uid === right.uid : left.key === right.key;
+  }
+  return left.kind !== "work-unit" && right.kind !== "work-unit"
+    && left.kind === right.kind && left.key === right.key && left.claimId === right.claimId;
 }
 
 function mergeExpectations(

@@ -21,8 +21,8 @@ audit (`arc-task-audit`). Bidirectional:
 - **Push** refinements _back out_ when current work changes assumptions a downstream WU rests on.
 
 **Motivation — recurring manual pattern.** `worktree-foundation`'s 2026-05-26 cohort/downstream forward-compat
-cross-check hand-did exactly this (reserving extension points for `cross-machine-sync-coherence`, keeping logic
-extractable for `user-sync-module-split`).
+cross-check hand-did exactly this (reserving extension points for the since-decomposed `cross-machine-sync-coherence`,
+keeping logic extractable for `user-sync-module-split`).
 
 ## Unknowns and Assumptions
 

@@ -10,9 +10,17 @@ import type {
 } from "../../../src/lib/errand/change-request-lifecycle.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
 function record(state: "open" | "paused" | "awaiting-merge"): OrdinaryErrandRecord {
   const head = "a".repeat(40);
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "discard",
     claimId: "c".repeat(32),
@@ -34,7 +42,7 @@ function record(state: "open" | "paused" | "awaiting-merge"): OrdinaryErrandReco
       headRef: "chore/discard",
       headSha: head,
     } : null,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function lifecycle(value: OrdinaryErrandRecord, kind: ChangeRequestLifecycleTruth): ChangeRequestLifecycleEvidence {
@@ -55,10 +63,11 @@ describe("abandonOrdinaryErrand", () => {
         readLifecycle: vi.fn(),
         clearExecuteBound: async () => (events.push("inbox"), { kind: "applied" }),
         retire: async () => (events.push("identity"), { kind: "applied" }),
+        reapZeroDeltaBranch: async () => (events.push("branch"), { kind: "removed" }),
       },
     });
 
-    expect(events).toEqual(["cleanup", "inbox", "identity"]);
+    expect(events).toEqual(["cleanup", "inbox", "identity", "branch"]);
     expect(result).toMatchObject({
       outcome: "applied",
       operation: "errand-abandon",
@@ -76,10 +85,55 @@ describe("abandonOrdinaryErrand", () => {
         readLifecycle: vi.fn(),
         clearExecuteBound: vi.fn(),
         retire: vi.fn(),
+        reapZeroDeltaBranch: vi.fn(),
       },
     });
 
     expect(result).toMatchObject({ outcome: "idempotent", operation: "errand-abandon" });
+  });
+
+  it("reports local branch residue when reaping fails after identity retirement", async () => {
+    const value = record("open");
+    const result = await abandonOrdinaryErrand({
+      slug: value.slug,
+      protection: "full",
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record: value }),
+        cleanupResidue: async () => ({ kind: "applied" }),
+        readLifecycle: vi.fn(),
+        clearExecuteBound: async () => ({ kind: "applied" }),
+        retire: async () => ({ kind: "applied" }),
+        reapZeroDeltaBranch: async () => ({ kind: "preserved", reason: "branch head moved" }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "applied",
+      recommendedPromptText: expect.stringContaining("Local branch remains: branch head moved"),
+    });
+  });
+
+  it("reports deletion and lock-release failure without claiming branch residue", async () => {
+    const value = record("open");
+    const result = await abandonOrdinaryErrand({
+      slug: value.slug,
+      protection: "full",
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record: value }),
+        cleanupResidue: async () => ({ kind: "idempotent" }),
+        readLifecycle: vi.fn(),
+        clearExecuteBound: async () => ({ kind: "idempotent" }),
+        retire: async () => ({ kind: "idempotent" }),
+        reapZeroDeltaBranch: async () => ({ kind: "removed", releaseError: "HEAD lock remains" }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "applied",
+      recommendedPromptText: expect.stringContaining("Removed its zero-delta local branch"),
+    });
+    expect(result.recommendedPromptText).toContain("Checkout lock release failed: HEAD lock remains");
+    expect(result.recommendedPromptText).not.toContain("Local branch remains");
   });
 
   it("requires exact closed-unmerged host truth for an awaiting tail", async () => {
@@ -95,6 +149,7 @@ describe("abandonOrdinaryErrand", () => {
         readLifecycle: async () => lifecycle(value, "closed-unmerged"),
         clearExecuteBound: async () => ({ kind: "idempotent" }),
         retire,
+        reapZeroDeltaBranch: async () => ({ kind: "preserved" }),
       },
     });
     expect(exact).toMatchObject({ outcome: "applied" });
@@ -111,6 +166,7 @@ describe("abandonOrdinaryErrand", () => {
           readLifecycle: async () => lifecycle(value, kind),
           clearExecuteBound: vi.fn(),
           retire,
+          reapZeroDeltaBranch: vi.fn(),
         },
       });
       expect(refused).toMatchObject({ outcome: "refused" });
@@ -142,6 +198,7 @@ describe("abandonOrdinaryErrand", () => {
         readLifecycle: async () => evidence,
         clearExecuteBound: vi.fn(),
         retire: vi.fn(),
+        reapZeroDeltaBranch: vi.fn(),
       },
     });
 
@@ -162,6 +219,7 @@ describe("abandonOrdinaryErrand", () => {
           readLifecycle: vi.fn(),
           clearExecuteBound: vi.fn(),
           retire,
+          reapZeroDeltaBranch: vi.fn(),
         },
       });
       expect(result).toMatchObject({ outcome: "refused", reason });
@@ -183,6 +241,7 @@ describe("abandonOrdinaryErrand", () => {
           kind: "refused", reason: "identity-conflict", message: "malformed inbox entry",
         }),
         retire,
+        reapZeroDeltaBranch: vi.fn(),
       },
     });
     expect(raced).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
@@ -197,6 +256,7 @@ describe("abandonOrdinaryErrand", () => {
         readLifecycle: vi.fn(),
         clearExecuteBound: vi.fn(),
         retire: vi.fn(),
+        reapZeroDeltaBranch: vi.fn(),
       },
     });
     expect(replay).toMatchObject({ outcome: "idempotent", operation: "errand-abandon" });

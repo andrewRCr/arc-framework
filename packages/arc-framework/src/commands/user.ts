@@ -7,6 +7,11 @@
 
 export { runUserAdd } from "./user/add.js";
 export { runUserClose } from "./user/close.js";
+export {
+  runUserInboxList,
+  type UserInboxListOptions,
+  type UserInboxListResult,
+} from "./user/inbox-list.js";
 export { runUserInboxRemove } from "./user/inbox-remove.js";
 export {
   markCurrentInboxEntriesExecuteBound,

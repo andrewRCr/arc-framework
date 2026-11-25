@@ -29,7 +29,7 @@ function memoryFs(): SubmissionBoundaryStoreFs {
 describe("submission boundary store", () => {
   it("distinguishes absence from a canonical persisted resume point", async () => {
     const fs = memoryFs();
-    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"a".repeat(64)}` as const;
     const boundary: IntegrationBoundaryLocus = {
       schemaVersion: 1,
       mode: "integration-boundary",
@@ -45,6 +45,7 @@ describe("submission boundary store", () => {
       policy: null,
       reservation: null,
       terminus: null,
+      deliveryReviewTermini: [],
     };
 
     expect(await readSubmissionBoundary("/repo", "example", fs)).toBeNull();
@@ -66,12 +67,13 @@ describe("submission boundary store", () => {
       locus: "candidate-review-pending",
       nextAction: {
         kind: "run-self-review",
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
         interactionText: "Run or resume the typed pre-publication review procedure.",
       },
       policy: null,
       reservation: null,
       terminus: null,
+      deliveryReviewTermini: [],
     };
     await writeSubmissionBoundary("/repo", original, null, fs);
     const stale = await readSubmissionBoundaryVersioned("/repo", "example", fs);

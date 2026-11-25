@@ -18,7 +18,20 @@ function meta(key: string, owner = "andrew", branch = `feat/${key}`) {
     kind: "read" as const,
     name: `meta-${key}.md`,
     path: `/repo/.arc/active/meta-${key}.md`,
-    text: `# Metadata: ${key}\n\n- **State:** \`Active\`\n- **Owner:** \`${owner}\`\n- **Branch:** \`${branch}\`\n- **Task List:** \`tasks-${key}.md\`\n- **Current Workflow:** [none]\n- **Next Action:** Continue\n`,
+    text: [
+      `# Metadata: ${key}`,
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      `| \`Active\` | \`${owner}\` | \`${branch}\` | — | — |`,
+      "",
+      `- **Task List:** \`tasks-${key}.md\``,
+      "- **Current Workflow:** [none]",
+      "- **Next Action:** Continue",
+      "",
+      "---",
+      "",
+    ].join("\n"),
   };
 }
 

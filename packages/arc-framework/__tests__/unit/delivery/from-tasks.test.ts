@@ -31,7 +31,7 @@ function taskList(): string {
     "",
     "## **Phase beta:** Second group",
     "",
-    "### `[ ]` **1.2 Second task**",
+    "### `[ ]` **1.2 Close the first member** — validate criteria at member scope",
     "",
     "- _Goal:_ Implement the second behavior.",
     "",
@@ -90,13 +90,16 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
           elements: [{ elementId: "detailed:deliverable-contract" }],
         },
         tasks: {
-          implementation: [{ taskId: "9.4" }, { taskId: "1.2" }],
-          verificationTaskId: "7.9",
+          parents: [
+            { taskId: "9.4", role: { kind: "implementation" } },
+            { taskId: "1.2", role: { kind: "verification", scope: "member" } },
+            { taskId: "7.9", role: { kind: "verification", scope: "work-unit" } },
+          ],
         },
       },
     });
     if (result.status !== "prepared") return;
-    expect(result.markdown).toContain('"verificationTaskId": "7.9"');
+    expect(result.markdown).toContain('"scope": "work-unit"');
     expect(result.markdown).toContain('"eligibleForMembership": false');
   });
 
@@ -171,7 +174,7 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
     const projection = resolveDeliveryFromTasksProjection({
       snapshot: result.snapshot,
       slots: {
-        projection: { kind: "wu-integration-target" },
+        projection: { kind: "stack-to-main" },
         boundary: {
           kind: "explicit",
           segments: [{ chunkKey: SlugSchema.parse("combined"), sourceIds: ["9.4", "1.2"] }],
@@ -195,14 +198,14 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
     });
   });
 
-  it("refuses the verification parent as an explicit member source", () => {
+  it("refuses the work-unit verifier as an explicit member source", () => {
     const result = prepare();
     expect(result.status).toBe("prepared");
     if (result.status !== "prepared") return;
     expect(resolveDeliveryFromTasksProjection({
       snapshot: result.snapshot,
       slots: {
-        projection: { kind: "wu-integration-target" },
+        projection: { kind: "stack-to-main" },
         boundary: {
           kind: "explicit",
           segments: [{ chunkKey: SlugSchema.parse("verification"), sourceIds: ["7.9"] }],
@@ -210,7 +213,7 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
         members: [member("verification")],
         seams: [],
       },
-    })).toEqual({ status: "refused", reason: "verification-task-ineligible" });
+    })).toEqual({ status: "refused", reason: "work-unit-verification-task-ineligible" });
   });
 
   it("refuses malformed design input without producing authoring material", () => {
@@ -223,5 +226,22 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
       taskListContent: taskList(),
       designInventory: { artifacts: [] },
     })).toEqual({ status: "refused", reason: "invalid-design-inventory" });
+  });
+
+  it("refuses a retired projection before producing a from-tasks authoring projection", () => {
+    const result = prepare();
+    expect(result.status).toBe("prepared");
+    if (result.status !== "prepared") return;
+    const retiredSlots = {
+      projection: { kind: "wu-integration-target" },
+      boundary: { kind: "phase-aligned" },
+      members: [member("first"), member("second")],
+      seams: [],
+    } as unknown as DeliveryAuthoringSlotsV1;
+
+    expect(resolveDeliveryFromTasksProjection({
+      snapshot: result.snapshot,
+      slots: retiredSlots,
+    })).toEqual({ status: "refused", reason: "authoring-projection-invalid" });
   });
 });

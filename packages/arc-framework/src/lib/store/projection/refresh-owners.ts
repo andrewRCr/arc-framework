@@ -1,0 +1,179 @@
+/** Re-lay changed owner primaries, loading historical coordinates only for those owners. */
+import { OwnerIdentitySchema, recordReferences, sameOwner, sameReference, type OwnerIdentity, type RecordReference } from "../identity.js";
+import { identifyArcFileAddress } from "../../layout/index.js";
+import type { StoreRecord } from "../read.js";
+import { desiredProjectionPaths, isClaimedProjectionOwner, projectionRecordPath, type DesiredProjection } from "./desired-paths.js";
+import { projectionListingComplete, projectionListingDiagnostics, type ProjectionInventory } from "./inventory.js";
+import { loadProjectionGroups, loadProjectionPathGroup } from "./index-memory.js";
+import { retainUncertainProjectionPaths } from "./placement-evidence.js";
+import { markStoreRefusal } from "./refusal-mark.js";
+import type { ProjectionRefreshPlanInput, ProjectionRefreshPlan } from "./refresh-plan.js";
+import { planProjectionSelection } from "./selection-plan.js";
+
+/** Owners planned only for a pending entry or a conflict, and the changed and conflicted records any owner must lay. */
+export interface OwnerRefreshScope {
+  readonly pendingOnly: readonly OwnerIdentity[];
+  readonly touched: readonly RecordReference[];
+}
+
+/** Primary changes expand to every current owner record and every former indexed path. */
+export async function planOwnerRefresh(input: ProjectionRefreshPlanInput, owners: readonly OwnerIdentity[],
+  plan: ProjectionRefreshPlan, scope: OwnerRefreshScope = { pendingOnly: [], touched: [] }): Promise<boolean> {
+  const { records, complete, unresolved } = await readOwners(input, owners);
+  const located = await readOwnPrimary(input, records);
+  const own = located.primary;
+  if (own !== null && !records.some(record => sameReference(record.reference, own.reference))) records.push(own);
+  const inventory: ProjectionInventory = { records, source: input.source, diagnostics: [],
+    complete: reference => complete.some(owner => sameOwner(reference.owner, owner)) };
+  const desired = await desiredProjectionPaths(input.root, inventory, located.unavailable);
+  const relaid = complete.filter(owner => !scope.pendingOnly.some(pending => sameOwner(pending, owner)));
+  const membership = ownMembershipChanged(input, relaid, own);
+  applyOwnerPaths({ input, owners, complete, plan, desired, membership, ...scope });
+  retainUncertainProjectionPaths(input.index, desired, plan);
+  const regrouped = membership && inFlightSelectionMoved(input, desired) ? await planInFlightSelection(input, plan) : false;
+  return unresolved || desired.unresolved || regrouped;
+}
+
+const IN_FLIGHT = /^\.arc\/active\/in-flight\/([^/]+)\//u;
+
+/** Under the cohort view the own unit's membership picks the in-flight units, so a pick the index does not hold has moved. */
+function inFlightSelectionMoved(input: ProjectionRefreshPlanInput, desired: DesiredProjection): boolean {
+  if (input.root.view.mode !== "cohort" || desired.selection.kind !== "selected") return false;
+  loadProjectionGroups(input.index, [".arc/active"]);
+  const held = new Set(Object.keys(input.index.entries).flatMap(path => IN_FLIGHT.exec(path)?.[1] ?? []));
+  const picked = new Set(desired.selection.references.map(reference => reference.owner.name));
+  return held.size !== picked.size || [...picked].some(name => !held.has(name));
+}
+
+/** Lay the newly selected units' files and remove the departed ones' through the guarded removal, as reprojection does. */
+async function planInFlightSelection(input: ProjectionRefreshPlanInput, plan: ProjectionRefreshPlan): Promise<boolean> {
+  const selected = await planProjectionSelection(input, path => IN_FLIGHT.test(path));
+  for (const [path, reference] of selected.paths) if (!settledAt(input, path, reference)) plan.paths.set(path, reference);
+  for (const path of selected.removals) {
+    if (!selected.paths.has(path)) plan.paths.delete(path);
+    plan.removals.add(path);
+  }
+  return selected.unresolved;
+}
+
+function applyOwnerPaths(scope: OwnerRefreshScope & { input: ProjectionRefreshPlanInput; owners: readonly OwnerIdentity[];
+  complete: readonly OwnerIdentity[]; plan: ProjectionRefreshPlan; desired: DesiredProjection; membership: boolean }): void {
+  const { input, owners, plan, desired, membership } = scope;
+  for (const [path, record] of desired.files) {
+    const owned = owners.some(owner => sameOwner(record.reference.owner, owner));
+    if (owned && keepsSettledFile(scope, path, record.reference)) continue;
+    if (owned || membership && isOwnCohortCopy(input, path)) plan.paths.set(path, record.reference);
+  }
+  removeOwnerPaths(scope);
+}
+
+/** A pending-only owner's settled file stays unless this window changed its record or a conflict naming it. */
+function keepsSettledFile(scope: OwnerRefreshScope & { input: ProjectionRefreshPlanInput }, path: string, reference: RecordReference): boolean {
+  return scope.pendingOnly.some(owner => sameOwner(reference.owner, owner)) && settledAt(scope.input, path, reference)
+    && !scope.touched.some(touched => sameReference(touched, reference));
+}
+
+function removeOwnerPaths(scope: Parameters<typeof applyOwnerPaths>[0]): void {
+  const { input, complete, plan, desired, membership } = scope;
+  for (const [path, entry] of Object.entries(input.index.entries)) {
+    if (entry.kind !== "record") continue;
+    const arriving = desired.files.get(path);
+    if (arriving !== undefined && sameReference(arriving.reference, entry.reference)) continue;
+    const affected = complete.some(owner => sameOwner(entry.reference.owner, owner)) || membership && isOwnCohortCopy(input, path);
+    if (affected) { if (arriving === undefined) plan.paths.delete(path); plan.removals.add(path); }
+  }
+}
+
+/** A file already laid at its place for the same record, with nothing pending, which no store change touched. */
+function settledAt(input: ProjectionRefreshPlanInput, path: string, reference: RecordReference): boolean {
+  const entry = input.index.entries[path];
+  return entry?.kind === "record" && !entry.pending && sameReference(entry.reference, reference);
+}
+
+function ownMembershipChanged(input: ProjectionRefreshPlanInput, owners: readonly OwnerIdentity[], own: StoreRecord | null): boolean {
+  const prior = Object.values(input.index.entries).find(entry => entry.kind === "record"
+    && entry.reference.kind === "work-item/meta" && isClaimedProjectionOwner(input.index.projectedUnder, entry.reference.owner));
+  const reference = own?.reference ?? (prior?.kind === "record" ? prior.reference : null);
+  return reference !== null && owners.some(owner => sameOwner(owner, reference.owner));
+}
+
+function isOwnCohortCopy(input: ProjectionRefreshPlanInput, path: string): boolean {
+  return identifyArcFileAddress(path, { active: { claim: input.root.claim, layoutActive: input.root.layoutActive } })?.kind === "cohort-copy";
+}
+
+async function readOwners(input: ProjectionRefreshPlanInput, owners: readonly OwnerIdentity[]): Promise<{
+  records: StoreRecord[]; complete: OwnerIdentity[]; unresolved: boolean;
+}> {
+  const records: StoreRecord[] = [], complete: OwnerIdentity[] = [];
+  let unresolved = false;
+  for (const owner of owners) {
+    const listing = await input.source.list({ family: owner.type === "cohort" ? "cohort" : "work-item", owner });
+    const diagnostics = projectionListingDiagnostics(listing);
+    for (const mark of diagnostics) input.root.context.report?.({ path: input.root.checkout, copy: null, mark });
+    if (listing.status === "ok" && listing.result.status === "complete") records.push(...listing.result.records);
+    if (projectionListingComplete(listing)) complete.push(owner);
+    const located = await loadFormerProjectionOwner(input, owner);
+    unresolved ||= diagnostics.length > 0 || !located;
+  }
+  return { records, complete, unresolved };
+}
+
+async function readOwnPrimary(input: ProjectionRefreshPlanInput, records: StoreRecord[]): Promise<{ primary: StoreRecord | null; unavailable: boolean }> {
+  if (input.root.claim === null) return { primary: null, unavailable: false };
+  const claimants = await readIndexedClaimants(input, records);
+  if (claimants === null) return { primary: null, unavailable: true };
+  records.push(...claimants);
+  const listed = records.find(record => (record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record")
+    && isClaimedProjectionOwner(input.root, record.reference.owner) && record.placement?.kind === "active");
+  if (listed !== undefined) return { primary: listed, unavailable: false };
+  // A UID-bound claim names its own unit exactly; only a claim without one reads by slug.
+  const uid = input.root.claimUid === undefined ? {} : { uid: input.root.claimUid };
+  const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: input.root.claim, ...uid }));
+  const read = await input.source.read({ reference });
+  if (read.status === "ok") return { primary: read.result.placement?.kind === "active"
+    && isClaimedProjectionOwner(input.root, read.result.reference.owner) ? read.result : null, unavailable: false };
+  const unavailable = read.refusal.code !== "not-found";
+  if (unavailable) input.root.context.report?.({ path: input.root.checkout, copy: null, mark: markStoreRefusal(read.refusal) });
+  return { primary: null, unavailable };
+}
+
+/**
+ * A claim with no UID matches by slug alone, so the live units the index holds under it are read beside the listed ones,
+ * letting the plan see a same-slug unit as a clash rather than as its own.
+ * @returns The claimants' active primaries the listing lacked, or null when one could not be read.
+ */
+async function readIndexedClaimants(input: ProjectionRefreshPlanInput, records: readonly StoreRecord[]): Promise<StoreRecord[] | null> {
+  const found: StoreRecord[] = [];
+  if (input.root.claimUid !== undefined) return found;
+  const indexed = Object.values(input.index.entries).flatMap(entry => entry.kind === "record"
+    && (entry.reference.kind === "work-item/meta" || entry.reference.kind === "work-item/record")
+    && isClaimedProjectionOwner(input.root, entry.reference.owner) ? [entry.reference] : [])
+    .filter((reference, at, all) => all.findIndex(other => sameReference(other, reference)) === at
+      && !records.some(record => sameReference(record.reference, reference)));
+  for (const reference of indexed) {
+    const read = await input.source.read({ reference });
+    if (read.status === "ok") { if (read.result.placement?.kind === "active") found.push(read.result); continue; }
+    if (read.refusal.code === "not-found") continue;
+    input.root.context.report?.({ path: input.root.checkout, copy: null, mark: markStoreRefusal(read.refusal) });
+    return null;
+  }
+  return found;
+}
+
+/** Load only the partition identified by the owner’s primary at the saved anchor. */
+export async function loadFormerProjectionOwner(input: ProjectionRefreshPlanInput, owner: OwnerIdentity): Promise<boolean> {
+  if (input.index.state === null) return true;
+  const reference = owner.type === "cohort" ? recordReferences["cohort/document"](owner)
+    : recordReferences["work-item/meta"](owner);
+  const read = await input.source.read({ reference, asOf: input.index.state });
+  if (read.status === "refused") {
+    if (read.refusal.code === "not-found") return true;
+    input.root.context.report?.({ path: input.root.checkout, copy: null, mark: markStoreRefusal(read.refusal) });
+    return false;
+  }
+  const old = read.result;
+  const own = old.placement?.kind === "active" && isClaimedProjectionOwner(input.index.projectedUnder, old.reference.owner) ? old.reference.owner : null;
+  const path = projectionRecordPath(input.root, old, [old], own, { kind: "selected", references: [old.reference], missingPins: [] });
+  if (path !== null) loadProjectionPathGroup(input.index.entries, path);
+  return true;
+}

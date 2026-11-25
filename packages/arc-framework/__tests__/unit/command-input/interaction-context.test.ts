@@ -7,6 +7,7 @@ import {
   withInteractionContext,
   type InteractionSignals,
 } from "../../../src/lib/command-input/index.js";
+import { inMachineOutputScope } from "../../../src/lib/machine-output-scope.js";
 
 const signals = (overrides: Partial<InteractionSignals> = {}): InteractionSignals => ({
   noInput: false,
@@ -112,5 +113,18 @@ describe("interaction context", () => {
     }));
 
     expect(action("payload", command)).toEqual({ value: "payload", interaction: "forbidden" });
+  });
+
+  it("runs only a machine-readable action in the machine-output scope", () => {
+    const command = {
+      opts: () => ({ json: true }),
+      optsWithGlobals: () => ({ json: true }),
+    };
+    const scoped = withInteractionContext({ machineReadable: (options) => options.json === true }, () =>
+      inMachineOutputScope());
+    const unscoped = withInteractionContext({}, () => inMachineOutputScope());
+
+    expect(scoped(command)).toBe(true);
+    expect(unscoped(command)).toBe(false);
   });
 });

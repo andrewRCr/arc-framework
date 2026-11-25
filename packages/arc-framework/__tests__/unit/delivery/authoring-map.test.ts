@@ -9,11 +9,20 @@ import {
   createDeliveryAuthoringSnapshot,
   type DeliveryAuthoringSnapshotV1,
 } from "../../../src/lib/delivery/authoring-schema.js";
-import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
 
 function snapshot(): DeliveryAuthoringSnapshotV1 {
   const firstTask = canonicalDigest({ goal: "First" });
   const secondTask = canonicalDigest({ goal: "Second" });
+  const parents = [
+    { taskId: "1.1", semanticDigest: firstTask, role: { kind: "implementation" as const } },
+    { taskId: "1.2", semanticDigest: secondTask, role: { kind: "implementation" as const } },
+    {
+      taskId: "2.1",
+      semanticDigest: null,
+      role: { kind: "verification" as const, scope: "work-unit" },
+    },
+  ];
   return createDeliveryAuthoringSnapshot({
     mapId: "authoring-map",
     originalWorkUnitId: "delivery-plan-record",
@@ -24,21 +33,14 @@ function snapshot(): DeliveryAuthoringSnapshotV1 {
       elements: [{ elementId: "requirements:first", semanticDigest: canonicalDigest({ element: 1 }) }],
     },
     tasks: {
-      inventoryDigest: canonicalDigest([
-        { taskId: "1.1", semanticDigest: firstTask },
-        { taskId: "1.2", semanticDigest: secondTask },
-      ]),
-      implementation: [
-        { taskId: "1.1", semanticDigest: firstTask },
-        { taskId: "1.2", semanticDigest: secondTask },
-      ],
-      verificationTaskId: "2.1",
+      inventoryDigest: canonicalDigest(parents),
+      parents,
     },
     source: {
       entry: "from-tasks",
       inputs: { taskListPath: ".arc/active/tasks-delivery-plan-record.md" },
       facts: { phaseGroups: [{ phaseId: "1", taskIds: ["1.1", "1.2"] }] },
-      identitySequence: ["phase:1", "task:1.1", "task:1.2"],
+      identitySequence: ["phase:1", "task:1.1", "task:1.2", "task:2.1"],
     },
   });
 }
@@ -110,6 +112,30 @@ describe("delivery authoring map", () => {
     });
   });
 
+  it("refuses retired projections and integration-only members", () => {
+    const proposed = snapshot();
+    const retiredProjection = {
+      ...filledSlots,
+      projection: { kind: "wu-integration-target" },
+    } as const;
+    expect(validateDeliveryAuthoringMap(
+      renderDeliveryAuthoringMap(proposed, retiredProjection),
+      proposed,
+    )).toEqual({ status: "refused", reason: "map-malformed" });
+
+    const integrationOnly = {
+      ...filledSlots,
+      members: [{
+        ...filledSlots.members[0],
+        mainlineLandability: "integration-only",
+      }],
+    } as const;
+    expect(validateDeliveryAuthoringMap(
+      renderDeliveryAuthoringMap(proposed, integrationOnly),
+      proposed,
+    )).toEqual({ status: "refused", reason: "map-malformed" });
+  });
+
   it("refuses a mutated derived value", () => {
     const proposed = snapshot();
     const mutated = renderDeliveryAuthoringMap(proposed, filledSlots)
@@ -137,7 +163,7 @@ describe("delivery authoring map", () => {
     const proposed = snapshot();
     const editedSnapshot = {
       ...proposed,
-      originalWorkUnitId: "renamed-unit" as typeof proposed.originalWorkUnitId,
+      originalWorkUnitId: SlugSchema.parse("renamed-unit"),
     };
     expect(validateDeliveryAuthoringMap(
       renderDeliveryAuthoringMap(proposed, filledSlots),

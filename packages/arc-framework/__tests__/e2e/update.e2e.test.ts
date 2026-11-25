@@ -1,15 +1,17 @@
 /**
  * Update command E2E tests.
  *
- * Exercises `arc update` for clean updates (no changes), customization
- * preservation through three-way merge, and conflict detection when
- * adopter and framework changes overlap.
+ * Exercises `arc update` over committed projects for clean updates (no
+ * changes), customization preservation through three-way merge, and conflict
+ * detection when adopter and framework changes overlap.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, commitAll, git } from "./helpers.js";
+import { ARC_IGNORE_BLOCK } from "../helpers/arc-ignore-block.js";
 
 describe("update", () => {
   let tmpDir: string;
@@ -27,23 +29,46 @@ describe("update", () => {
     const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(init.exitCode).toBe(0);
 
+    const ignoresBefore = await readFile(join(tmpDir, ".gitignore"), "utf8");
+    await resetEditorDocumentsProvisioning(tmpDir);
+    await commitAll(tmpDir);
     const update = await runArc(["update"], tmpDir);
+    await assertEditorDocumentsProvisioned(tmpDir);
+    expect(await readFile(join(tmpDir, ".gitignore"), "utf8")).toBe(ignoresBefore);
 
     expect(update.exitCode).toBe(0);
     const output = update.stdout + update.stderr;
     expect(output).toContain("unchanged");
+    expect(await git(tmpDir, ["status", "--porcelain"])).toBe("");
+  });
+
+  it("leaves an unchanged .ignore byte-identical", async () => {
+    expect((await runArc(["init", "--yes", "--name", "test-project"], tmpDir)).exitCode).toBe(0);
+    const before = await readFile(join(tmpDir, ".ignore"), "utf8");
+    await commitAll(tmpDir);
+    expect((await runArc(["update"], tmpDir)).exitCode).toBe(0);
+    expect(await readFile(join(tmpDir, ".ignore"), "utf8")).toBe(before);
+  });
+
+  it("rewrites only ARC's block in an edited .ignore", async () => {
+    expect((await runArc(["init", "--yes", "--name", "test-project"], tmpDir)).exitCode).toBe(0);
+    await writeFile(join(tmpDir, ".ignore"), `docs/build/\n\n${ARC_IGNORE_BLOCK.replace("!.arc/backlog/\n", "")}\n`);
+    await commitAll(tmpDir);
+    expect((await runArc(["update"], tmpDir)).exitCode).toBe(0);
+    expect(await readFile(join(tmpDir, ".ignore"), "utf8")).toBe(`docs/build/\n\n${ARC_IGNORE_BLOCK}\n`);
   });
 
   it("concurrent clean updates preserve valid manifest state", async () => {
     const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(init.exitCode).toBe(0);
 
+    await commitAll(tmpDir);
     const updates = await Promise.all([
       runArc(["update"], tmpDir),
       runArc(["update"], tmpDir),
     ]);
 
-    expect(updates.map((result) => result.exitCode)).toEqual([0, 0]);
+    expect(updates.map((result) => result.exitCode), JSON.stringify(updates, null, 2)).toEqual([0, 0]);
     const internalDir = join(tmpDir, ".arc", "system", ".internal");
     const manifest = JSON.parse(
       await readFile(join(internalDir, "manifest.json"), "utf8"),
@@ -68,6 +93,7 @@ describe("update", () => {
     const original = await readFile(rulesPath, "utf-8");
     const customized = original + "\n## My Custom Section\n\nProject-specific rules here.\n";
     await writeFile(rulesPath, customized, "utf-8");
+    await commitAll(tmpDir);
 
     // Update — same template version, so no framework-side changes
     const update = await runArc(["update"], tmpDir);
@@ -104,6 +130,7 @@ describe("update", () => {
     const store = JSON.parse(storeRaw) as Record<string, string>;
     store[configFile] = "# Old Rules Title\n" + lines.slice(1).join("\n");
     await writeFile(pristineStorePath, JSON.stringify(store, null, 2) + "\n", "utf-8");
+    await commitAll(tmpDir);
 
     // Now update: base (pristine) = "# Old Rules Title", current = "# My Customized Rules",
     // updated (template) = "# Development Rules (Project)" — all three differ on line 1 → conflict.
@@ -119,5 +146,37 @@ describe("update", () => {
     const afterUpdate = await readFile(filePath, "utf-8");
     expect(afterUpdate).toContain("<<<<<<<");
     expect(afterUpdate).toContain(">>>>>>>");
+  });
+
+  it("uncommitted changes to a file it rewrites refuse the update until committed", async () => {
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await commitAll(tmpDir);
+    const rulesPath = join(tmpDir, ".arc", "system", "rules", "DEV-RULES.PROJECT.md");
+    const customized = `${await readFile(rulesPath, "utf-8")}\n## Local rule\n`;
+    await writeFile(rulesPath, customized, "utf-8");
+
+    const refused = await runArc(["update"], tmpDir);
+
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stdout + refused.stderr).toContain("manifest.uncommitted-changes");
+    expect(refused.stdout + refused.stderr).toContain(".arc/system/rules/DEV-RULES.PROJECT.md");
+
+    await commitAll(tmpDir);
+    const update = await runArc(["update"], tmpDir);
+
+    expect(update.exitCode, update.stdout + update.stderr).toBe(0);
+    expect(await readFile(rulesPath, "utf-8")).toBe(customized);
+  });
+
+  it("outside a git repository, refuses before updating", async () => {
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await rm(join(tmpDir, ".git"), { recursive: true, force: true });
+
+    const update = await runArc(["update"], tmpDir);
+
+    expect(update.exitCode).toBe(1);
+    expect(update.stdout + update.stderr).toContain("Not inside a git repository");
   });
 });

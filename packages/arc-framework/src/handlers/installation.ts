@@ -4,7 +4,7 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { readFile } from "node:fs/promises";
 import { execa } from "execa";
 
@@ -19,7 +19,7 @@ import { getFrameworkVersion, checkLatestVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import { normalizeGitRejection } from "../lib/git/process-error.js";
-import { runWithSpinner, isHandledError, requireArcProjectRoot } from "./shared.js";
+import { runWithSpinner, isHandledError, requireArcProjectRoot, requireGitRepo } from "./shared.js";
 import { createSyncOutput } from "../lib/sync-output.js";
 import { readChangelog, filterChangelogRange, buildChangelogDisplay } from "../lib/changelog.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
@@ -40,7 +40,7 @@ export const installationCommandInputPolicyDeclarations = [{
 // --- Update ---
 
 export async function handleUpdate(
-  options: { quiet?: boolean } = {},
+  options: { quiet?: boolean; keepLocalWithoutBaseline?: boolean } = {},
   interaction?: InteractionContext,
 ): Promise<void> {
   p.intro("arc update");
@@ -52,10 +52,15 @@ export async function handleUpdate(
   try {
     const cwd = requireArcProjectRoot();
     if (!cwd) return;
+    const io = createIOContext(interaction?.subprocess);
+    if (!(await requireGitRepo(io.exec))) return;
     const result = await runWithSpinner(
       output,
       "Updating ARC framework files...",
-      () => runUpdate({ cwd, io: createIOContext(interaction?.subprocess), templateDir, recipe }),
+      () => runUpdate({
+        cwd, io, templateDir, recipe,
+        keepLocalWithoutBaseline: options.keepLocalWithoutBaseline === true,
+      }),
       "Update complete.",
     );
 
@@ -88,14 +93,32 @@ export async function handleUpdate(
 
 // --- Health ---
 
+/**
+ * Resolve the optional registry-derived version shown by `arc health`.
+ *
+ * @param environment - Process environment controlling production composition.
+ * @param requestLatestVersion - Registry request boundary.
+ * @returns The latest version when checked, or `null` when unavailable.
+ */
+export function resolveHealthLatestVersion(
+  environment: NodeJS.ProcessEnv,
+  requestLatestVersion: () => Promise<string | null>,
+): Promise<string | null> {
+  if (environment.ARC_DISABLE_UPDATE_CHECKS === "1") return Promise.resolve(null);
+  return requestLatestVersion();
+}
+
 export async function handleHealth(): Promise<void> {
   p.intro("arc health");
 
   try {
     const cwd = requireArcProjectRoot();
     if (!cwd) return;
-    // Check npm registry in parallel with health computation (non-blocking)
-    const latestVersionPromise = checkLatestVersion("@arc-framework/cli");
+    // Resolve the optional registry version in parallel with health computation.
+    const latestVersionPromise = resolveHealthLatestVersion(
+      process.env,
+      () => checkLatestVersion("@arc-framework/cli"),
+    );
     const result = await runHealth({
       cwd,
       io: {

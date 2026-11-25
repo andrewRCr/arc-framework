@@ -148,8 +148,8 @@ describe("kernel schema registry", () => {
 
   it("projects stable default and custom schema identities without metadata leakage", () => {
     const registry = createKernelRegistry();
-    const defaults = registry.toJSONSchema();
-    const custom = registry.toJSONSchema({ uri: (id) => `urn:arc:${id}` });
+    const defaults = registry.toJSONSchema({ io: "output" });
+    const custom = registry.toJSONSchema({ io: "output", uri: (id) => `urn:arc:${id}` });
 
     expect(Object.keys(defaults.schemas)).toEqual([
       "priority",
@@ -159,9 +159,9 @@ describe("kernel schema registry", () => {
       "work-class",
       "work-unit-state",
     ]);
-    expect(defaults.schemas["remote-evidence"]?.$id).toBe("remote-evidence.schema.json");
-    expect(defaults.schemas["remote-failure-reason"]?.$id).toBe("remote-failure-reason.schema.json");
-    expect(defaults.schemas.slug?.$id).toBe("slug.schema.json");
+    expect(defaults.schemas["remote-evidence"]?.$id).toBe("urn:arc:schema:remote-evidence");
+    expect(defaults.schemas["remote-failure-reason"]?.$id).toBe("urn:arc:schema:remote-failure-reason");
+    expect(defaults.schemas.slug?.$id).toBe("urn:arc:schema:slug");
     expect(custom.schemas.slug?.$id).toBe("urn:arc:slug");
     expect(JSON.stringify(defaults)).not.toMatch(/migrationPosture|version/u);
     expect(JSON.stringify(defaults)).not.toContain("$ref");
@@ -174,8 +174,8 @@ describe("kernel schema registry", () => {
     registry.register(child, strict("child"));
     registry.register(parent, strict("parent"));
 
-    const bundle = registry.toJSONSchema();
-    expect(bundle.schemas.parent?.properties?.child).toEqual({ $ref: "child.schema.json" });
+    const bundle = registry.toJSONSchema({ io: "output" });
+    expect(bundle.schemas.parent?.properties?.child).toEqual({ $ref: "urn:arc:schema:child" });
   });
 
   it("projects byte-identical bundles regardless of registration order", () => {
@@ -188,6 +188,6 @@ describe("kernel schema registry", () => {
     reverse.register(two, strict("two"));
     reverse.register(one, strict("one"));
 
-    expect(JSON.stringify(reverse.toJSONSchema())).toBe(JSON.stringify(forward.toJSONSchema()));
+    expect(JSON.stringify(reverse.toJSONSchema({ io: "output" }))).toBe(JSON.stringify(forward.toJSONSchema({ io: "output" })));
   });
 });

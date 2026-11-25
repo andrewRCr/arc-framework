@@ -13,7 +13,7 @@
  */
 
 import { resolveActiveWu } from "../release/wu-resolution.js";
-import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../work-unit/work-unit-slug.js";
 
 /** Minimal git runner — returns the command's stdout. Satisfied by `UserIOContext.exec`. */
 export type ExecForBranch = (

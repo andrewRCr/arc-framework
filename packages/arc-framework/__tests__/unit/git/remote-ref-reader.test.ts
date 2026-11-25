@@ -333,6 +333,20 @@ describe("readLiveRemoteBranchTip", () => {
     await expect(readLiveRemoteBranchTip({ exec, branch: "plan/origin" })).resolves.toEqual({
       reachable: false,
       tip: null,
+      failureReason: "error",
+    });
+  });
+
+  it("reports a read that ran out its own deadline as a timeout", async () => {
+    const exec: GitExec = vi.fn(async (_cmd, args, options): Promise<ExecResult> => {
+      await new Promise<void>((resolve) => options?.signal?.addEventListener("abort", () => resolve(), { once: true }));
+      throw new GitProcessError({ kind: "canceled", command: "git", args });
+    });
+
+    await expect(readLiveRemoteBranchTip({ exec, branch: "plan/origin", timeoutMs: 1 })).resolves.toEqual({
+      reachable: false,
+      tip: null,
+      failureReason: "timeout",
     });
   });
 });

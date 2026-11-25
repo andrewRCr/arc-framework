@@ -32,11 +32,18 @@ const STATE_LOCATION = { root: "delivery", namespace: "state" } as const;
 const STATE_SEMANTICS = "delivery-state-store/v1";
 
 function stateMemberMatches(
+  state: DeliveryStateV1,
   member: DeliveryStateV1["members"][number],
   selector: DeliveryMemberSelector,
 ): boolean {
   if (member.coordinates === null) return false;
   if (selector.kind === "head") return member.coordinates.head === selector.objectId;
+  if (selector.kind === "member") {
+    return state.planId === selector.planId
+      && state.workUnitId === selector.workUnitId
+      && member.deliverableId === selector.deliverableId
+      && member.coordinates.head === selector.observedHeadObjectId;
+  }
   return member.ref === selector.ref
     && member.coordinates.head === selector.observedHeadObjectId;
 }
@@ -46,10 +53,10 @@ function matchingStateMembers(
   selector: DeliveryMemberSelector,
 ): readonly DeliveryStateMemberResolution<DeliveryStateV1>[] {
   return state.members
-    .filter((member) => stateMemberMatches(member, selector))
+    .filter((member) => stateMemberMatches(state, member, selector))
     .map((member) => ({
       planId: state.planId,
-      deliverableId: member.deliverableId as CanonicalDigest,
+      deliverableId: member.deliverableId,
       workUnitId: state.workUnitId,
       state,
     }));
@@ -346,6 +353,26 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
     });
   }
 
+  async removeCurrent(
+    planId: string,
+    expectedCurrentDigest: CanonicalDigest,
+  ): Promise<DeliveryStoreResult<{ readonly removed: boolean }, DeliveryPlanStoreFailure>> {
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+    return this.publisher.update<DeliveryStoreResult<
+      { readonly removed: boolean },
+      DeliveryPlanStoreFailure
+    >>(PLAN_LOCATION, planRecordName(addressedPlanId), (raw) => {
+      if (raw === null) return { kind: "keep", result: { status: "ok", value: { removed: false } } };
+      const current = decodeRecord(raw, addressedPlanId, this.codec);
+      if (current.status === "refused") return { kind: "keep", result: current };
+      if (this.codec.digest(current.value) !== expectedCurrentDigest) {
+        return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
+      }
+      return { kind: "delete", result: { status: "ok", value: { removed: true } } };
+    });
+  }
+
   async enumerateCurrent(): Promise<DeliveryStoreResult<readonly TPlan[], DeliveryPlanStoreFailure>> {
     const entries = await this.publisher.snapshot(PLAN_LOCATION);
     return this.decodePlanEntries(entries);
@@ -449,6 +476,31 @@ export class RepositoryDeliveryStateStore implements DeliveryStateStore<Delivery
     );
   }
 
+  async remove(
+    planId: string,
+    expectedRevision: number,
+  ): Promise<DeliveryStoreResult<{ readonly removed: boolean }, DeliveryStateStoreFailure>> {
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+    return this.publisher.update<DeliveryStoreResult<
+      { readonly removed: boolean },
+      DeliveryStateStoreFailure
+    >>(STATE_LOCATION, planRecordName(addressedPlanId), (raw) => {
+      if (raw === null) return { kind: "keep", result: { status: "ok", value: { removed: false } } };
+      const current = decodeRevisionedRecord(
+        raw,
+        addressedPlanId,
+        STATE_SEMANTICS,
+        DeliveryStateV1Codec,
+      );
+      if (current.status === "refused") return { kind: "keep", result: current };
+      if (current.value.revision !== expectedRevision) {
+        return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
+      }
+      return { kind: "delete", result: { status: "ok", value: { removed: true } } };
+    });
+  }
+
   async resolveMember(input: {
     readonly selector: DeliveryMemberSelector;
     readonly owningUnit?: DeliveryOwningUnitPointer;
@@ -456,13 +508,55 @@ export class RepositoryDeliveryStateStore implements DeliveryStateStore<Delivery
     DeliveryStateMemberResolution<DeliveryStateV1> | null,
     DeliveryStateStoreFailure
   >> {
+    return this.resolveMemberFromEntries(input, await this.publisher.snapshot(STATE_LOCATION));
+  }
+
+  /**
+   * Observe one member binding without acquiring the publication lock or materializing the state namespace.
+   *
+   * @param input - Exact member selector and optional owning-unit assertion
+   * @returns The unique observed binding, absence, or a closed storage refusal
+   */
+  async resolveMemberReadOnly(input: {
+    readonly selector: DeliveryMemberSelector;
+    readonly owningUnit?: DeliveryOwningUnitPointer;
+  }): Promise<DeliveryStoreResult<
+    DeliveryStateMemberResolution<DeliveryStateV1> | null,
+    DeliveryStateStoreFailure
+  >> {
+    const listed = await this.publisher.list(STATE_LOCATION);
+    const entries = await Promise.all(listed.map(async (entry) => {
+      if (entry.kind !== "file") return { name: entry.name, kind: "other" as const };
+      const rawPlanId = entry.name.endsWith(".json")
+        ? entry.name.slice(0, -".json".length)
+        : "";
+      const parsedPlanId = DeliveryPlanIdSchema.safeParse(rawPlanId);
+      if (!parsedPlanId.success || parsedPlanId.data !== rawPlanId) {
+        return { name: entry.name, kind: "other" as const };
+      }
+      const content = await this.publisher.read(STATE_LOCATION, entry.name);
+      return content === null ? { name: entry.name, kind: "other" as const } : {
+        name: entry.name,
+        kind: "file" as const,
+        content,
+      };
+    }));
+    return this.resolveMemberFromEntries(input, entries);
+  }
+
+  private resolveMemberFromEntries(input: {
+    readonly selector: DeliveryMemberSelector;
+    readonly owningUnit?: DeliveryOwningUnitPointer;
+  }, entries: readonly GitCommonStateSnapshotEntry[]): DeliveryStoreResult<
+    DeliveryStateMemberResolution<DeliveryStateV1> | null,
+    DeliveryStateStoreFailure
+  > {
     if (input.owningUnit !== undefined
       && (normalizePlanId(input.owningUnit.planId) === null
         || !SlugSchema.safeParse(input.owningUnit.workUnitId).success)) {
       return { status: "refused", reason: "identity-mismatch" };
     }
 
-    const entries = await this.publisher.snapshot(STATE_LOCATION);
     const matches: DeliveryStateMemberResolution<DeliveryStateV1>[] = [];
     for (const entry of entries) {
       const rawPlanId = entry.name.endsWith(".json")

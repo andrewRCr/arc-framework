@@ -8,9 +8,9 @@ import type { ManagedPath } from "../kernel/index.js";
 import { isMarkdownPathExcluded, validateMarkdownPath } from "./authority.js";
 import {
   validateTaskDescriptorSpacing,
-  type TaskDescriptorSpacingDiagnostic,
 } from "./descriptor-spacing.js";
 import { enumerateTrackedMarkdownPaths } from "./selection.js";
+import { scanTaskListSegmentation } from "../task-list/segmentation.js";
 
 /** Canonical package fixture whose task examples define the shipped shape. */
 export const CANONICAL_TASK_DESCRIPTOR_FIXTURE =
@@ -19,7 +19,14 @@ export const CANONICAL_TASK_DESCRIPTOR_FIXTURE =
 /** Result of validating the complete selected worktree descriptor surface. */
 export interface WorktreeTaskDescriptorLintResult {
   readonly paths: readonly ManagedPath[];
-  readonly diagnostics: readonly TaskDescriptorSpacingDiagnostic[];
+  readonly diagnostics: readonly WorktreeTaskDescriptorDiagnostic[];
+}
+
+/** Shared rendering shape for descriptor and segmentation findings. */
+export interface WorktreeTaskDescriptorDiagnostic {
+  readonly path: ManagedPath;
+  readonly line: number;
+  readonly message: string;
 }
 
 /** Dependencies for complete worktree descriptor validation. */
@@ -53,10 +60,14 @@ export async function runWorktreeTaskDescriptorLint(
     path,
     content: await options.readText(join(options.root, ...path.split("/"))),
   })));
-  const diagnostics = documents
-    .flatMap((document) => validateTaskDescriptorSpacing(document))
+  const diagnostics: WorktreeTaskDescriptorDiagnostic[] = documents
+    .flatMap((document) => [
+      ...validateTaskDescriptorSpacing(document),
+      ...scanTaskListSegmentation(document).diagnostics,
+    ].map(({ line, message }) => ({ path: document.path, line, message })))
     .sort((left, right) =>
       Buffer.compare(Buffer.from(left.path), Buffer.from(right.path))
-      || left.line - right.line);
+      || left.line - right.line
+      || left.message.localeCompare(right.message));
   return { paths, diagnostics };
 }

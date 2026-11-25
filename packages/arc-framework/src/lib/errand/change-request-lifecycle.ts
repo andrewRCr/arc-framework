@@ -35,6 +35,7 @@ export interface ChangeRequestLifecycleEvidence {
   readonly [lifecycleEvidenceBrand]: true;
   readonly kind: ChangeRequestLifecycleTruth;
   readonly changeRequest: LocusChangeRequestV1;
+  readonly mergeCommitSha?: string;
 }
 
 /** Narrow lifecycle read port used by ordinary commands. */
@@ -82,14 +83,22 @@ export function evaluateChangeRequestReentry(
   return { kind: "refused", reason: `Host truth is ${lifecycle.kind}, not an open change request.` };
 }
 
-/** Resolve the configured origin repository and base for an exact host read. */
+/**
+ * Resolve the configured remote repository and base for an exact host read.
+ *
+ * @param exec - Git read boundary.
+ * @param baseRef - Change-request integration base.
+ * @param remote - Configured Git remote name.
+ * @returns Parsed host, repository, and base coordinates, or null when unavailable.
+ */
 export async function resolveChangeRequestLifecycleConfiguration(
   exec: GitExec,
   baseRef: string,
+  remote = "origin",
 ): Promise<ChangeRequestLifecycleConfiguration | null> {
   let url: string;
   try {
-    url = (await exec("git", ["config", "--get", "remote.origin.url"])).stdout.trim();
+    url = (await exec("git", ["config", "--get", `remote.${remote}.url`])).stdout.trim();
   } catch {
     return null;
   }
@@ -194,6 +203,7 @@ interface GhPullRequestLifecycle {
   readonly headRefName: string;
   readonly headRefOid: string;
   readonly reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | "" | null;
+  readonly mergeCommitSha?: string;
 }
 
 /**
@@ -206,6 +216,7 @@ interface GhPullRequestLifecycle {
 export function createGhChangeRequestLifecyclePort(
   exec: GitExec,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  includeMergeCommit = false,
 ): ChangeRequestLifecyclePort {
   return {
     read: async (configured, changeRequest) => {
@@ -224,7 +235,7 @@ export function createGhChangeRequestLifecyclePort(
           "--state", "all",
           "--head", changeRequest.headRef,
           "--limit", String(QUERY_LIMIT),
-          "--json", "number,state,baseRefName,headRefName,headRefOid,reviewDecision",
+          "--json", `number,state,baseRefName,headRefName,headRefOid,reviewDecision${includeMergeCommit ? ",mergeCommit" : ""}`,
         ], controller.signal);
         if (branchQuery.kind !== "ok") return evidence(branchQuery.kind, changeRequest);
         const branchPulls = branchQuery.pulls;
@@ -239,7 +250,7 @@ export function createGhChangeRequestLifecyclePort(
           "--state", "all",
           "--search", changeRequest.headSha,
           "--limit", String(QUERY_LIMIT),
-          "--json", "number,state,baseRefName,headRefName,headRefOid,reviewDecision",
+          "--json", `number,state,baseRefName,headRefName,headRefOid,reviewDecision${includeMergeCommit ? ",mergeCommit" : ""}`,
         ], controller.signal);
         if (movedQuery.kind !== "ok") return evidence(movedQuery.kind, changeRequest);
         const movedPulls = movedQuery.pulls;
@@ -288,7 +299,7 @@ function classifyExactCoordinates(
   if (exact.length !== 1) return evidence("ambiguous", changeRequest);
   const [current] = exact;
   if (current === undefined) return evidence("ambiguous", changeRequest);
-  if (current.state === "MERGED") return evidence("merged", changeRequest);
+  if (current.state === "MERGED") return evidence("merged", changeRequest, current.mergeCommitSha);
   if (current.state === "OPEN") {
     return evidence(current.reviewDecision === "CHANGES_REQUESTED" ? "requested-work" : "open", changeRequest);
   }
@@ -360,6 +371,9 @@ function parseLifecyclePulls(stdout: string): GhPullRequestLifecycle[] {
       headRefName,
       headRefOid,
       reviewDecision,
+      ...(typeof record.mergeCommit === "object" && record.mergeCommit !== null && "oid" in record.mergeCommit
+        && typeof record.mergeCommit.oid === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(record.mergeCommit.oid)
+        ? { mergeCommitSha: record.mergeCommit.oid } : {}),
     };
   });
 }
@@ -367,8 +381,9 @@ function parseLifecyclePulls(stdout: string): GhPullRequestLifecycle[] {
 function evidence(
   kind: ChangeRequestLifecycleTruth,
   changeRequest: LocusChangeRequestV1,
+  mergeCommitSha?: string,
 ): ChangeRequestLifecycleEvidence {
-  return { [lifecycleEvidenceBrand]: true, kind, changeRequest };
+  return { [lifecycleEvidenceBrand]: true, kind, changeRequest, ...(mergeCommitSha === undefined ? {} : { mergeCommitSha }) };
 }
 
 function sameChangeRequest(left: LocusChangeRequestV1, right: LocusChangeRequestV1): boolean {

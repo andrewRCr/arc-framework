@@ -15,17 +15,17 @@
     "README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "592340c889e9d99a60e8aaf128d4a8640b395362c38c4a5f688734057e3a2ba1"
+      "pristine_hash": "6a17e9e0f8ac4fe2b614117ec277211387065f43ce5e96d067ff970cfbdb27af"
     },
     "reference/QUICK-REFERENCE.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "fb16565d3f26404b42acac29993519c127e265d39b4266faba432d2aa3319466"
+      "pristine_hash": "1dd48ef12c3f0a3da9516d32cd79d648fed7844bce2388991c21479a94fd999f"
     },
     "reference/adr/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "21822f5f7aadf8017a40c09d04fc26b0acfc1e02109afb4efa75960af0890370"
+      "pristine_hash": "14e5aac99144f6452a7178e74dc28057d3c4876387fbbad934bcf4c4fe611e3f"
     },
     "reference/supplemental/analysis/README.md": {
       "classification": "Framework",
@@ -35,7 +35,7 @@
     "system/rules/DEV-RULES.ARC.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "3dec559153f183dc7fa1ba43cd622631e9ee3d197b32af0e05d86b934b6e003f"
+      "pristine_hash": "d026ac1f3d624d4a261114ad157f7cb0fc0077180a51ef116ca56e9caf3bd391"
     },
     "system/rules/DEV-RULES.PROJECT.md": {
       "classification": "Configurable",
@@ -65,7 +65,7 @@
     "reference/templates/arc/template-adr.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "37f127983cdff3880bbc0353e770251ebbbdcaa471144cf59410e5878878cda4"
+      "pristine_hash": "0b280b8c3d5d2ac68291f705f98261f5704ea3be3896893243c6dc5a28601c0c"
     },
     "reference/templates/arc/template-contributing.md": {
       "classification": "Framework",
@@ -80,7 +80,7 @@
     "reference/templates/arc/merge-gate/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "ead02f2f14a1558239fa3d5312edf09d054778ef85f4e092674d782ffab48d66"
+      "pristine_hash": "331f6ecb9290ec6ea79509cc151d811067d28f63e7bc2d83df1f8822d705b5a5"
     },
     "reference/templates/arc/merge-gate/CODEOWNERS": {
       "classification": "Framework",
@@ -91,11 +91,6 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "6a5a148698aa1ef6a0fef9120f5bb450d3f8b40881756891fe1755731b198cc0"
-    },
-    "reference/templates/arc/work-unit/template-pull-request.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "b32421512e620060da85429893153ebed6add13c20954b50e5b601b508de2cb6"
     },
     "reference/templates/arc/work-unit/template-tasks.md": {
       "classification": "Framework",
@@ -140,12 +135,17 @@
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "3ece93af9c0d0beb7dc5590023f6e97152a6b84e629764606c5409eb0d125646"
+      "pristine_hash": "06404900b4359a77f5a50e7a91ecc6ee080607f8e6c2f57aa9e49322d417292e"
     },
     "reference/strategies/arc/strategy-file-classification.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "4ff635b014fb01468f1cdbc07adabfd8ab24209c870ce21341c0aac0e70809c7"
+    },
+    "reference/strategies/arc/strategy-integration.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "c3bce5f62f733e7cad38957fcc9fa21613019e31fb76d035c2678c390ce5696f"
     },
     "reference/strategies/arc/strategy-interlock-release-wrappers.md": {
       "classification": "Framework",
@@ -160,7 +160,7 @@
     "reference/strategies/arc/strategy-session-operations.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "a8e7a37effc0cb207dce6f04129544a2a25728eb744a3df571ddc4a5b5936c77"
+      "pristine_hash": "cbce0d3b249a4388b5de99ecd8d1ef8b1ec0242ae866ff7de27fbf0a2a35e6c2"
     },
     "reference/strategies/arc/strategy-task-list-formatting.md": {
       "classification": "Framework",
@@ -200,7 +200,7 @@
     "reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6a62eda71ab5dec2cf4ca368b8c539ccb57300333d4ced6f775ee5aee4ced980"
+      "pristine_hash": "d433c497839bd0e0099210de7127f0cded6418798d2bc586c7a2dce5c58ec7b1"
     },
     "reference/briefs/AGENT-BRIEF.PROJECT.md": {
       "classification": "Configurable",
@@ -221,76 +221,6 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "797daf16c41d1c3946f574d483efa7bd7f03e659385595f53f41edb6b0d29b6e"
-    },
-    "system/extensions/post-context-load.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "c4432673a1a196e1ddaab65e4e17006cd2938859aa3d8a6ce1eccc77ef9fb787"
-    },
-    "system/extensions/post-task-completion.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "bd9588190fb258e2713efb1af579c63b793a2792308f56604a8bb4462da65793"
-    },
-    "system/extensions/post-task-quality.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "d110027409af01f5673b19138347a964b9666b0e1de78d66e2d13634598d24fe"
-    },
-    "system/extensions/post-unit-quality.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "91e7ef3cc60a7a8fe3bc84837c9fea47851c2312ee2685e5c2a9f950ccf24f50"
-    },
-    "system/extensions/post-work-unit-activate.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "695672e36bbb809a95f4d86283601300ec6b4f90ec1f7062261abd03be1ed355"
-    },
-    "system/extensions/post-work-unit-archive.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "6f42b8fa403ba3d090383bf2f12776a4bc4f1c99409573bb27b9eb231f0dc927"
-    },
-    "system/extensions/pre-activation.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "ff4db2dc98149fc4965d7dd3bc1509d9ed473d6e4b33658fadba3127f42dddfa"
-    },
-    "system/extensions/pre-commit-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "71bbb543339882793d611904195d54ffe48785f34eb13d3d3b441e8db37392ac"
-    },
-    "system/extensions/pre-merge.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "b5cae79a6813a533ced9b9cd594bc71282f8d4b5c37a306acc41b9040549d920"
-    },
-    "system/extensions/pre-pr-open.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "0b0d161a6ed9831017d8d71faf13d45617419836f175bdf356c3ab7fe825b89d"
-    },
-    "system/extensions/post-pr-open.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "71ff84efd12db95a1b73b6586f4f2f1f5a5b0d3f1b38369456d0ee44205c43e9"
-    },
-    "system/extensions/pre-push-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "f5faf2289cac470519a28198ffac731a4653dd3cc7cb9bc560defea4e27f5cee"
-    },
-    "system/extensions/pre-spec-finalization-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "e781e845960a30cc5799790aef7f6ac63035ef8d08b0f06e55c0f6af8591f226"
-    },
-    "system/extensions/README.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "293d0481a98ae678d94c5ac0fbaea2b1857ff35df1bfaf075404f8189d9a84ac"
     },
     "system/.internal/githooks/commit-msg": {
       "classification": "Framework",
@@ -370,17 +300,27 @@
     "system/methods/assess-draft-readiness.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "31df8dd23ea958124bd7c56de986851dbcb06d1f62904a027ad3a577ef7d0b3d"
+      "pristine_hash": "ede20d41284922e761c01a0f8315fc7a906e520d89f0c3faa637990e70b4a8d7"
+    },
+    "system/methods/assess-evidence-applicability.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "023e15be2473ecb29508974adf95486c8757c55f316a8469caf1bfcfd9882237"
     },
     "system/methods/adversarial-review.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "af65f783952bdd143cd09876cbc32c1aae29c95a27a87d5e7e9b5fe194626461"
+      "pristine_hash": "99a09b4485f43683c95a1a09657d7da09c77cded8f4ad440a5d811b83b9ebc71"
+    },
+    "system/methods/classify-review-risk.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "bb1f78e6e70801810d533b162b48b0b33275059274a783397227ffae6b561c50"
     },
     "system/methods/classify-work-unit.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "13133fd92ea60c7fd7d7f76ea7742dbf4307854aae044f4183836effc77be4a4"
+      "pristine_hash": "a2ab3a97ecb4d6d2ca559e3ea81a90883592d9853bf5daf94bf1a901cb73e810"
     },
     "system/methods/commit-footer.md": {
       "classification": "Configurable",
@@ -397,15 +337,10 @@
       "layer": "core",
       "pristine_hash": "38b3972558222d4ec14a0efad2420eab11b413bb0d2b252cc7c7c41c1a0ce3b8"
     },
-    "system/methods/frontline-review.md": {
+    "system/methods/disposition-report.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "b4a84b38e89cd656496cb71fb5fd603f1b8308ed4876fc6efdf80f107e248f9e"
-    },
-    "system/methods/standard-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "162388c85491798a40364bbe1808678bb76209ab611500f1fe37643f87933343"
+      "pristine_hash": "955dc4f0d1aa7acfb4a06f59d6a141188ad92751282ff4860c2c9d2668094db7"
     },
     "system/methods/implementation-audit.md": {
       "classification": "Configurable",
@@ -417,20 +352,15 @@
       "layer": "core",
       "pristine_hash": "ef9b2c8546ab5319d2484eb0896b90e1ed65fe7aba262bfa6a7a258bcdc8fe8f"
     },
-    "system/methods/self-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "59210b9981a39b588f4dbb5c62593cd8c1f455e61e95b3387af16df13e52d40b"
-    },
     "system/methods/issue-triage.md": {
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "4e1ebdac1d7347c9bc100412b74bca0a015ad3494b7959d36f858ffab463b299"
     },
-    "system/methods/quality-gate-commands.md": {
+    "system/methods/resolve-plan-segmentation.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "9bb2f54ff4e75465ac983577108bb180d59439b54c81c1b3776bb66b46174f4c"
+      "pristine_hash": "820dd043d254ba64dee2c88439953a2408b45b5d38c579359b5443e580cf28f1"
     },
     "system/methods/resolve-planning-depth.md": {
       "classification": "Configurable",
@@ -450,7 +380,17 @@
     "system/methods/session-state.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "d29c1eb2c01d9a28f87092d32f4d0871c45d12d4638255273add65f4451aa9ff"
+      "pristine_hash": "0f0390a9cb3a7b8139132719ef36c4a3c509287970ac7ae9dafd0ec1362da16b"
+    },
+    "system/methods/read-load-set.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "4161e7c759af9cd729a26d95f8d07e0358fcad08e187a6a76b3810cb35103154"
+    },
+    "system/methods/source-grounding.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "1445cdc65fe2dd2d6cb13866578d3a9f7379abfd6ea2af46914ea1dc79a2b850"
     },
     "system/methods/spec-review.md": {
       "classification": "Configurable",
@@ -465,7 +405,17 @@
     "system/methods/test-first.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "bc699c5ae1e973d76cc58b018c5e0306ea8b57bbe3889d8a42e46537fe9b353f"
+      "pristine_hash": "4b43ee5c0b03ea424e3ffe6bee42718b98a00e8a78fd4c005a195176a3f37e41"
+    },
+    "system/methods/testing-standards.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "81df59e19e1e3339aaaa16c429064a2c00fa99b16576c682dcbce22f2e5ec483"
+    },
+    "system/methods/validate-criteria.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "5fa6a60fdea8d43019d516e6c8f144b9d55641fe210b3c32106e75bbbd853a32"
     },
     "system/methods/README.md": {
       "classification": "Framework",
@@ -502,6 +452,11 @@
       "layer": "core",
       "pristine_hash": "0305278f95d48eb3e24e7604ec31413b2774dd7093b2edee452afec015199176"
     },
+    "system/.internal/skills/arc-amend-design/SKILL.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "2e1d549846e8ceae76c15dfcfbc1d967c5193642071aefe8ace22eb5a7f4c5ec"
+    },
     "system/.internal/skills/arc-commit/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
@@ -530,7 +485,7 @@
     "system/.internal/skills/arc-session/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "7d6790c459ff704a543afd0a0b2f5a1550b8ed1aa5a9994ba45aaa92f1e5568b"
+      "pristine_hash": "74ff6d463ca76e80f1b0a89efbbc246f79a8ed4f9f8b151676fb25ebd46db0cb"
     },
     "system/.internal/skills/arc-task-audit/SKILL.md": {
       "classification": "Framework",
@@ -550,7 +505,7 @@
     "system/.internal/skills/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6087de7352f2acdf0e8b89b7389c5970e79f6c1997e506afd722e74c17928ce1"
+      "pristine_hash": "e9f9d535349ee3b73c293e5f48bab57f80d1b51c315cdbabada8bafd3956747e"
     },
     "system/workflows/arc/create-spec.md": {
       "classification": "Framework",
@@ -565,7 +520,7 @@
     "system/workflows/arc/process-task-loop.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "890ce6af7eeb57c537ca7c928919d4c2a04728a3808e0590bdae23d194aa32c9"
+      "pristine_hash": "10aa14d9fd3ee530674fc22073bfab8ba1b3b8b298ed1533f7b219addc8b08f2"
     },
     "system/workflows/arc/draft-design.md": {
       "classification": "Framework",
@@ -587,20 +542,10 @@
       "layer": "core",
       "pristine_hash": "8a5bbffd59cdc52e694d0293fc51751a966ba8c9b8684ea647c52170c1177e51"
     },
-    "system/workflows/arc/session-lifecycle/session-init.contributor.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "946a0bf813ca126247275a0ce8af00ac9652763396a7cab60f2250ca6e5c7815"
-    },
-    "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "3886df1b8714ce7ce14855bf223a116cff5ba0b0d49274b5ec99bc0c975700d1"
-    },
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f69ca53655180e21d0da22674c5680ff4ad99d8d9aebb0b9f1fee7d1408149d3"
+      "pristine_hash": "86e80117b2c4464511757d919b48a756b1f7a0091a7164791c68352b2db721a2"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",
@@ -630,12 +575,17 @@
     "system/workflows/arc/supplemental/setup-merge-gate.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "286e2cd5046c6efbe878ca64cdcd35472d33c63b0d342a8870bd47d9453519f9"
+      "pristine_hash": "57c245d4c36c23dc05d0a7e6e186f7d401191f363b32f62f40a3d3d4bcb6f508"
     },
     "system/workflows/arc/supplemental/add-agent.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "0f2b1db991fa89780d0bd89facaf15959d043099382be065dbef50ab3dea4312"
+    },
+    "system/workflows/arc/supplemental/amend-design.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "af37684ef7144a28e8758b1f065a550c8c5bfcc12cd3252f3e8420943abca7f5"
     },
     "system/workflows/arc/supplemental/verify-arc-integrity.md": {
       "classification": "Framework",
@@ -645,12 +595,12 @@
     "system/workflows/arc/supplemental/run-errand.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "889e036c4f566dc779d363567ab08a44f858d2bbb1bfc855690cb152a9bd8fcd"
+      "pristine_hash": "91db96b7366483b9c84df2dea020c89a617dcb9b3ccbd569a48266fe0cfcdff9"
     },
     "system/workflows/arc/supplemental/drain-inbox.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f9f8c2aa5e9ba49a1f01b5b631446afd21888bb7f22fe6cb9722f1cd34e181a3"
+      "pristine_hash": "f796a3a97fcefb42a18b9e40f3156a8236e8a00aa8ea4b9de14b96c09a10dafb"
     },
     "system/workflows/arc/supplemental/deliver-stack.md": {
       "classification": "Framework",
@@ -677,15 +627,20 @@
       "layer": "core",
       "pristine_hash": "dba7b9251cffeb666a1dbc43f8b8ff5e7324dd13441de6a8ca86836ac74ada89"
     },
+    "system/workflows/arc/work-unit-lifecycle/in-flight-scope-check.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "d0074b9738240668349f2e6c734f03ef2c4a30900e3891f35bd9898a884ff7d6"
+    },
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "b6419cd3e6ba48be6ed2645b22620ae32c4f59dee44d5152168406adf7015cda"
+      "pristine_hash": "01d4a5d42f8225d7a0cefe6380aa0299549ebaa822bba2914225e8d3b21f0bb8"
     },
     "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "3dc397b2b232a4b73d14579f469a53b708d60cc3150464c91372b3775b251fd1"
+      "pristine_hash": "df860b5795537dc1e3a87781fd85db7927eac5439f2be128c0b900bfdf62981c"
     },
     "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md": {
       "classification": "Framework",
@@ -715,7 +670,7 @@
     "reference/strategies/arc/strategy-planning-module.md": {
       "classification": "Framework",
       "layer": "arc-in-git",
-      "pristine_hash": "5a0ce54075e145cf2121a754b0f6d6872580e45bbb0a22d6f589363d9c0c9ed1"
+      "pristine_hash": "bbf52f1e47b7372b31d9e394885bc7c6a767355b5d149eed6b7c3567f3222940"
     },
     "reference/PROJECT-PRD.md": {
       "classification": "Scaffolded",
@@ -736,6 +691,81 @@
       "classification": "Scaffolded",
       "layer": "arc-in-git",
       "pristine_hash": "c82866f2d63c47b85beee645241ced3c368160f244f5677a19201e6a96a28714"
+    },
+    "system/methods/route-discovered-work.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "38a0400f03bacf8561decd349ed44096f4bf51818b117848c639c4166ba6d73d"
+    },
+    "system/.internal/scripts/validate-links.sh": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "8d5e31b2b433644f8bed5f36893333e2cb4890bc14d605a144c63181dfbcafe1"
+    },
+    "system/methods/pull-request-format.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "bd896cf560ff8d40e9e4404d56563cdea0094499f6c473260a5beb78d90805dd"
+    },
+    "system/methods/review-model.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "0573887916264b16fe5e0e6d553a171e319ea2dd7e42f0c74aeebd9b1c4cac50"
+    },
+    "system/methods/planning-review.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "edc5c6276c0206645609fc4bdef28cedb4e9b760af613170ebd443027a3e3053"
+    },
+    "system/methods/code-review.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "1edb0a16e34afe513c432fc764f6249a336bd3ed06daba4c359806f86175360e"
+    },
+    "system/methods/verification-review.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "719006990c1896dc659e4ec62092778d778792d7c9af6437d9589273b9e35123"
+    },
+    "system/methods/code-review-frontline.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "f4153c74b9820aea7d9c18b62324dabca4e0fc8c349c75d47f61d6b5d3501a18"
+    },
+    "system/methods/code-review-standard.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "44b9ba2414169104ce91104c9793391151b39c7f28dc97262efdcc1e1bcb750a"
+    },
+    "system/methods/code-review-author.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "a780f8a3bbe2f837ccc9ad4f75b2fec49e662ac88ff5af94ae11bb3756bb57f0"
+    },
+    "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "f2173759edf26eb20d52029eecc35cebc31595f00cb09d16c052e2617ec172d3"
+    },
+    "system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "597e96777cd46892c44a9ac5ceae8d7ece891cce270e718293ea5dee8dfee139"
+    },
+    "system/methods/assess-start-readiness.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "f0704e7cf6a929d134c7bfa8c376ee44e10868ef23a78eda5405b47ebaf2e9da"
+    },
+    "system/methods/discover-next-work.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "64d3707c53b383c222d4cf6ae16945876fb6ee424af7f0f7481e9c0035932378"
+    },
+    "system/methods/assess-parallel-fit.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "e45c89e5918ec7455f58485ff48b56d71571524c7617a3db5c9928d5cd9ce8b0"
     }
   }
 }

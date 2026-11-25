@@ -17,6 +17,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 
 import type {
   ExecuteTransitionContext,
@@ -42,7 +43,7 @@ interface MetaSpec {
   state: string;
   /** The meta's recorded `Class`; defaults to `Novel` (a realized value). */
   cls?: string;
-  /** Model a legacy flat-field meta whose Class field is absent. */
+  /** Model an unset Class cell in the metadata core table. */
   omitClass?: boolean;
   /** The meta's declared cohort; destination projection never infers this from `subdir`. */
   cohort?: string;
@@ -64,7 +65,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   const addChildDir = (parent: string, name: string): void => {
     const entries = ensureDir(parent);
     if (!entries.some((e) => e.name === name && e.isDirectory())) {
-      entries.push({ name, isDirectory: () => true });
+      entries.push({ name, isDirectory: () => true, isFile: () => false });
     }
   };
 
@@ -77,12 +78,11 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
       parent = `${parent}/${seg}`;
     }
     const filename = `meta-${meta.slug}.md`;
-    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
+    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false, isFile: () => true });
     const coreFields = meta.omitClass === true
-      ? `- **State:** \`${meta.state}\`\n` +
-        `- **Owner:** \`andrew\`\n` +
-        `- **Branch:** \`[none]\`\n` +
-        `- **Priority:** \`P1\``
+      ? `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
+        `| --------- | --------- | ---------- | --------- | ------------ |\n` +
+        `| \`${meta.state}\` | \`andrew\` | \`[none]\` | — | \`P1\` |`
       : `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
         `|-----------|-----------|------------|-----------|--------------|\n` +
         `| \`${meta.state}\` | \`andrew\` | \`[none]\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |`;
@@ -97,11 +97,11 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       return entries === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
     },
   };
@@ -153,11 +153,11 @@ function buildCtx(metas: MetaSpec[], pruneDirs: Record<string, string[]> = {}): 
 
   const fs: BacklogMoveFs = {
     readdir: (path) => {
-      const entries = pruneDirs[path];
+      const entries = pruneDirs[fixturePath(path)];
       return entries === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(entries);
     },
     rmdir: (path) => {
-      calls.push(`rmdir:${path}`);
+      calls.push(`rmdir:${fixturePath(path)}`);
       return Promise.resolve();
     },
   };

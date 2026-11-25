@@ -39,6 +39,14 @@ async function authoringStore() {
 
 function snapshot(mapId = "authoring-map") {
   const taskDigest = canonicalDigest({ goal: "Implement" });
+  const parents = [
+    { taskId: "1.1", semanticDigest: taskDigest, role: { kind: "implementation" as const } },
+    {
+      taskId: "2.1",
+      semanticDigest: null,
+      role: { kind: "verification" as const, scope: "work-unit" },
+    },
+  ];
   return createDeliveryAuthoringSnapshot({
     mapId,
     originalWorkUnitId: "delivery-plan-record",
@@ -49,15 +57,14 @@ function snapshot(mapId = "authoring-map") {
       elements: [],
     },
     tasks: {
-      inventoryDigest: canonicalDigest([{ taskId: "1.1", semanticDigest: taskDigest }]),
-      implementation: [{ taskId: "1.1", semanticDigest: taskDigest }],
-      verificationTaskId: "2.1",
+      inventoryDigest: canonicalDigest(parents),
+      parents,
     },
     source: {
       entry: "from-tasks",
       inputs: { taskListPath: ".arc/active/tasks-delivery-plan-record.md" },
       facts: { phaseGroups: [{ phaseId: "1", taskIds: ["1.1"] }] },
-      identitySequence: ["phase:1", "task:1.1"],
+      identitySequence: ["phase:1", "task:1.1", "task:2.1"],
     },
   });
 }

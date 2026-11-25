@@ -4,13 +4,18 @@
 > field — recorded here only as shared coordination, never as a roster or status table._
 
 **Purpose:** Refine ARC's approval flow around one question: **what is the unit of approval, and how does
-widening or routing it compose across the review, commit, and integration boundaries?** Today ARC conflates the
-unit (one leaf = one review checkpoint = one commit = one approval signal), and the rules that touch any one of
-those boundaries reach across all of them. The members separate the axes and refine each: `commit-increments`
-decouples the _commit_ boundary from the _review_ boundary; `interlock-release-refinement` settles _routing_
+widening, routing, or retaining it compose across the review, commit, and integration boundaries?** ARC currently
+conflates the unit (one leaf = one review checkpoint = one commit = one approval signal), and the rules that touch
+any one of those boundaries reach across all of them. The members separate the axes and refine each.
+`commit-increments` decouples the _commit_ boundary from the _review_ boundary; `interlock-release-refinement`
+settles _routing_
 ("approval is approval; routing follows opt-in + interlock mode"); `unit-scoped-review` widens the _review_
-increment to its maximum (the whole work unit) as a first-class, principle-aligned option. The shared concern is
-the unit of approval — not a pile of loosely-related interlock tweaks.
+increment to its maximum (the whole work unit) as a first-class, principle-aligned option.
+`lifecycle-advancement-provenance` owns how a deliberate grant survives safe lifecycle re-entry and which
+proof-bounded controller effects it can authorize without inventing a second decision. The shared concern is the
+unit of approval — not a pile of loosely-related interlock tweaks. `errand-autonomous-advance` applies the same
+model to an Errand's complete post-opt-in tail: standing authority through review and integration preparation, with
+hard break-outs and the exact-head integration interlock preserved.
 
 ---
 
@@ -20,6 +25,9 @@ the unit of approval — not a pile of loosely-related interlock tweaks.
 commit-increments            (decouples review/commit increments; establishes the vocabulary)
   └─> unit-scoped-review     (widens the review increment to WU scope; rests on the decoupling)
 interlock-release-refinement (routing: "approval is approval"; parallel-able — coordinates, doesn't gate)
+lifecycle-advancement-provenance
+                             (retention/invalidation across re-entry; parallel-able — coordinates, doesn't gate)
+errand-autonomous-advance    (Errand-scoped standing grant; composes every axis and stops at integration approval)
 ```
 
 `commit-increments` is the substrate member: `unit-scoped-review` carries a hard `Depends On` edge to it (a
@@ -33,22 +41,25 @@ is parallel-able; it shares machinery with both but gates neither.
   ask vs. where work crystallizes into history) and the term reconsideration around "review increment." Owned by
   **`commit-increments`**. Consumed by **`unit-scoped-review`**, which introduces "review increment = whole WU"
   (the limit of that axis) and must settle its naming jointly — not mint a canonical-but-inconsistent gap.
-- **"One approval releases the tail."** A single, wider approval signal arming a sequence of downstream fires
-  instead of re-prompting each. Surfaces in **`interlock-release-refinement`** as the _errand_ approval-collapse
-  (one increment-approval → commit + push + merge + delete at errand scope) and in **`unit-scoped-review`** as the
-  _WU_-scoped batch (one authorization → the whole task list's per-leaf commits, **stopping at validation** — it
-  does not collapse the merge; the integration interlock holds). Same concept, two scopes; align the framing.
+- **A wider approval releases only the fires in its declared scope.** `unit-scoped-review` applies one
+  authorization across the task list's per-leaf review and commit work, stopping at validation. Wrapper routing
+  consumes explicit approval provenance for commit and push fires; integration settlement, merge authorization,
+  merge execution, and teardown remain with their lifecycle owners.
 - **Approval-provenance as first-class state.** The "what approval surface authorized this fire?" state captured
   for evaluation in `commit-increments` § Unknowns and re-surfaced from the wrapper angle in
   `interlock-release-refinement`. `unit-scoped-review`'s batch authorization is a provenance source with WU scope;
   its deviation ledger composes with this. Genuinely cross-member — settle the home at PRD.
+- **Errand standing authority composes; it does not replace the axes.** `errand-autonomous-advance` consumes the
+  commit/review vocabulary, wrapper release path, and retained-direction model to authorize a bounded sequence of
+  ordinary Errand actions. Each owning controller still decides target validity, review evidence, and integration
+  readiness.
 
 ### Soft coordination
 
 - **The integration interlock is the cohort's invariant floor.** None of these members relaxes it — merge always
   requires explicit human authorization, never inferred. `unit-scoped-review` relaxes review _frequency_ up to the
-  WU boundary and stops there; the errand-collapse is opt-in and self-review-scoped. The floor is what keeps
-  "refine the approval flow" from sliding into "remove the approval."
+  WU boundary and stops there. The floor is what keeps "refine the approval flow" from sliding into "remove the
+  approval."
 - **Forward-compat with `composable-workflows`.** Express the relevant workflow procedures parametrically (e.g.
   process-task-loop over an increment-scope parameter; the wrapper-routing as a fixed procedure). The members
   define the parameters/contracts; CW owns extracting the loop into fragments — coordinate, don't pre-empt.
@@ -78,14 +89,29 @@ is parallel-able; it shares machinery with both but gates neither.
   coverage gap is upgraded to delegation-critical; `commit-increments`' gate-shaping + vocabulary likewise. It
   does **not** gate `interlock-release-refinement` or reorder the cohort; buffer entries in each member's draft
   carry the specifics.
+- **`review-protocol-alignment` (cohort)** — `errand-autonomous-advance` consumes its source selection, request,
+  activity, convergence, pass-accounting, and Owner-acceptance contracts. The Errand grant may authorize use of
+  those controllers, but does not become another review evidence model. The approval-flow member produces the
+  witnessed grant envelope; the review cohort must derive any exact disposition authorization from that envelope,
+  the complete source-bound set, and its policy rather than trusting an agent-authored approval claim.
 
 ### Closeout criteria
 
-Complete when all three members ship **and** the unit-of-approval model is coherent across the review, commit,
+Complete when every member ships **and** the unit-of-approval model is coherent across the review, commit,
 and integration boundaries — the shared vocabulary settled, no boundary's rule still reaching across the others
 by default, and the integration-interlock floor intact.
 
 ## Members
+
+### `autonomy-levels`
+
+_Exposes:_ the unified autonomy-level model the other members are facets of — one ordinal level per work unit
+naming where the agent next stops for the Owner, the kinds of stop it releases, its interlock composition, and the
+staging plan. `draft-autonomy-levels.md` § Cohort Restructure proposes this cohort's re-cut around it, a routing
+change of its own; read it before starting any member.
+
+_Consumes:_ every member's design as input; coordinates with `execution-delegation-doctrine` on relays and executor
+assignment.
 
 ### `commit-increments`
 
@@ -114,6 +140,22 @@ and the DEV-RULES.ARC § Sub-agent scope carve-out it implies.
 
 _Consumes:_ `commit-increments`' commit/review decoupling (hard `Depends On`); `interlock-release-refinement`'s
 non-blocking release path + provenance work (coordination); `compaction-recovery` as a cross-cohort backstop.
+
+### `lifecycle-advancement-provenance`
+
+_Exposes:_ scoped forward-direction grants, exact invalidation across re-entry, retained attended route selection,
+and the proof boundary for driver-internal record or uniquely derived composition effects.
+
+_Consumes:_ the cohort's first-class approval-provenance framing and existing commit/push-interlock axes;
+coordinates with `commit-increments` and `interlock-release-refinement` without depending on either.
+
+### `errand-autonomous-advance`
+
+_Exposes:_ one explicit per-Errand standing grant through execution, review, finding response, and integration
+preparation; its break-out/invalidation contract; and the final exact-head integration stop.
+
+_Consumes:_ the other members' increment vocabulary, release routing, break-out discipline, and retained-direction
+provenance; consumes review-protocol-alignment controllers without taking ownership of their evidence.
 
 ## ADR anchors
 

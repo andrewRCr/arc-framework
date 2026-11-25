@@ -8,13 +8,14 @@
  * @module
  */
 
+import { Buffer } from "node:buffer";
 import { readFile, writeFile, mkdir, access, chmod, readdir, realpath, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { execa } from "execa";
 
 import type { IOContext } from "../commands/init.js";
 import type { UserIOContext } from "../commands/user.js";
-import type { RawGitExec } from "./change-facts.js";
+import type { RawGitExec } from "./git/exec.js";
 import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
 import {
   createExecaGitExec,
@@ -24,6 +25,7 @@ import {
   MAX_GIT_OUTPUT_BYTES,
 } from "../lib/git/process-executor.js";
 import { GitProcessError, normalizeGitRejection } from "../lib/git/process-error.js";
+import { gitExecutable } from "../lib/git/executable.mjs";
 import { isGitObjectId } from "../lib/git/object-id.js";
 import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 import type { InteractionContext } from "./command-input/interaction-context.js";
@@ -49,17 +51,298 @@ export interface GitBlobEntry {
   bytes: Uint8Array;
 }
 
+interface GitBlobMetadata {
+  mode: string;
+  oid: string;
+  objectType: "blob" | "commit";
+}
+
+type ParsedGitBlobMetadata =
+  | { entries: Map<string, GitBlobMetadata>; malformedPath: null }
+  | { entries: null; malformedPath: string | null };
+
+/** Keep each captured object batch below the shared 64 MiB process-output ceiling. */
+const GIT_BLOB_CONTENT_BATCH_BYTES = 32 * 1024 * 1024;
+/** Keep literal pathspec batches below conservative cross-platform argument limits. */
+const GIT_PATHSPEC_BATCH_BYTES = 16 * 1024;
+const gitMetadataDecoder = new TextDecoder("utf-8", { fatal: true });
+const gitInputEncoder = new TextEncoder();
+
+function byteKey(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("hex");
+}
+
+function splitNulRecords(bytes: Uint8Array): Uint8Array[] | null {
+  if (bytes.length === 0) return [];
+  if (bytes.at(-1) !== 0) return null;
+  const records: Uint8Array[] = [];
+  let start = 0;
+  for (let index = 0; index < bytes.length; index += 1) {
+    if (bytes[index] !== 0) continue;
+    records.push(bytes.subarray(start, index));
+    start = index + 1;
+  }
+  return records;
+}
+
+function partitionGitPathspecBatches(paths: readonly string[]): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [];
+  let batchBytes = 0;
+  for (const path of paths) {
+    const pathspec = `:(literal)${path}`;
+    const framedBytes = gitInputEncoder.encode(pathspec).byteLength + 1;
+    if (batch.length > 0 && batchBytes + framedBytes > GIT_PATHSPEC_BATCH_BYTES) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+    batch.push(pathspec);
+    batchBytes += framedBytes;
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
+}
+
+function parseGitBlobMetadataHeader(
+  metadata: string,
+  source: "index" | "tree",
+): GitBlobMetadata | null {
+  const match = source === "index"
+    ? /^([0-7]{6}) ([0-9a-f]+) 0$/u.exec(metadata)
+    : /^([0-7]{6}) (blob|commit) ([0-9a-f]+)$/u.exec(metadata);
+  const mode = match?.[1];
+  const objectType = source === "index"
+    ? mode === "160000" ? "commit" : "blob"
+    : match?.[2];
+  const oid = source === "index" ? match?.[2] : match?.[3];
+  if (mode === undefined || (objectType !== "blob" && objectType !== "commit")
+    || oid === undefined || !isGitObjectId(oid)
+    || (mode === "160000") !== (objectType === "commit")) return null;
+  return { mode, oid, objectType };
+}
+
+function parseGitBlobMetadata(
+  bytes: Uint8Array,
+  source: "index" | "tree",
+  requestedByBytes: ReadonlyMap<string, string>,
+): ParsedGitBlobMetadata {
+  const records = splitNulRecords(bytes);
+  if (records === null) return { entries: null, malformedPath: null };
+  const metadataByPath = new Map<string, GitBlobMetadata>();
+  for (const record of records) {
+    const tab = record.indexOf(9);
+    if (tab < 0) return { entries: null, malformedPath: null };
+    const path = requestedByBytes.get(byteKey(record.subarray(tab + 1)));
+    if (path === undefined) continue;
+    if (metadataByPath.has(path)) return { entries: null, malformedPath: path };
+    const metadata = parseGitBlobMetadataHeader(gitMetadataDecoder.decode(record.subarray(0, tab)), source);
+    if (metadata === null) return { entries: null, malformedPath: path };
+    metadataByPath.set(path, metadata);
+  }
+  return { entries: metadataByPath, malformedPath: null };
+}
+
+function parseGitBlobSizes(
+  bytes: Uint8Array,
+  requestedOids: readonly string[],
+): Map<string, number> | null {
+  let decoded: string;
+  try {
+    decoded = gitMetadataDecoder.decode(bytes);
+  } catch {
+    return null;
+  }
+  if (!decoded.endsWith("\n")) return null;
+  const lines = decoded.slice(0, -1).split("\n");
+  if (lines.length !== requestedOids.length) return null;
+  const sizes = new Map<string, number>();
+  for (const [index, requestedOid] of requestedOids.entries()) {
+    const match = /^([0-9a-f]{40}|[0-9a-f]{64}) blob (\d+)$/u.exec(lines[index] ?? "");
+    const size = Number(match?.[2]);
+    if (match?.[1] !== requestedOid || !Number.isSafeInteger(size) || size < 0) return null;
+    sizes.set(requestedOid, size);
+  }
+  return sizes;
+}
+
+function partitionGitBlobBatches(
+  oids: readonly string[],
+  sizes: ReadonlyMap<string, number>,
+): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [];
+  let batchBytes = 0;
+  for (const oid of oids) {
+    const size = sizes.get(oid);
+    if (size === undefined) throw new Error(`Missing batch size for Git blob ${oid}`);
+    const framedBytes = oid.length + " blob ".length + String(size).length + 2 + size;
+    if (batch.length > 0 && batchBytes + framedBytes > GIT_BLOB_CONTENT_BATCH_BYTES) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+    batch.push(oid);
+    batchBytes += framedBytes;
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
+}
+
+function parseGitBlobContents(
+  bytes: Uint8Array,
+  requestedOids: readonly string[],
+): Map<string, Uint8Array> | null {
+  const contents = new Map<string, Uint8Array>();
+  let cursor = 0;
+  for (const requestedOid of requestedOids) {
+    const headerEnd = bytes.indexOf(10, cursor);
+    if (headerEnd < 0) return null;
+    let header: string;
+    try {
+      header = gitMetadataDecoder.decode(bytes.subarray(cursor, headerEnd));
+    } catch {
+      return null;
+    }
+    const match = /^([0-9a-f]{40}|[0-9a-f]{64}) blob (\d+)$/u.exec(header);
+    const size = Number(match?.[2]);
+    if (match?.[1] !== requestedOid || !Number.isSafeInteger(size) || size < 0) return null;
+    const contentStart = headerEnd + 1;
+    const contentEnd = contentStart + size;
+    if (contentEnd >= bytes.length || bytes[contentEnd] !== 10) return null;
+    contents.set(requestedOid, bytes.subarray(contentStart, contentEnd));
+    cursor = contentEnd + 1;
+  }
+  return cursor === bytes.length ? contents : null;
+}
+
+async function readGitBlobObjects(
+  exec: RawGitExec,
+  oids: readonly string[],
+  options: { objectAccess?: "local-only"; indexFile?: string },
+): Promise<Map<string, Uint8Array>> {
+  if (oids.length === 0) return new Map();
+  const inputFor = (batch: readonly string[]): Uint8Array =>
+    gitInputEncoder.encode(`${batch.join("\n")}\n`);
+  const sizeResult = await exec(
+    ["cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)"],
+    { ...options, input: inputFor(oids) },
+  );
+  const sizes = parseGitBlobSizes(sizeResult.stdout, oids);
+  if (sizes === null) throw new Error("Cannot read exact Git blob objects.");
+  const contents = new Map<string, Uint8Array>();
+  for (const batch of partitionGitBlobBatches(oids, sizes)) {
+    const result = await exec(
+      ["cat-file", "--batch"],
+      { ...options, input: inputFor(batch) },
+    );
+    const parsed = parseGitBlobContents(result.stdout, batch);
+    if (parsed === null) throw new Error("Cannot read exact Git blob objects.");
+    for (const [oid, content] of parsed) contents.set(oid, content);
+  }
+  return contents;
+}
+
+function requestedGitPathsByBytes(paths: readonly string[]): Map<string, string> {
+  const requested = new Map<string, string>();
+  for (const path of paths) {
+    const key = byteKey(gitInputEncoder.encode(path));
+    const existing = requested.get(key);
+    if (existing !== undefined && existing !== path) {
+      throw new Error("Cannot resolve distinct Git paths with the same byte representation.");
+    }
+    requested.set(key, path);
+  }
+  return requested;
+}
+
+async function readGitBlobMetadataBatches(input: {
+  exec: RawGitExec;
+  ref: string | null;
+  paths: readonly string[];
+  requestedByBytes: ReadonlyMap<string, string>;
+  options: { objectAccess?: "local-only"; indexFile?: string };
+}): Promise<Map<string, GitBlobMetadata>> {
+  const { exec, ref } = input;
+  const source = ref === null ? "index" : "tree";
+  const lookupPrefix = ref === null
+    ? ["ls-files", "--stage", "-z", "--full-name"]
+    : ["ls-tree", "-r", "--full-tree", "-z",
+        "--format=%(objectmode) %(objecttype) %(objectname)%x09%(path)", ref];
+  const errorMessage = ref === null
+    ? "Cannot resolve exact index blobs."
+    : `Cannot resolve exact tree blobs for ${ref}.`;
+  const metadata = new Map<string, GitBlobMetadata>();
+  for (const pathspecs of partitionGitPathspecBatches(input.paths)) {
+    const batchMetadata = parseGitBlobMetadata(
+      (await exec([...lookupPrefix, "--", ...pathspecs], input.options)).stdout,
+      source,
+      input.requestedByBytes,
+    );
+    if (batchMetadata.entries === null) {
+      const detail = batchMetadata.malformedPath === null
+        ? ""
+        : ` Malformed metadata for ${batchMetadata.malformedPath}.`;
+      throw new Error(`${errorMessage}${detail}`);
+    }
+    for (const [path, entry] of batchMetadata.entries) {
+      if (metadata.has(path)) throw new Error(errorMessage);
+      metadata.set(path, entry);
+    }
+  }
+  return metadata;
+}
+
+/**
+ * Read many exact Git tree/index leaves through bounded metadata and object batches.
+ *
+ * @param cwd - Repository worktree used to locate the index and object database
+ * @param ref - Exact tree-ish, or `null` for the current index
+ * @param paths - Repository-relative paths to read; absent leaves are omitted
+ * @param options - Optional local-only object-access constraint and explicitly selected index
+ * @returns Present entries keyed by their exact requested paths
+ */
+export async function readGitBlobEntries(
+  cwd: string,
+  ref: string | null,
+  paths: readonly string[],
+  options: { objectAccess?: "local-only"; indexFile?: string } = {},
+): Promise<ReadonlyMap<string, GitBlobEntry>> {
+  const selectedPaths = [...new Set(paths)];
+  if (selectedPaths.length === 0) return new Map();
+  const exec = createRawGitExec(cwd);
+  const metadata = await readGitBlobMetadataBatches({
+    exec, ref, paths: selectedPaths,
+    requestedByBytes: requestedGitPathsByBytes(selectedPaths),
+    options,
+  });
+  const blobOids = [...new Set(selectedPaths.flatMap((path) => {
+    const entry = metadata.get(path);
+    return entry?.objectType === "blob" ? [entry.oid] : [];
+  }))];
+  const blobContents = await readGitBlobObjects(exec, blobOids, options);
+  const entries = new Map<string, GitBlobEntry>();
+  for (const path of selectedPaths) {
+    const entry = metadata.get(path);
+    if (entry === undefined) continue;
+    const bytes = entry.objectType === "commit"
+      ? gitInputEncoder.encode(entry.oid)
+      : blobContents.get(entry.oid);
+    if (bytes === undefined) throw new Error("Cannot read exact Git blob objects.");
+    entries.set(path, { mode: entry.mode, bytes });
+  }
+  return entries;
+}
+
 /** Read one exact Git tree/index leaf together with its canonical tree-entry mode. */
 export async function readGitBlobEntry(
   cwd: string,
   ref: string | null,
   path: string,
-  options: { objectAccess?: "local-only" } = {},
+  options: { objectAccess?: "local-only"; indexFile?: string } = {},
 ): Promise<GitBlobEntry | null> {
   const exec = createRawGitExec(cwd);
-  const execOptions = options.objectAccess === undefined
-    ? undefined
-    : { objectAccess: options.objectAccess };
+  const execOptions = options;
   const decode = (bytes: Uint8Array): string => new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   let oid: string;
   let mode: string;
@@ -116,7 +399,7 @@ export async function readGitBlobBytes(
   cwd: string,
   ref: string | null,
   path: string,
-  options: { objectAccess?: "local-only" } = {},
+  options: { objectAccess?: "local-only"; indexFile?: string } = {},
 ): Promise<Uint8Array | null> {
   return (await readGitBlobEntry(cwd, ref, path, options))?.bytes ?? null;
 }
@@ -173,9 +456,10 @@ export async function prepareGitRefVerification(
     throw new Error("Cannot prepare an invalid Git ref verification.");
   }
   const args = ["update-ref", "--stdin"];
-  const subprocess = execa("git", args, {
+  const env = environmentForGitCwd(cwd);
+  const subprocess = execa(gitExecutable(env), args, {
     cwd,
-    env: environmentForGitCwd(cwd),
+    env,
     stdio: ["pipe", "pipe", "pipe"],
     stripFinalNewline: false,
     maxBuffer: MAX_GIT_OUTPUT_BYTES,
@@ -316,7 +600,7 @@ async function readGitNote(
  * Recurses into subdirectories — entries use relative paths (e.g., `drafts/idea.md`).
  * Skips dot-directories (infrastructure, not user content).
  */
-async function readUserDir(dirPath: string): Promise<DirEntry[]> {
+export async function readUserDir(dirPath: string): Promise<DirEntry[]> {
   const entries: DirEntry[] = [];
   const visited = new Set<string>();
 
@@ -364,14 +648,19 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
  */
 export const gitExecInput: GitExecInput = createExecaGitExecInput();
 
+/** Bind stdin-fed Git execution to one invocation's subprocess policy. */
+export function createGitExecInput(interaction?: InteractionContext["subprocess"]): GitExecInput {
+  return interaction === undefined
+    ? gitExecInput
+    : createExecaGitExecInput(MAX_GIT_OUTPUT_BYTES, interaction);
+}
+
 /** Real UserIOContext for user sync operations. */
 export function createUserIOContext(interaction?: InteractionContext["subprocess"]): UserIOContext {
   const exec: GitExec = interaction === undefined
     ? gitExec
     : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
-  const execInput = interaction === undefined
-    ? gitExecInput
-    : createExecaGitExecInput(MAX_GIT_OUTPUT_BYTES, interaction);
+  const execInput = createGitExecInput(interaction);
   return {
     exec,
     execInput,

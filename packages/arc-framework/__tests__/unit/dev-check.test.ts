@@ -1,10 +1,9 @@
 /**
  * Unit tests for the dev-mode stale-build check.
  *
- * Covers the pure verdict function with injected fs primitives, and the
- * dependency factory against temporary fixture layouts. Refusal, the
- * compaction-seed exception, and stderr rendering live at the cli.ts preAction
- * boundary and are exercised end to end, not here.
+ * Covers the pure verdict function with injected filesystem boundaries and
+ * the dependency factory against temporary fixture layouts. Companion guard
+ * coverage holds command admission, diagnostics and refresh eligibility.
  */
 
 import { describe, it, expect } from "vitest";
@@ -14,6 +13,8 @@ import {
   createDevCheckDeps,
   hashSourceInputs,
   isBuiltBundleEntry,
+  isDevBuildRefreshCommandPath,
+  refreshStaleDevBuild,
   selectBundleInputs,
   type DevCheckDeps,
 } from "../../src/lib/dev-check.js";
@@ -26,6 +27,7 @@ function deps(overrides: Partial<DevCheckDeps>): DevCheckDeps {
     newestSrc: () => null,
     distMtimeMs: () => null,
     now: () => 1_000_000_000_000,
+    runtimeQualification: () => ({ status: "unqualified", reason: "Build input identity does not match." }),
     ...overrides,
   };
 }
@@ -63,7 +65,7 @@ describe("checkDevBuildStaleness", () => {
     });
   });
 
-  it("returns stale with computed ages when src is newer than dist (mtime fallback)", () => {
+  it("retains age diagnostics when runtime qualification fails", () => {
     const result = checkDevBuildStaleness(
       deps({
         newestSrc: () => ({ mtimeMs: NOW - 12_000, path: "src/lib/foo.ts" }),
@@ -74,14 +76,15 @@ describe("checkDevBuildStaleness", () => {
 
     expect(result).toEqual({
       kind: "stale",
-      basis: "mtime",
+      basis: "content-hash",
+      qualificationReason: "Build input identity does not match.",
       srcAge: 12,
       distAge: 7200,
       newestSrc: "src/lib/foo.ts",
     });
   });
 
-  it("returns fresh when dist is newer than every src file (mtime fallback)", () => {
+  it("refuses unqualified output even when dist is newer", () => {
     const result = checkDevBuildStaleness(
       deps({
         newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
@@ -90,7 +93,7 @@ describe("checkDevBuildStaleness", () => {
       }),
     );
 
-    expect(result).toEqual({ kind: "fresh" });
+    expect(result.kind).toBe("stale");
   });
 
   it("returns fresh on mtime-only bump when content stamps match", () => {
@@ -101,8 +104,7 @@ describe("checkDevBuildStaleness", () => {
         newestSrc: () => ({ mtimeMs: NOW - 1_000, path: "src/lib/foo.ts" }),
         distMtimeMs: () => NOW - 7_200_000,
         now: () => NOW,
-        currentInputsHash: () => "abc123",
-        stampedInputsHash: () => "abc123",
+        runtimeQualification: () => ({ status: "qualified" }),
       }),
     );
 
@@ -117,42 +119,109 @@ describe("checkDevBuildStaleness", () => {
         newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
         distMtimeMs: () => NOW - 60_000,
         now: () => NOW,
-        currentInputsHash: () => "new-content",
-        stampedInputsHash: () => "old-content",
+        runtimeQualification: () => ({ status: "unqualified", reason: "Build input identity does not match." }),
       }),
     );
 
     expect(result).toEqual({
       kind: "stale",
       basis: "content-hash",
+      qualificationReason: "Build input identity does not match.",
       srcAge: 600,
       distAge: 60,
       newestSrc: "src/cli.ts",
     });
   });
 
-  it("falls back to mtime when only one side of the stamp pair is available", () => {
-    const mtimeStale = checkDevBuildStaleness(
-      deps({
-        newestSrc: () => ({ mtimeMs: NOW - 1_000, path: "src/cli.ts" }),
-        distMtimeMs: () => NOW - 7_200_000,
-        now: () => NOW,
-        currentInputsHash: () => "abc",
-        stampedInputsHash: () => null,
-      }),
-    );
-    expect(mtimeStale.kind).toBe("stale");
+  it("accepts qualified runtime independently of source timestamp ordering", () => {
+    expect(checkDevBuildStaleness(deps({
+      newestSrc: () => ({ mtimeMs: NOW + 10_000, path: "src/cli.ts" }),
+      distMtimeMs: () => NOW - 60_000,
+      runtimeQualification: () => ({ status: "qualified" }),
+    }))).toEqual({ kind: "fresh" });
+  });
+});
 
-    const mtimeFresh = checkDevBuildStaleness(
-      deps({
-        newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
-        distMtimeMs: () => NOW - 60_000,
-        now: () => NOW,
-        currentInputsHash: () => null,
-        stampedInputsHash: () => "abc",
-      }),
-    );
-    expect(mtimeFresh).toEqual({ kind: "fresh" });
+describe("refreshStaleDevBuild", () => {
+  const stale = {
+    kind: "stale" as const,
+    basis: "content-hash" as const,
+    qualificationReason: "Build input identity does not match.",
+    srcAge: 1,
+    distAge: 10,
+    newestSrc: "src/cli.ts",
+  };
+
+  it.each(["skip", "fresh"] as const)("does not rebuild a %s bundle", async (kind) => {
+    let rebuilds = 0;
+
+    const result = await refreshStaleDevBuild({
+      check: () => ({ kind }),
+      rebuild: async () => {
+        rebuilds += 1;
+        return { kind: "completed" };
+      },
+    });
+
+    expect(result).toEqual({ kind: "not-required" });
+    expect(rebuilds).toBe(0);
+  });
+
+  it("rebuilds a stale bundle and proves the refreshed output", async () => {
+    const checks = [stale, { kind: "fresh" as const }];
+    let rebuilds = 0;
+
+    const result = await refreshStaleDevBuild({
+      check: () => checks.shift() ?? stale,
+      rebuild: async () => {
+        rebuilds += 1;
+        return { kind: "completed" };
+      },
+    });
+
+    expect(result).toEqual({ kind: "refreshed" });
+    expect(rebuilds).toBe(1);
+  });
+
+  it("returns an exact retry command when rebuilding fails", async () => {
+    const result = await refreshStaleDevBuild({
+      check: () => stale,
+      rebuild: async () => ({ kind: "failed", message: "tsup failed" }),
+    });
+
+    expect(result).toEqual({
+      kind: "failed",
+      command: "npm run build:fast",
+      message: "tsup failed",
+    });
+  });
+
+  it("does not claim freshness when the rebuilt bundle remains stale", async () => {
+    const result = await refreshStaleDevBuild({
+      check: () => stale,
+      rebuild: async () => ({ kind: "completed" }),
+    });
+
+    expect(result).toEqual({
+      kind: "failed",
+      command: "npm run build:fast",
+      message: "the rebuilt bundle is still stale",
+    });
+  });
+});
+
+describe("isDevBuildRefreshCommandPath", () => {
+  it.each([
+    "base merge",
+    "arc delivery review-fix continue",
+    "errand close",
+    "errand open",
+  ])("allows the head-moving command %s", (commandPath) => {
+    expect(isDevBuildRefreshCommandPath(commandPath)).toBe(true);
+  });
+
+  it.each(["arc review checks await", "status"])('rejects the read-only command %s', (commandPath) => {
+    expect(isDevBuildRefreshCommandPath(commandPath)).toBe(false);
   });
 });
 
@@ -205,6 +274,22 @@ describe("createDevCheckDeps", () => {
 
 describe("selectBundleInputs", () => {
   const PKG = "/repo/packages/arc-framework";
+
+  it("retains normalized first-party JavaScript and JSON compiler inputs", () => {
+    expect(selectBundleInputs({ inputs: {
+      "./src/cli.ts": {},
+      "src/dep.js": {},
+      "src/data.json": {},
+      "../../build-control.mjs": {},
+      "../../node_modules/library/index.js": {},
+      "../../../external.js": {},
+    } }, PKG)).toEqual([
+      "/repo/build-control.mjs",
+      `${PKG}/src/cli.ts`,
+      `${PKG}/src/data.json`,
+      `${PKG}/src/dep.js`,
+    ]);
+  });
 
   it("returns only src/*.ts inputs as absolute paths, excluding deps and non-ts", () => {
     const metafile = {

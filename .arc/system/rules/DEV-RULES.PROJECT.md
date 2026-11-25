@@ -3,19 +3,17 @@
 Project-specific development standards for the ARC framework. Quality gates, testing requirements,
 documentation style, file organization, and architecture rules.
 
-For ARC methodology rules (commit discipline, task execution, session management, verification), see
-[DEV-RULES.ARC][dev-rules-arc].
-
 ---
 
 ## Quality Gates
 
-**Zero Tolerance Policy:** All quality checks must pass before any commit, no exceptions · `[invariant]`.
+**Zero Tolerance Policy:** Every declared gate is zero-tolerance: all checks due at that commit, push, or merge
+must pass. Failed enforcement holds that gate, no exceptions · `[invariant]`.
 
-**Tiered approach** — T1 per-task, T2 per-unit, T3 pre-PR. See [Quality Gates Strategy][quality-gates].
-Commands, config, and their measured cost: [QUICK-REFERENCE][quick-ref] § Quality Gate Commands.
+Checks and deadlines live in `.arc/system/arc-checks.yml`. `arc check` owns selection, reuse, and re-run decisions
+and reports measured cost. See [Quality Gates Strategy][quality-gates] for deadline guidance.
 
-Four gate behaviors that reference does not carry, each of which fails quietly:
+These gate behaviors prevent misleading results:
 
 - `lint:md:staged` certifies the **git index**, not the worktree — the false-green trap is index-versus-worktree
   bytes, not a second rule set; **re-stage after every fix**, or findings target already-corrected lines.
@@ -23,38 +21,127 @@ Four gate behaviors that reference does not carry, each of which fails quietly:
   run cannot hide a dirty index.
 - Run **both** type checks before declaring types green. Vitest's esbuild transpile skips type-checking, so a
   test-only type error passes a source-only check and surfaces only at commit.
+- `test:changed` must select at least one affected unit test. An empty selection is its own non-passing outcome,
+  not evidence that the changed code passed; `arc check` reports it as `no evidence`.
+- All supported run-mode tier and focused commands require completed cases. All-skipped selections and unmatched
+  name filters are non-passing, and closing or final worker errors retain failure status.
 
-### Selecting what to run
+### Size and complexity baseline
 
-Zero tolerance governs what must **pass**, not how often each check is **re-executed**. Two conditions narrow a
-run, and both resolve mechanically from `git diff --name-only` — never from a judgment call about blast radius.
-When neither settles it cleanly, run everything: the deciding is not worth more than the checks cost.
+Violations that predate the size gate are recorded in `packages/arc-framework/eslint-suppressions.json`, which the
+lint run reads automatically; `eslint.config.js` alone sets the thresholds.
 
-**Relevance — run what the change reaches.** Deliberately asymmetric. Skip the expensive checks a change
-provably cannot affect; never spend thought on the cheap ones.
+That record is a **floor — "no worse than this" — not a backlog.** It bounds new debt; reducing what it already
+holds is separate, owned work, and nothing about the record's size is a commitment.
 
-| Changed paths                  | Run                                     | Skip                                     |
-| ------------------------------ | --------------------------------------- | ---------------------------------------- |
-| Markdown only                  | Markdown lint + the ARC contract checks | the code checks (~100s of them at T2/T3) |
-| No Markdown touched            | The code checks                         | nothing — the Markdown side costs ~7.6s  |
-| Mixed, config, or unrecognized | Everything                              | nothing — fail closed                    |
+Four behaviors decide whether the gate tells the truth:
 
-The ARC contract checks (`lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`) validate
-methodology artifacts rather than code, are corpus-wide by design, and cost ~0.7s combined — so they ride with
-any Markdown change and never earn a relevance carve-out of their own. They are also required in CI: omitting
-them locally produces a false green rather than a saving.
+- **Run it through the npm scripts.** Baseline keys are relative to the directory ESLint runs in, so a bare
+  `npx eslint <path>` from the repository root finds no baseline and reports every recorded violation as new.
+  `lint:ts` and `lint:ts:file` both run with the package as their working directory.
+- **Only a whole-project run can shrink the record.** Pruning examines just the files in the current run, so a
+  per-file run can never notice that a violation was fixed. After reducing one, run `lint:ts` — it exits 2 and
+  names the unused suppression — then re-run it with `--prune-suppressions` and commit the shrunk record.
+- **A new violation surfaces its whole bucket.** Suppressions count violations per file per rule, never per
+  line, so exceeding a recorded count reports _every_ violation of that rule in the file. Attribute by diff:
+  the violations on lines the branch changed are its own, and the rest are pre-existing. The count delta
+  against the recorded entry is only the minimum the gate will accept — it under-reports a change that fixed
+  one violation while adding two.
+- **Never re-run `--suppress-rule` to clear a red gate.** That records the new violation as permanent debt,
+  which is the one thing the record exists to prevent.
 
-Build and tooling config (`package.json`, `tsconfig*.json`, `eslint.config.js`, `vitest.config.ts`) counts as
-code: it reaches every check.
+The record cannot see a recorded unit growing worse at the same count, or a swap that fixes one violation of a rule in
+a file while adding another of that rule there; remediation, not more gate, closes both.
 
-**Unchanged tree — a completed tier is not re-executed over an unchanged tree.** A green result stays valid
-until an input it covers changes. When a boundary calls for a tier that already ran green and the delta since
-reaches nothing that tier covers, report it as already satisfied instead of re-running it; a skip that goes
-unrecorded reads as coverage nobody actually has. This narrows repeat runs of the same tier — it never licenses
-running a tier partially, and Tier 3 in particular is still run whole.
+### Increment feedback
 
-Re-running **is** warranted after a base merge, after any review-driven fix, and at the first full-suite
-attestation of composed work — each introduces state no prior run saw.
+Keep commits atomic, and push coherent checkpoints regularly when authorized. Keep publication, review spending, and
+merge behind their existing approval boundaries.
+
+Authorized CI qualification and retries on [standard GitHub-hosted runners][standard-hosted-runners] in this public
+repository need no additional spending approval. Verify repository visibility and runner class before asserting a
+monetary cost; paid runner usage retains its spending approval.
+
+Plan broader regression feedback as the affected surface grows, independently of push timing. Use coherent segment or
+phase boundaries, elapsed work, suite cost, and known selection gaps to decide when a wider run is useful. Continue
+frequent automated feedback during deferred human review.
+
+Report which checks passed for the current change and which broader tiers have not run.
+
+At each increment boundary, run `arc check increment`, then request related unit and local E2E feedback together:
+
+```bash
+arc check run test:changed test:e2e:local --changed
+```
+
+Source-only changes select no E2E test; when changing code an E2E test drives, run that test with
+`npm run test:file -- <repository-relative-e2e-test>`.
+
+`test:changed` never reaches integration tests, and CI runs that whole tier on every pull request that changes code or
+ARC Markdown. Request it locally only when a failure after the push would cost more than the run:
+
+```bash
+arc check run test:integration:content --range
+```
+
+Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
+to gates still have to pass by their declared deadlines.
+
+### Platform feedback at phase close
+
+Windows and macOS defects otherwise surface only at verification, when each hosted pair run takes 30 to 45 minutes. At
+each phase close of a work unit that changes tests or platform-sensitive code (paths, processes, the file system, Git
+or shell invocation, line endings), start a Windows and macOS run of that phase's changed test files and the tests that
+import its changed source. Do not wait for it: carry on with the next phase and report the result at the next approval.
+
+- List them from the package directory with `npx vitest list --filesOnly --changed <phase-start>`, and add by search
+  any integration test that reaches the change through a file it reads, which no import graph shows. Each listed line
+  names a project and a package-relative path: drop the project label and prefix `packages/arc-framework/` to name
+  the file from the repository root. When nothing is selected, report that the phase has no platform evidence.
+- Push the phase and dispatch them on the hosted pair with `gh workflow run ci.yml --ref <branch> -f
+  portability_files="<files>"`, naming repository-relative paths. Each job takes a few minutes. A local Windows runner
+  may stand in for Windows on files that pass there on `main`, with the dispatch still covering macOS.
+- For quick native macOS feedback during the phase, run `arc-offload --runner m4-mini-macos npm run -s test:file --
+  <file>` from the repository root for one test file. The hosted macOS dispatch supplies phase-close evidence.
+- When the phase changes test configuration or the lockfile, which no import graph bounds, say so in the report and
+  leave the whole pair to verification's run.
+
+A `portability_files` dispatch attests nothing (§ Hosted CI before verification attests). `ci.yml` cancels a dispatch
+when another starts on the same ref, so never dispatch while a verification run is in progress on the branch, and when
+a phase closes while the previous phase's dispatch still runs, dispatch both phases' files together, leaving out any
+the later phase renamed or deleted.
+
+### Hosted CI before verification attests
+
+The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2e` among them, and a feature-branch push
+starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref
+<branch>`). Work-unit verification attests only on a passing run whose `headSha` is that head and that was dispatched
+with none of the diagnostic inputs set, recorded by run id in the verification commit body: `portability_timing_only`
+runs only the Windows and macOS timing job, `store_per_change` narrows the store run to its per-change form, and
+`portability_files` runs only the named files on the Windows/macOS pair, so each such run passes for its own purpose and
+attests nothing. Dispatch again after any later code change; planning-only commits need
+no new run.
+
+### Test execution
+
+Root `test:file` runs exact repository-relative files or directories given after one npm separator; broad tier and
+package-local filters stay native and package-relative. Focused execution does not replace the complete selected
+quality gate. Test preparation may reuse a qualifying build, but the full `npm run build` declaration gate and both
+type checks remain required.
+
+The Linux job `Portability (concurrency guards) (linux)` runs on pull requests in the reviewed lane with `heavy`
+CI weight. Hosted Windows and macOS runs come from the weekly schedule and explicit dispatches. For a
+platform-sensitive change outside a work unit's phase-close process, push the branch and run
+`gh workflow run ci.yml --ref <branch> -f run_portability_pair=true`. Check both platforms' results on the pushed
+head before the integration interlock.
+
+The store suites, every `store-ref-*` integration file, run in the `test:store` merge-gate check, selected by each
+suite's reach into the change, instead of in the integration tier. This departs from the quality-gates strategy's
+complete suite at the merge gate: for the store suites the gate rests on that reach and on the full run CI makes on
+every push to `main`, so a miss shows on `main` after merge rather than before it. The integration tier, the lane, and
+the Linux pull-request portability job leave the store suites out, as does a dispatched portability run whose change
+reaches none of them. `ARC_STORE_CHECK=full` asks for a full run, and `ARC_STORE_CHECK=every` for every suite in its
+per-change form.
 
 ## Testing Requirements
 
@@ -69,6 +156,28 @@ unpublished project-owned contracts and development-only persisted state may cha
 backward-compatibility aliases, migration readers, or data migrations for them; clear or regenerate development state
 instead.
 
+**External-seam enforcement test:** At a host or provider seam, claimed or demanded external authority must match the
+enforcement the platform actually offers. Keep stronger exactness in ARC-controlled validation — derive the authorized
+expectation, observe fresh external state, refuse mismatches, and disclose any residual race — and do not disable a
+capability merely because the platform cannot enforce a guarantee ARC does not require at comparable seams. This does
+not relax distrust of agent self-attestation or exactness over ARC-owned single-writer records.
+
+**Stop routing:** ARC follows the tools it sits beside — git, the stacked-change CLIs, CI — in when to stop, what to
+record, and how a continue resumes. Where they send every stop to a person, ARC routes each to the lowest layer that
+can resolve it safely. The CLI takes what recorded state determines, with no stop. The agent takes what the CLI cannot
+decide but one reasonable, checkable answer settles; there a typed stop carrying the facts and the continuation is the
+right result, not friction. The Owner takes only what changes something a person approved or owns, or has more than
+one defensible outcome with product consequences. A CLI that guesses what its continue should carry, or makes a
+judgment that belongs to the agent, is a layer error; so is escalating to the Owner what the agent can settle. The aim
+is to spare the agent's attention by having the CLI determine all it can, and the Owner's by having the agent take
+what is reasonably safe — never to take control from an Owner who wants more of it.
+
+**Recovery-complete refusals:** An operational refusal is incomplete unless it distinguishes terminal failure from a
+recoverable stop. A recoverable refusal must preserve a safe retry or restart route, report the observed condition,
+name an actionable remedy, and keep the normal success path reachable after repair. At material boundaries,
+verification must cover both the refusal and successful continuation after the condition is repaired. Do not add
+guard-only dead ends.
+
 **TypeScript standards:**
 
 - Strict mode with `noUncheckedIndexedAccess` — no `any` types except at validated system boundaries
@@ -77,8 +186,23 @@ instead.
 - Use `unknown` over `any` for external data; validate and narrow before use
 - Shared helpers return only what they establish; each caller applies its own failure policy
   (never bake one consumer's "safe default" into a shared resolver — e.g. identity helpers)
-- TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
-  describing the module's purpose
+- TSDoc on the exported surface: a doc block on every exported function and a file-level doc comment describing
+  the module's purpose, which lint enforces in `src/**`; add `@param` and `@returns` only where they say what the
+  name and type do not
+- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cognitive
+  complexity ≤15, files ≤1000 lines, nesting depth and nested callbacks ≤4; in `__tests__/**`, files
+  ≤1500 lines and nothing else — blank lines and comments do not count, and `eslint.config.js` is the
+  authority
+
+## Self-Hosting Defects
+
+This repository uses ARC to build ARC, so an ARC refusal or workflow dead end may expose an unfinished or defective
+control, not a final veto. Diagnose it and make safe, in-scope repairs and retries. If the repair is not already owned
+or planned, propose a proportionate Errand or work-unit capture at the next natural report boundary; routing the defect
+does not itself halt the present task. Continue by the narrowest sound path. Before crossing a failed ARC control,
+disclose why it appears defective and what remains unverified, then obtain explicit Owner direction for that specific
+workaround. Never report a failed check as passed or bypass higher-priority instructions or independently required
+quality and merge gates.
 
 ## Documentation Standards
 
@@ -89,6 +213,9 @@ instead.
 - **Line length**: 120 characters — wrap at natural phrase boundaries near the target width. Linting catches
   overflow but not underfill — consistently short lines (60-90 chars) are the more common failure than overflow.
   Bullet continuations, multi-line field values, and SESSION-NOTES entries follow the same target.
+
+The commit check `lint:md:underwrap` checks changed indexed Markdown files without widening to the full corpus. It flags
+non-final paragraph lines below 75 columns when the next word would fit within 120; it never rewrites content.
 
 ### Documentation style
 
@@ -116,11 +243,8 @@ project-specific adherence rule applies on top, because this repository is ARC:
 
 **`(arc)` is not the default scope here.** It marks edits to installed ARC artifacts, which is no signal in a repo
 where everything is ARC. Prefer the narrowest descriptive locus — `fix(brief)`, `fix(hook)`, `fix(strategy)`,
-`fix(method)`, `chore(backlog)`, `feat(session-init)` — and reserve `(arc)` for genuinely cross-cutting changes with
-no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/archive/handoff …`) remain legitimate.
-
-**`docs` is external-facing prose only** — `README.md`, docs-site content, onboarding. Methodology-artifact edits
-are `fix` / `refactor` / `feat` by intent, never `docs`.
+`fix(method)`, `chore(backlog)`, `feat(session-init)` — and omit the scope for a genuinely cross-cutting change with
+no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/archive/handoff …`) keep `(arc)`.
 
 ## Package-Project Sync
 
@@ -147,34 +271,33 @@ appropriate for one is often inappropriate for the other.
 
 ### Surface taxonomy
 
-**Adopter-facing** — read by users of ARC; ships via the package source:
+A file's audience follows what ships, and `packages/arc-framework/init-recipe.json` alone decides what a project
+installs; location in either copy does not.
 
-- `.arc/system/**`
-- `.arc/reference/strategies/arc/**`
-- `.arc/system/rules/DEV-RULES.ARC.md`
-- `.arc/reference/templates/**`
-- `.arc/reference/QUICK-REFERENCE.md`
+**Adopter-facing** — read by users of ARC:
+
+- every package file the recipe installs, including the package copy or template of a configurable file
+- the `.arc/` mirror of an installed framework file, such as `.arc/system/rules/DEV-RULES.ARC.md`, the workflows and
+  methods under `.arc/system/`, `.arc/reference/strategies/arc/**`, and `.arc/reference/templates/**`
 
 State what is. Don't describe how the methodology arrived at its current shape, what's
 in-flight, or what's coming.
 
-**Internal-dev-facing** — read only by people developing ARC; doesn't ship:
+**Internal-dev-facing** — read only by people developing ARC:
 
-- `.arc/reference/strategies/project/**`
-- `.arc/reference/adr/**`
-- `.arc/reference/PROJECT-PRD.md`
-- `.arc/system/rules/DEV-RULES.PROJECT.md` (this file)
-- `.arc/active/**`, `.arc/backlog/**`, `.arc/user/**`
-- `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md`
-- Any `notes-*.md` companion to a WU
+- this repository's own filled-in copy of a configurable file: `.arc/system/rules/DEV-RULES.PROJECT.md` (this file),
+  `.arc/reference/QUICK-REFERENCE.md`, `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md`, and
+  `.arc/reference/PROJECT-PRD.md`
+- what the recipe does not install: the ADRs in `.arc/reference/adr/`, the project strategies in
+  `.arc/reference/strategies/project/`, `.arc/active/**`, `.arc/backlog/**`, `.arc/user/**`, and any `notes-*.md`
+  companion to a WU
 
-These reference internal WU names, in-flight scope, transitional state, and project-internal
-concerns freely.
+These reference internal WU names, in-flight scope, transitional state, and project-internal concerns freely. ADR bodies
+meet `strategy-adr-methodology.md`'s reader-independence rule; planning references stay in their Status sections.
 
 ### Leak patterns to avoid in adopter-facing content
 
-- Transitional framing ("under the old model", "until X ships", "pre-CLI",
-  "now hand-maintained")
+- Transitional framing ("under the old model", "until X ships", "pre-CLI", "now hand-maintained")
 - Project-internal migration concerns for ARC's own evolution ("forward-only migration",
   "backward-compat tooling")
 - Forward-pointers to internal-roadmap scope (active or backlog WUs — planned or provisional) —
@@ -194,10 +317,8 @@ bound by this too; `strategies/project/` ships as an empty surface and may refer
 Operational rationale adopters need must stand alone in the adopter-facing source; rationale that doesn't earn that
 placement stays in the ADR itself, or routes to whatever capture surface the project uses for docs-site content.
 
-### Package-source mirror inheritance
-
-Anything mirrored to `packages/arc-framework/arc/**` is adopter-facing by definition (it ships).
-The `.arc/` copy inherits the classification.
+ARC concepts are domain vocabulary here when they are the change's subject. Naming this repository's work-unit or
+Errand identities to narrate how a change was made remains process.
 
 ### Relationship to DEV-RULES.ARC § Documentation Boundaries
 
@@ -209,6 +330,10 @@ DEV-RULES.ARC § Documentation Boundaries and § Audience Boundaries above both 
 
 Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces.
 See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routing table.
+
+Before capturing a dependency advisory, read [SECURITY.md § Dependency dispositions][dependency-dispositions] and
+compare the finding's advisory, versions, dependency path, and usage with the recorded assessment. Do not recapture
+an unchanged assessed finding; new evidence, including a compatible fix, reopens triage.
 
 ### Surface agent-side friction and idiom divergence
 
@@ -234,9 +359,10 @@ Strategy][adr-methodology] for decision criteria, the three-tier stability model
 
 [dev-rules-arc]: DEV-RULES.ARC.md
 [quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
-[quick-ref]: ../../reference/QUICK-REFERENCE.md
 [adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md
 [commit-format]: ../methods/commit-format.md
 [commit-footer]: ../methods/commit-footer.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
+[dependency-dispositions]: ../../../SECURITY.md#dependency-dispositions
+[standard-hosted-runners]: https://docs.github.com/en/actions/reference/runners/github-hosted-runners

@@ -9,7 +9,6 @@ import {
 import {
   isMarkdownGateTriggerPath,
   MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS,
-  runStagedMarkdownGate,
 } from "../../../src/lib/markdown/staged-gate.js";
 
 describe("staged Markdown gate", () => {
@@ -19,6 +18,7 @@ describe("staged Markdown gate", () => {
     ".markdownlint.yml",
     "packages/arc-framework/src/lib/markdown/selection.ts",
     "packages/arc-framework/src/lib/markdown/descriptor-spacing.ts",
+    "packages/arc-framework/src/lib/task-list/segmentation.ts",
     "packages/arc-framework/src/scripts/lint-markdown-staged.ts",
     "packages/arc-framework/arc/reference/templates/arc/work-unit/template-tasks.md",
     "package.json",
@@ -36,38 +36,177 @@ describe("staged Markdown gate", () => {
   ])("ignores unrelated or excluded path %s", (path) => {
     expect(isMarkdownGateTriggerPath(path)).toBe(false);
   });
-
-  it("returns before certification for unrelated staged paths", async () => {
-    const certify = vi.fn(async () => undefined);
-    const exec = vi.fn(async () => ({ stdout: "notes.txt\0", stderr: "" }));
-
-    await expect(runStagedMarkdownGate({ root: "/repo", exec, certify })).resolves.toEqual({
-      triggered: false,
-      changedPaths: ["notes.txt"],
-    });
-    expect(certify).not.toHaveBeenCalled();
-    expect(exec).toHaveBeenCalledWith("git", [
-      "diff",
-      "--cached",
-      "--name-only",
-      "--no-renames",
-      "--diff-filter=ACMRD",
-      "-z",
-    ], { cwd: "/repo" });
-  });
-
-  it("runs certification once for any relevant staged path", async () => {
-    const certify = vi.fn(async () => undefined);
-    const exec = vi.fn(async () => ({ stdout: "notes.txt\0README.md\0", stderr: "" }));
-
-    await expect(runStagedMarkdownGate({ root: "/repo", exec, certify })).resolves.toMatchObject({
-      triggered: true,
-    });
-    expect(certify).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe("staged Markdown checker alignment", () => {
+  it.each([false, true])("checks native ESM dependencies against indexed bytes, mismatch=%s", async mismatch => {
+    const entry = "packages/arc-framework/src/scripts/checker.ts";
+    const dependency = "packages/arc-framework/src/lib/helper.mjs";
+    const entryBytes = Buffer.from('import { value } from "../lib/helper.mjs";\nconsole.log(value);\n');
+    const dependencyBytes = Buffer.from("export const value = 1;\n");
+    const source = new Map([[entry, entryBytes], [dependency, dependencyBytes]]);
+    const options = { root: "/repo", entryPaths: [entry], readBlob: async (_root: string, path: string) => source.get(path) ?? null };
+
+    await expect(resolveIndexedMarkdownCheckerPaths(options)).resolves.toEqual([entry, dependency]);
+    const result = assertIndexedMarkdownCheckerAlignment({ ...options,
+      readFile: async path => path === `/repo/${entry}` ? entryBytes
+        : mismatch ? Buffer.from("export const value = 2;\n") : dependencyBytes });
+    if (mismatch) await expect(result).rejects.toThrow(`Indexed Markdown checker differs from executing worktree bytes: ${dependency}`);
+    else await expect(result).resolves.toBeUndefined();
+  });
+
+  it.each(["mismatch", "missing", "read-failure"])("refuses fresh bulk alignment failures (%s)", async failure => {
+    const path = "packages/arc-framework/src/checker.ts";
+    const original = Buffer.from("export const value = 1;\n");
+    const readFailure = new Error("Current index read failed");
+    const options = {
+      root: "/repo", runtimePaths: [path],
+      readBlob: async () => original,
+      readFile: async () => original,
+      readBlobs: async (): Promise<ReadonlyMap<string, Uint8Array>> => {
+        if (failure === "read-failure") throw readFailure;
+        return failure === "missing" ? new Map() : new Map([[path, Buffer.from("export const value = 2;\n")]]);
+      },
+    };
+    const result = assertIndexedMarkdownCheckerAlignment(options);
+    if (failure === "read-failure") await expect(result).rejects.toBe(readFailure);
+    else await expect(result).rejects.toThrow(failure === "missing" ? "Indexed Markdown checker is missing"
+      : "Indexed Markdown checker differs from executing worktree bytes");
+  });
+
+  it("discovers the complete ordered dependency closure through a bulk-only reader", async () => {
+    const entry = "packages/arc-framework/src/scripts/checker.ts";
+    const first = "packages/arc-framework/src/scripts/first.ts";
+    const second = "packages/arc-framework/src/scripts/second.ts";
+    const shared = "packages/arc-framework/src/scripts/shared.ts";
+    const sources = new Map([
+      [entry, Buffer.from('import "./first.js";\nimport("./second.js");\n')],
+      [first, Buffer.from('export * from "./shared.js";\n')],
+      [second, Buffer.from('import "./shared.js";\n')],
+      [shared, Buffer.from("export const value = 1;\n")],
+    ]);
+    const options = {
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (): Promise<Uint8Array | null> => { throw new Error("This backend requires bulk reads"); },
+      readBlobs: async (_root: string, paths: readonly string[]): Promise<ReadonlyMap<string, Uint8Array>> =>
+        new Map(paths.flatMap(path => sources.has(path) ? [[path, sources.get(path)!]] : [])),
+    };
+    await expect(resolveIndexedMarkdownCheckerPaths(options)).resolves.toEqual([entry, first, second, shared]);
+  });
+
+  it.each([
+    'import type { Hidden } from "./erased.js";',
+    'import type Hidden from "./erased.js";',
+    'import type * as Hidden from "./erased.js";',
+    'export type { Hidden } from "./erased.js";',
+    'export type * from "./erased.js";',
+    'export type * as Hidden from "./erased.js";',
+  ].flatMap(erased => [
+    { erased, value: 'import type from "./runtime.js";\nconsole.log(type);' },
+    { erased, value: 'import type, { value } from "./runtime.js";\nconsole.log(type, value);' },
+  ]))("omits erased declarations while retaining runtime imports: $erased / $value", async ({ erased, value }) => {
+    const entry = "packages/arc-framework/src/checker.ts";
+    const runtime = "packages/arc-framework/src/runtime.ts";
+    const mixed = "packages/arc-framework/src/mixed.ts";
+    const sources = new Map([
+      [entry, `${erased}\n${value}\nimport { type Hidden, value as mixed } from "./mixed.js";\nconsole.log(mixed);\n`],
+      ["packages/arc-framework/src/erased.ts", "export interface Hidden {}\nexport type { Hidden as default };\n"],
+      [runtime, "export default 1;\nexport const value = 1;\n"],
+      [mixed, "export interface Hidden {}\nexport const value = 1;\n"],
+    ]);
+
+    await expect(resolveIndexedMarkdownCheckerPaths({
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (_root, path) => {
+        const source = sources.get(path);
+        return source === undefined ? null : Buffer.from(source);
+      },
+    })).resolves.toEqual([entry, runtime, mixed]);
+  });
+
+  describe.each([
+    { name: "a value binding named type", firstImport: 'import type from "./first.js"', use: "console.log(type, second)" },
+    { name: "a side-effect import", firstImport: 'import "./first.js"', use: "console.log(second)" },
+  ])("adjacent semicolonless imports with $name", ({ firstImport, use }) => {
+    const entry = "packages/arc-framework/src/checker.ts";
+    const first = "packages/arc-framework/src/first.ts";
+    const second = "packages/arc-framework/src/second.ts";
+    const sources = new Map([
+      [entry, `${firstImport}\nimport { second } from "./second.js"\n${use}\n`],
+      [first, "export default 1;\n"],
+      [second, "export const second = 2;\n"],
+    ]);
+    const options = {
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (_root: string, path: string): Promise<Uint8Array | null> => {
+        const source = sources.get(path);
+        return source === undefined ? null : Buffer.from(source);
+      },
+    };
+
+    it("discovers both runtime dependencies", async () => {
+      await expect(resolveIndexedMarkdownCheckerPaths(options)).resolves.toEqual([entry, first, second]);
+    });
+
+    it("refuses a byte mismatch in the first dependency", async () => {
+      await expect(assertIndexedMarkdownCheckerAlignment({
+        ...options,
+        readFile: async path => Buffer.from(path === `/repo/${first}`
+          ? "export default 9;\n" : sources.get(path.slice("/repo/".length))!),
+      })).rejects.toThrow(`Indexed Markdown checker differs from executing worktree bytes: ${first}`);
+    });
+  });
+
+  describe.each([
+    { kind: "import", source: 'import { "first-value" as first } from "./first.js";\nconsole.log(first);\n' },
+    { kind: "reexport", source: 'export { first as "first-value" } from "./first.js";\n' },
+  ])("quoted names in a runtime $kind", ({ source }) => {
+    const entry = "packages/arc-framework/src/checker.ts";
+    const first = "packages/arc-framework/src/first.ts";
+    const sources = new Map([
+      [entry, source],
+      [first, 'const first = 1;\nexport { first, first as "first-value" };\n'],
+    ]);
+    const options = {
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (_root: string, path: string): Promise<Uint8Array | null> => {
+        const value = sources.get(path);
+        return value === undefined ? null : Buffer.from(value);
+      },
+    };
+
+    it("discovers the runtime dependency", async () => {
+      await expect(resolveIndexedMarkdownCheckerPaths(options)).resolves.toEqual([entry, first]);
+    });
+
+    it("refuses a byte mismatch in the dependency", async () => {
+      await expect(assertIndexedMarkdownCheckerAlignment({
+        ...options,
+        readFile: async path => Buffer.from(path === `/repo/${first}`
+          ? 'const first = 9;\nexport { first, first as "first-value" };\n' : source),
+      })).rejects.toThrow(`Indexed Markdown checker differs from executing worktree bytes: ${first}`);
+    });
+  });
+
+  it.each(["missing", "invalid-utf8", "unsupported-import", "read-failure"])("refuses invalid bulk checker inputs (%s)", async failure => {
+    const entry = "packages/arc-framework/src/scripts/checker.ts";
+    const readFailure = new Error("Bulk object read failed");
+    const bytes = failure === "invalid-utf8" ? Buffer.from([0xff]) : Buffer.from('import "../../../../outside.js";\n');
+    const options = {
+      root: "/repo", entryPaths: [entry],
+      readBlob: async (): Promise<Uint8Array | null> => { throw new Error("This backend requires bulk reads"); },
+      readBlobs: async (): Promise<ReadonlyMap<string, Uint8Array>> => {
+        if (failure === "read-failure") throw readFailure;
+        return failure === "missing" ? new Map() : new Map([[entry, bytes]]);
+      },
+    };
+    const result = resolveIndexedMarkdownCheckerPaths(options);
+    if (failure === "read-failure") await expect(result).rejects.toBe(readFailure);
+    else await expect(result).rejects.toThrow(failure === "missing" ? "Indexed Markdown checker is missing"
+      : failure === "invalid-utf8" ? "Indexed Markdown checker is not valid UTF-8"
+        : "Indexed Markdown checker has an unsupported relative import");
+  });
+
   it("discovers transitive runtime dependencies from indexed sources", async () => {
     const sources = new Map<string, string>([
       [
@@ -148,13 +287,5 @@ describe("staged Markdown checker alignment", () => {
     })).rejects.toThrow(
       `Indexed Markdown checker differs from executing worktree bytes: ${transitive}`,
     );
-    const certify = vi.fn(async () => undefined);
-    await expect(runStagedMarkdownGate({
-      root: "/repo",
-      exec: vi.fn(async () => ({ stdout: `${transitive}\0`, stderr: "" })),
-      certify,
-      runtimePaths: new Set(runtimePaths),
-    })).resolves.toMatchObject({ triggered: true });
-    expect(certify).toHaveBeenCalledOnce();
   });
 });

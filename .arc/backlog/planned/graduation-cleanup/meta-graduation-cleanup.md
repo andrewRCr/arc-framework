@@ -19,3 +19,5 @@
 - **Next Action:** Iterate the draft toward spec readiness. Settle the seam with the `concurrent-work-conventions`
   merge-gate work (the cohort doc already flags spec-graduation cleanup vs. the lighter merge gate) before
   committing scope.
+
+---

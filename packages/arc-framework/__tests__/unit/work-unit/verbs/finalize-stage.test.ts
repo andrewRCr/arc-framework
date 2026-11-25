@@ -15,6 +15,9 @@ import {
   type FinalizeStageContext,
 } from "../../../../src/lib/work-unit/verbs/finalize-stage.js";
 
+import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
+
 interface Harness {
   ctx: FinalizeStageContext;
   classWrites: { metaPath: string; value: string }[];
@@ -26,6 +29,7 @@ function buildCtx(): Harness {
   const softWrites: { metaPath: string; updates: Record<string, string> }[] = [];
   return {
     ctx: {
+      cwd: "/project",
       writeClassField: async (metaPath, value) => {
         classWrites.push({ metaPath, value });
       },
@@ -70,6 +74,35 @@ describe("runFinalizeStage — create-spec finalize", () => {
       expect(result.status).toBe("rejected");
       expect(classWrites).toEqual([]);
     }
+  });
+});
+
+describe("runFinalizeStage — amend-design finalize", () => {
+  it("writes only the resolved Class and preserves planning pointer fields", async () => {
+    const { ctx, classWrites, softWrites } = buildCtx();
+    const result = await runFinalizeStage(ctx, {
+      name: "demo-wu",
+      firePoint: "amend-design",
+      workClass: "Novel",
+    });
+    expect(result).toMatchObject({
+      status: "ok",
+      metaPath: META,
+      firePoint: "amend-design",
+      workClass: "Novel",
+      taskList: null,
+      nextAction: null,
+    });
+    expect(classWrites).toEqual([{ metaPath: META, value: "Novel" }]);
+    expect(softWrites).toEqual([]);
+  });
+
+  it("requires a resolved Class before writing", async () => {
+    const { ctx, classWrites, softWrites } = buildCtx();
+    const result = await runFinalizeStage(ctx, { name: "demo-wu", firePoint: "amend-design" });
+    expect(result.status).toBe("rejected");
+    expect(classWrites).toEqual([]);
+    expect(softWrites).toEqual([]);
   });
 });
 
@@ -129,4 +162,19 @@ describe("runFinalizeStage — guards", () => {
     expect(classWrites).toEqual([]);
     expect(softWrites).toEqual([]);
   });
+});
+
+it("finalizes a former handle using the resolved owner's task filename", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: "generate-tasks", design: ["spec-source.md"] });
+  const forbidden = async (): Promise<never> => { throw new Error("Unexpected checkout access"); };
+  expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: forbidden, baseBranch: "main",
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }),
+      writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+  { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(await runFinalizeStage({ cwd: "/project", store: h.store, writeClassField: forbidden, writeSoftFields: forbidden },
+    { name: "source", firePoint: "generate-tasks", workClass: "Novel" }))
+    .toMatchObject({ status: "ok", taskList: "tasks-target.md" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields)
+    .toMatchObject({ taskList: "tasks-target.md", design: ["spec-target.md"] });
 });

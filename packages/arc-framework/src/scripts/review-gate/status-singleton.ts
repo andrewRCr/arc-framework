@@ -1,0 +1,144 @@
+/** Compose the actionable review status of one published singleton Candidate. */
+
+import { selectReviewSources } from "./policy/review-source-eligibility.js";
+import { projectSingletonLocalCoverageRefusal, projectReviewSourceRefusal } from "./status-driver-refusal.js";
+import type { ReviewStatusRoute } from "./status-route.js";
+import { readConfigSettings } from "../../lib/config/status-reader.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "./runtime/invocation.js";
+import { createReviewCompositionContext } from "./runtime/composition-context.js";
+import type { CandidateManagedRecordV1 } from "../../lib/work-unit/candidate-attestation.js";
+import { createRepositoryReviewResultReader } from "./hosts/local/review-result-reader-composition.js";
+import { readLaneResponsePerformance } from "./lane-progress.js";
+import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
+import {
+  resolveEvidenceBoundSingletonHostedReservationPolicy,
+} from "./policy/hosted-reservation-admission.js";
+import type { HostedReservationDischarge, HostedReservationDischargeReader } from
+  "./policy/hosted-reservation-discharge.js";
+import type { StandardReviewReservationV1 } from "./policy/integration-boundary-locus.js";
+import { composeSingletonReviewObligation, type RoutedReviewObligation } from "./status.js";
+import type { ReviewStatusPolicyJudgment } from "./status-judgment.js";
+import { composeNativePublishedStatusGrants } from "./runtime/native-published-status-grants.js";
+
+interface PublishedSingletonInput extends ReviewInvocationInput {
+  statusRoute: ReviewStatusRoute;
+  settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
+  reservation: StandardReviewReservationV1;
+  record: CandidateManagedRecordV1;
+  recordVersion: string;
+  candidateSubjectDigest?: string;
+  baseRevision: string;
+  workUnit: string;
+  target: { repository: string; pullRequest: number; headSha: string };
+  judgment?: ReviewStatusPolicyJudgment;
+  readDischarge: HostedReservationDischargeReader;
+}
+
+/**
+ * Resolve the carried reservation only after an exact open PR has been bound to the Candidate.
+ *
+ * @param input - Current Candidate, reservation, exact PR, and repository-backed discharge reader.
+ * @returns The status obligation and any fully composed hosted request action.
+ */
+export async function composePublishedSingletonReview(options: PublishedSingletonInput): Promise<RoutedReviewObligation> {
+  const { input, dischargeInput, discharge: initialDischarge } = await readSingletonStatusDischarge(options);
+  const { reservation } = input;
+  let discharge = initialDischarge;
+  if (!discharge.discharged && discharge.terminalPolicyState === "coverage-required") {
+    const invocation = input.judgment?.sourceId === undefined ? discharge.invocation
+      : { mode: "force" as const, sourceId: input.judgment.sourceId };
+    const selection = selectReviewSources({ lane: "standard", sources: reservation.sources,
+      nextPassContext: discharge.nextPassContext, ...(invocation === undefined ? {} : { invocation }) });
+    const refusal = projectReviewSourceRefusal({ diagnostic: selection.refusal, route: input.statusRoute });
+    if (refusal !== null) return refusal;
+    if (discharge.nextSource === null) discharge = { ...discharge, nextSource: selection.sources[0] ?? null };
+  }
+  const applicabilityContext = {
+    workUnitId: input.workUnit,
+    expectedRecordVersion: input.recordVersion,
+    candidateId: input.record.attestation.candidateId,
+  };
+  const request = !discharge.discharged && discharge.nextSource !== null
+    ? await resolveSingletonRequest(input, discharge, dischargeInput)
+    : undefined;
+  const coverageRefusal = projectSingletonLocalCoverageRefusal({ route: input.statusRoute,
+    coverage: input.judgment?.coverage, request, terminalPolicyState: discharge.terminalPolicyState });
+  if (coverageRefusal !== null) return coverageRefusal;
+  return composeSingletonReviewObligation({
+    statusRoute: input.statusRoute,
+    discharge,
+    applicabilityContext,
+    ...(request === undefined ? {} : { request }),
+  });
+}
+
+async function readSingletonStatusDischarge(options: PublishedSingletonInput) {
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  if (input.judgment?.ceilingOverride !== undefined || input.judgment?.additionalPassAuthorization !== undefined) {
+    input.judgment = await composeNativePublishedStatusGrants(input);
+  }
+  const { target, reservation, readDischarge } = input;
+  const dischargeInput = {
+    reservation,
+    baseRevision: input.baseRevision,
+    approvedHead: target.headSha,
+    changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
+    candidate: input.record,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
+  };
+  const discharge = await readDischarge(dischargeInput);
+  input.judgment = await composeNativePublishedStatusGrants({ ...input, requestedCoverage: discharge.requestCoverage });
+  return { input, dischargeInput, discharge };
+}
+
+async function resolveSingletonRequest(
+  input: PublishedSingletonInput,
+  discharge: HostedReservationDischarge,
+  dischargeInput: Parameters<HostedReservationDischargeReader>[0],
+): Promise<NonNullable<Parameters<typeof composeSingletonReviewObligation>[0]["request"]>> {
+  if (discharge.nextSource === null) throw new Error("The singleton review source is unavailable.");
+  const { publisher, family } = createReviewCompositionContext(input);
+  const store = family.ports.inFlight;
+  const policy = await resolveConfiguredLanePolicy({
+    lane: "standard",
+    settings: input.settings,
+    preferences: {
+      readDeveloperSourceIds: () => Promise.resolve([]),
+      readProjectSourceIds: () => Promise.resolve([]),
+    },
+  });
+  const invocation = input.judgment?.sourceId === undefined
+    ? discharge.invocation : { mode: "force" as const, sourceId: input.judgment.sourceId };
+  const admission = await resolveEvidenceBoundSingletonHostedReservationPolicy({
+    reservation: input.reservation,
+    discharge,
+    target: input.target,
+    maxPasses: policy.maxPasses,
+    coverageSelected: input.judgment?.coverage !== undefined,
+    chosenCoverage: input.judgment?.coverage,
+    ceilingOverride: input.judgment?.ceilingOverride,
+    additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
+    ...(invocation === undefined ? {} : { invocation }),
+  }, {
+    resultReader: createRepositoryReviewResultReader(publisher, input),
+    dispositionStore: family.ports.dispositions,
+    readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
+    confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+    confirmIncrementalApplicability: (predecessor, current) => (
+      input.readDischarge.confirmIncrementalApplicability(dischargeInput, predecessor, current)
+    ),
+  });
+  const sourceId = admission.state === "ready" ? admission.payload.sourceId : discharge.nextSource;
+  return {
+    target: input.target,
+    standardReview: input.reservation.obligation,
+    admission,
+    sourceId,
+    coverage: input.judgment?.coverage ?? discharge.requestCoverage ?? "complete",
+    correctionScope: discharge.correctionScope,
+    ceilingOverride: input.judgment?.ceilingOverride,
+    additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
+    ...(invocation === undefined ? {} : { invocation: { ...invocation, sourceId } }),
+  };
+}

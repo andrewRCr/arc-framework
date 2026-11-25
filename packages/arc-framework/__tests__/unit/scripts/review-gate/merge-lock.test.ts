@@ -10,7 +10,10 @@ import {
   type MergeLockSetting,
   type MergeLockTransition,
 } from "../../../../src/scripts/review-gate/merge-lock.js";
-import type { ReviewReadinessRequest } from "../../../../src/scripts/review-gate/readiness.js";
+import {
+  ReviewVehicleSchema,
+  type ReviewReadinessRequest,
+} from "../../../../src/scripts/review-gate/readiness.js";
 
 const SHA = "a".repeat(40);
 
@@ -20,11 +23,11 @@ const TARGET = {
   headSha: SHA,
 };
 
-const VEHICLE = {
-  kind: "work-unit" as const,
+const VEHICLE = ReviewVehicleSchema.parse({
+  kind: "work-unit",
   slug: "demo",
-  archiveCadence: "manual" as const,
-};
+  archiveCadence: "manual",
+});
 
 describe("MergeLockResolveRequestSchema", () => {
   it("accepts a tree root alone", () => {
@@ -348,12 +351,12 @@ describe("releaseMergeLock", () => {
   });
 });
 
-const MEMBER_VEHICLE = {
-  kind: "delivery-member" as const,
+const MEMBER_VEHICLE = ReviewVehicleSchema.parse({
+  kind: "delivery-member",
   planId: "3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
   deliverableId: `sha256:${"b".repeat(64)}`,
   workUnitSlug: "demo",
-};
+});
 
 function memberTransitionRequest() {
   return { ...transitionRequest(), vehicle: MEMBER_VEHICLE };

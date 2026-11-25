@@ -4,17 +4,18 @@ import { z } from "zod";
 
 import {
   canonicalDigest,
-  isCanonicalDigest,
   sortByCanonicalBytes,
   type CanonicalDigest,
-} from "../canonical/canonical-json.js";
-import { isManagedPath } from "../canonical/managed-path.js";
-import { SlugSchema, WorkClassSchema } from "../kernel/index.js";
+} from "../kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
+import { isManagedPath } from "../kernel/canonical/managed-path.js";
+import { SlugSchema, WorkClassSchema, type KernelRegistry } from "../kernel/index.js";
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
-import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
+import { V3DecomposeLocatorSchema, v3SourceId } from "./decompose-content.js";
 
-const DigestSchema = z.custom<CanonicalDigest>(isCanonicalDigest, "must be a canonical digest");
-const DecomposeSlugSchema = SlugSchema.transform((value): string => value);
+export { V3DecomposeLocatorSchema, v3SourceId } from "./decompose-content.js";
+
+const DecomposeSlugSchema: z.ZodType<string, string> = SlugSchema;
 const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty");
 const BasenameSchema = z.string().min(1).refine(
   (value) => !value.includes("/") && !value.includes("\\") && value !== "." && value !== ".."
@@ -45,49 +46,10 @@ const NestedCohortPathSchema = z.string().refine(
   "must be a canonical two-segment cohort path",
 );
 const AuthorSlotSchema = z.strictObject({ status: z.literal("author") });
-const HeadingIdentitySchema = z.strictObject({
-  level: z.number().int().min(2).max(6),
-  headingSource: z.string().refine(
-    (value) => normalizeDecomposeHeadingSource(value) === value,
-    "must be normalized",
-  ),
-  occurrence: z.number().int().nonnegative(),
-});
-
-export const V3DecomposeLocatorSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ artifact: BasenameSchema, kind: z.literal("preamble") }),
-  z.strictObject({
-    artifact: BasenameSchema,
-    kind: z.literal("section"),
-    level: z.number().int().min(2).max(6),
-    headingSource: z.string().refine(
-      (value) => normalizeDecomposeHeadingSource(value) === value,
-      "must be normalized",
-    ),
-    ancestry: z.array(HeadingIdentitySchema),
-    occurrence: z.number().int().nonnegative(),
-  }),
-  z.strictObject({ artifact: BasenameSchema, kind: z.literal("whole-file") }),
-]).superRefine((locator, ctx) => {
-  if (locator.kind !== "section") return;
-  let previousLevel = 1;
-  for (let index = 0; index < locator.ancestry.length; index += 1) {
-    const ancestor = locator.ancestry[index];
-    if (ancestor !== undefined
-      && (ancestor.level <= previousLevel || ancestor.level >= locator.level)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "ancestry levels must increase strictly and remain below the section level",
-        path: ["ancestry", index, "level"],
-      });
-    }
-    if (ancestor !== undefined) previousLevel = ancestor.level;
-  }
-});
 
 const SourceSchema = z.strictObject({
   origin: DecomposeSlugSchema,
-  kind: z.enum(["started-planning", "backlog-stub"]),
+  kind: z.enum(["started-planning", "active-origin", "backlog-stub"]),
   logicalBranch: NonEmptyStringSchema,
   ref: NonEmptyStringSchema,
   head: NonEmptyStringSchema,
@@ -99,26 +61,26 @@ const PlanningProfileSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("paired-spec"), sourceDesign: z.tuple([BasenameSchema, BasenameSchema]) }),
 ]);
 const SourceUnitSchema = z.strictObject({
-  sourceId: DigestSchema,
+  sourceId: CanonicalDigestSchema,
   sourcePath: ManagedPathSchema,
   sourceLocator: V3DecomposeLocatorSchema,
-  contentDigest: DigestSchema,
+  contentDigest: CanonicalDigestSchema,
 });
 const IncomingEdgeSchema = z.strictObject({
-  edgeId: DigestSchema,
+  edgeId: CanonicalDigestSchema,
   dependent: DecomposeSlugSchema,
   currentTargets: z.array(DecomposeSlugSchema),
 });
-const OutgoingEdgeSchema = z.strictObject({ edgeId: DigestSchema, prerequisite: DecomposeSlugSchema });
+const OutgoingEdgeSchema = z.strictObject({ edgeId: CanonicalDigestSchema, prerequisite: DecomposeSlugSchema });
 const SourceArtifactEntrySchema = z.strictObject({
   path: ManagedPathSchema,
   objectKind: z.literal("blob"),
   mode: z.enum(["100644", "100755"]),
-  contentDigest: DigestSchema,
+  contentDigest: CanonicalDigestSchema,
 });
 
 const MachineSchema = z.strictObject({
-  preflightId: DigestSchema,
+  preflightId: CanonicalDigestSchema,
   source: SourceSchema,
   resultBase: ResultBaseSchema,
   planningProfile: PlanningProfileSchema,
@@ -163,6 +125,7 @@ const SourceDispositionSchema = z.discriminatedUnion("kind", [
     destinationId: NonEmptyStringSchema,
     targetLocator: V3DecomposeLocatorSchema,
   }),
+  z.strictObject({ kind: z.literal("retained-origin") }),
   DropSchema,
 ]);
 const IncomingDispositionSchema = z.discriminatedUnion("kind", [
@@ -174,36 +137,39 @@ const OutgoingDispositionSchema = z.discriminatedUnion("kind", [
   DropSchema,
 ]);
 const InternalEdgeSchema = z.strictObject({ from: DecomposeSlugSchema, to: DecomposeSlugSchema });
+const ExternalEdgeSchema = z.strictObject({ from: DecomposeSlugSchema, to: DecomposeSlugSchema });
 
 const StarterAuthoringSchema = z.strictObject({
   shape: AuthorSlotSchema,
   placement: AuthorSlotSchema,
   destinations: AuthorSlotSchema,
   internalEdges: AuthorSlotSchema,
+  externalEdges: AuthorSlotSchema,
   sourceAllocations: z.array(z.strictObject({
-    sourceId: DigestSchema,
+    sourceId: CanonicalDigestSchema,
     ownership: AuthorSlotSchema,
     disposition: AuthorSlotSchema,
   })),
-  incomingDispositions: z.array(z.strictObject({ edgeId: DigestSchema, disposition: AuthorSlotSchema })),
-  outgoingDispositions: z.array(z.strictObject({ edgeId: DigestSchema, disposition: AuthorSlotSchema })),
+  incomingDispositions: z.array(z.strictObject({ edgeId: CanonicalDigestSchema, disposition: AuthorSlotSchema })),
+  outgoingDispositions: z.array(z.strictObject({ edgeId: CanonicalDigestSchema, disposition: AuthorSlotSchema })),
 });
 const CompletedAuthoringSchema = z.strictObject({
-  shape: z.enum(["symmetric", "heterogeneous"]),
+  shape: z.enum(["symmetric", "heterogeneous", "extraction"]),
   placement: PlacementSchema,
   destinations: z.array(DestinationSchema),
   internalEdges: z.array(InternalEdgeSchema),
+  externalEdges: z.array(ExternalEdgeSchema),
   sourceAllocations: z.array(z.strictObject({
-    sourceId: DigestSchema,
+    sourceId: CanonicalDigestSchema,
     ownership: z.enum(["destination-owned", "cohort-shared"]),
     disposition: SourceDispositionSchema,
   })),
   incomingDispositions: z.array(z.strictObject({
-    edgeId: DigestSchema,
+    edgeId: CanonicalDigestSchema,
     disposition: IncomingDispositionSchema,
   })),
   outgoingDispositions: z.array(z.strictObject({
-    edgeId: DigestSchema,
+    edgeId: CanonicalDigestSchema,
     disposition: OutgoingDispositionSchema,
   })),
 });
@@ -219,6 +185,18 @@ export const V3DecomposeCutMapSchema = z.strictObject({
   authoring: CompletedAuthoringSchema,
 });
 
+/**
+ * Register the structural cut-map contract for caller authoring.
+ * @param registry - Production registry under composition
+ * @returns The same registry with the active version-3 cut-map contract
+ */
+export function registerDecomposeSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(V3DecomposeCutMapSchema, {
+    id: "decompose-cut-map", version: 3, migrationPosture: "strict-current", authored: "request",
+  });
+  return registry;
+}
+
 export type V3DecomposeStarterMap = z.infer<typeof V3DecomposeStarterMapSchema>;
 export type V3DecomposeCutMap = z.infer<typeof V3DecomposeCutMapSchema>;
 export type V3DecomposeMachine = V3DecomposeCutMap["machine"];
@@ -231,6 +209,9 @@ export interface V3DecomposeMapIssue {
     | "machine-identity"
     | "authoring-identity"
     | "authoring-order"
+    | "source-shape"
+    | "companion-disposition"
+    | "destination-coverage"
     | "placement-cardinality"
     | "shape-cardinality";
   path: string;
@@ -280,18 +261,6 @@ export function v3IncomingEdgeId(edge: { dependent: string; currentTargets: stri
 export function v3OutgoingEdgeId(edge: { prerequisite: string }): CanonicalDigest {
   const preimage = OutgoingEdgeSchema.omit({ edgeId: true }).parse(edge);
   return canonicalDigest({ schemaVersion: 3, kind: "outgoing", ...preimage });
-}
-
-/** Canonical identity for one source allocation unit. */
-export function v3SourceId(source: {
-  sourcePath: string;
-  sourceLocator: z.infer<typeof V3DecomposeLocatorSchema>;
-}): CanonicalDigest {
-  const preimage = z.strictObject({
-    sourcePath: ManagedPathSchema,
-    sourceLocator: V3DecomposeLocatorSchema,
-  }).parse(source);
-  return canonicalDigest({ schemaVersion: 3, ...preimage });
 }
 
 /** Canonical identity for the machine-owned decomposition preflight. */
@@ -453,6 +422,20 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
   if (!parsed.success) return { status: "rejected", issue: structuralIssue(input, parsed.error) };
   const invalidMachine = machineIssue(parsed.data.machine);
   if (invalidMachine !== null) return { status: "rejected", issue: invalidMachine };
+  const extraction = parsed.data.authoring.shape === "extraction";
+  if ((parsed.data.machine.source.kind === "active-origin" && !extraction)
+    || (parsed.data.machine.source.kind === "backlog-stub" && extraction)) {
+    return {
+      status: "rejected",
+      issue: {
+        code: "source-shape",
+        path: "machine.source.kind",
+        message: extraction
+          ? "Extraction requires a started-Planning or Active surviving origin."
+          : "Retirement shapes do not accept an Active surviving origin.",
+      },
+    };
+  }
   const identityPairs = [
     ["sourceAllocations", parsed.data.machine.sourceUnits.map(({ sourceId }) => sourceId),
       parsed.data.authoring.sourceAllocations.map(({ sourceId }) => sourceId)],
@@ -472,12 +455,55 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
     },
   };
   const { authoring } = parsed.data;
+  if (extraction) {
+    const companionIndex = parsed.data.machine.sourceUnits.findIndex((unit, index) => {
+      const artifact = unit.sourcePath.split("/").at(-1);
+      return artifact !== undefined
+        && !parsed.data.machine.planningProfile.sourceDesign.includes(artifact)
+        && authoring.sourceAllocations[index]?.disposition.kind !== "retained-origin";
+    });
+    if (companionIndex >= 0) {
+      return {
+        status: "rejected",
+        issue: {
+          code: "companion-disposition",
+          path: `authoring.sourceAllocations.${companionIndex}.disposition`,
+          message: "Extraction companion allocations must remain at the surviving origin.",
+        },
+      };
+    }
+  }
+  for (const [index, allocation] of authoring.sourceAllocations.entries()) {
+    if (allocation.disposition.kind !== "retained-origin") continue;
+    if (!extraction) {
+      return {
+        status: "rejected",
+        issue: {
+          code: "source-shape",
+          path: `authoring.sourceAllocations.${index}.disposition`,
+          message: "Only extraction may retain source scope at the surviving origin.",
+        },
+      };
+    }
+    if (allocation.ownership !== "destination-owned") {
+      return {
+        status: "rejected",
+        issue: {
+          code: "source-shape",
+          path: `authoring.sourceAllocations.${index}.ownership`,
+          message: "Retained-origin scope must carry destination-owned ownership.",
+        },
+      };
+    }
+  }
   const destinationIds = authoring.destinations.map(({ destinationId }) => destinationId);
   const internalIds = authoring.internalEdges.map(({ from, to }) => `${from}\0${to}`);
+  const externalIds = authoring.externalEdges.map(({ from, to }) => `${from}\0${to}`);
   const newCount = authoring.destinations.filter(({ kind }) => kind === "new-member").length;
   const existingCount = authoring.destinations.filter(({ kind }) => kind === "existing-home").length;
   const unorderedPath = !ordered(destinationIds) ? "authoring.destinations"
     : !ordered(internalIds) ? "authoring.internalEdges"
+      : !ordered(externalIds) ? "authoring.externalEdges"
       : authoring.incomingDispositions.findIndex(({ disposition }) =>
         disposition.kind === "replace" && !ordered(disposition.replacementTargets)) >= 0
         ? "authoring.incomingDispositions"
@@ -513,6 +539,8 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
       : destination.kind === "existing-home" && destination.target.kind === "work-unit"
         ? [destination.target.slug]
         : []));
+  const incomingRecipients = new Set(dependencyRecipients);
+  if (extraction) incomingRecipients.add(parsed.data.machine.source.origin);
   for (const [index, edge] of authoring.internalEdges.entries()) {
     for (const field of ["from", "to"] as const) {
       if (!dependencyRecipients.has(edge[field])) {
@@ -527,10 +555,22 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
       }
     }
   }
+  for (const [index, edge] of authoring.externalEdges.entries()) {
+    if (!dependencyRecipients.has(edge.from)) {
+      return {
+        status: "rejected",
+        issue: {
+          code: "authoring-identity",
+          path: `authoring.externalEdges.${index}.from`,
+          message: "Reference one dependency-capable destination declared by authoring.destinations.",
+        },
+      };
+    }
+  }
   for (const [index, edge] of authoring.incomingDispositions.entries()) {
     if (edge.disposition.kind !== "replace") continue;
     for (const [targetIndex, target] of edge.disposition.replacementTargets.entries()) {
-      if (!dependencyRecipients.has(target)) {
+      if (!incomingRecipients.has(target)) {
         return {
           status: "rejected",
           issue: {
@@ -558,27 +598,51 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
     }
   }
   if ((authoring.shape === "symmetric" && (newCount < 2 || existingCount !== 0))
-    || (authoring.shape === "heterogeneous" && (newCount < 1 || existingCount < 1))) return {
+    || (authoring.shape === "heterogeneous" && (newCount < 1 || existingCount < 1))
+    || (authoring.shape === "extraction" && newCount < 1)) return {
     status: "rejected",
     issue: {
       code: "shape-cardinality",
       path: "authoring.shape",
       message: authoring.shape === "symmetric"
         ? "A symmetric map needs at least two new members and no existing home."
-        : "A heterogeneous map needs at least one new member and one existing home.",
+        : authoring.shape === "heterogeneous"
+          ? "A heterogeneous map needs at least one new member and one existing home."
+          : "An extraction map needs at least one new member.",
     },
   };
   if ((authoring.placement.kind === "direct-member" && newCount !== 1)
-    || (authoring.placement.kind !== "direct-member" && newCount < 2)) return {
+    || (authoring.placement.kind !== "direct-member" && newCount < (extraction ? 1 : 2))) return {
     status: "rejected",
     issue: {
       code: "placement-cardinality",
       path: "authoring.placement",
       message: authoring.placement.kind === "direct-member"
         ? "Direct-member placement requires exactly one new member."
-        : "Multiple-member placement requires at least two new members.",
+        : extraction
+          ? "Extraction cohort placement requires at least one new member."
+          : "Multiple-member placement requires at least two new members.",
     },
   };
+  if (extraction) {
+    for (const [index, destination] of authoring.destinations.entries()) {
+      if (destination.kind !== "new-member") continue;
+      const covered = authoring.sourceAllocations.some((allocation) =>
+        allocation.ownership === "destination-owned"
+        && allocation.disposition.kind === "target"
+        && allocation.disposition.destinationId === destination.destinationId);
+      if (!covered) {
+        return {
+          status: "rejected",
+          issue: {
+            code: "destination-coverage",
+            path: `authoring.destinations.${index}`,
+            message: "Every extracted new member must own at least one destination-owned source unit.",
+          },
+        };
+      }
+    }
+  }
   return { status: "accepted", value: parsed.data };
 }
 
@@ -594,6 +658,7 @@ export function createV3DecomposeStarterMap(machine: V3DecomposeMachine): V3Deco
       placement: author,
       destinations: author,
       internalEdges: author,
+      externalEdges: author,
       sourceAllocations: machine.sourceUnits.map(({ sourceId }) => ({
         sourceId,
         ownership: author,

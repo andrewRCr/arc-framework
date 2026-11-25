@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { prepareMaterializedBranch } from "../../../src/lib/errand/materialize-branch.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
@@ -17,12 +18,12 @@ function execFor(remoteHead: string): {
   const localRef = `refs/heads/${branchName}`;
   let snapshotRef: string | null = null;
   let branch: { ref: string; head: string } | null = null;
-  const exec: GitExec = async (_command, args) => {
+  const exec: GitExec = async (command, args) => {
     if (args[0] === "show-ref") {
       if (args.join(" ") !== `show-ref --verify --quiet ${localRef}`) {
         throw new Error(`unexpected local branch probe: ${args.join(" ")}`);
       }
-      throw Object.assign(new Error("missing"), { code: 1 });
+      throw makeGitProcessError({ command, args, exitCode: 1, stderr: "missing" });
     }
     if (args[0] === "fetch") {
       const refspec = args[3];
@@ -60,11 +61,12 @@ function execFor(remoteHead: string): {
 
 describe("prepareMaterializedBranch", () => {
   it("accepts an existing local branch only when it is the exact retained head", async () => {
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "show-ref") return { stdout: "", stderr: "" };
-      if (args[0] === "rev-parse") return { stdout: `${RECORDED_HEAD}\n`, stderr: "" };
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["show-ref", "--verify", "--quiet", "refs/heads/chore/fix-output"],
+        responses: [{ stdout: "", stderr: "" }] },
+      { match: ["rev-parse", "--verify", "refs/heads/chore/fix-output^{commit}"],
+        responses: [{ stdout: `${RECORDED_HEAD}\n`, stderr: "" }] },
+    ]);
     await expect(prepareMaterializedBranch({
       exec,
       remote: "origin",
@@ -92,13 +94,19 @@ describe("prepareMaterializedBranch", () => {
   });
 
   it("preserves a remote-head refusal when temporary-ref cleanup also fails", async () => {
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "show-ref") throw Object.assign(new Error("missing"), { code: 1 });
-      if (args[0] === "fetch") return { stdout: "", stderr: "" };
-      if (args[0] === "rev-parse") return { stdout: `${REMOTE_HEAD}\n`, stderr: "" };
-      if (args[0] === "update-ref" && args[1] === "-d") throw new Error("cleanup unavailable");
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["show-ref", "--verify", "--quiet", "refs/heads/chore/fix-output"],
+        responses: [{ failure: { exitCode: 1, stderr: "missing" } }] },
+      { match: { predicate: (args) => args[0] === "fetch" && args[1] === "--" && args[2] === "origin"
+        && args[3]?.startsWith("+refs/heads/chore/fix-output:refs/arc/tmp/transient-materialize/") === true },
+      responses: [{ stdout: "", stderr: "" }] },
+      { match: { predicate: (args) => args[0] === "rev-parse" && args[1] === "--verify"
+        && args[2]?.startsWith("refs/arc/tmp/transient-materialize/") === true },
+      responses: [{ stdout: `${REMOTE_HEAD}\n`, stderr: "" }] },
+      { match: { predicate: (args) => args[0] === "update-ref" && args[1] === "-d"
+        && args[2]?.startsWith("refs/arc/tmp/transient-materialize/") === true },
+      responses: [{ failure: { exitCode: 128, stderr: "cleanup unavailable" } }] },
+    ]);
 
     await expect(prepareMaterializedBranch({
       exec,

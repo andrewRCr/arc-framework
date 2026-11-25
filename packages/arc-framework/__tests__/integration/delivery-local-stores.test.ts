@@ -181,6 +181,23 @@ describe("repository delivery plan store", () => {
       .toEqual([{ status: "refused", reason: "version-conflict" }]);
   });
 
+  it("removes only the exact current plan and adopts prior exact removal", async () => {
+    const records = await planStore();
+    const current = plan(PLAN_ID_1, "current");
+    await records.store.publishCurrent(PLAN_ID_1, current, null);
+
+    await expect(records.store.removeCurrent(
+      PLAN_ID_1,
+      planCodec.digest(plan(PLAN_ID_1, "stale")),
+    )).resolves.toEqual({ status: "refused", reason: "version-conflict" });
+    await expect(records.store.readCurrent(PLAN_ID_1)).resolves.toEqual({ status: "ok", value: current });
+
+    await expect(records.store.removeCurrent(PLAN_ID_1, planCodec.digest(current)))
+      .resolves.toEqual({ status: "ok", value: { removed: true } });
+    await expect(records.store.removeCurrent(PLAN_ID_1, planCodec.digest(current)))
+      .resolves.toEqual({ status: "ok", value: { removed: false } });
+  });
+
   it("leaves no partial plan when publication fails after locking", async () => {
     const crash = new Error("simulated publication crash");
     const records = await planStore({ writeFile: async () => { throw crash; } });

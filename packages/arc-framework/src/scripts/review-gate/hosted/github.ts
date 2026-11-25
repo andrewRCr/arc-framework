@@ -44,6 +44,7 @@ export interface HostedGitHubReview {
 export interface HostedGitHubThreadComment {
   id: string;
   reviewId: string;
+  replyToReviewId: string | null;
   actorIdentity: string | null;
   body: string;
   url: string;

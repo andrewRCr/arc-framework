@@ -34,6 +34,8 @@ export interface ApplyIO {
   readFile: ReadFileFn;
   writeFile: WriteFileFn;
   mkdir: MkdirFn;
+  /** Rewrite a Configurable file's stored content, keyed by its absolute path, before the three-way merge. */
+  migrate?: (path: string, content: string) => string;
 }
 
 /** Rendering context needed to render templates during apply. */
@@ -50,7 +52,7 @@ export interface ApplyResult {
   updated: number;
   /** Conflicted file paths requiring manual resolution. */
   conflicts: string[];
-  /** Files whose pristine baseline was rebuilt (missing from store). */
+  /** Customized files with no stored baseline, kept local without this update's upstream changes. */
   pristineRebuilt: string[];
   /** Newly added file paths. */
   added: string[];
@@ -180,7 +182,7 @@ export async function applyChangePlan(
 
     // Framework files: wholesale replacement — skip merge, write directly.
     // Adopter modifications are intentionally overwritten; customization
-    // uses methods, extensions, or config — not direct Framework edits.
+    // uses methods, check declarations, or config — not direct Framework edits.
     if (entry.classification === "Framework") {
       let current: string | undefined;
       try {
@@ -204,14 +206,14 @@ export async function applyChangePlan(
     }
 
     // Configurable files: three-way merge preserving adopter customizations
-    let current: string | undefined;
+    let stored: string | undefined;
     try {
-      current = await io.readFile(currentPath);
+      stored = await io.readFile(currentPath);
     } catch {
       // File missing from disk — will be reinstalled
     }
 
-    if (current === undefined) {
+    if (stored === undefined) {
       await ensureDir(dirname(currentPath), io.mkdir);
       await io.writeFile(currentPath, updated);
       result.newPristineStore[entry.outputPath] = updated;
@@ -220,15 +222,22 @@ export async function applyChangePlan(
       continue;
     }
 
+    const current = io.migrate?.(currentPath, stored) ?? stored;
+
+    // With no stored baseline, the update stands in as the base, so the merge keeps the local content
     const effectiveBase = entry.pristineContent ?? updated;
-    const pristineRebuilt = entry.pristineContent === undefined;
+    const keptLocal = entry.pristineContent === undefined && current !== updated;
 
     const merged = await mergeFileContents(mergeFn, current, effectiveBase, updated);
 
-    await ensureDir(dirname(currentPath), io.mkdir);
-    await io.writeFile(currentPath, merged.content);
+    // Rewriting the bytes already on disk would let a concurrent reader, such as another update's uncommitted-changes
+    // check, see the file truncated mid-write
+    if (merged.content !== stored) {
+      await ensureDir(dirname(currentPath), io.mkdir);
+      await io.writeFile(currentPath, merged.content);
+    }
 
-    if (pristineRebuilt) {
+    if (keptLocal) {
       result.pristineRebuilt.push(entry.outputPath);
     }
 

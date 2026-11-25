@@ -49,7 +49,6 @@ export type {
   ConfigSessionInitOptions,
   ConfigSessionInitResult,
   ConfigSessionInitSettings,
-  ConfigSettings,
   ConfigStatusOptions,
   ConfigStatusResult,
 } from "./config/types.js";

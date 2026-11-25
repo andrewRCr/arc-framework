@@ -1,0 +1,525 @@
+/** Unit coverage for total evidence-delta composition. */
+
+import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
+
+import {
+  EvidenceDeltaProducerSchema,
+  EvidenceDeltaSchema,
+  HostMergeAdmissionSchema,
+  MAX_EVIDENCE_APPLICABILITY_PATHS,
+  composeEvidenceDelta,
+  type EvidenceOverlapObservation,
+} from "../../../src/lib/evidence-applicability/index.js";
+import type { GitMergeFeasibility } from "../../../src/lib/git/merge-feasibility.js";
+
+const oid = (character: string): string => character.repeat(40);
+const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
+const coordinates = (base = oid("a"), head = oid("b")) => ({
+  repository: "owner/repo",
+  changeRequest: 42,
+  base,
+  head,
+});
+const target = (revision: string) => ({
+  revision,
+  subject: { entries: [], subjectDigest: digest(revision[0] ?? "a") },
+});
+const reviewable = "packages/arc-framework/src/example.ts";
+const regenerable = ".arc/backlog/ROADMAP.md";
+const overlap = {
+  status: "available" as const,
+  substantivePaths: [reviewable],
+  regenerablePaths: [regenerable],
+};
+
+describe("evidence delta composition", () => {
+  it("normalizes a base movement into every total axis", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap },
+      hostAdmission: {
+        state: "mergeable",
+        coordinates: coordinates(),
+        evidenceRef: "host://merge/42",
+      },
+    })).toEqual({
+      cause: "base-movement",
+      relation: "not-applicable",
+      overlap: {
+        kind: "overlapping",
+        substantivePaths: ["packages/arc-framework/src/example.ts"],
+        regenerablePaths: [".arc/backlog/ROADMAP.md"],
+      },
+      hostAdmission: {
+        state: "mergeable",
+        coordinates: coordinates(),
+        evidenceRef: "host://merge/42",
+        detail: null,
+      },
+      approvedScope: "not-applicable",
+      observed: { kind: "base-movement", coordinates: coordinates() },
+      residual: ["packages/arc-framework/src/example.ts"],
+      substantiveMerge: "unobserved",
+    });
+  });
+
+  it("reads whether the merge of base and head leaves a substantive conflict", () => {
+    const merged = (merge?: GitMergeFeasibility) => composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap, ...(merge === undefined ? {} : { merge }) },
+    });
+    const at = { base: oid("a"), head: oid("b") };
+
+    expect([
+      merged({ state: "clean", ...at }),
+      merged({ state: "regenerable-conflict", ...at, paths: [regenerable] }),
+      merged({ state: "substantive-conflict", ...at, paths: [reviewable] }),
+      merged({ state: "unavailable", ...at, detail: "merge-tree is unavailable" }),
+      merged(),
+    ].map((delta) => delta.cause === "base-movement" ? delta.substantiveMerge : delta.cause))
+      .toEqual(["clean", "clean", "conflicted", "unobserved", "unobserved"]);
+  });
+
+  it("leaves a merge observed at other coordinates unobserved", () => {
+    for (const at of [{ base: oid("c"), head: oid("b") }, { base: oid("a"), head: oid("c") }]) {
+      expect(composeEvidenceDelta({
+        cause: "base-movement",
+        observation: { coordinates: coordinates(), overlap, merge: { state: "clean", ...at } },
+      })).toMatchObject({ substantiveMerge: "unobserved" });
+    }
+  });
+
+  it("leaves a base with more than one comparison point unproven rather than disjoint", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap: { status: "ambiguous" } },
+    })).toMatchObject({
+      cause: "base-movement",
+      overlap: { kind: "unknown", substantivePaths: [], regenerablePaths: [] },
+    });
+  });
+
+  it("leaves a base sharing no history unproven rather than disjoint", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap: { status: "unrelated" } },
+    })).toMatchObject({
+      cause: "base-movement",
+      overlap: { kind: "unknown", substantivePaths: [], regenerablePaths: [] },
+    });
+  });
+
+  it("converts each observation status to the arm the crossing states for it", () => {
+    const converted = (observed: EvidenceOverlapObservation) => composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap: observed },
+    }).overlap.kind;
+
+    expect([
+      converted({ status: "available", substantivePaths: [reviewable], regenerablePaths: [] }),
+      converted({ status: "available", substantivePaths: [], regenerablePaths: [] }),
+      converted({ status: "ambiguous" }),
+      converted({ status: "unrelated" }),
+      converted({ status: "unavailable", reason: "merge-base-failed" }),
+    ]).toEqual(["overlapping", "disjoint", "unknown", "unknown", "unknown"]);
+  });
+
+  it("never converts an observation carrying no path evidence into the strongest accept", () => {
+    const unproven: EvidenceOverlapObservation[] = [
+      { status: "ambiguous" },
+      { status: "unrelated" },
+      { status: "unavailable", reason: "merge-base-failed" },
+    ];
+
+    // None of the three states what the two sides share, so the arm that says they share nothing is the one
+    // answer none of them supports.
+    for (const observed of unproven) {
+      expect(composeEvidenceDelta({
+        cause: "base-movement",
+        observation: { coordinates: coordinates(), overlap: observed },
+      }).overlap.kind).not.toBe("disjoint");
+    }
+  });
+
+  it("converts an available observation with no shared paths into that accept unchanged", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [regenerable] },
+      },
+    })).toMatchObject({
+      overlap: { kind: "disjoint", substantivePaths: [], regenerablePaths: [regenerable] },
+    });
+  });
+
+  it("rejects mismatched host authority into an unresolved admission", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap },
+      hostAdmission: {
+        state: "mergeable",
+        coordinates: coordinates(oid("c"), oid("d")),
+        evidenceRef: "host://merge/42",
+      },
+    })).toMatchObject({
+      hostAdmission: {
+        state: "unresolved",
+        coordinates: null,
+        evidenceRef: "host://merge/42",
+      },
+    });
+  });
+
+  it("rejects normalized host authority bound to different coordinates", () => {
+    const movement = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
+      hostAdmission: {
+        state: "mergeable",
+        coordinates: coordinates(),
+      },
+    });
+    assertSchemaRefuses(EvidenceDeltaSchema, {
+      ...movement,
+      hostAdmission: {
+        ...movement.hostAdmission,
+        coordinates: { ...coordinates(), changeRequest: 99 },
+      },
+    });
+
+    const before = coordinates(oid("a"), oid("b"));
+    const after = coordinates(oid("c"), oid("b"));
+    const merge = composeEvidenceDelta({
+      cause: "base-merge",
+      before,
+      after,
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      hostAdmission: { state: "mergeable", coordinates: after },
+    });
+    assertSchemaRefuses(EvidenceDeltaSchema, {
+      ...merge,
+      hostAdmission: {
+        ...merge.hostAdmission,
+        coordinates: { ...after, repository: "other/repo" },
+      },
+    });
+  });
+
+  it("maps D4 proof relations and preserves only bounded residuals", () => {
+    const endpoints = {
+      before: {
+        predecessor: { head: oid("1"), tree: oid("2") },
+        member: { head: oid("3"), tree: oid("4") },
+      },
+      after: {
+        predecessor: { head: oid("5"), tree: oid("6") },
+        member: { head: oid("7"), tree: oid("8") },
+      },
+    };
+    expect(composeEvidenceDelta({
+      cause: "member-rewrite",
+      endpoints,
+      proof: {
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: ["b.ts", "a.ts", "a.ts"],
+      },
+    })).toMatchObject({
+      cause: "member-rewrite",
+      relation: "clean-divergence",
+      observed: { kind: "member-rewrite", endpoints },
+      residual: ["a.ts", "b.ts"],
+    });
+
+    expect(composeEvidenceDelta({
+      cause: "member-rewrite",
+      endpoints,
+      proof: {
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: Array.from({ length: 201 }, (_, index) => `path-${String(index).padStart(3, "0")}.ts`),
+      },
+    })).toMatchObject({ relation: "clean-divergence", residual: null });
+  });
+
+  it("derives approved scope only from the optional approver-bound field", () => {
+    const common = {
+      cause: "approved-fix" as const,
+      response: {
+        candidateId: digest("a"),
+        dispositionId: digest("b"),
+        oldTarget: target(oid("a")),
+        newTarget: target(oid("b")),
+        applicability: "targeted" as const,
+      },
+      delta: { added: [], removed: [], changed: ["packages/arc-framework/src/example.ts"] },
+    };
+
+    expect(composeEvidenceDelta(common)).toMatchObject({ approvedScope: "full" });
+    expect(composeEvidenceDelta({
+      ...common,
+      response: { ...common.response, approvedVerification: "focused" },
+    })).toMatchObject({ approvedScope: "focused" });
+  });
+
+  it("normalizes base-merge and unexplained observations without invented axes", () => {
+    const before = coordinates(oid("a"), oid("b"));
+    const after = coordinates(oid("c"), oid("b"));
+    expect(composeEvidenceDelta({
+      cause: "base-merge",
+      before,
+      after,
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+    })).toMatchObject({
+      cause: "base-merge",
+      relation: "not-applicable",
+      overlap: { kind: "disjoint" },
+      observed: { kind: "base-merge", before, after },
+    });
+
+    expect(composeEvidenceDelta({
+      cause: "unexplained",
+      candidateId: digest("a"),
+      priorTarget: target(oid("a")),
+      currentTarget: target(oid("b")),
+      delta: { added: ["a.ts"], removed: [], changed: [] },
+    })).toMatchObject({
+      cause: "unexplained",
+      relation: "not-applicable",
+      overlap: { kind: "not-applicable" },
+      hostAdmission: { state: "not-applicable" },
+      approvedScope: "not-applicable",
+      residual: ["a.ts"],
+    });
+  });
+
+  it("rejects extra keys and contradictory normalized overlap", () => {
+    const normalized = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
+    });
+    assertSchemaRefuses(EvidenceDeltaSchema, { ...normalized, extra: true });
+    assertSchemaRefuses(EvidenceDeltaSchema, {
+      ...normalized,
+      overlap: {
+        kind: "disjoint",
+        substantivePaths: ["unexpected.ts"],
+        regenerablePaths: [],
+      },
+    });
+  });
+
+  it("rejects paths classified as both substantive and regenerable", () => {
+    const duplicatedPath = ".arc/backlog/ROADMAP.md";
+    expect(() => composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: {
+          status: "available",
+          substantivePaths: [duplicatedPath],
+          regenerablePaths: [duplicatedPath],
+        },
+      },
+    })).toThrow(/substantive and regenerable path evidence must be disjoint/u);
+
+    const normalized = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: {
+          status: "available",
+          substantivePaths: ["packages/arc-framework/src/example.ts"],
+          regenerablePaths: [duplicatedPath],
+        },
+      },
+    });
+    assertSchemaRefuses(EvidenceDeltaSchema, {
+      ...normalized,
+      overlap: {
+        kind: "overlapping",
+        substantivePaths: [duplicatedPath],
+        regenerablePaths: [duplicatedPath],
+      },
+      residual: [duplicatedPath],
+    });
+  });
+
+  it("retains exact over-bound overlap while closing the judgment residual", () => {
+    const paths = Array.from(
+      { length: 201 },
+      (_, index) => `path-${String(index).padStart(3, "0")}.ts`,
+    );
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: paths, regenerablePaths: [] },
+      },
+    })).toMatchObject({
+      overlap: { kind: "overlapping", substantivePaths: paths },
+      residual: null,
+    });
+  });
+
+  it("retains the complete residual at the exact path-count bound", () => {
+    const paths = Array.from(
+      { length: MAX_EVIDENCE_APPLICABILITY_PATHS },
+      (_, index) => `path-${String(index).padStart(3, "0")}.ts`,
+    );
+    const normalized = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: paths, regenerablePaths: [] },
+      },
+    });
+
+    expect(normalized.overlap).toEqual({
+      kind: "overlapping",
+      substantivePaths: paths,
+      regenerablePaths: [],
+    });
+    expect(normalized.residual).toEqual(paths);
+  });
+
+  it("rejects normalized base movement with an incomplete overlap residual", () => {
+    const paths = Array.from(
+      { length: 201 },
+      (_, index) => `path-${String(index).padStart(3, "0")}.ts`,
+    );
+    const normalized = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: paths, regenerablePaths: [] },
+      },
+    });
+    assertSchemaRefuses(EvidenceDeltaSchema, { ...normalized, residual: [paths[0]] });
+
+    const bounded = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: ["a.ts", "b.ts"], regenerablePaths: [] },
+      },
+    });
+    assertSchemaRefuses(EvidenceDeltaSchema, { ...bounded, residual: ["a.ts"] });
+  });
+
+  it("canonicalizes valid Unicode paths by UTF-8 byte order", () => {
+    const bmpPath = "\uE000.ts";
+    const astralPath = "\u{10000}.ts";
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: {
+          status: "available",
+          substantivePaths: [astralPath, bmpPath],
+          regenerablePaths: [],
+        },
+      },
+    })).toMatchObject({
+      overlap: { substantivePaths: [bmpPath, astralPath] },
+      residual: [bmpPath, astralPath],
+    });
+  });
+
+  it("fails strict producer and host boundaries closed", () => {
+    assertSchemaRefuses(EvidenceDeltaProducerSchema, {
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
+      extra: true,
+    });
+    assertSchemaRefuses(EvidenceDeltaProducerSchema, { cause: "base-movement" });
+    assertSchemaRefuses(EvidenceDeltaProducerSchema, {
+      cause: "member-rewrite",
+      endpoints: {},
+      proof: { status: "accepted", proof: "unknown" },
+    });
+    assertSchemaRefuses(HostMergeAdmissionSchema, {
+      state: "mergeable",
+      coordinates: coordinates(),
+      providerStatus: 200,
+    });
+  });
+
+  it("rejects a base merge that changes non-base coordinates", () => {
+    assertSchemaRefuses(EvidenceDeltaProducerSchema, {
+      cause: "base-merge",
+      before: coordinates(oid("a"), oid("b")),
+      after: { ...coordinates(oid("c"), oid("d")), changeRequest: 43 },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+    });
+  });
+
+  it("rejects normalized base-merge coordinate discontinuity", () => {
+    const before = coordinates(oid("a"), oid("b"));
+    const after = coordinates(oid("c"), oid("b"));
+    const normalized = composeEvidenceDelta({
+      cause: "base-merge",
+      before,
+      after,
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+    });
+
+    assertSchemaRefuses(EvidenceDeltaSchema, {
+      ...normalized,
+      observed: {
+        ...normalized.observed,
+        after: {
+          ...after,
+          repository: "other/repo",
+          changeRequest: 99,
+          head: oid("d"),
+        },
+      },
+    });
+  });
+
+  it("rejects normalized carried D4 relations with divergence residuals", () => {
+    const endpoints = {
+      before: {
+        predecessor: { head: oid("1"), tree: oid("2") },
+        member: { head: oid("3"), tree: oid("4") },
+      },
+      after: {
+        predecessor: { head: oid("5"), tree: oid("6") },
+        member: { head: oid("7"), tree: oid("8") },
+      },
+    };
+    const proof = {
+      status: "refused" as const,
+      reason: "contribution-diverged" as const,
+      paths: ["security.ts"],
+    };
+    const rewrite = composeEvidenceDelta({ cause: "member-rewrite", endpoints, proof });
+    assertSchemaRefuses(EvidenceDeltaSchema, { ...rewrite, relation: "equal" });
+
+    const before = coordinates(oid("a"), oid("b"));
+    const after = coordinates(oid("c"), oid("b"));
+    const merge = composeEvidenceDelta({
+      cause: "base-merge",
+      before,
+      after,
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      projection: { endpoints, proof },
+    });
+    assertSchemaRefuses(EvidenceDeltaSchema, {
+      ...merge,
+      relation: "mechanical-reapply",
+    });
+  });
+});

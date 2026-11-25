@@ -8,6 +8,7 @@ import {
   type DeliveryPlanAuthoringInputV1,
   type DeliveryPlanV1,
 } from "../../../src/lib/delivery/schema.js";
+import type { DeliveryTaskInventoryEntry } from "../../../src/lib/delivery/task-inventory.js";
 import { canonicalDigest, SlugSchema, type CanonicalDigest } from "../../../src/lib/kernel/index.js";
 
 const planId = "123e4567-e89b-42d3-a456-426614174000";
@@ -26,35 +27,42 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
       ],
     },
     tasks: {
-      implementation: [{ taskId: "1.1" }, { taskId: "1.2" }, { taskId: "1.3" }],
-      verificationTaskId: "2.1",
+      parents: [
+        { taskId: "1.1", role: { kind: "implementation" } },
+        { taskId: "1.2", role: { kind: "verification", scope: "member" } },
+        { taskId: "1.3", role: { kind: "implementation" } },
+        { taskId: "1.4", role: { kind: "verification", scope: "member" } },
+        { taskId: "1.5", role: { kind: "implementation" } },
+        { taskId: "1.6", role: { kind: "verification", scope: "member" } },
+        { taskId: "2.1", role: { kind: "verification", scope: "work-unit" } },
+      ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [
       {
         chunkKey: "first",
         title: "First member",
         contract: "Publish the first contract.",
-        taskIds: ["1.1"],
+        taskIds: ["1.1", "1.2"],
         designElementIds: ["detailed:core-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
       {
         chunkKey: "second",
         title: "Second member",
         contract: "Publish the second contract.",
-        taskIds: ["1.2"],
+        taskIds: ["1.3", "1.4"],
         designElementIds: ["detailed:support-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
       {
         chunkKey: "third",
         title: "Third member",
         contract: "Publish the third contract.",
-        taskIds: ["1.3"],
+        taskIds: ["1.5", "1.6"],
         designElementIds: ["detailed:tail-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
     ],
     seams: [],
@@ -97,17 +105,48 @@ function constructPlan(
     }],
   });
   if (design.status !== "bound") throw new Error("fixture design inventory must bind");
-  const implementation = [
-    { taskId: "1.1", semanticDigest: canonicalDigest({ goal: semantics.task?.["1.1"] ?? "First" }) },
-    { taskId: "1.2", semanticDigest: canonicalDigest({ goal: semantics.task?.["1.2"] ?? "Second" }) },
-    { taskId: "1.3", semanticDigest: canonicalDigest({ goal: semantics.task?.["1.3"] ?? "Third" }) },
+  const parents: DeliveryTaskInventoryEntry[] = [
+    {
+      taskId: "1.1",
+      semanticDigest: canonicalDigest({ goal: semantics.task?.["1.1"] ?? "First" }),
+      role: { kind: "implementation" as const },
+    },
+    {
+      taskId: "1.2",
+      semanticDigest: canonicalDigest({ goal: "Verify first" }),
+      role: { kind: "verification" as const, scope: "member" },
+    },
+    {
+      taskId: "1.3",
+      semanticDigest: canonicalDigest({ goal: semantics.task?.["1.3"] ?? "Second" }),
+      role: { kind: "implementation" as const },
+    },
+    {
+      taskId: "1.4",
+      semanticDigest: canonicalDigest({ goal: "Verify second" }),
+      role: { kind: "verification" as const, scope: "member" },
+    },
+    {
+      taskId: "1.5",
+      semanticDigest: canonicalDigest({ goal: semantics.task?.["1.5"] ?? "Third" }),
+      role: { kind: "implementation" as const },
+    },
+    {
+      taskId: "1.6",
+      semanticDigest: canonicalDigest({ goal: "Verify third" }),
+      role: { kind: "verification" as const, scope: "member" },
+    },
+    {
+      taskId: "2.1",
+      semanticDigest: null,
+      role: { kind: "verification" as const, scope: "work-unit" },
+    },
   ];
   const result = constructDeliveryPlanRevision({
     authoring,
     taskInventory: {
-      inventoryDigest: canonicalDigest(implementation),
-      implementation,
-      verificationTaskId: "2.1",
+      inventoryDigest: canonicalDigest(parents),
+      parents,
     },
     designInventory: design.inventory,
     predecessor,
@@ -191,7 +230,7 @@ describe("classifyDeliveryPlanAmendment", () => {
     });
   });
 
-  it("routes member and projection changes by current bound and landed position", () => {
+  it("routes member changes by current bound and landed position", () => {
     const current = constructPlan(null);
     const [firstId, secondId, thirdId] = current.members.map((member) => member.deliverableId) as [
       CanonicalDigest,
@@ -205,20 +244,24 @@ describe("classifyDeliveryPlanAmendment", () => {
       .toEqual({ status: "accepted" });
 
     const unboundSuffix = successor(current, (authoring) => {
+      const secondTaskIds = authoring.members[1]!.taskIds;
+      const secondDesignElementIds = authoring.members[1]!.designElementIds;
+      const thirdTaskIds = authoring.members[2]!.taskIds;
+      const thirdDesignElementIds = authoring.members[2]!.designElementIds;
       [authoring.members[1], authoring.members[2]] = [authoring.members[2]!, authoring.members[1]!];
+      authoring.members[1]!.taskIds = secondTaskIds;
+      authoring.members[1]!.designElementIds = secondDesignElementIds;
+      authoring.members[2]!.taskIds = thirdTaskIds;
+      authoring.members[2]!.designElementIds = thirdDesignElementIds;
       authoring.members[2]!.contract = "Re-cut the unbound suffix.";
     });
     expect(classify({ current, proposed: unboundSuffix, bound: [firstId] }))
       .toEqual({ status: "accepted" });
 
     const additive = successor(current, (authoring) => {
-      authoring.members[1]!.taskIds = [
-        ...authoring.members[1]!.taskIds,
-        authoring.members[2]!.taskIds[0]!,
-      ];
       authoring.members[1]!.designElementIds = [
         ...authoring.members[1]!.designElementIds,
-        authoring.members[2]!.designElementIds[0]!,
+        authoring.members[0]!.designElementIds[0]!,
       ];
     });
     expect(classify({ current, proposed: additive, bound: [secondId] }))
@@ -233,17 +276,7 @@ describe("classifyDeliveryPlanAmendment", () => {
       affectedDeliverableIds: [firstId, thirdId],
     });
 
-    const movedCoverage = successor(current, (authoring) => {
-      const movedTask = authoring.members[1]!.taskIds[0]!;
-      authoring.members[1]!.taskIds = [];
-      authoring.members[2]!.taskIds = [...authoring.members[2]!.taskIds, movedTask];
-    });
-    expect(classify({ current, proposed: movedCoverage, bound: [secondId] })).toEqual({
-      status: "replacement-required",
-      affectedDeliverableIds: [secondId],
-    });
-
-    const movedSemantics = successor(current, () => undefined, { task: { "1.2": "Moved second semantics" } });
+    const movedSemantics = successor(current, () => undefined, { task: { "1.3": "Moved second semantics" } });
     expect(classify({ current, proposed: movedSemantics, bound: [secondId] })).toEqual({
       status: "replacement-required",
       affectedDeliverableIds: [secondId],
@@ -265,19 +298,6 @@ describe("classifyDeliveryPlanAmendment", () => {
       reason: "landed-member-changed",
     });
 
-    const projected = successor(current, (authoring) => {
-      authoring.projection = { kind: "stack-to-main" };
-      for (const member of authoring.members) member.mainlineLandability = "independently-landable";
-    });
-    expect(classify({ current, proposed: projected })).toEqual({ status: "accepted" });
-    expect(classify({ current, proposed: projected, bound: [secondId] })).toEqual({
-      status: "replacement-required",
-      affectedDeliverableIds: [secondId],
-    });
-    expect(classify({ current, proposed: projected, bound: [firstId], landed: [firstId] })).toEqual({
-      status: "refused",
-      reason: "landed-projection-changed",
-    });
   });
 
   it("preserves landed-side seam obligations while allowing proportionate suffix replacement", () => {

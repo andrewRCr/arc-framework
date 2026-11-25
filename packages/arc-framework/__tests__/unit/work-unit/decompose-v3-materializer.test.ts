@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest, digestBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest, digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   materializeV3DecomposePlan,
   type V3MaterializerIO,
@@ -113,6 +113,7 @@ function harness(
       applyAndStageFinal: async (path, state, bytes) => {
         applications.push({ path, state, bytes });
         states.set(path, state);
+        return { status: "applied" };
       },
     },
   };
@@ -199,10 +200,20 @@ describe("materializeV3DecomposePlan", () => {
     });
     expect(missing.applications).toEqual([]);
 
-    const mismatched = harness(states, encoder.encode("wrong\n"));
-    expect(await materializeV3DecomposePlan(plan(), mismatched.io)).toMatchObject({
+    const wrongBytes = encoder.encode("wrong\n");
+    const mismatched = harness(states, wrongBytes);
+    expect(await materializeV3DecomposePlan(plan(), mismatched.io)).toEqual({
       status: "refused",
       reason: "final-blob-mismatch",
+      path: ".arc/active/meta-member.md",
+      appliedPaths: [],
+      evidence: {
+        expected: after.contentDigest,
+        actual: {
+          contentDigest: digestBytes(wrongBytes),
+          byteLength: wrongBytes.byteLength,
+        },
+      },
     });
     expect(mismatched.applications).toEqual([]);
   });
@@ -299,7 +310,7 @@ describe("materializeV3DecomposePlan", () => {
       if (path === ".arc/backlog/ROADMAP.md") {
         throw new Error("apply failed");
       }
-      await applyAndStageFinal(path, state, bytes);
+      return await applyAndStageFinal(path, state, bytes);
     };
 
     expect(await materializeV3DecomposePlan(plan(), h.io)).toEqual({
@@ -309,6 +320,7 @@ describe("materializeV3DecomposePlan", () => {
       appliedPaths: [
         ".arc/active/meta-member.md",
         ".arc/backlog/planned/member/draft-member.md",
+        ".arc/backlog/ROADMAP.md",
       ],
     });
     expect(h.applications.map(({ path }) => path)).toEqual([

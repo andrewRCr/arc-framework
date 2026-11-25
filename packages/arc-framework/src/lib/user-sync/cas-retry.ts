@@ -12,21 +12,22 @@
  * shared {@link MAX_RECONCILE_ATTEMPTS}, mirroring the cross-machine push's
  * typed-failure-on-exhaustion contract rather than looping or dropping.
  *
- * It lives here, beside the {@link isCasRejectionError} discriminator, because it
- * builds on the git plumbing (lower tier) and the user-sync reconcile vocabulary;
- * both the errand and sync-state consumers route their direct writes through it.
+ * It lives here because it builds on the git plumbing (lower tier) and the
+ * user-sync reconcile vocabulary; the {@link isCasRejectionError} discriminator
+ * lives with the shared ref-tree plumbing. Both errand and sync-state consumers
+ * route their direct writes through this frame.
  *
  * @module
  */
 
 import {
   MAX_RECONCILE_ATTEMPTS,
+  isCasRejectionError,
   readRefTip,
   readTreeEntriesDiscriminating,
   writeTreeCommit,
   type RefTreeWriteIO,
 } from "../git/ref-tree.js";
-import { isCasRejectionError } from "./notes-merge.js";
 import { gitFailureText } from "../git/process-error.js";
 
 /**

@@ -80,6 +80,20 @@ afterEach(async () => {
 });
 
 describe("Markdown write command", () => {
+  it("formats an untracked Markdown file and leaves it untracked", async () => {
+    await writeFixtureFile(linked, "docs/untracked.md", "| X |\n| - |\n| 表 |\n");
+
+    const result = await runMarkdownWriteCommand(
+      "format-tables", linked, ["docs/untracked.md"], commandDependencies(),
+    );
+
+    expect(result.failure).toBeUndefined();
+    expect(result.result.writeStatus).toBe("complete");
+    expect(await readFile(join(linked, "docs/untracked.md"), "utf8")).toBe("| X  |\n| -- |\n| 表 |\n");
+    const { stdout } = await execFileAsync("git", ["ls-files", "--others", "--exclude-standard"], { cwd: linked });
+    expect(stdout).toContain("docs/untracked.md");
+  });
+
   it("formats multiple files from a linked-worktree subdirectory and reruns as a no-op", async () => {
     const originalPrimary = await readFile(join(primary, "docs/a.md"), "utf8");
     const paths = ["docs/a.md", "docs/b.md"];
@@ -108,17 +122,20 @@ describe("Markdown write command", () => {
   });
 
   it("validates the complete selection before writing any earlier valid file", async () => {
-    await writeFixtureFile(linked, "docs/untracked.md", "| X |\n| - |\n| 表 |\n");
-    const before = await readFile(join(linked, "docs/a.md"), "utf8");
+    const adminPath = ".git/info/notes.md";
+    const original = "| X |\n| - |\n| 表 |\n";
+    await writeFixtureFile(primary, adminPath, original);
+    const before = await readFile(join(primary, "docs/a.md"), "utf8");
 
     await expect(runMarkdownWriteCommand(
       "format-tables",
-      linked,
-      ["docs/a.md", "docs/untracked.md"],
+      primary,
+      ["docs/a.md", adminPath],
       commandDependencies(),
-    )).rejects.toMatchObject({ code: "markdown.untracked" });
-    expect(await readFile(join(linked, "docs/a.md"), "utf8")).toBe(before);
-    expect((await readdir(join(linked, "docs"))).some((entry) => entry.endsWith(".tmp"))).toBe(false);
+    )).rejects.toMatchObject({ code: "markdown.git-administration", message: expect.stringContaining(adminPath) });
+    expect(await readFile(join(primary, "docs/a.md"), "utf8")).toBe(before);
+    expect(await readFile(join(primary, adminPath), "utf8")).toBe(original);
+    expect((await readdir(join(primary, "docs"))).some((entry) => entry.endsWith(".tmp"))).toBe(false);
   });
 
   it("cleans the same-directory temporary file when atomic replacement fails", async () => {

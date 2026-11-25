@@ -44,6 +44,7 @@ function buildCanonicalFiles(
   const descriptions: Record<CanonicalSkillName, string> = {
     "arc-session": "Initialize and resume the active working ARC session.",
     "arc-commit": "Commit current repository changes with atomic boundaries.",
+    "arc-amend-design": "Amend a settled design when execution falsifies it.",
     "arc-design-audit": "Re-validate a finished design for efficacy, fit, and material proportionality.",
     "arc-errand": "Run an isolated ARC errand.",
     "arc-handoff": "Update and finalize current ARC session documentation.",

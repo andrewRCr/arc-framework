@@ -1,0 +1,602 @@
+/** Marker-selected work-unit authority comes from the operational store. */
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
+import { parseTaskListRecord } from "../../../src/lib/store/kinds/task-list/parser.js";
+import { createCandidateAttestation, createCandidateSubjectSnapshot, serializeCandidateManagedRecord } from "../../../src/lib/work-unit/candidate-attestation.js";
+import { projectPublicationBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectDurableCandidateTarget } from "../../helpers/candidate.js";
+import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/writer.js";
+import { SlugSchema } from "../../../src/lib/kernel/index.js";
+import { parseCohortDocument } from "../../../src/lib/store/kinds/cohort/parser.js";
+import { projectCandidateMutationOwner } from "../../../src/lib/work-unit/candidate-mutation-owner.js";
+import { recordReferences, OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { readDerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
+import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
+import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
+import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { acquireDerivedLocusEvidence, type DerivedLocusEvidenceIO } from "../../../src/lib/locus/derived-evidence.js";
+import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
+import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
+import { seed, success, testProvenance } from "../../helpers/store/suite-tools.js";
+import { deriveStoreInFlight } from "../../../src/lib/git/in-flight-store.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
+import { beginProjectionCommand, projectionProcessState } from "../../../src/lib/store/projection/process-state.js";
+
+beforeEach(() => { projectionProcessState().composedCapabilities.clear(); beginProjectionCommand(); });
+
+async function fixture(bound = true, markerName?: string) {
+  const fixture = createReferenceFixture({}, { "cohort/document": { parser: parseCohortDocument },
+    "work-item/task-list": { parser: content => ({ success: true, data: parseTaskListRecord(content) }) } });
+  const reference = fixture.reference("work-item/meta");
+  const fields = parseMetaRecord(makeMetaFixture(reference.owner.name, { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" }));
+  success(await fixture.store.write({ action: "put", reference, content: JSON.stringify(fields), expected: null,
+    placement: { kind: "active" }, provenance: testProvenance }));
+  const owner = success(await fixture.store.read({ reference })).reference.owner;
+  const uid = owner.type === "work-item" ? owner.uid : undefined;
+  if (bound && uid === undefined) throw new Error("Expected a minted work-unit UID");
+  const io: DerivedLocusEvidenceIO = {
+    store: fixture.store,
+    projectId: async () => "project-1",
+    scanWorktrees: async () => ({ ok: true, worktrees: [{ path: "/repo", head: "a".repeat(40), primary: true,
+      detached: false, branch: "main", folderPresent: true }] }),
+    readMarker: async () => {
+      const marker: WorktreeMarker = { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-16T12:00:00.000Z",
+        createdFor: { kind: "work-unit", name: markerName ?? reference.owner.name, ...(bound ? { uid } : {}) } };
+      return { kind: "present", bytes: Buffer.from(`${JSON.stringify(marker, null, 2)}\n`), marker };
+    },
+    listDirectory: async () => { throw new Error("Checkout files are stale"); },
+    readText: async () => { throw new Error("Checkout files are stale"); },
+    readArchivedMeta: async () => { throw new Error("Checkout archives are stale"); },
+    readIdentities: async () => ({ kind: "absent" }),
+    readCompleted: async () => ({ status: "available", records: new Map() }),
+    readPrimarySafety: async () => ({ kind: "complete", clean: true, onBase: true }),
+    canonicalizePath: async path => path,
+  };
+  return { fixture, reference, io, fields, uid };
+}
+
+describe("store locus evidence", () => {
+  it("reads an anchored marker's Planning record without checkout metadata", async () => {
+    const { io, reference } = await fixture();
+    const result = await acquireDerivedLocusEvidence({ identity: "andrew", io });
+    expect(result).toMatchObject({ kind: "complete", checkouts: [{ workUnit: { kind: "present",
+      subject: { kind: "work-unit", key: reference.owner.name }, fields: { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" },
+      branch: null, record: { placement: { kind: "active" } } } }] });
+  });
+});
+
+const subjectMetaIO: SubjectMetaIO = {
+  readFile: async () => { throw new Error("No projected file"); }, pathExists: async () => false,
+  realpath: async path => path, lstat: async () => ({ isSymbolicLink: () => false }),
+  projectCandidateTarget: async () => { throw new Error("No Candidate"); },
+  readPendingCandidateReviewFixAuthority: async () => ({ status: "none" }),
+  projectDeliveryCorrection: async () => ({ status: "none" }),
+};
+
+it("derives the marker's branchless Planning role and context from the store", async () => {
+  const { io, reference } = await fixture();
+  const evidence = await acquireDerivedLocusEvidence({ identity: "andrew", io });
+  if (evidence.kind !== "complete") throw new Error("Expected topology");
+  const frame = await readDerivedLocusFrame({ ...evidence, identity: "andrew", enteringCheckoutPath: "/repo",
+    canonicalizePath: async path => path, subjectMetaIO });
+  expect(frame.active).toMatchObject({ subject: { key: reference.owner.name }, context: {
+    branch: null, sessionType: "planning", owner: "andrew", metaPath: `.arc/active/meta-${reference.owner.name}.md` } });
+});
+
+async function frame(io: DerivedLocusEvidenceIO, metaIO: SubjectMetaIO = subjectMetaIO) {
+  const evidence = await acquireDerivedLocusEvidence({ identity: "andrew", io });
+  if (evidence.kind !== "complete") throw new Error("Expected topology");
+  return readDerivedLocusFrame({ ...evidence, store: io.store, identity: "andrew", enteringCheckoutPath: "/repo",
+    canonicalizePath: async path => path, subjectMetaIO: metaIO });
+}
+
+it.each(["live", "completed", "abandoned"] as const)("derives a %s UID holder despite a stale marker display name", async state => {
+  const h = await fixture(true, "former-name");
+  if (state === "completed") {
+    await changeMeta(h, { state: "Shipped", currentWorkflow: null }, undefined, true);
+    h.io.archiveCadence = "manual";
+  }
+  if (state === "abandoned") {
+    const record = success(await h.fixture.store.read({ reference: h.reference }));
+    const origin = { name: record.reference.owner.name, uid: h.uid };
+    success(await batchLifecycleWrites(h.fixture.store, [
+      { action: "remove", reference: record.reference, expected: record.version },
+      { action: "put", reference: recordReferences["lineage/transition"](record.reference.owner), expected: null,
+        content: writeLineageRecord({ schemaVersion: 2, kind: "abandon", origin, successors: [], incoming: [] }) },
+    ], { verb: "abandon", lifecycleAction: "abandon" }));
+  }
+  const result = await frame(h.io);
+  expect(result.roster[0]).toMatchObject({ kind: state === "live" ? "work-unit" : "retired",
+    subject: { kind: "work-unit", key: h.reference.owner.name, uid: h.uid }, diagnostics: [] });
+  if (state === "live") expect(result.active).toMatchObject({ subject: { key: h.reference.owner.name, uid: h.uid },
+    context: { metaPath: `.arc/active/in-flight/${h.reference.owner.name}/meta-${h.reference.owner.name}.md` } });
+  else expect(result.active).toBeNull();
+});
+
+it.each([false, true])("carries only a bound marker's UUID through row validation, bound=%s", async bound => {
+  const h = await fixture(bound), result = await frame(h.io);
+  if (result.entering.kind !== "selected") throw new Error("Expected the entering row");
+  const row = result.entering.row;
+  expect(row).toMatchObject({ kind: bound ? "work-unit" : "unresolved-checkout", subject: { kind: "work-unit", key: h.reference.owner.name } });
+  if (bound) expect(row.subject).toMatchObject({ uid: h.uid });
+  else expect(row.subject).not.toHaveProperty("uid");
+  expect(DerivedCheckoutRowSchema.safeParse({ ...row,
+    subject: { kind: "work-unit", key: h.reference.owner.name, uid: "not-a-uuid" },
+  }).success).toBe(false);
+});
+
+it("leaves both checkouts unresolved when two markers name one work unit", async () => {
+  const h = await fixture();
+  const scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[0]) throw new Error("Expected registration");
+  const original = scan.worktrees[0];
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [original, { ...original, path: "/other", primary: false }] });
+  const result = await frame(h.io);
+  expect(result.roster.map(row => row.kind)).toEqual(["unresolved-checkout", "unresolved-checkout"]);
+  expect(result.roster.every(row => row.diagnostics.some(item => item.code === "work-unit-locus-conflict"))).toBe(true);
+});
+
+it("withholds a preselected holder after a failed location lookup and resumes after repair", async () => {
+  const h = await fixture(), derived = await frame(h.io);
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
+  let repaired = false;
+  const options = { store: h.fixture.store, exec: fake.exec, identity: "andrew", teamMode: false,
+    projectId: async () => "project-1", roster: derived.roster,
+    findHoldingCheckout: async () => { if (!repaired) throw new Error("Holder evidence is unavailable. Repair the checkout claim and retry."); return { kind: "held" as const, path: "/repo" }; } };
+  const uncertain = await deriveStoreInFlight(options);
+  expect(uncertain.entries).toHaveLength(1);
+  expect(uncertain.entries[0]).not.toHaveProperty("worktreePath");
+  expect(uncertain.entries[0]).toMatchObject({ marks: expect.arrayContaining(["degraded", "indeterminate"]) });
+  expect(uncertain.warnings).toContainEqual(expect.objectContaining({ rendered: expect.stringMatching(/repair.*retry/iu) }));
+  repaired = true;
+  const healthy = await deriveStoreInFlight(options);
+  expect(healthy.entries[0]).toMatchObject({ worktreePath: "/repo" });
+  expect(healthy.entries[0]).not.toHaveProperty("marks");
+});
+
+it("grants no role when the store inventory misses a work-unit record", async () => {
+  const h = await fixture();
+  const unrelated = h.fixture.reference("work-item/meta", "other");
+  success(await h.fixture.store.write({ action: "put", reference: unrelated, content: JSON.stringify(h.fields), expected: null,
+    placement: { kind: "active" }, provenance: testProvenance }));
+  await h.fixture.plant(unrelated, "malformed");
+  const result = await frame(h.io);
+  expect(result.active).toBeNull();
+  expect(result.roster[0]).toMatchObject({ kind: "unresolved-checkout", diagnostics: [expect.objectContaining({ message: expect.stringMatching(/incomplete|malformed/iu) })] });
+});
+
+async function changeMeta(h: Awaited<ReturnType<typeof fixture>>, change: Partial<typeof h.fields>,
+  links?: import("../../../src/lib/store/links.js").Links, completed = false) {
+  const record = success(await h.fixture.store.read({ reference: h.reference }));
+  success(await h.fixture.store.write({ action: "put", reference: record.reference, expected: record.version,
+    content: JSON.stringify({ ...h.fields, ...change }), links,
+    placement: completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }
+      : { kind: "active" }, provenance: testProvenance }));
+}
+
+it("carries a paused work unit's pause record in its context", async () => {
+  const h = await fixture();
+  const pause = { pausedBy: "andrew", since: "2026-10-16T12:00:00.000Z", reason: "Waiting", waitsOn: null, resumeNotes: null, open: false };
+  await changeMeta(h, { pause });
+  expect((await frame(h.io)).active?.context.pause).toEqual(pause);
+});
+
+it("corroborates checkout topology against the qualified branch link", async () => {
+  const h = await fixture();
+  await changeMeta(h, {}, { branches: [{ repository: "project-1", ref: "feat/demo", linkedAs: "created", excluded: [] }] });
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "unresolved-checkout", diagnostics: [expect.objectContaining({ code: "topology-mismatch" })] });
+});
+
+it("reports ambiguous canonical links rather than granting a subject", async () => {
+  const h = await fixture();
+  await changeMeta(h, {}, { branches: ["feat/demo", "refs/heads/feat/demo"].map(ref => ({ repository: "project-1", ref, linkedAs: "created", excluded: [] })) });
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "unresolved-checkout", diagnostics: [expect.objectContaining({ message: expect.stringContaining("duplicate canonical") })] });
+});
+
+it("reports the project identity port's failure as incomplete subject evidence", async () => {
+  const h = await fixture();
+  h.io.projectId = async () => { throw new Error("Project identity is offline"); };
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "unresolved-checkout", diagnostics: [expect.objectContaining({ message: "Project identity is offline" })] });
+});
+
+it("binds the project identity reader from the selected store when no port is injected", async () => {
+  const h = await fixture();
+  const project = await seed(h.fixture, h.fixture.reference("project-registry/identity"));
+  if (!("uid" in project.reference.owner) || project.reference.owner.uid === undefined) throw new Error("Expected project UID");
+  await changeMeta(h, {}, { branches: [{ repository: project.reference.owner.uid, ref: "main", linkedAs: "adopted", excluded: [] }] });
+  h.io.projectId = undefined;
+  expect((await frame(h.io)).active?.context.branch).toBe("main");
+});
+
+it.each(["manual", "with-integration"] as const)("derives a completed record with a landing link as retired under %s", async archiveCadence => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, { landingCommit: { repository: "project-1", sha: "b".repeat(40) } }, true);
+  h.io.archiveCadence = archiveCadence;
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "retired", lifecycleLocation: "completed" });
+});
+
+it("keeps an archived unlanded work unit in the integration frame when no base resolves", async () => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, undefined, true);
+  h.io.archiveCadence = "with-integration";
+  h.io.baseBranch = "main";
+  h.io.exec = async () => { throw new Error("No base ref"); };
+  expect((await frame(h.io)).active?.context).toMatchObject({ sessionType: "integration", metaPath: expect.stringMatching(/completed\/2026-q4\/\d+_work-item-one\/meta-work-item-one\.md/u) });
+});
+
+it.each(["landed", "multi-commit-squash"])("classifies an externally %s completed work unit with strict patch identity", async outcome => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, undefined, true);
+  h.io.archiveCadence = "with-integration";
+  h.io.baseBranch = "main";
+  h.io.exec = async (_command, args) => {
+    if (args[0] === "rev-parse" && args.at(-1) === "origin/main") return { stdout: "b".repeat(40) };
+    if (args[0] === "cherry" && args[1] === "b".repeat(40) && args[2] === "a".repeat(40)) return {
+      stdout: outcome === "landed" ? `- ${"c".repeat(40)}\n` : `+ ${"c".repeat(40)}\n+ ${"d".repeat(40)}\n` };
+    throw new Error("Unexpected patch identity command");
+  };
+  expect((await frame(h.io)).roster[0]?.kind).toBe(outcome === "landed" ? "retired" : "work-unit");
+});
+
+it("projects the Candidate mutation owner from the store-derived subject", async () => {
+  const h = await fixture();
+  expect(projectCandidateMutationOwner(await frame(h.io))).toEqual({ status: "owned", workUnit: h.reference.owner.name, uid: h.uid });
+});
+
+it("reads a cohort document through the store and carries none when the document is missing", async () => {
+  const h = await fixture();
+  await changeMeta(h, { cohort: "group/leaf" });
+  expect((await frame(h.io)).active?.context.cohortDocPath).toBeNull();
+  const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "leaf" }));
+  success(await h.fixture.store.write({ action: "put", reference, content: "# Cohort: leaf\n\n**Parent:** `group`\n\n## Purpose\n\nCoordinate\n",
+    expected: null, provenance: testProvenance }));
+  expect((await frame(h.io)).active?.context.cohortDocPath).toBe(".arc/backlog/planned/group/leaf/cohort-leaf.md");
+});
+
+it("projects an independently completed cohort from its own later quarter and closeout", async () => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null, cohort: "group/leaf" }, undefined, true);
+  h.io.archiveCadence = "with-integration";
+  const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "leaf" }));
+  success(await h.fixture.store.write({ action: "put", reference, content: "# Cohort: leaf\n\n**Parent:** `group`\n\n## Purpose\n\nCoordinate\n",
+    expected: null, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2027-q1") }, provenance: testProvenance }));
+  expect((await frame(h.io)).active?.context.cohortDocPath).toMatch(/^\.arc\/completed\/2027-q1\/\d+a_cohort-leaf\/cohort-leaf\.md$/u);
+});
+
+it.each((["manual", "with-integration"] as const).flatMap(cadence => (["abandon", "decompose"] as const).map(kind => ({ cadence, kind }))))(
+  "$cadence derives terminal $kind lineage after primary removal", async ({ cadence, kind }) => {
+  const h = await fixture();
+  h.io.archiveCadence = cadence;
+  const record = success(await h.fixture.store.read({ reference: h.reference }));
+  const origin = { name: record.reference.owner.name, ...("uid" in record.reference.owner ? { uid: record.reference.owner.uid } : {}) };
+  const successors = kind === "abandon" ? [] : [{ name: SlugSchema.parse("successor") }];
+  const content = writeLineageRecord({ schemaVersion: 2, kind, origin, successors, incoming: [], retiredBranches: record.links?.branches ?? [],
+    ...(kind === "decompose" ? { outgoing: [] } : {}) });
+  if (kind === "decompose") success(await h.fixture.store.write({ action: "put", expected: null,
+    reference: recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "successor" })),
+    content: JSON.stringify(parseMetaRecord(makeMetaFixture("successor", { state: "Planning", currentWorkflow: "draft-design" }))),
+    placement: { kind: "active" }, provenance: testProvenance }));
+  success(await batchLifecycleWrites(h.fixture.store, [{ action: "remove", reference: record.reference, expected: record.version },
+    { action: "put", reference: recordReferences["lineage/transition"](record.reference.owner), expected: null, content }], { verb: kind, lifecycleAction: kind }));
+  expect((await frame(h.io)).roster[0]?.kind).toBe("retired");
+  expect((await frame(h.io)).active).toBeNull();
+});
+
+it("withholds terminal role from disputed lineage even when a completed primary remains", async () => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, undefined, true);
+  h.io.archiveCadence = "with-integration";
+  const primary = success(await h.fixture.store.read({ reference: h.reference }));
+  const reference = recordReferences["lineage/transition"](primary.reference.owner);
+  const origin = { name: primary.reference.owner.name, ...("uid" in primary.reference.owner ? { uid: primary.reference.owner.uid } : {}) };
+  const content = (sha: string) => writeLineageRecord({ schemaVersion: 2, kind: "abandon", origin, successors: [], incoming: [],
+    retiredBranches: [{ repository: "project-1", ref: "feat/retired", linkedAs: "created", excluded: [{ repository: "project-1", sha }] }] });
+  await seed(h.fixture, reference, content("a".repeat(40)));
+  const remote = h.fixture.remote(true);
+  if (remote === undefined) throw new Error("Expected a remote writer");
+  success(await remote.write({ action: "put", reference, expected: null, content: content("c".repeat(40)), provenance: testProvenance }));
+  success(await h.fixture.store.push());
+  const disputed = success(await h.fixture.store.read({ reference }));
+  expect(disputed.conflicts.length).toBeGreaterThan(0);
+  const unresolved = await frame(h.io);
+  expect(unresolved.active).toBeNull();
+  expect(unresolved.roster[0]?.kind).toBe("unresolved-checkout");
+  const message = unresolved.roster[0]?.diagnostics.map(item => item.message).join(" ") ?? "";
+  for (const conflict of disputed.conflicts) expect(message).toContain(JSON.stringify(conflict));
+  expect(message).toMatch(/resolve.*retry/iu);
+  for (const reference of disputed.conflicts) {
+    const conflict = success(await h.fixture.store.read({ reference }));
+    success(await h.fixture.store.write({ action: "remove", reference, expected: conflict.version, resolves: [reference],
+      provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  }
+  expect((await frame(h.io)).roster[0]?.kind).toBe("retired");
+});
+
+it("recovers an Integrating Candidate's boundary and session type from its work-branch link", async () => {
+  const h = await fixture();
+  const name = h.reference.owner.name;
+  const subject = createCandidateSubjectSnapshot([]);
+  const attestation = createCandidateAttestation({ workUnit: name, subject, baseRevision: "a".repeat(40),
+    attestedBy: "andrew", attestedAt: "2026-10-16T12:00:00.000Z", verificationEvidenceRef: `tasks-${name}.md#verification` });
+  const candidate = serializeCandidateManagedRecord({ schemaVersion: 1, semanticsVersion: "candidate-attestation/v1",
+    attestation, subject, transitions: [], lineageAttestations: [] });
+  await changeMeta(h, { state: "Integrating", branch: null, currentWorkflow: "integrate-work-unit", candidateId: attestation.candidateId },
+    { branches: [{ repository: "project-1", ref: "main", linkedAs: "adopted", excluded: [] }] });
+  const owner = success(await h.fixture.store.read({ reference: h.reference })).reference.owner;
+  await seed(h.fixture, recordReferences["review/candidate"](owner), candidate);
+  const boundary = projectPublicationBoundary({ workUnit: name, branch: "main", candidateId: attestation.candidateId,
+    candidateSubjectDigest: subject.subjectDigest, reservation: null, changeRequest: null }, 1);
+  await seed(h.fixture, recordReferences["review/integration-boundary"](owner), JSON.stringify(boundary));
+  const localIO: SubjectMetaIO = { ...subjectMetaIO, projectCandidateTarget: projectDurableCandidateTarget,
+    readFile: async () => { throw new Error("Checkout projections are not authoritative"); } };
+  expect((await frame(h.io, localIO)).active?.context).toMatchObject({ branch: "main", sessionType: "integration", integrationBoundary: boundary });
+});
+
+it("reports an unreadable marker without assigning a role", async () => {
+  const h = await fixture();
+  h.io.readMarker = async () => { throw new Error("Marker permission denied"); };
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "unresolved-checkout",
+    diagnostics: [expect.objectContaining({ message: "Marker permission denied" })] });
+});
+
+it("reports a failed store inventory without assigning a role", async () => {
+  const h = await fixture();
+  await h.fixture.plant(h.reference, "family-unreadable");
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "unresolved-checkout",
+    diagnostics: [expect.objectContaining({ source: "lifecycle", message: expect.stringContaining("family index cannot be read") })] });
+});
+
+it("reads the task cursor from the store at its projected artifact path", async () => {
+  const h = await fixture();
+  const name = h.reference.owner.name;
+  await changeMeta(h, { state: "Active", currentWorkflow: "process-task-loop", taskList: `tasks-${name}.md` });
+  const primary = success(await h.fixture.store.read({ reference: h.reference }));
+  success(await h.fixture.store.write({ action: "put", reference: recordReferences["work-item/task-list"](primary.reference.owner),
+    expected: null, content: "## **Phase 1:** Work\n\n### `[ ]` **1.1 Do the work**\n", provenance: testProvenance }));
+  expect((await frame(h.io)).active?.context).toMatchObject({ taskListPath: `.arc/active/in-flight/${name}/tasks-${name}.md`,
+    taskCursor: { status: "found", cursor: { leaf: { id: "1.1" } } }, sessionType: "execution" });
+});
+
+it("withholds a declared missing task list and resumes execution after restoring its record", async () => {
+  const h = await fixture(), name = h.reference.owner.name;
+  await changeMeta(h, { state: "Active", currentWorkflow: null, taskList: `tasks-${name}.md` });
+  const before = success(await h.fixture.store.version()), unresolved = await frame(h.io);
+  expect(unresolved.active).toBeNull();
+  expect(unresolved.roster[0]).toMatchObject({ kind: "unresolved-checkout", context: null });
+  const message = unresolved.roster[0]?.diagnostics.map(item => item.message).join(" ") ?? "";
+  expect(message).toContain(`tasks-${name}.md`);
+  expect(message).toMatch(/task list.*(unavailable|missing|not.found).*restore.*retry/isu);
+  expect(success(await h.fixture.store.version())).toBe(before);
+  const primary = success(await h.fixture.store.read({ reference: h.reference }));
+  success(await h.fixture.store.write({ action: "put", reference: recordReferences["work-item/task-list"](primary.reference.owner),
+    expected: null, content: "## **Phase 1:** Work\n\n### `[ ]` **1.1 Do the work**\n", provenance: testProvenance }));
+  expect((await frame(h.io)).active?.context).toMatchObject({ sessionType: "execution", workflow: "process-task-loop",
+    taskListPath: `.arc/active/in-flight/${name}/tasks-${name}.md`, taskCursor: { status: "found", cursor: { leaf: { id: "1.1" } } } });
+});
+
+it.each([false, true])("offers unnamed release without rerun for a bound missing record, spawned=%s", async spawnedByArc => {
+  const h = await fixture();
+  const record = success(await h.fixture.store.read({ reference: h.reference }));
+  success(await h.fixture.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
+  const markerRead = h.io.readMarker;
+  h.io.readMarker = async path => {
+    if (path === "/primary") return { kind: "absent" };
+    const observed = await markerRead(path);
+    if (observed.kind !== "present") throw new Error("Expected marker");
+    const marker = { ...observed.marker, spawnedByArc };
+    return { ...observed, marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [
+    { path: "/primary", head: "a".repeat(40), primary: true, branch: "main", detached: false, folderPresent: true },
+    { path: "/repo", head: "a".repeat(40), primary: false, branch: null, detached: true, folderPresent: true },
+  ] });
+  const result = await frame(h.io);
+  const row = result.roster.find(row => row.checkout.path === "/repo");
+  expect(row).toMatchObject({ diagnostics: [{ code: "work-unit-record-missing" }],
+    actions: [{ text: "arc locus release", argv: ["arc", "locus", "release"], checkout: "/repo" }] });
+});
+
+it("loads the meta once and never a workspace session-notes seed", async () => {
+  const h = await fixture();
+  const context = (await frame(h.io)).active?.context;
+  expect(context?.loadSet.entries.filter(entry => entry.path.includes("meta-"))).toEqual([
+    { path: `.arc/active/in-flight/${h.reference.owner.name}/meta-${h.reference.owner.name}.md`, readMode: { kind: "full" } },
+  ]);
+  expect(context?.loadSet.entries.some(entry => entry.path.includes("SESSION-NOTES"))).toBe(false);
+});
+
+it.each([null, "unrelated-tasks.md"])("uses the task-list record despite the meta pointer %s", async taskList => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Active", currentWorkflow: "process-task-loop", taskList });
+  const primary = success(await h.fixture.store.read({ reference: h.reference }));
+  success(await h.fixture.store.write({ action: "put", reference: recordReferences["work-item/task-list"](primary.reference.owner),
+    expected: null, content: "## **Phase 1:** Work\n\n### `[ ]` **1.1 Do the work**\n", provenance: testProvenance }));
+  const context = (await frame(h.io)).active?.context;
+  expect(context?.taskListPath).toBe(`.arc/active/in-flight/${h.reference.owner.name}/tasks-${h.reference.owner.name}.md`);
+  expect(context?.loadSet.entries).toContainEqual({ path: `.arc/active/in-flight/${h.reference.owner.name}/tasks-${h.reference.owner.name}.md`, readMode: { kind: "partial-strategic" } });
+});
+
+it("keeps project Errand discovery separate from absent identity claims", async () => {
+  const h = await fixture();
+  const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "repair" }));
+  success(await h.fixture.store.write({ action: "put", reference, expected: null, placement: { kind: "active" },
+    provenance: testProvenance, content: JSON.stringify({ version: 3, slug: "repair", claimId: "a".repeat(32),
+      createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z", kind: "errand", purpose: "errand",
+      intent: "Repair", branch: "chore/repair", state: "open", savedHead: null, changeRequest: null,
+      origin: "description", originEntry: null, owner: "andrew" }) }));
+  const result = await frame(h.io);
+  expect(result.identityDiscovery).toMatchObject({ kind: "store", errands: { kind: "complete",
+    identities: [{ kind: "errand", key: "repair" }], diagnostics: [], missed: false }, claims: { kind: "absent" } });
+});
+
+it("binds exact marker corroboration through the Store reader when its Errand inventory omits the subject", async () => {
+  const h = await fixture(), slug = "partial-inventory", claimId = "a".repeat(32);
+  const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+  success(await h.fixture.store.write({ action: "put", reference, expected: null, placement: { kind: "active" }, provenance: testProvenance,
+    content: JSON.stringify({ version: 3, slug, claimId, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z", kind: "errand", purpose: "errand",
+      owner: "andrew", intent: "Repair", branch: `chore/${slug}`, state: "open", savedHead: null, changeRequest: null, origin: "description", originEntry: null }) }));
+  const list = h.fixture.store.list.bind(h.fixture.store);
+  h.fixture.store.list = async input => {
+    const result = await list(input);
+    return input.kind === "work-item/record" && result.status === "ok" && result.result.status === "complete"
+      ? { status: "ok", result: { ...result.result, missed: true, records: [] } } : result;
+  };
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [{ path: "/repo", head: "a".repeat(40), primary: true,
+    branch: `chore/${slug}`, detached: false, folderPresent: true }] });
+  h.io.readMarker = async () => {
+    const marker: WorktreeMarker = { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00Z",
+      provisioning: "ready", createdFor: { kind: "errand", slug, claimId } };
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  const result = await frame(h.io);
+  expect(result.roster[0]).toMatchObject({ kind: "transient", subject: { kind: "errand", key: slug, claimId } });
+  expect(result.identityDiscovery).toMatchObject({ kind: "store", errands: { kind: "complete", missed: true, identities: [] } });
+});
+
+
+it("retains backlog occupancy without selecting a planning session, then selects it after start", async () => {
+  const { io, reference, fixture: h, fields } = await fixture();
+  const saved = success(await h.store.read({ reference }));
+  success(await h.store.write({ action: "put", reference, expected: saved.version, content: saved.content,
+    placement: { kind: "backlog", commitment: "planned" }, provenance: testProvenance }));
+  const readFrame = async () => {
+    const evidence = await acquireDerivedLocusEvidence({ identity: "andrew", io });
+    if (evidence.kind !== "complete") throw new Error("Topology required");
+    return readDerivedLocusFrame({ ...evidence, store: h.store, identity: "andrew", enteringCheckoutPath: "/repo",
+      canonicalizePath: async path => path, subjectMetaIO });
+  };
+  const parked = await readFrame();
+  expect(parked.entering).toMatchObject({ kind: "selected", row: { kind: "work-unit", lifecycleLocation: "parked", context: null } });
+  expect(parked.active).toBeNull();
+  const backlog = success(await h.store.read({ reference }));
+  success(await h.store.write({ action: "put", reference, expected: backlog.version, content: JSON.stringify(fields), placement: { kind: "active" }, provenance: testProvenance }));
+  expect((await readFrame()).active).toMatchObject({ subject: { key: reference.owner.name }, context: { sessionType: "planning" } });
+});
+
+it("keeps a live checkout resolved beside a bound archived namesake", async () => {
+  const h = await fixture(), archived = success(await h.fixture.store.read({ reference: h.reference }));
+  success(await h.fixture.store.write({ action: "put", reference: archived.reference, expected: archived.version,
+    content: JSON.stringify({ ...h.fields, state: "Shipped", currentWorkflow: null }),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: testProvenance }));
+  const live = await seed(h.fixture, h.reference, JSON.stringify(h.fields), { kind: "active" });
+  const liveRecord = success(await h.fixture.store.read({ reference: live.reference }));
+  if (liveRecord.reference.owner.type !== "work-item") throw new Error("Expected live owner");
+  const liveUid = liveRecord.reference.owner.uid;
+  const scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[0]) throw new Error("Expected registration");
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [scan.worktrees[0]!, { ...scan.worktrees[0]!, path: "/live", primary: false }] });
+  const readMarker = h.io.readMarker;
+  h.io.readMarker = async path => {
+    const read = await readMarker(path);
+    if (path !== "/live" || read.kind !== "present") return read;
+    const marker: WorktreeMarker = { spawnedByArc: false, spawningIdentity: read.marker.spawningIdentity, createdAt: read.marker.createdAt, createdFor: { kind: "work-unit", name: h.reference.owner.name, uid: liveUid } };
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  const result = await frame(h.io);
+  expect(result.roster.find(row => row.checkout.path === "/live")).toMatchObject({ kind: "work-unit",
+    subject: { uid: liveRecord.reference.owner.uid }, context: { sessionType: "planning" } });
+  expect(result.roster.every(row => row.diagnostics.every(item => item.code !== "work-unit-locus-conflict"))).toBe(true);
+});
+
+it("refuses duplicate UUID markers even when their display names differ", async () => {
+  const h = await fixture(), scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[0]) throw new Error("Expected registration");
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [scan.worktrees[0]!, { ...scan.worktrees[0]!, path: "/other", primary: false }] });
+  const readMarker = h.io.readMarker;
+  h.io.readMarker = async path => {
+    const read = await readMarker(path);
+    if (path !== "/other" || read.kind !== "present") return read;
+    const marker: WorktreeMarker = { spawnedByArc: false, spawningIdentity: read.marker.spawningIdentity, createdAt: read.marker.createdAt, createdFor: { kind: "work-unit", name: "former-name", uid: h.uid } };
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  const result = await frame(h.io);
+  expect(result.roster.every(row => row.kind === "unresolved-checkout"
+    && row.diagnostics.some(item => item.code === "work-unit-locus-conflict"))).toBe(true);
+});
+
+it("refuses two unbound marker claims for one name", async () => {
+  const h = await fixture(false), scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[0]) throw new Error("Expected registration");
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [scan.worktrees[0]!, { ...scan.worktrees[0]!, path: "/other", primary: false }] });
+  const result = await frame(h.io);
+  expect(result.roster.every(row => row.kind === "unresolved-checkout"
+    && row.diagnostics.some(item => item.code === "work-unit-locus-conflict"))).toBe(true);
+});
+
+async function huskFixture(bound = false) {
+  const h = await fixture(bound), scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[0]) throw new Error("Expected registration");
+  const checkout = scan.worktrees[0], readMarker = h.io.readMarker;
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [
+    { ...checkout, path: "/primary" }, { ...checkout, primary: false, branch: null, detached: true },
+  ] });
+  h.io.readMarker = async path => {
+    if (path === "/primary") return { kind: "absent" };
+    const read = await readMarker(path);
+    if (read.kind !== "present") throw new Error("Expected work-unit marker");
+    const marker: WorktreeMarker = { ...read.marker, spawnedByArc: true,
+      husk: makeHuskStamp({ sha: checkout.head, at: "2026-10-24T00:00:00Z", subject: { kind: "work-unit", name: h.reference.owner.name }, branch: "feat/example" }) };
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  return h;
+}
+
+it.each([false, true])("derives a work-unit husk as retired without borrowing its live namesake's UID or context (bound=%s)", async bound => {
+  const h = await huskFixture(bound), before = success(await h.fixture.store.version());
+  const result = await frame(h.io);
+  expect(result.entering).toMatchObject({ kind: "selected", row: { kind: "retired", context: null, diagnostics: [] } });
+  if (result.entering.kind !== "selected") throw new Error("Expected entering checkout");
+  expect(result.entering.row.subject).toEqual({ kind: "work-unit", key: h.reference.owner.name });
+  expect(result.active).toBeNull();
+  expect(success(await h.fixture.store.version())).toBe(before);
+});
+
+it.each([false, true])("keeps a husk out of duplicate claims beside another marker (unbound=%s)", async unbound => {
+  const h = await huskFixture(), scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[1]) throw new Error("Expected a husk registration");
+  const sibling = { ...scan.worktrees[1], path: "/other" }, readMarker = h.io.readMarker;
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [...scan.worktrees, sibling] });
+  h.io.readMarker = async path => {
+    const read = await readMarker(path);
+    if (path !== "/other" || !unbound || read.kind !== "present") return read;
+    const marker: WorktreeMarker = { ...read.marker, spawnedByArc: false };
+    delete marker.husk;
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  const result = await frame(h.io);
+  const husk = result.roster.find(row => row.checkout.path === "/repo");
+  expect(husk).toMatchObject({ kind: "retired", context: null, diagnostics: [] });
+  expect(husk?.subject).toEqual({ kind: "work-unit", key: h.reference.owner.name });
+  const other = result.roster.find(row => row.checkout.path === "/other");
+  expect(other?.kind).toBe(unbound ? "unresolved-checkout" : "retired");
+  expect(result.roster.every(row => row.diagnostics.every(item => item.code !== "work-unit-locus-conflict"))).toBe(true);
+  if (!unbound) expect(other?.subject).toEqual(husk?.subject);
+});
+
+it.each(["manual", "with-integration"] as const)("admits a retired detached marker despite its retained branch link, cadence=%s", async cadence => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, {
+    branches: [{ repository: "project-1", ref: "feat/old", linkedAs: "created", excluded: [] }],
+    landingCommit: { repository: "project-1", sha: "b".repeat(40) },
+  }, true);
+  h.io.archiveCadence = cadence;
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [{ path: "/repo", head: "a".repeat(40), primary: true,
+    detached: true, branch: null, folderPresent: true }] });
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "retired", context: null, diagnostics: [] });
+});
+it("refuses a detached integration holder that still requires its linked branch", async () => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, {
+    branches: [{ repository: "project-1", ref: "feat/pending", linkedAs: "created", excluded: [] }],
+  }, true);
+  h.io.archiveCadence = "with-integration";
+  h.io.exec = async () => { throw Error("Base unavailable"); };
+  h.io.baseBranch = "main";
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [{ path: "/repo", head: "a".repeat(40), primary: true,
+    detached: true, branch: null, folderPresent: true }] });
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "unresolved-checkout",
+    diagnostics: [expect.objectContaining({ code: "topology-mismatch" })] });
+});

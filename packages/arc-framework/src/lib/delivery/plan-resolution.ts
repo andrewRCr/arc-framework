@@ -1,6 +1,6 @@
 /** Resolve a current work unit's stored delivery plan through authenticated rename history. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
 import {
   enumerateGitTransitionRecords,
 } from "../work-unit/git-transition-record-enumeration.js";
@@ -53,6 +53,18 @@ export type ForwardDeliverySubjectResolution<TRecord> =
       | "reachability-unestablished"
       | "substrate-unreachable";
   };
+
+/** Plural rename-aware selection for closeout namespaces that may retain orphan plans. */
+export type ForwardDeliverySubjectsResolution<TRecord> =
+  | { readonly status: "resolved"; readonly records: readonly TRecord[] }
+  | {
+      readonly status: "indeterminate";
+      readonly reason:
+        | "ambiguous-subject"
+        | "namespace-corrupt"
+        | "reachability-unestablished"
+        | "substrate-unreachable";
+    };
 
 /** Resolution after transition authority has already been established and loaded. */
 export type ForwardDeliverySubjectTransitionResolution<TRecord> =
@@ -145,6 +157,36 @@ export async function resolveForwardDeliverySubject<TRecord>(input: {
     recordWorkUnitId: input.recordWorkUnitId,
     transitions: transitions.value,
   });
+}
+
+/** Resolve every independently valid record that reaches one current work-unit identity. */
+export async function resolveForwardDeliverySubjects<TRecord>(input: {
+  readonly records: readonly TRecord[];
+  readonly currentWorkUnitId: string;
+  readonly recordWorkUnitId: (record: TRecord) => string;
+  readonly authority: DeliveryRenameEvidenceAuthority;
+  readonly transitionSource: DeliveryRenameTransitionSource;
+}): Promise<ForwardDeliverySubjectsResolution<TRecord>> {
+  if (input.records.length === 0) return { status: "resolved", records: [] };
+  if (input.authority.status === "unestablished") {
+    return { status: "indeterminate", reason: "reachability-unestablished" };
+  }
+  const transitions = await input.transitionSource.enumerate(input.authority.ref);
+  if (transitions.status === "refused") {
+    return { status: "indeterminate", reason: transitions.reason };
+  }
+  const records: TRecord[] = [];
+  for (const record of input.records) {
+    const resolution = resolveForwardDeliverySubjectFromTransitions({
+      records: [record],
+      currentWorkUnitId: input.currentWorkUnitId,
+      recordWorkUnitId: input.recordWorkUnitId,
+      transitions: transitions.value,
+    });
+    if (resolution.status === "indeterminate") return resolution;
+    if (resolution.status === "match") records.push(resolution.record);
+  }
+  return { status: "resolved", records };
 }
 
 /**

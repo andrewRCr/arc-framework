@@ -6,7 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
-import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import {
+  GitCommonStateAccessError,
+  RepositoryGitCommonStatePublisher,
+} from "../../src/lib/git-common-state.js";
 
 const roots: string[] = [];
 const exec = createExecaGitExec();
@@ -131,7 +134,7 @@ describe("RepositoryGitCommonStatePublisher", () => {
       content: "protected\n",
       result: undefined,
     }));
-    const failure = Object.assign(new Error("cannot remove"), { code: "EACCES" });
+    const failure = Object.assign(new Error("cannot remove"), { code: "EIO" });
     const failingPublisher = new RepositoryGitCommonStatePublisher(exec, root, {
       removeFile: async () => {
         throw failure;
@@ -141,6 +144,58 @@ describe("RepositoryGitCommonStatePublisher", () => {
       kind: "delete",
       result: undefined,
     }))).rejects.toBe(failure);
+  });
+
+  it("classifies a read-only repository-state write without exposing its raw error", async () => {
+    const root = await repository();
+    const rawFailure = Object.assign(new Error("raw path must remain private"), { code: "EROFS" });
+    const publisher = new RepositoryGitCommonStatePublisher(exec, root, {
+      writeFile: async () => {
+        throw rawFailure;
+      },
+    });
+
+    const failure = await publisher.update(
+      { root: "delivery", namespace: "plans" },
+      "plan.json",
+      () => ({ kind: "write", content: "delivery\n", result: undefined }),
+    ).then(() => null, (error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(GitCommonStateAccessError);
+    expect(failure).toMatchObject({
+      access: "write",
+      failureCause: "read-only-filesystem",
+      message: "Repository-common state write failed: read-only-filesystem",
+    });
+    expect(failure).not.toBe(rawFailure);
+  });
+
+  it("classifies a denied repository-state removal without exposing its raw error", async () => {
+    const root = await repository();
+    const location = { root: "delivery", namespace: "plans" } as const;
+    const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+    await publisher.update(location, "plan.json", () => ({
+      kind: "write",
+      content: "delivery\n",
+      result: undefined,
+    }));
+    const deniedPublisher = new RepositoryGitCommonStatePublisher(exec, root, {
+      removeFile: async () => {
+        throw Object.assign(new Error("raw path must remain private"), { code: "EACCES" });
+      },
+    });
+
+    const failure = await deniedPublisher.update(location, "plan.json", () => ({
+      kind: "delete",
+      result: undefined,
+    })).then(() => null, (error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(GitCommonStateAccessError);
+    expect(failure).toMatchObject({
+      access: "write",
+      failureCause: "permission-denied",
+      message: "Repository-common state write failed: permission-denied",
+    });
   });
 
   it("serializes concurrent updates within one namespace", async () => {

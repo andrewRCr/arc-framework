@@ -2,6 +2,7 @@
 
 import { join, resolve } from "node:path";
 
+import { retryTransientFileSystemRefusal } from "../fs.js";
 import { COMMIT_MESSAGE_RETRY_FILENAME } from "./commit-message-retry.js";
 
 /** Lockfile that serializes retry replacement and successful-consumption cleanup. */
@@ -62,7 +63,9 @@ export function createCommitMessageRetryStore(
         try {
           await handle.writeFile(opts.bytes);
           await handle.close();
-          await deps.rename(temporaryPath, path);
+          await retryTransientFileSystemRefusal(async () => {
+            await deps.rename(temporaryPath, path);
+          });
         } catch (cause: unknown) {
           await handle.close().catch(() => undefined);
           await deps.unlink(temporaryPath).catch(() => undefined);

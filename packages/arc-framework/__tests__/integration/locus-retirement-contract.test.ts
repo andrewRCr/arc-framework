@@ -84,7 +84,17 @@ describe("retired locus authority closure", () => {
       scripts: Record<string, string>;
     };
     const testPaths = await collectTestPaths(resolve(packageRoot, "__tests__"));
-    const selectors = packageJson.scripts["test:portability"]?.split(/\s+/u).slice(2) ?? [];
+    expect(packageJson.scripts["test:portability"]).toBe(
+      "node --import tsx src/scripts/run-local-test-tier.ts portability",
+    );
+    const selectors = [
+      "advisory-lock",
+      "user-sync-notes-lock",
+      "ref-tree-cas",
+      "state-ref-race.e2e",
+      "git-executor",
+      "delivery-transfer.e2e",
+    ];
 
     expect(selectors.length).toBeGreaterThan(0);
     for (const selector of selectors) {
@@ -97,22 +107,22 @@ describe("retired locus authority closure", () => {
 
     expect(probe.match(/acquireDerivedLocusEvidence\(/gu)).toHaveLength(1);
     expect(probe).toContain("evidence.topology.worktrees.find");
-    expect(probe).toContain("createUserSurfaceResolver");
+    expect(probe).toContain('resolveArcPath({ kind: "user-root", identity })');
+    expect(probe).not.toContain("createUserSurfaceResolver");
     expect(probe).not.toContain("resolveUserSurfaceResolver");
   });
 
-  it("threads the fresh active-extension set through recovery composition", async () => {
+  it("composes recovery without retired active-name inputs", async () => {
     const [run, context, emitter] = await Promise.all([
       readFile(resolve(sourceRoot, "commands/status/run.ts"), "utf8"),
       readFile(resolve(sourceRoot, "lib/recover/locus-context.ts"), "utf8"),
       readFile(resolve(sourceRoot, "lib/compaction-seed/emitter.ts"), "utf8"),
     ]);
 
-    expect(run).toContain("activeExtensions: extensions.isOk() ? extensions.value.active : []");
-    expect(context).toContain("activeExtensions: options.activeExtensions");
-    expect(emitter).toContain(
-      "activeExtensions: options.envelope.extensions.ok ? options.envelope.extensions.value.active : []",
-    );
+    for (const source of [run, context, emitter]) {
+      expect(source).not.toContain("activeExtensions");
+    }
+
   });
 });
 

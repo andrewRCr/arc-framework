@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import {
   ApprovedDispositionRecordSchema,
+  currentApprovedDispositionNode,
 } from "../../../../../../src/scripts/review-gate/core/advisory-records.js";
 import {
   approveDispositionState,
@@ -25,6 +26,7 @@ import type {
 import {
   RepositoryLocalReviewSourceStore,
 } from "../../../../../../src/scripts/review-gate/hosts/local/source-store.js";
+import { responsePolicyRequestFixture } from "../../../../../fixtures/review-response-policy.js";
 
 function publisher(raw: string): GitCommonStatePublisher {
   return {
@@ -78,17 +80,21 @@ function errandDispositionRecords() {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: oldTarget.targetId,
+      producerId: "operation-1",
+      resultDigest: canonicalDigest({ result: "operation-1" }),
       policyVersion: canonicalDigest({ policy: "review" }),
       rubricVersion: "standard-review/v1",
       rubricDigest: canonicalDigest({ rubric: "standard" }),
       proposedBy: "agent-1",
+      proposedVerification: "full",
       findings: [{
         findingId: "finding-1",
         sourceIdentity: "delegated-agent",
         locus: "src/review.ts:42",
         sourceVerification: "verified",
         verificationRefs: ["review:finding-1"],
-        severity: "major",
+        reportedSeverity: "major",
+        verifiedSeverity: "major",
         disposition: "fix",
         gating: "blocking",
         rationale: "The source confirms the issue.",
@@ -114,34 +120,209 @@ function errandDispositionRecords() {
       claimId: "claim-1",
       branch: "chore/repair-review-state",
     },
+    deliveryMember: null,
     source: {
       kind: "attested-local",
       receiptRef: "receipt:1",
       localSourceRef: "source:1",
     },
-    approvedDisposition,
-    fixAuthorization,
-    errandFixResponse: null,
+    currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+    approvedDispositionLineage: [{
+      approvedDisposition,
+      responsePolicyRequest: responsePolicyRequestFixture({ headSha: oldTarget.headSha }),
+      fixAuthorization,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: null,
+    }],
   });
+  const current = currentApprovedDispositionNode(initial);
   const advanced = ApprovedDispositionRecordSchema.parse({
     ...initial,
-    errandFixResponse: {
-      oldTarget,
-      newTarget,
-      applicability: "focused",
-      fixConsumption: consumeFixAuthorization({
-        authorization: fixAuthorization,
+    approvedDispositionLineage: [{
+      ...current,
+      errandFixResponse: {
         oldTarget,
         newTarget,
-        appliedBy: "agent-1",
-        consumedAt: "2026-07-23T16:00:00Z",
-        verificationRefs: ["verification://focused-fix"],
-        priorConsumptions: [],
-      }),
-      hostedTarget: null,
-    },
+        applicability: "focused",
+        fixConsumption: consumeFixAuthorization({
+          authorization: fixAuthorization,
+          oldTarget,
+          newTarget,
+          appliedBy: "agent-1",
+          consumedAt: "2026-07-23T16:00:00Z",
+          verificationRefs: ["verification://focused-fix"],
+          priorConsumptions: [],
+        }),
+        hostedTarget: null,
+      },
+    }],
   });
   return { initial, advanced };
+}
+
+function deliveryDispositionRecords() {
+  const oldTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "delivery-member",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: "a".repeat(40),
+    diffBaseTree: "b".repeat(40),
+    headSha: "c".repeat(40),
+    headTree: "d".repeat(40),
+  });
+  const newTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "delivery-member",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: "a".repeat(40),
+    diffBaseTree: "b".repeat(40),
+    headSha: "e".repeat(40),
+    headTree: "f".repeat(40),
+  });
+  const approvedDisposition = approveDispositionState({
+    proposed: proposeDispositionSet(createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId: oldTarget.targetId,
+      producerId: "operation-1",
+      resultDigest: canonicalDigest({ result: "operation-1" }),
+      policyVersion: canonicalDigest({ policy: "review" }),
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "standard" }),
+      proposedBy: "agent-1",
+      proposedVerification: "full",
+      findings: [{
+        findingId: "finding-1",
+        sourceIdentity: "coderabbit-pr",
+        locus: "src/review.ts:42",
+        sourceVerification: "verified",
+        verificationRefs: ["review:finding-1"],
+        reportedSeverity: "major",
+        verifiedSeverity: "major",
+        disposition: "fix",
+        gating: "blocking",
+        rationale: "The source confirms the issue.",
+        recommendation: "Apply the fix.",
+        openQuestions: [],
+      }],
+    })),
+    approvedBy: "maintainer-1",
+    approvedAt: "2026-07-23T15:00:00Z",
+  });
+  const fixAuthorization = createFixAuthorization({ dispositionState: approvedDisposition, oldTarget });
+  const deliveryMember = {
+    kind: "delivery-member" as const,
+    planId: "123e4567-e89b-42d3-a456-426614174000",
+    deliverableId: canonicalDigest({ deliverable: "member-1" }),
+    workUnitId: "delivery-example",
+    head: oldTarget.headSha,
+  };
+  const initial = ApprovedDispositionRecordSchema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "review-advisory/v1",
+    repositoryId: "repo-1",
+    operationId: "operation-1",
+    candidate: null,
+    errand: null,
+    deliveryMember,
+    source: {
+      kind: "hosted",
+      attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+      hostedResultId: canonicalDigest({ result: "operation-1" }),
+    },
+    currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+    approvedDispositionLineage: [{
+      approvedDisposition,
+      responsePolicyRequest: responsePolicyRequestFixture({
+        headSha: oldTarget.headSha,
+        sourceId: "codex-pr",
+      }),
+      fixAuthorization,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: null,
+    }],
+  });
+  const current = currentApprovedDispositionNode(initial);
+  const advanced = ApprovedDispositionRecordSchema.parse({
+    ...initial,
+    approvedDispositionLineage: [{
+      ...current,
+      deliveryMemberFixResponse: {
+        oldTarget,
+        newTarget,
+        applicability: "focused",
+        fixConsumption: consumeFixAuthorization({
+          authorization: fixAuthorization,
+          oldTarget,
+          newTarget,
+          appliedBy: "agent-1",
+          consumedAt: "2026-07-23T16:00:00Z",
+          verificationRefs: ["verification://focused-fix"],
+          priorConsumptions: [],
+        }),
+        hostedTarget: { repository: "owner/repo", pullRequest: 42, headSha: deliveryMember.head },
+        hostedFixTarget: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          headSha: newTarget.headSha,
+        },
+      },
+    }],
+  });
+  return { initial, advanced };
+}
+
+function successorRecord(
+  initial: ReturnType<typeof deliveryDispositionRecords>["initial"],
+  input: { readonly proposedBy?: string; readonly recommendation?: string } = {},
+) {
+  const current = currentApprovedDispositionNode(initial);
+  const firstId = current.approvedDisposition.dispositionSet.dispositionSetId;
+  const { dispositionSetId: _ignored, ...fields } = current.approvedDisposition.dispositionSet;
+  void _ignored;
+  const approvedDisposition = approveDispositionState({
+    proposed: proposeDispositionSet(createDispositionSet({
+      ...fields,
+      proposedBy: input.proposedBy ?? "agent-2",
+      proposedVerification: "targeted",
+      findings: fields.findings.map((finding) => ({
+        ...finding,
+        sourceVerification: "not-supported" as const,
+        verificationRefs: ["verification://finding-1-refuted"],
+        verifiedSeverity: null,
+        disposition: "reject" as const,
+        rationale: "Focused verification disproved the reported issue.",
+        recommendation: input.recommendation ?? "Take no action.",
+      })),
+    })),
+    approvedBy: "maintainer-2",
+    approvedAt: "2026-07-23T16:00:00Z",
+  });
+  const successorId = approvedDisposition.dispositionSet.dispositionSetId;
+  return ApprovedDispositionRecordSchema.parse({
+    ...initial,
+    currentDispositionSetId: successorId,
+    approvedDispositionLineage: [{
+      ...current,
+      successorDispositionSetId: successorId,
+    }, {
+      approvedDisposition,
+      responsePolicyRequest: current.responsePolicyRequest,
+      fixAuthorization: null,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+      predecessorDispositionSetId: firstId,
+      successorDispositionSetId: null,
+    }],
+  });
 }
 
 describe("local review record stores", () => {
@@ -164,11 +345,124 @@ describe("local review record stores", () => {
     });
     await expect(store.readDispositionRecord(advanced.operationId)).resolves.toEqual(advanced);
     await expect(store.appendDispositionRecord(advanced)).resolves.toBeDefined();
+    const current = currentApprovedDispositionNode(advanced);
     await expect(store.appendDispositionRecord({
       ...advanced,
-      errandFixResponse: advanced.errandFixResponse === null
-        ? null
-        : { ...advanced.errandFixResponse, applicability: "full" },
+      approvedDispositionLineage: [{
+        ...current,
+        errandFixResponse: current.errandFixResponse === null
+          ? null
+          : { ...current.errandFixResponse, applicability: "full" },
+      }],
     })).rejects.toMatchObject({ code: "corrupt-state", reason: "local-disposition-conflict" });
+  });
+
+  it("resolves one pending approval policy projection without reopening it", async () => {
+    const { initial } = errandDispositionRecords();
+    const current = currentApprovedDispositionNode(initial);
+    const pending = ApprovedDispositionRecordSchema.parse({
+      ...initial,
+      approvedDispositionLineage: [{ ...current, policyProjectionPending: true }],
+    });
+    const resolved = ApprovedDispositionRecordSchema.parse({
+      ...initial,
+      approvedDispositionLineage: [{
+        ...current,
+        responsePolicyRequest: { ...current.responsePolicyRequest, frontlineActive: true },
+      }],
+    });
+    const store = new LocalApprovedDispositionRecordStore(
+      mutablePublisher(`${JSON.stringify(pending)}\n`),
+    );
+
+    await expect(store.appendDispositionRecord(resolved)).resolves.toBeDefined();
+    await expect(store.appendDispositionRecord(resolved)).resolves.toBeDefined();
+    await expect(store.readDispositionRecord(initial.operationId)).resolves.toEqual(resolved);
+    await expect(store.appendDispositionRecord(initial)).rejects.toMatchObject({
+      code: "corrupt-state",
+      reason: "local-disposition-conflict",
+    });
+  });
+
+  it("accepts only the monotonic verified-response advance for a delivery-member disposition", async () => {
+    const { initial, advanced } = deliveryDispositionRecords();
+    const store = new LocalApprovedDispositionRecordStore(
+      mutablePublisher(`${JSON.stringify(initial)}\n`),
+    );
+
+    await expect(store.appendDispositionRecord(advanced)).resolves.toMatchObject({
+      dispositionRecordRef: expect.stringContaining("disposition-"),
+    });
+    await expect(store.readDispositionRecord(advanced.operationId)).resolves.toEqual(advanced);
+    await expect(store.appendDispositionRecord(advanced)).resolves.toBeDefined();
+    const current = currentApprovedDispositionNode(advanced);
+    await expect(store.appendDispositionRecord({
+      ...advanced,
+      approvedDispositionLineage: [{
+        ...current,
+        deliveryMemberFixResponse: current.deliveryMemberFixResponse === null
+          ? null
+          : { ...current.deliveryMemberFixResponse, applicability: "full" },
+      }],
+    })).rejects.toMatchObject({ code: "corrupt-state", reason: "local-disposition-conflict" });
+  });
+
+  it("binds an unowned attested-local disposition to one exact delivery member", async () => {
+    const { initial } = deliveryDispositionRecords();
+    const bound = ApprovedDispositionRecordSchema.parse({
+      ...initial,
+      source: {
+        kind: "attested-local",
+        receiptRef: "receipt:1",
+        localSourceRef: "source:1",
+      },
+    });
+    const unowned = ApprovedDispositionRecordSchema.parse({ ...bound, deliveryMember: null });
+    const store = new LocalApprovedDispositionRecordStore(
+      mutablePublisher(`${JSON.stringify(unowned)}\n`),
+    );
+
+    await expect(store.appendDispositionRecord(bound)).resolves.toMatchObject({
+      dispositionRecordRef: expect.stringContaining("disposition-"),
+    });
+    await expect(store.readDispositionRecord(bound.operationId)).resolves.toEqual(bound);
+    await expect(store.appendDispositionRecord({
+      ...bound,
+      deliveryMember: bound.deliveryMember === null
+        ? null
+        : { ...bound.deliveryMember, deliverableId: canonicalDigest({ deliverable: "other" }) },
+    })).rejects.toMatchObject({ code: "corrupt-state", reason: "local-disposition-conflict" });
+  });
+
+  it("atomically publishes one approved successor and replays it exactly", async () => {
+    const { initial } = deliveryDispositionRecords();
+    const successor = successorRecord(initial);
+    const store = new LocalApprovedDispositionRecordStore(
+      mutablePublisher(`${JSON.stringify(initial)}\n`),
+    );
+
+    await expect(store.appendDispositionRecord(successor)).resolves.toBeDefined();
+    await expect(store.readDispositionRecord(initial.operationId)).resolves.toEqual(successor);
+    await expect(store.appendDispositionRecord(successor)).resolves.toBeDefined();
+    await expect(store.appendDispositionRecord(successorRecord(initial, {
+      proposedBy: "agent-3",
+      recommendation: "Reject this alternative correction.",
+    }))).rejects.toMatchObject({
+      code: "corrupt-state",
+      reason: "local-disposition-conflict",
+    });
+  });
+
+  it("refuses to supersede an approved set after its fix authorization is consumed", async () => {
+    const { advanced } = deliveryDispositionRecords();
+    const successor = successorRecord(advanced);
+    const store = new LocalApprovedDispositionRecordStore(
+      mutablePublisher(`${JSON.stringify(advanced)}\n`),
+    );
+
+    await expect(store.appendDispositionRecord(successor)).rejects.toMatchObject({
+      code: "corrupt-state",
+      reason: "local-disposition-conflict",
+    });
   });
 });

@@ -4,7 +4,10 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import { confirmPersonalIdentity } from "./identity-setup.js";
+import { checkBootstrapSummary } from "../lib/checks/bootstrap.js";
+import * as p from "../lib/terminal.js";
+import { initIdentityPromptSite, initIdentityInUsePromptSite } from "../prompts/identity-prompt-sites.js";
 import { readFile } from "node:fs/promises";
 
 import { runInit, buildPostInitMessage, isArcInstalled } from "../commands/init.js";
@@ -18,17 +21,13 @@ import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "../l
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import { gitExec } from "../lib/io-context.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
 import {
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME,
 } from "../lib/constants.js";
 import {
-  requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
+  requireArcProjectRoot, requireSetupGitRepo, resolveIdentityWithPrompt,
   isHandledError,
 } from "./shared.js";
 
@@ -36,14 +35,8 @@ export type InitOptions = InitCommandOptions;
 
 export async function handleInit(
   opts: InitOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "compatibility" : "absent",
-  });
-
   const cwd = process.cwd();
   const io = createIOContext(context.subprocess);
 
@@ -56,7 +49,7 @@ export async function handleInit(
   // --- Fresh init path ---
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Initialization`);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireSetupGitRepo(io.exec, "init"))) return;
 
   p.log.message("Setting up ARC for your project...");
 
@@ -65,7 +58,7 @@ export async function handleInit(
     cwd,
     context,
     prompt: async (supplied) => {
-      const result = await runInitPrompts(cwd, {
+      const result = await runInitPrompts(cwd, context, {
         name: supplied.projectName,
         tools: supplied.tools,
         pmMode: supplied.pmMode,
@@ -78,7 +71,7 @@ export async function handleInit(
         teamMode: result.team_mode,
       };
     },
-    resolveIdentity: resolveIdentityWithPrompt,
+    resolveIdentity: () => resolveIdentityWithPrompt(initIdentityPromptSite, context, io.exec),
   });
   if (input.kind !== "resolved") {
     reportInputFailure(input);
@@ -109,6 +102,7 @@ export async function handleInit(
       recipe,
       prompts,
       identityResult,
+      confirmIdentityInUse: confirmPersonalIdentity(initIdentityInUsePromptSite, context),
     });
 
     if (!result) {
@@ -158,7 +152,6 @@ import {
 } from "../prompts/reconfigure-prompts.js";
 import {
   resolveRemovalsInteractive,
-  resolveRemovalsNonInteractive,
 } from "../prompts/removal-prompts.js";
 
 async function handleReconfigure(
@@ -169,7 +162,7 @@ async function handleReconfigure(
 ): Promise<void> {
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure${opts.dryRun ? " (dry run)" : ""}`);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireSetupGitRepo(io.exec, "init"))) return;
   const cwd = requireArcProjectRoot(startDir);
   if (!cwd) return;
 
@@ -188,7 +181,7 @@ async function handleReconfigure(
   // Role gate: require maintainer (or unset)
   let role: string | undefined;
   try {
-    const result = await gitExec("git", ["config", "--get", "arc.role"]);
+    const result = await io.exec("git", ["config", "--get", "arc.role"]);
     role = result.stdout.trim() || undefined;
   } catch {
     // Not set — treated as maintainer
@@ -241,13 +234,8 @@ async function handleReconfigure(
     options: opts,
     cwd,
     context,
-    current: {
-      projectName: currentConfig.project_name,
-      pmMode: currentConfig.pm_mode,
-      teamMode: currentConfig.team_mode ?? false,
-    },
     prompt: async (supplied) => {
-      const result = await runReconfigurePrompts(currentConfig, {
+      const result = await runReconfigurePrompts(currentConfig, context, {
         projectName: supplied.projectName,
         pmMode: supplied.pmMode,
         teamMode: supplied.teamMode,
@@ -296,19 +284,16 @@ async function handleReconfigure(
 
   try {
 
-    const resolveRemovals = context.interaction === "forbidden"
-      ? (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) =>
-          Promise.resolve(resolveRemovalsNonInteractive(removals))
-      : async (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) => {
-          spinner.stop("File changes detected.");
-          const decisions = await resolveRemovalsInteractive(removals);
-          if (!decisions) {
-            // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
-            throw cancelledSymbol;
-          }
-          spinner.start("Applying changes...");
-          return decisions;
-        };
+    const resolveRemovals = async (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) => {
+      if (context.interaction === "allowed") spinner.stop("File changes detected.");
+      const decisions = await resolveRemovalsInteractive(removals, context);
+      if (!decisions) {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
+        throw cancelledSymbol;
+      }
+      if (context.interaction === "allowed") spinner.start("Applying changes...");
+      return decisions;
+    };
 
     const result = await runReconfigure({
       cwd,
@@ -352,6 +337,8 @@ async function handleReconfigure(
           p.log.info(`  .arc/${path}`);
         }
       }
+
+      for (const line of checkBootstrapSummary(result.checkBootstrap)) p.log.info(line);
 
       if (result.keptByUser.length > 0) {
         p.log.info("Kept on disk (removed from ARC tracking):");

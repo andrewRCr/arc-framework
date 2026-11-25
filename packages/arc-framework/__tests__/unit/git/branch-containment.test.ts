@@ -5,7 +5,7 @@ import {
   isContainedIn,
   isLandedInBase,
 } from "../../../src/lib/git/branch-containment.js";
-import type { GitExec } from "../../../src/lib/git/exec.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 /**
  * Build a recording {@link GitExec}. `stdoutFor` maps an invocation's args to its
@@ -16,21 +16,20 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 function makeExec(opts?: {
   stdoutFor?: (args: string[]) => string;
   failOn?: (args: string[]) => boolean;
-}): { exec: GitExec; calls: string[][] } {
-  const calls: string[][] = [];
-  const exec: GitExec = async (cmd, args) => {
-    calls.push([cmd, ...args]);
-    if (opts?.failOn?.(args) === true) throw new Error(`git ${args.join(" ")} failed`);
-    return { stdout: opts?.stdoutFor?.(args) ?? "" };
-  };
-  return { exec, calls };
+}): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec([{
+    match: { predicate: () => true },
+    responses: [({ args }) => opts?.failOn?.(args) === true
+      ? { failure: { exitCode: 128, stderr: `git ${args.join(" ")} failed` } }
+      : { stdout: opts?.stdoutFor?.(args) ?? "" }],
+  }]);
 }
 
 describe("isContainedIn", () => {
   it("is true when the ahead-set is empty", async () => {
     const { exec, calls } = makeExec();
     expect(await isContainedIn(exec, "feat/x", "origin/feat/x")).toBe(true);
-    expect(calls).toEqual([["git", "rev-list", "feat/x", "^origin/feat/x"]]);
+    expect(calls.map(({ command, args }) => [command, ...args])).toEqual([["git", "rev-list", "feat/x", "^origin/feat/x"]]);
   });
 
   it("is false when the branch carries commits the container lacks", async () => {
@@ -48,7 +47,7 @@ describe("isLandedInBase", () => {
   it("is true for empty cherry output (nothing ahead of base)", async () => {
     const { exec, calls } = makeExec();
     expect(await isLandedInBase(exec, "feat/x", "main")).toBe(true);
-    expect(calls).toEqual([["git", "cherry", "main", "feat/x"]]);
+    expect(calls.map(({ command, args }) => [command, ...args])).toEqual([["git", "cherry", "main", "feat/x"]]);
   });
 
   it("is true when every commit has a patch-equivalent in base (rebase / single-commit squash → all '-')", async () => {
@@ -75,7 +74,7 @@ describe("assessReapSafety", () => {
       safe: true,
       reason: "",
     });
-    expect(calls).toEqual([
+    expect(calls.map(({ command, args }) => [command, ...args])).toEqual([
       ["git", "rev-parse", "--verify", "--quiet", "origin/feat/x"],
       ["git", "rev-list", "feat/x", "^origin/feat/x"],
     ]);
@@ -91,7 +90,7 @@ describe("assessReapSafety", () => {
       safe: true,
       reason: "",
     });
-    expect(calls).toEqual([
+    expect(calls.map(({ command, args }) => [command, ...args])).toEqual([
       ["git", "rev-parse", "--verify", "--quiet", "origin/feat/x"],
       ["git", "cherry", "main", "feat/x"],
     ]);
@@ -137,6 +136,8 @@ describe("assessReapSafety", () => {
   it("honors an explicit remote for the upstream", async () => {
     const { exec, calls } = makeExec();
     await assessReapSafety(exec, { branch: "feat/x", base: "main", remote: "upstream" });
-    expect(calls[0]).toEqual(["git", "rev-parse", "--verify", "--quiet", "upstream/feat/x"]);
+    expect(calls[0] && [calls[0].command, ...calls[0].args]).toEqual([
+      "git", "rev-parse", "--verify", "--quiet", "upstream/feat/x",
+    ]);
   });
 });

@@ -16,7 +16,11 @@ export interface ReviewChunkingThresholds {
 
 /** Fresh repository delivery evidence used only after an attention threshold trips. */
 export type ReviewAttentionDeliveryBinding =
-  | { readonly status: "bound"; readonly planId: string }
+  | {
+    readonly status: "bound";
+    readonly planId: string;
+    readonly targetKind: "work-unit" | "delivery-member";
+  }
   | { readonly status: "authoritative-unbound" }
   | { readonly status: "unavailable"; readonly reason: string };
 
@@ -189,7 +193,8 @@ export function resolveReviewChunkingPolicy(input: {
       reason: input.deliveryBinding.reason,
     };
   }
-  if (input.deliveryBinding.status === "bound") {
+  if (input.deliveryBinding.status === "bound"
+    && input.deliveryBinding.targetKind === "work-unit") {
     return {
       disposition: "delivery-bound",
       metrics: input.metrics,

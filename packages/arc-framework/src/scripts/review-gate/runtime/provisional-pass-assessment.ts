@@ -1,0 +1,210 @@
+/** Pure provisional response assessment from immutable results and lane facts. */
+import type { z } from "zod";
+import type { ProposedDispositionSet } from "../core/disposition-records.js";
+import type { ReviewResult } from "../core/review-result.js";
+import type { ReviewSeveritySchema } from "../core/review-primitives.js";
+import { fixesMaterialFinding } from "../core/review-convergence.js";
+import { ProvisionalPassAssessmentSchema, type ProvisionalFixConsequence } from "../core/provisional-pass-assessment.js";
+import type { NextPassFacts } from "../policy/next-pass-facts.js";
+import { projectFixConsequence } from "./fix-consequence.js";
+
+/** Repository facts used to predict the standard lane's position and possible fix check. */
+export interface ProvisionalStandardPassFacts {
+  readonly facts: NextPassFacts;
+  readonly chainAdequate: boolean;
+  readonly delegatedAgentSelectable: boolean;
+}
+
+/** A frontline next pass names the coverage it expects; the standard lane selects its own. */
+function nextPassCoverage(consequence: Extract<ProvisionalFixConsequence, { kind: "next-pass" }>,
+  lane: "frontline" | "standard"): string {
+  return lane === "standard" || consequence.coverage === null ? ""
+    : consequence.coverage === "complete" ? ", with complete coverage"
+      : ", covering only the fix where its chain is proven";
+}
+
+/** Both looks a minor-only fix admits, the complete pass first below the ceiling and after the fix check at it. */
+function eitherLookText(belowCeiling: boolean, nextPass: string, nextFixCheck: string): string {
+  return belowCeiling
+    ? `${nextPass}, or a ${nextFixCheck}, where its chain is proven`
+    : `a ${nextFixCheck}, where its chain is proven, or another complete pass, which needs a ceiling decision`;
+}
+
+function fixConsequenceText(
+  consequence: ProvisionalFixConsequence,
+  lane: "frontline" | "standard",
+  belowCeiling: boolean,
+  nextPass: string,
+  nextFixCheck: string,
+): string {
+  switch (consequence.kind) {
+    case "no-fix":
+      return "";
+    case "lane-closes":
+      return ` Approving a FIX moves the head without another ${lane === "standard" ? "standard complete" : lane} pass.`;
+    case "next-pass": {
+      if (lane === "standard" && consequence.coverage === "incremental-when-proven") {
+        return ` Approving a FIX moves the head, which needs a ${nextFixCheck}, where its chain is proven.`;
+      }
+      if (lane === "standard" && consequence.coverage === "complete-or-incremental") {
+        return ` Approving a FIX moves the head, which needs ${eitherLookText(belowCeiling, nextPass, nextFixCheck)}.`;
+      }
+      return ` Approving a FIX moves the head, which needs ${nextPass}${nextPassCoverage(consequence, lane)}.`;
+    }
+    case "ceiling-decision":
+      return ` Approving a FIX moves the head, and another ${lane === "standard" ? "complete pass" : "pass"} needs a ceiling decision.`;
+    case "decided-at-fixed-head":
+      return " Approving a FIX moves the head; review status there decides whether another complete pass is needed.";
+  }
+}
+
+/** What the fixed head needs next, phrased to follow "After the fix:", or null when no fix moves the head. */
+function nextActivityText(
+  consequence: ProvisionalFixConsequence,
+  lane: "frontline" | "standard",
+  belowCeiling: boolean,
+  nextPass: string,
+  nextFixCheck: string,
+): string | null {
+  switch (consequence.kind) {
+    case "no-fix":
+      return null;
+    case "lane-closes":
+      return `no further ${lane === "standard" ? "standard complete" : lane} pass`;
+    case "next-pass":
+      if (lane === "standard" && consequence.coverage === "incremental-when-proven") {
+        return `${nextFixCheck}, where its chain is proven`;
+      }
+      return lane === "standard" && consequence.coverage === "complete-or-incremental"
+        ? eitherLookText(belowCeiling, nextPass, nextFixCheck)
+        : `${nextPass}${nextPassCoverage(consequence, lane)}`;
+    case "ceiling-decision":
+      return `another ${lane === "standard" ? "complete pass" : "pass"}, which needs a ceiling decision`;
+    case "decided-at-fixed-head":
+      return "review status there decides whether another complete pass is needed";
+  }
+}
+
+function proposedReviewSignal(proposal: ProposedDispositionSet) {
+  const severityRank = { minor: 1, major: 2, critical: 3 } as const;
+  let confirmedFindingCount = 0;
+  let maxConfirmedSeverity: z.infer<typeof ReviewSeveritySchema> | null = null;
+  for (const finding of proposal.dispositionSet.findings) {
+    if (finding.sourceVerification !== "verified") continue;
+    confirmedFindingCount += 1;
+    if (maxConfirmedSeverity === null
+      || severityRank[finding.verifiedSeverity] > severityRank[maxConfirmedSeverity]) {
+      maxConfirmedSeverity = finding.verifiedSeverity;
+    }
+  }
+  return { confirmedFindingCount, maxConfirmedSeverity, materialFix: fixesMaterialFinding(proposal.dispositionSet.findings) };
+}
+
+function fixCheckRound(result: ReviewResult, facts: NextPassFacts): number {
+  if (result.admission.effectiveCoverage !== "incremental") return 0;
+  const round = facts.fixChecksSinceLastComplete.findIndex(look => look.producerId === result.producerId) + 1;
+  if (round === 0) throw new Error("The current fix check is missing from the lane's review facts.");
+  return round;
+}
+
+/** Hosted providers by the name a report gives them; an unlisted provider keeps its source identifier. */
+const HOSTED_SOURCE_NAMES: Readonly<Record<string, string>> = { "coderabbit-pr": "CodeRabbit", "codex-pr": "Codex" };
+
+/** The source a code-review report names: the provider when the review is hosted, otherwise the local reviewer. */
+function sourceText(result: ReviewResult): string {
+  switch (result.kind) {
+    case "hosted":
+      return `${HOSTED_SOURCE_NAMES[result.sourceIdentity] ?? result.sourceIdentity} (hosted)`;
+    case "attested-local":
+      return "delegated agent (local)";
+    case "frontline":
+      return `${result.sourceIdentity} (local)`;
+  }
+}
+
+/**
+ * Mark a pass at or past the configured limit, where another pass needs an override; below it the limit goes unsaid,
+ * since the reader configured it.
+ */
+function limitNote(pass: number, limit: number): string {
+  return pass < limit ? "" : pass === limit ? " (limit reached)" : " (over limit)";
+}
+
+function standardPosition(result: ReviewResult, facts: NextPassFacts, ceiling: number): string {
+  const pass = facts.completePasses;
+  const note = limitNote(pass, ceiling);
+  if (result.admission.effectiveCoverage === "complete") return `pass ${pass}${note}`;
+  if (result.admission.effectiveCoverage === null) return `unproven coverage since pass ${pass}${note}`;
+  return `fix check, round ${fixCheckRound(result, facts)} since pass ${pass}${note}`;
+}
+
+/** Name the review kind, then the look's position, then its source. */
+function positionText(input: {
+  lane: "frontline" | "standard";
+  result: ReviewResult;
+  admittedLogicalPass: number;
+  configuredMaxPasses: number;
+  standardFacts?: ProvisionalStandardPassFacts;
+}): string {
+  const position = input.lane === "standard" && input.standardFacts !== undefined
+    ? `Standard code review — ${standardPosition(input.result, input.standardFacts.facts, input.configuredMaxPasses)}`
+    : `Frontline code review — pass ${input.admittedLogicalPass}`
+      + limitNote(input.admittedLogicalPass, input.configuredMaxPasses);
+  return `${position}, ${sourceText(input.result)}`;
+}
+
+/** Project a proposal against repository-derived standard facts or the recorded frontline ordinal. */
+export function projectProvisionalPassAssessment(input: {
+  proposal: ProposedDispositionSet;
+  lane: "frontline" | "standard";
+  result: ReviewResult;
+  admittedLogicalPass: number;
+  configuredMaxPasses: number;
+  standardFacts?: ProvisionalStandardPassFacts;
+}): z.infer<typeof ProvisionalPassAssessmentSchema> {
+  const proposedSignal = proposedReviewSignal(input.proposal);
+  const { confirmedFindingCount, maxConfirmedSeverity, materialFix } = proposedSignal;
+  if (input.lane === "standard" && input.standardFacts === undefined) throw new Error("standard pass facts are required");
+  const ceilingPassCount = input.lane === "frontline" ? input.admittedLogicalPass : input.standardFacts?.facts.completePasses ?? input.admittedLogicalPass;
+  const capPosition = ceilingPassCount < input.configuredMaxPasses
+    ? "below-ceiling" as const
+    : ceilingPassCount === input.configuredMaxPasses
+      ? "at-ceiling" as const
+      : "above-ceiling" as const;
+  const fixConsequence = projectFixConsequence({
+    proposal: input.proposal,
+    result: input.result,
+    chainAdequate: input.standardFacts?.chainAdequate ?? false,
+    delegatedAgentSelectable: input.standardFacts?.delegatedAgentSelectable ?? false,
+    materialFix,
+    belowCeiling: capPosition === "below-ceiling",
+  });
+  const potentialStopReason = fixConsequence.kind === "ceiling-decision" ? "cap-exhausted" as const : null;
+  const severitySymbol = { minor: "🟡", major: "🟠", critical: "🔴" } as const;
+  const signalText = maxConfirmedSeverity === null
+    ? "No confirmed findings."
+    : `${confirmedFindingCount} confirmed finding${confirmedFindingCount === 1 ? "" : "s"}, `
+      + `highest ${severitySymbol[maxConfirmedSeverity]} ${maxConfirmedSeverity}.`;
+  const nextPass = `${input.lane === "standard" ? "standard complete" : "frontline"} pass ${ceilingPassCount + 1}`;
+  const nextFixCheck = input.standardFacts === undefined ? ""
+    : `fix check, round ${fixCheckRound(input.result, input.standardFacts.facts) + 1} since pass ${ceilingPassCount}`;
+  const belowCeiling = capPosition === "below-ceiling";
+  const consequenceText = fixConsequenceText(fixConsequence, input.lane, belowCeiling, nextPass, nextFixCheck);
+  const reviewText = positionText(input);
+  return ProvisionalPassAssessmentSchema.parse({
+    status: "provisional",
+    lane: input.lane,
+    admittedLogicalPass: input.admittedLogicalPass,
+    ceilingPassCount,
+    configuredMaxPasses: input.configuredMaxPasses,
+    proposedSignal,
+    capPosition,
+    fixConsequence,
+    potentialStopReason,
+    nextPassAuthority: "none",
+    summaryText: `${reviewText}. ${signalText}${consequenceText}`,
+    positionText: reviewText,
+    nextActivityText: nextActivityText(fixConsequence, input.lane, belowCeiling, nextPass, nextFixCheck),
+  });
+}
+

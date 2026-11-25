@@ -9,7 +9,11 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
+import { declarePromptSite } from "../lib/command-input/declaration.js";
+import { prompt } from "../lib/command-input/prompter.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+
 import type { PlannedRemoval } from "../lib/manifest/plan.js";
 import type { Classification } from "../lib/types.js";
 
@@ -78,6 +82,7 @@ export function resolveRemovalsNonInteractive(
  */
 export async function resolveRemovalsInteractive(
   removals: PlannedRemoval[],
+  context: InteractionContext,
 ): Promise<RemovalDecision[] | null> {
   if (removals.length === 0) return [];
 
@@ -94,10 +99,11 @@ export async function resolveRemovalsInteractive(
     lines.push("Your content/customizations:");
     for (const f of userFiles) lines.push(`  .arc/${f.outputPath}`);
   }
-  p.log.message(`Files no longer needed with your new settings:\n${lines.join("\n")}`);
+  if (context.interaction === "allowed") p.log.message(`Files no longer needed with your new settings:\n${lines.join("\n")}`);
 
-  const bulkChoice = await p.select({
+  const bulkAnswer = await prompt(bulkRemovalPromptSite, context, {
     message: "What would you like to do with these files?",
+    runtimeDefault: "defaults",
     options: [
       {
         value: "defaults" as const,
@@ -109,7 +115,8 @@ export async function resolveRemovalsInteractive(
     ],
   });
 
-  if (p.isCancel(bulkChoice)) return null;
+  if (bulkAnswer.kind !== "answered") return null;
+  const bulkChoice = bulkAnswer.value;
 
   // Bulk actions
   if (bulkChoice === "remove-all") {
@@ -126,16 +133,18 @@ export async function resolveRemovalsInteractive(
   const decisions: RemovalDecision[] = [];
   for (const r of removals) {
     const defaultRemove = r.classification === "Framework";
-    const action = await p.select({
+    const answer = await prompt(fileRemovalPromptSite, context, {
       message: `.arc/${r.outputPath} (${classificationLabel(r.classification)})`,
       options: [
         { value: "remove" as const, label: "Remove from disk" },
         { value: "keep" as const, label: "Keep on disk (remove from ARC tracking)" },
       ],
       initialValue: defaultRemove ? ("remove" as const) : ("keep" as const),
+      runtimeDefault: defaultRemove ? ("remove" as const) : ("keep" as const),
     });
 
-    if (p.isCancel(action)) return null;
+    if (answer.kind !== "answered") return null;
+    const action = answer.value;
     decisions.push({ outputPath: r.outputPath, classification: r.classification, action });
   }
 
@@ -169,3 +178,35 @@ export function applyRemovalDecisions(
 
   return { toRemove, toKeep };
 }
+
+/** Declared acquisition policy for removal bulk selection. */
+export const bulkRemovalPromptSite = declarePromptSite("prompt.removal.bulk", "select",
+  { file: "prompts/removal-prompts.ts", symbol: "bulkRemovalPromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "none",
+    defaultSource: "classification-derived bulk removal action",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: [],
+      acceptedSyntax: []
+    },
+    mutationBoundary: "reconfiguration removal plan",
+    subprocess: "none"
+  });
+
+/** Declared acquisition policy for removal file selection. */
+export const fileRemovalPromptSite = declarePromptSite("prompt.removal.file", "select",
+  { file: "prompts/removal-prompts.ts", symbol: "fileRemovalPromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "none",
+    defaultSource: "classification-derived per-file removal action",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: [],
+      acceptedSyntax: []
+    },
+    mutationBoundary: "reconfiguration removal plan",
+    subprocess: "none"
+  });

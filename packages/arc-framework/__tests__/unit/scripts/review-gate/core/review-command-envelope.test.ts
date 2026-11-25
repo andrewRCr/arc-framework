@@ -16,6 +16,10 @@ import {
   createDispositionSet,
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import { createFrontlineAdmission } from
+  "../../../../../src/scripts/review-gate/core/frontline-admission.js";
+import { createReviewTarget } from
+  "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   projectLocalReviewGuidance,
 } from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
@@ -23,7 +27,7 @@ import {
   reduceReviewRouting,
 } from "../../../../../src/scripts/review-gate/policy/routing.js";
 
-const digest = `sha256:${"a".repeat(64)}`;
+const digest: `sha256:${string}` = `sha256:${"a".repeat(64)}`;
 const target = {
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
@@ -81,8 +85,27 @@ const offeredFrontlineReview = {
 const readyFrontlineReview = {
   ...offeredFrontlineReview,
   action: "attempt",
-  reasons: ["frontline-policy-attempt", "source-project"],
+  reasons: ["frontline-policy-attempt", "source-project"] as string[],
 } as const;
+const readyFrontlineAdmission = createFrontlineAdmission({
+  lineage: { kind: "candidate", candidateId: `sha256:${"b".repeat(64)}` },
+  target: createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: "a".repeat(40),
+    diffBaseTree: "b".repeat(40),
+    headSha: "c".repeat(40),
+    headTree: "d".repeat(40),
+  }),
+  routing,
+  frontlineReview: readyFrontlineReview,
+  logicalPass: 1,
+  retryGeneration: 0,
+  maxPasses: 2,
+});
 const guidance = projectLocalReviewGuidance();
 const request = {
   schemaVersion: 2,
@@ -90,6 +113,8 @@ const request = {
   repositoryId: target.repositoryId,
   targetId: target.targetId,
   requirementId: digest,
+  lineageId: digest,
+  logicalPass: 1,
   carrier: {
     kind: "local-change-set",
     adapterId: "git-local",
@@ -128,21 +153,33 @@ const localResult = {
   applicabilityId: null,
   findings: [],
 };
+const frontlineFinding = {
+  findingId: "finding-1",
+  severity: "major",
+  locus: "src/index.ts",
+  evidenceUrlOrId: "Guard the read before indexing.",
+  sourceOrdinal: 1,
+  sourceLabel: "Unguarded index read",
+};
 const dispositionProposal = proposeDispositionSet(createDispositionSet({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
   targetId: target.targetId,
+  producerId: "review-operation",
+  resultDigest: digest,
   policyVersion: digest,
   rubricVersion: "standard-review/v1",
   rubricDigest: digest,
   proposedBy: "arc-cli/0.1.0",
+  proposedVerification: "full",
   findings: [{
     findingId: "finding-1",
     sourceIdentity: "evaluator-1",
     locus: "src/index.ts:1",
     sourceVerification: "verified",
     verificationRefs: ["source:src/index.ts:1"],
-    severity: "major",
+    reportedSeverity: "major",
+    verifiedSeverity: "major",
     disposition: "fix",
     gating: "blocking",
     rationale: "The source supports this finding.",
@@ -150,6 +187,30 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
     openQuestions: [],
   }],
 }));
+const dispositionReportText = "Verification: full\n\nFinding F1: The source supports this finding.";
+const dispositionEvidenceText = "Evidence\n- F1 · src/index.ts:7 · verified at source:src/index.ts:7";
+const approvalPolicyBinding = {
+  lane: "standard",
+  headSha: target.headSha,
+  pullRequest: null,
+  scopeMode: "whole-target",
+  completedPasses: 1,
+  finalAttempt: { outcome: "findings", reviewOperationId: "local-1" },
+} as const;
+const provisionalPassAssessment = {
+  status: "provisional",
+  lane: "standard",
+  admittedLogicalPass: 2, ceilingPassCount: 2,
+  configuredMaxPasses: 2,
+  proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: true },
+  capPosition: "at-ceiling",
+  fixConsequence: { kind: "ceiling-decision" },
+  potentialStopReason: "cap-exhausted",
+  nextPassAuthority: "none",
+  summaryText: "Provisional pass 2 of 2; approval and response are pending; no next-pass authority.",
+  positionText: "Standard code review — pass 2 (limit reached), Codex (hosted)",
+  nextActivityText: "another complete pass, which needs a ceiling decision",
+} as const;
 
 describe("review command envelopes", () => {
   it.each([
@@ -229,7 +290,13 @@ describe("review command envelopes", () => {
     [FrontlineResolveEnvelopeSchema, {
       ...header("review-frontline-resolve"),
       state: "ready", nextAction: "run-frontline",
-      payload: { routing, frontlineReview: readyFrontlineReview, pass: 1, maxPasses: 2 },
+      payload: {
+        routing,
+        frontlineReview: readyFrontlineReview,
+        pass: 1,
+        maxPasses: 2,
+        admission: readyFrontlineAdmission,
+      },
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
@@ -237,11 +304,11 @@ describe("review command envelopes", () => {
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
-      state: "findings", nextAction: "respond", payload: operationPayload(),
+      state: "findings", nextAction: "respond", payload: operationPayload({ findings: [frontlineFinding] }),
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
-      state: "timed-out", nextAction: "retry",
+      state: "timed-out", nextAction: "operator-repair",
       payload: operationPayload({ reason: { class: "execution-timeout" } }),
     }],
     [FrontlineRunEnvelopeSchema, {
@@ -278,12 +345,20 @@ describe("review command envelopes", () => {
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
       state: "awaiting-approval", nextAction: "obtain-approval",
-      payload: { operationId: "local-1", proposal: dispositionProposal },
+      payload: {
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
+        provisionalPassAssessment, approvalPolicyBinding,
+      },
     }],
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
       state: "settled", nextAction: "reduce",
-      payload: { operationId: "local-1", dispositionRecordRef: "disposition/1" },
+      payload: { operationId: "local-1", dispositionRecordRef: "disposition/1", dispositionReportText },
+    }],
+    [RespondEnvelopeSchema, {
+      ...header("review-respond"),
+      state: "settled", nextAction: "continue-review",
+      payload: { operationId: "hosted/1", dispositionRecordRef: "disposition/1", dispositionReportText },
     }],
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
@@ -413,6 +488,47 @@ describe("review command envelopes", () => {
     })).toThrow();
   });
 
+  it.each([
+    ["a material fix of a minor maximum", {
+      proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "minor", materialFix: true },
+    }],
+    ["a ceiling stop without a ceiling decision", {
+      proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: false },
+      fixConsequence: { kind: "lane-closes" },
+    }],
+    ["a material fix at the ceiling without a stop", { potentialStopReason: null }],
+    ["a material fix that closes the lane", { fixConsequence: { kind: "lane-closes" }, potentialStopReason: null }],
+    ["a next pass at the ceiling", {
+      fixConsequence: { kind: "next-pass", coverage: "complete" },
+      potentialStopReason: null,
+    }],
+    ["a ceiling decision below the ceiling", { admittedLogicalPass: 1, ceilingPassCount: 1, capPosition: "below-ceiling" }],
+  ] as const)("rejects a provisional pass assessment carrying %s", (_name, change) => {
+    expect(() => RespondEnvelopeSchema.parse({
+      ...header("review-respond"),
+      state: "awaiting-approval", nextAction: "obtain-approval",
+      payload: {
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
+        provisionalPassAssessment: { ...provisionalPassAssessment, ...change }, approvalPolicyBinding,
+      },
+    })).toThrow();
+  });
+
+  it("accepts a ceiling decision for a fix that is not material", () => {
+    expect(RespondEnvelopeSchema.parse({
+      ...header("review-respond"),
+      state: "awaiting-approval", nextAction: "obtain-approval",
+      payload: {
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
+        provisionalPassAssessment: {
+          ...provisionalPassAssessment,
+          proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "minor", materialFix: false },
+        },
+        approvalPolicyBinding,
+      },
+    })).toMatchObject({ payload: { provisionalPassAssessment: { potentialStopReason: "cap-exhausted" } } });
+  });
+
   it("rejects a ready frontline pass above its declared allowance", () => {
     expect(() => FrontlineResolveEnvelopeSchema.parse({
       ...header("review-frontline-resolve"),
@@ -512,14 +628,14 @@ describe("review command envelopes", () => {
   });
 
   it.each([
-    ["rate-limited", "retry"],
-    ["transient-unavailable", "retry"],
+    ["rate-limited", "operator-repair"],
+    ["transient-unavailable", "operator-repair"],
     ["source-unbound", "operator-repair"],
     ["capability-unsupported", "operator-repair"],
-    ["transient-transport", "retry"],
-    ["process-failure", "retry"],
-    ["signal-termination", "retry"],
-    ["unexpected-adapter-failure", "retry"],
+    ["transient-transport", "operator-repair"],
+    ["process-failure", "operator-repair"],
+    ["signal-termination", "operator-repair"],
+    ["unexpected-adapter-failure", "operator-repair"],
     ["invalid-output", "operator-repair"],
     ["authorization-rejected", "operator-repair"],
   ] as const)("maps frontline reason class %s only to %s", (reasonClass, nextAction) => {
@@ -537,8 +653,18 @@ describe("review command envelopes", () => {
     expect(FrontlineRunEnvelopeSchema.parse(envelope)).toEqual(envelope);
     expect(() => FrontlineRunEnvelopeSchema.parse({
       ...envelope,
-      nextAction: nextAction === "retry" ? "operator-repair" : "retry",
+      nextAction: "retry",
     })).toThrow();
+  });
+
+  it("carries findings on a findings run and on no other run state", () => {
+    const run = (state: string, nextAction: string, findings?: unknown[]) => ({
+      ...header("review-frontline-run"), state, nextAction,
+      payload: operationPayload(findings === undefined ? {} : { findings }),
+    });
+    expect(() => FrontlineRunEnvelopeSchema.parse(run("findings", "respond"))).toThrow();
+    expect(() => FrontlineRunEnvelopeSchema.parse(run("findings", "respond", []))).toThrow();
+    expect(() => FrontlineRunEnvelopeSchema.parse(run("clean", "none", [frontlineFinding]))).toThrow();
   });
 
   it.each([
@@ -595,6 +721,29 @@ describe("review command envelopes", () => {
       error: { code: "invalid-input", message: "repository precondition failed" },
     };
     expect(ReviewCommandErrorEnvelopeSchema.parse(error)).toEqual(error);
+  });
+
+  it("lets an invalid-input or corrupt-state refusal carry a replay remedy, and no other failure", () => {
+    const remedy = {
+      invariant: "A verified fix is recorded only against the clean committed head that contains it.",
+      text: "Commit the fix, then replay the response: `arc review respond -`.",
+      argv: ["arc", "review", "respond", "-"],
+      stdin: { schemaVersion: 1 },
+    };
+    const refusal = {
+      ...header("review-respond"),
+      error: { code: "invalid-input", message: "dirty-worktree" },
+      remedy,
+    };
+    const corrupt = { ...refusal, error: { code: "corrupt-state", message: "the durable record is unreadable" } };
+    expect(ReviewCommandErrorEnvelopeSchema.parse(refusal)).toEqual(refusal);
+    expect(ReviewCommandErrorEnvelopeSchema.parse(corrupt)).toEqual(corrupt);
+    expect(ReviewCommandErrorEnvelopeSchema.parse({ ...corrupt, ...header("review-reduce") }))
+      .toEqual({ ...corrupt, ...header("review-reduce") });
+    expect(() => ReviewCommandErrorEnvelopeSchema.parse({
+      ...refusal,
+      error: { code: "unexpected-failure", message: "the review failed" },
+    })).toThrow();
   });
 });
 

@@ -1,6 +1,6 @@
 /** Read-only composition of config, target validation, Git metrics, and chunking policy. */
 
-import type { RawGitExec } from "../../../lib/change-facts.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import { resolveChangeStats } from "../../../lib/change-stats.js";
 import type { ReaderResult } from "../../../lib/config/status-reader.js";
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
@@ -8,7 +8,7 @@ import {
   ReviewChunkingResolveEnvelopeSchema,
 } from "../core/review-command-envelope.js";
 import {
-  ReviewChunkingResolveRequestSchema,
+  ReviewChunkingResolveCommandRequestSchema,
 } from "../core/review-chunking-command-schema.js";
 import {
   parseReviewChunkingThresholds,
@@ -31,7 +31,7 @@ export async function resolveReviewChunkingCommand(
     exec: RawGitExec;
   },
 ) {
-  const parsed = ReviewChunkingResolveRequestSchema.parse(request);
+  const parsed = ReviewChunkingResolveCommandRequestSchema.parse(request);
   let target;
   try {
     target = validateReviewTarget(parsed.target);
@@ -53,7 +53,7 @@ export async function resolveReviewChunkingCommand(
     if (selectedTarget.targetId !== target.targetId) {
       throw new ReviewChunkingCommandError("selected review scope does not belong to the current target");
     }
-    scopeSelected = parsed.scopeSelection.mode === "chunked";
+    scopeSelected = true;
   }
   const config = await dependencies.readSettings();
   const thresholds = parseReviewChunkingThresholds(config.settings);

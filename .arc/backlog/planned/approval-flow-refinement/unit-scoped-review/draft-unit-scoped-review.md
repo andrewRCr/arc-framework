@@ -78,11 +78,10 @@ whose weight is _scale_ rather than _derivation_ — where the design is fully s
 list is concrete (three phases, not seven; no investigation/spike tasks), it is reasonable to say: "unless
 something unexpected comes up, implement this and let me review it in one pass." Crucially, the
 review-increment invariant (DEV-RULES.ARC § Review-Increment Invariant) is **not** violated — it is applied at a
-wider boundary; the
-spec-directed discipline is **unchanged** (and is the most important part); and ARC's agent-side execution
-protocol (process-task-loop, quality gates, commit discipline) holds identically. ARC has also gotten much
-better at keeping WUs right-sized and single-concern, so reviewing a whole WU at once — once near-absurd — is
-far less so now.
+wider boundary; the spec-directed discipline is **unchanged** (and is the most important part); and ARC's agent-side
+execution protocol (process-task-loop, quality gates, commit discipline) holds identically. ARC has also gotten much
+better at keeping WUs right-sized and single-concern, so reviewing a whole WU at once — once near-absurd — is far less
+so now.
 
 **b) Realistic idiom.** Much of the industry has moved this way, to varying degrees of autonomy; many bypass
 human review entirely (including the PR). ARC won't do that. But offering a _governed_ middle ground — the
@@ -288,12 +287,10 @@ follow-up.
 - **Depends On `commit-increments` (hard).** The per-leaf-commits-during-batch property _is_ that member's
   "deferred review releases commits at leaf boundaries" fix; without it a batch accumulates an entangled diff —
   the exact problem `commit-increments` solves. Also vocabulary-coupled (review-increment term).
-- **Tight coordination with `interlock-release-refinement`.** Shares the "widen the approval unit / release the
-  tail" machinery — its **errand approval-collapse** ("one increment-approval releases the full tail") is the
-  sibling shape at _errand_ scope; this is the same concept at _WU_ scope (but stops at validation; it does
-  **not** collapse the merge — the integration interlock holds). The pre-flight config gate consumes its
-  wrapper-routing + approval-provenance work. Its first-class approval-provenance state composes: a batch
-  authorization is a provenance source with WU scope.
+- **Tight coordination with `interlock-release-refinement`.** The pre-flight config gate consumes its
+  wrapper-routing and approval-provenance work. Its first-class approval-provenance state composes: a batch
+  authorization is a provenance source with WU scope. This WU stops at validation; integration settlement and
+  merge remain with their lifecycle owners.
 - **`compaction-recovery` (`agent-context-optimization`) — backstop, cross-cohort.** See Phasing; also the
   two-way alignment note below.
 - **Implies a methodology change to DEV-RULES.ARC § Sub-agent scope** if orchestration is adopted (the carve-out).

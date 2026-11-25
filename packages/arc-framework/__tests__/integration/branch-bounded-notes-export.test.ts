@@ -11,7 +11,10 @@ import {
   makeGitExec,
   makeGitExecInput,
   makeNotesTreeCommit,
+  makeUserIO,
 } from "../helpers/integration.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
+import { runUserPush } from "../../src/commands/user/push-fetch.js";
 import {
   BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
   planBranchBoundedNotesExport,
@@ -68,6 +71,55 @@ describe("canonical notes publication", () => {
       execInput: makeGitExecInput(repo),
       identity: IDENTITY,
     })).resolves.toEqual({ kind: "skipped", reason: "no-local-notes" });
+  });
+
+  describe.each(["initial", "fetched", "forced"] as const)("incomplete %s tip observation", (stage) => {
+    it.each(["canceled", "output-limit", "timed-out", "signaled", "unclassified"] as const)("preserves %s exit-1 failure and permits repaired continuation", async (kind) => {
+      const { repo, base } = await harness("arc-notes-tip-failure-");
+      await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "saved note", base]);
+      if (stage === "fetched") await git(repo, ["push", "origin", `${NOTES_REF}:${NOTES_REF}`]);
+      const local = await git(repo, ["rev-parse", NOTES_REF]);
+      const remote = await git(repo, ["ls-remote", "origin", NOTES_REF]);
+      const actual = makeGitExec(repo);
+      const calls: string[][] = [];
+      let original: GitProcessError | undefined;
+      const exec: GitExec = async (command, args, options) => {
+        calls.push(args);
+        const ref = args.at(-1);
+        const selected = stage === "fetched" ? ref?.startsWith(`${NOTES_REF}__publication_`) : ref === NOTES_REF;
+        if (args[0] === "rev-parse" && args.includes("--quiet") && selected) {
+          original = new GitProcessError({ command, args, exitCode: 1,
+            kind: kind === "signaled" ? "nonzero-exit" : kind === "unclassified" ? "unexpected" : kind,
+            ...(kind === "signaled" ? { signal: "SIGTERM" } : {}) });
+          throw original;
+        }
+        return actual(command, args, options);
+      };
+      if (stage === "forced") {
+        const failure: unknown = await runUserPush({ cwd: repo, identity: IDENTITY, force: true,
+          io: { ...makeUserIO(repo), exec } }).catch((error: unknown) => error);
+        expect(original).toBeDefined();
+        expect(failure).toBe(original);
+      } else {
+        const plan = await planBranchBoundedNotesExport({ exec, execInput: makeGitExecInput(repo), identity: IDENTITY });
+        expect(original).toBeDefined();
+        expect(plan.kind).toBe("failed");
+        if (plan.kind === "failed") expect(plan.error).toBe(original);
+      }
+      expect(calls.filter((args) => args[0] === "push")).toEqual([]);
+      expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(local);
+      expect(await git(repo, ["ls-remote", "origin", NOTES_REF])).toBe(remote);
+      if (stage === "forced") {
+        expect(await runUserPush({ cwd: repo, identity: IDENTITY, force: true, io: makeUserIO(repo) })).toEqual({ kind: "pushed" });
+        expect(await git(repo, ["ls-remote", "origin", NOTES_REF])).toBe(`${local}\t${NOTES_REF}`);
+      } else expect(await planBranchBoundedNotesExport({ exec: actual, execInput: makeGitExecInput(repo), identity: IDENTITY }))
+        .toEqual({ kind: "planned", target: { destinationRef: NOTES_REF, capturedTip: local } });
+    });
+  });
+
+  it("retains completed absent-ref behavior in explicit force publication", async () => {
+    const { repo } = await harness("arc-notes-force-absent-");
+    expect(await runUserPush({ cwd: repo, identity: IDENTITY, force: true, io: makeUserIO(repo) })).toEqual({ kind: "no-local-notes" });
   });
 
   it("accepts a well-formed SHA-256 canonical tip", async () => {

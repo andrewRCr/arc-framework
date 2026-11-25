@@ -30,6 +30,7 @@ function activeOperationRecord() {
     {
       operationId: "transfer-active-operation",
       kind: "rewrite",
+      mode: "review-fix",
       affectedDeliverableIds,
       expectedStateRevision: OPERATION_BASE_REVISION,
       before,

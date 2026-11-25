@@ -8,12 +8,14 @@ import {
 } from "../../src/lib/errand/identity-record.js";
 import {
   readTransientIdentitySnapshot,
+  readTransientIdentitySnapshotAtRef,
   type IdentitySnapshotIO,
 } from "../../src/lib/errand/identity-snapshot.js";
 import {
   projectTransientInFlightRead,
   readTransientInFlightIndexes,
 } from "../../src/lib/errand/record.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { MAX_LOCUS_JSON_BYTES } from "../../src/lib/locus/schema/index.js";
 
 const tip = "a".repeat(40);
@@ -43,6 +45,7 @@ function io(exec: IdentitySnapshotIO["exec"]): IdentitySnapshotIO {
 describe("transient identity snapshots", () => {
   it("pins enumeration and blob reads to one resolved tip", async () => {
     const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "show-ref") return { stdout: "" };
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
       if (args[0] === "ls-tree" && args.at(-1) === tip) {
         return { stdout: `100644 blob ${blobOid}     ${Buffer.byteLength(record)}\tfix-output\0` };
@@ -58,13 +61,14 @@ describe("transient identity snapshots", () => {
   });
 
   it("distinguishes clean absence from tip and tree failures", async () => {
-    const absent = await readTransientIdentitySnapshot(io(async () => {
-      throw Object.assign(new Error("missing"), { stderr: "fatal: Needed a single revision" });
+    const absent = await readTransientIdentitySnapshot(io(async (command, args) => {
+      throw new GitProcessError({ kind: "nonzero-exit", command, args, exitCode: 2 });
     }));
     const tipFailure = await readTransientIdentitySnapshot(io(async () => {
       throw new Error("git unavailable");
     }));
     const treeFailure = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "show-ref") return { stdout: "" };
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
       throw new Error("object database corrupt");
     }));
@@ -72,6 +76,40 @@ describe("transient identity snapshots", () => {
     expect(absent).toEqual({ kind: "absent" });
     expect(tipFailure).toMatchObject({ kind: "error", stage: "tip" });
     expect(treeFailure).toMatchObject({ kind: "error", stage: "tree" });
+  });
+
+  it.each(["plain", "canceled", "unexpected", "wrong-command", "wrong-ref", "wrong-exit"] as const)(
+    "retains %s failures even when their diagnostics resemble an absent ref", async (kind) => {
+      const args = ["show-ref", "--exists", "refs/arc/user/andrew/errands"];
+      const original = kind === "plain" ? new Error("Needed a single revision")
+        : new GitProcessError({ kind: kind === "canceled" ? "canceled" : kind === "unexpected" ? "unexpected" : "nonzero-exit",
+          command: kind === "wrong-command" ? "other" : "git",
+          args: kind === "wrong-ref" ? [...args.slice(0, 2), "refs/other"] : args,
+          exitCode: kind === "wrong-exit" ? 1 : 2, stderr: "Needed a single revision" });
+      const result = await readTransientIdentitySnapshot(io(async () => { throw original; }));
+      expect(result).toMatchObject({ kind: "error", stage: "tip", error: original });
+    },
+  );
+
+  it("keeps commit-resolution failure after named-ref presence succeeds", async () => {
+    const original = new GitProcessError({ kind: "nonzero-exit", command: "git", args: ["rev-parse"],
+      exitCode: 2, stderr: "Not a valid object name" });
+    const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "show-ref") return { stdout: "" };
+      throw original;
+    }));
+    expect(result).toMatchObject({ kind: "error", stage: "tip", error: original });
+  });
+
+  it("reads immutable commit snapshots without treating their OIDs as named refs", async () => {
+    const seen: string[][] = [];
+    const result = await readTransientIdentitySnapshotAtRef(io(async (_command, args) => {
+      seen.push([...args]);
+      if (args[0] === "show-ref") throw new Error("An OID is not a named ref");
+      return { stdout: args[0] === "rev-parse" ? tip : "" };
+    }), tip);
+    expect(result).toMatchObject({ kind: "complete", tip });
+    expect(seen.map((args) => args[0])).toEqual(["rev-parse", "ls-tree"]);
   });
 
   it("rejects a resolved tip that is not a full Git object ID", async () => {
@@ -82,6 +120,7 @@ describe("transient identity snapshots", () => {
 
   it("rejects declared oversized input before reading its blob", async () => {
     const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "show-ref") return { stdout: "" };
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
       if (args[0] === "ls-tree") {
         return { stdout: `100644 blob ${blobOid} ${MAX_LOCUS_JSON_BYTES + 1}\tfix-output\0` };
@@ -108,6 +147,7 @@ describe("transient identity snapshots", () => {
       })
       .join("");
     const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "show-ref") return { stdout: "" };
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
       if (args[0] === "ls-tree") return { stdout: tree };
       const content = blobs.get(args[2] ?? "");
@@ -137,6 +177,7 @@ describe("transient identity snapshots", () => {
     ["non-NUL-terminated output", `100644 blob ${blobOid} 1\tunterminated`],
   ])("rejects a root enumeration containing a %s", async (_case, stdout) => {
     const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "show-ref") return { stdout: "" };
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
       return { stdout };
     }));
@@ -151,7 +192,7 @@ describe("transient in-flight indexes", () => {
   it("separates an unborn identity from one that could not be read", async () => {
     const absent = await readTransientInFlightIndexes({
       identity: "andrew",
-      exec: async () => { throw new Error(unborn); },
+      exec: async (command, args) => { throw new GitProcessError({ kind: "nonzero-exit", command, args, exitCode: 2, stderr: unborn }); },
     });
     const unreadable = await readTransientInFlightIndexes({
       identity: "andrew",
@@ -170,6 +211,7 @@ describe("transient in-flight indexes", () => {
     const read = await readTransientInFlightIndexes({
       identity: "andrew",
       exec: async (_command, args) => {
+        if (args[0] === "show-ref") return { stdout: "" };
         if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
         return { stdout: "" };
       },
@@ -183,6 +225,7 @@ describe("transient in-flight indexes", () => {
     const read = await readTransientInFlightIndexes({
       identity: "andrew",
       exec: async (_command, args) => {
+        if (args[0] === "show-ref") return { stdout: "" };
         if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
         if (args[0] === "ls-tree") {
           return {

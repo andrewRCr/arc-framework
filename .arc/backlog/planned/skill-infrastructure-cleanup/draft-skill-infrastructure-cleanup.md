@@ -71,6 +71,54 @@
   `arc health`, keep it as a narrower install-health diagnostic, or replace the skill entry with workflow / CLI
   guidance that reflects the current health surface.
 
+### `[ ]` **Decide whether `/arc-plan` earns a skill, and give `--plan` grooming a checkout beside an occupied primary**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ that stub's "Codify the skill-door model" and "Make `/arc-plan` self-establish the grooming locus on
+  ad-hoc (cold) entry" decisions. This observation runs against the second entry's direction: it asks whether the door
+  should exist at all, not whether it should carry more judgment.
+
+- _Observation (redundant door):_ `.claude/skills/arc-plan/SKILL.md` only says to run `draft-design.md`. Every path
+  into that workflow already exists without it: a session in a work-unit worktree loads `draft-design` from the
+  meta's `Current Workflow` through session-init, and `arc-session --plan <stub>` covers grooming a backlog stub.
+  The skill adds a door to maintain without adding a decision.
+
+- _Observation (no grooming locus):_ with the primary occupied by a work unit, `--plan` grooming has nowhere to write.
+  `draft-design`'s grooming-entry skip assumes session-init's signal leaf relocated onto `chore/groom-<slug>` cut
+  from base, but no verb allocates that checkout. The `groom` transient kind exists in the schemas
+  (`lib/locus/schema/identity.ts`, `lib/errand/identity-record.ts`, `lib/locus/allocator.ts`), and `arc errand open`
+  reserves the `groom-*` namespace without opening it. The remaining routes are a hand-cut worktree with full setup,
+  or starting the work unit and grooming inside its own planning worktree. The second avoided the problem on
+  2026-10-07 for `quality-gate-hooks` and `inbound-routing-method`.
+
+- _Approach:_ decide the door model first: retire `/arc-plan` in favor of session-init's arms, or keep it only if it
+  carries entry triage no other door does. Then either give the grooming transient an allocator, or let grooming fall
+  back to `arc start` when no free base checkout exists.
+
+- _Storage note:_ branchless grooming arrives with `storage-seam`, and the cohort register already re-scopes this stub
+  to it (row "`skill-infrastructure-cleanup` and `planning-iteration-mechanics` assume committable `chore/groom-*`
+  branches"). The locus half may dissolve at the flip; the door decision does not.
+
+- _Captured during:_ a read-only `quality-gate-hooks` analysis session, 2026-10-07.
+
+### `[ ]` **Fold `arc-inbox`'s route-now mode and `arc-errand`'s pre-flip route vehicle into the door model**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its inbound entry "Codify the skill-door model".
+
+- _Observation:_ `inbound-routing-method` adds a "route now" mode to `arc-inbox`: when the session holds the
+  commitment, step 1 continues into `route-discovered-work` with the fast-path door instead of stopping, and the
+  skill's description names the mode so it is reachable (`spec-inbound-routing-method.md` D7). Before the flip, a
+  now-route's `hold <other>` into a backlog stub or `new-stub` runs as a route-only Errand through `arc-errand`'s
+  route shape — entered only after the gate, writing only into backlog stubs, its Launch classifying the routing
+  change rather than the concern it carries. From the flip the routing verb and `arc stub` write directly (D7, D8).
+
+- _Approach:_ take both into the door model; this stub may rename the mode.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
 ---
 
 ### `[ ]` **Make `/arc-plan` self-establish the grooming locus on ad-hoc (cold) entry**

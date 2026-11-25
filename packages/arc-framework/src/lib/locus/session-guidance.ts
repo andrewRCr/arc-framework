@@ -12,6 +12,7 @@ const ready = z.strictObject({
   recovery: z.string().optional(),
   reconciliation: z.string().optional(),
   entering: z.string().optional(),
+  pause: z.string().optional(),
   identityDiscovery: z.string().optional(),
   identities: z.array(z.string()),
   cleanup: z.array(z.string()),
@@ -64,12 +65,16 @@ export function deriveDerivedLocusSessionGuidance(
   return LocusSessionGuidanceSchema.parse({
     kind: "ready",
     entering: `${row.kind} at ${row.checkout.path}`,
+    ...(row.kind === "work-unit" && row.subject.kind === "work-unit" && row.context?.pause != null
+      ? { pause: `Work unit '${row.subject.key}' is paused: ${row.context.pause.reason}. `
+        + (row.context.pause.resumeNotes === null ? "" : `Resume notes: ${row.context.pause.resumeNotes}. `)
+        + `Run arc resume ${row.subject.key} before starting work.` } : {}),
     ...(primaryAvailability === undefined ? {} : { primaryAvailability }),
     ...(identityDiscovery === undefined ? {} : { identityDiscovery }),
     identities: [],
-    cleanup: frame.roster.flatMap(renderDerivedCleanup),
-    diagnostics: frame.roster.flatMap((item) => item.diagnostics.map((diagnostic) =>
-      `${diagnostic.code} at checkout '${item.checkout.path}': ${diagnostic.message}`)),
+    cleanup: frame.roster.flatMap((item) => renderDerivedCleanup(item, row)),
+    diagnostics: row.diagnostics.map((diagnostic) =>
+      `${diagnostic.code} at checkout '${row.checkout.path}': ${diagnostic.message}`),
   });
 }
 
@@ -108,11 +113,23 @@ function renderEnteringFailure(
   return `Entering checkout ${checkoutPath} is unresolved (${detail}).`;
 }
 
-function renderDerivedCleanup(row: DerivedCheckoutRow): string[] {
+function renderDerivedCleanup(row: DerivedCheckoutRow, entering: DerivedCheckoutRow): string[] {
+  const enteringRow = row.checkout.path === entering.checkout.path;
   if (row.kind === "retired") {
+    if (!enteringRow && !entering.checkout.primary) return [];
     return [`Cleanup is available for retired checkout ${row.checkout.path}.`];
   }
   if (row.kind === "unresolved-checkout") {
+    const retry = row.diagnostics.find((diagnostic) => diagnostic.code === "pending-errand-provisioning");
+    if (retry !== undefined && entering.kind === "free-primary") {
+      return [`Provisioning is incomplete at ${row.checkout.path}. ${retry.message} Primary: ${entering.checkout.path}.`];
+    }
+    if (!enteringRow) return [];
+    const activeCandidateSchemaSkew = row.subject?.kind === "work-unit"
+      && row.lifecycleLocation === "active"
+      && row.diagnostics.length > 0
+      && row.diagnostics.every((diagnostic) => diagnostic.code === "candidate-record-schema-skew");
+    if (activeCandidateSchemaSkew) return [];
     return [`Inspect checkout ${row.checkout.path} before cleanup.`];
   }
   return [];

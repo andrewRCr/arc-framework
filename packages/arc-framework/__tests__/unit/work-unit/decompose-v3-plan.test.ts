@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest, sortByCanonicalBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest, sortByCanonicalBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
+  V3PlanContributorSchema,
+  V3ValidatedPathMutationSchema,
   buildValidatedDecomposePlan,
   v3PlanId,
   v3TopologyDigest,
@@ -31,8 +33,10 @@ describe("validated v3 decomposition plan path registry", () => {
       facts: [{ kind: "none" as const }],
       digest: v3TopologyDigest([{ kind: "none" }]),
     },
-    origin: "origin",
-    sourceBranch: "plan/origin",
+    prospectiveTransition: {
+      origin: "origin",
+      sourceBranch: "plan/origin",
+    },
   };
   const topology = (
     kind: Exclude<V3TopologyFact, { kind: "none" }>["kind"],
@@ -43,6 +47,45 @@ describe("validated v3 decomposition plan path registry", () => {
     const facts: V3TopologyFact[] = [{ kind, path, before, after }];
     return { facts, digest: v3TopologyDigest(facts) };
   };
+
+  it("validates plan contributors and mutations as recursively strict runtime values", () => {
+    const path = ".arc/backlog/planned/member/meta-member.md";
+    const after = file("member meta");
+    const contributor = {
+      kind: "content" as const,
+      destinationId: "member",
+      destinationKind: "new-member" as const,
+      artifactRole: "meta",
+      contributorKind: "scaffold",
+      contributorIdentity: "member-meta",
+      sourceProjection: [{
+        sourceId: digest("source"),
+        targetLocator: { artifact: "meta-member.md", kind: "whole-file" },
+      }],
+      disposition: "whole-file" as const,
+      before: absent,
+      after,
+    };
+    const mutation = {
+      kind: "composed" as const,
+      path,
+      before: absent,
+      after,
+      contributors: [contributor],
+    };
+
+    expect(V3PlanContributorSchema.parse(contributor)).toEqual(contributor);
+    expect(V3ValidatedPathMutationSchema.parse(mutation)).toEqual(mutation);
+    expect(V3ValidatedPathMutationSchema.safeParse({ ...mutation, extra: true }).success).toBe(false);
+    expect(V3ValidatedPathMutationSchema.safeParse({
+      ...mutation,
+      contributors: [{ ...contributor, extra: true }],
+    }).success).toBe(false);
+    expect(V3PlanContributorSchema.safeParse({
+      ...contributor,
+      sourceProjection: [{ sourceId: digest("source"), targetLocator: new Uint8Array([1]) }],
+    }).success).toBe(false);
+  });
 
   it("builds one UTF-8-sorted mutation per path in canonical contributor order", () => {
     const path = ".arc/backlog/planned/origin/meta-origin.md";
@@ -157,6 +200,27 @@ describe("validated v3 decomposition plan path registry", () => {
       before: file("roadmap-before"),
       after: file("roadmap-after"),
     });
+  });
+
+  it("omits prospective transition authority when the caller supplies none", () => {
+    const input = {
+      ...operands,
+      prospectiveTransition: undefined,
+      claims: [{
+        kind: "exclusive" as const,
+        path: ".arc/backlog/ROADMAP.md",
+        role: "roadmap" as const,
+        base: file("roadmap-before"),
+        after: file("roadmap-after"),
+      }],
+    } as unknown as Parameters<typeof buildValidatedDecomposePlan>[0];
+    delete input.prospectiveTransition;
+
+    const result = buildValidatedDecomposePlan(input);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.prospectiveOverlay).toBeUndefined();
   });
 
   it("refuses exclusive role collisions before composing a shared path", () => {
@@ -345,7 +409,14 @@ describe("validated v3 decomposition plan path registry", () => {
       claims: [contributor(file("before")), contributor(file("other"))],
     })).toEqual({
       ok: false,
-      refusal: { code: "incompatible-base-prestate", path },
+      refusal: {
+        code: "incompatible-base-prestate",
+        path,
+        evidence: {
+          expected: file("before"),
+          actual: file("other"),
+        },
+      },
     });
 
     expect(buildValidatedDecomposePlan({

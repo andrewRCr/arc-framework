@@ -1,16 +1,21 @@
 /** Runtime schemas for local and frontline review-response planning. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import {
   ApprovedDispositionSetSchema,
   DispositionSetStateSchema,
 } from "./disposition-records.js";
-import { NormalizedReviewFindingSchema } from "./finding-records.js";
+import {
+  NormalizedReviewFindingsSchema,
+  ReviewFindingIdentitySchema,
+} from "./finding-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 import { ReviewRoutingDecisionSchema } from "../policy/routing-schema.js";
+import { ReviewPolicyCommandRequestSchema } from "../policy/review-policy-driver.js";
 
 export const ReviewResponseCapabilitySchema = z.enum(["approve", "fix", "persist", "close", "reroute"]);
 export type ReviewResponseCapability = z.infer<typeof ReviewResponseCapabilitySchema>;
@@ -26,11 +31,11 @@ export type ReviewResponseCapabilities = z.infer<typeof ReviewResponseCapabiliti
 
 export const ReviewResponseInputSchema = z.strictObject({
   currentTarget: ReviewTargetSchema,
-  findings: z.array(NormalizedReviewFindingSchema).min(1),
+  findings: NormalizedReviewFindingsSchema.refine((findings) => findings.length > 0),
   routing: ReviewRoutingDecisionSchema,
   dispositionState: DispositionSetStateSchema.nullable(),
   candidateTarget: ReviewTargetSchema.nullable(),
-  persistedTargetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).nullable(),
+  persistedTargetId: CanonicalDigestSchema.nullable(),
   verificationPassed: z.boolean(),
   verificationRefs: z.array(z.string().trim().min(1)),
   capabilities: ReviewResponseCapabilitiesSchema,
@@ -68,23 +73,33 @@ export const ReviewResponseSettlementSourceSchema = z.discriminatedUnion("kind",
   z.strictObject({ kind: z.literal("hosted"), attemptRef: z.string().trim().min(1) }),
 ]);
 
+/** Exact unsettled hosted attempt and normalized findings ready for response triage. */
+export const HostedFindingsResponsePlanSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  target: ReviewTargetSchema,
+  source: z.strictObject({ kind: z.literal("hosted"), attemptRef: z.string().trim().min(1) }),
+  findings: NormalizedReviewFindingsSchema.refine((findings) => findings.length > 0),
+});
+export type HostedFindingsResponsePlan = z.infer<typeof HostedFindingsResponsePlanSchema>;
+
 export const ReviewResponseSettlementRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   source: ReviewResponseSettlementSourceSchema,
+  policyRequest: ReviewPolicyCommandRequestSchema,
   dispositions: ApprovedDispositionSetSchema,
 });
 export type ReviewResponseSettlementRequest = z.infer<typeof ReviewResponseSettlementRequestSchema>;
 
 export const ReviewResponseSettlementActionSchema = z.strictObject({
   channel: z.literal("review-response"),
-  dispositionId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  dispositionId: CanonicalDigestSchema,
   originTarget: ReviewTargetSchema,
   fixTarget: ReviewTargetSchema.nullable(),
   actors: z.strictObject({
     approverIdentity: z.string().trim().min(1),
     proposerIdentity: z.string().trim().min(1),
   }),
-  findingIds: z.array(z.string().trim().min(1)).min(1),
+  findingIds: z.array(ReviewFindingIdentitySchema).min(1),
   request: ReviewResponseSettlementRequestSchema,
 }).superRefine((action, context) => {
   const dispositions = action.request.dispositions;

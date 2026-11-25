@@ -14,16 +14,59 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, realpath, unlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { execa } from "execa";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
+import {
+  renderMetaFile,
+  setMetaCurrentWorkflow,
+  setMetaState,
+} from "../../src/lib/active/meta-reader.js";
+import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from
+  "../../src/lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
+import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
+import { gitExec } from "../../src/lib/io-context.js";
+import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
+import { deliveryStateFixture } from "../fixtures/delivery-state.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { createGitTraceHarness, readGitTrace, writeGhStub } from "../helpers/session-init-wrappers.js";
 import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
 
+import {
+  copyPreparedRepository, prepareRepositoryTemplate, type PreparedRepositoryTemplate,
+} from "../helpers/prepared-repository.js";
+
 const execFileAsync = promisify(execFile);
+
+const initializedShape = { kind: "plain", key: "session-init-uncommitted" } as const;
+let initializedTemplate: PreparedRepositoryTemplate | undefined;
+beforeAll(async () => {
+  initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
+    const root = await createTempRepo();
+    try {
+      const init = await runArc(["init", "--yes", "--name", "test-project"], root);
+      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
+      return root;
+    } catch (error) {
+      await cleanupTempDir(root);
+      throw error;
+    }
+  });
+});
+afterAll(async () => {
+  if (initializedTemplate !== undefined) await cleanupTempDir(initializedTemplate.root);
+});
+async function copyInitializedRepository(): Promise<string> {
+  if (initializedTemplate === undefined) throw new Error("session-init template not prepared");
+  return copyPreparedRepository(initializedTemplate, initializedShape);
+}
 
 interface SessionInitEnvelope {
   mode: string;
@@ -50,6 +93,7 @@ interface SessionInitEnvelope {
     value?: {
       mode: string;
       verdict: string;
+      movement?: "disjoint" | "overlapping" | "unknown";
       behind: number;
       integrationEvidence: unknown;
       overlap: unknown;
@@ -59,6 +103,7 @@ interface SessionInitEnvelope {
     };
   };
   domainRules?: unknown;
+  hooksPath?: { ok: boolean; value?: Record<string, unknown> };
   recommendedCombinedPrompt?: unknown;
   active: {
     ok: boolean;
@@ -68,6 +113,7 @@ interface SessionInitEnvelope {
       currentWorkflow: string | null;
       integrationBoundary?: {
         candidateId: string;
+        candidateSubjectDigest: string | null;
         locus: string;
         nextAction: { kind: string; command: string; interactionText: string };
       } | null;
@@ -185,80 +231,26 @@ interface RecoverAuditReport {
   };
 }
 
-interface GitTraceHarness {
-  binDir: string;
-  logPath: string;
-  batchInputPath: string;
-  env: Record<string, string>;
-}
-
-async function createGitTraceHarness(): Promise<GitTraceHarness> {
-  const binDir = await mkdtemp(join(tmpdir(), "arc-session-init-git-trace-"));
-  const logPath = join(binDir, "git.log");
-  const batchInputPath = join(binDir, "batch-input.txt");
-  const wrapperPath = join(binDir, "git");
-  await writeFile(wrapperPath, [
-    "#!/bin/sh",
-    // Compose the record, then append it in one write: the probes run concurrently, so
-    // separate appends can interleave mid-record and corrupt the trace being asserted on.
-    // The tab-per-field shape is preserved because the reader splits records on tabs.
-    "__arc_record=$(printf '%s\\t' \"$PWD\" \"$@\")",
-    "printf '%s\\n' \"$__arc_record\" >> \"$ARC_GIT_TRACE_LOG\"",
-    "case \"$ARC_GIT_TRACE_HISTORY:$*\" in",
-    "  shallow:*\"rev-parse --is-shallow-repository\"*)",
-    "    printf '%s\\n' 'true'",
-    "    exit 0",
-    "    ;;",
-    "esac",
-    "case \"$ARC_GIT_TRACE_FAIL:$*\" in",
-    "  remote:*\"ls-remote --heads origin\"*)",
-    "    printf '%s\\n' 'network is unreachable' >&2",
-    "    exit 1",
-    "    ;;",
-    "  batch:*\"cat-file --batch-check\"*)",
-    "    /bin/cat > /dev/null",
-    "    printf '%s\\n' 'local object inspection denied' >&2",
-    "    exit 1",
-    "    ;;",
-    "esac",
-    "case \"$ARC_GIT_TRACE_REJECT_CODE_WRITES:$*\" in",
-    "  1:*refs/notes/arc/user/*|1:*refs/arc/user/*|1:*refs/arc/tmp/transient-discovery/*)",
-    "    ;;",
-    "  1:fetch*|1:update-ref*|1:symbolic-ref*|1:branch*|1:pack-objects*|1:index-pack*|1:maintenance*|1:gc*)",
-    "    printf '%s\\n' 'code-repository metadata write denied' >&2",
-    "    exit 97",
-    "    ;;",
-    "esac",
-    "case \" $* \" in",
-    "  *\" cat-file --batch-check\"*)",
-    "    /bin/cat > \"$ARC_GIT_TRACE_BATCH_INPUT\"",
-    "    PATH=\"$ARC_GIT_REAL_PATH\" exec git \"$@\" < \"$ARC_GIT_TRACE_BATCH_INPUT\"",
-    "    ;;",
-    "esac",
-    "PATH=\"$ARC_GIT_REAL_PATH\" exec git \"$@\"",
-    "",
-  ].join("\n"));
-  await chmod(wrapperPath, 0o755);
-  const realPath = process.env.PATH ?? "";
-  return {
-    binDir,
-    logPath,
-    batchInputPath,
-    env: {
-      PATH: `${binDir}:${realPath}`,
-      ARC_GIT_REAL_PATH: realPath,
-      ARC_GIT_TRACE_LOG: logPath,
-      ARC_GIT_TRACE_BATCH_INPUT: batchInputPath,
-    },
-  };
-}
-
-async function readGitTrace(harness: GitTraceHarness): Promise<string[][]> {
-  const content = await readFile(harness.logPath, "utf8");
-  return content.trim().split("\n").filter(Boolean).map((line) => line.split("\t").filter(Boolean));
-}
-
 async function writeStatusFixture(
+  arcRoot: string,
+  category: string,
+  stem: string,
+  fields: { taskList?: string; nextAction: string },
+): Promise<void> {
+  await git(arcRoot, ["add", "-A"]);
+  await git(arcRoot, ["commit", "--allow-empty", "-m", "initialize fixture"]);
+  await git(arcRoot, ["switch", "-c", `${category}/${stem}`]);
+  const dir = join(arcRoot, ".arc", "active");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, `meta-${stem}.md`), makeMetaFixture(stem, {
+    owner: "test-user",
+    branch: `${category}/${stem}`,
+    taskList: fields.taskList?.replaceAll("`", "") ?? null,
+    nextAction: fields.nextAction,
+  }));
+}
+
+async function writeUserReferenceStatusFixture(
   arcRoot: string,
   category: string,
   stem: string,
@@ -272,9 +264,10 @@ async function writeStatusFixture(
   const lines: string[] = [
     `# Metadata: ${stem}`,
     "",
-    "- **State:** Active",
-    "- **Owner:** test-user",
-    `- **Branch:** ${category}/${stem}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| Active | test-user | ${category}/${stem} | — | — |`,
+    "",
   ];
   if (fields.taskList !== undefined) {
     lines.push(`- **Task List:** ${fields.taskList}`);
@@ -283,6 +276,7 @@ async function writeStatusFixture(
   lines.push("- **Current Workflow:** [none]");
   lines.push("- **Last Completed:** [none]");
   lines.push(`- **Next Action:** ${fields.nextAction}`);
+  lines.push("", "---", "");
   await writeFile(join(dir, `meta-${stem}.md`), lines.join("\n"));
 }
 
@@ -362,13 +356,22 @@ function taskListFixture(title: string): string {
   ].join("\n");
 }
 
+function singletonTaskListFixture(title: string): string {
+  return [
+    "# Task List: Foo",
+    "",
+    "## **Phase 1:** Work",
+    "",
+    `### \`[ ]\` **1.1 ${title}**`,
+    "",
+  ].join("\n");
+}
+
 describe("session-init E2E — sessionType across type variants", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
+    tmpDir = await copyInitializedRepository();
   });
 
   afterEach(async () => {
@@ -388,6 +391,30 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.errandState?.value?.warnings).not.toContain(
       "Errand record `valid-v3` is malformed.",
     );
+  });
+
+  it("names a configured hooks path the checkout lacks, and goes quiet once it exists", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "init"]);
+    await git(tmpDir, ["config", "core.hooksPath", ".unprovisioned-hooks"]);
+
+    const missing = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(missing.exitCode).toBe(0);
+    expect(parseJsonEnvelope(missing.stdout).hooksPath).toEqual({
+      ok: true,
+      value: {
+        recommendedAction: "surface",
+        configured: ".unprovisioned-hooks",
+        resolvedPath: join(await realpath(tmpDir), ".unprovisioned-hooks"),
+        recommendedPromptText: expect.stringContaining("runs no hooks"),
+      },
+    });
+
+    await mkdir(join(tmpDir, ".unprovisioned-hooks"));
+    const provisioned = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(parseJsonEnvelope(provisioned.stdout).hooksPath).toEqual({
+      ok: true, value: { recommendedAction: "none" },
+    });
   });
 
   it("does not invent a planning session from a branch-shaped unoccupied checkout", async () => {
@@ -425,19 +452,13 @@ describe("session-init E2E — sessionType across type variants", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-foo.md"),
-      [
-        "# Metadata: Foo",
-        "",
-        "- **State:** Active",
-        "- **Owner:** test-user",
-        "- **Branch:** feat/foo",
-        "- **Task List:** tasks-foo.md",
-        "- **Candidate:** [none]",
-        "- **Current Workflow:** [none]",
-        "- **Next Task:** Task 1.1 — Do seed (line ~12)",
-        "- **Next Action:** Start Task 1.1",
-        "",
-      ].join("\n"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextTask: "Task 1.1 — Do seed (line ~12)",
+        nextAction: "Start Task 1.1",
+      }),
     );
     await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Do seed"));
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
@@ -488,18 +509,13 @@ describe("session-init E2E — sessionType across type variants", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-foo.md"),
-      [
-        "# Metadata: Foo",
-        "",
-        "- **State:** Active",
-        "- **Owner:** test-user",
-        "- **Branch:** feat/foo",
-        "- **Task List:** tasks-foo.md",
-        "- **Current Workflow:** [none]",
-        "- **Next Task:** Task 1.1 — Do recover (line ~12)",
-        "- **Next Action:** Start Task 1.1",
-        "",
-      ].join("\n"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextTask: "Task 1.1 — Do recover (line ~12)",
+        nextAction: "Start Task 1.1",
+      }),
     );
     await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Do recover"));
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
@@ -533,7 +549,322 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.taskCursor).toMatchObject({ ok: true, value: { status: "found" } });
   });
 
-  it("preserves terminal task evidence for an integrating work unit", async () => {
+  it("reopens substantial integration work to an exact task and recovers without stale Candidate authority", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "init"]);
+    await git(tmpDir, ["switch", "-c", "feat/foo"]);
+
+    const activeDir = join(tmpDir, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, "meta-foo.md"),
+      renderMetaFile("foo", {
+        state: "Integrating",
+        owner: "test-user",
+        branch: "feat/foo",
+        workClass: "Heavy",
+        priority: "P1",
+        taskList: "tasks-foo.md",
+        candidateId: `sha256:${"1".repeat(64)}`,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 9.1 — Complete verification",
+        nextAction: "Complete integration",
+      }),
+    );
+    await writeFile(join(activeDir, "tasks-foo.md"), singletonTaskListFixture("Repair lifecycle recovery"));
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "integrating fixture"]);
+
+    const ghBin = join(tmpDir, ".git", "arc-test-bin");
+    const ghLog = join(ghBin, "gh.log");
+    await mkdir(ghBin, { recursive: true });
+    const env = await writeGhStub(ghBin, ghLog, true);
+
+    const task = "Task 1.1 — Repair lifecycle recovery";
+    const mismatched = await runArc(
+      ["reopen", "foo", "--keep-pr", "--task", "Task 1.1 — Invented narrative"],
+      tmpDir,
+      { env },
+    );
+    expect(mismatched.exitCode).toBe(1);
+    expect(mismatched.stdout + mismatched.stderr).toContain(task);
+    expect(await readFile(ghLog, "utf8")).toBe("pr view feat/foo --json state\n");
+    await writeFile(ghLog, "");
+
+    const missingTask = await runArc(["reopen", "foo", "--keep-pr"], tmpDir, { env });
+    expect(missingTask.exitCode).toBe(1);
+    expect(missingTask.stdout + missingTask.stderr).toContain(task);
+    expect(await readFile(ghLog, "utf8")).toBe("pr view feat/foo --json state\n");
+    await writeFile(ghLog, "");
+
+    const reopened = await runArc(["reopen", "foo", "--keep-pr", "--task", task], tmpDir, { env });
+    expect(reopened.exitCode, reopened.stdout + reopened.stderr).toBe(0);
+
+    const meta = await readFile(join(activeDir, "meta-foo.md"), "utf8");
+    expect(meta).toContain("| `Active`");
+    expect(meta).toContain("- **Current Workflow:** `process-task-loop`");
+    expect(meta).toContain(`- **Next Task:** ${task}`);
+    expect(await readFile(ghLog, "utf8")).toBe([
+      "pr view feat/foo --json state",
+      "pr view feat/foo --json state,isDraft",
+      "pr ready feat/foo --undo",
+      "",
+    ].join("\n"));
+
+    const seeded = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+      { env },
+    );
+    expect(seeded.exitCode, seeded.stdout + seeded.stderr).toBe(0);
+    const envelope = parseJsonEnvelope(seeded.stdout);
+    expect(envelope.derivedLocusState).toMatchObject({ ok: true });
+    expect(envelope.active).toMatchObject({
+      ok: true,
+      value: { currentWorkflow: "process-task-loop", sessionType: "execution" },
+    });
+
+    const recovered = await runArc(["status", "--recover", "--json"], tmpDir, { env });
+    expect(recovered.exitCode, recovered.stdout + recovered.stderr).toBe(0);
+    const recovery = parseJsonEnvelope(recovered.stdout);
+    expect(recovery.recoveryFrame).toMatchObject({
+      ok: true,
+      value: { workflow: "process-task-loop", sessionType: "execution" },
+    });
+    expect(recovery.taskCursor).toMatchObject({ ok: true, value: { status: "found" } });
+
+    const audited = await runArc(["recover", "audit", "--json"], tmpDir, { env });
+    expect(audited.exitCode, audited.stdout + audited.stderr).toBe(0);
+    expect(parseRecoverAuditReport(audited.stdout).verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+    });
+
+    await writeFile(
+      join(activeDir, "tasks-foo.md"),
+      singletonTaskListFixture("Repair lifecycle recovery").replace("`[ ]`", "`[x]`"),
+    );
+    await git(tmpDir, ["add", "-A"]);
+
+    const closeoutSeeded = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+      { env },
+    );
+    expect(closeoutSeeded.exitCode, closeoutSeeded.stdout + closeoutSeeded.stderr).toBe(0);
+    const closeout = parseJsonEnvelope(closeoutSeeded.stdout);
+    expect(closeout.active).toMatchObject({
+      ok: true,
+      value: { currentWorkflow: "verify-work-unit", sessionType: "execution" },
+    });
+    expect(closeout.taskCursor).toEqual({ ok: true, value: { status: "no-open-task" } });
+    expect(closeout.loadSet?.value?.entries).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      readMode: { kind: "full" },
+    });
+    expect(closeout.loadSet?.value?.entries.map((entry) => entry.path))
+      .not.toContain(".arc/active/tasks-foo.md");
+
+    const closeoutRecovered = await runArc(["status", "--recover", "--json"], tmpDir, { env });
+    expect(closeoutRecovered.exitCode, closeoutRecovered.stdout + closeoutRecovered.stderr).toBe(0);
+    expect(parseJsonEnvelope(closeoutRecovered.stdout).recoveryFrame).toMatchObject({
+      ok: true,
+      value: { workflow: "verify-work-unit", sessionType: "execution" },
+    });
+
+    const closeoutAudit = await runArc(["recover", "audit", "--json"], tmpDir, { env });
+    expect(closeoutAudit.exitCode, closeoutAudit.stdout + closeoutAudit.stderr).toBe(0);
+    expect(parseRecoverAuditReport(closeoutAudit.stdout).verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+      taskCursor: null,
+    });
+
+    const attested = await runArc(["attest", "foo", "--json"], tmpDir, { env });
+    expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+    expect(parseJsonEnvelope(attested.stdout)).toMatchObject({
+      status: "attested",
+      locus: { locus: "candidate-review-pending" },
+    });
+
+    const prepublication = await runArc(["status", "--session-init", "--json"], tmpDir, { env });
+    expect(prepublication.exitCode, prepublication.stdout + prepublication.stderr).toBe(0);
+    expect(parseJsonEnvelope(prepublication.stdout).active).toMatchObject({
+      ok: true,
+      value: { currentWorkflow: "prepare-work-unit", sessionType: "prepublication" },
+    });
+  });
+
+  it("refuses ordinary reopen for a bound delivery before host or lifecycle mutation", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "init"]);
+    await git(tmpDir, ["switch", "-c", "feat/foo"]);
+
+    const plan = deliveryThreeMemberStackPlanForWorkUnitFixture("foo");
+    const activeDir = join(tmpDir, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, "meta-foo.md"),
+      renderMetaFile("foo", {
+        state: "Integrating",
+        owner: "test-user",
+        branch: "feat/foo",
+        workClass: "Heavy",
+        priority: "P1",
+        taskList: "tasks-foo.md",
+        candidateId: `sha256:${"1".repeat(64)}`,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 9.1 — Complete verification",
+        nextAction: "Complete integration",
+      }),
+    );
+    await writeFile(join(activeDir, "tasks-foo.md"), [
+      "# Task List: Foo",
+      "",
+      renderDeliveryPlanSection(plan).trimEnd(),
+      "",
+      "## **Phase 1:** Work",
+      "",
+      "### `[ ]` **1.1 Repair the published delivery**",
+      "",
+    ].join("\n"));
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "bound delivery fixture"]);
+
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, tmpDir);
+    const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+    const states = new RepositoryDeliveryStateStore(publisher);
+    expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
+    expect(await states.publish(plan.planId, deliveryStateFixture(plan), 0)).toMatchObject({ status: "ok" });
+
+    const ghBin = join(tmpDir, ".git", "arc-test-bin");
+    const ghLog = join(ghBin, "gh.log");
+    await mkdir(ghBin, { recursive: true });
+    await writeFile(ghLog, "");
+    const env = await writeGhStub(ghBin, ghLog, false);
+
+    const result = await runArc(
+      ["reopen", "foo", "--keep-pr", "--task", "Task 1.1 — Repair the published delivery"],
+      tmpDir,
+      { env },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain("coherently bound delivery");
+    expect(await readFile(ghLog, "utf8")).toBe("");
+    expect(await readFile(join(activeDir, "meta-foo.md"), "utf8")).toContain("| `Integrating`");
+  });
+
+  it("resumes an open published correction without leaving integration", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "init"]);
+    await git(tmpDir, ["switch", "-c", "feat/foo"]);
+
+    const activeDir = join(tmpDir, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, "meta-foo.md"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextAction: "Complete integration",
+      }),
+    );
+    const closedTasks = [
+      "# Task List: Foo",
+      "",
+      "## **Phase 1:** Work",
+      "",
+      "### `[x]` **1.1 Complete initial work**",
+      "",
+    ].join("\n");
+    await writeFile(join(activeDir, "tasks-foo.md"), closedTasks);
+    await writeFile(join(tmpDir, "reviewed.txt"), "attested implementation\n");
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "verified fixture"]);
+
+    const attested = await runArc(["attest", "foo", "--json"], tmpDir);
+    expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+    const metaPath = join(activeDir, "meta-foo.md");
+    const attestedMeta = await readFile(metaPath, "utf8");
+    await writeFile(
+      metaPath,
+      setMetaCurrentWorkflow(setMetaState(attestedMeta, "Integrating"), "integrate-work-unit"),
+    );
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "public integration fixture"]);
+
+    const seeded = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+    );
+    expect(seeded.exitCode, seeded.stdout + seeded.stderr).toBe(0);
+    expect(parseJsonEnvelope(seeded.stdout)).toMatchObject({
+      active: {
+        ok: true,
+        value: { sessionType: "integration", currentWorkflow: "integrate-work-unit" },
+      },
+      compactionSeedWrite: { status: "written" },
+    });
+
+    await writeFile(
+      join(activeDir, "tasks-foo.md"),
+      `${closedTasks}\n### \`[ ]\` **1.2 Correct published behavior**\n`,
+    );
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "append correction"]);
+
+    const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    const envelope = parseJsonEnvelope(result.stdout);
+    expect(envelope.active).toMatchObject({
+      ok: true,
+      value: {
+        resolution: "single",
+        sessionType: "integration",
+        currentWorkflow: "process-task-loop",
+      },
+    });
+    expect(envelope.taskCursor).toMatchObject({
+      ok: true,
+      value: {
+        status: "found",
+        cursor: {
+          section: { id: "1.2", title: "Correct published behavior" },
+          leaf: { id: "1.2", title: "Correct published behavior" },
+        },
+      },
+    });
+    expect(envelope.loadSet?.value?.entries).toEqual(expect.arrayContaining([
+      {
+        path: ".arc/active/tasks-foo.md",
+        readMode: { kind: "partial-strategic" },
+      },
+      {
+        path: ".arc/system/workflows/arc/process-task-loop.md",
+        readMode: { kind: "full" },
+      },
+    ]));
+    expect(envelope.loadSet?.value?.entries.map((entry) => entry.path))
+      .not.toContain(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md");
+
+    const audited = await runArc(["recover", "audit", "--json"], tmpDir);
+    expect(audited.exitCode, audited.stdout + audited.stderr).toBe(0);
+    expect(parseRecoverAuditReport(audited.stdout).verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+      taskCursor: {
+        match: true,
+        actual: { status: "found", cursor: { leaf: { id: "1.2" } } },
+      },
+    });
+  });
+
+  it("projects integration verification while Candidate applicability awaits authority", async () => {
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "init"], { cwd: tmpDir });
     await execFileAsync("git", ["checkout", "-b", "feat/foo"], { cwd: tmpDir });
@@ -542,26 +873,25 @@ describe("session-init E2E — sessionType across type variants", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-foo.md"),
-      [
-        "# Metadata: Foo",
-        "",
-        "- **State:** Active",
-        "- **Owner:** test-user",
-        "- **Branch:** feat/foo",
-        "- **Depends On:** [none]",
-        "- **Task List:** tasks-foo.md",
-        "- **Candidate:** [none]",
-        "- **Current Workflow:** [none]",
-        "- **Last Completed:** [none]",
-        "- **Next Task:** [none]",
-        "- **Next Action:** Complete integration",
-        "",
-      ].join("\n"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextAction: "Complete integration",
+      }),
     );
     await writeFile(
       join(activeDir, "tasks-foo.md"),
-      taskListFixture("Complete recovery").replace("`[ ]`", "`[x]`"),
+      [
+        "# Task List: Foo",
+        "",
+        "## **Phase 1:** Work",
+        "",
+        "### `[x]` **1.1 Complete recovery**",
+        "",
+      ].join("\n"),
     );
+    await writeFile(join(tmpDir, "reviewed.txt"), "attested implementation\n");
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "integrating fixture"], { cwd: tmpDir });
 
@@ -583,9 +913,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     const attestedMeta = await readFile(attestedMetaPath, "utf8");
     await writeFile(
       attestedMetaPath,
-      attestedMeta
-        .replace("- **State:** Active", "- **State:** Integrating")
-        .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+      setMetaCurrentWorkflow(setMetaState(attestedMeta, "Integrating"), "integrate-work-unit"),
     );
     await writeFile(candidateBoundaryPath, `${JSON.stringify({
       schemaVersion: 1,
@@ -605,21 +933,55 @@ describe("session-init E2E — sessionType across type variants", () => {
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "publish fixture"], { cwd: tmpDir });
 
+    await writeFile(join(tmpDir, "reviewed.txt"), "changed after publication\n");
+    await execFileAsync("git", ["add", "reviewed.txt"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "change candidate subject"], { cwd: tmpDir });
+
+    const seeded = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+    );
+    expect(seeded.exitCode, seeded.stdout + seeded.stderr).toBe(0);
+    const session = parseJsonEnvelope(seeded.stdout);
+    expect(session.active).toMatchObject({
+      ok: true,
+      value: {
+        resolution: "single",
+        sessionType: "integration",
+        currentWorkflow: "verify-work-unit",
+        integrationBoundary: {
+          candidateId: candidateBoundary.candidateId,
+          candidateSubjectDigest: candidateBoundary.candidateSubjectDigest,
+          locus: "publication-pending",
+        },
+      },
+    });
+    expect(session.compactionSeedWrite).toMatchObject({ status: "written" });
+
     const result = await runArc(["status", "--recover", "--json"], tmpDir);
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
 
     const envelope = parseJsonEnvelope(result.stdout);
     expect(envelope.recoveryFrame).toMatchObject({
       ok: true,
-      value: { kind: "resolved", workflow: "integrate-work-unit", sessionType: "integration" },
+      value: { kind: "resolved", workflow: "verify-work-unit", sessionType: "integration" },
     });
     expect(envelope.taskCursor).toEqual({ ok: true, value: { status: "no-open-task" } });
     expect(envelope.loadSet?.value?.entries).toContainEqual({
-      path: ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
       readMode: { kind: "full" },
     });
     expect(envelope.loadSet?.value?.entries.map((entry) => entry.path))
       .not.toContain(".arc/active/tasks-foo.md");
+
+    const audited = await runArc(["recover", "audit", "--json"], tmpDir);
+    expect(audited.exitCode, audited.stdout + audited.stderr).toBe(0);
+    expect(parseRecoverAuditReport(audited.stdout).verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+      taskCursor: null,
+    });
   });
 
   it("audits the compaction seed against fresh recovery state", async () => {
@@ -631,18 +993,13 @@ describe("session-init E2E — sessionType across type variants", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-foo.md"),
-      [
-        "# Metadata: Foo",
-        "",
-        "- **State:** Active",
-        "- **Owner:** test-user",
-        "- **Branch:** feat/foo",
-        "- **Task List:** tasks-foo.md",
-        "- **Current Workflow:** [none]",
-        "- **Next Task:** stale meta pointer ignored by recovery",
-        "- **Next Action:** Start Task 1.1",
-        "",
-      ].join("\n"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextTask: "stale meta pointer ignored by recovery",
+        nextAction: "Start Task 1.1",
+      }),
     );
     await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Do audit"));
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
@@ -694,13 +1051,21 @@ describe("session-init E2E — sessionType across type variants", () => {
     });
   });
 
-  it("rejects --recover combined with session-init mode", async () => {
-    const result = await runArc(["status", "--recover", "--session-init", "--json"], tmpDir);
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stdout + result.stderr).toContain(
-      "--session-init, --session-handoff, --recover, --user, and --project are mutually exclusive",
-    );
-  });
+  it.each([
+    ["--session-init", "--session-handoff"],
+    ["--user", "--session-init"],
+    ["--recover", "--session-init"],
+    ["--write-compaction-seed", "--session-handoff"],
+  ].flatMap(flags => [flags, [...flags].reverse()]).map(flags => ({ flags })))(
+    "rejects incompatible status options before handler dispatch: $flags",
+    async ({ flags }) => {
+      const result = await runArc(["status", ...flags, "--json"], tmpDir);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("cannot be used with option");
+      for (const flag of flags) expect(result.stderr).toContain(flag);
+    },
+  );
 
   it("emits sessionType=null when resolution=none + branch does not match plan-pattern (orphan)", async () => {
     // Default branch from `git init` does not match `plan/<name>` —
@@ -807,20 +1172,120 @@ describe("session-init E2E — sessionType across type variants", () => {
       locus: "candidate-review-pending",
       nextAction: {
         kind: "run-self-review",
-        command: "arc review pre-publication foo --json",
+        command: "arc review pre-publication foo",
       },
     });
   });
+
+  it("writes a compaction seed for a large Candidate within the hook deadline using batched reads", async () => {
+    // A .cmd wrapper imposes cmd.exe's smaller argv limit on the 400-file reads. Native Git tracing does not.
+    const trace = await createGitTraceHarness({ nativeTrace: process.platform === "win32" });
+    try {
+      await writeStatusFixture(tmpDir, "technical", "large-candidate", {
+        taskList: "`.arc/active/tasks-large-candidate.md`",
+        nextAction: "archive-work-unit Step 1",
+      });
+      await writeFile(
+        join(tmpDir, ".arc", "active", "tasks-large-candidate.md"),
+        singletonTaskListFixture("Complete verification").replace("`[ ]`", "`[x]`"),
+      );
+      const fixtureDir = join(tmpDir, "large-candidate");
+      await mkdir(fixtureDir, { recursive: true });
+      await Promise.all(Array.from({ length: 400 }, async (_unused, index) => {
+        const name = `${String(index).padStart(4, "0")}.txt`;
+        await writeFile(join(fixtureDir, name), `candidate entry ${String(index)}\n`);
+      }));
+      await git(tmpDir, ["add", "-A"]);
+      const attested = await runArc(["attest", "large-candidate", "--json"], tmpDir, { timeout: 29_000 });
+      expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+      const candidateBoundaryPath = join(
+        tmpDir,
+        ".arc",
+        "system",
+        ".internal",
+        "candidates",
+        "large-candidate.boundary.json",
+      );
+      const candidateBoundary = JSON.parse(await readFile(candidateBoundaryPath, "utf8")) as {
+        candidateId: string;
+        candidateSubjectDigest: string;
+      };
+      const metaPath = join(tmpDir, ".arc", "active", "meta-large-candidate.md");
+      await writeFile(
+        metaPath,
+        setMetaCurrentWorkflow(
+          setMetaState(await readFile(metaPath, "utf8"), "Integrating"),
+          "integrate-work-unit",
+        ),
+      );
+      await writeFile(candidateBoundaryPath, `${JSON.stringify({
+        schemaVersion: 1,
+        mode: "integration-boundary",
+        workUnit: "large-candidate",
+        candidateId: candidateBoundary.candidateId,
+        candidateSubjectDigest: candidateBoundary.candidateSubjectDigest,
+        locus: "publication-pending",
+        nextAction: {
+          kind: "continue-publication",
+          command: "git push -u origin technical/large-candidate",
+          interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
+        },
+        policy: null,
+        reservation: null,
+      })}\n`);
+      await git(tmpDir, ["add", "-A"]);
+      await git(tmpDir, ["commit", "-m", "integrate large candidate fixture"]);
+
+      const result = await runArc(
+        ["status", "--session-init", "--write-compaction-seed", "--json"],
+        tmpDir,
+        { timeout: 29_000, env: trace.env },
+      );
+
+      expect(result.timedOut).toBeUndefined();
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      const envelope = parseJsonEnvelope(result.stdout);
+      expect(envelope.compactionSeedWrite, JSON.stringify(envelope))
+        .toMatchObject({ status: "written" });
+      const commands = await readGitTrace(trace);
+      const argsFor = (fields: string[]): string[] => fields.slice(1);
+      const candidateLookups = commands.filter((fields) => {
+        const args = argsFor(fields);
+        return args[0] === "--no-lazy-fetch" && (
+          args.includes("ls-files") && args.includes("--stage")
+          || args.includes("ls-tree") && args.some((arg) => arg.includes("%(objectmode)"))
+        );
+      });
+      const candidateBatchChecks = commands.filter((fields) => {
+        const args = argsFor(fields);
+        return args[0] === "--no-lazy-fetch"
+          && args.includes("cat-file")
+          && args.some((arg) => arg.startsWith("--batch-check=%(objectname)"));
+      });
+      const candidateContentBatches = commands.filter((fields) => {
+        const args = argsFor(fields);
+        return args[0] === "--no-lazy-fetch"
+          && args.includes("cat-file")
+          && args.includes("--batch");
+      });
+      const traceDiagnostic = JSON.stringify({ locus: envelope.derivedLocusState, commands: commands.filter(fields =>
+        fields.some(field => ["ls-files", "ls-tree", "cat-file"].includes(field))
+      ) });
+      expect(candidateLookups, traceDiagnostic).toHaveLength(2);
+      expect(candidateBatchChecks, traceDiagnostic).toHaveLength(2);
+      expect(candidateContentBatches, traceDiagnostic).toHaveLength(2);
+    } finally {
+      await cleanupTempDir(trace.binDir);
+    }
+  }, 90_000);
 });
 
 describe("session-init E2E — request-scoped remote acquisition", () => {
   it("uses one all-heads generation and one local availability batch without code-ref mutation", async () => {
-    const repo = await createTempRepo();
+    const repo = await copyInitializedRepository();
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-generation-origin-"));
     const trace = await createGitTraceHarness();
     try {
-      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
       await git(repo, ["remote", "add", "origin", bareDir]);
       await git(repo, ["add", "-A"]);
@@ -836,12 +1301,13 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
       await git(repo, ["push", "origin", "HEAD:feat/remote-generation"]);
       await git(repo, ["push", "origin", "HEAD:feat/remote-generation-alias"]);
       await git(repo, ["switch", "main"]);
-      await writeStatusFixture(repo, "feat", "remote-boundary", { nextAction: "Continue execution" });
+      await writeUserReferenceStatusFixture(repo, "feat", "remote-boundary", { nextAction: "Continue execution" });
 
-      await expect(execFileAsync("git", ["fetch", "origin", "main"], {
+      // Execa resolves the same Windows .cmd wrapper used by the CLI; execFile bypasses it for git.exe.
+      await expect(execa("git", ["fetch", "origin", "main"], {
         cwd: repo,
         env: { ...process.env, ...trace.env, ARC_GIT_TRACE_REJECT_CODE_WRITES: "1" },
-      })).rejects.toMatchObject({ code: 97 });
+      })).rejects.toMatchObject({ exitCode: 97 });
       await writeFile(trace.logPath, "", "utf8");
 
       const result = await runArc(["status", "--session-init", "--json"], repo, {
@@ -897,12 +1363,10 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
   });
 
   it("isolates an unreachable all-heads read while preserving local orientation", async () => {
-    const repo = await createTempRepo();
+    const repo = await copyInitializedRepository();
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-unreachable-origin-"));
     const trace = await createGitTraceHarness();
     try {
-      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
       await git(repo, ["remote", "add", "origin", bareDir]);
       await git(repo, ["add", "-A"]);
@@ -948,12 +1412,10 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
   });
 
   it("isolates a failed local availability prerequisite while preserving snapshot-only absence", async () => {
-    const repo = await createTempRepo();
+    const repo = await copyInitializedRepository();
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-local-probe-origin-"));
     const trace = await createGitTraceHarness();
     try {
-      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
       await git(repo, ["remote", "add", "origin", bareDir]);
       await git(repo, ["add", "-A"]);
@@ -995,12 +1457,10 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
   });
 
   it("keeps snapshot-only absence exact while shallow graph slots fail locally", async () => {
-    const repo = await createTempRepo();
+    const repo = await copyInitializedRepository();
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-shallow-origin-"));
     const trace = await createGitTraceHarness();
     try {
-      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
       await git(repo, ["remote", "add", "origin", bareDir]);
       await git(repo, ["add", "-A"]);
@@ -1043,10 +1503,8 @@ describe("session-init E2E — current detached husk advisory", () => {
   let worktreeParent: string;
 
   beforeEach(async () => {
-    repo = await createTempRepo();
+    repo = await copyInitializedRepository();
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-init-husk-wt-"));
-    const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-    expect(init.exitCode).toBe(0);
     await git(repo, ["add", "-A"]);
     await git(repo, ["commit", "-m", "chore: initialize ARC"]);
   });
@@ -1056,7 +1514,7 @@ describe("session-init E2E — current detached husk advisory", () => {
     await cleanupTempDir(worktreeParent);
   });
 
-  it("emits the advisory for an exact stamped WU husk without a completion record", async () => {
+  it("refuses an unstamped-authority husk and accepts complete evidence after repair", async () => {
     const canonical = join(worktreeParent, "canonical");
     const ordinary = join(worktreeParent, "ordinary");
     await git(repo, ["branch", "feat/shipped-widget"]);
@@ -1090,15 +1548,7 @@ describe("session-init E2E — current detached husk advisory", () => {
 
     const canonicalEnvelope = parseJsonEnvelope(canonicalResult.stdout);
     const ordinaryEnvelope = parseJsonEnvelope(ordinaryResult.stdout);
-    expect(canonicalEnvelope.currentHusk).toEqual({
-      ok: true,
-      value: {
-        worktreePath: await realpath(canonical),
-        subject: { kind: "work-unit", name: "shipped-widget" },
-        branch: "feat/shipped-widget",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
-      },
-    });
+    expect(canonicalEnvelope.currentHusk).toEqual({ ok: true, value: null });
     expect(ordinaryEnvelope.currentHusk).toEqual({ ok: true, value: null });
 
     await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
@@ -1152,7 +1602,16 @@ describe("session-init E2E — current detached husk advisory", () => {
       const completedDir = join(repo, ".arc", "completed", "2026-q3", "shipped-widget");
       const completedPath = ".arc/completed/2026-q3/shipped-widget/meta-shipped-widget.md";
       await mkdir(completedDir, { recursive: true });
-      await writeFile(join(repo, completedPath), "# Metadata: shipped-widget\n");
+      await writeFile(join(repo, completedPath), [
+        "# Metadata: shipped-widget",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Shipped | — | — | — | — |",
+        "",
+        "---",
+        "",
+      ].join("\n"));
       await git(repo, ["add", completedPath]);
       await git(repo, ["commit", "-m", "record shipped widget"]);
       await git(repo, ["push", "-u", "origin", "main"]);
@@ -1206,10 +1665,8 @@ describe("session-init E2E — deferred rename move advisory", () => {
   let worktreeParent: string;
 
   beforeEach(async () => {
-    repo = await createTempRepo();
+    repo = await copyInitializedRepository();
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-init-rename-wt-"));
-    const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-    expect(init.exitCode).toBe(0);
     await git(repo, ["add", "-A"]);
     await git(repo, ["commit", "-m", "chore: initialize ARC"]);
   });
@@ -1255,9 +1712,13 @@ describe("session-init E2E — deferred rename move advisory", () => {
       from: canonicalFrom,
       to,
       remedy: {
-        argv: ["git", "worktree", "move", canonicalFrom, to],
-        text: `Move the registered worktree from ${JSON.stringify(canonicalFrom)} to ${JSON.stringify(to)}.`,
+        argv: ["git", "worktree", "move", "-f", "-f", canonicalFrom, to],
+        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout.`,
       },
+      actions: [{
+        argv: ["git", "worktree", "move", "-f", "-f", canonicalFrom, to],
+        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout.`,
+      }],
     }]);
   });
 });
@@ -1303,9 +1764,7 @@ describe("session-init E2E — base-ref pull recommendation under session.init_p
   }
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
+    tmpDir = await copyInitializedRepository();
     await setupStaleLocalBase(tmpDir);
   });
 
@@ -1355,10 +1814,9 @@ describe("session-init E2E — shared advisory base drift", () => {
   let remote: string;
 
   beforeEach(async () => {
-    repo = await createTempRepo("arc-session-drift-");
+    repo = await copyInitializedRepository();
     publisher = await mkdtemp(join(tmpdir(), "arc-session-drift-publisher-"));
     remote = await mkdtemp(join(tmpdir(), "arc-session-drift-remote-"));
-    expect((await runArc(["init", "--yes", "--name", "test-project"], repo)).exitCode).toBe(0);
     await git(repo, ["add", "-A"]);
     await git(repo, ["commit", "--no-verify", "-m", "init"]);
     await execFileAsync("git", ["init", "--bare", "-b", "main", remote]);
@@ -1394,6 +1852,7 @@ describe("session-init E2E — shared advisory base drift", () => {
       remoteEvidence: "pending-fetch",
       recommendedAction: "skip",
     });
+    expect(parseJsonEnvelope(pendingRun.stdout).baseDistance?.value).not.toHaveProperty("movement");
 
     const materialized = await runArc(["base", "sync", "--json"], repo);
     expect(materialized.exitCode, materialized.stdout + materialized.stderr).toBe(0);
@@ -1401,7 +1860,9 @@ describe("session-init E2E — shared advisory base drift", () => {
     expect(run.exitCode).toBe(0);
     const value = parseJsonEnvelope(run.stdout).baseDistance?.value;
     expect(value?.verdict, JSON.stringify(value)).toBe("reconcile");
-    expect(value).toMatchObject({ mode: "advisory", recommendedAction: "surface" });
+    expect(value).toMatchObject({
+      mode: "advisory", movement: "disjoint", recommendedAction: "surface",
+    });
     expect(value?.integrationEvidence).not.toBeNull();
     expect(value?.overlap).not.toBeNull();
     expect(value?.recommendedPromptText).toBe(value?.register?.text);
@@ -1413,11 +1874,13 @@ describe("session-init E2E — shared advisory base drift", () => {
     await writeFile(configPath, config.replace("session.remote_sync: enabled", "session.remote_sync: disabled"));
     const run = await runArc(["status", "--session-init", "--json"], repo);
     expect(run.exitCode).toBe(0);
-    expect(parseJsonEnvelope(run.stdout).baseDistance?.value).toMatchObject({
+    const value = parseJsonEnvelope(run.stdout).baseDistance?.value;
+    expect(value).toMatchObject({
       mode: "advisory",
       verdict: "skipped",
       recommendedAction: "skip",
       recommendedPromptText: "",
     });
+    expect(value).not.toHaveProperty("movement");
   });
 });

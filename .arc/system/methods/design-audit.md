@@ -6,7 +6,8 @@ override-active: false
 
 # Method: design-audit
 
-> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec]
+> - **Workflow:** [planning-review](planning-review.md) and the
+>   [standalone design audit](../.internal/skills/arc-design-audit/SKILL.md).
 > - **When:** A planning boundary validates a settled design — draft readiness or spec finalization, where the
 >   `adversarial-review` mechanism runs this rubric — or an ad-hoc standalone re-check re-validates a design whose
 >   world may have moved, via the [`arc-design-audit` door][arc-design-audit-skill].
@@ -30,7 +31,7 @@ last: each checks a derived thing against the referent it was derived from.
 **Named inputs:**
 
 | Input            | Kind     | Contents                                                                                                                                                                     |
-|------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `design`         | required | The artifact carrying the design under audit — a finished draft, or a spec plus its upstream draft when one exists.                                                          |
 | `goal-referents` | optional | Where the goal lives when the artifact doesn't fully carry it — a PRD section, an origin issue, a stated objective. Defaults to the artifact's own problem / goal statement. |
 
@@ -62,9 +63,9 @@ A design that merely avoids conflict with its surroundings has not yet demonstra
 - **Optimality.** Among the reasonable alternatives, is this the right design — would two competent engineers,
   given the same constraints, build materially the same thing?
 - **Material proportionality.** Delegate unsupported machinery, missed composition, speculative capability,
-  disproportionate rigor, and adequacy regression to
-  [`assess-design-proportionality`][assess-design-proportionality]. This lens retains broader efficacy and fit
-  analysis plus minor optimality residue; it does not duplicate the proportionality criterion.
+  disproportionate rigor, and adequacy regression to [`assess-design-proportionality`][assess-design-proportionality].
+  This lens retains broader efficacy and fit analysis plus minor optimality residue; it does not duplicate the
+  proportionality criterion.
 - **System coherence.** The design composes with the existing architecture, conventions, and adjacent designs
   rather than sitting beside them.
 - **Forward compatibility.** The design survives known upcoming directions — it does not bake in an assumption
@@ -75,9 +76,9 @@ A design that merely avoids conflict with its surroundings has not yet demonstra
 The two methods divide labor along the artifact/design line and compose rather than overlap:
 
 - [`spec-review`][spec-review] verifies the **artifact** — the just-written spec is coherent, complete, and its
-  concrete references are real. It deliberately disclaims re-litigating the design.
-- `design-audit` validates the **design** — the thing self-review disclaims. When a `spec-review` pass surfaces a
-  finding that _reopens design_ (a masked decision, an unsettled fundamental), this rubric is that route's
+  claims about shipped behavior hold at source. It deliberately disclaims re-litigating the design.
+- `design-audit` validates the **design** — the thing `code-review-author` disclaims. When a `spec-review` pass surfaces
+  a finding that _reopens design_ (a masked decision, an unsettled fundamental), this rubric is that route's
   destination: the reopened question is re-validated here, never papered over in the artifact.
 
 Run `spec-review` to certify the record; run `design-audit` to certify the decisions it records. Neither subsumes
@@ -85,11 +86,11 @@ the other.
 
 ### Severity interpretation
 
-Through the `adversarial-review` mechanism, findings map into the fixed `blocker` / `major` / `minor` enum the
+Through the `adversarial-review` mechanism, findings map into the fixed `critical` / `major` / `minor` enum the
 [severity model][adversarial-review] owns — the rubric maps _into_ the enum and never extends it. What each level
 looks like for a design:
 
-- **`blocker`** — an efficacy break: the design as settled does not achieve a stated goal (a missing mechanism, a
+- **`critical`** — an efficacy break: the design as settled does not achieve a stated goal (a missing mechanism, a
   causal chain that doesn't produce the outcome, a false load-bearing assumption), or an unsettled fundamental
   presented as settled — a masked decision the downstream stage would inherit.
 - **`major`** — a substantive fit or partial-efficacy problem that should resolve: a materially better
@@ -108,8 +109,6 @@ draft or spec grooming — not around it via downstream patches.
 
 ---
 
-[draft-design]: ../workflows/arc/draft-design.md
-[create-spec]: ../workflows/arc/create-spec.md
 [assess-design-proportionality]: assess-design-proportionality.md
 [spec-review]: spec-review.md
 [adversarial-review]: adversarial-review.md

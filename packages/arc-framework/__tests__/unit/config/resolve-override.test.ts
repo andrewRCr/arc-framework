@@ -4,6 +4,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { resolveGitConfigOverride } from "../../../src/lib/config/resolve-override.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const VALID_VALUES = ["always", "prompt", "manual"] as const;
 type TestPolicy = (typeof VALID_VALUES)[number];
@@ -16,7 +17,7 @@ function isValidTestPolicy(value: string): value is TestPolicy {
 function gitExecWithOverride(value: string | undefined) {
   return vi.fn().mockImplementation((cmd: string, args: string[]) => {
     if (cmd === "git" && args[0] === "config" && args[1] === "--get" && args[2] === "arc.testPolicy") {
-      if (value === undefined) return Promise.reject(new Error("exit 1"));
+      if (value === undefined) return Promise.reject(makeGitProcessError({ command: cmd, args, exitCode: 1 }));
       return Promise.resolve({ stdout: `${value}\n` });
     }
     return Promise.reject(new Error(`unexpected call: ${cmd} ${args.join(" ")}`));
@@ -113,4 +114,19 @@ describe("resolveGitConfigOverride", () => {
       }),
     ).resolves.toEqual({ value: "always", source: "default" });
   });
+});
+
+
+it("refuses an unreadable Git policy instead of falling through, then accepts a repaired read", async () => {
+  const failure = makeGitProcessError({ command: "git", args: ["config", "--get", "arc.testPolicy"],
+    exitCode: 1, signal: "SIGTERM", stdout: "", stderr: "" });
+  const exec = vi.fn().mockRejectedValueOnce(failure).mockResolvedValueOnce({ stdout: "manual\n" });
+  const readFile = readFileWithYaml(`${YAML_KEY}: prompt\n`);
+  const resolve = () => resolveGitConfigOverride<TestPolicy>({ exec, readFile, cwd: "/fake/repo",
+    gitConfigKey: "arc.testPolicy", yamlKey: YAML_KEY, defaultValue: "always",
+    isValidValue: isValidTestPolicy, validValues: VALID_VALUES });
+  await expect(resolve()).rejects.toBe(failure);
+  expect(readFile).not.toHaveBeenCalled();
+  await expect(resolve()).resolves.toEqual({ value: "manual", source: "git-config" });
+  expect(readFile).not.toHaveBeenCalled();
 });

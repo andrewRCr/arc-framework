@@ -5,7 +5,17 @@
  * serialization round-trips, ancestor walking, and user directory management.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest";
 import { readFile, writeFile, mkdir, mkdtemp, readdir, rm, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -13,20 +23,19 @@ import { pathToFileURL } from "node:url";
 
 import {
   cleanupTempDir,
-  createTempRepo,
-  initInTempRepo,
+  copyPreparedRepository,
   removeGitBackedDir,
   makeUserIO,
   makeCommit,
   addBareRemote,
   execFileAsync,
-  loadRecipe,
-  makeIOContext,
-  getArcTemplatePath,
-  getInternalTemplatePath,
+  prepareRepositoryTemplate,
+  PREPARED_REMOTE_PATH,
   DEFAULT_PROMPTS,
+  type PreparedRepositoryShape,
+  type PreparedRepositoryTemplate,
 } from "../helpers/integration.js";
-import { runInit } from "../../src/commands/init.js";
+import { initInTempRepo, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { hashSyncManifest, serializeSplitUserManifest } from "../../src/commands/user/save-load.js";
 import { buildLoadSummary } from "../../src/commands/user/format.js";
 import { runRetiredSubdirDetection } from "../../src/lib/session-init/retired-subdir-detection.js";
@@ -67,6 +76,63 @@ import {
 
 /** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
 const recoveryOutput = createSyncOutput(false);
+
+const initializedShape: PreparedRepositoryShape = {
+  kind: "plain",
+  key: "user-test-initialized",
+};
+const committedShape: PreparedRepositoryShape = {
+  kind: "plain",
+  key: "user-test-committed",
+};
+const remoteShape: PreparedRepositoryShape = {
+  kind: "remote-bearing",
+  key: "user-test-remote",
+};
+const firstUserShape: PreparedRepositoryShape = {
+  kind: "plain",
+  key: "user-test-first-user",
+};
+const templateRoots = new Set<string>();
+let initializedTemplate: PreparedRepositoryTemplate;
+let committedTemplate: PreparedRepositoryTemplate;
+let remoteTemplate: PreparedRepositoryTemplate;
+let firstUserTemplate: PreparedRepositoryTemplate;
+
+beforeAll(async () => {
+  initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
+    const root = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    templateRoots.add(root);
+    return root;
+  });
+  committedTemplate = await prepareRepositoryTemplate(committedShape, async () => {
+    const root = await copyPreparedRepository(initializedTemplate, initializedShape);
+    templateRoots.add(root);
+    await makeCommit(root, "initial commit");
+    return root;
+  });
+  remoteTemplate = await prepareRepositoryTemplate(remoteShape, async () => {
+    const root = await copyPreparedRepository(committedTemplate, committedShape);
+    templateRoots.add(root);
+    await mkdir(join(root, ".arc-fixture"), { recursive: true });
+    await writeFile(join(root, ".git", "info", "exclude"), "\n/.arc-fixture/\n", { flag: "a" });
+    const remote = join(root, PREPARED_REMOTE_PATH);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: root });
+    await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd: root });
+    return root;
+  });
+  firstUserTemplate = await prepareRepositoryTemplate(firstUserShape, async () => {
+    const root = await initInTempRepo(DEFAULT_PROMPTS, "first-user");
+    templateRoots.add(root);
+    return root;
+  });
+});
+
+afterAll(async () => {
+  await Promise.all([...templateRoots].map(async (root) => cleanupTempDir(root)));
+  templateRoots.clear();
+});
 
 const {
   mockLog,
@@ -205,10 +271,7 @@ describe("user save and load", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    // Full init creates the user directory (SESSION-NOTES is per-WU, seeded by `arc user open`)
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
-    // Need at least one commit for git notes to attach to
-    await makeCommit(tempDir, "initial commit");
+    tempDir = await copyPreparedRepository(committedTemplate, committedShape);
   });
 
   afterEach(async () => {
@@ -610,8 +673,7 @@ describe("user workspace rename", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
-    await makeCommit(tempDir, "initial commit");
+    tempDir = await copyPreparedRepository(committedTemplate, committedShape);
   });
 
   afterEach(async () => {
@@ -650,8 +712,7 @@ describe("user load — backup and stale detection", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
-    await makeCommit(tempDir, "initial commit");
+    tempDir = await copyPreparedRepository(committedTemplate, committedShape);
   });
 
   afterEach(async () => {
@@ -793,6 +854,68 @@ describe("user load — backup and stale detection", () => {
     ]);
   });
 
+  it("keeps every backup distinct and in load order when loads share one clock reading", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-09-28T23:00:00.000Z") });
+    try {
+      for (let i = 1; i <= 4; i++) {
+        await writeFile(join(userDir, "WORKING-MEMORY.md"), `# Local ${i}`, "utf-8");
+        await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const timestamped = (await listBackupFiles(userDir)).filter((name) => name !== BACKUP_FILENAME);
+    const contents = await Promise.all(timestamped.sort().map(async (name) => {
+      const raw = await readFile(join(userDir, ".internal", name), "utf-8");
+      return (JSON.parse(raw) as { files: Record<string, string> }).files["WORKING-MEMORY.md"];
+    }));
+    expect(contents).toEqual(["# Local 2", "# Local 3", "# Local 4"]);
+  });
+
+  it("keeps both backups when concurrent loads pick a backup name at the same moment", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const internalDir = join(userDir, ".internal");
+
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local", "utf-8");
+
+    // Hold the first two listings of the backup directory until both loads arrive. Unserialized name selection
+    // then reads one directory state twice; a serialized writer times the hold out and lists after the first write.
+    let arrivals = 0;
+    let releaseHeld!: () => void;
+    const bothArrived = new Promise<void>((resolve) => { releaseHeld = resolve; });
+    const racingIO = {
+      ...io,
+      readDir: async (dir: string) => {
+        if (dir === internalDir && arrivals < 2) {
+          arrivals += 1;
+          if (arrivals === 2) releaseHeld();
+          await Promise.race([bothArrived, new Promise((resolve) => setTimeout(resolve, 250))]);
+        }
+        return io.readDir(dir);
+      },
+    };
+
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-09-28T23:00:00.000Z") });
+    try {
+      await Promise.all([1, 2].map(() => runUserLoad({ cwd: tempDir, io: racingIO, identity: "test-user" })));
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const timestamped = (await listBackupFiles(userDir)).filter((name) => name !== BACKUP_FILENAME);
+    expect(timestamped).toHaveLength(2);
+  });
+
   it("keeps legacy backup files visible while pruning timestamped snapshots", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
@@ -816,9 +939,7 @@ describe("user load — retired-subdir reconciliation", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
-    await makeCommit(tempDir, "initial commit");
-    await addBareRemote(tempDir);
+    tempDir = await copyPreparedRepository(remoteTemplate, remoteShape);
   });
 
   afterEach(async () => {
@@ -1142,8 +1263,7 @@ describe("user save/load — subdirectory support", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
-    await makeCommit(tempDir, "initial commit");
+    tempDir = await copyPreparedRepository(committedTemplate, committedShape);
   });
 
   afterEach(async () => {
@@ -1371,8 +1491,7 @@ describe("user save/load — split-source worktree surfaces", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
-    await makeCommit(tempDir, "initial commit");
+    tempDir = await copyPreparedRepository(committedTemplate, committedShape);
   });
 
   afterEach(async () => {
@@ -1570,7 +1689,7 @@ describe("user add", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "first-user");
+    tempDir = await copyPreparedRepository(firstUserTemplate, firstUserShape);
   });
 
   afterEach(async () => {
@@ -1634,9 +1753,8 @@ describe("user push and pull", () => {
   let cloneDir: string | undefined;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
-    await makeCommit(tempDir, "initial commit");
-    remoteDir = await addBareRemote(tempDir);
+    tempDir = await copyPreparedRepository(remoteTemplate, remoteShape);
+    remoteDir = join(tempDir, PREPARED_REMOTE_PATH);
     cloneDir = undefined;
   });
 
@@ -1644,25 +1762,12 @@ describe("user push and pull", () => {
     vi.resetAllMocks();
     mockIsCancel.mockReturnValue(false);
     await cleanupTempDir(tempDir);
-    await cleanupTempDir(remoteDir);
     if (cloneDir) await cleanupTempDir(cloneDir);
   });
 
-  async function initRepoWithRemote(identity = "test-user"): Promise<{ repo: string; remote: string }> {
-    const repo = await createTempRepo("arc-notes-fetch-");
-    await makeCommit(repo, "initial commit");
-    const remote = await addBareRemote(repo);
-    const recipe = await loadRecipe();
-    await runInit({
-      cwd: repo,
-      io: makeIOContext(repo),
-      templateDir: getArcTemplatePath(),
-      internalTemplateDir: getInternalTemplatePath(),
-      recipe,
-      prompts: DEFAULT_PROMPTS,
-      identityResult: identity,
-    });
-    return { repo, remote };
+  async function initRepoWithRemote(): Promise<{ repo: string; remote: string }> {
+    const repo = await copyPreparedRepository(remoteTemplate, remoteShape);
+    return { repo, remote: join(repo, PREPARED_REMOTE_PATH) };
   }
 
   async function saveUserMemory(repo: string, identity: string, content: string): Promise<string> {
@@ -2171,15 +2276,13 @@ describe("user status", () => {
   let cloneDir: string | undefined;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
-    await makeCommit(tempDir, "initial commit");
-    remoteDir = await addBareRemote(tempDir);
+    tempDir = await copyPreparedRepository(remoteTemplate, remoteShape);
+    remoteDir = join(tempDir, PREPARED_REMOTE_PATH);
     cloneDir = undefined;
   });
 
   afterEach(async () => {
     await cleanupTempDir(tempDir);
-    await cleanupTempDir(remoteDir);
     if (cloneDir) await cleanupTempDir(cloneDir);
   });
 
@@ -2715,7 +2818,7 @@ describe("user open", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    tempDir = await copyPreparedRepository(initializedTemplate, initializedShape);
   });
 
   afterEach(async () => {
@@ -2855,7 +2958,7 @@ describe("user close", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    tempDir = await copyPreparedRepository(initializedTemplate, initializedShape);
   });
 
   afterEach(async () => {

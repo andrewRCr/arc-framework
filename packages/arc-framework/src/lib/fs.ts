@@ -7,9 +7,12 @@
  * @module
  */
 
-import { join, dirname, basename, relative } from "node:path";
+import { join, dirname, basename, relative, posix, win32 } from "node:path";
 import { readdir, stat, writeFile, rename, unlink, mkdir, link } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
+
+import { retryTransientFileSystemRefusal } from "./kernel/fs-retry.js";
+export { retryTransientFileSystemRefusal } from "./kernel/fs-retry.js";
 
 /**
  * Write text or bytes to a file atomically using temp-file-then-rename.
@@ -27,18 +30,28 @@ import { randomBytes } from "node:crypto";
  *
  * @param targetPath - Absolute path to the file
  * @param content - Complete text or byte content to write
+ * @param options - `createParents: false` writes only into a folder that exists, failing with `ENOENT` otherwise
  */
-export async function atomicWriteFile(targetPath: string, content: string | Uint8Array): Promise<void> {
+export async function atomicWriteFile(
+  targetPath: string, content: string | Uint8Array, options: { createParents?: boolean; checkpoint?: () => Promise<void> } = {},
+): Promise<void> {
   const dir = dirname(targetPath);
-  await mkdir(dir, { recursive: true });
+  if (options.createParents !== false) {
+    await options.checkpoint?.();
+    await mkdir(dir, { recursive: true });
+  }
   const tmpPath = join(dir, `.${basename(targetPath)}.${randomBytes(8).toString("hex")}.tmp`);
 
   try {
+    await options.checkpoint?.();
     await writeFile(tmpPath, content, typeof content === "string" ? "utf-8" : undefined);
-    await rename(tmpPath, targetPath);
+    await retryTransientFileSystemRefusal(async () => {
+      await options.checkpoint?.();
+      await rename(tmpPath, targetPath);
+    });
   } catch (err) {
     // Clean up temp file if it was created before the failure
-    await unlink(tmpPath).catch(() => {});
+    await (async () => { await options.checkpoint?.(); await unlink(tmpPath); })().catch(() => {});
     throw err;
   }
 }
@@ -133,6 +146,21 @@ export async function atomicCreateFile(targetPath: string, content: string): Pro
   await nodeAtomicCreateFile(targetPath, content);
 }
 
+/** Filesystem access refusals that name a remediable environment condition. */
+export type FilesystemAccessFault = "read-only-filesystem" | "permission-denied";
+
+/**
+ * Classify a filesystem error as a recognized access refusal.
+ * @param error - Value thrown by a filesystem operation
+ * @returns The refusal it represents, or `undefined` for any other failure
+ */
+export function classifyFilesystemAccessFault(error: unknown): FilesystemAccessFault | undefined {
+  const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+  if (code === "EROFS") return "read-only-filesystem";
+  if (code === "EACCES" || code === "EPERM") return "permission-denied";
+  return undefined;
+}
+
 /**
  * Normalize a path to use forward slashes regardless of platform.
  *
@@ -144,6 +172,30 @@ export async function atomicCreateFile(targetPath: string, content: string): Pro
  */
 export function toForwardSlash(p: string): string {
   return p.replaceAll("\\", "/");
+}
+
+/**
+ * Spell a local path for display from `cwd`.
+ *
+ * A path inside `cwd` shows relative to it with forward slashes on every platform. A path outside it, including one
+ * on another Windows drive, shows absolute in the platform's own spelling, since Windows reads `C:\\repo`, not
+ * `C:/repo`, as a canonical absolute path.
+ *
+ * @param cwd - Directory the display is relative to
+ * @param path - Path to display
+ * @param pathApi - Path semantics of the platform, defaulting to the host's
+ * @returns A forward-slash relative path, `.` for `cwd` itself, or the native absolute path
+ */
+export function displayLocalPath(
+  cwd: string,
+  path: string,
+  pathApi: typeof posix = process.platform === "win32" ? win32 : posix,
+): string {
+  if (!pathApi.isAbsolute(path)) return toForwardSlash(path);
+  const rel = pathApi.relative(cwd, path);
+  if (rel === "") return ".";
+  const local = toForwardSlash(rel);
+  return local === ".." || local.startsWith("../") || pathApi.isAbsolute(rel) ? path : local;
 }
 
 /**
@@ -167,8 +219,9 @@ export async function listArcFiles(dir: string): Promise<string[]> {
     for (const entry of entries) {
       const fullPath = join(current, entry);
       const relPath = toForwardSlash(relative(dir, fullPath));
-      // Skip system/.internal directory (framework bookkeeping)
+      // Skip system/.internal (framework bookkeeping) and system/.local (machine-local files)
       if (relPath === "system/.internal" || relPath.startsWith("system/.internal/")) continue;
+      if (relPath === "system/.local" || relPath.startsWith("system/.local/")) continue;
       // Skip per-identity user directories (e.g., user/alice/) — these are
       // gitignored personal workspaces. Top-level user/ files like README.md
       // are included since they are tracked framework content.

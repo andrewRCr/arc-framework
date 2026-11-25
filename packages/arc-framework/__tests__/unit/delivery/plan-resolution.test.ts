@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   resolveForwardDeliverySubject,
+  resolveForwardDeliverySubjects,
   resolveExistingDeliveryPlan,
   type DeliveryRenameTransitionSource,
 } from "../../../src/lib/delivery/plan-resolution.js";
@@ -58,6 +59,29 @@ function resolve(input: {
 }
 
 describe("existing delivery plan resolution", () => {
+  it("selects every independently resolved plan in one authenticated snapshot", async () => {
+    const records = [plan("bound", "old-unit"), plan("orphan", "current-unit")];
+    await expect(resolveForwardDeliverySubjects({
+      records,
+      currentWorkUnitId: "current-unit",
+      recordWorkUnitId: (record) => record.workUnitId,
+      authority: { status: "established", ref: "refs/heads/main" },
+      transitionSource: transitionSource([
+        { subject: "old-unit", outcome: { kind: "rename", targetSlug: "current-unit" } },
+      ]),
+    })).resolves.toEqual({ status: "resolved", records });
+  });
+
+  it("treats an empty closeout namespace as authoritatively empty", async () => {
+    await expect(resolveForwardDeliverySubjects({
+      records: [],
+      currentWorkUnitId: "current-unit",
+      recordWorkUnitId: (record: TestPlan) => record.workUnitId,
+      authority: { status: "unestablished" },
+      transitionSource: { enumerate: async () => { throw new Error("empty namespace reads no history"); } },
+    })).resolves.toEqual({ status: "resolved", records: [] });
+  });
+
   it("resolves payload-neutral records without a delivery plan store", async () => {
     const authoredMap = { mapId: "map-1", originalWorkUnitId: "original-unit" };
 

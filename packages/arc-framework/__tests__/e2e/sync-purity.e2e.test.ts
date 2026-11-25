@@ -20,6 +20,7 @@ import { promisify } from "node:util";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { runCli } from "../helpers/run-cli.js";
 import { runArc } from "./helpers.js";
+import type { SyncOutcome } from "../../src/handlers/sync.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -30,6 +31,7 @@ interface PureEnvelope {
   cell: string;
   exitCode: number;
   reason?: string;
+  notes?: SyncOutcome["notes"];
 }
 
 /**
@@ -125,7 +127,7 @@ describe("arc sync --json stdout purity", () => {
 
       // Info-level chatter and note blocks duplicate envelope fields — suppressed
       // under --json so consumers can `2>&1 | jq` without contamination. Errors
-      // and warnings still fire on stderr (proven by the prompt-policy case).
+      // and diagnostics still fire on stderr (proven by the prompt-policy case).
       expect(result.stderr).not.toMatch(/^info: /m);
       expect(result.stderr).not.toContain("[Saved]");
     } finally {
@@ -181,7 +183,7 @@ describe("arc sync --json stdout purity", () => {
   });
 
   it(
-    "prompt-policy cell under --json: pure stdout JSON, degradation warning on stderr",
+    "prompt-policy cell under --json: pure stdout JSON, authority refusal on stderr",
     async () => {
       const harness = await setupClonesWithIdentity(identity);
       try {
@@ -189,19 +191,20 @@ describe("arc sync --json stdout purity", () => {
           "user.notes_push": "prompt",
         });
 
+        await execFileAsync("git", ["push", "origin", "main"], { cwd: harness.cloneA });
         const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
 
         const envelope = parsePureEnvelope(result.stdout);
-        // Prompt degrades to manual under --json → matrix resolves to save-only.
-        expect(envelope.cell).toBe("save-only");
-        expect(envelope.exitCode).toBe(0);
-        expect(result.exitCode).toBe(0);
+        expect(envelope.cell).toBe("notes-prompt");
+        expect(envelope.notes).toMatchObject({ action: "save", result: "blocked",
+          detail: "notes-push-authority-required" });
+        expect(envelope.exitCode).toBe(1);
+        expect(result.exitCode).toBe(1);
 
-        // Degradation warning lands on stderr, not stdout.
-        expect(result.stderr).toContain("degrading");
-        expect(result.stdout).not.toContain("degrading");
+        expect(result.stderr).toContain("Notes saved locally; re-run with --yes to authorize the push.");
+        expect(result.stdout).not.toContain("re-run with --yes");
 
-        // Warns fire on stderr; info-level chatter is suppressed under --json.
+        // Diagnostics use stderr; info-level chatter is suppressed under --json.
         expect(result.stderr).not.toMatch(/^info: /m);
       } finally {
         await harness.cleanup();

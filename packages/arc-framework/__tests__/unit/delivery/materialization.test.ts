@@ -8,16 +8,21 @@ import {
   materializeBoundDeliveryChain,
   publishDeliveryRequests,
   resolveDeliveryMemberPresentations,
+  resolveDeliveryPublicationPresentations,
 } from "../../../src/lib/delivery/materialization.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
-import { deliveryPlanFixture, deliveryThreeMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryPlanFixture,
+  deliverySingleMemberStackPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 
 const protectedHead = "1".repeat(40);
 const protectedTree = "2".repeat(40);
 const firstHead = "3".repeat(40);
 const firstTree = "4".repeat(40);
-const controlHead = "5".repeat(40);
-const controlTree = "6".repeat(40);
+const topHead = "5".repeat(40);
+const topTree = "6".repeat(40);
 
 function eligible(plan = deliveryPlanFixture()) {
   return {
@@ -26,14 +31,17 @@ function eligible(plan = deliveryPlanFixture()) {
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: protectedHead, tree: protectedTree },
-    control: { ref: "refs/heads/feat/example", head: controlHead, tree: controlTree },
+    chainBase: { head: protectedHead, tree: protectedTree },
+    predecessorRelation: { kind: "advanced" as const, observedTip: protectedHead, chainBase: protectedHead },
+    top: { ref: "refs/heads/feat/example", head: topHead, tree: topTree },
     members: plan.members.map((member, index) => ({
       deliverableId: member.deliverableId,
       ref: `refs/heads/candidate-${index + 1}`,
-      head: index === 0 ? firstHead : controlHead,
-      tree: index === 0 ? firstTree : controlTree,
+      head: index === 0 ? firstHead : topHead,
+      tree: index === 0 ? firstTree : topTree,
     })),
     lifecyclePaths: [],
+    regenerablePaths: [],
   };
 }
 
@@ -52,7 +60,36 @@ function memoryStateStore() {
 }
 
 describe("deriveDeliveryMaterialization", () => {
-  it("derives ordered presentation refs and omits a terminal delivery ref", () => {
+  it("persists a disjoint chain base independently of the protected request ref", () => {
+    const plan = deliveryPlanFixture();
+    const chainHead = "7".repeat(40);
+    const chainTree = "8".repeat(40);
+    const snapshot = {
+      ...eligible(plan),
+      protectedBase: { ref: "refs/heads/main", head: "9".repeat(40), tree: "a".repeat(40) },
+      chainBase: { head: chainHead, tree: chainTree },
+      predecessorRelation: {
+        kind: "diverged" as const,
+        observedTip: "9".repeat(40),
+        chainBase: chainHead,
+        mergeBase: chainHead,
+        mergeBaseCount: 1,
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
+    };
+
+    const result = deriveDeliveryMaterialization(plan, snapshot);
+    expect(result.status).toBe("derived");
+    if (result.status !== "derived") return;
+    expect(result.value.observedTarget).toEqual(snapshot.protectedBase);
+    expect(result.value.target).toEqual({ ref: "refs/heads/main", head: chainHead, tree: chainTree });
+    expect(result.value.members[0]).toMatchObject({
+      requestBaseRef: "refs/heads/main",
+      coordinates: { base: chainHead },
+    });
+  });
+
+  it("derives ordered member refs and binds the terminal to the originating top ref", () => {
     const plan = deliveryPlanFixture();
     const result = deriveDeliveryMaterialization(plan, eligible(plan));
     expect(result.status).toBe("derived");
@@ -66,9 +103,9 @@ describe("deriveDeliveryMaterialization", () => {
       }),
       expect.objectContaining({
         deliverableId: plan.members[1]!.deliverableId,
-        ref: null,
-        requestBaseRef: null,
-        coordinates: { base: firstHead, head: controlHead, tree: controlTree },
+        ref: "refs/heads/feat/example",
+        requestBaseRef: `refs/heads/delivery/${plan.workUnitId}/${plan.members[0]!.chunkKey}`,
+        coordinates: { base: firstHead, head: topHead, tree: topTree },
       }),
     ]);
     expect(deriveDeliveryMaterialization(plan, { ...eligible(plan), planDigest: "sha256:" + "0".repeat(64) }))
@@ -84,8 +121,8 @@ describe("deriveDeliveryMaterialization", () => {
       members: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 1}`,
-        head: [firstHead, secondHead, controlHead][index]!,
-        tree: [firstTree, secondTree, controlTree][index]!,
+        head: [firstHead, secondHead, topHead][index]!,
+        tree: [firstTree, secondTree, topTree][index]!,
       })),
     };
     const result = deriveDeliveryMaterialization(plan, snapshot);
@@ -103,13 +140,31 @@ describe("deriveDeliveryMaterialization", () => {
         coordinates: { base: firstHead, head: secondHead, tree: secondTree },
       }),
       expect.objectContaining({
-        ref: null,
-        requestBaseRef: null,
-        coordinates: { base: secondHead, head: controlHead, tree: controlTree },
+        ref: "refs/heads/feat/example",
+        requestBaseRef: `refs/heads/delivery/${plan.workUnitId}/${plan.members[1]!.chunkKey}`,
+        coordinates: { base: secondHead, head: topHead, tree: topTree },
       }),
     ]);
   });
+
+  it("bases a one-member terminal request directly on the protected branch", () => {
+    const plan = deliverySingleMemberStackPlanFixture();
+    const result = deriveDeliveryMaterialization(plan, eligible(plan));
+    expect(result).toMatchObject({
+      status: "derived",
+      value: {
+        members: [{
+          kind: "terminal",
+          ref: "refs/heads/feat/example",
+          requestBaseRef: "refs/heads/main",
+          coordinates: { base: protectedHead, head: topHead, tree: topTree },
+        }],
+      },
+    });
+  });
 });
+
+const titleIdentity = { type: "feat", breaking: false, description: "publish the work unit" } as const;
 
 describe("describeDeliveryMemberPresentation", () => {
   it("combines the deterministic member title with authored reviewer context", () => {
@@ -127,9 +182,10 @@ describe("describeDeliveryMemberPresentation", () => {
         ],
         designReference: "spec-example.md",
       },
+      titleIdentity,
     ))
       .toEqual({
-        title: `${plan.workUnitId} [2/3]: ${second.title}`,
+        title: `feat(${plan.workUnitId}): [2/3] ${second.title}`,
         body: [
           "**Design:** `spec-example.md`",
           "",
@@ -153,8 +209,9 @@ describe("describeDeliveryMemberPresentation", () => {
       plan,
       { deliverableId: first.deliverableId, chunkKey: first.chunkKey },
       { deliverableId: first.deliverableId, summary: "Establishes the boundary for choosing stacked delivery." },
+      titleIdentity,
     )).toEqual({
-      title: `${plan.workUnitId} [1/3]: ${first.title}`,
+      title: `feat(${plan.workUnitId}): [1/3] ${first.title}`,
       body: [
         "## Summary",
         "",
@@ -165,6 +222,7 @@ describe("describeDeliveryMemberPresentation", () => {
       plan,
       { deliverableId: "missing", chunkKey: "orphan" },
       { deliverableId: "missing", summary: "Orphaned presentation." },
+      titleIdentity,
     )).toThrow(/outside the delivery plan/u);
   });
 
@@ -174,7 +232,8 @@ describe("describeDeliveryMemberPresentation", () => {
       deliverableId: member.deliverableId,
       summary: `Review ${member.title}.`,
     }));
-    expect(resolveDeliveryMemberPresentations(plan, presentations)).toMatchObject({ status: "resolved" });
+    expect(resolveDeliveryMemberPresentations(plan, presentations, titleIdentity))
+      .toMatchObject({ status: "resolved" });
 
     for (const invalid of [
       presentations.slice(0, 1),
@@ -182,13 +241,174 @@ describe("describeDeliveryMemberPresentation", () => {
       [...presentations, { deliverableId: plan.members.at(-1)!.deliverableId, summary: "Terminal." }],
       [presentations[0]!, { deliverableId: "foreign", summary: "Foreign." }],
     ]) {
-      expect(resolveDeliveryMemberPresentations(plan, invalid))
+      expect(resolveDeliveryMemberPresentations(plan, invalid, titleIdentity))
         .toEqual({ status: "refused", reason: "presentation-mismatch" });
     }
+  });
+
+  it("refuses an invalid effective member request presentation", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const first = plan.members[0]!;
+    const malformed = {
+      ...plan,
+      members: plan.members.map((member, index) => index === 0
+        ? { ...member, title: "Member title\nwith a second line" }
+        : member),
+    };
+
+    expect(resolveDeliveryMemberPresentations(malformed, plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    })), titleIdentity)).toEqual({ status: "refused", reason: "presentation-mismatch" });
+    expect(first.title).not.toContain("\n");
+  });
+
+  it("validates the ordinary terminal presentation in the same preflight set", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const members = plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    }));
+
+    expect(resolveDeliveryPublicationPresentations(plan, members, {
+      title: "feat(delivery): publish the work unit",
+      body: "Publish the complete work unit.",
+    })).toMatchObject({ status: "resolved" });
+    expect(resolveDeliveryPublicationPresentations(plan, members, {
+      title: "feat(delivery): publish\nwork unit",
+      body: "Publish the complete work unit.",
+    })).toEqual({ status: "refused", reason: "presentation-mismatch" });
+  });
+
+  it("carries one shared identity and truthful position onto every request including the terminal", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const members = plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    }));
+
+    const resolved = resolveDeliveryPublicationPresentations(plan, members, {
+      title: "feat(delivery): publish the work unit",
+      body: "Publish the complete work unit.",
+    });
+    expect(resolved).toMatchObject({ status: "resolved" });
+    if (resolved.status !== "resolved") return;
+
+    expect(resolved.value.terminal.title).toBe(`feat(${plan.workUnitId}): [3/3] publish the work unit`);
+    expect(resolved.value.terminal.body).toBe("Publish the complete work unit.");
+    expect(plan.members.slice(0, -1).map(
+      (member) => resolved.value.members.get(member.deliverableId)?.title,
+    )).toEqual([
+      `feat(${plan.workUnitId}): [1/3] ${plan.members[0]!.title}`,
+      `feat(${plan.workUnitId}): [2/3] ${plan.members[1]!.title}`,
+    ]);
+  });
+
+  it("keeps a breaking marker on the terminal without propagating it to members", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const members = plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    }));
+
+    const resolved = resolveDeliveryPublicationPresentations(plan, members, {
+      title: "refactor(delivery)!: rework the publication surface",
+      body: "Rework the publication surface.",
+    });
+    expect(resolved).toMatchObject({ status: "resolved" });
+    if (resolved.status !== "resolved") return;
+
+    expect(resolved.value.terminal.title)
+      .toBe(`refactor(${plan.workUnitId})!: [3/3] rework the publication surface`);
+    expect(resolved.value.members.get(plan.members[0]!.deliverableId)?.title)
+      .toBe(`refactor(${plan.workUnitId}): [1/3] ${plan.members[0]!.title}`);
+  });
+
+  it("refuses a terminal title that is not an admitted conventional subject", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const members = plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    }));
+
+    for (const title of ["Publish: the work unit", "publish the work unit", "wip(delivery): publish"]) {
+      expect(resolveDeliveryPublicationPresentations(plan, members, {
+        title,
+        body: "Publish the complete work unit.",
+      })).toEqual({ status: "refused", reason: "terminal-title-not-conventional" });
+    }
+  });
+
+  it("leaves a one-member delivery title unchanged because it is not a stack", () => {
+    const plan = deliverySingleMemberStackPlanFixture();
+    expect(plan.members).toHaveLength(1);
+
+    const resolved = resolveDeliveryPublicationPresentations(plan, [], {
+      title: "Publish the lone member",
+      body: "Publish the complete work unit.",
+    });
+    expect(resolved).toMatchObject({ status: "resolved" });
+    if (resolved.status !== "resolved") return;
+
+    expect(resolved.value.terminal.title).toBe("Publish the lone member");
+    expect(resolved.value.members.size).toBe(0);
   });
 });
 
 describe("delivery materialization orchestration", () => {
+  it("verifies the observed protected tip while persisting a disjoint chain base", async () => {
+    const plan = deliveryPlanFixture();
+    const chainHead = "7".repeat(40);
+    const chainTree = "8".repeat(40);
+    const observedHead = "9".repeat(40);
+    const snapshot = {
+      ...eligible(plan),
+      protectedBase: { ref: "refs/heads/main", head: observedHead, tree: "a".repeat(40) },
+      chainBase: { head: chainHead, tree: chainTree },
+      predecessorRelation: {
+        kind: "diverged" as const,
+        observedTip: observedHead,
+        chainBase: chainHead,
+        mergeBase: chainHead,
+        mergeBaseCount: 1,
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
+    };
+    const derived = deriveDeliveryMaterialization(plan, snapshot);
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    let liveHead = observedHead;
+    const refs = {
+      publish: async () => ({ status: "published" as const }),
+      observe: async (ref: string) => ({
+        status: "observed" as const,
+        head: ref === "refs/heads/main" ? liveHead : firstHead,
+      }),
+    };
+    expect((await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs })).status)
+      .toBe("bound");
+    const materialized = await materializeBoundDeliveryChain({
+      plan, materialization: derived.value, stateStore: store, refs,
+    });
+    expect(materialized.status).toBe("materialized");
+    if (materialized.status !== "materialized") return;
+    expect(materialized.state.value.target).toEqual({
+      ref: "refs/heads/main", coordinates: { head: chainHead, tree: chainTree },
+    });
+    expect(materialized.state.value.members[0]?.coordinates?.base).toBe(chainHead);
+    expect(materialized.state.value.activeOperation).toBeNull();
+
+    liveHead = "b".repeat(40);
+    const movedStore = memoryStateStore();
+    expect((await bindInitialDeliveryRef({
+      plan, materialization: derived.value, stateStore: movedStore, refs,
+    })).status).toBe("bound");
+    await expect(materializeBoundDeliveryChain({
+      plan, materialization: derived.value, stateStore: movedStore, refs,
+    })).resolves.toEqual({ status: "refused" });
+    expect((await movedStore.read()).value?.value.activeOperation?.kind).toBe("materialize");
+  });
+
   it("binds the first exact ref once, then reserves target and remaining coordinate changes", async () => {
     const plan = deliveryPlanFixture();
     const derived = deriveDeliveryMaterialization(plan, eligible(plan));
@@ -227,6 +447,77 @@ describe("delivery materialization orchestration", () => {
     }
   });
 
+  it("refuses a state-bound member whose physical ref is moved or unavailable", async () => {
+    const plan = deliveryPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    const exactRefs = {
+      publish: async () => ({ status: "published" as const }),
+      observe: async (ref: string) => ({
+        status: "observed" as const,
+        head: ref === "refs/heads/main" ? protectedHead : firstHead,
+      }),
+    };
+    await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs: exactRefs });
+    await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs: exactRefs });
+
+    for (const memberObservation of [
+      { status: "observed" as const, head: "9".repeat(40) },
+      { status: "refused" as const },
+    ]) {
+      await expect(materializeBoundDeliveryChain({
+        plan,
+        materialization: derived.value,
+        stateStore: store,
+        refs: {
+          publish: async () => {
+            throw new Error("a non-exact state-bound ref must not publish");
+          },
+          observe: async (ref: string) => ref === "refs/heads/main"
+            ? { status: "observed" as const, head: protectedHead }
+            : memberObservation,
+        },
+      })).resolves.toEqual({ status: "refused" });
+    }
+  });
+
+  it("republishes a missing state-bound member through materialization", async () => {
+    const plan = deliveryPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    const memberRef = derived.value.members[0]!.ref;
+    if (memberRef === null) throw new Error("first member ref must exist");
+    const physicalRefs = new Map<string, string>([
+      ["refs/heads/main", protectedHead],
+      [memberRef, firstHead],
+    ]);
+    const refs = {
+      publish: async (ref: string, head: string) => {
+        physicalRefs.set(ref, head);
+        return { status: "published" as const };
+      },
+      observe: async (ref: string) => {
+        const head = physicalRefs.get(ref);
+        return head === undefined
+          ? { status: "absent" as const }
+          : { status: "observed" as const, head };
+      },
+    };
+    await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
+    await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs });
+    physicalRefs.delete(memberRef);
+
+    await expect(materializeBoundDeliveryChain({
+      plan,
+      materialization: derived.value,
+      stateStore: store,
+      refs,
+    })).resolves.toMatchObject({ status: "materialized" });
+    expect(physicalRefs.get(memberRef)).toBe(firstHead);
+  });
+
   it("adopts one exact request result", async () => {
     const plan = deliveryPlanFixture();
     const derived = deriveDeliveryMaterialization(plan, eligible(plan));
@@ -241,21 +532,29 @@ describe("delivery materialization orchestration", () => {
     };
     await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
     await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs });
+    let openedRequests = 0;
+    let composedMembers = 0;
     const host = {
-      observeRequest: async () => ({
+      observeRequest: async (effect: {
+        readonly repository: string; readonly headRef: string; readonly headSha: string;
+        readonly baseRef: string; readonly draft: boolean;
+      }) => ({
         status: "observed" as const,
         request: {
-          binding: { providerId: "github", changeRequestId: "401" },
-          repository: "andrewRCr/arc-framework",
-          headRepository: "andrewRCr/arc-framework",
-          headRef: derived.value.members[0]!.ref!.replace("refs/heads/", ""),
-          headSha: firstHead,
-          baseRef: "main",
+          binding: { providerId: "github", changeRequestId: effect.headRef.startsWith("delivery/") ? "401" : "402" },
+          repository: effect.repository,
+          headRepository: effect.repository,
+          headRef: effect.headRef,
+          headSha: effect.headSha,
+          baseRef: effect.baseRef,
           state: "open" as const,
-          draft: true,
+          draft: effect.draft,
         },
       }),
-      openRequest: async () => ({ status: "submitted" as const }),
+      openRequest: async () => {
+        openedRequests += 1;
+        return { status: "submitted" as const };
+      },
       readRequest: async () => ({ status: "absent" as const }),
       mergeRequest: async () => ({ status: "submitted" as const }),
       observeTarget: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
@@ -268,7 +567,12 @@ describe("delivery materialization orchestration", () => {
       providerId: "github",
       repository: "andrewRCr/arc-framework",
       draft: true,
-      presentation: () => ({ title: "First", body: "Exact member" }),
+      terminalPresentation: { title: "feat: publish example", body: "## Summary\n\nPublish the work unit." },
+      memberPresentation: (member) => {
+        if (member.kind === "terminal") throw new Error("terminal reached member composer");
+        composedMembers += 1;
+        return { title: "First", body: "Exact member" };
+      },
     });
     expect(published.status).toBe("published");
     if (published.status === "published") {
@@ -276,7 +580,92 @@ describe("delivery materialization orchestration", () => {
         providerId: "github",
         changeRequestId: "401",
       });
+      expect(published.state.value.members[1]).toMatchObject({
+        ref: "refs/heads/feat/example",
+        changeRequest: { providerId: "github", changeRequestId: "402" },
+        coordinates: derived.value.members[1]!.coordinates,
+      });
     }
+    expect(openedRequests).toBe(0);
+    expect(composedMembers).toBe(1);
+  });
+
+  it("publishes a one-member plan through its ordinary terminal request", async () => {
+    const plan = deliverySingleMemberStackPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    let remoteHead: string | null = null;
+    const refs = {
+      publish: async (_ref: string, head: string) => {
+        remoteHead = head;
+        return { status: "published" as const };
+      },
+      observe: async (ref: string) => ref === "refs/heads/main"
+        ? { status: "observed" as const, head: protectedHead }
+        : remoteHead === null
+          ? { status: "absent" as const }
+          : { status: "observed" as const, head: remoteHead },
+    };
+    await expect(bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs }))
+      .resolves.toMatchObject({ status: "bound" });
+    await expect(materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs }))
+      .resolves.toMatchObject({ status: "materialized" });
+    let request: {
+      readonly repository: string; readonly headRef: string; readonly headSha: string;
+      readonly baseRef: string; readonly draft: boolean;
+    } | null = null;
+    const host = {
+      observeRequest: async () => request === null
+        ? { status: "absent" as const }
+        : {
+          status: "observed" as const,
+          request: {
+            binding: { providerId: "github", changeRequestId: "401" },
+            repository: request.repository,
+            headRepository: request.repository,
+            headRef: request.headRef,
+            headSha: request.headSha,
+            baseRef: request.baseRef,
+            state: "open" as const,
+            draft: request.draft,
+          },
+        },
+      openRequest: async (opened: { readonly effect: NonNullable<typeof request> }) => {
+        request = opened.effect;
+        return { status: "submitted" as const };
+      },
+      readRequest: async () => ({ status: "absent" as const }),
+      mergeRequest: async () => ({ status: "submitted" as const }),
+      observeTarget: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
+    };
+    const published = await publishDeliveryRequests({
+      plan,
+      materialization: derived.value,
+      stateStore: store,
+      host,
+      providerId: "github",
+      repository: "andrewRCr/arc-framework",
+      draft: true,
+      terminalPresentation: { title: "feat: publish example", body: "Publish the work unit." },
+      memberPresentation: () => {
+        throw new Error("one-member plan has no non-terminal presentation");
+      },
+    });
+    expect(published).toMatchObject({
+      status: "published",
+      state: {
+        value: {
+          target: { ref: "refs/heads/main" },
+          members: [{
+            ref: "refs/heads/feat/example",
+            changeRequest: { providerId: "github", changeRequestId: "401" },
+            coordinates: { base: protectedHead, head: topHead, tree: topTree },
+          }],
+        },
+      },
+    });
+    expect(request).toMatchObject({ headRef: "feat/example", baseRef: "main" });
   });
 
   it("opens a missing request with the exact reviewer-authored presentation", async () => {
@@ -293,7 +682,7 @@ describe("delivery materialization orchestration", () => {
     };
     await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
     await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs });
-    let opened: { readonly title: string; readonly body: string } | null = null;
+    const opened = new Map<string, { readonly title: string; readonly body: string }>();
     const host = {
       observeRequest: async (effect: {
         readonly repository: string;
@@ -301,7 +690,7 @@ describe("delivery materialization orchestration", () => {
         readonly headSha: string;
         readonly baseRef: string;
         readonly draft: boolean;
-      }) => opened === null
+      }) => !opened.has(effect.headRef)
         ? { status: "absent" as const }
         : {
           status: "observed" as const,
@@ -316,8 +705,12 @@ describe("delivery materialization orchestration", () => {
             draft: effect.draft,
           },
         },
-      openRequest: async (request: { readonly title: string; readonly body: string }) => {
-        opened = request;
+      openRequest: async (request: {
+        readonly effect: { readonly headRef: string };
+        readonly title: string;
+        readonly body: string;
+      }) => {
+        opened.set(request.effect.headRef, request);
         return { status: "submitted" as const };
       },
       readRequest: async () => ({ status: "absent" as const }),
@@ -339,10 +732,12 @@ describe("delivery materialization orchestration", () => {
       providerId: "github",
       repository: "andrewRCr/arc-framework",
       draft: true,
-      presentation: (materialized) => describeDeliveryMemberPresentation(plan, materialized, authored),
+      terminalPresentation: { title: "feat: publish example", body: "## Summary\n\nPublish the work unit." },
+      memberPresentation: (materialized) =>
+        describeDeliveryMemberPresentation(plan, materialized, authored, titleIdentity),
     })).resolves.toMatchObject({ status: "published" });
-    expect(opened).toMatchObject({
-      title: `${plan.workUnitId} [1/2]: ${member.title}`,
+    expect(opened.get(derived.value.members[0]!.ref!.replace("refs/heads/", ""))).toMatchObject({
+      title: `feat(${plan.workUnitId}): [1/2] ${member.title}`,
       body: [
         "## Summary",
         "",
@@ -352,6 +747,11 @@ describe("delivery materialization orchestration", () => {
         "",
         "- _Boundary_ — Selects one exact delivery-aware review outcome.",
       ].join("\n"),
+    });
+    expect(opened.get("feat/example")).toEqual({
+      effect: expect.objectContaining({ headRef: "feat/example" }),
+      title: "feat: publish example",
+      body: "## Summary\n\nPublish the work unit.",
     });
   });
 
@@ -478,7 +878,8 @@ describe("delivery materialization orchestration", () => {
       providerId: "github",
       repository: "andrewRCr/arc-framework",
       draft: true,
-      presentation: (member) => {
+      terminalPresentation: { title: "feat: publish example", body: "## Summary\n\nPublish the work unit." },
+      memberPresentation: (member) => {
         if (member.deliverableId === plan.members[1]!.deliverableId) throw new Error("invalid presentation");
         return { title: "First", body: "Exact member" };
       },
@@ -486,6 +887,138 @@ describe("delivery materialization orchestration", () => {
     expect(hostObserved).toBe(false);
     const retained = await store.read();
     expect(retained.value?.value.activeOperation).toBeNull();
+  });
+
+  it("refuses malformed composed presentation before observing or opening a request", async () => {
+    const plan = deliveryPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    const refs = {
+      publish: async () => ({ status: "adopted" as const }),
+      observe: async (ref: string) => ({
+        status: "observed" as const,
+        head: ref === "refs/heads/main" ? protectedHead : firstHead,
+      }),
+    };
+    await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
+    await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs });
+    let hostMutation = false;
+    const host = {
+      observeRequest: async () => {
+        hostMutation = true;
+        return { status: "absent" as const };
+      },
+      openRequest: async () => {
+        hostMutation = true;
+        return { status: "submitted" as const };
+      },
+      readRequest: async () => ({ status: "absent" as const }),
+      mergeRequest: async () => ({ status: "submitted" as const }),
+      observeTarget: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
+    };
+
+    await expect(publishDeliveryRequests({
+      plan,
+      materialization: derived.value,
+      stateStore: store,
+      host,
+      providerId: "github",
+      repository: "andrewRCr/arc-framework",
+      draft: true,
+      terminalPresentation: { title: "feat: publish example", body: "Publish the work unit." },
+      memberPresentation: () => ({ title: "", body: "Missing title." }),
+    })).resolves.toEqual({ status: "refused" });
+    expect(hostMutation).toBe(false);
+  });
+
+  it("resumes an exact request opened before operation acceptance", async () => {
+    const plan = deliveryPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    const refs = {
+      publish: async () => ({ status: "adopted" as const }),
+      observe: async (ref: string) => ({
+        status: "observed" as const,
+        head: ref === "refs/heads/main" ? protectedHead : firstHead,
+      }),
+    };
+    await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
+    await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs });
+    const requests = new Map<string, {
+      readonly effect: {
+        readonly repository: string; readonly headRef: string; readonly headSha: string;
+        readonly baseRef: string; readonly draft: boolean;
+      };
+      readonly title: string;
+      readonly body: string;
+    }>();
+    const openCounts = new Map<string, number>();
+    let interruptAfterFirstOpen = true;
+    const host = {
+      observeRequest: async (effect: {
+        readonly repository: string; readonly headRef: string; readonly headSha: string;
+        readonly baseRef: string; readonly draft: boolean;
+      }) => {
+        const request = requests.get(effect.headRef);
+        if (request === undefined) return { status: "absent" as const };
+        if (interruptAfterFirstOpen) {
+          interruptAfterFirstOpen = false;
+          return { status: "refused" as const, reason: "unavailable" as const };
+        }
+        return {
+          status: "observed" as const,
+          request: {
+            binding: { providerId: "github", changeRequestId: effect.headRef.startsWith("delivery/") ? "401" : "402" },
+            repository: effect.repository,
+            headRepository: effect.repository,
+            headRef: effect.headRef,
+            headSha: effect.headSha,
+            baseRef: effect.baseRef,
+            state: "open" as const,
+            draft: effect.draft,
+          },
+        };
+      },
+      openRequest: async (request: {
+        readonly effect: {
+          readonly repository: string; readonly headRef: string; readonly headSha: string;
+          readonly baseRef: string; readonly draft: boolean;
+        };
+        readonly title: string;
+        readonly body: string;
+      }) => {
+        openCounts.set(request.effect.headRef, (openCounts.get(request.effect.headRef) ?? 0) + 1);
+        requests.set(request.effect.headRef, request);
+        return { status: "submitted" as const };
+      },
+      readRequest: async () => ({ status: "absent" as const }),
+      mergeRequest: async () => ({ status: "submitted" as const }),
+      observeTarget: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
+    };
+    const input = {
+      plan,
+      materialization: derived.value,
+      stateStore: store,
+      host,
+      providerId: "github",
+      repository: "andrewRCr/arc-framework",
+      draft: true,
+      terminalPresentation: { title: "feat: publish example", body: "Publish the work unit." },
+      memberPresentation: (member: typeof derived.value.members[number]) => {
+        if (member.kind === "terminal") throw new Error("terminal reached member composer");
+        return { title: "First", body: "Exact member." };
+      },
+    };
+
+    await expect(publishDeliveryRequests(input)).resolves.toEqual({ status: "refused" });
+    await expect(publishDeliveryRequests(input)).resolves.toMatchObject({ status: "published" });
+    expect([...requests.keys()]).toEqual([
+      derived.value.members[0]!.ref!.replace("refs/heads/", ""),
+      "feat/example",
+    ]);
+    expect([...openCounts.values()]).toEqual([1, 1]);
   });
 
   it("reobserves and adopts an exact first ref after state publication is interrupted", async () => {

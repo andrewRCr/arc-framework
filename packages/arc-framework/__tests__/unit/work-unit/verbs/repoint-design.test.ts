@@ -22,6 +22,7 @@ function buildCtx(): Harness {
   const calls: { metaPath: string; value: string }[] = [];
   return {
     ctx: {
+      cwd: "/project",
       writeDesignField: async (metaPath, value) => {
         calls.push({ metaPath, value });
       },

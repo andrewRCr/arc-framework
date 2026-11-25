@@ -23,22 +23,20 @@
  * @module
  */
 
-import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../../commands/active/types.js";
-import {
-  parseMetaRecord,
-  type ParsedMetaRecord,
-} from "../active/meta-reader.js";
-import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
+import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../kernel/schema/vocabulary.js";
+import { emptyParsedMetaRecord, parseMetaRecord } from "../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../active/meta-schema.js";
+import { branchToWorkUnitSlug } from "../work-unit/work-unit-slug.js";
 import { isDecomposeCandidateBranch } from "../work-unit/decompose-candidate.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import { locusOwnsBranch } from "../session-init/locus-classification.js";
 
+import { isLandedInBase } from "./branch-containment.js";
 import type { GitExec } from "./exec.js";
 import type { HistoryCompletenessResult } from "./history-completeness.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
 import { normalizeGitRejection } from "./process-error.js";
 import {
-  fetchRefBounded,
   listMetaPathsAtRef,
   readLocalInFlightRefSnapshot,
   readMetaAtRef,
@@ -49,6 +47,11 @@ import {
   type RemoteHeadSnapshotResult,
   type RefTipMap,
 } from "./remote-ref-reader.js";
+import {
+  accountForFetchedTracking,
+  expandLiveOnlyCandidates,
+  isExcludedInFlightBranch as isExcludedBranch,
+} from "./in-flight-expansion.js";
 import {
   resolveWorktreePathsByBranchResult,
   type WorktreePathsByBranchResult,
@@ -91,6 +94,8 @@ export interface InFlightBranchProvenance {
 /** Structured warning codes emitted by the in-flight derivation. */
 export type InFlightWarningCode =
   | "branch-residue"
+  | "ref-enumeration-failed"
+  | "branch-fetch-failed"
   | "errand-record-branch-missing"
   | "errand-record-read-failed"
   | "meta-enumeration-failed"
@@ -318,7 +323,7 @@ export function isEligibleInFlightBranch(
   branch: string,
   options: { baseBranch?: string | undefined; errandBranches: ReadonlySet<string> },
 ): boolean {
-  return !isDeliveryBranch(branch)
+  return !isExcludedBranch(branch)
     && branch !== (options.baseBranch ?? DEFAULT_BASE_BRANCH)
     && !options.errandBranches.has(branch);
 }
@@ -466,7 +471,16 @@ async function deriveFromResolvedInputs(
     parkedSlugs,
     reachable: branchSet.reachable,
     strictLocalFailures,
+    cleanup: {
+      baseRef: `${remote}/${baseBranch}`,
+      worktreeListComplete: worktreeResult.ok,
+      derivedRoster: options.derivedRoster,
+    },
   });
+  const decompositionCandidateBranches = await deriveOwnedDecompositionCandidateBranches(
+    worktreePaths,
+    options.readMarker ?? readWorktreeMarker,
+  );
   const candidateEntries = [
     ...dedupeErrandCandidates(
       classified
@@ -476,14 +490,11 @@ async function deriveFromResolvedInputs(
     ...deduped.entries,
   ]
     .sort((a, b) => a.index - b.index)
-    .map(({ entry }) => entry);
+    .map(({ entry }) => entry)
+    .filter((entry) => !decompositionCandidateBranches.has(entry.branch));
   const remoteReadDegraded = internallyAcquired
     && !("localOnly" in options && (options.localOnly ?? false))
     && !branchSet.reachable;
-  const decompositionCandidateBranches = await deriveOwnedDecompositionCandidateBranches(
-    worktreePaths,
-    options.readMarker ?? readWorktreeMarker,
-  );
   const classifiedResidue = dedupeResidue(
     classified
       .map((classification) => classification.residue)
@@ -527,6 +538,8 @@ async function deriveFromResolvedInputs(
   }
   warnings.unshift(...input.warnings);
   if (!errandRecordsComplete) warnings.unshift(errandRecordReadFailedWarning());
+  const visibleWarnings = warnings.filter((warning) =>
+    warning.branch === undefined || !decompositionCandidateBranches.has(warning.branch));
   const entriesWithWorktreeMarks = worktreeResult.ok ? candidateEntries : candidateEntries.map(markEntryDegraded);
   const entriesForIdentity = entriesWithWorktreeMarks
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
@@ -541,7 +554,7 @@ async function deriveFromResolvedInputs(
   return {
     entries,
     residue,
-    warnings,
+    warnings: visibleWarnings,
     ...(resultMarks.length > 0 ? { marks: resultMarks } : {}),
     snapshot: input.snapshot,
     liveRefs: branchSet.liveRefs,
@@ -680,9 +693,9 @@ async function resolveSuppliedBranchInputs(input: {
     resolveWorktreePathsByBranchResult(input.exec),
     readLocalInFlightRefSnapshot(input.exec, input.remote),
   ]);
-  const worktreePaths = filterDeliveryWorktrees(worktreeResult.paths);
-  const eligibleRefs = filterDeliveryRefs(refs.refs);
-  const branches = input.branches.filter((branch) => !isDeliveryBranch(branch));
+  const worktreePaths = filterExcludedWorktrees(worktreeResult.paths);
+  const eligibleRefs = filterExcludedRefs(refs.refs);
+  const branches = input.branches.filter((branch) => !isExcludedBranch(branch));
   const branchSet: InFlightBranchSet = {
     branches,
     refs: Object.fromEntries(branches.map((branch) => [`${input.remote}/${branch}`, ""])),
@@ -713,8 +726,8 @@ async function resolveAgreedInputs(input: {
 }): Promise<InputResolution> {
   const firstRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const firstWorktree = await resolveWorktreePathsByBranchResult(input.exec);
-  const firstEligibleRefs = filterDeliveryRefs(firstRefs.refs);
-  const firstEligibleWorktrees = filterDeliveryWorktrees(firstWorktree.paths);
+  const firstEligibleRefs = filterExcludedRefs(firstRefs.refs);
+  const firstEligibleWorktrees = filterExcludedWorktrees(firstWorktree.paths);
   const localFirstBranchSet = firstRefs.ok ? await resolveInFlightBranchSetFromLocalRefs({
     exec: input.exec,
     refs: firstEligibleRefs,
@@ -735,8 +748,8 @@ async function resolveAgreedInputs(input: {
 
   const secondRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const secondWorktree = await resolveWorktreePathsByBranchResult(input.exec);
-  const secondEligibleRefs = filterDeliveryRefs(secondRefs.refs);
-  const secondEligibleWorktrees = filterDeliveryWorktrees(secondWorktree.paths);
+  const secondEligibleRefs = filterExcludedRefs(secondRefs.refs);
+  const secondEligibleWorktrees = filterExcludedWorktrees(secondWorktree.paths);
   const secondBranchSet = withExpandedBranches(
     branchSetFromMembership({
       refs: secondEligibleRefs,
@@ -748,14 +761,19 @@ async function resolveAgreedInputs(input: {
     input.remote,
   );
 
-  const firstSnapshot = snapshotFor(firstBranchSet, firstEligibleWorktrees, firstEligibleRefs, input.remote);
+  const expectedRefs = accountForFetchedTracking(firstEligibleRefs, secondEligibleRefs, expansion.refs, input.remote);
+  const firstSnapshot = snapshotFor(firstBranchSet, firstEligibleWorktrees, expectedRefs, input.remote);
   const secondSnapshot = snapshotFor(secondBranchSet, secondEligibleWorktrees, secondEligibleRefs, input.remote);
   const comparison = mergeSnapshotComparisons(
     compareSnapshots(firstSnapshot, secondSnapshot),
-    compareLocalRefSnapshots(firstEligibleRefs, secondEligibleRefs, input.remote),
+    compareLocalRefSnapshots(expectedRefs, secondEligibleRefs, input.remote),
     compareRefReadResults(firstRefs.ok, secondRefs.ok),
   );
   const warnings = snapshotWarnings(comparison, input.remote);
+  warnings.push(...expansion.failedBranches.map((branch) => warning({
+    code: "branch-fetch-failed", branch,
+    rendered: `Unable to fetch in-flight branch \`${branch}\` within the network budget; overlap discovery may be incomplete.`,
+  })));
 
   return {
     branchSet: firstBranchSet,
@@ -767,44 +785,10 @@ async function resolveAgreedInputs(input: {
     indeterminate: comparison.wholeResult
       ? { refs: new Set(), worktrees: new Set() }
       : { refs: comparison.changedRefs, worktrees: comparison.changedWorktrees },
-    resultMarks: comparison.wholeResult || expansion.failed ? ["indeterminate"] : [],
+    resultMarks: comparison.wholeResult || expansion.failedBranches.length > 0 ? ["indeterminate"] : [],
     warnings,
     classificationRefs: expansion.refs,
   };
-}
-
-interface LiveOnlyExpansionResult {
-  refs: RefTipMap;
-  failed: boolean;
-}
-
-async function expandLiveOnlyCandidates(input: {
-  exec: GitExec;
-  branchSet: InFlightBranchSet;
-  localRefs: LocalInFlightRefSnapshot;
-  remote: string;
-  timeoutMs?: number;
-  enabled: boolean;
-  excludedBranches: ReadonlySet<string>;
-}): Promise<LiveOnlyExpansionResult> {
-  if (!input.enabled || !input.branchSet.reachable) return { refs: {}, failed: false };
-  const refs: RefTipMap = {};
-  let failed = false;
-  for (const [qualifiedRef, sha] of Object.entries(input.branchSet.liveRefs)) {
-    const prefix = `${input.remote}/`;
-    const branch = qualifiedRef.startsWith(prefix) ? qualifiedRef.slice(prefix.length) : qualifiedRef;
-    if (input.excludedBranches.has(branch)) continue;
-    if (input.localRefs.remoteTracking[branch] === sha) continue;
-    const ok = await fetchRefBounded({
-      exec: input.exec,
-      remote: input.remote,
-      branch,
-      ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
-    });
-    if (ok) refs[`${input.remote}/${branch}`] = sha;
-    else failed = true;
-  }
-  return { refs, failed };
 }
 
 function withExpandedBranches(
@@ -855,20 +839,16 @@ function branchSetFromMembership(input: {
   };
 }
 
-function filterDeliveryRefs(refs: LocalInFlightRefSnapshot): LocalInFlightRefSnapshot {
-  const eligible = ([branch]: readonly [string, string]): boolean => !isDeliveryBranch(branch);
+function filterExcludedRefs(refs: LocalInFlightRefSnapshot): LocalInFlightRefSnapshot {
+  const eligible = ([branch]: readonly [string, string]): boolean => !isExcludedBranch(branch);
   return {
     remoteTracking: Object.fromEntries(Object.entries(refs.remoteTracking).filter(eligible)),
     localHeads: Object.fromEntries(Object.entries(refs.localHeads).filter(eligible)),
   };
 }
 
-function filterDeliveryWorktrees(paths: ReadonlyMap<string, string>): Map<string, string> {
-  return new Map([...paths].filter(([branch]) => !isDeliveryBranch(branch)));
-}
-
-function isDeliveryBranch(branch: string): boolean {
-  return branch.startsWith("delivery/");
+function filterExcludedWorktrees(paths: ReadonlyMap<string, string>): Map<string, string> {
+  return new Map([...paths].filter(([branch]) => !isExcludedBranch(branch)));
 }
 
 function snapshotFor(
@@ -1257,6 +1237,11 @@ interface DedupeWorkUnitCandidatesOptions {
   parkedSlugs: ReadonlySet<string>;
   reachable: boolean;
   strictLocalFailures: boolean;
+  cleanup: {
+    baseRef: string;
+    worktreeListComplete: boolean;
+    derivedRoster: readonly DerivedCheckoutRow[] | null | undefined;
+  };
 }
 
 interface DedupeWorkUnitCandidatesResult {
@@ -1298,14 +1283,28 @@ async function dedupeWorkUnitCandidates(
     }
 
     const shadowed = group.filter((candidate) => candidate !== winner);
-    warnings.push(
-      ...shadowed.flatMap((candidate) => {
-        if (candidate.meta.relation === "stale") {
-          return [staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow")];
-        }
-        return isLocalRemoteMirror(candidate, winner) ? [] : [candidateShadowedWarning(candidate, winner)];
-      }),
-    );
+    const shadowWarnings = await Promise.all(shadowed.map(async (candidate) => {
+      if (candidate.meta.relation !== "stale") {
+        return isLocalRemoteMirror(candidate, winner) ? null : candidateShadowedWarning(candidate, winner);
+      }
+      const baseWarning = staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow");
+      const { cleanup } = options;
+      if (candidate.input.source !== "local-branch" || !cleanup.worktreeListComplete
+        || cleanup.derivedRoster === null || cleanup.derivedRoster === undefined
+        || locusOwnsBranch(cleanup.derivedRoster, candidate.input.branch)) {
+        return baseWarning;
+      }
+      const merged = await isLandedInBase(options.exec, candidate.input.branch, cleanup.baseRef);
+      return {
+        ...baseWarning,
+        rendered: `${baseWarning.rendered} ${merged
+          ? `No patch-unique commits against base. After interlock approval, try ` +
+            `\`git branch -d -- ${quoteBranchForShell(candidate.input.branch)}\`; ` +
+            "Git may refuse unless its upstream or HEAD contains the branch. Retain it if refused."
+          : "Not proven merged; surfaced, not removable."}`,
+      };
+    }));
+    warnings.push(...shadowWarnings.filter((item): item is InFlightWarning => item !== null));
 
     const built = buildWorkUnit(
       winner.meta,
@@ -1485,7 +1484,7 @@ function isLocalRemoteMirror(left: WorkUnitCandidate, right: WorkUnitCandidate):
 }
 
 function degradedMetaRecord(): ParsedMetaRecord {
-  return parseMetaRecord("");
+  return emptyParsedMetaRecord();
 }
 
 function degradedMetaCandidate(input: {
@@ -1588,6 +1587,10 @@ function staleLocationWarning(
     workUnit: candidate.name,
     rendered,
   });
+}
+
+function quoteBranchForShell(branch: string): string {
+  return `'${branch.replaceAll("'", `'"'"'`)}'`;
 }
 
 function candidateShadowedWarning(candidate: WorkUnitCandidate, winner: WorkUnitCandidate): InFlightWarning {

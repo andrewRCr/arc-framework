@@ -14,7 +14,11 @@ type MemberResolve = Pick<DeliveryStateStore<DeliveryStateV1>, "resolveMember">[
 
 /** Closed delivery evidence returned to the review-attention policy. */
 export type DeliveryBindingLookupResult =
-  | { readonly status: "bound"; readonly planId: string }
+  | {
+    readonly status: "bound";
+    readonly planId: string;
+    readonly targetKind: "work-unit" | "delivery-member";
+  }
   | { readonly status: "authoritative-unbound" }
   | { readonly status: "unavailable"; readonly reason: string };
 
@@ -80,7 +84,11 @@ export class DeliveryBindingLookup {
           return { status: "unavailable", reason: "member-identity-mismatch" };
         }
       }
-      return { status: "bound", planId: plan.planId };
+      return {
+        status: "bound",
+        planId: plan.planId,
+        targetKind: input.target.kind === "delivery-member" ? "delivery-member" : "work-unit",
+      };
     } catch {
       return { status: "unavailable", reason: "reader-failure" };
     }

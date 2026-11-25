@@ -23,6 +23,7 @@ const SQUASH_PR_RE = / \(#([1-9]\d*)\)$/u;
 export interface AnalyzeIntegrationEvidenceOptions {
   exec: GitExec;
   baseOid: string;
+  headOid: string;
   resolver?: IntegrationEvidenceResolver;
   scanLimit?: number;
 }
@@ -40,7 +41,7 @@ export async function analyzeIntegrationEvidence(
       "-z",
       `--max-count=${limit + 1}`,
       "--format=%H%x00%P%x00%s",
-      `HEAD..${options.baseOid}`,
+      `${options.headOid}..${options.baseOid}`,
     ]);
     inputs = parseScan(stdout);
   } catch {

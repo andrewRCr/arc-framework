@@ -1,14 +1,14 @@
 /**
  * Integration tests for the composite `arc status` probe.
  *
- * Builds synthetic `.arc/` fixture trees (config, extensions, active) in a
+ * Builds synthetic `.arc/` fixture trees (config, active) in a
  * temp directory, wires the orchestrator to the real probe helpers, and
  * exercises the composite end-to-end. Covers:
  *
  * - Clean state — all four probes succeed; identity pointers carried through.
  * - Multi-WU state — active probe returns resolution=multiple; session-init
  *   shape preserves the candidate list.
- * - Mixed state — one probe errors (missing extensions dir); other probes
+ * - Mixed state — one probe errors (rejecting config probe); other probes
  *   unaffected, composite exits without throwing.
  * - Identity-missing — user probe short-circuits without invoking the
  *   session-init runner.
@@ -19,6 +19,8 @@
  * the probes together, not the probes themselves.
  */
 
+import { WorkUnitStateSchema } from "../../src/lib/kernel/index.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdir, mkdtemp, readFile as nodeReadFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -33,10 +35,6 @@ import {
   runConfigStatus,
 } from "../../src/commands/config.js";
 import { runDomainRulesSessionInitStatus } from "../../src/commands/constitution.js";
-import {
-  runExtensionsSessionInitStatus,
-  runExtensionsStatus,
-} from "../../src/commands/extensions.js";
 import {
   runSessionHandoffStatus,
   runSessionInitStatus,
@@ -66,6 +64,7 @@ import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
 import { resolveLoadSetManifest } from "../../src/lib/load-set/projection.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 import { worktreeStateEvidence } from "../helpers/worktree-evidence.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { createSessionRemoteContextReader } from "../../src/handlers/status-remote-context.js";
 import { DeliveryPositionViewSchema } from "../../src/lib/session-init/delivery-position.js";
 import {
@@ -78,8 +77,6 @@ interface Fixture {
   root: string;
   arcDir: string;
   configPath: string;
-  extDir: string;
-  wfDir: string;
   activeDir: string;
 }
 
@@ -87,20 +84,14 @@ async function createFixture(): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "arc-status-composite-"));
   const arcDir = join(root, ".arc");
   const configDir = join(arcDir, "system");
-  const extDir = join(configDir, "extensions");
-  const wfDir = join(configDir, "workflows");
   const activeDir = join(arcDir, "active");
   const constitutionDir = join(arcDir, "system", "rules");
-  await mkdir(extDir, { recursive: true });
-  await mkdir(wfDir, { recursive: true });
   await mkdir(activeDir, { recursive: true });
   await mkdir(constitutionDir, { recursive: true });
   return {
     root,
     arcDir,
     configPath: join(configDir, "arc-config.yml"),
-    extDir,
-    wfDir,
     activeDir,
   };
 }
@@ -118,25 +109,6 @@ async function writeConfig(path: string): Promise<void> {
   );
 }
 
-async function writeExtension(
-  extDir: string,
-  name: string,
-  active: boolean,
-): Promise<void> {
-  await writeFile(
-    join(extDir, `${name}.md`),
-    [
-      "---",
-      `name: ${name}`,
-      "description: fixture",
-      `active: ${active ? "true" : "false"}`,
-      "---",
-      "",
-      `# Extension: ${name}`,
-      "",
-    ].join("\n"),
-  );
-}
 
 async function writeStatusFile(
   activeDir: string,
@@ -155,22 +127,48 @@ async function writeStatusFile(
   const lines: string[] = [
     "# Metadata: fixture",
     "",
-    `- **State:** ${body.state}`,
-    `- **Branch:** ${body.branch}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${body.state} |  | ${body.branch} |  |  |`,
+    "",
   ];
   if (body.taskList !== undefined) lines.push(`- **Task List:** ${body.taskList}`);
   if (body.currentWorkflow !== undefined) lines.push(`- **Current Workflow:** ${body.currentWorkflow}`);
   if (body.candidateId !== undefined) lines.push(`- **Candidate:** ${body.candidateId}`);
   if (body.nextAction !== undefined) lines.push(`- **Next Action:** ${body.nextAction}`);
+  lines.push("", "---", "");
   await writeFile(join(activeDir, filename), lines.join("\n"));
 }
 
-async function writeCandidate(root: string, slug: string): Promise<string> {
+async function writeSemanticStatusFile(
+  activeDir: string,
+  _category: string,
+  filename: string,
+  body: {
+    branch: string;
+    state: string;
+    taskList?: string;
+    nextAction?: string;
+    currentWorkflow?: string;
+    candidateId?: string;
+  },
+): Promise<void> {
+  void _category;
+  await writeFile(join(activeDir, filename), makeMetaFixture("fixture", {
+    state: WorkUnitStateSchema.parse(body.state),
+    branch: body.branch,
+    taskList: body.taskList?.replaceAll("`", "") ?? null,
+    currentWorkflow: body.currentWorkflow ?? null,
+    nextAction: body.nextAction ?? null,
+  }));
+}
+
+async function writeCandidate(root: string, slug: string, revision = "a".repeat(40)): Promise<string> {
   const subject = createCandidateSubjectSnapshot([]);
   const attestation = createCandidateAttestation({
     workUnit: slug,
     subject,
-    baseRevision: "a".repeat(40),
+    baseRevision: revision,
     attestedBy: "andrew",
     attestedAt: "2026-08-19T00:00:00.000Z",
     verificationEvidenceRef: `tasks-${slug}.md#verification`,
@@ -182,7 +180,7 @@ async function writeCandidate(root: string, slug: string): Promise<string> {
     semanticsVersion: "candidate-attestation/v1",
     attestation,
     subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   }));
   return attestation.candidateId;
@@ -232,6 +230,7 @@ function freePrimaryDerivedFrame(): DerivedLocusFrame {
   const row = {
     kind: "free-primary" as const,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "main",
@@ -259,7 +258,6 @@ function freePrimaryDerivedFrame(): DerivedLocusFrame {
 function derivedFrameFromActive(
   active: Awaited<ReturnType<typeof runActiveSessionInitStatus>>,
   identity: string,
-  activeExtensions: readonly string[],
 ): DerivedLocusFrame {
   if (active.resolution === "single" && active.path !== null) {
     const key = /meta-(.+)\.md$/u.exec(active.path)?.[1] ?? "fixture";
@@ -291,7 +289,6 @@ function derivedFrameFromActive(
         sessionType: active.sessionType,
         planningStage: active.planningStage,
         taskListPath: active.taskListPath ?? null,
-        activeExtensions,
         cohortDocPath: null,
       }),
       integrationBoundary: active.integrationBoundary,
@@ -335,9 +332,9 @@ function derivedFrameFromActive(
 function makeProbes(fixture: Fixture): StatusProbes {
   return {
     user: async (identity) => stubUserResult(identity),
-    extensions: () => runExtensionsStatus({ cwd: fixture.root }),
     config: () => runConfigStatus({ cwd: fixture.root }),
     active: () => runActiveStatus({ cwd: fixture.root }),
+    projection: async () => ({ kind: "disabled" }),
   };
 }
 
@@ -371,10 +368,9 @@ const cleanUserReferenceReconcile: SessionInitProbes["userReferenceReconcile"] =
 
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
-    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+    derivedLocusState: async (identity) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
-      activeExtensions,
     ),
     remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
     user: async (identity) => stubUserSessionInit(identity),
@@ -385,7 +381,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     currentHusk: async () => null,
     baseDistance: async () => ({
       mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
-      base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      base: "main", baseOid: null, headOid: null, integrationEvidence: null, overlap: null, register: null,
       remoteEvidence: "not-applicable",
     }),
     baseBranchSync: async () => ({
@@ -400,14 +396,14 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
-    extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    hooksPath: async () => ({ recommendedAction: "none" as const }),
     currentWuReconcile: cleanCurrentWuReconcile,
     userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const, remoteEvidence: "exact" as const, baseBranch: "main" }),
-    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
+    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: [] }),
     orphanBranchSweep: async () => ({ remoteEvidence: "not-applicable", orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
@@ -454,10 +450,9 @@ function makeResolvedReleaseModeSessionInitProbes(
   };
 
   return {
-    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+    derivedLocusState: async (identity) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
-      activeExtensions,
     ),
     remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
     user: async (identity) => stubUserSessionInit(identity),
@@ -468,7 +463,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     currentHusk: async () => null,
     baseDistance: async () => ({
       mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
-      base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      base: "main", baseOid: null, headOid: null, integrationEvidence: null, overlap: null, register: null,
       remoteEvidence: "not-applicable",
     }),
     baseBranchSync: async () => ({
@@ -483,18 +478,18 @@ function makeResolvedReleaseModeSessionInitProbes(
     }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
-    extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: async () =>
       runConfigSessionInitStatus({
         cwd: fixture.root,
         resolvedSettings: await resolvedSettings(),
       }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    hooksPath: async () => ({ recommendedAction: "none" as const }),
     currentWuReconcile: cleanCurrentWuReconcile,
     userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const, remoteEvidence: "exact" as const, baseBranch: "main" }),
-    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
+    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: [] }),
     orphanBranchSweep: async () => ({ remoteEvidence: "not-applicable", orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
@@ -540,13 +535,12 @@ function makeResolvedReleaseModeSessionHandoffProbes(
   };
 
   return {
-    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+    derivedLocusState: async (identity) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
-      activeExtensions,
     ),
-    extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     worktree: async () => ({
       state: "skipped", ahead: 0, behind: 0, branch: "main", remoteEvidence: "not-applicable",
     }),
@@ -573,9 +567,7 @@ describe("runStatus — clean state", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge", true);
-    await writeExtension(fixture.extDir, "post-task-quality", false);
-    await writeStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
+    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
       state: "Active",
     });
@@ -596,14 +588,9 @@ describe("runStatus — clean state", () => {
     expect(result.identity).toEqual({ identity: "andrew", role: "maintainer" });
 
     expect(result.user.ok).toBe(true);
-    expect(result.extensions.ok).toBe(true);
     expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
 
-    if (result.extensions.ok) {
-      expect(result.extensions.value.activeCount).toBe(1);
-      expect(result.extensions.value.inactiveCount).toBe(1);
-    }
     if (result.config.ok) {
       expect(result.config.value.settings["pm.mode"]).toBe("arc-in-git");
     }
@@ -619,7 +606,6 @@ describe("runSessionInitStatus — multi-WU state", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge", true);
     await writeStatusFile(fixture.activeDir, "feature", "meta-alpha.md", {
       branch: "feature/alpha",
       state: "Active",
@@ -652,10 +638,6 @@ describe("runSessionInitStatus — multi-WU state", () => {
       value: { entering: { kind: "selected", row: { kind: "unresolved-checkout" } } },
     });
     expect(result.locusGuidance.kind).toBe("unavailable");
-    expect(result.extensions.ok).toBe(true);
-    if (result.extensions.ok) {
-      expect(result.extensions.value.active).toEqual(["pre-merge"]);
-    }
   });
 });
 
@@ -664,16 +646,9 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge", true);
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),
-      [
-        "# Metadata: fixture",
-        "",
-        "- **State:** Active",
-        "- **Branch:** technical/foo",
-        "- **Task List:** `.arc/active/tasks-foo.md`",
-      ].join("\n"),
+      makeMetaFixture("fixture", { branch: "technical/foo", taskList: ".arc/active/tasks-foo.md" }),
     );
     await writeFile(
       join(fixture.activeDir, "tasks-foo.md"),
@@ -769,7 +744,6 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge", true);
     const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
@@ -777,9 +751,14 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       [
         "# Metadata: fixture",
         "",
-        "- **State:** Active",
-        "- **Branch:** user/alice/foo",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Active |  | user/alice/foo |  |  |",
+        "",
         "- **Task List:** `.arc/user/alice/active/tasks-foo.md`",
+        "",
+        "---",
+        "",
       ].join("\n"),
     );
     await writeFile(join(userActiveDir, "tasks-foo.md"), "# tasks\n");
@@ -791,7 +770,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
 
   it("resolves the contributor WU from its entering-checkout context", async () => {
     const probes: SessionInitProbes = {
-      derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+      derivedLocusState: async (identity) => derivedFrameFromActive(
         await runActiveSessionInitStatus({
           cwd: fixture.root,
           identity,
@@ -799,7 +778,6 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
           exec: makeGitExec(fixture.root),
         }),
         identity,
-        activeExtensions,
       ),
       remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
       user: async (id) => stubUserSessionInit(id),
@@ -810,7 +788,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       currentHusk: async () => null,
       baseDistance: async () => ({
         mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
-        base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+        base: "main", baseOid: null, headOid: null, integrationEvidence: null, overlap: null, register: null,
         remoteEvidence: "not-applicable",
       }),
       baseBranchSync: async () => ({
@@ -825,14 +803,14 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     }),
       supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
       dirty: async () => ({ state: "clean", fileCount: 0 }),
-      extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
       config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+      hooksPath: async () => ({ recommendedAction: "none" as const }),
       currentWuReconcile: cleanCurrentWuReconcile,
       userReferenceReconcile: cleanUserReferenceReconcile,
       roster: async () => ({ entries: [], warnings: [] }),
       recovery: async () => ({ kind: "main-fallback" as const, remoteEvidence: "exact" as const, baseBranch: "main" }),
-      sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
+      sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: [] }),
       orphanBranchSweep: async () => ({ remoteEvidence: "not-applicable", orphans: [] }),
       retiredSubdirs: async () => ({ candidates: [] }),
       errandSweep: async () => ({ stale: [] }),
@@ -873,10 +851,7 @@ describe("runStatus — mixed (one probe errors, others succeed)", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    // Intentionally remove the extensions dir to force the extensions probe
-    // to throw (readdir on ENOENT).
-    await rm(fixture.extDir, { recursive: true, force: true });
-    await writeStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
+    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
       state: "Active",
     });
@@ -885,22 +860,21 @@ describe("runStatus — mixed (one probe errors, others succeed)", () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
-  it("isolates the extensions failure; other slots succeed; no throw", async () => {
-    const probes = makeProbes(fixture);
+  it("isolates a config probe failure; other slots succeed; no throw", async () => {
+    const probes = { ...makeProbes(fixture), config: async () => { throw new Error("config unavailable"); } };
     const result = await runStatus({
       identity: "andrew",
       role: "maintainer",
       probes,
     });
 
-    expect(result.extensions.ok).toBe(false);
-    if (!result.extensions.ok) {
-      expect(result.extensions.error.kind).toBe("runtime");
+    expect(result.config.ok).toBe(false);
+    if (!result.config.ok) {
+      expect(result.config.error.kind).toBe("runtime");
     }
 
     // Other probes succeed
     expect(result.user.ok).toBe(true);
-    expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
   });
 });
@@ -910,7 +884,6 @@ describe("runStatus — identity missing", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge", true);
   });
   afterEach(async () => {
     await rm(fixture.root, { recursive: true, force: true });
@@ -923,9 +896,9 @@ describe("runStatus — identity missing", () => {
         userInvoked = true;
         return stubUserResult(id);
       },
-      extensions: () => runExtensionsStatus({ cwd: fixture.root }),
       config: () => runConfigStatus({ cwd: fixture.root }),
       active: () => runActiveStatus({ cwd: fixture.root }),
+      projection: async () => ({ kind: "disabled" }),
     };
     const result = await runStatus({ identity: null, role: null, probes });
 
@@ -933,7 +906,6 @@ describe("runStatus — identity missing", () => {
     expect(result.identity).toEqual({ identity: null, role: null });
     expect(result.user.ok).toBe(false);
     if (!result.user.ok) expect(result.user.error.kind).toBe("identity-missing");
-    expect(result.extensions.ok).toBe(true);
     expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
   });
@@ -991,10 +963,9 @@ function makeRealWorktreeProbes(
   const remoteSyncEnabled = opts.remoteSyncEnabled ?? true;
   const userState = opts.userState ?? "clean";
   return {
-    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+    derivedLocusState: async (identity) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
-      activeExtensions,
     ),
     // Derived from the same fixture and the same flag the worktree probe below reads
     // with. A hardcoded `remote-sync-disabled` context contradicted a probe reading
@@ -1022,7 +993,7 @@ function makeRealWorktreeProbes(
     currentHusk: async () => null,
     baseDistance: async () => ({
       mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
-      base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      base: "main", baseOid: null, headOid: null, integrationEvidence: null, overlap: null, register: null,
       remoteEvidence: "not-applicable",
     }),
     baseBranchSync: async () => ({
@@ -1037,14 +1008,14 @@ function makeRealWorktreeProbes(
     }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
-    extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    hooksPath: async () => ({ recommendedAction: "none" as const }),
     currentWuReconcile: cleanCurrentWuReconcile,
     userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const, remoteEvidence: "exact" as const, baseBranch: "main" }),
-    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], renameMoves: [], retirements: [], warnings: [] }),
+    sweep: async () => ({ remoteEvidence: "not-applicable", worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: [] }),
     orphanBranchSweep: async () => ({ remoteEvidence: "not-applicable", orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
@@ -1075,7 +1046,6 @@ describe("runSessionInitStatus — real worktree probe", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge", true);
     await gitInit(fixture.root);
     remoteDir = undefined;
   });
@@ -1103,8 +1073,8 @@ describe("runSessionInitStatus — real worktree probe", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.state).toBe("clean");
-      expect("qualifier" in result.user.value).toBe(false);
+      expect(notesUser(result.user).state).toBe("clean");
+      expect("qualifier" in notesUser(result.user)).toBe(false);
     }
   });
 
@@ -1136,7 +1106,7 @@ describe("runSessionInitStatus — real worktree probe", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.qualifier).toBe("clean-at-current-head");
+      expect(notesUser(result.user).qualifier).toBe("clean-at-current-head");
     }
   });
 
@@ -1158,7 +1128,7 @@ describe("runSessionInitStatus — real worktree probe", () => {
     if (result.user.ok) {
       // User channel resolves independently — qualifier reserved for
       // remote-ahead worktree only.
-      expect(result.user.value.qualifier).toBeUndefined();
+      expect(notesUser(result.user).qualifier).toBeUndefined();
     }
   });
 
@@ -1179,8 +1149,8 @@ describe("runSessionInitStatus — real worktree probe", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.state).toBe("disabled");
-      expect(result.user.value.qualifier).toBeUndefined();
+      expect(notesUser(result.user).state).toBe("disabled");
+      expect(notesUser(result.user).qualifier).toBeUndefined();
     }
   });
 });
@@ -1194,14 +1164,13 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge", true);
   });
   afterEach(async () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
   it("carries sessionType=execution through the composite for a single-WU + Start-Task fixture", async () => {
-    await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
+    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
       taskList: "`.arc/active/tasks-foo.md`",
@@ -1223,7 +1192,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("does not infer prepublication from Candidate-shaped narration alone", async () => {
-    await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
+    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
       taskList: "`.arc/active/tasks-foo.md`",
@@ -1245,7 +1214,21 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries a real Candidate prepublication locus through active, derived context, and load set", async () => {
-    const candidateId = await writeCandidate(fixture.root, "foo");
+    await execFileAsync("git", ["init", "--initial-branch=main"], { cwd: fixture.root });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: fixture.root });
+    await execFileAsync("git", ["config", "user.name", "Test"], { cwd: fixture.root });
+    await execFileAsync("git", ["add", "."], { cwd: fixture.root });
+    await execFileAsync("git", [
+      "-c",
+      "core.hooksPath=/dev/null",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "-m",
+      "fixture",
+    ], { cwd: fixture.root });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: fixture.root });
+    const candidateId = await writeCandidate(fixture.root, "foo", stdout.trim());
     await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
@@ -1352,15 +1335,15 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
         "arc.notesPush": "prompt",
         "arc.releaseOptedIn": "true",
       };
-      const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
-        if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
-          const key = args[2];
-          const value = key === undefined ? undefined : overrides[key];
-          if (value === undefined) return Promise.reject(new Error("exit 1"));
-          return Promise.resolve({ stdout: `${value}\n` });
-        }
-        return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
-      });
+      const exec = vi.fn(scriptGitExec([{
+        match: { prefix: ["config", "--get"] },
+        responses: [({ args }) => {
+          const value = args[2] === undefined ? undefined : overrides[args[2]];
+          return value === undefined
+            ? { failure: { exitCode: 1, stdout: "", stderr: "" } }
+            : { stdout: `${value}\n` };
+        }],
+      }]).exec);
       const probes = makeResolvedReleaseModeSessionInitProbes(fixture, exec);
       const result = await runSessionInitStatus({
         identity: "andrew",
@@ -1416,15 +1399,15 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
       "arc.pushInterlock": "on-workflow",
       "arc.releaseOptedIn": "true",
     };
-    const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
-      if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
-        const key = args[2];
-        const value = key === undefined ? undefined : overrides[key];
-        if (value === undefined) return Promise.reject(new Error("exit 1"));
-        return Promise.resolve({ stdout: `${value}\n` });
-      }
-      return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
-    });
+    const exec = vi.fn(scriptGitExec([{
+      match: { prefix: ["config", "--get"] },
+      responses: [({ args }) => {
+        const value = args[2] === undefined ? undefined : overrides[args[2]];
+        return value === undefined
+          ? { failure: { exitCode: 1, stdout: "", stderr: "" } }
+          : { stdout: `${value}\n` };
+      }],
+    }]).exec);
 
     const probes = makeResolvedReleaseModeSessionInitProbes(fixture, exec);
     const result = await runSessionInitStatus({
@@ -1503,15 +1486,15 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       "arc.pushInterlock": "on-workflow",
       "arc.releaseOptedIn": "true",
     };
-    const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
-      if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
-        const key = args[2];
-        const value = key === undefined ? undefined : overrides[key];
-        if (value === undefined) return Promise.reject(new Error("exit 1"));
-        return Promise.resolve({ stdout: `${value}\n` });
-      }
-      return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
-    });
+    const exec = vi.fn(scriptGitExec([{
+      match: { prefix: ["config", "--get"] },
+      responses: [({ args }) => {
+        const value = args[2] === undefined ? undefined : overrides[args[2]];
+        return value === undefined
+          ? { failure: { exitCode: 1, stdout: "", stderr: "" } }
+          : { stdout: `${value}\n` };
+      }],
+    }]).exec);
 
     const probes = makeResolvedReleaseModeSessionHandoffProbes(fixture, exec);
     const result = await runSessionHandoffStatus({
@@ -1605,7 +1588,9 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 0, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 0, housekeepNeeded: true,
+        actions: [{ text: "arc-session --housekeep" }],
+      });
     }
   });
 
@@ -1702,7 +1687,9 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 1, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 1, housekeepNeeded: true,
+        actions: [{ text: "arc-session --housekeep" }],
+      });
     }
   });
 
@@ -1821,3 +1808,9 @@ describe("runSessionInitStatus — reminder-sweep envelope path", () => {
     expect("errandSweep" in result).toBe(false);
   });
 });
+
+function notesUser<T>(probe: { ok: true; value: T } | { ok: false }): Extract<T, { state: string }> {
+  if (!probe.ok || typeof probe.value !== "object" || probe.value === null || !("state" in probe.value)
+    || typeof probe.value.state !== "string") throw new Error("Expected the legacy notes user slot.");
+  return probe.value as Extract<T, { state: string }>;
+}

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   DeliveryPlanV1Schema,
@@ -12,7 +13,11 @@ import {
 } from "../../../src/lib/delivery/state.js";
 import { deriveDeliveryPlanDigest } from "../../../src/lib/delivery/plan.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
-import { deliveryPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
+import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const planId = "123e4567-e89b-42d3-a456-426614174000";
 const firstId = canonicalDigest({ member: "first" });
@@ -39,6 +44,7 @@ function state(): Record<string, unknown> {
       changeRequest: { providerId: "github", changeRequestId: "123" },
       coordinates: { base: head, head, tree },
     }],
+    pendingReviewFixVerification: null,
     activeOperation: {
       operationId: "opaque-operation",
       kind: "publish",
@@ -72,7 +78,7 @@ function state(): Record<string, unknown> {
 
 describe("DeliveryStateV1Schema", () => {
   it("accepts exact current coordinates and rejects copied authority or history fields", () => {
-    expect(DeliveryStateV1Schema.safeParse(state()).success).toBe(true);
+    assertSchemaAccepts(DeliveryStateV1Schema, state());
     for (const field of [
       "providerStatus",
       "providerCapability",
@@ -81,7 +87,7 @@ describe("DeliveryStateV1Schema", () => {
       "gateResult",
       "generation",
     ] as const) {
-      expect(DeliveryStateV1Schema.safeParse({ ...state(), [field]: "copied" }).success).toBe(false);
+      assertSchemaRefuses(DeliveryStateV1Schema, { ...state(), [field]: "copied" });
     }
   });
 
@@ -93,7 +99,39 @@ describe("DeliveryStateV1Schema", () => {
     member!.ref = null;
     member!.changeRequest = null;
     member!.coordinates = null;
-    expect(DeliveryStateV1Schema.safeParse(tornDown).success).toBe(true);
+    assertSchemaAccepts(DeliveryStateV1Schema, tornDown);
+  });
+
+  it("requires a plan-ordered verification set that includes the selected member", () => {
+    const current = deliveryStateFixture(deliveryThreeMemberStackPlanFixture());
+    const [selected, dependent, terminal] = current.members.map(({ deliverableId }) => deliverableId);
+    const pending = {
+      selectedDeliverableId: selected!,
+      memberDeliverableIds: [selected!, dependent!],
+    };
+
+    assertSchemaAccepts(DeliveryStateV1Schema, {
+      ...current,
+      pendingReviewFixVerification: pending,
+    });
+    assertSchemaAccepts(DeliveryStateV1Schema, {
+      ...current,
+      pendingReviewFixVerification: {
+        selectedDeliverableId: terminal!,
+        memberDeliverableIds: [terminal!],
+      },
+    });
+    for (const memberDeliverableIds of [
+      [dependent!, selected!],
+      [selected!, selected!],
+      [dependent!],
+      [selected!, `sha256:${"f".repeat(64)}`],
+    ]) {
+      assertSchemaRefuses(DeliveryStateV1Schema, {
+        ...current,
+        pendingReviewFixVerification: { ...pending, memberDeliverableIds },
+      });
+    }
   });
 });
 
@@ -212,5 +250,29 @@ describe("delivery state binding and plan coherence", () => {
     });
     if (rebound.status !== "rebound") return;
     expect(validateDeliveryStateAgainstPlan(rebound.state, successor).status).toBe("valid");
+  });
+
+  it("refuses plan rebinding while selected-member verification is pending", () => {
+    const current = deliveryPlanFixture();
+    const initial = constructInitialDeliveryState(current, {
+      kind: "pushed-ref",
+      deliverableId: current.members[0]!.deliverableId,
+      ref: "refs/heads/delivery-first",
+      coordinates: { base: head, head, tree },
+    });
+    if (initial.status !== "constructed") throw new Error("fixture state must construct");
+    const preimage = { ...current, planRevision: 2, previousPlanDigest: current.planDigest };
+    const successor = DeliveryPlanV1Schema.parse({
+      ...preimage,
+      planDigest: deriveDeliveryPlanDigest(preimage),
+    });
+
+    expect(rebindDeliveryStateToPlan({
+      ...initial.state,
+      pendingReviewFixVerification: {
+        selectedDeliverableId: current.members[0]!.deliverableId,
+        memberDeliverableIds: [current.members[0]!.deliverableId],
+      },
+    }, successor)).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
   });
 });

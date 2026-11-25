@@ -5,6 +5,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   prepareGitGraduationTransaction,
   type GitGraduationTransactionDependencies,
+  type PrepareGitGraduationTransactionInput,
 } from "../../../src/lib/work-unit/git-graduation-transaction.js";
 
 const HEAD = "a".repeat(40);
@@ -29,6 +30,7 @@ function dependencies(options: {
   drift?: "source" | "destination" | "branch" | "worktree" | "index";
   metaBytes?: Uint8Array;
   forbidWriteTree?: boolean;
+  extraArtifact?: { basename: string; head: string; tree: string };
 } = {}): GitGraduationTransactionDependencies {
   let metaReads = 0;
   let targetReads = 0;
@@ -37,8 +39,8 @@ function dependencies(options: {
   let indexReads = 0;
   const exec: GitExec = async (_command, args) => {
     const key = args.join(" ");
-    if (key === "rev-parse --verify base^{commit}") return { stdout: `${HEAD}\n` };
-    if (key === "rev-parse --verify base^{tree}") return { stdout: `${TREE}\n` };
+    if (key === "rev-parse --verify base^{commit}") return { stdout: `${options.extraArtifact?.head ?? HEAD}\n` };
+    if (key === "rev-parse --verify base^{tree}") return { stdout: `${options.extraArtifact?.tree ?? TREE}\n` };
     if (key === "rev-parse --verify HEAD^{tree}") return { stdout: `${TREE}\n` };
     if (key === "write-tree") {
       if (options.forbidWriteTree === true) throw new Error("write-tree must not run for spawned graduation");
@@ -49,7 +51,9 @@ function dependencies(options: {
       return {
         stdout:
           `100644 blob ${META_OID}\t${SOURCE}/meta-widget.md\0`
-          + `100755 blob ${DRAFT_OID}\t${SOURCE}/draft-widget.md\0`,
+          + `100755 blob ${DRAFT_OID}\t${SOURCE}/draft-widget.md\0`
+          + (options.extraArtifact === undefined ? ""
+            : `100644 blob ${"1".repeat(40)}\t${SOURCE}/${options.extraArtifact.basename}\0`),
       };
     }
     if (key === `ls-tree --full-tree -r -z base -- ${TARGET}`) {
@@ -90,6 +94,9 @@ function dependencies(options: {
   return {
     exec,
     readBlob: async (_ref, path) => {
+      if (options.extraArtifact !== undefined && path === `${SOURCE}/${options.extraArtifact.basename}`) {
+        return new TextEncoder().encode("# Research\n");
+      }
       if (path.endsWith("meta-widget.md")) {
         metaReads += 1;
         if (options.metaBytes !== undefined) return options.metaBytes;
@@ -151,6 +158,39 @@ describe("prepareGitGraduationTransaction", () => {
         spawningIdentity: "andrew",
       },
     });
+  });
+
+  it.each(["rename", "move out"] as const)("names the unexpected artifact repair and allows retry after %s", async (repair) => {
+    const request: PrepareGitGraduationTransactionInput = {
+      cwd: "/repo", slug: "widget", location: "planned", sourceRef: "base", sourceDirectory: SOURCE,
+      targetDirectory: TARGET, mode: "spawned", worktreePath: "/wt",
+      classResolution: { kind: "preserved", value: "Heavy" },
+      spawn: { locationTemplate: "../{repo}.{name}", repo: "repo", spawningIdentity: "andrew" },
+    };
+    const refusal = await prepareGitGraduationTransaction(dependencies({ forbidWriteTree: true,
+      extraArtifact: { basename: "research.md", head: "f".repeat(40), tree: "9".repeat(40) },
+    }), request);
+    expect(refusal).toMatchObject({ status: "refused", reason: "source-shape", locus: SOURCE });
+    if (refusal.status !== "refused") throw new Error("Expected an artifact-shape refusal");
+    expect(refusal.detail).toContain(`${SOURCE}/research.md`);
+    expect(refusal.detail).toContain("Rename a regular file to <kind>-widget.md");
+    expect(refusal.detail).toContain(`directly inside ${SOURCE}`);
+    expect(refusal.detail).toContain("move this entry out of the directory");
+    expect(refusal.detail).toContain("Commit the repair to the configured base branch");
+    expect(refusal.detail).toContain("push or merge it there when origin is available");
+    expect(refusal.detail).toContain("rerun arc start widget");
+    const unchangedSource = await prepareGitGraduationTransaction(dependencies({ forbidWriteTree: true,
+      extraArtifact: { basename: "research.md", head: "f".repeat(40), tree: "9".repeat(40) },
+    }), request);
+    expect(unchangedSource).toMatchObject({ status: "refused", reason: "source-shape", locus: SOURCE });
+    const retried = await prepareGitGraduationTransaction(dependencies({ forbidWriteTree: true,
+      ...(repair === "rename" ? { extraArtifact: { basename: "notes-widget.md", head: HEAD, tree: TREE } } : {}),
+    }), request);
+    expect(retried.status).toBe("ready");
+    if (retried.status !== "ready") throw new Error("Expected successful retry after artifact repair");
+    expect(retried.transaction.source.artifacts.map(({ basename }) => basename)).toEqual(repair === "rename"
+      ? ["draft-widget.md", "meta-widget.md", "notes-widget.md"] : ["draft-widget.md", "meta-widget.md"]);
+    expect(retried.transaction.occupation.baseHead).toBe(HEAD);
   });
 
   it("distinguishes malformed UTF-8 meta structure from invalid UTF-8 bytes", async () => {

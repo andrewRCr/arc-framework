@@ -3,7 +3,7 @@
  *
  * Covers triple-dash YAML extraction, absent-frontmatter handling, and
  * malformed-YAML error reporting. Schema-specific validation lives in
- * `method.test.ts` / `extension.test.ts`.
+ * `method.test.ts` / `dev-rules.test.ts`.
  */
 
 import { describe, it, expect } from "vitest";

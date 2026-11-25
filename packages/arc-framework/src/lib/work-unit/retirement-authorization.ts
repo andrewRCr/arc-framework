@@ -6,7 +6,7 @@
  * performs no detach, delete, or other directional mutation.
  */
 
-import { canonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   gitTransitionResultDigest,
   retirementSubjectRefusal,
@@ -24,6 +24,14 @@ export interface GitTransitionAuthorizationProof {
   resultInventory: Parameters<typeof gitTransitionResultDigest>[0]["resultInventory"];
 }
 
+/** Git-derived relationship between one live remote source ref and the exact retiring head. */
+export type RemoteSourceRefRelation =
+  | { kind: "absent" }
+  | {
+      kind: "equal" | "strict-ancestor" | "strict-descendant" | "diverged";
+      oid: string;
+    };
+
 /** Read-only seams needed to authorize one exact teardown request. */
 export interface RetirementAuthorizationContext {
   readLocalProjection(request: TeardownAuthorizationRequest): Promise<{
@@ -31,6 +39,11 @@ export interface RetirementAuthorizationContext {
     worktreeProjectionSafe: boolean;
   }>;
   readRemoteRef(remote: string, branch: string): Promise<string | null>;
+  readRemoteSourceRef(
+    remote: string,
+    branch: string,
+    retiringHead: string,
+  ): Promise<RemoteSourceRefRelation>;
   readShippedEvidence(request: TeardownAuthorizationRequest): Promise<
     | {
         evidence: Extract<RetirementEvidenceRef, { kind: "shipped" }>;
@@ -76,21 +89,37 @@ export async function authorizeRetirementStrict(
     return { status: "refused", reason: "unsupported-transition" };
   }
 
-  const [local, remoteOid] = await Promise.all([
+  if (request.requestedMode === "shipped") {
+    const [local, remoteOid] = await Promise.all([
+      ctx.readLocalProjection(request),
+      ctx.readRemoteRef(request.remote, request.branch),
+    ]);
+    if (local.oid !== request.head || !local.worktreeProjectionSafe) {
+      return { status: "refused", reason: "projection-mismatch" };
+    }
+    if (remoteOid !== null && remoteOid !== request.head) {
+      return { status: "refused", reason: "projection-mismatch" };
+    }
+    return await authorizeShipped(ctx, request, local.oid, remoteOid);
+  }
+  const transition = await ctx.readGitTransitionProof(request);
+  if (transition.status === "refused") return transition;
+  const [local, remoteRef] = await Promise.all([
     ctx.readLocalProjection(request),
-    ctx.readRemoteRef(request.remote, request.branch),
+    ctx.readRemoteSourceRef(request.remote, request.branch, request.head),
   ]);
   if (local.oid !== request.head || !local.worktreeProjectionSafe) {
     return { status: "refused", reason: "projection-mismatch" };
   }
-  if (remoteOid !== null && remoteOid !== request.head) {
+  if (
+    remoteRef.kind !== "absent"
+    && remoteRef.kind !== "equal"
+    && remoteRef.kind !== "strict-ancestor"
+  ) {
     return { status: "refused", reason: "projection-mismatch" };
   }
-
-  if (request.requestedMode === "shipped") {
-    return await authorizeShipped(ctx, request, local.oid, remoteOid);
-  }
-  return await authorizeFromGitTransition(ctx, request, local.oid, remoteOid);
+  const remoteOid = remoteRef.kind === "absent" ? null : remoteRef.oid;
+  return authorizeFromGitTransition(request, local.oid, remoteOid, transition.proof);
 }
 
 /**
@@ -144,18 +173,15 @@ async function authorizeShipped(
   return authorizedDecision(request, "merged-preserved", shipped.evidence, refs);
 }
 
-async function authorizeFromGitTransition(
-  ctx: RetirementAuthorizationContext,
+function authorizeFromGitTransition(
   request: TeardownAuthorizationRequest,
   localOid: string,
   remoteOid: string | null,
-): Promise<TeardownAuthorizationDecision> {
+  proof: GitTransitionAuthorizationProof,
+): TeardownAuthorizationDecision {
   if (request.subject.kind !== "work-unit") {
     return { status: "refused", reason: "unsupported-transition" };
   }
-  const result = await ctx.readGitTransitionProof(request);
-  if (result.status === "refused") return result;
-  const { proof } = result;
   if (proof.retiringHead !== request.head) {
     return { status: "refused", reason: "projection-mismatch" };
   }

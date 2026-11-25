@@ -7,8 +7,11 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { UserFacingError } from "../../../src/lib/errors.js";
-import { readConfiguredIdentity, slugifyIdentity, resolveIdentity } from "../../../src/lib/git/identity.js";
+import {
+  readConfiguredIdentity, resolveIdentityFromValues, slugifyIdentity, resolveIdentity,
+} from "../../../src/lib/git/identity.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 // --- slugifyIdentity ---
 
@@ -51,23 +54,28 @@ describe("slugifyIdentity", () => {
 
 // --- resolveIdentity ---
 
-/** Creates a mock GitExec that returns predefined values for config keys. */
+/** Scripts configured Git values and absent keys. */
 function mockExec(configValues: Record<string, string>): GitExec {
-  return vi.fn(async (_cmd: string, args: string[]) => {
-    if (args[0] === "config" && args[1] === "--null" && args[2] === "--get") {
-      const key = args[3];
-      if (key && key in configValues) return { stdout: `${configValues[key]!}\0` };
-      throw { exitCode: 1 };
-    }
-    if (args[0] === "config" && args[1] === "--get") {
-      const key = args[2];
-      if (key && key in configValues) {
-        return { stdout: configValues[key]! + "\n" };
-      }
-      throw { exitCode: 1 };
-    }
-    throw new Error(`Unexpected command: ${args.join(" ")}`);
-  });
+  return scriptGitExec([
+    {
+      match: { prefix: ["config", "--null", "--get"] },
+      responses: [({ args }) => {
+        const key = args[3];
+        return key && key in configValues
+          ? { stdout: `${configValues[key]!}\0` }
+          : { failure: { exitCode: 1 } };
+      }],
+    },
+    {
+      match: { prefix: ["config", "--get"] },
+      responses: [({ args }) => {
+        const key = args[2];
+        return key && key in configValues
+          ? { stdout: `${configValues[key]!}\n` }
+          : { failure: { exitCode: 1 } };
+      }],
+    },
+  ]).exec;
 }
 
 describe("resolveIdentity", () => {
@@ -96,14 +104,13 @@ describe("resolveIdentity", () => {
 
   it("passes slugified user.name as prompt default", async () => {
     // user.name exists but arc.identity doesn't — prompt should get the suggestion
-    const exec = vi.fn(async (_cmd: string, args: string[]) => {
-      if (args[0] === "config" && args[1] === "--null") throw { exitCode: 1 };
-      if (args[0] === "config" && args[1] === "--get") {
-        if (args[2] === "user.name") return { stdout: "Jane Doe\n" };
-        throw new Error("not found");
-      }
-      throw new Error("unexpected");
-    });
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["config", "--null"] }, responses: [{ failure: { exitCode: 1 } }] },
+      { match: ["config", "--get", "user.name"], responses: [{ stdout: "Jane Doe\n" }] },
+      { match: { prefix: ["config", "--get"] }, responses: [{
+        failure: { exitCode: 1, stderr: "not found" },
+      }] },
+    ]);
     const prompt = vi.fn(async () => "jane-doe");
 
     const result = await resolveIdentity({ exec, prompt });
@@ -154,6 +161,17 @@ describe("readConfiguredIdentity", () => {
     await expect(readConfiguredIdentity(mockExec({}))).resolves.toBeNull();
   });
 
+  it("reads configuration from the supplied working directory", async () => {
+    const exec: GitExec = vi.fn(async () => ({ stdout: "andrew\0" }));
+
+    await expect(readConfiguredIdentity(exec, "/repo/root")).resolves.toBe("andrew");
+    expect(exec).toHaveBeenCalledWith(
+      "git",
+      ["config", "--null", "--get", "arc.identity"],
+      { cwd: "/repo/root" },
+    );
+  });
+
   it.each(["", " Andrew ", "two--segments", "../unsafe", "UPPER"])(
     "rejects present invalid configured bytes %j",
     async (value) => {
@@ -175,5 +193,18 @@ describe("readConfiguredIdentity", () => {
 
     await expect(readConfiguredIdentity(missing)).rejects.toMatchObject({ code: "identity.invalid" });
     await expect(readConfiguredIdentity(repeated)).rejects.toMatchObject({ code: "identity.invalid" });
+  });
+});
+
+describe("resolveIdentityFromValues", () => {
+  it.each([
+    ["a valid arc.identity", { arcIdentity: "andrew", userName: "Someone Else" }, { status: "identified", identity: "andrew", source: "arc.identity" }],
+    ["an invalid arc.identity, user.name aside", { arcIdentity: "Not A Slug", userName: "Ada" }, { status: "invalid" }],
+    ["arc.identity set with no value", { arcIdentity: null }, { status: "invalid" }],
+    ["user.name alone, slugified", { userName: "Ada Q. Lovelace" }, { status: "identified", identity: "ada-q-lovelace", source: "user.name" }],
+    ["a user.name that slugifies to nothing", { userName: "!!!" }, { status: "unset" }],
+    ["neither", {}, { status: "unset" }],
+  ] as const)("resolves %s", (_case, values, expected) => {
+    expect(resolveIdentityFromValues(values)).toEqual(expected);
   });
 });

@@ -7,7 +7,10 @@
  *
  * @module
  */
+import { posix } from "node:path";
 import { z } from "zod";
+import { UnclosedTaskCommitsSchema } from "../locus/unclosed-task-commits-schema.js";
+import { SlugSchema } from "../kernel/schema/slug.js";
 
 import type { Probe } from "../../commands/status/types.js";
 import {
@@ -17,6 +20,8 @@ import {
   type CompactionSeed,
 } from "../compaction-seed/schema.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
+import { identifyWorkUnitArtifactPath, resolveArcPath } from "../layout/index.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
 import {
   LoadSetAuditDiffSchema,
   LoadSetAuditVerdictSchema,
@@ -26,7 +31,7 @@ import {
 } from "../load-set/audit.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
-import type { RecoveryLocusFrame } from "./locus-context.js";
+import { resolveRecoveryParentContext, type RecoveryLocusFrame } from "./locus-context.js";
 import type {
   TaskListCursor,
 } from "../task-list/cursor.js";
@@ -40,6 +45,11 @@ import {
   type CommittedProgress,
   type CommittedProgressResolver,
 } from "./committed-progress.js";
+import {
+  projectIntegrationCorrectionRecovery,
+  type IntegrationCorrectionProjection,
+  type RecoveryTaskListEvidenceResolver,
+} from "./integration-correction.js";
 
 /** Stop reason categories emitted by the recovery audit. */
 export const RecoveryAuditStopKindSchema = z.enum([
@@ -56,6 +66,7 @@ export const RecoveryAuditStopKindSchema = z.enum([
   "locus-hint-mismatch",
   "repo-root-mismatch",
   "seed-invalid",
+  "seed-locus-unresolved",
   "seed-missing",
   "seed-unreadable",
   "dirty-path-drift",
@@ -63,6 +74,7 @@ export const RecoveryAuditStopKindSchema = z.enum([
   "task-cursor-unresolved",
   "task-cursor-malformed",
   "task-cursor-mismatch",
+  "integration-correction-unresolved",
 ]);
 export type RecoveryAuditStopKind = z.infer<typeof RecoveryAuditStopKindSchema>;
 
@@ -93,8 +105,9 @@ export type RecoveryAuditDirtyFiles = z.infer<typeof RecoveryAuditDirtyFilesSche
  * Drift the audit classified as expected progression rather than a stop signal.
  *
  * Recorded for transparency when a drift reason was suppressed because it is
- * fully accounted for by committed work since the seed. The verdict stays binary
- * ready/stop; an explained reason simply does not push a stop.
+ * fully accounted for by committed work since the seed, or by files that became
+ * dirty after it while every seed-dirty file stayed dirty or was committed. The
+ * verdict stays binary ready/stop; an explained reason simply does not push a stop.
  */
 export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -102,6 +115,7 @@ export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
     message: z.string(),
     detail: z.strictObject({
       resolvedPaths: z.array(z.string()),
+      addedPaths: z.array(z.string()),
       committedSince: z.string(),
     }),
   }),
@@ -124,6 +138,20 @@ export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
     detail: z.strictObject({
       slug: z.string(),
       diff: LoadSetAuditDiffSchema,
+    }),
+  }),
+  z.strictObject({
+    kind: z.literal("integration-correction-progression"),
+    message: z.string(),
+    detail: z.strictObject({
+      workUnit: z.string(),
+      transition: z.enum([
+        "public-to-task",
+        "task-to-task",
+        "task-to-verification",
+        "task-to-continuation",
+        "verification-to-public",
+      ]),
     }),
   }),
 ]);
@@ -167,6 +195,7 @@ export const RecoveryAuditVerdictSchema = z.strictObject({
   locusHint: RecoveryAuditLocusHintSchema.nullable(),
   dirtyFiles: RecoveryAuditDirtyFilesSchema,
   taskCursor: RecoveryAuditTaskCursorSchema.nullable(),
+  unclosedTaskCommits: UnclosedTaskCommitsSchema.optional(),
 }).superRefine((value, context) => {
   const ready = value.status === "ready";
   if (value.ready !== ready) {
@@ -215,6 +244,8 @@ export interface AuditRecoveryStateOptions {
    * Injected in tests; defaults to a real git query against the current repo.
    */
   resolveCommittedProgress?: CommittedProgressResolver;
+  /** Resolves exact seed/fresh task-list text in the recovery checkout. */
+  resolveTaskListEvidence?: RecoveryTaskListEvidenceResolver;
 }
 
 /** Audit fresh recovery state against the compaction seed. */
@@ -228,12 +259,37 @@ export async function auditRecoveryState(
 
   const stopReasons: RecoveryAuditStopReason[] = [];
   const explainedDrift: RecoveryAuditExplainedDrift[] = [];
+  const integrationCorrection = await projectIntegrationCorrectionRecovery({
+    seed: options.seed,
+    derivedLocusState: options.recover.derivedLocusState,
+    recoveryFrame: options.recover.recoveryFrame,
+    loadSet: options.recover.loadSet,
+    taskCursor: options.recover.taskCursor,
+    resolveTaskListEvidence: options.resolveTaskListEvidence,
+  });
+  if (integrationCorrection.status === "refused") {
+    stopReasons.push({
+      kind: "integration-correction-unresolved",
+      message: integrationCorrection.message,
+    });
+  } else if (integrationCorrection.status === "accepted") {
+    explainedDrift.push({
+      kind: "integration-correction-progression",
+      message: "public integration advanced through one exact corrective substage",
+      detail: {
+        workUnit: integrationCorrection.workUnit,
+        transition: integrationCorrection.transition,
+      },
+    });
+  }
   auditRepoRoot(options, stopReasons);
   const locus = auditLocus(options, stopReasons, explainedDrift, committedProgress);
   const locusHint = auditLocusHint(options, stopReasons);
-  const loadSetAudit = auditLoadSet(options, stopReasons, explainedDrift);
+  const loadSetAudit = await auditLoadSet(options, stopReasons, explainedDrift, integrationCorrection);
   const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
-  const taskCursor = auditTaskCursor(options, stopReasons);
+  const taskCursor = auditTaskCursor(options, stopReasons, integrationCorrection);
+  const unclosedTaskCommits = taskCursor?.match === true && options.recover.derivedLocusState.ok
+    ? options.recover.derivedLocusState.value.active?.context.unclosedTaskCommits : undefined;
 
   return {
     status: stopReasons.length === 0 ? "ready" : "stop",
@@ -245,6 +301,7 @@ export async function auditRecoveryState(
     locusHint,
     dirtyFiles,
     taskCursor,
+    ...(unclosedTaskCommits === undefined ? {} : { unclosedTaskCommits }),
   };
 }
 
@@ -273,16 +330,6 @@ function auditLocusHint(
     });
     return { expected, actual: null, match: false };
   }
-  if (!options.recover.recoveryFrame.ok) {
-    stopReasons.push({
-      kind: "locus-unresolved",
-      message: options.recover.recoveryFrame.error.message,
-      detail: options.recover.recoveryFrame.error,
-    });
-    return { expected, actual: null, match: false };
-  }
-
-  const frame = options.recover.recoveryFrame.value;
   const actual = deriveCompactionSeedLocusHint({ ok: true, value: options.recover.derivedLocusState.value });
   if (actual === null) {
     stopReasons.push({
@@ -291,6 +338,28 @@ function auditLocusHint(
     });
     return { expected, actual: null, match: false };
   }
+  const entering = options.recover.derivedLocusState.value.entering;
+  if (entering.kind === "selected" && entering.row.kind === "unresolved-checkout") {
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: `Entering checkout facts remain unresolved: ${entering.row.checkout.path}`,
+      detail: {
+        checkoutPath: entering.row.checkout.path,
+        diagnostics: entering.row.diagnostics,
+      },
+    });
+    return { expected, actual, match: false };
+  }
+  if (!options.recover.recoveryFrame.ok) {
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: options.recover.recoveryFrame.error.message,
+      detail: options.recover.recoveryFrame.error,
+    });
+    return { expected, actual, match: false };
+  }
+
+  const frame = options.recover.recoveryFrame.value;
 
   if (frame.checkoutPath !== actual.checkoutPath
     || frame.parentCheckoutPath !== actual.parentCheckoutPath) {
@@ -372,11 +441,12 @@ function auditLocus(
   };
 }
 
-function auditLoadSet(
+async function auditLoadSet(
   options: AuditRecoveryStateOptions,
   stopReasons: RecoveryAuditStopReason[],
   explainedDrift: RecoveryAuditExplainedDrift[],
-): LoadSetAuditVerdict | null {
+  integrationCorrection: IntegrationCorrectionProjection,
+): Promise<LoadSetAuditVerdict | null> {
   if (!options.recover.loadSet.ok) {
     stopReasons.push({
       kind: "load-set-unresolved",
@@ -390,9 +460,10 @@ function auditLoadSet(
     baseline: options.seed.loadSet,
     fresh: options.recover.loadSet.value,
   });
-  const archivalRelocation = archivedIntegrationRelocation(options, verdict);
+  const archivalRelocation = await archivedIntegrationRelocation(options, verdict);
   const prepublicationProjection = candidatePrepublicationProjection(options, verdict);
-  if (verdict.diverged && archivalRelocation === null && prepublicationProjection === null) {
+  if (verdict.diverged && archivalRelocation === null && prepublicationProjection === null
+    && integrationCorrection.status !== "accepted") {
     stopReasons.push({
       kind: "load-set-drift",
       message: "fresh recovery load-set diverges from the compaction seed baseline",
@@ -421,7 +492,7 @@ function candidatePrepublicationProjection(
   const slug = options.seed.activeWorkUnit;
   if (slug === null
     || options.seed.sessionType !== "execution"
-    || options.seed.currentWorkflow !== "process-task-loop"
+    || options.seed.currentWorkflow !== "verify-work-unit"
     || options.seed.taskCursor !== null
     || !verdict.diverged
     || !options.recover.loadSet.ok
@@ -443,16 +514,15 @@ function candidatePrepublicationProjection(
     || entering.row.context.integrationBoundary === null
     || entering.row.context.taskCursor?.status !== "no-open-task") return null;
 
-  const taskEntries = options.seed.loadSet.entries.filter((entry) => entry.readMode.kind === "partial-strategic");
-  const processPath = ".arc/system/workflows/arc/process-task-loop.md";
-  const preparePath = ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
-  if (taskEntries.length !== 1
-    || options.seed.loadSet.entries.filter((entry) => entry.path === processPath).length !== 1) return null;
+  const workflowRoot = resolveArcPath({ kind: "procedure-root", family: "workflows" });
+  const verifyPath = posix.join(workflowRoot, "arc/work-unit-lifecycle/verify-work-unit.md");
+  const preparePath = posix.join(workflowRoot, "arc/work-unit-lifecycle/prepare-work-unit.md");
+  if (options.seed.loadSet.entries.some((entry) => entry.readMode.kind === "partial-strategic")
+    || options.seed.loadSet.entries.filter((entry) => entry.path === verifyPath).length !== 1) return null;
   const projected = {
     manifestVersion: options.seed.loadSet.manifestVersion,
     entries: options.seed.loadSet.entries.flatMap((entry) => {
-      if (entry.readMode.kind === "partial-strategic") return [];
-      if (entry.path === processPath) return [{ path: preparePath, readMode: { kind: "full" as const } }];
+      if (entry.path === verifyPath) return [{ path: preparePath, readMode: { kind: "full" as const } }];
       return [entry];
     }),
   };
@@ -460,10 +530,10 @@ function candidatePrepublicationProjection(
   return { slug, diff: verdict.diff };
 }
 
-function archivedIntegrationRelocation(
+async function archivedIntegrationRelocation(
   options: AuditRecoveryStateOptions,
   verdict: LoadSetAuditVerdict,
-): { slug: string; pathDrifts: LoadSetAuditVerdict["diff"]["pathDrifts"] } | null {
+): Promise<{ slug: string; pathDrifts: LoadSetAuditVerdict["diff"]["pathDrifts"] } | null> {
   const slug = options.seed.activeWorkUnit;
   if (slug === null || options.seed.sessionType !== "integration" || !verdict.diverged) return null;
   if (!options.recover.recoveryFrame.ok) return null;
@@ -490,15 +560,12 @@ function archivedIntegrationRelocation(
     || diff.pathDrifts.length !== 1) return null;
   const drift = diff.pathDrifts[0];
   if (drift === undefined) return null;
-  const expected = `.arc/active/meta-${slug}.md`;
-  const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const actualPattern = new RegExp(
-    `^\\.arc/completed/[^/]+/\\d+_${escapedSlug}/meta-${escapedSlug}\\.md$`,
-    "u",
-  );
+  if (!SlugSchema.safeParse(slug).success) return null;
+  const expected = await workItemArtifactPath(options.freshRepoRoot, slug, "meta", { kind: "active" }, null);
+  const actual = identifyWorkUnitArtifactPath(drift.actual.path);
   if (options.seed.metaPath !== expected
     || drift.expected.path !== expected
-    || !actualPattern.test(drift.actual.path)
+    || actual === null || actual.artifact !== "meta" || actual.slug !== slug || actual.placement.kind !== "completed"
     || entering.row.context.metaPath !== drift.actual.path
     || drift.expected.readMode.kind !== "full"
     || drift.actual.readMode.kind !== "full") return null;
@@ -522,22 +589,24 @@ function auditDirtyFiles(
     );
   const dirtyStateConsistent = options.recover.dirty.ok ? !dirtyProbeContradiction : null;
 
-  // Path drift is "explained" only when the working tree is a strict subset of the
-  // seed's expected set, and every seed-expected path now absent left the dirty set
-  // by being committed since the seed head (HEAD advanced past it). Any unexpected
-  // new dirt, an uncommitted disappearance, or a dirty-state contradiction is not
-  // committed progress and stays a genuine stop.
+  // Path drift is "explained" when every seed-expected path is still dirty or left
+  // the dirty set by being committed since the seed head (HEAD advanced past it).
+  // Files that became dirty after the seed are then work in progress: the session's
+  // own edits or agents it started, which the compacted summary may not describe.
+  // An uncommitted disappearance or a dirty-state contradiction means work was lost
+  // or the probes disagree, and stays a genuine stop.
   const actualSet = new Set(actual);
   const expectedSet = new Set(expected);
   const nowMissing = expected.filter((path) => !actualSet.has(path));
   const newDirt = actual.filter((path) => !expectedSet.has(path));
   const explainedByCommittedProgress = !pathSetMatch
     && !dirtyProbeContradiction
-    && newDirt.length === 0
     && nowMissing.length > 0
     && committedProgress !== null
     && committedProgress.advanced
     && nowMissing.every((path) => committedProgress.files.has(path));
+  const explained = !pathSetMatch && !dirtyProbeContradiction
+    && (nowMissing.length === 0 || explainedByCommittedProgress);
 
   const match = pathSetMatch && dirtyStateConsistent === true;
 
@@ -548,7 +617,7 @@ function auditDirtyFiles(
       detail: options.recover.dirty.error,
     });
   }
-  if ((!pathSetMatch || dirtyProbeContradiction) && !explainedByCommittedProgress) {
+  if ((!pathSetMatch || dirtyProbeContradiction) && !explained) {
     stopReasons.push({
       kind: "dirty-path-drift",
       message: dirtyProbeContradiction
@@ -560,19 +629,27 @@ function auditDirtyFiles(
         dirty: options.recover.dirty.ok ? options.recover.dirty.value : null,
       },
     });
-  } else if (explainedByCommittedProgress) {
+  } else if (explained) {
     explainedDrift.push({
       kind: "dirty-path-drift",
-      message:
-        "seed-expected dirty files are absent because they were committed since the seed; drift is expected progression",
+      message: explainedDirtyMessage(nowMissing.length > 0, newDirt.length > 0),
       detail: {
         resolvedPaths: nowMissing,
+        addedPaths: newDirt,
         committedSince: options.seed.head,
       },
     });
   }
 
   return { expected, actual, pathSetMatch, dirtyStateConsistent, match, explainedByCommittedProgress };
+}
+
+function explainedDirtyMessage(resolved: boolean, added: boolean): string {
+  const causes = [
+    ...(resolved ? ["seed-expected dirty files are absent because they were committed since the seed"] : []),
+    ...(added ? ["files became dirty after the seed while every seed-expected dirty file stayed dirty or was committed"] : []),
+  ];
+  return `${causes.join("; ")}; drift is expected progression`;
 }
 
 function dirtyProbeContradictionMessage(state: DirtyStateResult["state"]): string {
@@ -584,7 +661,11 @@ function dirtyProbeContradictionMessage(state: DirtyStateResult["state"]): strin
 function auditTaskCursor(
   options: AuditRecoveryStateOptions,
   stopReasons: RecoveryAuditStopReason[],
+  integrationCorrection: IntegrationCorrectionProjection,
 ): RecoveryAuditTaskCursor | null {
+  if (integrationCorrection.status === "accepted" && integrationCorrection.taskCursor !== null) {
+    return { ...integrationCorrection.taskCursor, match: true };
+  }
   if (!requiresTaskCursor(options)) return null;
 
   const expected = options.seed.taskCursor;
@@ -657,6 +738,24 @@ function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
     ? options.recover.recoveryFrame.value.sessionType
     : null;
   const freshCursor = options.recover.taskCursor;
+  const parent = options.recover.derivedLocusState.ok && options.recover.recoveryFrame.ok
+    ? resolveRecoveryParentContext(options.recover.derivedLocusState.value, options.recover.recoveryFrame.value) : null;
+  if (options.seed.sessionType === "execution" && options.seed.taskCursor === null
+    && freshCursor?.ok && freshCursor.value.status === "no-open-task"
+    && parent?.sessionType === "execution" && parent.workflow === "verify-work-unit"
+    && parent.taskCursor?.status === "no-open-task" && parent.workUnit === options.seed.activeWorkUnit
+    && parent.metaPath === options.seed.metaPath && options.recover.recoveryFrame.ok
+    && options.seed.currentWorkflow === options.recover.recoveryFrame.value.workflow
+    && options.seed.locus.parentCheckoutPath === options.recover.recoveryFrame.value.parentCheckoutPath) return false;
+  if (options.seed.sessionType === "execution"
+    && options.seed.currentWorkflow === "verify-work-unit"
+    && options.seed.taskCursor === null
+    && freshSessionType === "execution"
+    && options.recover.recoveryFrame.ok
+    && options.recover.recoveryFrame.value.kind !== "none"
+    && options.recover.recoveryFrame.value.workflow === "verify-work-unit"
+    && freshCursor?.ok
+    && freshCursor.value.status === "no-open-task") return false;
   if (freshSessionType === "prepublication"
     && options.seed.taskCursor === null
     && freshCursor?.ok

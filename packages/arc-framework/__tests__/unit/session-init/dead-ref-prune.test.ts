@@ -10,6 +10,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import { pruneRemoteTrackingRefs } from "../../../src/lib/session-init/dead-ref-prune.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 describe("pruneRemoteTrackingRefs", () => {
   it("issues a `git fetch --prune origin`", async () => {
@@ -22,8 +23,8 @@ describe("pruneRemoteTrackingRefs", () => {
   });
 
   it("swallows a failed fetch (offline / no remote) without throwing", async () => {
-    const exec: GitExec = vi.fn(async () => {
-      throw new Error("could not resolve host");
+    const exec: GitExec = vi.fn(async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "could not resolve host" });
     });
 
     await expect(pruneRemoteTrackingRefs(exec)).resolves.toBeUndefined();

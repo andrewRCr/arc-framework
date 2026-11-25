@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   LOAD_SET_MANIFEST_VERSION,
@@ -63,7 +64,7 @@ describe("LoadSetManifest", () => {
     "C:\\workspace\\..\\escape.md",
     "\\\\server\\share\\..\\escape.md",
   ])("rejects unsafe or non-canonical load-set paths: %s", (path) => {
-    expect(LoadSetPathSchema.safeParse(path).success).toBe(false);
+    assertSchemaRefuses(LoadSetPathSchema, path);
   });
 
   it("rejects strict branch-field leakage and malformed read-mode fields", () => {
@@ -71,16 +72,16 @@ describe("LoadSetManifest", () => {
       manifestVersion: LOAD_SET_MANIFEST_VERSION,
       entries: [{ path: "context.md", readMode: { kind: "full" } }],
     };
-    expect(LoadSetManifestSchema.safeParse({ ...base, extra: true }).success).toBe(false);
-    expect(LoadSetManifestSchema.safeParse({
+    assertSchemaRefuses(LoadSetManifestSchema, { ...base, extra: true });
+    assertSchemaRefuses(LoadSetManifestSchema, {
       ...base,
       entries: [{ path: "context.md", readMode: { kind: "full", heading: "leak" } }],
-    }).success).toBe(false);
-    expect(LoadSetManifestSchema.safeParse({
+    });
+    assertSchemaRefuses(LoadSetManifestSchema, {
       ...base,
       entries: [{ path: "context.md", readMode: { kind: "partial-section", heading: " " } }],
-    }).success).toBe(false);
-    expect(LoadSetManifestSchema.safeParse({ ...base, manifestVersion: 2 }).success).toBe(false);
+    });
+    assertSchemaRefuses(LoadSetManifestSchema, { ...base, manifestVersion: 2 });
   });
 
   it("strips reader unknown keys recursively while preserving entry order", () => {

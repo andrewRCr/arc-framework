@@ -16,6 +16,7 @@ import {
   runArcNoTty,
   unwrapPresentationOutput,
 } from "./helpers.js";
+import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import {
   resolveSubmissionBoundaryPath,
@@ -187,10 +188,12 @@ async function createFixture(): Promise<RenameFixture> {
 
 async function startInPlace(fixture: RenameFixture): Promise<void> {
   await git(fixture.repo, ["switch", "-c", "feat/old-name"]);
+  await resetEditorDocumentsProvisioning(fixture.repo);
   const started = await runArcAnchored([
-    "start", "old-name", "--here", "--new", "--from", "internal", "--yes",
+    "start", "old-name", "--here", "--new", "--yes",
   ], fixture.repo);
   expect(started.exitCode).toBe(0);
+  await assertEditorDocumentsProvisioned(fixture.repo);
   const lociRoot = join(fixture.repo, ".arc", "user", "test-user", ".internal", "loci");
   expect(await exists(lociRoot)).toBe(false);
   await seedTrackedSweep(fixture.repo, join(".arc", "active"), "old-name");
@@ -231,7 +234,18 @@ describe("arc rename", () => {
     for (const path of cleanupPaths.splice(0).reverse()) await removeGitBackedDir(path);
   });
 
-  it("renames a backlog stub through a rejecting commit hook and rests on main", async () => {
+  it.each([false, true])("retains the same-name input refusal before the storage flip, json=%s", async json => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    const head = await git(fixture.repo, ["rev-parse", "HEAD"]);
+    const result = await runArcNoTty(["rename", "old-name", "old-name", ...(json ? ["--json"] : [])], fixture.repo);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain("The new slug must differ from the current one.");
+    if (json) expect(JSON.parse(result.stdout)).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "rename", "--help"] } });
+    expect(await git(fixture.repo, ["rev-parse", "HEAD"])).toBe(head);
+  });
+
+  it.each([false, true])("renames a backlog stub through a rejecting commit hook and rests on main, json=%s", async json => {
     const fixture = await createFixture();
     cleanupPaths.push(fixture.remote, fixture.repo);
     const stubbed = await runArcNoTty([
@@ -247,26 +261,32 @@ describe("arc rename", () => {
     await git(fixture.repo, ["push"]);
     const gate = await installRenameGateHook(fixture.repo, { rejectOnce: true });
 
-    const refused = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+    const flags = json ? ["--json"] : [];
+    const refused = await runArcNoTty(["rename", "old-name", "new-name", ...flags], fixture.repo);
     expect(refused.exitCode).toBe(1);
     expect(refused.stdout + refused.stderr).toContain("rename commit refused");
+    if (json) expect(JSON.parse(refused.stdout)).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "status", "--json"] } });
     expect(await exists(gate.ranMarker)).toBe(true);
     expect(await exists(gate.refusalMarker), refused.stdout + refused.stderr).toBe(true);
     expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
     expect(await exists(join(fixture.repo, oldArtifactDir, "meta-old-name.md"))).toBe(true);
     expect(await exists(join(fixture.repo, newArtifactDir, "meta-new-name.md"))).toBe(false);
 
-    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name", ...flags], fixture.repo);
 
     expect(renamed.exitCode).toBe(0);
-    expect(renamed.stdout).toContain("pending integration");
+    if (json) {
+      expect(JSON.parse(renamed.stdout)).toMatchObject({ status: "renamed", reference: null, pendingIntegration: true,
+        report: { references: [], memberHeadings: [], formerSlugTies: [], keptBranches: [] } });
+      expect(renamed.stdout.trim().split("\n")).toHaveLength(1);
+    } else expect(renamed.stdout).toContain("pending integration");
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("main");
     const transition = JSON.parse(await git(fixture.repo, [
       "show", "chore/rename-old-name-to-new-name:.arc/system/.internal/transitions/old-name.json",
-    ])) as { kind: string; successors: string[] };
+    ])) as { schemaVersion: 2; kind: string; successors: { name: string }[] };
     expect(transition).toMatchObject({
       kind: "rename",
-      successors: ["new-name"],
+      successors: [{ name: "new-name" }],
     });
     await git(fixture.repo, ["switch", "chore/rename-old-name-to-new-name"]);
     await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");
@@ -383,10 +403,12 @@ describe("arc rename", () => {
     const oldWorktree = `${fixture.repo}.old-name`;
     const newWorktree = `${fixture.repo}.new-name`;
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
+    await resetEditorDocumentsProvisioning(fixture.repo);
     const started = await runArcNoTty([
-      "start", "old-name", "--new", "--from", "internal",
+      "start", "old-name", "--new",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
+    await assertEditorDocumentsProvisioned(oldWorktree);
     await seedTrackedSweep(oldWorktree, join(".arc", "active"), "old-name");
     await git(oldWorktree, ["add", "."]);
     await git(oldWorktree, ["commit", "-m", "chore(test): seed rename surfaces"]);
@@ -398,7 +420,7 @@ describe("arc rename", () => {
     expect(renamed.stdout).toContain("spawned");
     expect(renamed.stdout).toContain("move deferred");
     expect(renamed.stdout).toContain("Follow-up:");
-    expect(renamed.stdout).toContain("`git worktree move");
+    expect(renamed.stdout).toContain("`git worktree move -f -f");
     const unwrappedOutput = unwrapPresentationOutput(renamed.stdout);
     expect(unwrappedOutput).toContain(oldWorktree);
     expect(unwrappedOutput).toContain(newWorktree);
@@ -437,7 +459,7 @@ describe("arc rename", () => {
     expect(await hasUserWorkspace(oldWorktree, "old-name")).toBe(false);
     expect(await hasUserWorkspace(oldWorktree, "new-name")).toBe(true);
 
-    await execFileAsync("git", ["worktree", "move", oldWorktree, newWorktree], { cwd: fixture.repo });
+    await execFileAsync("git", ["worktree", "move", "-f", "-f", oldWorktree, newWorktree], { cwd: fixture.repo });
     const replay = await runArcNoTty(["rename", "old-name", "new-name"], newWorktree, { timeout: 20_000 });
     expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
     const movedMarker = JSON.parse(await readFile(
@@ -453,7 +475,7 @@ describe("arc rename", () => {
     const newWorktree = `${fixture.repo}.new-name`;
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
     const started = await runArcNoTty([
-      "start", "old-name", "--new", "--from", "internal",
+      "start", "old-name", "--new",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
     const markerPath = join(oldWorktree, ".arc", "system", ".internal", "worktree-marker.json");
@@ -469,7 +491,7 @@ describe("arc rename", () => {
 
     expect(renamed.exitCode).toBe(1);
     expect(renamed.stdout + renamed.stderr).toContain("role-conflict");
-    expect(renamed.stdout).not.toContain("`git worktree move");
+    expect(renamed.stdout).not.toContain("`git worktree move -f -f");
     expect(await exists(oldWorktree)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);
     const foreignMarker = JSON.parse(await readFile(markerPath, "utf8")) as { renameMovePending?: unknown };
@@ -482,7 +504,7 @@ describe("arc rename", () => {
     const newWorktree = `${fixture.repo}.new-name`;
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
     const started = await runArcNoTty([
-      "start", "old-name", "--new", "--from", "internal",
+      "start", "old-name", "--new",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
     const hook = join(fixture.remote, "hooks", "post-receive");

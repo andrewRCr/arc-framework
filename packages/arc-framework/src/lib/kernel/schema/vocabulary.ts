@@ -4,6 +4,14 @@
 
 import { z } from "zod";
 
+import { CANONICAL_DIGEST_HEX_PATTERN, CANONICAL_DIGEST_PREFIX } from "../canonical/canonical-json.js";
+
+/** Runtime authority for canonical SHA-256 digests. */
+export const CanonicalDigestSchema = z.templateLiteral([
+  CANONICAL_DIGEST_PREFIX,
+  z.string().regex(CANONICAL_DIGEST_HEX_PATTERN),
+], { error: "Expected sha256: followed by 64 lowercase hex characters" });
+
 /** Runtime authority for code-repository remote evidence quality. */
 export const RemoteEvidenceSchema = z.enum([
   "exact",

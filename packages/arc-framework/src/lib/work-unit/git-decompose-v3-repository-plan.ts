@@ -10,13 +10,17 @@ import {
   type ProjectViewFs,
 } from "../status/project-view.js";
 import {
+  composeV3ExtractionRepositoryPlan,
   composeV3RepositoryPlan,
+  type V3RepositoryPlanInput,
   type V3RepositoryPlanResult,
   type V3RepositoryPlanTree,
 } from "./decompose-v3-repository-plan.js";
-import { decodeV3DecomposeCutMap } from "./decompose-v3-schema.js";
+import { decodeV3DecomposeCutMap, type V3DecomposeCutMap } from "./decompose-v3-schema.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 import { transitionOverlayCompositionInput } from "./transition-overlay.js";
+import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
 
 export interface GitV3RepositoryPlanDependencies {
   cwd: string;
@@ -34,6 +38,7 @@ export type GitV3RepositoryPlanResult =
         stage: "git";
         reason: string;
         locus?: string;
+        evidence?: V3DecomposeRefusalEvidence;
       };
     };
 
@@ -120,6 +125,10 @@ class TreeDirEntry implements ProjectViewDirEntry {
   isDirectory(): boolean {
     return this.directory;
   }
+
+  isFile(): boolean {
+    return !this.directory;
+  }
 }
 
 /** Project one pinned canonical repository tree through the shared project-view filesystem seam. */
@@ -197,15 +206,158 @@ async function shortRef(
   return stdout.trim() || oid;
 }
 
-function gitRefusal(reason: string, locus?: string): GitV3RepositoryPlanResult {
+/** Render the canonical ROADMAP bytes for one pinned repository tree. */
+export async function renderGitV3RepositoryTreeRoadmap(
+  dependencies: GitV3RepositoryPlanDependencies,
+  baseBranch: string,
+  tree: V3RepositoryPlanTree,
+  renderedHead: string,
+  overlay?: ProspectiveTransitionOverlay,
+  renderedRefInput?: string,
+): Promise<Uint8Array> {
+  const readiness = await resolveProjectReadinessViewInput({
+    cwd: dependencies.cwd,
+    fs: createGitV3RepositoryTreeProjectViewFs(dependencies.cwd, tree),
+    localRefs: {
+      exec: bindGitCwd(dependencies.exec, dependencies.cwd),
+      acquisitionPolicy: "local",
+      baseBranch,
+    },
+    transitionOverlays: overlay === undefined
+      ? []
+      : [transitionOverlayCompositionInput(overlay)],
+  });
+  const renderedRef = renderedRefInput ?? await shortRef(dependencies, renderedHead);
+  const markdown = composeProjectReadinessViewResult({
+    ...readiness,
+    renderedRef: {
+      ref: renderedRef,
+      scope: "tree + local refs",
+      liveView: "arc status --project",
+    },
+  }).markdown;
+  return new TextEncoder().encode(markdown.endsWith("\n") ? markdown : `${markdown}\n`);
+}
+
+function gitRefusal(
+  reason: string,
+  locus?: string,
+  evidence?: V3DecomposeRefusalEvidence,
+): Extract<GitV3RepositoryPlanResult, { status: "refused" }> {
   return {
     status: "refused",
     refusal: {
       stage: "git",
       reason,
       ...(locus === undefined ? {} : { locus }),
+      ...(evidence === undefined ? {} : { evidence }),
     },
   };
+}
+
+interface RepositoryPlanRefs {
+  sourceHead: string;
+  resultBaseHead: string;
+  mergeBases: string[];
+}
+
+type RepositoryPlanRefsResult =
+  | { status: "ready"; value: RepositoryPlanRefs }
+  | Extract<GitV3RepositoryPlanResult, { status: "refused" }>;
+
+async function pinRepositoryPlanRefs(
+  dependencies: GitV3RepositoryPlanDependencies,
+  map: V3DecomposeCutMap,
+): Promise<RepositoryPlanRefsResult> {
+  const sourceHead = map.machine.source.head;
+  const resultBaseHead = map.machine.resultBase.head;
+  const [sourceRef, resultRef, mergeBaseResult] = await Promise.all([
+    exactRef(dependencies, map.machine.source.ref),
+    exactRef(dependencies, map.machine.resultBase.ref),
+    dependencies.exec(
+      "git",
+      ["merge-base", "--all", sourceHead, resultBaseHead],
+      { cwd: dependencies.cwd },
+    ),
+  ]);
+  if (sourceRef !== sourceHead) {
+    return gitRefusal(
+      "source-ref-moved",
+      map.machine.source.ref,
+      sourceRef === null ? undefined : { expected: sourceHead, actual: sourceRef },
+    );
+  }
+  if (resultRef !== resultBaseHead) {
+    return gitRefusal(
+      "result-ref-moved",
+      map.machine.resultBase.ref,
+      resultRef === null ? undefined : { expected: resultBaseHead, actual: resultRef },
+    );
+  }
+  const mergeBases = mergeBaseResult.stdout.split(/\r?\n/u).filter(Boolean);
+  if (mergeBases.length !== 1 || mergeBases[0] === undefined) {
+    return gitRefusal(mergeBases.length === 0 ? "missing-merge-base" : "ambiguous-merge-base");
+  }
+  return { status: "ready", value: { sourceHead, resultBaseHead, mergeBases } };
+}
+
+interface RepositoryPlanTrees {
+  sourceTree: V3RepositoryPlanTree;
+  mergeBaseTree: V3RepositoryPlanTree;
+  resultBaseTree: V3RepositoryPlanTree;
+  renderedRef: string;
+}
+
+type RepositoryPlanTreesResult =
+  | { status: "ready"; value: RepositoryPlanTrees }
+  | Extract<GitV3RepositoryPlanResult, { status: "refused" }>;
+
+async function readRepositoryPlanTrees(
+  dependencies: GitV3RepositoryPlanDependencies,
+  refs: RepositoryPlanRefs,
+): Promise<RepositoryPlanTreesResult> {
+  const mergeBase = refs.mergeBases[0];
+  if (mergeBase === undefined) return gitRefusal("missing-merge-base");
+  const [sourceTree, mergeBaseTree, resultBaseTree, renderedRef] = await Promise.all([
+    readGitV3RepositoryTree(dependencies, refs.sourceHead),
+    readGitV3RepositoryTree(dependencies, mergeBase),
+    readGitV3RepositoryTree(dependencies, refs.resultBaseHead),
+    shortRef(dependencies, refs.resultBaseHead),
+  ]);
+  if (sourceTree === null || mergeBaseTree === null || resultBaseTree === null) {
+    return gitRefusal("tree-read-failed");
+  }
+  return {
+    status: "ready",
+    value: { sourceTree, mergeBaseTree, resultBaseTree, renderedRef },
+  };
+}
+
+async function validateRepositoryPlanRefsUnchanged(
+  dependencies: GitV3RepositoryPlanDependencies,
+  map: V3DecomposeCutMap,
+  refs: RepositoryPlanRefs,
+): Promise<Extract<GitV3RepositoryPlanResult, { status: "refused" }> | null> {
+  const [sourceAfter, resultAfter] = await Promise.all([
+    exactRef(dependencies, map.machine.source.ref),
+    exactRef(dependencies, map.machine.resultBase.ref),
+  ]);
+  if (sourceAfter !== refs.sourceHead) {
+    return gitRefusal(
+      "source-ref-moved",
+      map.machine.source.ref,
+      sourceAfter === null ? undefined : { expected: refs.sourceHead, actual: sourceAfter },
+    );
+  }
+  return resultAfter === refs.resultBaseHead
+    ? null
+    : gitRefusal(
+      "result-ref-moved",
+      map.machine.resultBase.ref,
+      resultAfter === null
+        ? undefined
+        : { expected: refs.resultBaseHead, actual: resultAfter },
+    );
 }
 
 /**
@@ -216,10 +368,11 @@ function gitRefusal(reason: string, locus?: string): GitV3RepositoryPlanResult {
  * @param completedMap - Fully authored closed v3 map.
  * @returns One exact repository plan or a typed read/projection refusal.
  */
-export async function composeGitV3RepositoryPlan(
+async function composeGitRepositoryPlan(
   dependencies: GitV3RepositoryPlanDependencies,
   baseBranch: string,
   completedMap: unknown,
+  compose: (input: V3RepositoryPlanInput) => Promise<V3RepositoryPlanResult>,
 ): Promise<GitV3RepositoryPlanResult> {
   const decoded = decodeV3DecomposeCutMap(completedMap);
   if (decoded.status === "rejected") {
@@ -236,75 +389,82 @@ export async function composeGitV3RepositoryPlan(
       readBlob: async (ref, path) => await dependencies.readBlob(ref, path),
     }, baseBranch, map.machine.source.origin);
     if (refreshed.status === "rejected") {
-      return gitRefusal(refreshed.reason, "locus" in refreshed ? refreshed.locus : undefined);
+      return gitRefusal(
+        refreshed.reason,
+        "locus" in refreshed ? refreshed.locus : undefined,
+        "evidence" in refreshed ? refreshed.evidence : undefined,
+      );
     }
-    const sourceHead = map.machine.source.head;
-    const resultBaseHead = map.machine.resultBase.head;
-    const [sourceRef, resultRef, mergeBaseResult] = await Promise.all([
-      exactRef(dependencies, map.machine.source.ref),
-      exactRef(dependencies, map.machine.resultBase.ref),
-      dependencies.exec(
-        "git",
-        ["merge-base", "--all", sourceHead, resultBaseHead],
-        { cwd: dependencies.cwd },
-      ),
-    ]);
-    if (sourceRef !== sourceHead) return gitRefusal("source-ref-moved", map.machine.source.ref);
-    if (resultRef !== resultBaseHead) return gitRefusal("result-ref-moved", map.machine.resultBase.ref);
-    const mergeBases = mergeBaseResult.stdout.split(/\r?\n/u).filter(Boolean);
-    if (mergeBases.length !== 1 || mergeBases[0] === undefined) {
-      return gitRefusal(mergeBases.length === 0 ? "missing-merge-base" : "ambiguous-merge-base");
-    }
-    const [sourceTree, mergeBaseTree, resultBaseTree, renderedRef] = await Promise.all([
-      readGitV3RepositoryTree(dependencies, sourceHead),
-      readGitV3RepositoryTree(dependencies, mergeBases[0]),
-      readGitV3RepositoryTree(dependencies, resultBaseHead),
-      shortRef(dependencies, resultBaseHead),
-    ]);
-    if (sourceTree === null || mergeBaseTree === null || resultBaseTree === null) {
-      return gitRefusal("tree-read-failed");
-    }
-    const result = await composeV3RepositoryPlan({
+    const refs = await pinRepositoryPlanRefs(dependencies, map);
+    if (refs.status === "refused") return refs;
+    const trees = await readRepositoryPlanTrees(dependencies, refs.value);
+    if (trees.status === "refused") return trees;
+    const result = await compose({
       completedMap: map,
       currentPreflight: refreshed.preflight,
-      sourceTree,
-      mergeBaseTree,
-      resultBaseTree,
-      mergeBases,
+      sourceTree: trees.value.sourceTree,
+      mergeBaseTree: trees.value.mergeBaseTree,
+      resultBaseTree: trees.value.resultBaseTree,
+      mergeBases: refs.value.mergeBases,
       cohortTemplate: dependencies.cohortTemplate,
-      renderRoadmap: async (projectedTree, overlay) => {
-        const readiness = await resolveProjectReadinessViewInput({
-          cwd: dependencies.cwd,
-          fs: createGitV3RepositoryTreeProjectViewFs(dependencies.cwd, projectedTree),
-          localRefs: {
-            exec: bindGitCwd(dependencies.exec, dependencies.cwd),
-            acquisitionPolicy: "local",
-            baseBranch,
-          },
-          transitionOverlays: [transitionOverlayCompositionInput(overlay)],
-        });
-        const markdown = composeProjectReadinessViewResult({
-          ...readiness,
-          renderedRef: {
-            ref: renderedRef,
-            scope: "tree + local refs",
-            liveView: "arc status --project",
-          },
-        }).markdown;
-        return new TextEncoder().encode(markdown.endsWith("\n") ? markdown : `${markdown}\n`);
-      },
+      renderRoadmap: async (projectedTree, overlay) =>
+        await renderGitV3RepositoryTreeRoadmap(
+          dependencies,
+          baseBranch,
+          projectedTree,
+          refs.value.resultBaseHead,
+          overlay,
+          trees.value.renderedRef,
+        ),
     });
-    const [sourceAfter, resultAfter] = await Promise.all([
-      exactRef(dependencies, map.machine.source.ref),
-      exactRef(dependencies, map.machine.resultBase.ref),
-    ]);
-    if (sourceAfter !== sourceHead) return gitRefusal("source-ref-moved", map.machine.source.ref);
-    if (resultAfter !== resultBaseHead) return gitRefusal("result-ref-moved", map.machine.resultBase.ref);
-    return result;
+    const raced = await validateRepositoryPlanRefsUnchanged(dependencies, map, refs.value);
+    return raced ?? result;
   } catch (error) {
     return gitRefusal(
       "repository-plan-failed",
       error instanceof Error ? error.message : String(error),
     );
   }
+}
+
+/**
+ * Pin exact Git inputs and compose a retirement result.
+ *
+ * @param dependencies - Git object, preflight-blob, and bundled-template boundaries.
+ * @param baseBranch - Configured result base branch.
+ * @param completedMap - Fully authored closed v3 retirement map.
+ * @returns One exact repository plan or a typed read/projection refusal.
+ */
+export async function composeGitV3RepositoryPlan(
+  dependencies: GitV3RepositoryPlanDependencies,
+  baseBranch: string,
+  completedMap: unknown,
+): Promise<GitV3RepositoryPlanResult> {
+  return await composeGitRepositoryPlan(
+    dependencies,
+    baseBranch,
+    completedMap,
+    composeV3RepositoryPlan,
+  );
+}
+
+/**
+ * Pin exact Git inputs and compose an additive extraction result.
+ *
+ * @param dependencies - Git object, preflight-blob, and bundled-template boundaries.
+ * @param baseBranch - Configured result base branch.
+ * @param completedMap - Fully authored closed v3 extraction map.
+ * @returns One exact additive repository plan or a typed read/projection refusal.
+ */
+export async function composeGitV3ExtractionRepositoryPlan(
+  dependencies: GitV3RepositoryPlanDependencies,
+  baseBranch: string,
+  completedMap: unknown,
+): Promise<GitV3RepositoryPlanResult> {
+  return await composeGitRepositoryPlan(
+    dependencies,
+    baseBranch,
+    completedMap,
+    composeV3ExtractionRepositoryPlan,
+  );
 }

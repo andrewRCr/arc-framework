@@ -7,11 +7,12 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile, access } from "node:fs/promises";
+import { readFile, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, cleanupTempDir, commitAll } from "./helpers.js";
+import { initializedRepository } from "../helpers/initialized-repository.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,16 +42,32 @@ describe("arc init --reconfigure", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(
-      ["init", "--yes", "--name", "test-project", "--tools", "claude"],
-      tmpDir,
-    );
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("claude-initialized");
+    await commitAll(tmpDir);
   });
 
   afterEach(async () => {
     await cleanupTempDir(tmpDir);
+  });
+
+  it("uncommitted changes to a file it rewrites refuse the reconfigure until committed", async () => {
+    const configPath = join(tmpDir, ".arc", "system", "arc-config.yml");
+    const customized = `${await readFile(configPath, "utf-8")}\n# Local note\n`;
+    await writeFile(configPath, customized, "utf-8");
+
+    const refused = await runArc(["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"], tmpDir);
+
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stdout + refused.stderr).toContain("manifest.uncommitted-changes");
+    expect(refused.stdout + refused.stderr).toContain(".arc/system/arc-config.yml");
+    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(false);
+
+    await commitAll(tmpDir);
+    const reconf = await runArc(["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"], tmpDir);
+
+    expect(reconf.exitCode, reconf.stdout + reconf.stderr).toBe(0);
+    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
+    expect(await readFile(configPath, "utf-8")).toContain("# Local note");
   });
 
   it("reconfigure pm.mode adds files, update preserves new config", async () => {
@@ -75,7 +92,8 @@ describe("arc init --reconfigure", () => {
     const manifest = JSON.parse(manifestRaw) as { install_config: { pm_mode: string } };
     expect(manifest.install_config.pm_mode).toBe("arc-in-git");
 
-    // Update should preserve the new config
+    // Once committed, update should preserve the new config
+    await commitAll(tmpDir);
     const update = await runArc(["update"], tmpDir);
     expect(update.exitCode).toBe(0);
 
@@ -137,16 +155,13 @@ describe("arc init --reconfigure", () => {
     expect(output).toContain("Contributors cannot reconfigure");
   });
 
-  it("reconfigure leaves per-file methods and extensions directories untouched", async () => {
+  it("reconfigure leaves per-file methods untouched", async () => {
     const baselineManifest = await readInstallManifest(tmpDir);
     const methodNames = Object.keys(baselineManifest.files)
       .map((key) => key.match(/^system\/methods\/(.+)\.md$/)?.[1])
       .filter((name): name is string => name !== undefined && name !== "README")
       .sort();
-    const extensionNames = Object.keys(baselineManifest.files)
-      .map((key) => key.match(/^system\/extensions\/(.+)\.md$/)?.[1])
-      .filter((name): name is string => name !== undefined && name !== "README")
-      .sort();
+    expect(methodNames).toContain("assess-evidence-applicability");
 
     // Snapshot per-file content before reconfigure (fresh init baseline).
     const before: Record<string, string> = {};
@@ -154,25 +169,18 @@ describe("arc init --reconfigure", () => {
       const rel = `system/methods/${name}.md`;
       before[rel] = await readFile(join(tmpDir, ".arc", rel), "utf-8");
     }
-    for (const name of extensionNames) {
-      const rel = `system/extensions/${name}.md`;
-      before[rel] = await readFile(join(tmpDir, ".arc", rel), "utf-8");
-    }
     before["system/methods/README.md"] = await readFile(
       join(tmpDir, ".arc/system/methods/README.md"), "utf-8",
     );
-    before["system/extensions/README.md"] = await readFile(
-      join(tmpDir, ".arc/system/extensions/README.md"), "utf-8",
-    );
 
-    // Reconfigure pm.mode — orthogonal to methods/extensions.
+    // Reconfigure pm.mode — orthogonal to methods.
     const reconf = await runArc(
       ["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"],
       tmpDir,
     );
     expect(reconf.exitCode).toBe(0);
 
-    // Every per-file method and extension remains present and byte-identical.
+    // Every per-file method remains present and byte-identical.
     for (const [rel, original] of Object.entries(before)) {
       const current = await readFile(join(tmpDir, ".arc", rel), "utf-8");
       expect(current, `${rel} changed during reconfigure`).toBe(original);
@@ -184,14 +192,7 @@ describe("arc init --reconfigure", () => {
       const key = `system/methods/${name}.md`;
       expect(manifest.files[key]!.classification).toBe("Configurable");
     }
-    for (const name of extensionNames) {
-      const key = `system/extensions/${name}.md`;
-      expect(manifest.files[key]!.classification).toBe("Configurable");
-    }
     expect(manifest.files["system/methods/README.md"]!.classification).toBe(
-      "Framework",
-    );
-    expect(manifest.files["system/extensions/README.md"]!.classification).toBe(
       "Framework",
     );
 
@@ -200,10 +201,6 @@ describe("arc init --reconfigure", () => {
       ...methodNames.map((n) => `system/methods/${n}.md`),
       "system/methods/README.md",
     ].sort();
-    const expectedExtensionKeys = [
-      ...extensionNames.map((n) => `system/extensions/${n}.md`),
-      "system/extensions/README.md",
-    ].sort();
     const actualMethodKeys = Object.keys(manifest.files)
       .filter((k) => k.startsWith("system/methods/"))
       .sort();
@@ -211,7 +208,8 @@ describe("arc init --reconfigure", () => {
       .filter((k) => k.startsWith("system/extensions/"))
       .sort();
     expect(actualMethodKeys).toEqual(expectedMethodKeys);
-    expect(actualExtensionKeys).toEqual(expectedExtensionKeys);
+    expect(actualExtensionKeys).toEqual([]);
+    expect(await pathExists(join(tmpDir, ".arc/system/extensions"))).toBe(false);
   });
 
   it("reconfigure with same values is a no-op", async () => {
@@ -238,7 +236,8 @@ describe("arc init --reconfigure", () => {
     const roadmapPath = join(tmpDir, ".arc", "backlog", "ROADMAP.md");
     expect(await pathExists(roadmapPath)).toBe(true);
 
-    // Reconfigure back to none — removals happen via --yes defaults
+    // Reconfigure back to none from the committed arc-in-git install — removals happen via --yes defaults
+    await commitAll(tmpDir);
     const reconf = await runArc(
       ["init", "--reconfigure", "--yes", "--pm-mode", "none"],
       tmpDir,
@@ -259,12 +258,7 @@ describe("arc join --reconfigure", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo("arc-reconf-join-");
-    const init = await runArc(
-      ["init", "--yes", "--name", "test-project"],
-      tmpDir,
-    );
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
