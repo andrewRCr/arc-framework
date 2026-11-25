@@ -3,7 +3,7 @@
   "slug": "retried-creation-base",
   "claimId": "807577ab73c148cb776d6d8cc091a922",
   "createdAt": "2026-11-24T21:10:42.266Z",
-  "updatedAt": "2026-11-24T21:10:42.266Z",
+  "updatedAt": "2026-11-25T13:37:39.805Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Keep a teammate's later change when a command that stopped after creating a non-Markdown record is retried",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Reproduce, then fix, a retried file creation replacing a teammate's later change",
   "originEntrySourceDigest": "sha256:480c42f2218e4b1e17167ba5490feaf6a56281e686f440d963ce25bb59c22575",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/retried-creation-base",
+    "headSha": "2d7c5533d1411e1836bddd5dd1f1a2f7b99451a5"
+  }
 }
