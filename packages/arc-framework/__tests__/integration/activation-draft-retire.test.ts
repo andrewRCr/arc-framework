@@ -5,7 +5,7 @@ import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { runActivate, type ActivateContext } from "../../src/lib/work-unit/verbs/activate-deactivate.js";
 import { runRepointDesign } from "../../src/lib/work-unit/verbs/repoint-design.js";
 import { buildStoreCurrentWuReconcile } from "../../src/lib/work-unit/store-current-wu-reconcile.js";
-import { createDefaultRefStorePorts, createRefStore, OwnerIdentitySchema, recordReferences, sameReference, type Store } from "../../src/lib/store/index.js";
+import { createDefaultRefStorePorts, createRefStore, OwnerIdentitySchema, recordReferences, type Store } from "../../src/lib/store/index.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { renderMetaFile } from "../../src/lib/store/kinds/meta/writers.js";
 
@@ -55,20 +55,6 @@ async function planningUnit(options: { design: string[]; currentWorkflow: string
   return { store, meta, draft, exec, context, params, reopen, writeDraft };
 }
 
-/** A store whose first read of the draft lets a concurrent edit land just after it, so the read version goes stale. */
-function editDraftAfterRead(h: Awaited<ReturnType<typeof planningUnit>>): void {
-  const read = h.store.read.bind(h.store);
-  let edited = false;
-  vi.spyOn(h.store, "read").mockImplementation(async (request) => {
-    const result = await read(request);
-    if (!edited && result.status === "ok" && sameReference(request.reference, h.draft)) {
-      edited = true;
-      await h.writeDraft(h.reopen(), concurrentDraft, result.result.version);
-    }
-    return result;
-  });
-}
-
 it("removes a draft the design no longer names in the activation write", async () => {
   const h = await planningUnit({ design: ["spec-example.md"], currentWorkflow: "generate-tasks", withDraft: true });
 
@@ -94,7 +80,7 @@ it("keeps the draft when another writer selects it during activation", async () 
   const h = await planningUnit({ design: [], currentWorkflow: "draft-design", withDraft: true });
   const reconcile = h.context.currentWuReconcile;
   const result = await runActivate({ ...h.context, currentWuReconcile: { ...reconcile, prepare: async (op) => {
-    const repoint = await runRepointDesign({ ...h.context, store: h.reopen() }, { name: op.slug, event: "draft-created" });
+    const repoint = await runRepointDesign({ ...h.context, store: h.reopen() }, { owner: h.meta.owner, event: "draft-created" });
     expect(repoint).toMatchObject({ status: "ok", design: "draft-example.md" });
     return reconcile.prepare(op);
   } } }, h.params);
@@ -146,10 +132,18 @@ it("cannot commit Active with an undesignated draft created just before the acti
   expect(await persisted.read({ reference: h.draft })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
 }, ACTIVATION_TIMEOUT_MS);
 
-it("refuses the whole activation when the draft changed after its read, keeping the edited draft", async () => {
+it("refuses the whole activation when the draft changes after reconciliation captures it", async () => {
   const h = await planningUnit({ design: ["spec-example.md"], currentWorkflow: "generate-tasks", withDraft: true, withDependency: true });
+  const reconcile = h.context.currentWuReconcile;
+  const prepare = reconcile.prepare.bind(reconcile);
+  vi.spyOn(reconcile, "prepare").mockImplementationOnce(async (op) => {
+    const result = await prepare(op);
+    const writer = h.reopen();
+    const draft = lifecycleSuccess(await writer.read({ reference: h.draft }));
+    await h.writeDraft(writer, concurrentDraft, draft.version);
+    return result;
+  });
 
-  editDraftAfterRead(h);
   const result = await runActivate(h.context, h.params);
 
   expect(result).toMatchObject({ status: "rejected", refusal: { code: "version-conflict",
@@ -163,4 +157,5 @@ it("refuses the whole activation when the draft changed after its read, keeping 
   });
   expect(await runActivate(h.context, h.params)).toMatchObject({ status: "activated", removedDraft: "draft-example.md" });
   expect(lifecycleSuccess(await persisted.read({ reference: h.meta })).fields).toMatchObject({ state: "Active", dependsOn: [] });
+  expect(await persisted.read({ reference: h.draft })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
 }, ACTIVATION_TIMEOUT_MS);
