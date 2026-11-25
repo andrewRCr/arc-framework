@@ -55,7 +55,7 @@ async function fixture() {
   }));
   const tasks = await seed(source, source.reference("work-item/task-list"), TASK_RULE_CONTENT);
   const documentPath = ".arc/user/andrew/scratch/round-trip.md";
-  const tasksPath = ".arc/active/in-flight/work-item-one/tasks-work-item-one.md";
+  const tasksPath = ".arc/active/current/tasks-work-item-one.md";
   const projected = await seedProjection({ store: source.store, files: [
     { reference: document.reference, path: documentPath }, { reference: tasks.reference, path: tasksPath },
   ] });

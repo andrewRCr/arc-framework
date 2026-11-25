@@ -4,7 +4,7 @@
 
 **Project Type**: Framework development with public release goals (solo-developed; the ARC team is
 currently one person — the methodology itself is team-size-agnostic, not solo-targeted)
-**Primary Goal**: Deliver a coherent, configurable methodology — 11 non-negotiable principles
+**Primary Goal**: Deliver a coherent, configurable methodology — five non-negotiable principles
 with strong default conventions that teams adapt to their context
 
 ## Project Snapshot
@@ -12,24 +12,23 @@ with strong default conventions that teams adapt to their context
 **Technology Stack:**
 
 - **Framework Type**: Documentation system + TypeScript CLI package
-- **CLI Package**: `packages/arc-framework/` — TypeScript, tsup, vitest, Commander, ESM
+- **CLI Package**: `@arc-framework/cli` — TypeScript, tsup, vitest, Commander, ESM
 - **Dependencies**: Git, Node.js (npm workspaces)
 - **Quality Gates**: Markdown linting (zero-tolerance), TypeScript type checking, vitest, tsup build
 - **CI**: GitHub Actions
-- **Distribution**: GitHub repository with template-first documents, npm package (`@arc-framework/cli`)
+- **Distribution**: GitHub repository with template-first documents, and the npm package
 - **Development Environment**: Cross-platform (Windows/WSL/Linux/Mac)
 
 **Repository Layout:**
 
 - `.arc/` - ARC methodology files (reference/, active/, backlog/, system/)
-- `packages/arc-framework/` - CLI npm package (`@arc-framework/cli`)
+- `packages/arc-framework/` - the CLI package
 - Root-level documentation (README.md, LICENSE, etc.)
 
 ## Critical Path Information
 
 **Common Friction Points:**
 
-- **Hybrid project**: Documentation (`.arc/`) plus TypeScript CLI (`packages/arc-framework/`)
 - **All commands from repo root**: npm workspaces delegates to the CLI package automatically
 - **Markdown linting is a primary quality gate**: `npm run -s lint:md`
 - **Self-hosting**: Framework development follows its own ARC methodology

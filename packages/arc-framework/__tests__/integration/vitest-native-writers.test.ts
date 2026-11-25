@@ -3,13 +3,14 @@ import { access, cp, readFile, readdir, realpath, rename, rm, writeFile } from "
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import {
-  makeNativeWriterFixture, nativeWriterEvents, startNativeWriter, waitForNativeWriter,
+  exposeNativeWriterLeaseHandoff, makeNativeWriterFixture, nativeWriterEvents, startNativeWriter, waitForNativeWriter,
 } from "../helpers/native-writer-fixture.js";
 import { mergeDurationArtifacts } from "../helpers/duration-artifacts.js";
 import { NESTED_CALL_LIMIT } from "../helpers/call-limit.js";
 
 it.each([false, true])("holds shared-checkout writers through native closing (failure=%s)", async closingFailure => {
   const fixture = await makeNativeWriterFixture();
+  const retryMarker = closingFailure ? undefined : await exposeNativeWriterLeaseHandoff(fixture.packageRoot);
   await cp(join(fixture.packageRoot, "tests/integration-runtime.test.mjs"),
     join(fixture.packageRoot, "tests/integration-next.test.mjs"));
   const gate = join(fixture.packageRoot, "close.gate");
@@ -35,6 +36,9 @@ it.each([false, true])("holds shared-checkout writers through native closing (fa
     expect(await readFile(fixture.report, "utf8")).toBe(report);
     await writeFile(gate, "release");
     const results = await Promise.all([first.child, second.child]);
+    if (retryMarker !== undefined) {
+      expect(JSON.parse(await readFile(retryMarker, "utf8"))).toMatchObject({ pid: first.child.pid });
+    }
     expect(results[0]!.exitCode, results[0]!.stderr).toBe(closingFailure ? 1 : 0);
     expect(results[1]!.exitCode, results[1]!.stderr).toBe(0);
     if (closingFailure) expect(results[0]!.stdout + results[0]!.stderr).toContain("native closing failure retained");

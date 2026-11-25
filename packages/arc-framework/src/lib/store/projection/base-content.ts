@@ -3,7 +3,7 @@ import type { KindId } from "../catalog.js";
 import type { KindDefinition } from "../registry.js";
 import type { Store } from "../contract.js";
 import type { RecordVersion } from "../identity.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { createHistoryMemo, type HistoryMemo, type RecoveredBase } from "./base-recovery.js";
 import type { ObjectFormat } from "./blob-id.js";
 import type { RecordEntry } from "./index-schema.js";
@@ -18,6 +18,14 @@ export interface BaseSelectionContext {
   readonly recoveringBase?: boolean;
   readonly readCopy?: (name: string) => Promise<string>;
   readonly registry?: Readonly<Record<KindId, KindDefinition>>;
+}
+
+/** The condition a base read gives where history lists the base's version without its content. */
+const UNREADABLE_BASE = "The projected base version is no longer readable.";
+
+/** Whether a refusal is a base read's own for a listed version without content: a failed read, never the edit's refusal. */
+export function isUnreadableBase(refusal: StoreRefusal): boolean {
+  return refusal.code === "version-conflict" && refusal.condition === UNREADABLE_BASE;
 }
 
 /** Read the content a selected base names, without substituting a newer version. */
@@ -39,6 +47,6 @@ export async function readHistoricalBaseContent(
   const content = history.result.find(each => each.version === version)?.content;
   if (content !== undefined && content !== null) return { status: "ok", result: content };
   return { status: "refused", refusal: { code: "version-conflict", class: "recoverable", records: [entry.reference],
-    condition: "The projected base version is no longer readable.",
+    condition: UNREADABLE_BASE,
     remedy: { text: "Recover the projected file's base from the record history, then save again." } } };
 }

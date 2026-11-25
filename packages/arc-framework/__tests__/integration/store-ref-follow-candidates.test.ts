@@ -258,7 +258,7 @@ it("keeps transport failures recoverable and propagates local follow read failur
         const [gitArgs, options] = args, query = new TextDecoder().decode(options?.input);
         if (gitArgs[0] === "cat-file" && gitArgs[1] === "--batch" && (
           stage === "source-record" && query.includes(`${sourceTip}:moved.json`) ||
-          stage === "project-registry" && query.includes(":identity.json") && query.includes("^{tree}"))) {
+          stage === "project-registry" && query.includes(":identity.json"))) {
           throw localReadFailure;
         }
         if (!follower.ports.rawExec) throw new Error("Native raw executor missing");

@@ -25,6 +25,7 @@ import { restoreErrandInboxOrigin, type ErrandInboxOrigin } from "../lib/errand/
 import { openDefaultStore } from "./lifecycle-shared.js";
 import { openErrandTerminalStore, selectErrandTerminalSubject } from "./errand-terminal-store.js";
 import { preCutoverBuildSealed } from "./pre-cutover-seal.js";
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
 import { StoreImportedError } from "../lib/store/store-imported.js";
 import { readRuntimeErrand } from "../lib/store/errand-runtime-transactions.js";
 import { readFile, readdir } from "node:fs/promises";
@@ -1147,9 +1148,11 @@ export async function handleErrandLeave(
         emitErrandLeaveFailure("locus.errand-leave.identity", "The stdin Git boundary is unavailable.", opts.json === true);
         return;
       }
+      const store = openDefaultStore(cwd, io.exec);
       let observedAuthority: ErrandTerminalAuthority | null = null;
       const result = await leaveOrdinaryErrandAtRuntime({
-      store: openDefaultStore(cwd, io.exec),
+        store,
+        projectionRemovalSlots: createProjectionRemovalSlots({ store, identity }),
         slug: parsed.data.slug,
         state: parsed.data.state,
         protection,
@@ -1158,7 +1161,7 @@ export async function handleErrandLeave(
         identity,
         exec: io.exec,
         execInput: io.execInput,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: parsed.data.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
       });
@@ -1311,6 +1314,7 @@ async function runErrandCloseHandler(
     refuse: (code, message) => { emitErrandCloseFailure(`locus.errand-close.${code}`, message, opts.json === true); } });
   if (opened === null) return;
   const { store, execInput } = opened;
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity });
   const selected = await selectErrandTerminalSubject(store, slug, "errand-close");
   if (selected.kind === "stop") { emitErrandCloseResult(selected.result, opts.json === true); return; }
   const inboxContext = { store, identity, now: () => new Date() };
@@ -1323,9 +1327,10 @@ async function runErrandCloseHandler(
       result = await settlePartialErrandAtRuntime({
         slug: selected.slug,
         action: "close",
+        projectionRemovalSlots,
         base,
         exec: io.exec,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         settleInbox: async (binding) => {
@@ -1363,7 +1368,8 @@ async function runErrandCloseHandler(
       });
     } else {
       result = await closeOrdinaryErrandAtRuntime({
-      store,
+        store,
+        projectionRemovalSlots,
         selectedRecord: selected.selectedRecord,
         operand: slug,
         slug: selected.slug,
@@ -1372,7 +1378,7 @@ async function runErrandCloseHandler(
         identity,
         exec: io.exec,
         execInput,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         ...(store.capabilities.stateOffBranch ? { prepareInbox: async (parentCheckoutPath: string | null) => {
@@ -1582,6 +1588,7 @@ async function runErrandAbandonHandler(
     refuse: (code, message) => { emitErrandAbandonFailure(`locus.errand-abandon.${code}`, message, opts.json === true); } });
   if (opened === null) return;
   const { store, execInput } = opened;
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity });
   const selected = await selectErrandTerminalSubject(store, input.slug, "errand-abandon");
   if (selected.kind === "stop") { emitErrandAbandonResult(selected.result, opts.json === true); return; }
   let returnPlan: import("../lib/inbox/errand-return.js").ErrandReturn | null = null;
@@ -1593,9 +1600,10 @@ async function runErrandAbandonHandler(
       result = await settlePartialErrandAtRuntime({
         slug: selected.slug,
         action: "abandon",
+        projectionRemovalSlots,
         base,
         exec: io.exec,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: input.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         settleInbox: async (binding) => {
@@ -1614,7 +1622,8 @@ async function runErrandAbandonHandler(
       });
     } else {
       result = await abandonOrdinaryErrandAtRuntime({
-      store,
+        store,
+        projectionRemovalSlots,
         selectedRecord: selected.selectedRecord,
         operand: input.slug,
         companionWrites: returnPlan?.writes,
@@ -1625,7 +1634,7 @@ async function runErrandAbandonHandler(
         identity,
         exec: io.exec,
         execInput,
-        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
+        readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec, store }),
         confirmForeignGeneration: input.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         clearExecuteBound: async (record, settlementCheckoutPath) => {

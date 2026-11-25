@@ -19,6 +19,7 @@ import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
 import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
 import { type ParsedMetaRecord } from "../../../../src/lib/active/meta-schema.js";
@@ -116,11 +117,11 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       return entries === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
     },
   };
@@ -179,7 +180,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     writeCurrentWorkflowField: async () => {},
     writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
-      calls.push(`soft:${path}:${Object.keys(updates).join(",")}`);
+      calls.push(`soft:${fixturePath(path)}:${Object.keys(updates).join(",")}`);
     },
     sideEffects,
     // The `worktree-occupancy` IO guard is an injected seam
@@ -192,17 +193,17 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
 
   const fs: ParkContext["fs"] = {
     writeFile: async (path, content) => {
-      writes.push({ path: String(path), content });
+      writes.push({ path: fixturePath(String(path)), content });
     },
     mkdir: async () => undefined,
     rm: async (path) => {
-      removals.push(String(path));
+      removals.push(fixturePath(String(path)));
     },
     // The parked dir holds only the pointer-record under the minimal-pointer model,
     // so after its removal the dir is empty and the prune's `rmdir` fires.
     readdir: async () => [],
     rmdir: async (path) => {
-      removals.push(`rmdir:${String(path)}`);
+      removals.push(`rmdir:${fixturePath(String(path))}`);
     },
   };
 

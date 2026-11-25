@@ -19,19 +19,26 @@ import { RecordReferenceSchema, OwnerIdentitySchema, recordReferences } from "..
 import { resolveArcPath } from "../../src/lib/layout/index.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { transientContent } from "../helpers/store/in-repo-substrates.js";
+import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 import { readWorktreeMarker, readWorktreeMarkerGeneration, resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 
-async function fixture() {
+async function fixture(projected = false) {
   const cwd = await createTempRepo();
   onTestFinished(async () => cleanupTempDir(cwd));
   const exec = makeGitExec(cwd);
   await exec("git", ["branch", "-M", "main"]);
   await mkdir(join(cwd, ".arc", "system"), { recursive: true });
   await writeFile(join(cwd, ".arc", "system", "arc-config.yml"), "branch.base: main\nbranch.protection: full\n");
-  await exec("git", ["add", ".arc"]);
+  if (projected) {
+    await mkdir(join(cwd, ".arc/user"), { recursive: true });
+    await writeFile(join(cwd, ".arc/user/.npmignore"), "*\n");
+    await writeFile(join(cwd, ".gitignore"), ".arc/user/*/\n");
+  }
+  await exec("git", ["add", ...(projected ? [".arc", ".gitignore"] : [".arc"])]);
   await exec("git", ["commit", "-m", "Project configuration"]);
   const before = (await exec("git", ["rev-parse", "HEAD"])).stdout;
   const h = createLifecycleHarness();
+  if (projected) await seedImportedUserProjection(cwd, h.store, "andrew");
   const ctx = { io: { ...createUserIOContext(), exec }, store: h.store, locusPorts: createLocusPorts({ cwd, exec, store: h.store }), internalTemplateDir: "/templates" };
   const params = { worktreePath: cwd, branch: "main", identity: "andrew", name: "demo" };
   return { ...h, cwd, exec, before, ctx, params };
@@ -157,7 +164,7 @@ it("reruns a creation interrupted after its marker write and stamps the created 
 }, 30_000);
 
 it.each(["errand", "cohort", "former", "bound-missing"] as const)("refuses %s residue, then cold-starts after unnamed release", async kind => {
-  const h = await fixture();
+  const h = await fixture(true);
   if (kind === "errand") {
     const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "crashed" }));
     await h.seed(reference, transientContent(reference), { kind: "active" });

@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 
 import type {
   ExecuteTransitionContext,
@@ -54,9 +55,9 @@ function buildIndexFs(slug: string, state: string, branch: string): LifecycleInd
     `- **Next Action:** ship it.\n\n---\n`;
 
   return {
-    readdir: (path) => (path === dir ? Promise.resolve(entries) : Promise.reject(new Error(`ENOENT: ${path}`))),
+    readdir: (path) => (fixturePath(path) === dir ? Promise.resolve(entries) : Promise.reject(new Error(`ENOENT: ${path}`))),
     readFile: (path) =>
-      path === `${dir}/${filename}` ? Promise.resolve(content) : Promise.reject(new Error(`ENOENT: ${path}`)),
+      fixturePath(path) === `${dir}/${filename}` ? Promise.resolve(content) : Promise.reject(new Error(`ENOENT: ${path}`)),
   };
 }
 

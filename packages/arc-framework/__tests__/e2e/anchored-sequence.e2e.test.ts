@@ -15,6 +15,21 @@ describe("anchored command sequences", () => {
     await Promise.all(roots.splice(0).map((root) => cleanupTempDir(root)));
   });
 
+  it("returns a timed-out sequence promptly while a step's child still holds its output", async () => {
+    // The temporary directory stays: the lingering child keeps its working directory open on Windows.
+    const holder = "process.stderr.write('holder started\\n');"
+      + " require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 12000)'],"
+      + " { stdio: 'inherit' }); setTimeout(() => {}, 12000)";
+    const started = Date.now();
+
+    const result = await runArcAnchoredSequence([{ command: [process.execPath, "-e", holder] }], tmpdir(),
+      { timeout: 2_000 });
+
+    expect(result.timedOut).toBe(true);
+    expect(`${result.stdout}${result.stderr}`).toContain("holder started");
+    expect(Date.now() - started).toBeLessThan(9_000);
+  }, 30_000);
+
   it("preserves interior exit lines and valid JSON beside malformed transcript noise", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "arc-anchored-sequence-"));
     roots.push(cwd);

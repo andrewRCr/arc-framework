@@ -17,7 +17,7 @@ const remedy = { text: "Repair the entry, then run the command again." };
 
 function fullIndex(): ProjectionIndex {
   return {
-    format: 1,
+    format: 2,
     state: StateVersionSchema.parse("state-7"),
     projectedUnder: {
       view: { mode: "cohort", pins: [SlugSchema.parse("beta")] }, identity: SlugSchema.parse("andrew"),
@@ -59,6 +59,23 @@ function fullIndex(): ProjectionIndex {
 }
 
 describe("the projection index", () => {
+  it("retains both ownership bases and a layout retry flag without allowing nested handoffs", () => {
+    const json = JSON.parse(encodeProjectionIndex(fullIndex())) as Record<string, unknown>;
+    const entries = json["entries"] as Record<string, Record<string, unknown>>;
+    const leaving = entries[".arc/active/current/meta-alpha.md"]!;
+    const arriving = entries[".arc/active/current/tasks-alpha.md"]!;
+    const journaled = { ...json, reprojectionPending: true, entries: {
+      ".arc/active/current/meta-alpha.md": { ...leaving, pending: true, withheld: true, handoff: arriving },
+    } };
+    const decoded = decodeProjectionIndex(journaled);
+    expect(decoded.success).toBe(true);
+    if (!decoded.success) throw new Error("Missing journal schema");
+    expect(JSON.parse(encodeProjectionIndex(decoded.data))).toEqual(journaled);
+    expect(decodeProjectionIndex({ ...journaled, entries: {
+      ".arc/active/current/meta-alpha.md": { ...leaving, handoff: { ...arriving, handoff: leaving } },
+    } }).success).toBe(false);
+  });
+
   it("round-trips an index with every field through its JSON form, bigints included", () => {
     const index = fullIndex();
     const decoded = decodeProjectionIndex(JSON.parse(encodeProjectionIndex(index)));
@@ -102,7 +119,7 @@ describe("the projection index", () => {
       .toBe(false);
   });
 
-  it.each([0, 2])("does not parse an index of format version %i", (format) => {
+  it.each([0, 1, 3])("does not parse an index of format version %i", (format) => {
     const json = JSON.parse(encodeProjectionIndex(fullIndex())) as Record<string, unknown>;
     expect(decodeProjectionIndex({ ...json, format }).success).toBe(false);
   });

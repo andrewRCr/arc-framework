@@ -36,7 +36,7 @@ const tiers = [
     "--project", "integration-timing", "--project", "integration-bursts"]],
   ["integration", ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"]],
   ["store", ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"]],
-  ["arc-contracts", ["--project", "integration", "framework-sync", "live-transition-records",
+  ["arc-contracts", ["--project", "integration", "framework-sync",
     "pr-lifecycle", "review-gate-workflows", "ci-check-plumbing",
     "markdown/descriptor-spacing",
     "task-list/scanner",
@@ -103,8 +103,15 @@ it("retains each native portability boundary on the portability tier", () => {
     "store-ref-named-acquisition.test.ts", "store-ref-publication.test.ts",
     "git-batch-reader.test.ts", "store-ref-separate-conformance-records-",
     "store-ref-separate-conformance-reads-", "store-ref-separate-conformance-sync-",
-    "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts",
+    "store-ref-timing-isolation.test.ts",
   ]));
+});
+
+it("leaves the timing suites to their own job rather than a portability shard", () => {
+  const selectors = localVitestTierArguments("portability");
+  for (const suite of ["integration/store-ref-timing.test.ts", "integration/store-ref-projection-timing.test.ts"]) {
+    expect(selectors.filter((selector) => suite.includes(selector)), suite).toEqual([]);
+  }
 });
 
 it("selects every test under a store/projection/ folder, and no other test file, on the portability tier", () => {
@@ -116,6 +123,15 @@ it("selects every test under a store/projection/ folder, and no other test file,
   const selectors = localVitestTierArguments("portability").filter((selector) => projection.some((path) => path.includes(selector)));
   expect(projection.filter((path) => !selectors.some((selector) => path.includes(selector)))).toEqual([]);
   expect(tests.filter((path) => !isProjectionTest(path) && selectors.some((selector) => path.includes(selector)))).toEqual([]);
+});
+
+it("selects exactly the named file for each package-relative portability selector", () => {
+  const tests = readdirSync(fileURLToPath(new URL("..", import.meta.url)), { recursive: true, encoding: "utf8" })
+    .map((path) => path.replaceAll("\\", "/")).filter((path) => /\.test\.ts$/u.test(path));
+  const named = localVitestTierArguments("portability").filter((selector) => /^(unit|integration|e2e)\/.+\.test\.ts$/u.test(selector));
+  expect(named).toEqual(expect.arrayContaining(["integration/teardown.test.ts", "unit/locus/release.test.ts",
+    "e2e/errand-open-provisioning-recovery.e2e.test.ts"]));
+  for (const selector of named) expect(tests.filter((path) => path.includes(selector)), selector).toEqual([selector]);
 });
 
 it.each(["raw-git-files.test.ts", "check-source-git.test.ts"])("selects actual raw-file portability cases: %s", path => {

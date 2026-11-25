@@ -21,6 +21,7 @@ import {
   runDevBuildGuard,
   createDevBuildGuardDeps,
   refreshDevBuildAfterAction,
+  rerunDevCommand,
 } from "./lib/dev-check.js";
 import { reviewRequestAction } from "./lib/command-input/review-request-action.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
@@ -675,12 +676,13 @@ program
   .description("Clean up a retired work unit by slug or UID: reap refs, remove or husk its worktree, and prune")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
+  .option("-y, --yes", "Confirm removal of eligible stamped husks when no name or branch is supplied")
   .option(
     "--force",
     "Compatibility spelling for evidence-backed cleanup; grants no additional authority",
   )
   .action(withInteractionContext(
-    {},
+    { yes: "authority" },
     async (context, name: string | undefined, opts: TeardownOptions) => {
       await (await import("./handlers/lifecycle.js")).handleTeardown(name, opts, context);
     },
@@ -1905,7 +1907,7 @@ program
   .action(withInteractionContext(
     { yes: "authority", machineReadable: (opts) => opts.json === true },
     async (context, opts: SyncOptions) => {
-      await (await import("./handlers/sync.js")).handleSync(opts, undefined, context);
+      await (await import("./handlers/sync.js")).handleSync(opts, undefined, context, projectionCommandBinding().store);
     },
   ));
 
@@ -2561,14 +2563,17 @@ reviewCmd
 
 let devBuildRefreshEligible = false;
 
-program.hook("preAction", (_thisCommand, actionCommand) => {
-  devBuildRefreshEligible = runDevBuildGuard(
+program.hook("preAction", async (_thisCommand, actionCommand) => {
+  const admission = await runDevBuildGuard(
     {
       commandPath: formatCommandPath(actionCommand),
       writeCompactionSeed: actionCommand.opts<Record<string, unknown>>().writeCompactionSeed === true,
     },
     createDevBuildGuardDeps(fileURLToPath(import.meta.url)),
   );
+  // The stale bundle stays loaded in this process, so the command runs again on the rebuilt one instead.
+  if (admission.kind === "rerun") return await rerunDevCommand();
+  devBuildRefreshEligible = admission.refreshEligible;
 });
 
 program.hook("postAction", async () => {

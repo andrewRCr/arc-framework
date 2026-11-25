@@ -7,11 +7,13 @@ import { repairCli, repairCliFixture } from "../helpers/repair-cli.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
+import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 
 async function fixture(here: boolean) {
   const f = await repairCliFixture(), h = createLifecycleHarness();
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "project", uid: randomUUID() })), "{}");
+  await seedImportedUserProjection(f.cwd, h.store);
   const path = join(f.cwd, ".arc-checkouts", "created"), configPath = join(f.cwd, ".arc/system/arc-config.yml");
   await writeFile(configPath, (await readFile(configPath, "utf8")).replace(/^worktree.location_template:.*$/mu,
     `worktree.location_template: ${path}`));

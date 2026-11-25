@@ -9,6 +9,82 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Design the gates around what each one proves: our rules, this change, `main`, a release**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ Design Questions, "One gate model or two fields".
+
+- _Observation:_ ARC names its gates for Git events (commit, push, merge), with `--force` and verification scopes
+  (`targeted`, `focused`, `full`) layered on, so one gate serves several purposes. In `projection-worktrees`' review
+  rounds the forced merge gate ran as feedback after every `full`-scope fix set and again as convergence attestation,
+  and 151 runs repeated a command on an identical tree (2026-11-12 to 11-16). The Owner shared a frame on 2026-11-16
+  that separates four validations, each with its own frequency and selection: the code follows our rules (at commit,
+  fast); this change works (the tests its diff reaches); everything on `main` works (a full run after merge, failures
+  fixed forward); the product is ready to release (only commits with a full pass).
+
+- _Approach:_ take the four as the draft's frame: map each gate and verification scope to the validation it proves,
+  how often it runs and what it selects, and settle whether review-round feedback and a Candidate's attestation
+  should share one forced gate. Neighbors: the Errand "Find why one check runs several times on identical content…"
+  (its diagnosis comes first), #1350's review-fix check cadence in `code-review.md` (merged 2026-11-16), and the
+  post-merge full run in "Run every retirement, teardown and park suite on hosted Windows".
+
+- _Captured during:_ `project-manager.ARC`, from a quote on validation tiers the Owner shared, 2026-11-16.
+
+### `[ ]` **Decide the guarantee routed check reuse rests on**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-11-16).
+
+- _Shapes:_ the runner contract's wording, decided under the four-validations frame of the buffered "Design the gates
+  around what each one proves: our rules, this change, `main`, a release".
+
+- _Observation:_ the external check runner's adapter answers every `check/prepare` with `runtime: {kind: "unknown"}`,
+  so ARC forms no reuse key for a routed check and every gate re-runs it on an identical tree; no routed check has
+  written a pass record since 2026-10-26. In `projection-worktrees`' review this was 114 repeated runs. ARC looks a pass
+  up only after preparation (upload, `npm ci`, build), so a hit saves execution only: 57 of those runs' 129 minutes.
+  The runner's first reuse stage, as reviewed, still gives no reuse for project checks and is not deployed: an ambient
+  runner cannot prove a known runtime for npm scripts or Node programs, so it qualifies only bounded Node and npm
+  version queries.
+
+- _Approach:_ two paths are open.
+    - **A bounded execution profile:** immutable toolchain images and descendant containment, Linux-only, while routed
+      `typecheck` runs on the Mac runners.
+    - **An accepted weaker guarantee:** reuse keyed on declared inputs plus an executor toolchain manifest and a fixed
+      `PATH`, as Nx and Turborepo do, amending the wording of ARC's runner contract.
+
+- _Lean (Owner-agreed, 2026-11-16):_ a declared-toolchain tier beside the strict one, rather than the hermetic
+  profile. ARC's contract sits at the hermetic end, where Bazel's remote execution sits; the TypeScript idiom (Nx,
+  Turborepo, Gradle; Bazel's `--incompatible_strict_action_env`) keys on declared inputs plus toolchain versions, with
+  a fixed `PATH` and a filtered environment.
+    - **The identity:** declared inputs, the lockfile, the prepare and build commands, the runner's ID, a per-runner
+      manifest of Node, npm, Git, shell, OS and npm configuration, a fixed `PATH` and a filtered environment. No
+      cross-runner reuse.
+    - **Limits:** opt-in, with the Owner explicitly accepting the residual risk. It serves ordinary gate reuse only,
+      never `--force` or anything ARC attests; hosted CI and the forced gate at convergence still run fresh. The
+      strict tier stays for projects that want it.
+    - **Home:** wording in ARC's runner contract, decided here under the four-validations frame. The runner's first
+      stage's plumbing mostly carries over.
+
+- _Later stage (either path):_ skipping preparation on a hit. Answer `check/prepare` from a quick probe on the chosen
+  runner and defer upload, `npm ci` and build to `check/run`; a miss prepares, probes again, and reports `unavailable`
+  on any change. Warm dependency generations keyed by repository, executor, lockfile, toolchain, profile commands and
+  the relevant environment, published atomically, each check on a private or copy-on-write copy, with disk bounded by
+  bytes, count and age. Preparation was about 72 of the 114 repeats' 129 minutes.
+
+- _Timing:_ after the portfolio deadline; the payoff is modest.
+
+- _Evidence:_ the routed-reuse design notes and the repeated-check diagnosis, kept outside the repository.
+
+- _Captured during:_ `primary.ARC`'s diagnosis of repeated checks, 2026-11-16; restated with `project-manager.ARC`'s
+  review of the runner's reuse work the same day.
+
+---
+
 ## Problem / Motivation
 
 Both concerns extend the check declaration schema (`lib/checks/declaration.ts`) and gate selection

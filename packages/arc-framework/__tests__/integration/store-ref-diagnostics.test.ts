@@ -6,7 +6,7 @@ import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registration
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
-import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
+import { damageLooseObject, plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { reviewEvidenceFixture } from "../fixtures/review-evidence.js";
@@ -22,7 +22,7 @@ const future = RecordReferenceSchema.parse({ owner, kind: "review/evidence", key
 const evidence = JSON.stringify(reviewEvidenceFixture());
 
 describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) => {
-  it("reports a ref whose nested tree is missing unreadable in a fresh process, keeping every other ref", async () => {
+  it.each(["missing", "damaged"] as const)("reports a ref whose nested tree is %s unreadable in a fresh process, keeping every other ref", async (fault) => {
     const f = await createRefReadFixture(format);
     const damagedUid = "87654321-4321-4321-8321-cba987654321";
     await plantRef(f.root, ref, [
@@ -34,7 +34,8 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
       { path: "meta-beta.md", content: "# Beta\n" },
       { path: `review/evidence-good-${damagedUid}.json`, content: evidence },
     ]);
-    await removeLooseObject(f.root, (await f.exec("git", ["rev-parse", `${damaged.tree}:review`])).stdout.trim());
+    const nested = (await f.exec("git", ["rev-parse", `${damaged.tree}:review`])).stdout.trim();
+    await (fault === "missing" ? removeLooseObject : damageLooseObject)(f.root, nested);
     expect(await createRefStore(f.ports).list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
       records: [expect.objectContaining({ reference: good })], missed: true,
       diagnostics: [expect.objectContaining({ kind: "unreadable", key: `refs/arc/work/${damagedUid}` })] } });
@@ -45,6 +46,39 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
       .toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [],
         condition: expect.stringContaining(`refs/arc/work/${damagedUid}`), remedy: { text: expect.stringMatching(/restore|fetch/iu) },
       } });
+  });
+
+  it.each(["record blob", "root tree", "tip commit"] as const)("answers a damaged %s as it answers a missing one", async (object) => {
+    const damagedUid = "87654321-4321-4321-8321-cba987654321";
+    const beta = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "beta" }, kind: "review/evidence", key: "good" });
+    const answers: unknown[] = [];
+    for (const fault of ["missing", "damaged"] as const) {
+      const f = await createRefReadFixture(format);
+      await plantRef(f.root, ref, [
+        { path: `metadata-${uid}.json`, content: canonicalize(metadata) }, { path: "meta-alpha.md", content: "# Alpha\n" },
+        { path: `review/evidence-good-${uid}.json`, content: evidence },
+      ]);
+      const recordPath = `review/evidence-good-${damagedUid}.json`;
+      const planted = await plantRef(f.root, `refs/arc/work/${damagedUid}`, [
+        { path: `metadata-${damagedUid}.json`, content: canonicalize({ ...metadata, slug: "beta" }) },
+        { path: "meta-beta.md", content: "# Beta\n" }, { path: recordPath, content: JSON.stringify(reviewEvidenceFixture(undefined, "reject")) },
+      ]);
+      const oid = object === "record blob" ? planted.blobs.get(recordPath)! : object === "root tree" ? planted.tree : planted.tip;
+      await (fault === "missing" ? removeLooseObject : damageLooseObject)(f.root, oid);
+      const answer = async (call: () => Promise<unknown>) => {
+        try { return await call(); }
+        catch (error) { return { threw: error instanceof Error ? error.message : String(error) }; }
+      };
+      answers.push({
+        list: await answer(() => createRefStore(f.ports).list({ family: "review" })),
+        read: await answer(() => createRefStore(f.ports).read({ reference: beta })),
+        lookup: await answer(() => createRefStore(f.ports).lookup({ kind: "slug", slug: SlugSchema.parse("alpha") })),
+      });
+    }
+    expect(answers[1]).toMatchObject({ list: { status: "ok" },
+      read: { status: expect.any(String) }, lookup: { status: expect.any(String) } });
+    expect(JSON.stringify(answers[1]).replaceAll(/\b[0-9a-f]{40,64}\b/gu, "<oid>"))
+      .toBe(JSON.stringify(answers[0]).replaceAll(/\b[0-9a-f]{40,64}\b/gu, "<oid>"));
   });
 
   it("keeps readable records beside each malformed, missing, newer, and mismatched entry", async () => {

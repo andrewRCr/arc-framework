@@ -12,6 +12,7 @@ import { createInboxHarness } from "./inbox-harness.js";
 import { seed, success } from "./store/suite-tools.js";
 import { runArc } from "../e2e/helpers.js";
 import { dispatchRegisteredCli } from "./registered-cli.js";
+import { seedImportedUserProjection } from "./store/projection/imported-user.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
@@ -35,6 +36,7 @@ export async function repairCliFixture(protection: "full" | "partial" = "full") 
   await exec("git", ["config", "arc.identity", "test-user"]);
   const h = createInboxHarness(); await h.inbox("project"); await h.inbox("personal", "");
   await seed(h.fixture, recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "test-project", uid: randomUUID() })), "{}");
+  await seedImportedUserProjection(cwd, h.context.store);
   const fixture = { cwd, exec, h, head: (await exec("git", ["rev-parse", "HEAD"])).stdout };
   return fixture;
 }

@@ -280,7 +280,7 @@ describe("Errand merge dependencies over the native store", () => {
         readHeadRef: async () => ({ local: target.headSha, remote: target.headSha }),
         listByHead: async () => [{ number: 42, url: "https://example.test/owner/repo/pull/42", state: "MERGED",
           baseRefName: "main", headRefName: target.headRef, headRefOid: target.headSha }],
-        searchByHeadSha: async () => [] } });
+        searchByHeadSha: async () => [], isAncestor: async () => false } });
     await expect(dependencies.readMerged(target)).resolves.toEqual({ merged: true, providerMergeId: null });
     expect(calls).toEqual([]);
   });

@@ -6,10 +6,16 @@ export function nativeWindowsCommandLineUnits(command: string, args: readonly st
   return [command, ...args].reduce((total, value) => total + quotedWindowsUnits(value) + 1, 0);
 }
 
-/** Refuse an oversized native Git invocation before creating its process. */
-export function assertNativeGitCommandLineCapacity(command: string, args: readonly string[], platform: NodeJS.Platform = process.platform): void {
+/**
+ * Refuse an oversized native Git invocation before creating its process.
+ *
+ * @param executable - The program the process starts, which opens its command line, when it is not `command` itself.
+ */
+export function assertNativeGitCommandLineCapacity(
+  command: string, args: readonly string[], platform: NodeJS.Platform = process.platform, executable = command,
+): void {
   if (platform !== "win32") return;
-  const units = nativeWindowsCommandLineUnits(command, args), limit = 32_767;
+  const units = nativeWindowsCommandLineUnits(executable, args), limit = 32_767;
   if (units > limit) throw new GitProcessError({ kind: "command-line-capacity", command, args, commandLine: { units, limit } });
 }
 

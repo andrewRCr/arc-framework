@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../helpers/fixture-path.js";
 
 import {
   executeTransition,
@@ -92,12 +93,12 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       if (entries === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       if (content === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve(content);
     },
@@ -1069,7 +1070,7 @@ describe("workspace close after record finalization", () => {
     const { ctx } = buildSpies({ metas: [INTEGRATING_META],
       sideEffects: { "user-workspace": () => { workspacePresent = false; } } });
     const content = makeMetaFixture("demo", { state: "Shipped", currentWorkflow: "integrate-work-unit" });
-    ctx.indexFs = { readdir: async (path) => path === "/repo/.arc/completed" ? [{ name: "2026-q4", isDirectory: () => true, isFile: () => false }]
+    ctx.indexFs = { readdir: async (path) => fixturePath(path) === "/repo/.arc/completed" ? [{ name: "2026-q4", isDirectory: () => true, isFile: () => false }]
       : path.endsWith("2026-q4") ? [{ name: "01_demo", isDirectory: () => true, isFile: () => false }]
       : path.endsWith("01_demo") ? [{ name: "meta-demo.md", isDirectory: () => false, isFile: () => true }] : [],
       readFile: async () => content };

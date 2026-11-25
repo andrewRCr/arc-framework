@@ -14,6 +14,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 
 import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import type { PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
@@ -93,11 +94,11 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       return entries === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
     },
   };
@@ -150,13 +151,13 @@ function buildCtx(metas: MetaSpec[]): Harness {
   const fs: AbandonContext["fs"] = {
     readdir: async (path) => {
       // One meta per WU in these fixtures; the matcher narrows by slug.
-      return path.includes("/.arc/") ? ["meta-foo.md", "spec-foo.md", "cohort-other.md"] : [];
+      return fixturePath(path).includes("/.arc/") ? ["meta-foo.md", "spec-foo.md", "cohort-other.md"] : [];
     },
     rm: async (path) => {
-      removed.push(String(path));
+      removed.push(fixturePath(String(path)));
     },
     rmdir: async (path) => {
-      rmdirs.push(String(path));
+      rmdirs.push(fixturePath(String(path)));
     },
   };
 

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { fixturePath } from "../../helpers/fixture-path.js";
 
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { validateManagedPath } from "../../../src/lib/kernel/canonical/managed-path.js";
@@ -149,7 +150,7 @@ function productionHarness(options: {
       await Promise.resolve();
       indexReadActive = false;
     }
-    calls.push({ args, ...(execOptions?.indexFile === undefined ? {} : { indexFile: execOptions.indexFile }) });
+    calls.push({ args, ...(execOptions?.indexFile === undefined ? {} : { indexFile: fixturePath(execOptions.indexFile) }) });
     if (args[0] === "rev-parse" && args[1] === "--verify") {
       return { stdout: `${args[2]?.startsWith("refs/heads/plan/solo") === true ? planTip : baseTip}\n` };
     }
@@ -195,7 +196,8 @@ function productionHarness(options: {
         return { release: async () => { sourceLeaseHeld = false; } };
       },
       fs: {
-        lstat: async (path) => {
+        lstat: async (fsPath) => {
+          const path = fixturePath(fsPath);
           if (symlinks.has(path)) {
             return { isDirectory: () => false, isSymbolicLink: () => true };
           }
@@ -204,20 +206,25 @@ function productionHarness(options: {
           }
           throw missing(path);
         },
-        mkdir: async (path) => {
+        mkdir: async (fsPath) => {
+          const path = fixturePath(fsPath);
           if (directories.has(path) || symlinks.has(path) || files.has(path)) throw new Error(`EEXIST: ${path}`);
           directories.add(path);
         },
-        readFile: async (path) => {
+        readFile: async (fsPath) => {
+          const path = fixturePath(fsPath);
           const content = files.get(path);
           if (content === undefined) throw missing(path);
           return content;
         },
-        writeFile: async (path, content) => {
+        writeFile: async (fsPath, content) => {
+          const path = fixturePath(fsPath);
           if (directories.has(path) || symlinks.has(path) || files.has(path)) throw new Error(`EEXIST: ${path}`);
           files.set(path, content);
         },
-        rename: async (from, to) => {
+        rename: async (fsFrom, fsTo) => {
+          const from = fixturePath(fsFrom);
+          const to = fixturePath(fsTo);
           if (to === indexPath && (!baseLeaseHeld || !sourceLeaseHeld)) {
             throw new Error("base and source ref leases were not held through install");
           }
@@ -226,7 +233,8 @@ function productionHarness(options: {
           files.set(to, content);
           files.delete(from);
         },
-        rm: async (path) => {
+        rm: async (fsPath) => {
+          const path = fixturePath(fsPath);
           files.delete(path);
         },
       },

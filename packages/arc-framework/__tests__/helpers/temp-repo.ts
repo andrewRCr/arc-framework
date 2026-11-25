@@ -10,7 +10,7 @@
  * drift between call sites.
  */
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -108,6 +108,22 @@ export async function removeGitBackedDirs(
   if (failure?.status === "rejected") throw failure.reason;
 }
 
+/**
+ * Create a temporary directory, spelled the way Git and ARC report it.
+ *
+ * Windows can expose its temp root through an 8.3 short name (`C:\\Users\\RUNNER~1\\...`) while Git and the native
+ * realpath report the long name (`C:\\Users\\runneradmin\\...`), so a fixture keeping the short spelling never
+ * matches the checkout paths it is compared with. Other platforms keep `tmpdir()`'s spelling, which their fixtures
+ * and expectations already share; on macOS a realpath would turn `/var/folders/...` into `/private/var/folders/...`.
+ *
+ * @param prefix - Directory name prefix
+ * @returns Absolute path to the new, empty directory
+ */
+export async function makeTempRoot(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix));
+  return process.platform === "win32" ? await realpath(dir) : dir;
+}
+
 /** Options for the shared temp-repo factory core. */
 export interface CreateTempRepoOptions {
   /** Temp directory name prefix (tier personality). */
@@ -140,7 +156,7 @@ export interface CreateTempRepoOptions {
  */
 export async function createTempRepoCore(options: CreateTempRepoOptions = {}): Promise<string> {
   const { prefix = "arc-test-", identity, refFormat, objectFormat } = options;
-  const dir = await mkdtemp(join(tmpdir(), prefix));
+  const dir = await makeTempRoot(prefix);
   try {
     await execFileAsync("git", ["init", "-b", "main", ...(refFormat ? [`--ref-format=${refFormat}`] : []), ...(objectFormat ? [`--object-format=${objectFormat}`] : []), dir]);
     await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });

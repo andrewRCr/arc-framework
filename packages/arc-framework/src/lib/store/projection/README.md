@@ -7,14 +7,34 @@ engine and the files it writes.
 before resolving engine dependencies. With state off branch, start takes the projection lease before launching the
 configuration, state-version read, and shared-root walk together; personal discovery waits for the identity. It sweeps
 before scanning edits, rereads recovered paths, and sends an ignore-refused root's edits without replacing its files.
-Normal discovery covers active, backlog, and personal roots; save mode includes completed files. Walks use `lstat`,
-skip machine-local folders, and return newly discovered files unsent.
+Normal discovery covers active, backlog, and personal roots; save mode includes completed files. Walks type entries from
+each folder listing without following links, `lstat` each entry the listing types as a link, since a Windows listing
+types every reparse point as one, and each survivor of a listing whose untyped entry vanished mid-read, skip
+machine-local folders, and return newly discovered files unsent.
 
 `process-state.ts` gives stores created at different call sites the same command's skip verdict, lock state, history
 memo, per-root capability and bindings, and copy bookkeeping. Each command starts with fresh bindings and history.
-Rights default to granting an edit; adoption, refresh, fan-out, and materialization bindings live with each root.
-`engine-end.ts` takes each ready root's lease again and reads its current index before the second check. After another
-index read under that lease, it removes retained take-in copies no entry names. An unusable index preserves its files.
+Rights default to granting an edit; adoption, refresh, and materialization bindings live with each root. When a checkout
+moves, it releases the old path's binding, reports the move, and carries the path's recorded capability to the new
+path; the next visit binds the new path, and kept copies settle at its next command.
+
+`engine-binding.ts` binds any target checkout under its lease, with fresh claim and layout reads and checkout-local
+admission captures, under the configuration its caller supplies. Non-registering bindings leave command roots alone.
+`engine-actor.ts` shares one actor per clone and identity, using the already located common Git directory.
+`engine-read-only.ts` prepares take-ins without a lease, sending or persistence, and reads an existing actor without
+creating a machine ID. Its provisional answers grant no replacement authority. `record-source.ts` defines the four read
+operations a projection source supplies; renderers accept source reads with the writable store’s history memo.
+
+Rendering rounds supply `protection-evidence.ts` with their source memo and share lazy checkout topology and marker
+observations. Both holder and markerless searches validate those raw observations independently. Metadata and unbound
+inventories come from the source; claim lookups use the writable store. `record-source.ts` retains each distinct
+read, list, version, and changes answer within a round, including refusals. Take-ins use fresh record and checkout
+evidence on each attempt, so a notice can name an earlier holder while a later refusal names its current location.
+
+`engine-end.ts` takes a ready root's lease again only for end work the command left it — a send, even a refused one, a
+copy or removal to check, an aside folder its sweep could not prove empty, or fan-out measurements to record — and reads
+its current index before the second check. After another index read under that lease, it removes retained take-in copies
+no entry names. An unusable index preserves its files.
 
 `paths.ts` names the checkout's machine-local folder, `.arc/system/.local/`, and the aside folder inside it.
 
@@ -35,11 +55,23 @@ again. A pass returns the union of both queries' source files — `info/exclude`
 so a caller can skip the guard while none changes. `predictableIgnoreFiles` names the predictable Git sources and npm
 policy, which every pass rests on whatever the queries answer.
 
-`index-schema.ts` is the strict schema of the index each projected worktree keeps about its copy. Per path it holds the
-record reference the file was read with, its stat, the blob id last written there, its base, its marks, and the aside
-copies made of it; beside the entries, the format version, the state version last projected, what the worktree was
-projected under, and what the ignore guard last passed on. Stat fields are bigints stored as decimal strings, and a
-field the schema does not know, or another format version, fails the parse rather than being dropped.
+`index-file.ts` publishes a header naming content-addressed root partitions. A commit smudges each partition whose
+entries changed, writes those partitions and then the header by temp-and-rename into the state folder, never creating
+it, rewrites the racy reference, and collects the partitions the header no longer names. The header is the commit
+point, so a write that stops partway leaves the previous index, and no write recreates a removed worktree's Git
+directory. The header holds state, settings, ignore evidence, and each group's unsettled mark; partitions hold entries,
+with archive entries grouped by quarter and personal entries by identity. Reading returns the index, no projection where
+a checkout holding none has no index, or why it cannot be used — missing, unreadable, or of another format version —
+and each caller applies its own policy to that; a reader that holds a projection never reads one as absent. A read
+checks only that each partition the header names is present. A partition is checked against its content address when
+first loaded, so a mismatch among the read's initial groups refuses the read, and a later one throws a named mismatch
+at first access. Lock-free readers retry once when the header changed.
+
+`index-memory.ts` loads groups by path and keeps updates independent, while enumeration sees only loaded groups. A pass
+that replaces the entries it enumerated keeps every other group, one loaded after its enumeration among them, and
+refuses a path in a group it did not enumerate. Scans explicitly load their walked or unsettled groups, all groups, or
+all groups outside the archive. Plain JSON carries bigint stats as decimal strings; `index-schema.ts` supplies the
+header and partition contracts for validation outside the hot path.
 
 `location.ts` finds where a checkout keeps its projection state: `arc-projection/` in its own Git directory, beside the
 index, the projection lock, and the kept copies. It reads the Git directory from the checkout's `.git` — a folder, or a
@@ -51,10 +83,11 @@ a missing one as a worktree that is gone.
 its type, size, modification time, and file identity, read by `lstat` as bigints, match its entry and the modification
 time is older than the reference stamp at the aside folder's top. Anything else is hashed against the blob id last
 written there, and a missing reference makes every entry racy. A symbolic link, or anything else not a file, reads as
-absent and is never followed or read. Each index write smudges every observed stat racy against the reference it
-replaces: the cached size is zeroed, so the next check hashes it. This includes a freshly hashed clean stat, a linked
-replacement's stat, and fresh ignore snapshots. Only a staged file awaiting installation after that write is exempt.
-A recorded size of zero for nonempty content always hashes, so a save that empties the file is still found.
+absent and is never followed or read. Each changed partition smudges every observed stat racy against the reference
+it replaces: the cached size is zeroed, so the next check hashes it. Fresh clean observations, staged files awaiting
+installation, and ignore snapshots follow that rule. Copy-mark-only writes smudge against the current reference
+without advancing it. An untouched partition stays valid against later references. A recorded size of zero for
+nonempty content always hashes, so a save that empties the file is still found.
 
 `ignore-snapshot.ts` records each readable source's own path type/stat and content hash, or its absence, and compares
 it by the same rule, smudging included. A symlink keeps its own stat and hashes its target on comparison: changing a
@@ -76,11 +109,14 @@ remedy of running the command again. A refusal stands as the call read it.
 process ID, instance, and process scope under a renewable lease. It creates, renews, and releases only inside a state
 folder that exists, so a worktree whose Git directory was removed reads as gone and is never recreated. A lost lease
 ends only the guarded operation, at its next step, with the report the caller names. The operation awaits each
-`session.step()`, which confirms ownership through the renewable lease before proceeding, even when a queued heartbeat
-has not run. Failed confirmation stops the operation with a retry report. A wait that times out names the holder it
-last saw. It is not reentrant. The engine forwards its ownership checkpoint through store sends, staging, moves,
-index publication, and cleanup, including retry attempts. A lost lease prevents subsequent mutations; the command's
-unsent set stays outside the leased operation for reporting, without publishing unlocked pending marks.
+`session.step()`, which proceeds on the heartbeat's renewals while the last confirmed deadline is more than one renewal
+interval away, and otherwise renews to confirm ownership before proceeding. Failed confirmation stops the operation with
+a retry report. A partition that disagrees with its header ends the operation with a `mismatch` result naming it; where
+the caller asks and the partition is this worktree's, the lock first deletes it under the lease, so the next command's
+start finds the index unusable and rebuilds it. A wait that times out names the holder it last saw. It is not reentrant.
+The engine forwards its ownership checkpoint through store sends, staging, moves, index publication, and cleanup,
+including retry attempts. A lost lease prevents subsequent mutations; the command's unsent set stays outside the leased
+operation for reporting, without publishing unlocked pending marks.
 
 `blob-id.ts` computes Git blob ids with `node:crypto`, `blob <length>\0` plus the bytes, in the repository's object
 format, never by running Git per file. A file's stored blob id is taken over LF line endings with, for Markdown alone,
@@ -139,9 +175,15 @@ base, so a file restored to an older version is an edit, and an empty file is re
 makes. Content equal to what was written, or to the replaced version, is unedited unless the last persisted take-in
 recorded that version's base blob id, which makes it the person's revert. An edit retains both replacement versions,
 read through `history`; where that read refuses `state-unresolvable` or neither version is readable, the file stays
-pending, reported with the refusal. Every deleter of an aside copy deletes through `deleteAsideCopy`, which clears the
-copy's record, and the in-progress record where it names that copy and the file holds what the batch linked there, by the
-file identity the entry records.
+pending, reported with the refusal. Every deleter of a spent aside copy deletes through `deleteAsideCopy`, which clears
+the copy's record, and the in-progress record where it names that copy and the file holds what the batch linked there, by
+the file identity the entry records.
+
+A file other than Markdown attached to a record that already exists, such as a creation retried after a stop, names no
+base of its own: its entry holds the version the record had at attachment. Until it is sent, `stampless-base.ts` takes
+the stored version whose content the file holds, reading no `history` where that is the entry's, and otherwise holds the
+file as a `bases-disagree` clash. Once that clash is drawn, only keeping the entry's side settles without its token. A
+file whose `history` refuses keeps its content and retries.
 
 `base-selection.ts` resolves a Markdown save's stamp, falling back to recovery when it was lost or names no stored
 version. `stampless-base.ts` compares a stampless save's carried base, the replaced version at its path, the last
@@ -173,10 +215,10 @@ to inspect. Native bindings check the backend capability before resolving a root
 projection I/O. `report.ts` flushes new diagnostics and resolutions to stderr before the action and after completion,
 including corrective argv, unseen conflicts, pending saves, and retained aside copies with their original paths.
 
-`status.ts` reads outstanding file marks, ownerless entries, unseen conflicts, and recorded aside copies without a
-lease or index write. Its JSON view omits filesystem stats, and its summary retains repair guidance and copy paths.
-Composite status runs this reader as an independent probe; an unreadable projection leaves the other sections
-available. Disabled backends resolve no projection dependency.
+`status.ts` reads outstanding file marks, ownerless entries, unseen conflicts, recorded aside copies, and the timing
+notices `timings.ts` raises, without a lease or index write. Its JSON view omits filesystem stats, and its summary
+retains repair guidance and copy paths. Composite status runs this reader as an independent probe; an unreadable
+projection leaves the other sections available. Disabled backends resolve no projection dependency.
 
 `save.ts` reports the save start's refusal or its final store version using the backend retained by command entry. The
 retained selection includes the checkout even when initialization is disabled or refused; the handler takes its Store
@@ -273,12 +315,15 @@ memory until the batch writes it. `taken-in` means the edit landed whole and car
 
 `replace-guard.ts` re-checks a file by the racy rule before it is replaced or removed, against its entry or, for a file
 write-back just sent or drew a clash into, against what write-back read. A withheld file is left as it is, its entry
-unchanged, before anything reads it, since nothing writes over or sends one. A file that matches is replaced, its stat
-re-recorded where only the hash matched. A changed one goes to the take-in: one with no edit is replaced, its stat
-recorded as its baseline; one taken in is re-checked against what the take-in read once the record's current version is
-restaged, or at once for a removal, which stages nothing, for at most three passes; and any other answer leaves it in
-place and pending, marked refused where its edit was. A refused read of the current version leaves it pending too,
-retryable. Each replacement names the blob id its swap moves aside.
+unchanged, before anything reads it: the guard never writes over or sends one. Only a file held because the evidence
+that placed it was not whole (`evidenceHeldProjectionMark`, whose reason carries the `evidence-held:` code) is written
+over, by the next rebuild that lays a record at its path, and then only where its bytes are unedited; an ordinarily
+withheld file stays until it is deleted. A file that matches is replaced, its stat re-recorded where only the hash
+matched. A changed one goes to the take-in: one with no edit is replaced, its stat recorded as its baseline; one taken
+in is re-checked against what the take-in read once the record's current version is restaged, or at once for a removal,
+which stages nothing, for at most three passes; and any other answer leaves it in place and pending, marked refused
+where its edit was. A refused read of the current version leaves it pending too, retryable. Each replacement names the
+blob id its swap moves aside.
 
 `aside-copies.ts` holds the rules every reader of an aside copy applies. A copy's path has moved on once it holds
 anything but what the swap linked, or once a write-back of it has been sent since the swap, there or not, and
@@ -295,7 +340,8 @@ save recreates it mid-move, the copy stays aside, reported with its path.
 
 Each aside record retains the marker length, origins, and notice references of the bytes it displaced. Its take-in
 uses that snapshot while the live entry continues describing the current path. `returned-copies.ts` publishes a
-returned file's restored mapping with its alias still recorded, then unlinks the alias and publishes finalization.
+returned file's restored mapping with its alias still recorded, then unlinks the alias and publishes finalization. The
+unlink follows, in the same turn, a test that the alias and the path still hold one file; otherwise the alias stays.
 Interrupted links are recovered by proving the copy and path share both device and inode before restoring the mapping.
 A path on another inode keeps its own mapping and leaves the copy available. Current open-conflict knowledge advances
 independently of the displaced file's rendering snapshot.
@@ -306,7 +352,9 @@ link refused because something is at the path reads as a save that recreated it.
 second check take the operations and retry sleep a test injects, and the swap, the second check, and the sweep take the
 read gate it injects for every copy they check.
 
-`swap.ts` publishes planned replacements before moving files and settled entries afterward. The first write, with the
+`swap.ts` publishes planned replacements before moving files. It publishes the settled entries afterward itself, or,
+where its caller takes that publication with its own final metadata, returns them for the caller to publish, still
+publishing at once where a copy went back to its path. The first write, with the
 reference after it, records each file's new base, the staged file's stat — which the path shares once it is linked —
 pending, the record of the aside copy its move makes, and, for a file other than Markdown, an in-progress record naming
 the version it replaces and that copy. Then each file is renamed aside and its staged file hard-linked onto the path,
@@ -332,8 +380,9 @@ wait for the next command's sweep.
 
 `sweep.ts` sweeps the aside folder at every command's start, under the projection lock and before write-back reads a
 file, after the ignore check. A refusal of the aside folder, as a failed call refuses every root, leaves it writing
-nothing, and a refusal of a root leaves every copy under it untouched for the command; the index the sweep writes
-records a pass, and no pass after a refusal. It takes over only the copies and staged files whose writer has exited,
+nothing, and a refusal of a root leaves every copy under it untouched for the command; the index the sweep returns
+records a pass, and no pass after a refusal. It publishes that index itself only where it settled a recorded copy, and
+otherwise leaves publication to the command. It takes over only the copies and staged files whose writer has exited,
 judged as the projection lock judges a holder, and never one from another process scope, since a copy holds no lease:
 those it reports with their paths. Each recorded copy is taken in its entry's record order. A record whose copy is gone
 is dropped, and a symbolic-link copy is deleted as itself, never followed, its absent path left pending. A directory
@@ -347,8 +396,78 @@ whose path is absent is linked back, a symbolic link or a file equal to its base
 returned for the rebuilt index to record as withheld. The sweep returns the replacements a swap back made, for the
 command's second check.
 
-`index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
-partway leaves the previous index and no write recreates a removed worktree's Git directory. A commit smudges the index,
-writes it, and then rewrites the reference. Reading it returns the index, no projection where a checkout holding none
-has no index, or why it cannot be used — missing, unreadable, or of another format version — and each caller applies its
-own policy to that.
+`refresh.ts` brings a held index to a captured source state, at a command's start and in each fan-out visit.
+`refresh-plan.ts` reduces the store's changes since the index's state to paths, keeping pending entries and adding new
+records without re-laying their unchanged neighbors or visiting a settled archive partition the changes do not name.
+`refresh-owners.ts` expands a changed owner primary to every current record of that owner and every path the index held
+for it, loading only the partitions those owners' coordinates name, and lays the cohort view's members again when the
+checkout's own unit moves cohort. `refresh-removals.ts` removes obsolete paths through the ordinary take-in guard,
+carrying a moved record's changed mark to its new path, and `refresh-conflicts.ts` maps conflict changes to the files
+they concern. Where the index has no state version, or its saved state can no longer be read, `refresh-rebuild.ts` plans
+a complete refresh over every partition, removing an old path only under complete listing evidence. What a refresh lays
+leaves out side files, the legacy derived views (the roadmap and each identity's status file), and machine-local paths
+(`laidProjectionPaths`): a record stored at one is never laid and owes no arrival, so the local bytes there stay
+untouched and are never taken in. A refresh, a rebuild over a usable index among them, keeps in place each settled file
+whose record renders to the bytes it was laid with, under the same protection, while the file still holds them: only its
+entry takes the record's version, and the file keeps its inode and mtime (`settled-in-place.ts`). A path whose ownership
+handoff is in flight is left to reconciliation, and the index takes the new state only once nothing the plan reached is
+left unresolved and every arrival, each record it lays at a path the index did not already bind to that record, is
+installed and confirmed or withheld on that record's own basis. `held-refresh.ts` refreshes a root under a lease another
+checkout's command holds, leaving publication to that command.
+
+`desired-paths.ts` places each visible record at the path the layout addresses commands use, binding lifecycle
+placement to the checkout's own and in-flight folders under its claim, view, and `layout.active`; `selection-plan.ts`
+plans the paths its caller's filter governs from the complete active inventory. `settings.ts` records the destination
+settings a completed layout acknowledged. `reprojection.ts` reconciles a changed view setting, identity, claim, or
+`layout.active` under a durable retry flag, acknowledging the new settings only once every arrival they bring is
+confirmed. `inventory.ts` reads each projected family once at the materialization's state and reports an incomplete
+listing rather than reading its missing records as removed.
+
+`materialization.ts` lays the complete visible inventory into one target worktree holding no usable index, under its
+lease: at a spawn (`spawn-materialization.ts`), where a spawn over a usable index refreshes it instead, and where a
+checkout `ownership.ts` finds eligible holds none. At `arc sync` (`sync-materialization.ts`) it restores only deleted
+files over the usable index. Either way it lays only `laidProjectionPaths`, as a refresh does. `materialization-file.ts`
+stages only proven bytes and hands a concurrent edit to the writable store before replacement; a rebuild that cannot yet
+tell whether a stored record lays a path holds the file there under the evidence-held mark until a rebuild with whole
+evidence settles it. Over a usable index it keeps a settled, unchanged file in place by `settled-in-place.ts`'s rule.
+Where a regular file occupies one of a path's folders, `lay-folder.ts` names that file and the path is not laid: it
+stays pending, reported with the route to move the file, and its caller keeps its state version until a later command
+lays it; `ownership-install.ts` holds an arrival the same way. Restoring deleted files reconciles only the selected
+paths (`materialization-selection.ts`) and refreshes the ignore proof without a sweep
+(`materialization-observation.ts`). `scratch-folder.ts` creates a work-unit checkout's scratch folder through an
+authorized root, never through a link, and reports rather than fails when it cannot.
+
+`ownership-install.ts` lays a record at a path another record is leaving: it yields to the leaving bytes, journals both
+identities in the entry, and then links the arrival exclusively. `ownership-handoff.ts` reconciles journaled arrivals
+before a command can send authored bytes, promoting an arrival where the path holds exactly what was linked and carrying
+a moved record's changed mark with it; until then `ownership-hold.ts` refuses an authored write to either identity,
+naming both and the route to recover the bytes.
+
+`with-fan-out.ts` decorates a writable store so each landed write or sync attempt is recorded for its command's
+fan-out, never changing the operation's result; `fan-out-binding.ts` binds those notifications to the command and code
+clone that own the projection ports. `fan-out-scheduler.ts` runs the recorded rounds once projection leases and creation
+holds are released, and `fan-out-lock.ts` defers them while a lease is held, dropping its own at the command's end
+settlement. `fan-out.ts` runs a round: it lists the registered worktrees and reads each one's index header before the
+source version, so a sibling another process has moved on is left at its newer state, then visits the writer's own
+checkout and each eligible sibling under that sibling's lease, sharing one source read memo and protection evidence
+across the round. It marks the writer's own writes changed in its checkout, skips a checkout a removal marks retiring,
+and reports each failure as an advisory diagnostic.
+
+`removal-slots.ts` binds the three retirement slots over the command's store — the check, the persist step, and the
+release step — and a store that keeps state in the checkout gets slots that pass. `removal-check.ts` predicts, without
+a lease or any write, whether a checkout's projected edits survive retirement: edited files and adoptions through
+ordinary admission (`removal-files.ts`, `removal-adoption.ts`) and recorded and unrecorded aside copies
+(`removal-asides.ts`), all through one ignore guard, and, for a checkout holding no index, unindexed personal files
+(`removal-residual.ts`). `removal-persist.ts` repeats that work under the target's lease, sending what the check
+predicted and taking over recorded copies (`removal-persist-asides.ts`), then checks once more before its caller removes
+the checkout. `removal-release.ts` persists the target and removes only a linked checkout's projected files, answering
+for entries it cannot finish (`release-entries.ts`, `withheld.ts`). From its removal swap on, every index a release
+publishes carries no state, so where it stops or is refused after removing files the next command's rebuild lays them
+again, and its refusal says the files were removed.
+
+`timings.ts` keeps each checkout's recent start, fan-out, and materialization samples in the index, each timed until
+just before its final publication, and raises a notice once a complete recent window's median exceeds its platform's
+bound. `end-work.ts` records the end work that needs the lease again, fan-out measurements among it.
+`start-observations.ts` launches the start's configuration and version reads before its index read and walks, and
+`stat-observations.ts` takes the walk's stats while those reads run, synchronously on Linux and macOS and through a
+bounded pool on Windows.

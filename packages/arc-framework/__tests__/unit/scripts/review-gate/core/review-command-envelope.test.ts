@@ -189,6 +189,14 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
 }));
 const dispositionReportText = "Verification: full\n\nFinding F1: The source supports this finding.";
 const dispositionEvidenceText = "Evidence\n- F1 · src/index.ts:7 · verified at source:src/index.ts:7";
+const approvalPolicyBinding = {
+  lane: "standard",
+  headSha: target.headSha,
+  pullRequest: null,
+  scopeMode: "whole-target",
+  completedPasses: 1,
+  finalAttempt: { outcome: "findings", reviewOperationId: "local-1" },
+} as const;
 const provisionalPassAssessment = {
   status: "provisional",
   lane: "standard",
@@ -339,7 +347,7 @@ describe("review command envelopes", () => {
       state: "awaiting-approval", nextAction: "obtain-approval",
       payload: {
         operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
-        provisionalPassAssessment,
+        provisionalPassAssessment, approvalPolicyBinding,
       },
     }],
     [RespondEnvelopeSchema, {
@@ -501,7 +509,7 @@ describe("review command envelopes", () => {
       state: "awaiting-approval", nextAction: "obtain-approval",
       payload: {
         operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
-        provisionalPassAssessment: { ...provisionalPassAssessment, ...change },
+        provisionalPassAssessment: { ...provisionalPassAssessment, ...change }, approvalPolicyBinding,
       },
     })).toThrow();
   });
@@ -516,6 +524,7 @@ describe("review command envelopes", () => {
           ...provisionalPassAssessment,
           proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "minor", materialFix: false },
         },
+        approvalPolicyBinding,
       },
     })).toMatchObject({ payload: { provisionalPassAssessment: { potentialStopReason: "cap-exhausted" } } });
   });

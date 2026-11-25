@@ -2,8 +2,9 @@
 
 import {
   diagnostic,
-  finding,
+  leadsWithSeverity,
   parseCodeRabbitReviewBody,
+  parseCodeRabbitThreadFindings,
   type UnorderedFinding,
 } from "./coderabbit-body.js";
 export { parseCodeRabbitReviewBody } from "./coderabbit-body.js";
@@ -38,6 +39,9 @@ const COMMANDS = {
 const BOT_USER_ID = "136622811";
 const APP_OWNER_ID = "132028505";
 const APP_ID = "347564";
+const ACTIONABLE_THREAD_VISIBILITY_GRACE_MS = 30_000;
+/** How long a finished reply may stand before a result it should have left counts as unreadable. */
+const COMPLETED_RESULT_VISIBILITY_GRACE_MS = 30_000;
 /**
  * Completion wording in CodeRabbit's tagged reply to a review command. The match is loose, since its layout, icons and
  * punctuation change; a full review's wording names the full review, and an incremental one's does not.
@@ -47,12 +51,6 @@ const INCREMENTAL_REPLY = /(?<!\bfull )\breview (?:finished|completed?)\b/iu;
 /** Wording of a tagged reply CodeRabbit has not yet edited to report the review's result. */
 const IN_PROGRESS_REPLY = /\breview (?:triggered|started|queued|in progress)\b/iu;
 const COMMAND_INVOCATION_MARKER = /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/giu;
-const RESOLVED_THREAD_REPLY_FOOTER = new RegExp(
-  String.raw`(?:^|\r?\n)✅ Review thread resolved\.\s*`
-    + String.raw`_You are interacting with an AI system\._\s*`
-    + String.raw`<!-- This is an auto-generated reply by CodeRabbit -->\s*$`,
-  "u",
-);
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
@@ -60,24 +58,47 @@ export const CODERABBIT_HOSTED_REGISTRATION = {
   identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID, appId: APP_ID },
 } as const;
 
-function recentReviewBody(comment: HostedGitHubIssueComment): string | null {
-  const starts = [...comment.body.matchAll(/<!--\s*recent_review_start\s*-->/giu)];
-  const ends = [...comment.body.matchAll(/<!--\s*recent_review_end\s*-->/giu)];
-  if (starts.length !== 1 || ends.length !== 1) return null;
+/** The sections of CodeRabbit's summary comment that report a review's result; it moves the result between them. */
+const SUMMARY_SECTIONS = {
+  details: { start: /<!--\s*recent_review_start\s*-->/giu, end: /<!--\s*recent_review_end\s*-->/giu },
+  status: { start: /<!--\s*recent_review_status_start\s*-->/giu, end: /<!--\s*recent_review_status_end\s*-->/giu },
+} as const;
+
+/** One summary section's text, null where the comment holds none of its markers. */
+function summarySection(
+  comment: HostedGitHubIssueComment,
+  section: keyof typeof SUMMARY_SECTIONS,
+): { text: string | null } | "malformed" {
+  const starts = [...comment.body.matchAll(SUMMARY_SECTIONS[section].start)];
+  const ends = [...comment.body.matchAll(SUMMARY_SECTIONS[section].end)];
+  if (starts.length === 0 && ends.length === 0) return { text: null };
   const start = starts[0];
   const end = ends[0];
-  if (start === undefined || end === undefined || end.index <= start.index) return null;
-  return comment.body.slice(start.index + start[0].length, end.index);
+  if (starts.length !== 1 || ends.length !== 1 || start === undefined || end === undefined
+    || end.index <= start.index) return "malformed";
+  return { text: comment.body.slice(start.index + start[0].length, end.index) };
 }
 
+/** Every summary section's text, or null where any section's markers are not exactly one pair in order. */
+function summarySections(comment: HostedGitHubIssueComment): { status: string | null; details: string | null } | null {
+  const status = summarySection(comment, "status");
+  const details = summarySection(comment, "details");
+  return status === "malformed" || details === "malformed" ? null : { status: status.text, details: details.text };
+}
+
+/**
+ * Whether the summary reports no findings: one section carries the line and none states a nonzero count. Sections that
+ * disagree, or that cannot all be read, report nothing.
+ */
 function summaryReportsNoFindings(
   comment: HostedGitHubIssueComment,
   requestedAt: string,
 ): boolean {
-  if (comment.updatedAt < requestedAt) return false;
-  const recent = recentReviewBody(comment);
-  return recent !== null
-    && /\bno actionable comments were generated in the recent review\b/iu.test(recent);
+  const sections = summarySections(comment);
+  if (sections === null || comment.updatedAt < requestedAt) return false;
+  const texts = [sections.status, sections.details].filter((text) => text !== null);
+  return texts.some((text) => /\bno actionable comments were generated in the recent review\b/iu.test(text))
+    && !texts.some((text) => /\bactionable comments posted:(?!\s*0\b)/iu.test(text));
 }
 
 function summaryCompletesHead(
@@ -86,7 +107,7 @@ function summaryCompletesHead(
   requestedAt: string,
 ): boolean {
   if (!summaryReportsNoFindings(comment, requestedAt)) return false;
-  const recent = recentReviewBody(comment);
+  const recent = summarySections(comment)?.details ?? null;
   if (recent === null) return false;
   const ranges = [...recent.matchAll(/\bbetween\s+[a-f0-9]{7,40}\s+and\s+([a-f0-9]{7,40})\b/giu)];
   const reviewedHead = ranges[0]?.[1]?.toLowerCase();
@@ -136,6 +157,25 @@ function commentedReviewSettlement(
       reason: diagnostic("provider-completion-reply-unrecognized", { review: review.url, head: target.headSha }),
     }
     : { kind: "pending" };
+}
+
+/**
+ * Stop on a finished full review that left no result this reader can read, naming the reply that reports it finished.
+ *
+ * CodeRabbit edits that reply after it posts everything else, so a result still missing a little later is not coming or
+ * has changed its layout. The stop never records a clean result.
+ */
+function unreadableCompletion(
+  completedReply: HostedGitHubIssueComment | undefined,
+  target: HostedTarget,
+): HostedObservation {
+  if (completedReply === undefined
+    || Date.now() - Date.parse(completedReply.updatedAt) < COMPLETED_RESULT_VISIBILITY_GRACE_MS) return { kind: "pending" };
+  return {
+    kind: "terminal-failure",
+    reason: "CodeRabbit completed review without a readable result bound to the reviewed commit. "
+      + `Receipt: ${completedReply.url}. Clean review is not established for ${target.headSha}.`,
+  };
 }
 
 function commandInvocationMarkerCount(body: string): number {
@@ -341,17 +381,23 @@ function deduplicateTerminalFindings(findings: UnorderedFinding[]):
   return { kind: "deduplicated", findings: [...retained.values()].map(({ finding }) => finding) };
 }
 
-function isPriorThreadResolutionReply(comment: HostedGitHubThreadComment, reviewId: string): boolean {
+/**
+ * A CodeRabbit reply that does not open with a severity badge, in a thread an earlier review opened: conversation about
+ * that thread, such as a confirmation or a withdrawn finding, never a finding of this review. Its wording and footer
+ * change from week to week, so only its place in the thread and its leading line decide; a reply that opens with a
+ * badge there still reads as a finding.
+ */
+function isPriorThreadReply(comment: HostedGitHubThreadComment, reviewId: string): boolean {
   return comment.actorIdentity === BOT_USER_ID
     && comment.replyToReviewId !== null
     && comment.replyToReviewId !== reviewId
-    && RESOLVED_THREAD_REPLY_FOOTER.test(comment.body);
+    && !leadsWithSeverity(comment.body);
 }
 
 function isConfirmationOnlyReview(review: HostedGitHubReview, threads: readonly HostedGitHubThread[]): boolean {
   if (review.state !== "commented" || review.body.trim() !== "") return false;
   const comments = threads.flatMap((thread) => thread.comments.filter((comment) => comment.reviewId === review.id));
-  return comments.length > 0 && comments.every((comment) => isPriorThreadResolutionReply(comment, review.id));
+  return comments.length > 0 && comments.every((comment) => isPriorThreadReply(comment, review.id));
 }
 
 /** CodeRabbit request and exact-head observation through the lean GitHub port. */
@@ -494,7 +540,7 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
             ? { kind: "pending" }
             : { kind: "terminal-failure", reason: "provider-request-generation-overlap" };
         }
-        return { kind: "pending" };
+        return coverage === "complete" ? unreadableCompletion(completedReply, target) : { kind: "pending" };
       }
       if (coverage !== null && review.state === "commented") {
         const settlement = commentedReviewSettlement(providerComments, review, target,
@@ -513,32 +559,35 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
               comment.actorIdentity === BOT_USER_ID
               && comment.headSha === target.headSha
               && comment.reviewId === terminalReview.id
-              && !isPriorThreadResolutionReply(comment, terminalReview.id))
+              && !isPriorThreadReply(comment, terminalReview.id))
             .map((comment) => ({ threadId: thread.id, comment })));
-        const parsedComments = candidateComments.map(({ threadId, comment }) => ({
-          threadId,
-          comment,
-          parsed: finding(threadId, comment),
-        }));
-        const rejectedComment = parsedComments.find((candidate) => candidate.parsed === null);
-        if (rejectedComment !== undefined) {
-          const { threadId, comment } = rejectedComment;
-          const context = {
-            threadId,
-            commentId: comment.id,
-            path: comment.path,
-            ...(comment.line === null ? {} : { line: comment.line }),
-          };
-          return {
-            kind: "terminal-failure",
-            reason: comment.line === null
-              ? diagnostic("provider-thread-finding-locus-unavailable", context)
-              : diagnostic("provider-thread-finding-severity-unrecognized", context),
-          };
+        const findings: UnorderedFinding[] = [];
+        for (const { threadId, comment } of candidateComments) {
+          const parsed = parseCodeRabbitThreadFindings(threadId, comment);
+          if (parsed === null) {
+            const context = {
+              threadId,
+              commentId: comment.id,
+              path: comment.path,
+              ...(comment.line === null ? {} : { line: comment.line }),
+            };
+            return {
+              kind: "terminal-failure",
+              reason: comment.line === null
+                ? diagnostic("provider-thread-finding-locus-unavailable", context)
+                : diagnostic("provider-thread-finding-severity-unrecognized", context),
+            };
+          }
+          if (parsed.kind === "malformed") return { kind: "terminal-failure", reason: parsed.reason };
+          findings.push(...parsed.findings);
         }
-        const findings = parsedComments.map((candidate) => candidate.parsed)
-          .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
         if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
+          // Reviews and inline threads are fetched separately. Let the bounded poll read both again while the
+          // submitted review is fresh. An excess or a persistent shortfall is still contradictory evidence.
+          const ageMs = Date.now() - Date.parse(terminalReview.submittedAt);
+          if (findings.length < parsedBody.actionableCount && ageMs >= 0 && ageMs < ACTIONABLE_THREAD_VISIBILITY_GRACE_MS) {
+            return { kind: "pending" };
+          }
           return {
             kind: "terminal-failure",
             reason: diagnostic("provider-actionable-finding-count-mismatch", {

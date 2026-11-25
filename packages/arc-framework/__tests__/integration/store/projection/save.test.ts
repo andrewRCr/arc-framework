@@ -54,7 +54,7 @@ import { withProjectionLock, PROJECTION_LOCK_FILE } from "../../../../src/lib/st
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
 import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
-import { startProjection } from "../../../../src/lib/store/projection/engine.js";
+import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { flatWorkItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
 import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
@@ -293,7 +293,7 @@ it.each(["history", "primary-read"] as const)("keeps a late archived aside edit 
   await startProjection({ store: h.store, checkout: h.checkout, mode: "save", ports: () => ({ ...ports,
     writer: async () => ({ ...await ports.writer(), processInstance: "exited-archive-writer" }) }) });
   expect((await h.stored()).content).toBe(first);
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   const entry = disk.kind === "index" ? disk.index.entries[h.path] : undefined;
   if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("The save retained no displaced editor copy");
   const copy = entry.copies[0].name;
@@ -360,7 +360,7 @@ it("keeps an interrupted archived stampless edit offline and names save before a
   expect(await startProjection({ store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
   const root = projectionProcessState().roots.get(h.checkout);
   if (root === undefined) throw new Error("The command did not bind its projection root");
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("The interrupted index is unavailable");
   expect(disk.index.entries[h.path]).toMatchObject({ inProgress: { replaces: original.base } });
   await withProjectionLock(h.location, async session => {
@@ -373,7 +373,7 @@ it("keeps an interrupted archived stampless edit offline and names save before a
   expect((await h.stored()).content).toBe(next);
   expect(await h.file()).toBe(content);
   expect(pulls).toBe(0);
-  expect(await readProjectionIndex(h.location, true)).toMatchObject({ kind: "index", index: { entries: { [h.path]: { pending: true } } } });
+  expect(await readProjectionIndex(h.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: { entries: { [h.path]: { pending: true } } } });
   expect(diagnostic).toContain(h.path);
   expect(diagnostic).toContain("arc save");
   expect((await save({ store, checkout: h.checkout })).errors).toBe("");
@@ -400,7 +400,7 @@ it.each(["meta", "tasks"] as const)("protects another person's archived %s and l
   expect((await save(h)).errors).toBe("");
   expect((await h.stored()).content).toBe(content);
   expect((await h.stored()).placement).toEqual(h.placement);
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   expect(disk).toMatchObject({ kind: "index", index: { entries: { [h.path]: { protected: false, refused: null } } } });
   expect((await lstat(join(h.checkout, h.path))).mode & 0o222).not.toBe(0);
 });
@@ -557,8 +557,9 @@ it("names an unmapped conflict's owner without resolving it, then resolves from 
   expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);
 });
 
-it("names an unprojected in-flight subject's exact owner and resolves only after its file and conflict mapping are seeded", async () => {
-  const { f, primary, folder } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+it("names an unprojected in-flight subject's exact owner and resolves once refresh supplies its mapping", async () => {
+  const { f, projected } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  directories.push(f.root);
   const other = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "beta" } }),
     makeMetaFixture("beta", { owner: "andrew", state: "Active", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop" }),
     { kind: "active" });
@@ -583,13 +584,40 @@ it("names an unprojected in-flight subject's exact owner and resolves only after
   expect(success(await f.store.read({ reference: subject.reference })).conflicts).toEqual([conflict]);
   const path = resolveArcPath({ kind: "work-unit-companion", slug: SlugSchema.parse("beta"), key: "correction.txt",
     placement: { kind: "active", scope: { kind: "project", location: { kind: "another" } } } });
-  await unlink(join(f.root, folder, "meta-alpha.md"));
-  await seedProjection({ store: f.store, checkout: f.root, files: [
-    { reference: primary.reference, path: `${folder}/meta-alpha.md` }, { reference: subject.reference, path },
-  ] });
+  expect(await readFile(join(f.root, path), "utf8")).toContain(content);
+  expect(await readProjectionIndex(projected.location, true)).toMatchObject({ kind: "index", index: {
+    entries: { [path]: { reference: subject.reference, unshown: [conflict] } },
+  } });
   expect((await save({ store: f.store, checkout: f.root }, ["--resolve", token])).result.status).toBe("ok");
   expect(success(await f.store.read({ reference: subject.reference }))).toMatchObject({ content, conflicts: [] });
   expect(await f.store.read({ reference: conflict })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+});
+
+it("resolves a hidden subject once a changed view projects it at command entry", async () => {
+  const { f } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" }); directories.push(f.root);
+  await f.ports.exec("git", ["config", "arc.inflightView", "cohort"], { cwd: f.root });
+  const other = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "beta" } }),
+    makeMetaFixture("beta", { owner: "andrew", state: "Active", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop" }),
+    { kind: "active" });
+  const subject = await seed(f, recordReferences["work-item/companion"](other.reference.owner, "correction.txt"), "opening\nbase\nclosing\n");
+  for (const content of ["opening\ncurrent\nclosing\n", "opening\nincoming\nclosing\n"]) {
+    success(await f.store.write({ action: "put", reference: subject.reference, expected: subject.version, content,
+      provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  }
+  const current = success(await f.store.read({ reference: subject.reference })), conflict = current.conflicts[0];
+  if (conflict === undefined) throw new Error("Missing stored conflict");
+  const content = "Replacement prose outside the conflicted span\n";
+  success(await f.store.write({ action: "put", reference: subject.reference, expected: current.version, content,
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const command = { checkout: f.root, store: f.store }, token = formatConflictToken(conflict);
+  expect((await save(command, ["--resolve", token])).result).toMatchObject({ status: "refused",
+    refusal: { condition: expect.stringContaining("no projected file") } });
+  expect(success(await f.store.read({ reference: subject.reference })).conflicts).toEqual([conflict]);
+  await f.ports.exec("git", ["config", "arc.inflightView", "all"], { cwd: f.root });
+  const resolved = await save(command, ["--resolve", token]);
+  expect(resolved.result.status, JSON.stringify(resolved.result)).toBe("ok");
+  expect(success(await f.store.read({ reference: subject.reference }))).toMatchObject({ content, conflicts: [] });
+  expect(success(await f.store.history({ reference: conflict })).filter(entry => entry.content === null)).toHaveLength(1);
 });
 
 it("names an indexed conflict that was already resolved", async () => {
@@ -602,7 +630,7 @@ it("names an indexed conflict that was already resolved", async () => {
     remedy: { text: expect.stringContaining("arc status --conflicts") } } });
 });
 
-it("refuses an unmapped token shared by two owner generations and names both UIDs", async () => {
+it.each([false, true])("refuses an ambiguous token across owner generations after view change=%s", async changeView => {
   const h = await createEngineFixture(directories);
   const old = await seed(h, h.reference("work-item/meta"));
   success(await h.store.write({ ...update(h, old), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
@@ -612,6 +640,7 @@ it("refuses an unmapped token shared by two owner generations and names both UID
     RecordReferenceSchema.parse({ kind: "work-item/conflict-record", owner, key: "shared/id" })));
   const first = conflicts[0];
   if (first === undefined) throw new Error("No conflict was seeded");
+  if (changeView) await h.exec("git", ["config", "arc.inflightView", "all"], { cwd: h.checkout });
   const saved = await save(h, ["--resolve", formatConflictToken(first.reference)]);
   expect(saved.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("Ambiguous"),
     remedy: { text: expect.stringContaining("UID") } } });
@@ -691,13 +720,13 @@ it("preserves incompatible cohort choices while another edit lands, then resolve
   for (const choice of choices) expect(await readFile(join(h.checkout, choice.path), "utf8")).toBe(choice.bytes);
   expect(success(await h.store.read({ reference: h.current.reference }))).toMatchObject({ content: h.current.content, conflicts: [h.conflict] });
   expect(success(await h.store.read({ reference: h.extra.reference })).content).toBe(independent);
-  const held = await readProjectionIndex(h.location, true);
+  const held = await readProjectionIndex(h.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing held index");
   for (const path of h.paths) expect(held.index.entries[path]).toMatchObject({ changed: true });
-  expect(selectProjectedMarkdown(held.index.entries, { changed: true })).toEqual(expect.arrayContaining(h.paths));
+  expect(selectProjectedMarkdown(held.index.entries, SlugSchema.parse("andrew"), { changed: true })).toEqual(expect.arrayContaining(h.paths));
   for (const [i, path] of h.paths.entries()) if (i === 0) await writeFile(join(h.checkout, path), original[i]!);
   expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("refused");
-  const observedAgain = await readProjectionIndex(h.location, true);
+  const observedAgain = await readProjectionIndex(h.location, true, { groups: "all" });
   if (observedAgain.kind !== "index") throw new Error("Missing held index");
   for (const path of h.paths) expect(observedAgain.index.entries[path]).toMatchObject({ changed: true });
   const content = `${h.current.content}\nAgreed correction.\n`;
@@ -722,11 +751,11 @@ it("does not bypass a withheld cohort alias and resolves after that alias is rel
     remedy: { text: expect.stringContaining("delete") } } });
   expect(await Promise.all(h.paths.map(path => readFile(join(h.checkout, path), "utf8")))).toEqual(before);
   expect(success(await h.store.read({ reference: h.current.reference })).conflicts).toEqual([h.conflict]);
-  const held = await readProjectionIndex(h.location, true);
+  const held = await readProjectionIndex(h.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing held index");
   for (const alias of h.paths) expect(held.index.entries[alias]).toMatchObject({ pending: true,
     changed: alias === editedPath, refused: { reason: expect.stringContaining("withheld") } });
-  expect(selectProjectedMarkdown(held.index.entries, { changed: true })).toEqual([editedPath]);
+  expect(selectProjectedMarkdown(held.index.entries, SlugSchema.parse("andrew"), { changed: true })).toEqual([editedPath]);
   await writeProjectionIndex(h.location, { ...held.index, entries: { ...held.index.entries, [path]: { ...entry, withheld: false } } });
   await writeCohortChoice(h, path, content);
   expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("ok");
@@ -1015,13 +1044,13 @@ it.each(["", "not-a-token"])("reports an unknown token %j as whole JSON and acce
   expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);
 });
 
-it("accepts a requested resolution already fulfilled by the start's aside sweep", async () => {
+it.each([false, true])("keeps a swept resolution accepted across view change=%s", async changeView => {
   const h = await conflictedProjection(".arc/user/andrew/scratch/document.md", false);
   await writeFile(join(h.checkout, h.path), await readFile(join(h.checkout, h.path), "utf8") + "\nIndependent note.\n");
   const ports = createProjectionEnginePorts(h.checkout);
   await startProjection({ store: h.store, checkout: h.checkout, ports: () => ({ ...ports,
     writer: async () => ({ ...await ports.writer(), processInstance: "exited-resolution-writer" }) }) });
-  const disk = await import("../../../../src/lib/store/projection/index-file.js").then(module => module.readProjectionIndex(h.location, true));
+  const disk = await import("../../../../src/lib/store/projection/index-file.js").then(module => module.readProjectionIndex(h.location, true, { groups: "all" }));
   if (disk.kind !== "index") throw new Error("Missing projection index");
   const entry = disk.index.entries[h.path];
   if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("No displaced marked copy");
@@ -1030,6 +1059,7 @@ it("accepts a requested resolution already fulfilled by the start's aside sweep"
   if (stamp === null) throw new Error("Copy lost its stamp");
   const current = success(await h.store.read({ reference: h.reference }));
   await writeFile(join(h.checkout, copy), renderStampedFile({ content: current.content, stamp }));
+  if (changeView) await ports.exec("git", ["config", "arc.inflightView", "all"], { cwd: h.checkout });
   const saved = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
   expect(saved.result.status).toBe("ok");
   expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);
@@ -1045,7 +1075,7 @@ it("keeps a stopped archived swap outside a linked parent and recovers after dir
   await expect(startProjection({ store: h.store, checkout: h.checkout, mode: "save", ports: () => ({
     ...ports("interrupted-archive-command"), hooks: { afterMove: async () => { throw new Error("stopped archive swap"); } },
   }) })).rejects.toThrow("stopped archive swap");
-  const stopped = await readProjectionIndex(h.location, true);
+  const stopped = await readProjectionIndex(h.location, true, { groups: "all" });
   if (stopped.kind !== "index") throw new Error("Stopped index missing");
   const entry = stopped.index.entries[h.path];
   if (entry?.kind !== "record" || entry.copies.length === 0) throw new Error("Stopped copy missing");
@@ -1064,7 +1094,8 @@ it("keeps a stopped archived swap outside a linked parent and recovers after dir
   expect(await startProjection({ store: h.store, checkout: h.checkout, ports: () => ports("repaired-archive-command") }))
     .toMatchObject({ kind: "ready" });
   expect(await h.file()).toBe("archived hand edit\n");
-  expect((await readProjectionIndex(h.location, true))).toMatchObject({ kind: "index", index: {
+  await endProjection({ store: h.store, checkout: h.checkout });
+  expect((await readProjectionIndex(h.location, true, { groups: "all" }))).toMatchObject({ kind: "index", index: {
     entries: { [h.path]: { copies: [] } },
   } });
 });
@@ -1080,13 +1111,13 @@ it("leaves failed archived admission for explicit save after the condition is re
   const store = overrideEngineStore(h.f.store, { batch: input => blocked && input.writes[0]?.reference.kind === "work-item/companion"
     ? Promise.resolve({ status: "refused", refusal }) : h.f.store.batch(input) });
   expect((await save({ store, checkout: h.f.root })).errors).toContain(refusal.condition);
-  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: {
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     entries: { [path]: { kind: "ownerless" } },
   } });
   blocked = false;
   expect(await startProjection({ store, checkout: h.f.root })).toMatchObject({ kind: "ready", discovered: [] });
   expect(await h.f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: {
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     entries: { [path]: { kind: "ownerless" } },
   } });
   expect((await save({ store, checkout: h.f.root })).errors).toBe("");

@@ -23,7 +23,7 @@ afterAll(async () => {
   // A setup that timed out before making the fixture leaves it unset.
   const fixture = producer as typeof producer | undefined;
   if (fixture !== undefined) await rm(fixture.root, { recursive: true, force: true });
-});
+}, process.platform === "win32" ? nestedRunLimit(10_000) : undefined);
 
 it.each(["lint-typecheck", "integration", "e2e", "portability"])(
   "qualifies transferred output and its preflight contract for %s", async (job) => {
@@ -92,18 +92,19 @@ it.each(["integration"])(
   }, 5 * NESTED_CALL_LIMIT,
 );
 
-it("retains full producer and platform-local declaration gates before preparation", async () => {
+it.each([["portability-cross-platform", "test"], ["portability-timing", "measure"]])(
+  "retains full producer and platform-local declaration gates before preparation (%s)", async (job, consumer) => {
   expect(await readFile(join(producer.packageRoot, "dist/cli.d.ts"), "utf8")).toContain("marker");
-  const steps = await ciBuildSteps("portability-cross-platform");
+  const steps = await ciBuildSteps(job);
   const install = steps.findIndex((step) => step.run === "npm ci");
   const full = steps.findIndex((step) => step.id === "build");
   const prepared = steps.findIndex((step) => step.id === "runtime-preflight");
-  const consume = steps.findIndex((step) => step.id === "test");
+  const consume = steps.findIndex((step) => step.id === consumer);
   expect(install).toBeGreaterThanOrEqual(0);
   expect(full).toBeGreaterThan(install);
   expect(prepared).toBeGreaterThan(full);
   expect(consume).toBeGreaterThan(prepared);
-  const reused = await runCiPreflight(producer, "portability-cross-platform");
+  const reused = await runCiPreflight(producer, job);
   expect(reused.code, reused.stderr).toBe(0);
   expect(readBuildQualification(producer.packageRoot, "full")).toMatchObject({
     status: "qualified", evidence: { generation, qualification: { declarations: true } },

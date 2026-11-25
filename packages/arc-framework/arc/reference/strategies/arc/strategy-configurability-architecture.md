@@ -246,11 +246,18 @@ independently; they have no project-level counterpart except the dual-scope entr
 | `arc.releaseOptedIn`   | Per-developer release-wrapper opt-in flag    | `true` / `false`                              | `false`      |
 | `arc.inflightView`     | Other active work items selected for view    | `mine` / `cohort` / `all`                     | `mine`       |
 | `arc.inflightPin`      | Active work items added to that selection    | Repeated work-item slugs                      | (none)       |
+| `arc.selfTeardownMode` | Teardown of the invoking linked checkout     | `husk` / `remove`                             | `husk`       |
 
 `arc.notesPush` is dual-scope: it overrides the project-level `user.notes_push` value in `arc-config.yml`. The
 `arc.frontlineSources` preferences similarly override `review.frontline_sources`; both lists name registered
 sources in resolution order and never contain commands or reviewer identities. Add each developer preference with
 `git config --add arc.frontlineSources <source-id>`. The other entries are per-developer only.
+
+`git config --local arc.selfTeardownMode remove` asks teardown to move the CLI to primary and remove its own
+checkout after the ordinary retirement checks. The invoking shell or agent session remains in the deleted directory
+and must use primary for subsequent commands. Windows falls back to `husk` with a notice because the invoking shell
+may keep the directory occupied. The default `husk` leaves a detached, stamped checkout and releases ARC's Git lock.
+From outside any husk, `arc teardown --yes` removes eligible stamped husks and reports every retained path's reason.
 
 `arc.releaseOptedIn` is set by `arc release setup install` (per-harness setup + opt-in recording) or
 `arc release opt-in` (opt-in recording only). See [Interlock Release Wrappers

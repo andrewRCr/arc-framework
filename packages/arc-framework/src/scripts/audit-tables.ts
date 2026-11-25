@@ -1,8 +1,8 @@
 /** Public repository entry point for reproducible GFM table migration evidence. */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { formatUnexpectedError } from "../lib/errors.js";
 import { gitExec, readGitBlobBytes } from "../lib/io-context.js";
@@ -35,4 +35,4 @@ export async function main(args: readonly string[] = process.argv.slice(2)): Pro
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main();
+if (await isMainModule(import.meta, process.argv[1])) process.exitCode = await main();

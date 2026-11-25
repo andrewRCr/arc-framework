@@ -6,9 +6,11 @@ import { commitProjectionIndex } from "./index-file.js";
 import type { Stats } from "node:fs";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
+import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
-interface ProjectionLinkFs { readonly lstat: (path: string) => Promise<Pick<Stats, "isSymbolicLink">> }
+/** Asynchronous ancestor observations, independent of synchronous folder enumeration. */
+export interface ProjectionLinkFs { readonly lstat: (path: string) => Promise<Pick<Stats, "isSymbolicLink">> }
 
 /** The observed symbolic link that blocks a projected path, or no blocking link. */
 export type ProjectionLinkBoundary = (path: string) => string | null;
@@ -51,9 +53,12 @@ export function projectionLinkRemedy(link: string): Remedy {
 /** Remove obsolete ownerless blockers and physical-file refusals, retaining exact records and recovery obligations. */
 export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "checkout" | "location" | "context" | "blockedByLink" | "unsent">,
   index: ProjectionIndex): Promise<ProjectionIndex> {
+  loadProjectionGroups(index, "walked");
+  const groups = loadedProjectionGroups(index);
   const entries = new Map(Object.entries(index.entries));
   let changed = false;
   for (const [path, entry] of Object.entries(index.entries)) {
+    if (entry.kind === "record" && entry.handoff !== undefined) continue;
     if (root.blockedByLink(path) === null) continue;
     const next = withoutPhysicalEdit(entry);
     if (next === null) entries.delete(path);
@@ -62,7 +67,7 @@ export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "
     changed ||= next !== entry;
   }
   return changed ? commitProjectionIndex({ checkout: root.checkout, location: root.location,
-    checkpoint: root.context.checkpoint, index: { ...index, entries: Object.fromEntries(entries) } }) : index;
+    checkpoint: root.context.checkpoint, index: replaceLoadedProjectionEntries(index, Object.fromEntries(entries), groups) }) : index;
 }
 
 function withoutPhysicalEdit(entry: IndexEntry): IndexEntry | null {

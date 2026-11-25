@@ -2,7 +2,7 @@
  * A file other than Markdown carries no stamp, so its index entry alone holds its base, and while a replacement is in
  * progress, the version it replaces and the aside copy its batch makes of the file.
  */
-import { rm } from "node:fs/promises";
+import { removeProjectionAsideFile } from "./aside-cleanup.js";
 import { join } from "node:path";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
@@ -15,8 +15,11 @@ import { SETTLE_WINDOW_NS, wallClockNs } from "./read-gate.js";
 export type StamplessRead =
   /** Empty and younger than the settle time: the next command reads it. */
   | { readonly kind: "wait" }
-  /** It holds what the projection wrote, or a version a replacement in progress names. */
-  | { readonly kind: "unedited" }
+  /**
+   * It holds what the projection wrote (`current`), up to line endings, or the version a replacement in progress
+   * replaces.
+   */
+  | { readonly kind: "unedited"; readonly current: boolean }
   /** An edit, retaining both possible bases while a replacement is in progress. */
   | { readonly kind: "edit"; readonly base: RecordEntry["base"]; readonly replaces: RecordEntry["base"] | null }
   /**
@@ -49,11 +52,11 @@ export async function readStamplessFile(input: StamplessReadInput): Promise<Stor
   const now = input.now ?? wallClockNs;
   if (input.text === "" && now() - input.mtimeNs < SETTLE_WINDOW_NS) return read({ kind: "wait" });
   const blob = storedBlobId(input.text, { format: input.format, markdown: false });
-  if (blob === entry.written && entry.persisted?.stamp !== entry.base.blob) return read({ kind: "unedited" });
+  if (blob === entry.written && entry.persisted?.stamp !== entry.base.blob) return read({ kind: "unedited", current: true });
   const { inProgress } = entry;
   if (inProgress === null) return read({ kind: "edit", base: entry.base, replaces: null });
   // A recorded take-in distinguishes the person's revert from old bytes left by an interrupted replacement.
-  if (blob === inProgress.replaces.blob && entry.persisted?.stamp !== inProgress.replaces.blob) return read({ kind: "unedited" });
+  if (blob === inProgress.replaces.blob && entry.persisted?.stamp !== inProgress.replaces.blob) return read({ kind: "unedited", current: false });
   const history = await input.memo.read(entry.reference);
   if (history.status === "refused") {
     // Taking either version unread could write old content over the newer one.
@@ -85,16 +88,15 @@ export interface AsideCopyDeletion {
 }
 
 /**
- * Delete an aside copy: the one deletion every deleter calls. It clears the copy's own record, and the entry's
- * in-progress record where that names this copy and the file holds what the batch linked there, read by the file
- * identity the entry records.
+ * Delete a spent aside copy: the one deletion every deleter but a returned alias's calls. It clears the copy's own
+ * record, and the entry's in-progress record where that names this copy and the file holds what the batch linked there,
+ * read by the file identity the entry records.
  * @param input - The copy, the file it was made of, and the file's entry.
  * @returns The entry as it stands once the copy is gone.
  */
 export async function deleteAsideCopy(input: AsideCopyDeletion): Promise<RecordEntry> {
   // A copy that is a symbolic link is removed as itself, never followed.
-  await input.checkpoint?.();
-  await rm(join(input.checkout, input.copy), { force: true });
+  await removeProjectionAsideFile(input.checkout, input.copy, input.checkpoint);
   return finalizeAsideCopy(input);
 }
 

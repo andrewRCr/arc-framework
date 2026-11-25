@@ -397,43 +397,101 @@ describe("CodeRabbit hosted adapter", () => {
     },
   );
 
-  it("seals a COMMENTED-only finding and rejects an ungraded reply to an older thread", async () => {
-    const oldRoot = {
-      ...findingThread("_🟠 Major_ prior concern").comments[0]!,
-      id: "old-root",
-      reviewId: "PRR_PRIOR",
-      headSha: "b".repeat(40),
-    };
-    const newReply = {
-      ...oldRoot,
-      id: "new-ungraded-reply",
-      reviewId: "PRR_1",
-      replyToReviewId: "PRR_PRIOR",
-      headSha: HEAD,
-      body: "_🟠 Major_ This new concern has severity metadata.",
-    };
-    const adapter = new CodeRabbitHostedAdapter(port({
-      readReviews: () => Promise.resolve([review({ state: "commented", body: "" })]),
-      readThreads: () => Promise.resolve([{
-        id: "PRRT_PRIOR",
-        isResolved: false,
-        comments: [oldRoot, newReply],
-      }]),
-      readIssueComments: () => Promise.resolve([requestComment(), commandReply({
-        body: `<!-- CodeRabbit review command invocation: invocation-id -->
+  const olderThreadRoot = () => ({
+    ...findingThread("_🟠 Major_ prior concern").comments[0]!,
+    id: "old-root",
+    reviewId: "PRR_PRIOR",
+    headSha: "b".repeat(40),
+  });
+
+  const gradedReplies = {
+    "italic badge": "_🟠 Major_ This new concern has severity metadata.",
+    "bold badges": "**🟠 Major** · **Correctness** · **Quick win**\n**A new concern.**\nIt has severity metadata.",
+    "icon badges": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://example.invalid/major-16.svg\">"
+      + "</picture> Major** · **Functional Correctness**\n**A new concern.**\nIt has severity metadata.",
+    "category badge before the grade": "_⚠️ Potential issue_ | _🟠 Major_\n\n**A new concern.**",
+    "category span before the grade": "**Functional Correctness** · **🟠 Major**\n\n**A new concern.**",
+  };
+
+  it.each(Object.entries(gradedReplies))(
+    "seals a COMMENTED-only reply to an older thread as a finding only while it opens with a grade: %s",
+    async (_form, body) => {
+      const oldRoot = olderThreadRoot();
+      const reply = { ...oldRoot, id: "graded-reply", reviewId: "PRR_1", replyToReviewId: "PRR_PRIOR", headSha: HEAD, body };
+      const adapter = new CodeRabbitHostedAdapter(port({
+        readReviews: () => Promise.resolve([review({ state: "commented", body: "" })]),
+        readThreads: () => Promise.resolve([{ id: "PRRT_PRIOR", isResolved: false, comments: [oldRoot, reply] }]),
+        readIssueComments: () => Promise.resolve([requestComment(), commandReply({
+          body: `<!-- CodeRabbit review command invocation: invocation-id -->
 <summary>✅ Action performed</summary>
 
 Full review finished.`,
-      })]),
-    }));
+        })]),
+      }));
 
-    await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({ kind: "findings" });
-    newReply.body = "This new concern has no severity marker.";
-    await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
-      kind: "terminal-failure",
-      reason: expect.stringContaining("provider-thread-finding-severity-unrecognized"),
-    });
-  });
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+        kind: "findings",
+        findings: [{ commentId: "graded-reply", severity: "major" }],
+      });
+      reply.body = "**✅ Resolved.** The `_🟠 Major_` concern is fixed.";
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+        kind: "terminal-failure", reason: expect.stringContaining("without a readable result") });
+    },
+  );
+
+  const REPLY_MARKER = "\n\n<!-- This is an auto-generated reply by CodeRabbit -->";
+  const priorThreadReplies = {
+    "checkmark footer": "Thanks for the correction.\n\n✅ Review thread resolved.\n\n"
+      + "_You are interacting with an AI system._" + REPLY_MARKER,
+    "italic notice only": "The correction is verified.\n\n_You are interacting with an AI system._" + REPLY_MARKER,
+    "withdrawal with an HTML notice": "<!-- coderabbit-ai-generated:v1 -->\n\n`@owner` Thanks for the correction. I withdraw"
+      + " the finding. The local runner snapshots the worktree at submission, so edits in the next phase cannot affect"
+      + " that run.\n\n<!-- <review_comment_withdrawn> -->\n\nReview thread resolved.\n\n"
+      + "<sub><i>You are interacting with an AI system.</i></sub>\n\n<!-- This is an auto-generated reply by CodeRabbit -->",
+    "no footer": "<!-- coderabbit-ai-generated:v1 -->\n\nUnderstood; the snapshot settles it." + REPLY_MARKER,
+    "first line quoting a badge": "The previous `_🟠 Major_` concern is resolved." + REPLY_MARKER,
+    "resolved marker before a quoted grade": "**✅ Resolved.** The `_🟠 Major_` concern is fixed." + REPLY_MARKER,
+    "analysis output quoting a badge": "<!-- coderabbit-ai-generated:v1 -->\n\n<details>\n<summary>Analysis chain</summary>"
+      + "\n\n```\n__tests__/coderabbit.test.ts:12:  \"_🟠 Major_ prior concern\",\n```\n\n</details>\n\n"
+      + "The fix holds." + REPLY_MARKER,
+  };
+
+  it.each(Object.entries(priorThreadReplies))(
+    "reads an ungraded reply to an older thread as conversation whatever its wording: %s",
+    async (_form, body) => {
+      const oldRoot = olderThreadRoot();
+      const reply = { ...oldRoot, id: "reply", reviewId: "PRR_REPLY", replyToReviewId: "PRR_PRIOR", headSha: HEAD, body };
+      const priorThread: HostedGitHubThread = { id: "PRRT_PRIOR", isResolved: true, comments: [oldRoot, reply] };
+      const reviews: HostedGitHubReview[] = [review({ id: "PRR_REPLY", state: "commented", body: "" })];
+      const threads: HostedGitHubThread[] = [priorThread];
+      const adapter = new CodeRabbitHostedAdapter(port({
+        readReviews: () => Promise.resolve(reviews),
+        readThreads: () => Promise.resolve(threads),
+        readIssueComments: () => Promise.resolve([requestComment()]),
+      }));
+
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+
+      const fresh = review({
+        id: "PRR_FRESH",
+        state: "changes-requested",
+        body: "**Actionable comments posted: 1**",
+        submittedAt: "2026-07-23T12:04:00.000Z",
+      });
+      reviews.push(fresh);
+      priorThread.comments.push({ ...reply, id: "reply-in-fresh", reviewId: fresh.id });
+      const freshThread = findingThread("_🟠 Major_ new concern");
+      threads.push({
+        ...freshThread,
+        id: "PRRT_FRESH",
+        comments: [{ ...freshThread.comments[0]!, id: "fresh-finding", reviewId: fresh.id, replyToReviewId: null }],
+      });
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+        kind: "findings",
+        findings: [{ findingId: "PRRT_FRESH:fresh-finding", severity: "major" }],
+      });
+    },
+  );
 
   it("keeps a new finding when its review also carries a prior-thread confirmation", async () => {
     const oldRoot = {
