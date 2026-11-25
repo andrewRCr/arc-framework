@@ -8,7 +8,8 @@
 **Purpose:** Cut this repository over to the ref store and finish the program: rehearse, quiesce, import, flip, and
 retire Git notes in one window, then delete what the flip made dead and rewrite the documentation to the new model. One
 draft designed the cutover whole; the members deliver it in seven work units: the window's pre-flip machinery first,
-then the flip, four follow-ons in parallel after it, and the internal collapse after tracked-state removal.
+then the flip, four follow-ons built in parallel after it (notes removal lands after tracked-state removal), and the
+internal collapse after tracked-state removal.
 
 ---
 
@@ -21,16 +22,19 @@ cutover-window-tooling                 the quiesce check, its record, the abort'
     │                                  retirement
     ├── cutover-tracked-state-removal  what reads as live after the flip: refusing and inert verbs, the lifecycle
     │   │                              hook checks, the CI planning classifier, and the merge-gate recipe
-    │   └── cutover-in-repo-removal    the in-repo store, dormant capability and seam arms, branch-tree readers,
-    │                                  lifecycle classification, and the write-context guard
-    ├── cutover-notes-removal          notes-specific sync and its configuration keys
+    │   ├── cutover-in-repo-removal    the in-repo store, dormant capability and seam arms, branch-tree readers,
+    │   │                              lifecycle classification, and the write-context guard
+    │   └── cutover-notes-removal      notes-specific sync and its configuration keys
     ├── cutover-decompose-removal      the old decomposition machine
     └── cutover-documentation          the strategy rewrites and the ADR supersessions and amendments
 ```
 
 Each member's `Depends On` edges are the source of truth: `cutover-window-tooling` depends on no member outstanding,
-`cutover-flip` on `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`, `projection-team-scale`, and
-`cutover-window-tooling`, and each follow-on on `cutover-flip`. These orderings are not edges:
+`cutover-flip` on `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`, and `cutover-window-tooling`,
+and each follow-on on `cutover-flip`. `cutover-notes-removal` also depends on `cutover-tracked-state-removal` (its
+create-spec, 2026-11-17): that unit's import and window suites seed notes through the notes save/load core, so landing
+first would keep the core. The edge orders only the landing, the two still build alongside, and the Owner may drop it
+at the flip's landing if the tracked-state removal's forecast lags. These orderings are not edges:
 
 - **Gate B placement** (Owner, 2026-11-03; the window tooling and the internal collapse, 2026-11-10):
     - `cutover-window-tooling`, `cutover-flip`, `cutover-tracked-state-removal`, `cutover-notes-removal`, and
@@ -44,14 +48,16 @@ Each member's `Depends On` edges are the source of truth: `cutover-window-toolin
 - **Tracked-state removal builds first only while store-read moves remain.** Most start, teardown, delivery, and
   pre-publication consumers already select store reads behind the capability. Base drift's completed-meta resolver
   and delivery's rename source are offered to the flip. If it takes both, tracked-state removal need only land before
-  `cutover-in-repo-removal`; no general first-among-follow-ons order remains.
-- **What the old decomposition machine still imports.** `cutover-in-repo-removal` leaves in place every module the
-  old machine imports: the transition-record cluster (`git-transition-record-enumeration.ts`,
-  `terminal-transition-record-writer.ts`, `transition-record-store.ts`), `transition-overlay.ts`, `artifactMatcher`
-  and `pruneEmptyBacklogSource` (`mutators/relocate-artifacts.ts`), `resolveProjectReadinessViewInput`
-  (`lib/status/project-view.ts`), and the `ProtectionMode` type (`lib/git/write-context.ts`). Their surviving callers
-  move onto store reads at the flip or in tracked-state removal if still needed. `cutover-decompose-removal` deletes
-  each with its last caller, so it and `cutover-in-repo-removal` can land in either order.
+  `cutover-in-repo-removal` and `cutover-notes-removal`; no general first-among-follow-ons build order remains.
+- **What the old decomposition machine still imports.** `cutover-in-repo-removal` leaves in place every module the old
+  machine reaches, directly or through what it calls: the transition-record cluster
+  (`git-transition-record-enumeration.ts`, `terminal-transition-record-writer.ts`, `transition-record-store.ts`),
+  `transition-overlay.ts`, `artifactMatcher` and `pruneEmptyBacklogSource` (`mutators/relocate-artifacts.ts`),
+  `resolveProjectReadinessViewInput` (`lib/status/project-view.ts`), `deriveInFlight`
+  (`lib/git/in-flight-derivation.ts`) and the readers it reaches, `remote-ref-reader.ts`'s meta-at-ref readers among
+  them, and the `ProtectionMode` type (`lib/git/write-context.ts`). Their surviving callers move onto store reads at the
+  flip or in tracked-state removal if still needed. `cutover-decompose-removal` deletes each with its last caller, so it
+  and `cutover-in-repo-removal` can land in either order.
 - **The sealing guard's notes callers** (`refuseWriteIfStoreImported`, `lib/store/store-imported.ts`). The notes
   commands stay registered after the flip until `cutover-notes-removal` deletes them, and the guard is what refuses
   their writes and publication once the store is imported. `cutover-in-repo-removal` removes the guard's in-repo arm
@@ -131,8 +137,8 @@ removal** names `cutover-decompose-removal`, **documentation** names `cutover-do
 | Lifecycle hook checks                                                        | Use record-family parsers for retained content rules; stop treating lifecycle hooks as assurance.                                                                                                    | Tracked-state removal deletes hooks/checks, preserving the task-numbering content rule and `lint:md:descriptors` in their surviving homes.                                                                      |
 | In-flight derivation and work-unit/Errand oracle slots                       | Read store state and give each rebuilt slot its full schema.                                                                                                                                         | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
 | Lifecycle executor, start placement, provisional-placement callers           | Write lifecycle transitions through the store.                                                                                                                                                       | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
-| Notes-related session-init and user-reference reconciliation slots           | Read user state from the store; remove obsolete probes and fully type rebuilt slots.                                                                                                                 | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
-| Current-work-unit reconciliation and stale-worktree sweep slots              | Read store lifecycle/lineage; fully type rebuilt slots; remove `retiredSubdirs` if user sync leaves no lingering subdirectories, else rewrite it over the store.                                     | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
+| Notes-related session-init and user-reference reconciliation slots           | Read user state from the store; remove obsolete probes and fully type rebuilt slots.                                                                                                                 | Notes removal deletes the envelope's empty notes slots (`partialPushMarker`, `retiredSubdirs`, `compactionAdvisory`, `recommendedCombinedPrompt`) and the `user` slot's notes variant (Owner, 2026-11-17).      |
+| Current-work-unit reconciliation and stale-worktree sweep slots              | Read store lifecycle/lineage; fully type rebuilt slots; leave `retiredSubdirs` empty on the store path.                                                                                              | Notes removal deletes `retiredSubdirs`, `inferRetiredSubdirs`, `retired-subdir-detection.ts`, and both reconciles: the slot reads `session.init_load.notes` and names `arc user load` (Owner, 2026-11-17).      |
 | Locus derivation from marker and branch topology                             | Derive the frame from marker plus store and provide the full schema.                                                                                                                                 | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
 | Singleton record writes staling publication                                  | Move the records off branch so their own writes no longer advance the code head.                                                                                                                     | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
 | Public code remote publishing user notes and manual interim                  | Retire notes and its manual-push interim; preserve the accepted default-backend personal-state publication decision.                                                                                 | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
@@ -192,8 +198,6 @@ none closes merely by recording this allocation. Rows with a later share, ROADMA
 - Notes classification of every personal subdirectory as a workspace.
 - In-flight derivation and work-unit/Errand oracle slots.
 - Lifecycle executor, start placement, provisional-placement callers.
-- Notes-related session-init and user-reference reconciliation slots.
-- Current-work-unit reconciliation and stale-worktree sweep slots.
 - Locus derivation from marker and branch topology.
 - Singleton record writes staling publication.
 - Public code remote publishing user notes and manual interim.
@@ -219,10 +223,13 @@ Every member has shipped, and every row of `cohort-state-storage.md`'s storage-c
 ### `cutover-window-tooling`
 
 _Exposes:_ on `main` ahead of the window, inert until run: the quiesce check, its record and hold under
-`refs/arc-window/`, its recompute after the import and its last read of `origin/main`'s tip; the abort's restore; the
-worktree lock step; and Stage 1, with its copy driver, accounting case, and chain comparison, run clean.
+`refs/arc-window/`, its recompute after the import and its last read before the merge; the comparisons after the merge
+and the window's close; the abort's restore; the worktree lock step; the seal on `arc user load`; and Stage 1, with its
+copy driver, accounting case, and chain comparison, run clean.
 
-_Consumes:_ nothing outstanding; it reads only landed machinery.
+_Consumes:_ nothing outstanding to build on; it reads only landed machinery, and relies on `projection-worktrees`'
+contract that the checkouts given a projection after the flip are exactly the primary and the marked checkouts,
+re-checked when that unit lands.
 
 ### `cutover-flip`
 
@@ -230,7 +237,8 @@ _Exposes:_ the flipped repository: Stage 2, the quiesce run through `cutover-win
 flip change, every workflow rewritten onto the store, Git notes retired, and two amendments to ADR-035, items 2 and 8.
 
 _Consumes:_ every other `state-storage` member, landed, the last of them `cohort-identity-verbs`,
-`projection-worktrees`, `projection-write-back`, and `projection-team-scale`; and `cutover-window-tooling`.
+`projection-worktrees`, and `projection-write-back`; and `cutover-window-tooling`. `projection-team-scale` may land
+before the flip or after it (Owner, 2026-11-13; `spec-cutover-flip.md` § 1.3).
 
 ### `cutover-tracked-state-removal`
 
@@ -255,7 +263,7 @@ _Consumes:_ `cutover-flip` and `cutover-tracked-state-removal`.
 _Exposes:_ notes-specific sync removed, its survivors kept; the sync-state ref, the suites that target notes, the notes
 configuration keys, and the notes residue refs gone.
 
-_Consumes:_ `cutover-flip`.
+_Consumes:_ `cutover-flip` and `cutover-tracked-state-removal`.
 
 ### `cutover-decompose-removal`
 

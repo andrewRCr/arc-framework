@@ -3,7 +3,7 @@ import { afterEach, expect, it } from "vitest";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findUninstalledLockedPackages, installGapReason } from "../../../../src/lib/checks/install-gap.js";
+import { findInstalledVersionMismatches, findUninstalledLockedPackages, installGapReason } from "../../../../src/lib/checks/install-gap.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
@@ -19,6 +19,54 @@ async function project(packages: Record<string, object>, installed: readonly str
 const esmMissing = (name: string, importer: string): string =>
   `Error [ERR_MODULE_NOT_FOUND]: Cannot find package '${name}' imported from ${importer}`;
 const cjsMissing = (specifier: string): string => `Error: Cannot find module '${specifier}'\n  code: 'MODULE_NOT_FOUND'`;
+
+async function installedRecord(root: string, packages: Record<string, unknown>): Promise<void> {
+  await mkdir(join(root, "node_modules"), { recursive: true });
+  await writeFile(join(root, "node_modules/.package-lock.json"), JSON.stringify({ lockfileVersion: 3, packages }));
+}
+
+it("names each differing installed version by its exact install path, then clears after repair", async () => {
+  const root = await project({ "node_modules/zod": { version: "4.6.6" },
+    "node_modules/a/node_modules/@scope/tool": { version: "2.0.0" } });
+  await installedRecord(root, { "node_modules/zod": { version: "4.4.3" },
+    "node_modules/a/node_modules/@scope/tool": { version: "3.0.0" } });
+  await expect(findInstalledVersionMismatches([join(root, "packages/app"), root])).resolves.toEqual([
+    "node_modules/a/node_modules/@scope/tool (installed 3.0.0, locked 2.0.0)",
+    "node_modules/zod (installed 4.4.3, locked 4.6.6)",
+  ]);
+  await installedRecord(root, { "node_modules/zod": { version: "4.6.6" },
+    "node_modules/a/node_modules/@scope/tool": { version: "2.0.0" } });
+  await expect(findInstalledVersionMismatches([root])).resolves.toEqual([]);
+});
+
+it("does not infer version drift from omitted packages, workspace records, links or unversioned entries", async () => {
+  const root = await project({ "node_modules/optional": { version: "1.0.0", optional: true },
+    "packages/app": { version: "1.0.0" }, "node_modules/app": { resolved: "packages/app", link: true },
+    "node_modules/unknown": {}, "node_modules/same": { version: "1.0.0", integrity: "new" } });
+  await installedRecord(root, { "": { version: "2.0.0" }, "packages/app": { version: "2.0.0" },
+    "node_modules/app": { resolved: "packages/app", link: true }, "node_modules/unknown": { version: "2.0.0" },
+    "node_modules/same": { version: "1.0.0", integrity: "old" }, "node_modules/removed": { version: "2.0.0" } });
+  await expect(findInstalledVersionMismatches([root])).resolves.toEqual([]);
+});
+
+it.each([undefined, "{", "[]", '{"packages":null}'])(
+  "leaves the diagnosis empty when the installed record is unavailable: %s", async record => {
+  const root = await project({ "node_modules/zod": { version: "4.6.6" } });
+  await mkdir(join(root, "node_modules"));
+  if (record !== undefined) await writeFile(join(root, "node_modules/.package-lock.json"), record);
+  await expect(findInstalledVersionMismatches([root])).resolves.toEqual([]);
+});
+
+it("uses only the installed record beside the first readable project lockfile", async () => {
+  const root = await project({ "node_modules/zod": { version: "4.6.6" } });
+  await installedRecord(root, { "node_modules/zod": { version: "4.4.3" } });
+  const child = join(root, "packages/app");
+  await mkdir(child, { recursive: true });
+  await writeFile(join(child, "package-lock.json"), JSON.stringify({ lockfileVersion: 3, packages: { "": {} } }));
+  await expect(findInstalledVersionMismatches([child, root])).resolves.toEqual([]);
+  await rm(join(root, "package-lock.json"));
+  await expect(findInstalledVersionMismatches([root])).resolves.toEqual([]);
+});
 
 it("names a package the lockfile declares but node_modules lacks", async () => {
   const root = await project({ "node_modules/eslint-plugin-jsdoc": { dev: true } });

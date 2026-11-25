@@ -1,8 +1,8 @@
 /** Public repository entry point for explicit-path worktree markdownlint. */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { spawn } from "node:child_process";
 import { lstat, readFile, realpath } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { formatUnexpectedError } from "../lib/errors.js";
@@ -41,4 +41,4 @@ export async function main(cwd: string = process.cwd(), paths?: readonly string[
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main();
+if (await isMainModule(import.meta, process.argv[1])) process.exitCode = await main();

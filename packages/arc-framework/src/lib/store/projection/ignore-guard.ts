@@ -127,7 +127,7 @@ export async function guardProjectionIgnores(input: ProjectionIgnoreGuardInput):
     }
     if (await readPersonalNpmIgnore(input.root) !== "accepted") {
       return { ...refuseEveryRoot(input.identity, `The personal npm policy ${PERSONAL_NPM_IGNORE} is absent or invalid`),
-        remedy: `Replace ${PERSONAL_NPM_IGNORE} with a regular file containing only blank/comment lines and at least one literal * line, then retry the command.` };
+        remedy: `Replace ${PERSONAL_NPM_IGNORE} with a regular file containing only blank/comment lines and at least one literal * line, then commit the installer’s policy so every worktree holds it and retry the command.` };
     }
     return { kind: "passed", ignoreFiles: await ignoreFiles(input, [...matches, ...worktree]) };
   } catch (error) {

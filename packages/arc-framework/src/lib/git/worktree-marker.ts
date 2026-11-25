@@ -353,7 +353,9 @@ function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
 
 /** Decode authorization-bearing fields without granting authority to partial or future shapes. */
 export function decodeWorktreeHuskStamp(stamp: WorktreeHuskStamp, options: { stateOffBranch?: boolean } = {}): DecodedWorktreeHuskStamp {
-  if (options.stateOffBranch && stamp.subject.kind === "work-unit") return { kind: "manual-only", reason: "pre-store-husk" };
+  if (options.stateOffBranch && stamp.subject.kind === "work-unit" && stamp.subject.uid === undefined) {
+    return { kind: "manual-only", reason: "pre-store-husk" };
+  }
   if (!isHuskAuthorization(stamp.authorization)) {
     return { kind: "manual-only", reason: "unknown-authorization" };
   }
@@ -444,7 +446,7 @@ function isWorktreeSubject(value: unknown): value is WorktreeSubject {
 }
 
 function isWorktreeHuskSubject(value: unknown): value is WorktreeSubject {
-  return isWorktreeSubject(value) && !("uid" in value);
+  return isWorktreeSubject(value) && (value.kind === "work-unit" || !Object.hasOwn(value, "uid"));
 }
 
 function isWorktreeMarkerSubject(value: unknown): value is WorktreeMarkerSubject {

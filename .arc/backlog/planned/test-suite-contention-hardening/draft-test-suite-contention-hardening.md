@@ -113,7 +113,7 @@
   of that (`store-ref-conformance` 388 s, `store-ref-separate-conformance` 307 s, 1,128 cases each); the other 159
   `store-ref-*` files average about 12 s each, mostly spent on real repositories and remotes. Base merges added some
   growth, so not every second is the backend's. Per-file ranking: `integration-file-times-50a2f12f1.txt` under
-  `storage-ref-backend-tools/verification/` in the work unit checkout's `.internal/` directory.
+  `storage-ref-backend`'s review and measurement evidence (kept outside the repository), `verification/`.
 
 - _Owner concern (2026-10-21):_ whether all of this is worth running at every gate. Upcoming `state-storage` members
   change `lib/store/` and `lib/git/`, so change-based selection alone would not spare them; making the suites cheaper
@@ -147,8 +147,8 @@
   the store check's own selection, the last 80 merges to `main` (2026-10-15 to 2026-10-22) split 41 selecting no suite,
   38 nearly all, and 1 some; 10 of those that selected changed only packaged ARC content. Declare the finds per consumer
   rather than per locating module, or trace what each suite reads at run time, keeping any suite that drives those
-  handlers on the content it reads. Replay: `replay-80.txt` under `storage-ref-backend-tools/verification/measure/` in
-  the work unit checkout's `.internal/` directory.
+  handlers on the content it reads. Replay: `replay-80.txt` under `storage-ref-backend`'s review and measurement
+  evidence (kept outside the repository), `verification/measure/`.
 
 - _Store coupling, after `storage-cutover`'s deletion pass:_ the shared core enters through the meta kind's registration
   into `lib/store/create.ts` and the in-repo backend, through the in-repo sync's import of `commands/user/save-load.ts`
@@ -225,8 +225,7 @@
   verification.
 
 - _Evidence:_ `fix-round-1/*-commit.log` and `fix-round-1/final-merge-gate.json` under
-  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
-  (checkout-local).
+  `storage-ref-backend`'s review and measurement evidence (kept outside the repository), `verification/prepublication/`.
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
 
@@ -244,8 +243,7 @@
   runner.
 
 - _Evidence:_ `fix-check-1/verification.md` § Windows discriminators, under
-  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
-  (checkout-local).
+  `storage-ref-backend`'s review and measurement evidence (kept outside the repository), `verification/prepublication/`.
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24 (Owner-approved).
 
@@ -580,6 +578,54 @@
   routed shards the tier gains first, which cut its wall time without narrowing it.
 
 - _Captured during:_ primary.ARC content-tier review after PR #1238, 2026-11-02.
+
+### `[ ]` **Reach the integration and E2E tests a change affects in increment feedback**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ the buffered "Make the suites cheaper to run at every gate, and select them by what a change reaches".
+
+- _Observation:_ increment feedback (`test:changed`) selects unit tests only, so a change whose effect shows only in an
+  integration test goes unseen until someone runs that tier. On `cutover-flip`, a first-phase commit added a setup
+  step to `.github/workflows/ci.yml` (`07dc8ef778`, 2026-11-13). `integration/classify-change.test.ts`, which parses
+  that workflow's setup steps, then failed 10 cases for the next 27 commits, until a full integration-tier run two
+  phases later. A new integration test from the first phase also failed on one runner only, because its output
+  carried color codes, and went unseen the same way. `DEV-RULES.PROJECT` § Increment feedback asks for broader
+  feedback as the affected surface grows, but nothing at a phase or segment boundary prompts it.
+
+- _Observation:_ local E2E selection has the same gap. `test:e2e:local --changed` selects only E2E test files whose
+  own inputs changed (`.arc/system/arc-checks.yml`: the E2E tree, its runner, the declaration), so a change to shipped
+  Markdown never selects an E2E test that installs and reads it. On `cutover-flip`, Task 5.7 rewrote
+  `decompose-work-unit.md` (`2429820e51`); `e2e/init.e2e.test.ts`, which reads the installed copy's stops, failed
+  from then until a hand run two tasks later (fixed in `8f35ae9e14`), with every local check green in between.
+
+- _Approach:_ either select integration and E2E tests by the files they read (the CI workflow, ARC Markdown and the
+  installed `arc/` tree, fixtures), or have the task loop request the integration tier and the E2E files that read
+  installed text at a phase or segment boundary.
+
+- _Captured during:_ cutover-flip execution, Tasks 3.1 to 4.4, 2026-11-14 (approved capture); widened at Task 5.10,
+  2026-11-14 (approved capture).
+
+### `[ ]` **Make a check stage's time-budget breach reach a session that acts on it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ the buffered "Keep an over-budget test-cost run from clearing by re-baselining" and "Budget a sharded CI job
+  as a whole, not each shard index".
+
+- _Observation:_ `packages/arc-framework/test-cost-budgets.json` budgets each CI test tier (a baseline plus a 35%
+  allowance), and `ci-budget.ts` reports a breach only as a `::warning` in the run summary, which no session reads.
+  Nothing budgets the Windows/macOS pair or the local gates. In `projection-worktrees`' checkout from 2026-11-12 to
+  11-16, Windows shard 2 ran 32–42 minutes against 11–24 for the others (43611475356, 43879215265), and a local
+  `test:integration` run took a median 16 minutes; both surfaced only in a manual review. The Owner endorsed a fixed
+  budget per stage, where a breach sends an agent to bring the stage back under it (2026-11-16).
+
+- _Approach:_ give each stage a budget (commit, push and merge gates, a pull request's run, each pair shard), read
+  against durations already recorded (CI's duration artifacts, arc-offload's run records), and surface a breach where
+  a session acts on it, such as session-init's status or the inbox drain, as a ready Errand with its run IDs. The
+  budget values are the Owner's. Neighbor: this unit's capture on budgeting a sharded job by its slowest shard.
+
+- _Captured during:_ `project-manager.ARC`, from a quote on validation tiers the Owner shared, 2026-11-16.
 
 ---
 

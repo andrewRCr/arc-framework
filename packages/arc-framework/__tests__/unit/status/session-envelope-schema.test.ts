@@ -1049,6 +1049,23 @@ describe("session-init envelope schema", () => {
     expectValid(value);
   });
 
+  it("refuses undeclared supersession fields and accepts the repaired snapshot", () => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "Reset safely.",
+      identity: { kind: "linked", path: "/redacted/worktree" },
+      supersession: {
+        superseded: true, supersededCommits: ["a".repeat(40)], novelCommits: [], remoteEvidence: "exact",
+      },
+    });
+    expectValid(value);
+    const repaired = clone(value);
+    setPath(value, ["worktree", "value", "supersession", "extraEvidence"], true);
+    expectContractFailure(value, "worktree.value.supersession");
+    expectValid(repaired);
+  });
+
   it("rejects undeclared worktree and identity fields at their session-init slot", () => {
     const worktree = fixture("orient");
     setPath(worktree, ["worktree", "value", "unexpected"], true);

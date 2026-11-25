@@ -13,9 +13,12 @@ import { configureEngineCheckout } from "../helpers/store/projection/engine-fixt
 import { createKindRegistry, RecordReferenceSchema, OwnerIdentitySchema, recordReferences } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { startProjection } from "../../src/lib/store/projection/engine.js";
+import { endProjection, startProjection } from "../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 import { readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
+import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
+import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
+import { retirementRefusal } from "../../src/lib/store/projection/removal-verdict.js";
 
 afterEach(() => { beginProjectionCommand(); });
 it.each([
@@ -38,7 +41,7 @@ it.each([
   expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, key);
   expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { reference, content } });
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   expect(disk.kind).toBe("index");
   if (disk.kind !== "index") throw new Error("Missing projection index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
@@ -63,7 +66,7 @@ it("preserves a file with competing stored and prospective containers, then adop
   await writeFile(join(f.root, metaPath), metadata);
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
-  const refused = await readProjectionIndex(projected.location, true);
+  const refused = await readProjectionIndex(projected.location, true, { groups: "all" });
   expect(refused.kind).toBe("index");
   if (refused.kind !== "index") throw new Error("Missing projection index");
   expect(refused.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
@@ -77,7 +80,7 @@ it("preserves a file with competing stored and prospective containers, then adop
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "beta/note.txt");
   expect(success(await f.store.read({ reference })).content).toBe(content);
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("Missing repaired index");
   expect(repaired.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
   expect(repaired.index.entries[metaPath]).toBeUndefined();
@@ -92,13 +95,18 @@ it("keeps a file ownerless until a stored cohort member establishes its containe
   await mkdir(dirname(join(f.root, path)), { recursive: true });
   await writeFile(join(f.root, path), content);
   const before = success(await f.store.version());
+  const checked = await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") });
+  expect(checked).toMatchObject({ kind: "would-refuse" });
   await startProjection({ store: f.store, checkout: f.root });
-  const refused = await readProjectionIndex(projected.location, true);
+  const refused = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (refused.kind !== "index") throw new Error("Missing ownerless index");
   expect(refused.index.entries[path]).toMatchObject({ kind: "ownerless", refused: { remedy: {
     text: expect.stringContaining("--cohort alpha"),
   } } });
   expect(refused.index.entries[path]?.refused?.remedy.text).toContain("--commitment planned");
+  const mark = refused.index.entries[path]?.refused;
+  if (mark === undefined || mark === null) throw new Error("No adoption mark recorded");
+  expect(checked).toEqual({ kind: "would-refuse", remedy: retirementRefusal(f.root, path, mark, "remove") });
   expect(await readFile(join(f.root, path), "utf8")).toBe(content);
   expect(success(await f.store.version())).toBe(before);
   await seed(f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "alpha" })),
@@ -106,10 +114,11 @@ it("keeps a file ownerless until a stored cohort member establishes its containe
   const primary = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "beta" } }),
     makeMetaFixture("beta", { state: "Planning", owner: "andrew", workClass: "Light", priority: "P1", cohort: "alpha", currentWorkflow: "draft-design" }),
     { kind: "backlog", commitment: "planned" });
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "note.txt");
   expect(success(await f.store.read({ reference })).content).toBe(content);
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("Missing repaired index");
   expect(repaired.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });
@@ -133,7 +142,7 @@ it("keeps an indexed file's exact reference despite competing surrounding contai
   await writeFile(join(f.root, path), content);
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.read({ reference: companion.reference })).content).toBe(content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing indexed continuation");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference: companion.reference, pending: false, refused: null });
   expect(await f.store.lookup({ kind: "slug", slug: primary.reference.owner.name })).toMatchObject({
@@ -159,7 +168,7 @@ it("keeps physical folder spelling separate from renamed record authority and re
   await writeFile(join(f.root, alias), aliasContent);
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.read({ reference: recordReferences["work-item/companion"](beta.reference.owner, "extra-alpha.md") })).content).toBe(literalContent);
-  const refused = await readProjectionIndex(projected.location, true);
+  const refused = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (refused.kind !== "index") throw new Error("Missing alias refusal");
   expect(refused.index.entries[alias]).toMatchObject({ kind: "ownerless", refused: {
     reason: expect.stringContaining("decodes as work-item/companion"),
@@ -174,10 +183,14 @@ it("keeps physical folder spelling separate from renamed record authority and re
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/companion"](beta.reference.owner, "scratch/extra-beta.md");
   expect(success(await f.store.read({ reference })).content).toBe(aliasContent);
-  const repaired = await readProjectionIndex(projected.location, true);
+  await endProjection({ store: f.store, checkout: f.root });
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("Missing renamed-owner continuation");
   expect(repaired.index.entries[alias]).toBeUndefined();
-  expect(repaired.index.entries[repairedPath]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
+  expect(repaired.index.entries[repairedPath]).toBeUndefined();
+  expect(repaired.index.entries[".arc/backlog/planned/beta/scratch/extra-beta.md"]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
+  await expect(readFile(join(f.root, repairedPath))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(parseStampedFile(await readFile(join(f.root, ".arc/backlog/planned/beta/scratch/extra-beta.md"), "utf8")).content).toBe(aliasContent);
 });
 
 it("preserves a namespace lookup refusal and adopts the same file after forward metadata repair", async () => {
@@ -201,7 +214,7 @@ it("preserves a namespace lookup refusal and adopts the same file after forward 
   if (denied.status !== "refused") throw new Error("Expected real lookup damage");
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
-  const refused = await readProjectionIndex(projected.location, true);
+  const refused = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (refused.kind !== "index") throw new Error("Missing refused index");
   expect(refused.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
     reason: denied.refusal.condition, remedy: denied.refusal.remedy,
@@ -212,7 +225,7 @@ it("preserves a namespace lookup refusal and adopts the same file after forward 
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "note.txt");
   expect(success(await f.store.read({ reference })).content).toBe(content);
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("Missing repaired index");
   expect(repaired.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });

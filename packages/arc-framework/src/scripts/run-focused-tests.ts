@@ -8,7 +8,12 @@ try {
   const checkoutRoot = resolve(import.meta.dirname, "../../../..");
   const input = parseFocusedTestInput(checkoutRoot, process.argv.slice(2));
   process.chdir(input.packageRoot);
-  const selection = await discoverFocusedVitestSelection(input);
+  // Vitest's automatic agent reporter hides console output from passing tests.
+  const reporters = process.env.GITHUB_ACTIONS === "true" ? ["default", "github-actions"] : ["default"];
+  const selection = await discoverFocusedVitestSelection({
+    ...input,
+    options: { reporters, ...input.options },
+  });
   await executeVitestSelection(selection, { cwd: input.packageRoot, packageRoot: input.packageRoot,
     env: process.env, tier: "focused" });
 } catch (error) { console.error(error); process.exitCode ||= 1; }

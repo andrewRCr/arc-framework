@@ -11,6 +11,7 @@ import {
   type ErrandTerminalSubject,
 } from "./terminal-authority.js";
 import {
+  checkPrimaryProjectionRelease,
   createTerminalOccupancyIO,
   settleTerminalOccupancy,
 } from "./terminal-occupancy.js";
@@ -84,6 +85,19 @@ function inertDependencies(): Parameters<typeof leaveOrdinaryErrand>[0]["depende
   return { readIdentity: unavailable, authorize: unavailable, persist: unavailable, cleanup: unavailable };
 }
 
+/**
+ * The retirement leave performs once the record is paused must be feasible first: a spawned checkout's removal, or the
+ * primary's projection release, the primary keeping its folder.
+ */
+async function checkLeaveRetirement(options: LeaveOrdinaryErrandRuntimeOptions, checkoutPath: string,
+  primary: boolean): Promise<string | null> {
+  if (primary) return checkPrimaryProjectionRelease(options.exec, checkoutPath, options.projectionRemovalSlots);
+  const check = await checkWorktreeRemoval({ exec: options.exec, checkoutPath, disposition: "remove",
+    check: options.projectionRemovalSlots?.check });
+  if (check.kind === "removable") return null;
+  return check.kind === "refused" ? describeRemovalRefusal(check) : "Errand checkout folder is missing; restore it before leaving.";
+}
+
 async function authorizePreservation(
   options: LeaveOrdinaryErrandRuntimeOptions,
   record: OrdinaryErrandRecord,
@@ -94,12 +108,8 @@ async function authorizePreservation(
   if (authority.row === null || authority.checkoutPath === null) {
     return { kind: "refused", reason: "checkout-missing", message: "Open Errand checkout is absent." };
   }
-  if (!authority.row.checkout.primary) {
-    const check = await checkWorktreeRemoval({ exec: options.exec, checkoutPath: authority.checkoutPath,
-      disposition: "remove", check: options.projectionRemovalSlots?.check });
-    if (check.kind !== "removable") return { kind: "refused", reason: "preservation-unproven",
-      message: check.kind === "refused" ? describeRemovalRefusal(check) : "Errand checkout folder is missing; restore it before leaving." };
-  }
+  const retirement = await checkLeaveRetirement(options, authority.checkoutPath, authority.row.checkout.primary);
+  if (retirement !== null) return { kind: "refused", reason: "preservation-unproven", message: retirement };
   const inspected = await occupancyIO.inspect(authority.checkoutPath, { inspectStatus: authority.row.checkout.primary });
   if (inspected.dirty || inspected.branch !== record.branch || inspected.head !== authority.row.checkout.head) {
     return {

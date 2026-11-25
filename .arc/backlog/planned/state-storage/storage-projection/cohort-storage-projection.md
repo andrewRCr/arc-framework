@@ -80,15 +80,16 @@ change set reviewed in the four chunks below, each in one pass, with a review of
 
 ### Why a fourth
 
-A Windows scale assessment on 2026-11-07 (`~/dev/arc-evidence/projection-worktrees/SCALE-SUMMARY.md`) led the Owner to
-approve five scale changes to `projection-worktrees`, which with all five would have landed about 2026-11-26 to 12-01.
-The Owner split them the same day. `projection-worktrees` keeps the index split by root and the archive by quarter,
-with plain JSON on the hot path, and shared protection reads, landing about 11-23 to 11-27; a third change it kept,
-later catch-up after a pull, was reverted that day, since holding a pull's merges does not avoid their cost.
-`projection-team-scale` takes the backlog and archive view narrowed by size, the read-only archive amended through a
-command, and the growth-relative scale criterion; it is planned during `projection-worktrees`' build and built right
-after it lands. The held design text for the view and the archive moves to it as written, and `cutover-flip`'s
-specification writes its errata convention for the archive's unlock command from the start.
+A Windows scale assessment on 2026-11-07 found that whole-index reads and writes, including archive entries, dominated
+command and fan-out costs. It led the Owner to approve five scale changes to `projection-worktrees`, which with all five
+would have landed about 2026-11-26 to 12-01. The Owner split them the same day. `projection-worktrees` keeps the index
+split by root and the archive by quarter, with plain JSON on the hot path, and shared protection reads, landing about
+11-23 to 11-27; a third change it kept, later catch-up after a pull, was reverted that day, since holding a pull's
+merges does not avoid their cost. `projection-team-scale` takes the backlog and archive view narrowed by size, the
+read-only archive amended through a command, and the growth-relative scale criterion; it is planned during
+`projection-worktrees`' build and built right after it lands. The held design text for the view and the archive moves to
+it as written, and `cutover-flip`'s specification writes its errata convention for the archive's unlock command from the
+start.
 
 ### Why a fifth
 
@@ -100,7 +101,9 @@ size, where `auto` stays `all` below both thresholds. The Owner split them the s
 `projection-team-scale` keeps D and lands before the flip, and `projection-narrowed-views` takes C, the window, and the
 team-scale work, and follows the cutover window, the 1/10/50/150 target binding 1.0 rather than Gate B. The split
 follows the 2026-11-07 one, a minted stub carrying the moved design, rather than `arc decompose`'s extraction arm,
-which has not been rehearsed.
+which has not been rehearsed. The Owner then let `projection-team-scale` land before the flip or after it (2026-11-13),
+matching the landing orders of `spec-cutover-flip.md` § 1.3: landing after, it rewrites the archive's errata convention
+onto `arc edit` at its own landing.
 
 ### Review chunks
 

@@ -20,6 +20,7 @@
 import { execFile } from "node:child_process";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import type { GitExec } from "../../src/lib/git/exec.js";
@@ -457,10 +458,10 @@ export function advanceBaseStep(options: BaseAdvanceOptions): {
       process.execPath,
       "--import",
       "tsx",
-      new URL("base-advance-step.ts", import.meta.url).pathname,
+      fileURLToPath(new URL("base-advance-step.ts", import.meta.url)),
       JSON.stringify(options),
     ],
-    cwd: new URL("../../", import.meta.url).pathname,
+    cwd: fileURLToPath(new URL("../../", import.meta.url)),
   };
 }
 

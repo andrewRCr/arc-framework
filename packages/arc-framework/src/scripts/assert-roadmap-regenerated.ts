@@ -8,9 +8,9 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
 
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -148,6 +148,6 @@ async function main(): Promise<void> {
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   void main();
 }

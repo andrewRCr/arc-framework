@@ -1,12 +1,13 @@
 /** Explicit view status selects native active generations while ordinary command entry avoids inventory work. */
 import { afterEach, expect, it, vi } from "vitest";
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createAdoptionFixture } from "../helpers/store/projection/adoption-fixture.js";
 import { seed, success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
-import { startProjection } from "../../src/lib/store/projection/engine.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences } from "../../src/lib/store/identity.js";
+import { cohortDoc } from "../helpers/store/cohort-rule-input.js";
+import { endProjection, startProjection } from "../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 import { buildProjectionStatusSummary, readProjectionStatus } from "../../src/lib/store/projection/status.js";
 import { readProjectionViewStatus } from "../../src/lib/store/projection/view-status.js";
@@ -25,7 +26,9 @@ it("names a missing pin from the command's one configuration observation and acc
     { kind: "active" });
   await f.ports.exec("git", ["config", "arc.inflightView", "all"], { cwd: f.root });
   await f.ports.exec("git", ["config", "arc.inflightPin", "missing"], { cwd: f.root });
-  const noInventory = vi.spyOn(f.store, "list").mockImplementation(() => Promise.reject(new Error("Ordinary entry must not enumerate the view")));
+  expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
+  await endProjection({ store: f.store, checkout: f.root });
+  const noInventory = vi.spyOn(f.store, "list").mockImplementation(() => Promise.reject(new Error("Unchanged entry must not enumerate the view")));
   try { expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" }); }
   finally { noInventory.mockRestore(); }
   const view = () => readProjectionViewStatus({ store: f.store, checkout: f.root,
@@ -39,9 +42,9 @@ it("names a missing pin from the command's one configuration observation and acc
   expect(buildProjectionStatusSummary(status)).toContain('arc.inflightPin "missing"');
   expect(success(await f.store.version())).toBe(before);
   expect(await readFile(indexPath, "utf8")).toBe(bytes);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing native projection index");
-  expect(disk.index.projectedUnder.view).toEqual({ mode: "mine", pins: [] });
+  expect(disk.index.projectedUnder.view).toEqual({ mode: "all", pins: ["missing"] });
   await f.ports.exec("git", ["config", "--replace-all", "arc.inflightPin", other.reference.owner.name], { cwd: f.root });
   await startProjection({ store: f.store, checkout: f.root });
   expect(await readProjectionStatus({ store: f.store, checkout: f.root, location: projected.location, view }))
@@ -117,4 +120,33 @@ it("reports a malformed checkout claim instead of treating it as absent and sele
     ] } });
   } finally { await writeFile(path, original); }
   expect(await readStatus()).toMatchObject({ kind: "ready", view: { mode: "all", diagnostics: [] } });
+});
+
+it("lays the new cohort's members and removes the old ones when the own unit moves cohort under the cohort view", async () => {
+  const { f, primary } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  const command = { store: f.store, checkout: f.root };
+  const meta = (name: string, cohort: string, owner = "bob") => makeMetaFixture(name, { owner, state: "Active", workClass: "Light",
+    priority: "P1", currentWorkflow: "process-task-loop", cohort });
+  for (const name of ["group", "other"] as const) {
+    await seed(f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })), cohortDoc(name).content);
+  }
+  await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "beta" } }), meta("beta", "group"), { kind: "active" });
+  await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "gamma" } }), meta("gamma", "other"), { kind: "active" });
+  const move = async (cohort: string) => {
+    const current = success(await f.store.read({ reference: primary.reference }));
+    success(await f.store.write({ action: "put", reference: primary.reference, expected: current.version,
+      content: meta("alpha", cohort, "andrew"), placement: { kind: "active" }, provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  };
+  await move("group");
+  await f.ports.exec("git", ["config", "arc.inflightView", "cohort"], { cwd: f.root });
+  // Removal leaves an emptied folder behind, so a unit counts only while it still holds a file.
+  const inFlight = async () => [...new Set((await readdir(join(f.root, ".arc/active/in-flight"), { recursive: true }).catch(() => []))
+    .map(name => name.split(/[\\/]/u)).filter(parts => parts.length > 1).map(parts => parts[0]))].sort();
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  expect(await inFlight()).toEqual(["beta"]);
+  await move("other");
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  expect(await inFlight()).toEqual(["gamma"]);
 });

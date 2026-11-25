@@ -14,6 +14,6 @@ export async function resolveProjectInboxAdoption(root: ProjectionSelectionConte
     if (!(error instanceof ProjectIdentityError)) throw error;
     const failure = error.failure;
     return { kind: "refused", mark: failure.refusal === undefined ? { reason: failure.reason, remedy: failure.remedy }
-      : markStoreRefusal(failure.refusal, root.context.verb) };
+      : markStoreRefusal(failure.refusal, root.context.verb), ...(failure.readFailure === true ? { readFailure: true } : {}) };
   }
 }

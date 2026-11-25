@@ -1,5 +1,6 @@
 /** Atomic rename preparation over whole record groups and the shared reference sweep. */
 import { posix } from "node:path";
+import { toForwardSlash } from "../fs.js";
 import { SlugSchema } from "../kernel/index.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { ParsedMetaRecordSchema, MetaPauseSchema } from "../active/meta-schema.js";
@@ -257,8 +258,8 @@ function renameProjection(records: StoreRecord[], primary: StoreRecord, seeds: r
   }
   return { contents, context: {
     listFiles: () => Promise.resolve([...paths.keys()].map((path) => path.slice(".arc/".length))),
-    readFile: (path: string) => { const record = paths.get(path); if (record === undefined) throw new Error(`Unacquired rename path ${path}`); return Promise.resolve(contents.get(record) ?? record.content); },
-    writeFile: (path: string, content: string) => { const record = paths.get(path); if (record === undefined) throw new Error(`Unacquired rename path ${path}`); contents.set(record, content); return Promise.resolve(); },
+    readFile: (path: string) => { const record = paths.get(toForwardSlash(path)); if (record === undefined) throw new Error(`Unacquired rename path ${path}`); return Promise.resolve(contents.get(record) ?? record.content); },
+    writeFile: (path: string, content: string) => { const record = paths.get(toForwardSlash(path)); if (record === undefined) throw new Error(`Unacquired rename path ${path}`); contents.set(record, content); return Promise.resolve(); },
   } };
 }
 function sweepDirectory(owner: StoreRecord["reference"]["owner"]): string {

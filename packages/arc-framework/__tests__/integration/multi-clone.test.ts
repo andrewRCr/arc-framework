@@ -46,6 +46,8 @@ import {
 import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { runInit } from "../../src/commands/init.js";
 import { handleSync } from "../../src/handlers/sync.js";
+import { createStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
 import { runUserPull, runUserSessionInitStatus } from "../../src/commands/user.js";
 import { reconcileErrandPush, type ErrandRecordIO } from "../../src/lib/errand/index.js";
 import { errandsRef, readTreeEntries, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
@@ -127,7 +129,7 @@ describe("user-notes cross-clone sync regression", () => {
       process.chdir(harness.cloneA);
       try {
         await handleSync({ json: true, yes: true }, undefined,
-          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }), createStore(createDefaultStorePorts({ checkoutRoot: harness.cloneA })));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();
@@ -252,7 +254,7 @@ describe("user-notes paired-push cross-clone regression", () => {
         process.chdir(harness.cloneA);
         try {
           await handleSync({ json: true }, undefined,
-            makeInteractionContext({ noInput: true, machineReadable: true }));
+            makeInteractionContext({ noInput: true, machineReadable: true }), createStore(createDefaultStorePorts({ checkoutRoot: harness.cloneA })));
         } finally {
           const written = stdoutWrite.mock.calls
             .map((call) => String(call[0]))
@@ -400,7 +402,7 @@ describe("errand-ref cross-clone sync regression", () => {
       process.chdir(harness.cloneA);
       try {
         await handleSync({ json: true, yes: true }, undefined,
-          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }), createStore(createDefaultStorePorts({ checkoutRoot: harness.cloneA })));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();
@@ -466,7 +468,7 @@ describe("errand-ref cross-clone sync regression", () => {
       process.chdir(harness.cloneA);
       try {
         await handleSync({ json: true, yes: true }, undefined,
-          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }), createStore(createDefaultStorePorts({ checkoutRoot: harness.cloneA })));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();
@@ -543,7 +545,7 @@ describe("errand-ref cross-clone sync regression", () => {
         const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
         try {
           await handleSync({ json, yes: true }, { ...capture.output, jsonMode: json },
-            makeInteractionContext({ noInput: true, yes: "authority", machineReadable: json }));
+            makeInteractionContext({ noInput: true, yes: "authority", machineReadable: json }), createStore(createDefaultStorePorts({ checkoutRoot: harness.cloneA })));
           return { text: stdoutWrite.mock.calls.map((call) => String(call[0])).join(""), warnings: capture.stderr };
         } finally {
           stdoutWrite.mockRestore();
@@ -609,7 +611,7 @@ describe("errand-ref cross-clone sync regression", () => {
       process.chdir(harness.cloneA);
       try {
         await handleSync({ json: true, yes: true }, undefined,
-          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }), createStore(createDefaultStorePorts({ checkoutRoot: harness.cloneA })));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();

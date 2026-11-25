@@ -82,6 +82,59 @@ describe("GitHub change-request port", () => {
     expect(calls.map(({ args }) => args[0])).toEqual(["check-ref-format", "rev-parse", "ls-remote"]);
   });
 
+  it("confirms ancestry from local objects only", async () => {
+    const descendant = "b".repeat(40);
+    const { exec, calls } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "--quiet", "--end-of-options", `${head}^{commit}`],
+        responses: [{ stdout: `${head}\n` }] },
+      { match: ["rev-parse", "--verify", "--quiet", "--end-of-options", `${descendant}^{commit}`],
+        responses: [{ stdout: `${descendant}\n` }] },
+      { match: ["merge-base", "--is-ancestor", head, descendant], responses: [{ stdout: "" }] },
+    ]);
+
+    await expect(createGhChangeRequestResolutionPort(exec, "/repo").isAncestor(head, descendant)).resolves.toBe(true);
+    expect(calls.map(({ args, options }) => [args[0], options])).toEqual([
+      ["rev-parse", { cwd: "/repo", objectAccess: "local-only" }],
+      ["rev-parse", { cwd: "/repo", objectAccess: "local-only" }],
+      ["merge-base", { cwd: "/repo", objectAccess: "local-only" }],
+    ]);
+  });
+
+  it("answers no ancestry when Git reports none", async () => {
+    const descendant = "b".repeat(40);
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["rev-parse", "--verify", "--quiet", "--end-of-options"] },
+        responses: [{ stdout: `${head}\n` }, { stdout: `${descendant}\n` }] },
+      { match: ["merge-base", "--is-ancestor", head, descendant],
+        responses: [{ failure: { exitCode: 1, stderr: "" } }] },
+    ]);
+
+    await expect(createGhChangeRequestResolutionPort(exec, "/repo").isAncestor(head, descendant)).resolves.toBe(false);
+  });
+
+  it("answers no ancestry without comparing when a commit is absent locally", async () => {
+    const descendant = "b".repeat(40);
+    const { exec, calls } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "--quiet", "--end-of-options", `${head}^{commit}`],
+        responses: [{ failure: { exitCode: 1, stderr: "" } }] },
+    ]);
+
+    await expect(createGhChangeRequestResolutionPort(exec, "/repo").isAncestor(head, descendant)).resolves.toBe(false);
+    expect(calls.map(({ args }) => args[0])).toEqual(["rev-parse"]);
+  });
+
+  it("surfaces any other ancestry failure", async () => {
+    const descendant = "b".repeat(40);
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["rev-parse", "--verify", "--quiet", "--end-of-options"] },
+        responses: [{ stdout: `${head}\n` }, { stdout: `${descendant}\n` }] },
+      { match: ["merge-base", "--is-ancestor", head, descendant],
+        responses: [{ failure: { exitCode: 128, stderr: "fatal: bad object" } }] },
+    ]);
+
+    await expect(createGhChangeRequestResolutionPort(exec, "/repo").isAncestor(head, descendant)).rejects.toThrow();
+  });
+
   it("bounds both host searches and validates their payloads", async () => {
     const exec = vi.fn<GitExec>(async () => ({ stdout: JSON.stringify([candidate]) }));
     const port = createGhChangeRequestResolutionPort(exec, "/repo");

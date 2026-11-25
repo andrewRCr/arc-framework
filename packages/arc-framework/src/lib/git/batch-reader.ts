@@ -1,5 +1,6 @@
 /** Lazy operation-owned native batch readers with serialized exchanges and deterministic cleanup. */
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { gitExecutable } from "./executable.mjs";
 import { assertGitNotCanceled, bindGitProcessCancellation } from "./process-cancellation.js";
 import { GitProcessError, normalizeGitRejection, type GitInvocation } from "./process-error.js";
 import type { RawGitResult } from "./exec.js";
@@ -71,7 +72,7 @@ class NativeBatchReader {
     assertGitNotCanceled(input.signal, this.invocation);
     this.failed = new Promise((resolve) => { this.fail = resolve; });
     input.onStart?.();
-    this.child = spawn("git", input.args, { cwd: input.cwd, env: input.env, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    this.child = spawn(gitExecutable(input.env), input.args, { cwd: input.cwd, env: input.env, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     this.output = new GitBatchOutput(this.child.stdout, input.maxBuffer, this.invocation);
     let spawnError: GitProcessError | undefined;
     this.child.on("error", (error) => { spawnError = normalizeGitRejection(error, this.invocation); this.fail(spawnError); });

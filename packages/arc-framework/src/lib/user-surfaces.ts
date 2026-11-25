@@ -9,9 +9,9 @@
  * @module
  */
 
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 
-import { toForwardSlash } from "./fs.js";
+import { displayLocalPath } from "./fs.js";
 import type { GitExec } from "./git/exec.js";
 import { resolvePrimaryWorktreePath } from "./git/worktree-roster.js";
 import type { Slug } from "./kernel/index.js";
@@ -70,7 +70,7 @@ export function createUserSurfaceResolver(
     join(identityGlobalRoot, ...segments);
 
   const identityGlobalDisplayPath = (...segments: readonly string[]): string =>
-    displayPath(cwd, identityGlobalPath(...segments));
+    displayLocalPath(cwd, identityGlobalPath(...segments));
 
   const sessionNotesPath = (workUnitName: Slug): string => materializeArcPath(cwd, resolveArcPath({
     kind: "user-document",
@@ -90,7 +90,7 @@ export function createUserSurfaceResolver(
     identityGlobalPath,
     identityGlobalDisplayPath,
     workingMemoryPath,
-    workingMemoryDisplayPath: displayPath(cwd, workingMemoryPath),
+    workingMemoryDisplayPath: displayLocalPath(cwd, workingMemoryPath),
     workUnitRoot,
     sessionNotesPath,
   };
@@ -124,12 +124,4 @@ export async function resolveUserSurfaceResolver(options: {
 
 function identityGlobalArcRootFromUserRoot(userRoot: string): string {
   return join(userRoot, "..", "..", "..");
-}
-
-function displayPath(cwd: string, path: string): string {
-  if (!isAbsolute(path)) return toForwardSlash(path);
-  const rel = toForwardSlash(relative(cwd, path));
-  if (rel === "") return ".";
-  if (rel.startsWith("../") || rel === "..") return toForwardSlash(path);
-  return rel;
 }

@@ -1,5 +1,7 @@
 /** Deterministic registry projection and self-contained schema discovery. */
 
+import { visitJsonSchemas } from "./visit.js";
+
 import {
   createKernelRegistry,
   type KernelJSONSchema,
@@ -25,12 +27,6 @@ interface FoldContext {
   readonly definitions: NonNullable<KernelJSONSchema["$defs"]>;
   readonly folded: Map<string, string>;
 }
-
-const schemaMapKeywords = new Set(["$defs", "properties", "patternProperties", "dependentSchemas"]);
-const schemaValueKeywords = new Set([
-  "items", "prefixItems", "contains", "additionalItems", "unevaluatedItems", "additionalProperties",
-  "unevaluatedProperties", "propertyNames", "if", "then", "else", "allOf", "anyOf", "oneOf", "not", "contentSchema",
-]);
 
 function copySchema<T>(value: T): T {
   // A JSON round trip breaks Zod's shared object identities before reference rewriting.
@@ -63,22 +59,11 @@ function foldReference(reference: string, context: FoldContext): string {
 }
 
 function rewriteReferences(value: unknown, context: FoldContext): void {
-  if (Array.isArray(value)) {
-    for (const nested of value) rewriteReferences(nested, context);
-    return;
-  }
-  if (typeof value !== "object" || value === null) return;
-  const record = value as Record<string, unknown>;
-  if (typeof record["$ref"] === "string") {
-    record["$ref"] = `#/$defs/${foldReference(record["$ref"], context)}`;
-  }
-  // Traverse schema positions only; defaults, examples, and other instance data keep their own keys and values.
-  for (const [keyword, nested] of Object.entries(record)) {
-    if (schemaValueKeywords.has(keyword)) rewriteReferences(nested, context);
-    else if (schemaMapKeywords.has(keyword) && typeof nested === "object" && nested !== null) {
-      for (const schema of Object.values(nested)) rewriteReferences(schema, context);
+  visitJsonSchemas(value, schema => {
+    if (typeof schema.$ref === "string") {
+      schema.$ref = `#/$defs/${foldReference(schema.$ref, context)}`;
     }
-  }
+  });
 }
 
 /**

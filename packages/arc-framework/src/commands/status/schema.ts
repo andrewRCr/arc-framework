@@ -114,11 +114,13 @@ const RECOMMENDATION_SHAPE = {
   recommendedPromptText: z.string(),
 };
 
-const SupersessionValueSchema = z.strictObject({
+const SupersessionValueSchema = z.codec(z.strictObject({
   ...SupersessionResultSchema.shape,
   remoteEvidence: z.enum(["exact", "pending-fetch", "unreachable"]).optional(),
   failureReason: RemoteFailureReasonSchema.optional(),
-}).pipe(z.union([SupersessionResultSchema, SupersessionSnapshotAnalysisResultSchema]));
+}), z.union([SupersessionResultSchema, SupersessionSnapshotAnalysisResultSchema]), {
+  decode: value => value, encode: value => value,
+});
 
 /** Strict recommendation-enriched session worktree slot. */
 export const SessionInitWorktreeValueSchema = withRemoteEvidence({
@@ -185,7 +187,7 @@ const BaseDistanceSlotUnionSchema = z.union(
 );
 
 /** Full base-distance slot with recommendation fields and existing routing refinements. */
-export const SessionInitBaseDistanceValueSchema = z.strictObject({
+export const SessionInitBaseDistanceValueSchema = z.codec(z.strictObject({
   ...BaseDriftResultCommonFields,
   verdict: BaseDriftVerdictSchema,
   movement: BaseMovementSchema.optional(),
@@ -195,7 +197,10 @@ export const SessionInitBaseDistanceValueSchema = z.strictObject({
   continuation: BaseDriftTerminalContinuationSchema.optional(),
   ...CleanupRemoteEvidenceViewFields,
   ...RECOMMENDATION_SHAPE,
-}).pipe(BaseDistanceSlotUnionSchema).superRefine((parsed, context) => {
+}), BaseDistanceSlotUnionSchema, {
+  // The output schema validates the selected variant after the common input fields.
+  decode: value => value as z.input<typeof BaseDistanceSlotUnionSchema>, encode: value => value,
+}).superRefine((parsed, context) => {
   const value = parsed as SessionInitBaseDistanceValue;
   requireRemoteFailureReason(value, context);
   const healthy = ["clean", "remote-ahead", "local-ahead", "diverged"].includes(value.state);

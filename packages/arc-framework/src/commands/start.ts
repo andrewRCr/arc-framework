@@ -26,6 +26,10 @@
  * @module
  */
 
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
+import { materializeSpawnedProjection } from "../lib/store/projection/spawn-materialization.js";
 import type { StoreRefusal } from "../lib/store/refusal.js";
 import { runStoreColdStart } from "./start-cold-store.js";
 import { basename, join } from "node:path";
@@ -73,6 +77,7 @@ import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
+import { withProjectionFanOutHold } from "../lib/store/projection/fan-out-scheduler.js";
 import { stampCreatedWorkUnitMarker } from "../lib/work-unit/created-work-unit-marker.js";
 import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
 import type { OwnerIdentity } from "../lib/store/identity.js";
@@ -802,7 +807,8 @@ export async function runCreateNew(
     };
   }
   const repo = basename(primaryWorktreePath);
-  const offBranch = usesOffBranchState(ctx.store);
+  const store = ctx.store ?? createStore(createDefaultStorePorts({ checkoutRoot: params.worktreePath, exec: ctx.io.exec }));
+  const offBranch = usesOffBranchState(store);
   const branch = offBranch ? null : `plan/${wuName}`;
 
   // Spawn leg: cut the branch + worktree and write the ARC-created marker.
@@ -814,7 +820,8 @@ export async function runCreateNew(
     const spawnResult = await reconcileWorkUnitWorktree(
       {
         exec: ctx.io.exec,
-        store: ctx.store,
+        store,
+        projectionRemovalSlots: createProjectionRemovalSlots({ store, identity: params.identity }),
         locusPorts: ctx.locusPorts,
         chdir: (dir) => { process.chdir(dir); },
         fs: nodeReconcileWorkUnitWorktreeFs,
@@ -847,7 +854,7 @@ export async function runCreateNew(
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
   }
 
-  return completeCreatedWorktree(ctx, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate },
+  return completeCreatedWorktree({ ...ctx, store }, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate },
     params.identity, postCreateNotice);
 }
 
@@ -856,19 +863,24 @@ async function completeCreatedWorktree(ctx: SpawnWorktreeContext, spawn: {
   spawnCoordinate?: SpawnedCheckoutCoordinate;
 }, identity: string, postCreateNotice: string | undefined): Promise<CreateNewOutcome> {
   const { worktreePath, branch, wuName } = spawn;
-  let owner: OwnerIdentity | undefined;
-  try {
-    owner = await scaffoldIntoWorktree(ctx, { worktreePath, branch, wuName, spawningIdentity: identity, createdByArc: false,
-      ...(branch === null ? {} : { sessionNotesSeed: buildStartSessionNotesSeed({
-        wuName, branch, kind: "create-new", commit: START_CEREMONY_PENDING_COMMIT,
-      }) }),
-    });
-  } catch (error) { return rejectCreateNewScaffold(ctx, spawn, error); }
-  if (spawn.offBranch) {
-    const refusal = await stampCreatedWorkUnitMarker({ cwd: worktreePath, name: wuName, expected: spawn.markerGeneration, owner });
-    if (refusal !== null) return { ok: false, reason: refusal, worktreePath,
-      spawnLock: await lockRetainedCreation(ctx, worktreePath, wuName, owner) };
-  }
+  const prepared = await withProjectionFanOutHold(async (): Promise<CreateNewOutcome | null> => {
+    let owner: OwnerIdentity | undefined;
+    try {
+      owner = await scaffoldIntoWorktree(ctx, { worktreePath, branch, wuName, spawningIdentity: identity, createdByArc: false,
+        ...(branch === null ? {} : { sessionNotesSeed: buildStartSessionNotesSeed({
+          wuName, branch, kind: "create-new", commit: START_CEREMONY_PENDING_COMMIT,
+        }) }),
+      });
+    } catch (error) { return rejectCreateNewScaffold(ctx, spawn, error); }
+    if (spawn.offBranch) {
+      const refusal = await stampCreatedWorkUnitMarker({ cwd: worktreePath, name: wuName, expected: spawn.markerGeneration, owner });
+      if (refusal !== null) return { ok: false, reason: refusal, worktreePath,
+        spawnLock: await lockRetainedCreation(ctx, worktreePath, wuName, owner) };
+    }
+    return null;
+  });
+  if (prepared !== null) return prepared;
+  await materializeSpawnedProjection(worktreePath);
   const spawnLock = await lockSpawnedCheckout(ctx.io.exec, worktreePath);
   if (spawnLock.kind === "failed") return {
     ok: false, worktreePath, spawnLock,

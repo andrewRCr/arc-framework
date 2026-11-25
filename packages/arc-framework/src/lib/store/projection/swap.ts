@@ -2,7 +2,9 @@
  * The swap: a batch of replacements, each moving the old file into the aside folder and linking its staged file onto
  * the path, between two index writes, so a save timed into a replacement lands in the aside copy rather than being lost.
  */
-import { mkdir, rm } from "node:fs/promises";
+import { removeProjectionAsideFile } from "./aside-cleanup.js";
+import { withProjectionEntry } from "./index-memory.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { nameAsideFile, type AsideWriterInput } from "./aside.js";
 import { checkAsideCopy, putBack } from "./aside-copies.js";
@@ -47,6 +49,8 @@ export interface SwapBatchInput extends SwapMoves {
   readonly files: readonly SwapFile[];
   /** Whether the batch lays write-back's read-back, which keeps a pending mark a file carried into it. */
   readonly readBack: boolean;
+  /** The enclosing refresh publishes settlement with its final state; returned aliases still publish before unlink. */
+  readonly settlementPublication?: "caller";
   readonly writer: AsideWriterInput;
   readonly format: ObjectFormat;
   readonly takeIn: TakeInPort;
@@ -85,9 +89,8 @@ interface PlannedSwap {
  */
 export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult> {
   const plans = await Promise.all(input.files.map(async (file) => plan(input, file)));
-  const installing = new Set(plans.filter((each) => each.staged !== null).map((each) => each.path));
   let index = await commitProjectionIndex({
-    location: input.location, checkout: input.checkout, installing, checkpoint: input.checkpoint,
+    location: input.location, checkout: input.checkout, checkpoint: input.checkpoint,
     index: plans.reduce((built, each) => withEntry(built, each.path, each.entry), input.index),
   });
   const copies: { path: string; copy: string }[] = [];
@@ -106,7 +109,9 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   }
   const removals = input.files.filter((file) => file.replace.staged === null && file.relaid !== true).map((file) => file.path);
   index = await dropRemovedEntries(index, input.checkout, removals);
-  index = await commitReturnedCopies({ location: input.location, checkout: input.checkout, index, checkpoint: input.checkpoint, returned });
+  if (input.settlementPublication !== "caller" || returned.length > 0) {
+    index = await commitReturnedCopies({ location: input.location, checkout: input.checkout, index, checkpoint: input.checkpoint, returned });
+  }
   return { index, copies: remainingCopies(index, copies), removals, unreplaced };
 }
 
@@ -125,7 +130,8 @@ export async function dropRemovedEntries(index: ProjectionIndex, checkout: strin
     if (entry?.kind === "record" && entry.copies.length === 0 && await readStat(join(checkout, path)) === null) gone.add(path);
   }
   if (gone.size === 0) return index;
-  return { ...index, entries: Object.fromEntries(Object.entries(index.entries).filter(([path]) => !gone.has(path))) };
+  for (const path of gone) index = withProjectionEntry(index, path, undefined);
+  return index;
 }
 
 /** The entry the second write records: what a file the batch put in place no longer needs. */
@@ -204,7 +210,7 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
   } catch {
     await input.checkpoint?.();
     // Still refused past the bound: the file stays as it was, its entry restored and pending.
-    if (staged !== null) await rm(staged, { force: true });
+    if (staged !== null) await removeProjectionAsideFile(checkout, staged, input.checkpoint);
     return { entry: { ...swap.original, pending: true } };
   }
   await hooks?.afterMove?.(swap.path);
@@ -229,7 +235,7 @@ async function rebuild(input: SwapBatchInput, swap: PlannedSwap, at: { readonly 
   await input.hooks?.beforeRebuildLink?.(swap.path);
   const linked = await retriedMoves(input).linkOnto(at.staged, at.path);
   await input.checkpoint?.();
-  await rm(at.staged, { force: true });
+  await removeProjectionAsideFile(input.checkout, at.staged, input.checkpoint);
   return { entry: linked ? swap.entry : yielded(swap) };
 }
 
@@ -245,11 +251,11 @@ async function linkStagedIn(
     linked = await moves.linkOnto(at.staged, at.path);
   } catch {
     await input.checkpoint?.();
-    await rm(at.staged, { force: true });
+    await removeProjectionAsideFile(input.checkout, at.staged, input.checkpoint, false);
     return { ...await linkBack(moves, swap, at), done: true };
   }
   await input.checkpoint?.();
-  await rm(at.staged, { force: true });
+  await removeProjectionAsideFile(input.checkout, at.staged, input.checkpoint, false);
   return { entry: linked ? swap.entry : yielded(swap) };
 }
 
@@ -272,7 +278,7 @@ function yielded(swap: PlannedSwap): RecordEntry {
 }
 
 function withEntry(index: ProjectionIndex, path: string, entry: RecordEntry): ProjectionIndex {
-  return { ...index, entries: { ...index.entries, [path]: entry } };
+  return withProjectionEntry(index, path, entry);
 }
 
 function remainingCopies(index: ProjectionIndex, copies: readonly ReturnedCopy[]): ReturnedCopy[] {

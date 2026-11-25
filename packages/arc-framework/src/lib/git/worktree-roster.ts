@@ -25,6 +25,7 @@ import { parseMetaRecord } from "../active/meta-reader.js";
 import { type ParsedMetaRecord } from "../active/meta-schema.js";
 
 import type { GitExec } from "./exec.js";
+import { nativeGitPath } from "../local-path-identity.js";
 import {
   parseGitWorktreePorcelainZ,
   type GitWorktreePorcelainRecord,
@@ -248,18 +249,20 @@ type FolderStat = (path: string) => Promise<unknown>;
 /**
  * Read registered topology and observe each registration's physical folder once.
  *
- * Missing paths read absent; other observation failures retain presence.
+ * Missing paths read absent; other observation failures retain presence. Paths take the host's native spelling.
  * @param exec - Injectable command executor (local only — no remote)
  * @param lstatPath - Folder observation boundary, defaulting to Node lstat
+ * @param platform - Platform whose path spelling the topology uses
  * @returns A bounded topology snapshot or an explicit read/parse failure
  */
 export async function scanRegisteredWorktrees(
   exec: GitExec,
   lstatPath: FolderStat = lstat,
+  platform: NodeJS.Platform = process.platform,
 ): Promise<RegisteredWorktreeScanResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]), platform);
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
@@ -452,8 +455,12 @@ function buildEntry(
   };
 }
 
-function parseWorktreeList(result: { stdout: string }): GitWorktreePorcelainRecord[] {
-  return parseGitWorktreePorcelainZ(result.stdout);
+function parseWorktreeList(
+  result: { stdout: string },
+  platform: NodeJS.Platform = process.platform,
+): GitWorktreePorcelainRecord[] {
+  return parseGitWorktreePorcelainZ(result.stdout)
+    .map((worktree) => ({ ...worktree, path: nativeGitPath(worktree.path, platform) }));
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {

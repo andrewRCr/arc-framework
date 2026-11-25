@@ -28,10 +28,8 @@ These gate behaviors prevent misleading results:
 
 ### Size and complexity baseline
 
-`src/**` gates on function length, file length, cognitive complexity, nesting depth, and nested callbacks;
-`__tests__/**` gates on file length only, because `describe` bodies make a per-function limit meaningless there.
-The thresholds live in `eslint.config.js`, which is their only authority. Violations that predate the gate are
-recorded in `packages/arc-framework/eslint-suppressions.json`, which the lint run reads automatically.
+Violations that predate the size gate are recorded in `packages/arc-framework/eslint-suppressions.json`, which the
+lint run reads automatically; `eslint.config.js` alone sets the thresholds.
 
 That record is a **floor — "no worse than this" — not a backlog.** It bounds new debt; reducing what it already
 holds is separate, owned work, and nothing about the record's size is a commitment.
@@ -40,9 +38,7 @@ Four behaviors decide whether the gate tells the truth:
 
 - **Run it through the npm scripts.** Baseline keys are relative to the directory ESLint runs in, so a bare
   `npx eslint <path>` from the repository root finds no baseline and reports every recorded violation as new.
-  `lint:ts` and `lint:ts:file` both run with the package as their working directory. Root `lint:ts:file` normalizes
-  repository-relative targets before the optional adapter `--`; forwarded options, values, and patterns keep native
-  package-cwd semantics. Package-local invocation remains package-relative.
+  `lint:ts` and `lint:ts:file` both run with the package as their working directory.
 - **Only a whole-project run can shrink the record.** Pruning examines just the files in the current run, so a
   per-file run can never notice that a violation was fixed. After reducing one, run `lint:ts` — it exits 2 and
   names the unused suppression — then re-run it with `--prune-suppressions` and commit the shrunk record.
@@ -54,10 +50,8 @@ Four behaviors decide whether the gate tells the truth:
 - **Never re-run `--suppress-rule` to clear a red gate.** That records the new violation as permanent debt,
   which is the one thing the record exists to prevent.
 
-The record cannot see two things, and both close by remediation rather than by more gate. An already-recorded
-unit can grow worse while its count stays put. And a swap is invisible: fix one violation of a rule in a file
-while adding another of the same rule to the same file, and the bucket stays exactly full — the run stays green
-and pruning finds nothing to report.
+The record cannot see a recorded unit growing worse at the same count, or a swap that fixes one violation of a rule in
+a file while adding another of that rule there; remediation, not more gate, closes both.
 
 ### Increment feedback
 
@@ -80,26 +74,42 @@ At each increment boundary, run `arc check increment`, then request related unit
 arc check run test:changed test:e2e:local --changed
 ```
 
-`test:changed` selects related unit tests. `test:e2e:local` runs changed E2E test files. Selected support or setup
-files under `packages/arc-framework/__tests__/e2e/`, its runner script, or check configuration widen the run to the
-whole suite. Source-only changes select no local E2E tests. When changing code an E2E test drives, run it explicitly
-with `npm run test:file -- <repository-relative-e2e-test>`.
+Source-only changes select no E2E test; when changing code an E2E test drives, run that test with
+`npm run test:file -- <repository-relative-e2e-test>`.
 
-Integration tests read ARC Markdown from disk, which no import graph shows, so `test:changed` never reaches them. CI
-runs the whole integration tier on every pull request that changes code or ARC Markdown, and that run is the routine
-integration feedback. The commit gate's `test:arc-contracts` already runs the integration files that pin shipped
-workflow and method text. Request the tier locally only when a failure after the push would cost more than the run:
+`test:changed` never reaches integration tests, and CI runs that whole tier on every pull request that changes code or
+ARC Markdown. Request it locally only when a failure after the push would cost more than the run:
 
 ```bash
 arc check run test:integration:content --range
 ```
 
-It runs the whole integration tier when the branch changes that Markdown, and is not selected otherwise. Decision
-records and supplemental research and analysis select neither this run nor CI's, since no integration or E2E test
-reads them. The tier holds the shared test slot for several minutes.
-
 Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
 to gates still have to pass by their declared deadlines.
+
+### Platform feedback at phase close
+
+Windows and macOS defects otherwise surface only at verification, when each hosted pair run takes 30 to 45 minutes. At
+each phase close of a work unit that changes tests or platform-sensitive code (paths, processes, the file system, Git
+or shell invocation, line endings), start a Windows and macOS run of that phase's changed test files and the tests that
+import its changed source. Do not wait for it: carry on with the next phase and report the result at the next approval.
+
+- List them from the package directory with `npx vitest list --filesOnly --changed <phase-start>`, and add by search
+  any integration test that reaches the change through a file it reads, which no import graph shows. Each listed line
+  names a project and a package-relative path: drop the project label and prefix `packages/arc-framework/` to name
+  the file from the repository root. When nothing is selected, report that the phase has no platform evidence.
+- Push the phase and dispatch them on the hosted pair with `gh workflow run ci.yml --ref <branch> -f
+  portability_files="<files>"`, naming repository-relative paths. Each job takes a few minutes. A local Windows runner
+  may stand in for Windows on files that pass there on `main`, with the dispatch still covering macOS.
+- For quick native macOS feedback during the phase, run `arc-offload --runner m4-mini-macos npm run -s test:file --
+  <file>` from the repository root for one test file. The hosted macOS dispatch supplies phase-close evidence.
+- When the phase changes test configuration or the lockfile, which no import graph bounds, say so in the report and
+  leave the whole pair to verification's run.
+
+A `portability_files` dispatch attests nothing (§ Hosted CI before verification attests). `ci.yml` cancels a dispatch
+when another starts on the same ref, so never dispatch while a verification run is in progress on the branch, and when
+a phase closes while the previous phase's dispatch still runs, dispatch both phases' files together, leaving out any
+the later phase renamed or deleted.
 
 ### Hosted CI before verification attests
 
@@ -107,42 +117,31 @@ The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2
 starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref
 <branch>`). Work-unit verification attests only on a passing run whose `headSha` is that head and that was dispatched
 with none of the diagnostic inputs set, recorded by run id in the verification commit body: `portability_timing_only`
-skips the build, lint, type-check, unit, integration, store, and E2E jobs, `store_per_change` narrows the store run to
-its per-change form, and `portability_files` runs only the named files on the Windows/macOS pair, so each such run
-passes for its own purpose and attests nothing. Dispatch again after any later code change; planning-only commits need
+runs only the Windows and macOS timing job, `store_per_change` narrows the store run to its per-change form, and
+`portability_files` runs only the named files on the Windows/macOS pair, so each such run passes for its own purpose and
+attests nothing. Dispatch again after any later code change; planning-only commits need
 no new run.
 
 ### Test execution
 
-For incremental checks, root `test:file` selects exact existing repository-relative files/directories through one
-npm separator; each operand must contribute an eligible specification. Broad tier and package-local filters remain
-native and package-relative. Focused execution supports explicit native execution overrides while retaining project
-membership, target, ownership, and completion checks; it does not replace the complete selected quality gate.
+Root `test:file` runs exact repository-relative files or directories given after one npm separator; broad tier and
+package-local filters stay native and package-relative. Focused execution does not replace the complete selected
+quality gate. Test preparation may reuse a qualifying build, but the full `npm run build` declaration gate and both
+type checks remain required.
 
-Unit-only selections take no heavy CPU slot or artifact lease and request no build. Supported integration/E2E
-controllers acquire CPU admission before checkout artifact ownership, prepare qualified CLI and metafile output, and
-hold artifacts through closing. Same-checkout builders queue until cleanup ends; other worktrees remain independent.
-CI and `ARC_TEST_ALLOW_CONCURRENCY=1` bypass only CPU admission. Direct native setup without controller evidence owns
-generation alone and does not pin the unmanaged run.
+The Linux job `Portability (concurrency guards) (linux)` runs on pull requests in the reviewed lane with `heavy`
+CI weight. Hosted Windows and macOS runs come from the weekly schedule and explicit dispatches. For a
+platform-sensitive change outside a work unit's phase-close process, push the branch and run
+`gh workflow run ci.yml --ref <branch> -f run_portability_pair=true`. Check both platforms' results on the pushed
+head before the integration interlock.
 
-Preparation may reuse a qualifying full build or fast build of the CLI and metafile. Explicit builds always generate, and
-the full `npm run build` declaration gate and both type checks remain required. CI retains evidence with artifacts
-and qualifies or repairs them in a consumer-local preflight before setting `ARC_E2E_SKIP_BUILD=1`. Skip-build requires
-matching context and files and forbids generation; repair installation with `npm ci` when required, then prepare
-outside that prohibited run before retrying.
-
-The store suites, every `store-ref-*` integration file, run by reach in the `test:store` merge-gate check instead of
-the integration tier. Its runner selects each suite whose reach holds a changed path, deletions included: the suite's
-import closure, every file a module in it locates from its own path, what
-`packages/arc-framework/__tests__/reach/store-suites.json` declares a locating module finds, and the widening inputs
-that reach every suite. A path built from a module's location that the runner can neither resolve to a file nor find
-declared fails the check, so a new runtime read joins the reach or stops the gate. This departs from the quality-gates
-strategy's complete suite at the merge gate: for the store suites the gate rests on that reach and on the full run CI
-makes on every push to `main`, so a miss shows on `main` after merge rather than before it. A run given no base or
-changing the selection's data file, runner, or check entry runs every suite in full. `ARC_STORE_CHECK=full` asks for a
-full run, the separate layout's whole conformance suite among it, and `ARC_STORE_CHECK=every` for every suite in its
-per-change form; the integration tier, the lane, and a pull request's portability run leave the store suites out, and
-a dispatched one leaves them all out when its change reaches none of them.
+The store suites, every `store-ref-*` integration file, run in the `test:store` merge-gate check, selected by each
+suite's reach into the change, instead of in the integration tier. This departs from the quality-gates strategy's
+complete suite at the merge gate: for the store suites the gate rests on that reach and on the full run CI makes on
+every push to `main`, so a miss shows on `main` after merge rather than before it. The integration tier, the lane, and
+the Linux pull-request portability job leave the store suites out, as does a dispatched portability run whose change
+reaches none of them. `ARC_STORE_CHECK=full` asks for a full run, and `ARC_STORE_CHECK=every` for every suite in its
+per-change form.
 
 ## Testing Requirements
 
@@ -247,9 +246,6 @@ where everything is ARC. Prefer the narrowest descriptive locus — `fix(brief)`
 `fix(method)`, `chore(backlog)`, `feat(session-init)` — and omit the scope for a genuinely cross-cutting change with
 no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/archive/handoff …`) keep `(arc)`.
 
-**`docs` is external-facing prose only** — `README.md`, docs-site content, onboarding. Methodology-artifact edits
-are `fix` / `refactor` / `feat` by intent, never `docs`.
-
 ## Package-Project Sync
 
 This repo has two copies of ARC framework content: `packages/arc-framework/arc/` (authoritative
@@ -275,26 +271,26 @@ appropriate for one is often inappropriate for the other.
 
 ### Surface taxonomy
 
-**Adopter-facing** — read by users of ARC; ships via the package source:
+A file's audience follows what ships, and `packages/arc-framework/init-recipe.json` alone decides what a project
+installs; location in either copy does not.
 
-- `.arc/system/**`
-- `.arc/reference/strategies/arc/**`
-- `.arc/system/rules/DEV-RULES.ARC.md`
-- `.arc/reference/templates/**`
-- `.arc/reference/QUICK-REFERENCE.md`
+**Adopter-facing** — read by users of ARC:
+
+- every package file the recipe installs, including the package copy or template of a configurable file
+- the `.arc/` mirror of an installed framework file, such as `.arc/system/rules/DEV-RULES.ARC.md`, the workflows and
+  methods under `.arc/system/`, `.arc/reference/strategies/arc/**`, and `.arc/reference/templates/**`
 
 State what is. Don't describe how the methodology arrived at its current shape, what's
 in-flight, or what's coming.
 
-**Internal-dev-facing** — read only by people developing ARC; doesn't ship:
+**Internal-dev-facing** — read only by people developing ARC:
 
-- `.arc/reference/strategies/project/**`
-- `.arc/reference/adr/**`
-- `.arc/reference/PROJECT-PRD.md`
-- `.arc/system/rules/DEV-RULES.PROJECT.md` (this file)
-- `.arc/active/**`, `.arc/backlog/**`, `.arc/user/**`
-- `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md`
-- Any `notes-*.md` companion to a WU
+- this repository's own filled-in copy of a configurable file: `.arc/system/rules/DEV-RULES.PROJECT.md` (this file),
+  `.arc/reference/QUICK-REFERENCE.md`, `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md`, and
+  `.arc/reference/PROJECT-PRD.md`
+- what the recipe does not install: the ADRs in `.arc/reference/adr/`, the project strategies in
+  `.arc/reference/strategies/project/`, `.arc/active/**`, `.arc/backlog/**`, `.arc/user/**`, and any `notes-*.md`
+  companion to a WU
 
 These reference internal WU names, in-flight scope, transitional state, and project-internal concerns freely. ADR bodies
 meet `strategy-adr-methodology.md`'s reader-independence rule; planning references stay in their Status sections.
@@ -323,11 +319,6 @@ placement stays in the ADR itself, or routes to whatever capture surface the pro
 
 ARC concepts are domain vocabulary here when they are the change's subject. Naming this repository's work-unit or
 Errand identities to narrate how a change was made remains process.
-
-### Package-source mirror inheritance
-
-Anything mirrored to `packages/arc-framework/arc/**` is adopter-facing by definition (it ships).
-The `.arc/` copy inherits the classification.
 
 ### Relationship to DEV-RULES.ARC § Documentation Boundaries
 

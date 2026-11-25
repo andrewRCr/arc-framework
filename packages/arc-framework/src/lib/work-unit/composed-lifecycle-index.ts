@@ -14,6 +14,7 @@ import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../e
 import type { GitExec } from "../git/exec.js";
 
 import type {
+  InFlightBranchProvenance,
   InFlightEntryMark,
   InFlightState,
   InFlightWarning,
@@ -99,6 +100,8 @@ export interface ComposedLifecycleIndexResult {
   index: LifecycleIndex;
   /** Selected semantic record, current-tree candidate, and optional exact write authority by slug. */
   recordsBySlug: ReadonlyMap<string, ComposedLifecycleRecord>;
+  /** Every branch copy retained by the oracle, including stale and unselected copies. */
+  readonly provenanceBySlug?: ReadonlyMap<string, readonly InFlightBranchProvenance[]>;
   qualityFacts: ComposedLifecycleQualityFacts;
   worktreePathBySlug: ReadonlyMap<string, string>;
   liveRefs: RefTipMap;
@@ -239,6 +242,11 @@ export async function resolveComposedLifecycleIndex(
       })),
     ),
     recordsBySlug,
+    ...(oracleResult !== null ? {
+      provenanceBySlug: new Map(oracleResult.entries
+        .filter((entry) => entry.kind === "work-unit")
+        .map((entry) => [entry.name, entry.provenance ?? []] as const)),
+    } : {}),
     qualityFacts: qualityFactsFor(
       oracleResult,
       options.oracle !== undefined && options.oracle.acquisitionPolicy !== "local",

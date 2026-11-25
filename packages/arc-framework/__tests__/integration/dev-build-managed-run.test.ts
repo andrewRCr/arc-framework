@@ -1,19 +1,20 @@
-/** A managed controller pins CLI children while ordinary children still qualify source. */
+/** A managed controller pins CLI children, while a tokenless re-run child still qualifies source and refuses. */
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { TEST_CONTROLLER_TOKEN_ENV } from "../../src/lib/build-ownership.js";
+import { DEV_BUILD_RERUN_ENV } from "../../src/lib/dev-check.js";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 import { nestedRunLimit } from "../helpers/call-limit.js";
 
-it("pins inherited CLI children and refuses tokenless source drift", async () => {
+it("pins inherited CLI children, and a tokenless re-run child refuses source drift", async () => {
   const fixture = await makeVitestRuntimeFixture();
   try {
     await writeFile(join(fixture.packageRoot, "src/cli.ts"), `
 import { createDevBuildGuardDeps, runDevBuildGuard } from "./lib/dev-check.js";
 import { fileURLToPath } from "node:url";
-runDevBuildGuard({ commandPath: "arc marker" }, createDevBuildGuardDeps(fileURLToPath(import.meta.url)));
+await runDevBuildGuard({ commandPath: "arc marker" }, createDevBuildGuardDeps(fileURLToPath(import.meta.url)));
 process.stdout.write("new-native-runtime\\n");
 `);
     await writeFile(join(fixture.packageRoot, "tests/integration-runtime.test.mjs"), `
@@ -31,7 +32,9 @@ function invoke(env) {
 it("uses the controller lease after source changes", () => {
   appendFileSync(join(packageRoot, "src/cli.ts"), "\\nexport const sourceChanged = true;\\n");
   const inherited = invoke(process.env);
-  const ordinaryEnv = { ...process.env };
+  // A tokenless child inside the run would wait on the run's own lease to rebuild, so it takes the re-run's arm,
+  // which still qualifies source and refuses.
+  const ordinaryEnv = { ...process.env, ${JSON.stringify(DEV_BUILD_RERUN_ENV)}: "1" };
   Reflect.deleteProperty(ordinaryEnv, ${JSON.stringify(TEST_CONTROLLER_TOKEN_ENV)});
   const ordinary = invoke(ordinaryEnv);
   writeFileSync(join(packageRoot, "child-outcomes.json"), JSON.stringify({ inherited, ordinary }));

@@ -144,6 +144,11 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
 - _Captured during:_ `recovery-load-scoping` retirement (2026-07-24). The analysis doc is the record-of-record;
   this capture is the pointer.
 
+- _Additional evidence:_ the always-loaded audit, a `reviewer` pass for `project-manager.ARC` (2026-11-12,
+  Owner-approved; routed from `USER-INBOX § Work Unit`, housekeep drain, 2026-11-16), measured item 1's shared lines at
+  about 55 words (the hybrid layout, commands from the repository root, the quality tools), and found fresh reviewers
+  read the brief but not `QUICK-REFERENCE`, so the brief is the side with a second readership.
+
 ### `[ ]` **Retire the vestigial `session-state` method**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: loadset-composition`), housekeep drain

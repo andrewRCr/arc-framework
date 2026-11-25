@@ -5,6 +5,7 @@ import { isManagedPath } from "../kernel/index.js";
 import { environmentForGitCwd } from "../git/process-executor.js";
 import { createStore } from "../store/create.js";
 import { createDefaultStorePorts } from "../store/default-store-ports.js";
+import { canonicalCheckoutSync } from "../store/projection/checkout-identity.js";
 import { projectionProcessState } from "../store/projection/process-state.js";
 import { projectionSelectionResult } from "../store/projection/selection.js";
 import { projectionStartRefusal, type ProjectionStartRefusal } from "../store/projection/start-refusal.js";
@@ -28,7 +29,7 @@ export async function readProjectedSelection(root: string, options: { changed: b
   io: Partial<ProjectedSelectionIO> = {}): Promise<PathListSelection> {
   try {
     const state = projectionProcessState(), command = state.command;
-    if (command?.checkout === root) {
+    if (command?.checkout === canonicalCheckoutSync(root)) {
       const refusal = projectionStartRefusal("arc selection", root);
       if (refusal !== null) return unavailableRefusal(refusal);
       const result = await projectionSelectionResult(command.store, root, options);

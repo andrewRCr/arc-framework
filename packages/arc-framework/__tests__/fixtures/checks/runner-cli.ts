@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { CLI_PATH, assertCliBuilt } from "../../helpers/cli-spawn.js";
 
-/** One running `check run example --json` process and its collected output. */
+/** One running check CLI process and its collected output. */
 export interface RunnerCli {
   readonly child: ChildProcess;
   readonly completed: Promise<{ exitCode: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string }>;
@@ -15,9 +15,10 @@ export interface RunnerCli {
 }
 
 /** Start the built CLI as the leader of its own POSIX process group. */
-export function startRunnerCli(root: string, environment: NodeJS.ProcessEnv): RunnerCli {
+export function startRunnerCli(root: string, environment: NodeJS.ProcessEnv,
+  args: readonly string[] = ["check", "run", "example", "--json"]): RunnerCli {
   assertCliBuilt();
-  const child = spawn(process.execPath, [CLI_PATH, "check", "run", "example", "--json"], {
+  const child = spawn(process.execPath, [CLI_PATH, ...args], {
     cwd: root, env: { ...process.env, ...environment, ARC_DISABLE_UPDATE_CHECKS: "1", NO_COLOR: "1", FORCE_COLOR: undefined },
     stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32",
   });

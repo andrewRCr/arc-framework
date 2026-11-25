@@ -4,6 +4,7 @@ import type { KindId } from "../catalog.js";
 import type { KindDefinition } from "../registry.js";
 import { StoreRefusalError, type StoreResult } from "../refusal.js";
 import type { Store } from "../contract.js";
+import { createHistoryMemo, type HistoryMemo } from "./base-recovery.js";
 import { RetainedBaseUnavailable } from "./taken-in.js";
 import type { Mutation, RecordObservation } from "../write.js";
 import type { ProjectionAdmission } from "../projection-admission.js";
@@ -27,8 +28,10 @@ export interface ProjectionWritePlan {
 
 /** Derive one content put entirely from frozen local data and the supplied before view. */
 export async function planProjectionWrite(before: WriteCheckInput["before"], request: ProjectionPreparationRequest,
-  registry: Readonly<Record<KindId, KindDefinition>>): Promise<StoreResult<ProjectionWritePlan> & { readonly nativeRefusal?: true }> {
-  const view = createProjectionPreparationView(before, request.input.format);
+  registry: Readonly<Record<KindId, KindDefinition>>, memo?: HistoryMemo): Promise<StoreResult<ProjectionWritePlan> & { readonly nativeRefusal?: true }> {
+  const view = createProjectionPreparationView(memo === undefined ? before : {
+    read: input => before.read(input), list: input => before.list(input), lookup: input => before.lookup(input),
+    history: input => memo.read(input.reference) }, request.input.format);
   const planned = await planFromView(view, request, registry);
   const native = view.nativeFailure();
   if (native) return { status: "refused", refusal: native, nativeRefusal: true };
@@ -61,7 +64,7 @@ async function planFromView(view: ProjectionPreparationView, request: Projection
 
 function preparationContext(store: WriteBackContext["store"], request: ProjectionPreparationRequest,
   registry: Readonly<Record<KindId, KindDefinition>>): WriteBackContext {
-  return { store, registry, format: request.input.format, actor: request.editingIdentity,
+  return { store, registry, memo: createHistoryMemo(store), format: request.input.format, actor: request.editingIdentity,
     location: { gitDir: "", commonDir: "", stateDir: "", primary: false }, recoveringBase: request.input.recoveringBase,
     readCopy: name => {
       const copy = request.input.retainedBases.find(each => each.name === name);

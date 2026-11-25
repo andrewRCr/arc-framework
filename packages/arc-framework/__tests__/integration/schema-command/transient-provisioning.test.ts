@@ -2,6 +2,7 @@
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { passingProjectionRemovalSlots } from "../../../src/lib/git/worktree-removal.js";
 import { createNodeProvisioningDependencies, type NodeProvisioningRuntimeOptions } from "../../../src/lib/locus/provisioning-runtime.js";
 import { provisionTransientLocus } from "../../../src/lib/locus/provisioning.js";
 import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/identity.js";
@@ -34,7 +35,7 @@ describe("transient editor-document provisioning", () => {
       subject: { kind: "errand", key: identity.key, claimId: identity.claimId } },
       protection: "full", identity, branch, expectedBranchHead: null, base: "main", locationTemplate: linked,
       repo: "repo", spawningIdentity: "test-user", parentCheckoutPath: null, establishedAt: "2026-10-08T00:00:00.000Z",
-      dependencies: createNodeProvisioningDependencies({ exec, base: "main", branch, postCreateScript: "",
+      dependencies: createNodeProvisioningDependencies({ projectionRemovalSlots: passingProjectionRemovalSlots, exec, base: "main", branch, postCreateScript: "",
         registeredHarnessDirs: "", writeEditorDocuments }),
     });
   }

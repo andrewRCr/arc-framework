@@ -14,6 +14,7 @@ import type { DerivedCheckoutRow } from "./derived-roster.js";
 import { readWorkUnitLineage } from "./store-terminal-work-unit.js";
 import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { classifyUnboundMarker, type UnboundMarkerClassification } from "./unbound-marker.js";
+import { quoteShellArgument } from "../release/commit-message-retry.js";
 
 /** The generation retained by an occupancy observation. */
 export type PresentMarker = Extract<WorktreeMarkerGenerationReadResult, { kind: "present" }>;
@@ -38,8 +39,11 @@ export async function inspectCheckoutMarker(input: { cwd: string; store: Store; 
   } catch (error) { return { kind: "unreadable", reason: `Cannot observe checkout ${input.cwd}'s marker: ${error instanceof Error ? error.message : String(error)}. Inspect and repair its marker, then retry.` }; }
 }
 function huskMarkerExit(input: { cwd: string; store: Store }, stamp: WorktreeHuskStamp): string {
-  if (input.store.capabilities.stateOffBranch && stamp.subject.kind === "work-unit") {
+  if (input.store.capabilities.stateOffBranch && stamp.subject.kind === "work-unit" && stamp.subject.uid === undefined) {
     return `Checkout ${input.cwd} holds a work-unit husk (pre-store-husk); cleanup requires a manual decision. Inspect its marker and preserve any remaining work before removing that checkout.`;
+  }
+  if (stamp.subject.kind === "work-unit" && stamp.subject.uid !== undefined) {
+    return `Checkout ${input.cwd} holds a husk; from outside it run arc teardown ${stamp.subject.uid} --husk ${quoteShellArgument(input.cwd)}.`;
   }
   const operand = stamp.subject.kind === "work-unit" ? stamp.subject.name
     : stamp.subject.kind === "branch" ? `--branch ${stamp.subject.ref}` : stamp.branch;
