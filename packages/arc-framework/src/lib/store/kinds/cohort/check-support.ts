@@ -93,7 +93,8 @@ export function observeAllHoldings(view: StoreView, cohort: RecordReference, res
   return observeHoldings(view, resolve, cohort, "all");
 }
 
-type DirectMemberObservation<T> = RuleObservation<T> | { status: "unresolved"; condition: string; remedy: Remedy };
+type UnresolvedMember = { status: "unresolved"; condition: string; remedy: Remedy };
+type DirectMemberObservation<T> = RuleObservation<T> | UnresolvedMember;
 
 /** Observe the meta inventory and prove direct membership for the requested current names, live or completed. */
 export async function observeDirectMemberNames(view: StoreView, cohort: RecordReference,
@@ -102,6 +103,7 @@ export async function observeDirectMemberNames(view: StoreView, cohort: RecordRe
   if (listed.status !== "known") return listed;
   const members = new Set<string>(), conflicts = new Map<string, StoreRecord>();
   const leaves = new Map<string, NamedRecordObservation>();
+  const ambiguous: { name: string; leaf: UnresolvedMember }[] = [];
   for (const entry of listed.value) {
     const observed = await observeRecord(view, entry.reference);
     if (observed.status !== "known") return observed;
@@ -112,13 +114,15 @@ export async function observeDirectMemberNames(view: StoreView, cohort: RecordRe
       continue;
     }
     const leaf = await observeMemberLeaf(view, record, leaves);
-    if (leaf.status === "unavailable" || leaf.status === "unresolved") return leaf;
-    if (leaf.status === "known" && sameOwner(leaf.value.reference.owner, cohort.owner)) members.add(name);
+    if (leaf.status === "unavailable") return leaf;
+    if (leaf.status === "unresolved") ambiguous.push({ name, leaf });
+    else if (leaf.status === "known" && sameOwner(leaf.value.reference.owner, cohort.owner)) members.add(name);
   }
+  const unresolved = ambiguous.find(({ name }) => !members.has(name));
   const dispute = [...conflicts].find(([name]) => !members.has(name))?.[1];
-  return dispute === undefined ? { status: "known", value: members } : { status: "unresolved",
+  return unresolved?.leaf ?? (dispute === undefined ? { status: "known", value: members } : { status: "unresolved",
     condition: `The cohort membership of ${dispute.reference.owner.name} is disputed by open conflicts. ${listRecordConflicts(dispute.conflicts)}`,
-    remedy: { text: "Resolve the named conflict markers in the projected meta, run arc save, then retry the cohort edit." } };
+    remedy: { text: "Resolve the named conflict markers in the projected meta, run arc save, then retry the cohort edit." } });
 }
 
 async function observeMemberLeaf(view: StoreView, record: StoreRecord,

@@ -1,4 +1,4 @@
-/** Advisory orphan member-section reporting over cohort coordination prose. */
+/** Member headings and advisory orphan reporting over cohort coordination prose. */
 import { fromMarkdown } from "mdast-util-from-markdown";
 
 /** Report member-section slugs that name no supplied member.
@@ -20,7 +20,13 @@ export function reportOrphanCohortMemberSections(content: string, members: Itera
  * @returns Section slugs in document order, including repeated sections.
  */
 export function cohortMemberSectionSlugs(content: string): string[] {
-  const slugs: string[] = [];
+  return cohortMemberSectionHeadings(content).map(({ slug }) => slug);
+}
+
+/** Locate member headings in document order and return the source range of each name's code span. */
+export function cohortMemberSectionHeadings(content: string): { slug: string; start: number; end: number }[] {
+  const headings: { slug: string; start: number; end: number }[] = [];
+  const bom = content.startsWith("\uFEFF") ? 1 : 0;
   let inMembers = false;
   for (const node of fromMarkdown(content).children) {
     if (node.type !== "heading") continue;
@@ -28,9 +34,10 @@ export function cohortMemberSectionSlugs(content: string): string[] {
     if (node.depth === 2) {
       inMembers = rest.length === 0 && label?.type === "text" && label.value.trim().toLowerCase() === "members";
     } else if (inMembers && node.depth === 3 && rest.length === 0 && label?.type === "inlineCode") {
-      slugs.push(label.value.trim());
+      const start = label.position?.start.offset, end = label.position?.end.offset;
+      if (start !== undefined && end !== undefined) headings.push({ slug: label.value.trim(), start: start + bom, end: end + bom });
     }
   }
-  return slugs;
+  return headings;
 }
 

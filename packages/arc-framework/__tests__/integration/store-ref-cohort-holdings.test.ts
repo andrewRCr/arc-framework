@@ -97,6 +97,27 @@ it("counts an ambiguous cohort segment for each of its actual owner candidates",
     segments: [{ status: "ambiguous", candidates: expect.arrayContaining([first, second]) }] }] });
 });
 
+it("admits a proved member's section when a namesake has an ambiguous leaf elsewhere", async () => {
+  const f = await createRefFixture(overrides);
+  const groupRef = f.reference("cohort/document", "group"), elsewhere = f.reference("cohort/document", "elsewhere");
+  const group = await seed(f, groupRef, content(groupRef.owner.name));
+  await seed(f, elsewhere, content(elsewhere.owner.name));
+  await plantRefPrimary(f, { kind: "cohort/document", name: elsewhere.owner.name, uid: "00000000-0000-4000-8000-000000000001",
+    content: content(elsewhere.owner.name) });
+  const member = await plantRefPrimary(f, { kind: "work-item/meta", name: "member", uid: "00000000-0000-4000-8000-000000000002",
+    content: makeMetaFixture("member", { cohort: groupRef.owner.name }) });
+  const namesake = await plantRefPrimary(f, { kind: "work-item/meta", name: "member", uid: "00000000-0000-4000-8000-000000000003",
+    content: makeMetaFixture("member", { cohort: elsewhere.owner.name }) });
+  expect(await f.store.read({ reference: elsewhere })).toMatchObject({ status: "refused",
+    refusal: { code: "ambiguous-match" } });
+  expect(success(await f.store.read({ reference: member })).fields).toMatchObject({ cohort: groupRef.owner.name });
+  expect(success(await f.store.read({ reference: namesake })).fields).toMatchObject({ cohort: elsewhere.owner.name });
+
+  const edited = `${group.content}\n## Members\n\n### \`member\`\n`;
+  success(await f.store.write({ ...update(f, group, edited), provenance: { verb: "save", lifecycleAction: "edit" } }));
+  expect(success(await f.store.read({ reference: group.reference })).content).toBe(edited);
+});
+
 it.each([["parent", "ready"], ["child", "ambiguous-match"]] as const)(
   "judges a member section by the leaf when the %s name is ambiguous", async (clash, expected) => {
     const f = await createRefFixture(overrides);
