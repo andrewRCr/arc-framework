@@ -48,16 +48,19 @@ const PURPOSE_FIELD = "**Purpose:**";
 /** Locate a real field inside a paragraph rather than in code or HTML.
  *
  * A record's decode calls this for every design document a listing reads, so the document is parsed only as far as
- * the block holding its first candidate field: one with no candidate is not parsed, and a whole parse runs only
- * when that first candidate turns out to sit in code or HTML and another follows.
+ * the block holding its first candidate field. Parse the whole document when a later definition could resolve a
+ * reference in that prefix, or when the prefix has no field and another candidate follows.
  */
 function purposeParagraph(content: string): string | null {
   const first = nextCandidate(content, 0);
   if (first === -1) return null;
-  const blockEnd = content.slice(first).search(/\r?\n[ \t]*\r?\n/u);
-  const head = blockEnd === -1 ? content : content.slice(0, first + blockEnd);
+  const blockEnd = content.slice(first).search(/\r?\n(?:[ \t]*\r?\n| {0,3}#{1,6}(?=[ \t\r\n]|$))/u);
+  if (blockEnd === -1) return firstField(content);
+  const head = content.slice(0, first + blockEnd);
+  // A forward reference can turn candidate text into image alt text. Link definitions join their label to a colon.
+  if (head.includes("[") && content.includes("]:", head.length)) return firstField(content);
   const field = firstField(head);
-  if (field !== null || head.length === content.length) return field;
+  if (field !== null) return field;
   return nextCandidate(content, first + PURPOSE_FIELD.length) === -1 ? null : firstField(content);
 }
 

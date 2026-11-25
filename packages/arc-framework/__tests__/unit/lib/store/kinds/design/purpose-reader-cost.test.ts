@@ -18,6 +18,12 @@ describe("design Purpose reader cost", () => {
     expect(Math.max(...parsed)).toBeLessThan(200);
   });
 
+  it.each([1, 800])("bounds parser input when a heading immediately precedes %i list items", (count) => {
+    const content = `**Purpose:** A thesis.\n## Steps\n${"- Verify.\n".repeat(count)}`;
+    expect(readDesignPurpose(content)).toBe("A thesis.");
+    expect(parsed.reduce((total, length) => total + length, 0)).toBeLessThan(200);
+  });
+
   it("parses nothing when a long document holds no field", () => {
     expect(readDesignPurpose(`# Design\n\n${body}`)).toBeNull();
     expect(parsed).toEqual([]);

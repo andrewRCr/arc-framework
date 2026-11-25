@@ -21,6 +21,8 @@ describe("design Purpose reader", () => {
     ["field after one named mid-sentence", "The **Purpose:** field is described here.\n\n**Purpose:** Real", "Real"],
     ["field after a fence that spans blank lines", "```md\n**Purpose:** Example\n\nstill code\n```\n\n**Purpose:** Real", "Real"],
     ["only field-like text inside a fence", "```md\n**Purpose:** Example\n\nstill code\n```\n\nNo field.", null],
+    ["real field after a reference image", "![Screenshot\n**Purpose:** Example][shot]\n\n**Purpose:** Real\n\n[shot]: diagram.png", "Real"],
+    ["only field-like text in a reference image", "![Screenshot\n**Purpose:** Example][shot]\n\n[shot]: diagram.png", null],
     ["CRLF line endings", "# Design\r\n\r\n**Purpose:** A thesis\r\ncontinued.\r\n\r\nLater", "A thesis continued."],
   ])("reads %s", (_name, content, purpose) => {
     expect(readDesignPurpose(content)).toBe(purpose);

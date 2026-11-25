@@ -13,7 +13,9 @@ import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { ENTRY_CONFIGS } from "../../../../src/lib/store/kinds/entry-configs.js";
 import { COHORT_REGISTRATION } from "../../../../src/lib/store/kinds/cohort/registration.js";
 import { classifyStoreAddress } from "../../../../src/lib/store/target-classification.js";
-import { ArcLayoutAddressSchema, WorkUnitArtifactKindSchema, type ArcLayoutAddress } from "../../../../src/lib/layout/schema.js";
+import { isExcludedProjectionPath } from "../../../../src/lib/store/projection/discovery-exclusions.js";
+import { ArcLayoutAddressSchema, WorkUnitArtifactKindSchema, identifyArcFileAddress, isProjectedPath, resolveArcPath,
+  type ArcLayoutAddress } from "../../../../src/lib/layout/index.js";
 
 describe("production kind registrations", () => {
   it.each(["review/outcome", "review/decision", "review/evidence", "review/evidence-root-selection", "review/adversarial-pass",
@@ -137,8 +139,10 @@ function handEditableKinds(): { all: KindId[]; entryLists: KindId[] } {
   const targets = Object.entries(ADDRESS_SAMPLES).flatMap(([form, samples]) => samples.flatMap(sample => {
     const address = ArcLayoutAddressSchema.parse(sample);
     expect(address.kind).toBe(form);
+    const path = resolveArcPath(address);
+    if (!isProjectedPath(path) || isExcludedProjectionPath(path)) return [];
     const target = classifyStoreAddress(address);
-    return target === null || KIND_MECHANISMS[target.kind].projection === "never" ? [] : [target];
+    return target === null ? [] : [target];
   }));
   return { all: [...new Set(targets.map(target => target.kind))],
     entryLists: [...new Set(targets.filter(target => target.entryList).map(target => target.kind))] };
@@ -181,5 +185,20 @@ describe("projected kinds' parsers and entry grammars", () => {
       .toEqual(["work-item/inbound"]);
     expect(inventoryGaps(RECORD_LINK_KINDS, entryKinds(KIND_MECHANISMS).filter(kind => kind !== "personal/inbox")))
       .toEqual(["personal/inbox"]);
+  });
+  it("names the writable project inbox when its mechanism excludes it from the parser inventory", () => {
+    const kind = "project-inbox/inbox";
+    const mechanism = KIND_MECHANISMS[kind];
+    const projection = mechanism.projection;
+    try {
+      mechanism.projection = "never";
+      const address = identifyArcFileAddress(".arc/backlog/ATOMIC-INBOX.md");
+      expect(address && classifyStoreAddress(address)?.kind).toBe(kind);
+      // RECORD_LINK_KINDS was selected at import time. Reapply its projection filter after the flag change.
+      const projecting = RECORD_LINK_KINDS.filter(candidate => KIND_MECHANISMS[candidate].projection !== "never");
+      expect(inventoryGaps(projecting, entryKinds(KIND_MECHANISMS))).toEqual([kind]);
+    } finally {
+      mechanism.projection = projection;
+    }
   });
 });
