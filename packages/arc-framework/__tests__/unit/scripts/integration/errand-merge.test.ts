@@ -307,7 +307,7 @@ function dependencies(): {
       readFinalPlan: async () => directPlan(),
       releaseLock: async () => {
         state.held = false;
-        return { state: "released" };
+        return { state: "released", diagnostics: [] };
       },
       holdLock: async () => {
         state.held = true;
@@ -1209,12 +1209,15 @@ describe("Errand merge operation", () => {
 
   it("returns a typed lock failure when the exact hold cannot be released", async () => {
     const { value, state } = dependencies();
-    value.releaseLock = async () => ({ state: "blocked" });
+    value.releaseLock = async () => ({
+      state: "blocked", diagnostics: [{ code: "stale-head", message: "The pull-request head changed." }],
+    });
 
     await expect(mergeErrand(request, value)).resolves.toMatchObject({
       state: "operation-failed",
       nextAction: "stop",
       reason: "lock-operation-failed",
+      diagnostics: [{ code: "stale-head", message: "The pull-request head changed." }],
       coordinates: { observedTarget: approvedTarget, observedBaseOid: oid("b") },
     });
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });

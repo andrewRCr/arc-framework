@@ -1,6 +1,7 @@
 /** Production composition for the exact-effect Errand terminal merge. */
 
 import type { Store } from "../../lib/store/contract.js";
+import { createProjectIdentityReader } from "../../lib/store/project-identity.js";
 import { createStore } from "../../lib/store/create.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { readStoreTerminalBasis, storeTerminalAcquisitionRefusal, missingStoreTerminalSubject } from "../../lib/errand/store-terminal-basis.js";
@@ -201,14 +202,17 @@ export function createErrandMergeDependencies(input: {
   readonly hostedRunner?: HostedProcessRunner;
   readonly changeRequestPort?: ChangeRequestResolutionPort;
   readonly store?: Store;
+  readonly projectId?: () => Promise<string>;
 }): ErrandMergeDependencies {
   const slug = SlugSchema.parse(input.slug);
   const store = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec, identity: SlugSchema.parse(input.identity) }));
+  const projectId = input.projectId ?? createProjectIdentityReader(store);
   const runner = input.hostedRunner ?? hostedGhRunner;
   const common = createIntegrationMergeDependencies({
     cwd: input.cwd,
     exec: input.exec,
     store,
+    projectId,
     workUnit: slug,
     hostedRunner: runner,
     // An Errand records no landing link, so its merged read needs no exact merge identity.
@@ -218,7 +222,7 @@ export function createErrandMergeDependencies(input: {
   const rawExec = createRawGitExec(input.cwd);
   const treatment = createCurrentBaseDriftAdapters(input.exec, store);
   const mergeObservationPort = createGhChangeRequestMergeObservationPort(runner);
-  const lockPort = new GhMergeLockPort(
+  const lockPort = (errand?: CurrentErrandMergeIdentity) => new GhMergeLockPort(
     runner,
     (request) => evaluateReviewReadiness(request, {
       fs: createGitTreeReadFs({
@@ -227,6 +231,8 @@ export function createErrandMergeDependencies(input: {
         exec: input.exec,
       }),
       store,
+      projectId,
+      errand,
     }),
     readMergeLockSetting,
   );
@@ -247,6 +253,7 @@ export function createErrandMergeDependencies(input: {
       const frame = await runDerivedLocusStateProbe({
         cwd: input.cwd,
         store,
+        projectId,
         identity: input.identity,
         baseBranch: config.settings["branch.base"],
         exec: input.exec,
@@ -301,8 +308,8 @@ export function createErrandMergeDependencies(input: {
         : ChangeRequestMergeObservationSchema.parse({ ...coordinates, ...admissionOverride });
       return composeErrandFinalPlan({ drift, target: observedTarget, feasibility, admission });
     },
-    releaseLock: async (target) => releaseMergeLock(lockRequest(target), lockPort),
-    holdLock: async (target) => holdMergeLock(lockRequest(target), lockPort),
+    releaseLock: async (target, identity) => releaseMergeLock(lockRequest(target), lockPort(identity)),
+    holdLock: async (target) => holdMergeLock(lockRequest(target), lockPort()),
     mergePinned: (target, method) => common.mergePinned(target, method),
   };
 }

@@ -202,9 +202,11 @@ export function formatErrandMergeResult(
       : `printf '%s\\n' ${renderArgument(JSON.stringify(result.continuation.remedy.stdin))} | `}`
       + result.continuation.remedy.argv.map(renderArgument).join(" ")
     : `Explanation: ${result.continuation.terminalExplanation}`;
+  const diagnostics = result.state === "operation-failed"
+    ? (result.diagnostics ?? []).map(({ code, message }) => `${code}: ${message}`) : [];
   return {
     stream: "stderr",
-    text: [`${result.state}: ${result.detail}`, `Next: ${result.nextAction}`, continuation].join("\n"),
+    text: [`${result.state}: ${result.detail}`, ...diagnostics, `Next: ${result.nextAction}`, continuation].join("\n"),
     exitCode: result.state === "refused" ? 64 : result.state === "operation-failed" ? 1 : 0,
   };
 }

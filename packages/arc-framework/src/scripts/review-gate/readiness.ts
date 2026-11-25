@@ -40,8 +40,8 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { escapeRegExp, lifecycleArtifactFacts, validCohortCloseout } from "./readiness-artifact-facts.js";
-import { evaluateStoredErrandReadiness, evaluateStoredWorkUnitReadiness } from "./readiness-store.js";
-import type { Store } from "../../lib/store/contract.js";
+import { createProjectIdentityReader } from "../../lib/store/project-identity.js";
+import { evaluateStoredErrandReadiness, evaluateStoredWorkUnitReadiness, type StoredReadinessAuthority } from "./readiness-store.js";
 import { usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
@@ -89,9 +89,7 @@ export interface ReviewReadinessFs {
 }
 
 /** Injectable boundaries for the readiness checker. */
-export interface ReviewReadinessDependencies {
-  /** Selected operational backend for native work-unit lifecycle and Errand records. */
-  store?: Store;
+export interface ReviewReadinessDependencies extends Partial<StoredReadinessAuthority> {
   fs: ReviewReadinessFs;
   /**
    * Delivery read backing `delivery-member` authentication.
@@ -823,7 +821,8 @@ export async function evaluateReviewReadiness(
   if (resolved.fact !== undefined || resolved.root === undefined) {
     return invalid(request, [resolved.fact ?? fact("missing-root", request.treeRoot, "The supplied root is invalid.")]);
   }
-  const productFacts = await vehicleFacts(request, resolved.root, fs, overrides, store);
+  const authority = store === undefined ? undefined : { ...overrides, store, projectId: overrides.projectId ?? createProjectIdentityReader(store) };
+  const productFacts = await vehicleFacts(request, resolved.root, fs, overrides, authority);
   return productFacts.length === 0 ? ready(request) : invalid(request, productFacts);
 }
 
@@ -833,10 +832,10 @@ async function vehicleFacts(
   root: string,
   fs: ReviewReadinessFs,
   overrides: Partial<ReviewReadinessDependencies>,
-  store: Store | undefined,
+  authority: StoredReadinessAuthority | undefined,
 ): Promise<ReviewReadinessFact[]> {
   if (request.vehicle.kind === "errand") {
-    return store === undefined ? [] : evaluateStoredErrandReadiness({ ...request, vehicle: request.vehicle }, store);
+    return authority === undefined ? [] : evaluateStoredErrandReadiness({ ...request, vehicle: request.vehicle }, authority);
   }
   // A member pull request carries no lifecycle artifacts, so nothing beneath the
   // root is read on this path. The resolution above is still load bearing: it is
@@ -851,7 +850,7 @@ async function vehicleFacts(
       overrides.readDeliveryAncestry,
     );
   }
-  if (store !== undefined) return evaluateStoredWorkUnitReadiness({ ...request, vehicle: request.vehicle }, store);
+  if (authority !== undefined) return evaluateStoredWorkUnitReadiness({ ...request, vehicle: request.vehicle }, authority);
   if (request.vehicle.archiveCadence === "with-integration") {
     return evaluateArchivedWorkUnit(
       request as ReviewReadinessRequest & {

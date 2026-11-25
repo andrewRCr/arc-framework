@@ -1,20 +1,24 @@
 /** Both merge-lock composition roots bind lifecycle readiness to current stored records. */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { createProjectIdentityReader } from "../../src/lib/store/project-identity.js";
 import type { Links } from "../../src/lib/store/links.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { formatErrandMergeResult } from "../../src/handlers/errand-merge.js";
 import { defaultMergeLockPort, handleReviewReadiness } from "../../src/handlers/review.js";
 import { MergeLockTransitionRequestSchema, releaseMergeLock } from "../../src/scripts/review-gate/merge-lock.js";
 import { createIntegrationMergeDependencies } from "../../src/scripts/integration/merge-composition.js";
 import { IntegrationMergeTargetSchema } from "../../src/scripts/integration/merge.js";
 import type { HostedProcessRunner } from "../../src/scripts/review-gate/hosted/gh-process.js";
 import { createErrandMergeDependencies } from "../../src/scripts/integration/errand-merge-composition.js";
+import { ErrandMergeRequestSchema, mergeErrand } from "../../src/scripts/integration/errand-merge.js";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -49,16 +53,19 @@ async function lockFixture(root: "command" | "integration", cadence: "manual" | 
   const invocation = { ...h.native, workItem: record.reference.owner };
   const target = IntegrationMergeTargetSchema.parse({ repository: "owner/repo", pullRequest: 42,
     baseRef: "main", headRef: branch, headSha: head });
-  const dependencies = createIntegrationMergeDependencies({ ...invocation, workUnit: "example", hostedRunner: runner });
-  const port = defaultMergeLockPort(cwd, exec, runner, invocation);
   const request = MergeLockTransitionRequestSchema.parse({ schemaVersion: 1, treeRoot: cwd,
     target: { repository: "owner/repo", pullRequest: 42, headSha: head },
     vehicle: { kind: "work-unit", slug: "example", archiveCadence: cadence } });
-  const release = async () => {
-    locked = true;
-    return root === "command" ? releaseMergeLock(request, port) : dependencies.releaseLock(target);
+  const bindRelease = (readProjectId = h.reference.projectId) => {
+    const bound = { ...invocation, projectId: readProjectId };
+    const dependencies = createIntegrationMergeDependencies({ ...bound, workUnit: "example", hostedRunner: runner });
+    const port = defaultMergeLockPort(cwd, exec, runner, bound);
+    return async () => {
+      locked = true;
+      return root === "command" ? releaseMergeLock(request, port) : dependencies.releaseLock(target);
+    };
   };
-  return { h, cwd, branch, head, content, record, invocation, request, release };
+  return { h, cwd, branch, head, content, record, invocation, request, release: bindRelease(), bindRelease };
 }
 
 it.each([
@@ -104,14 +111,37 @@ it.each([
     changeRequest: { repository: projectId, number: 99 } } });
 }, 60_000);
 
-it.each(["command", "integration"] as const)("%s lock names a missing project ID and releases once the clone holds it",
+it.each(["command", "integration"] as const)("%s lock releases its bound Shipped work unit after an Active unit takes its slug",
   async root => {
-    const { h, release } = await lockFixture(root, "manual", false);
+    const { h, record, release } = await lockFixture(root, "with-integration");
+    expect(await release()).toMatchObject({ state: "released", diagnostics: [] });
+
+    const slug = record.reference.owner.name;
+    const active = await h.reference.seedMeta(slug);
+    const holder = lifecycleSuccess(await h.reference.store.lookup({ kind: "slug", slug }));
+    expect(holder.reference).toEqual(active.reference);
+    expect(holder.reference).not.toEqual(record.reference);
+    expect(lifecycleSuccess(await h.reference.store.read({ reference: record.reference }))).toEqual(record);
+
+    expect(await release()).toMatchObject({ state: "released", diagnostics: [] });
+  }, 30_000);
+
+it.each(["command", "integration"] as const)("%s lock retains the invocation's missing project ID and a fresh invocation sees the repair",
+  async root => {
+    const { h, release, bindRelease } = await lockFixture(root, "manual", false);
+    const list = vi.spyOn(h.reference.store, "list");
+    await expect(h.reference.projectId()).rejects.toThrow("Project identity record is missing.");
     expect(await release()).toMatchObject({ state: "blocked", payload: { reason: "readiness-failed" },
       diagnostics: expect.arrayContaining([expect.objectContaining({ code: "project-identity-unavailable",
         message: expect.stringContaining("Restore the project's unique, valid identity record") })]) });
     await h.reference.seedProject(projectId);
-    expect(await release()).toMatchObject({ state: "released" });
+    const retained = await release();
+    const registryReads = list.mock.calls.filter(([input]) => input.kind === "project-registry/identity").length;
+    expect(await bindRelease(createProjectIdentityReader(h.reference.store))()).toMatchObject({ state: "released" });
+    expect(retained).toMatchObject({ state: "blocked", diagnostics: expect.arrayContaining([
+      expect.objectContaining({ code: "project-identity-unavailable" }),
+    ]) });
+    expect(registryReads, "project identity observations in the original invocation").toBe(1);
   }, 30_000);
 
 async function errandLockFixture(root: "command" | "integration", linked: string) {
@@ -126,24 +156,32 @@ async function errandLockFixture(root: "command" | "integration", linked: string
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
   await h.reference.seedProject(projectId);
   const record = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug, claimId: "1".repeat(32),
-    intent: "Fix the thing", origin: "description", originEntry: null, branch, state: "open", savedHead: null,
+    intent: "Fix the thing", owner: "test-user", origin: "description", originEntry: null, branch, state: "open", savedHead: null,
     changeRequest: null, createdAt: "2026-11-13T12:00:00Z", updatedAt: "2026-11-13T12:00:00Z" });
   if (record.kind !== "errand" || record.purpose !== "errand") throw new Error("Expected ordinary Errand");
-  await h.reference.seedErrand(record, { branches: [{ repository: projectId, ref: linked, linkedAs: "created", excluded: [] }] });
+  const primary = await h.reference.seedErrand(record, { branches: [{ repository: projectId, ref: linked, linkedAs: "created", excluded: [] }] });
+  let draft = true;
   const runner: HostedProcessRunner = { run: async args => {
     if (args[0] === "repo") return { stdout: JSON.stringify({ nameWithOwner: "owner/repo", defaultBranchRef: { name: "main" } }), stderr: "" };
-    if (args[0] === "api") return { stdout: JSON.stringify({ number: 42, state: "open", draft: true,
+    if (args[0] === "api") return { stdout: JSON.stringify({ number: 42, state: "open", draft,
       head: { ref: branch, sha: head }, base: { repo: { full_name: "owner/repo" } } }), stderr: "" };
-    if (args[0] === "pr" && args[1] === "ready") return { stdout: "", stderr: "" };
+    if (args[0] === "pr" && args[1] === "ready") {
+      draft = args.includes("--undo");
+      return { stdout: "", stderr: "" };
+    }
     throw new Error(`Unexpected host call: ${args.join(" ")}`);
   } };
   const target = IntegrationMergeTargetSchema.parse({ repository: "owner/repo", pullRequest: 42, baseRef: "main",
     headRef: branch, headSha: head });
   const request = MergeLockTransitionRequestSchema.parse({ schemaVersion: 1, treeRoot: cwd,
     target: { repository: "owner/repo", pullRequest: 42, headSha: head }, vehicle: { kind: "errand", slug } });
-  return { release: () => root === "command" ? releaseMergeLock(request, defaultMergeLockPort(cwd, exec, runner, h.native))
-    : createErrandMergeDependencies({ cwd, exec, identity: "test-user", slug, hostedRunner: runner, store: h.reference.store })
-      .releaseLock(target) };
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: record.createdAt,
+    createdFor: { kind: "errand", slug: record.slug, claimId: record.claimId }, provisioning: "ready" });
+  const store = h.reference.store;
+  const dependencies = createErrandMergeDependencies({ cwd, exec, identity: "test-user", slug, hostedRunner: runner, store });
+  return { cwd, record, primary, store, target, dependencies,
+    release: () => root === "command" ? releaseMergeLock(request, defaultMergeLockPort(cwd, exec, runner, h.native))
+      : dependencies.readCurrentIdentity().then(identity => dependencies.releaseLock(target, identity)) };
 }
 
 it.each(["command", "integration"] as const)("%s lock releases a suffixed Errand whose head branch is its record's branch link",
@@ -157,3 +195,47 @@ it.each(["command", "integration"] as const)("%s lock refuses an Errand whose he
       payload: { reason: "readiness-failed" },
       diagnostics: expect.arrayContaining([expect.objectContaining({ code: "errand-branch-mismatch" })]) });
   }, 30_000);
+
+it("reports the stored branch mismatch at Errand merge and accepts the same request after relinking", async () => {
+  const { record, primary, store, target, dependencies } = await errandLockFixture("integration", "chore/fix-thing-ffffffff");
+  const request = ErrandMergeRequestSchema.parse({ schemaVersion: 1, identity: await dependencies.readCurrentIdentity(),
+    approvedTarget: target, lane: "reviewed", mergeMethod: { method: "merge", policyFingerprint: `sha256:${"d".repeat(64)}` } });
+  const holdLock = vi.fn(dependencies.holdLock);
+  const mergePinned = vi.fn<typeof dependencies.mergePinned>().mockResolvedValue({ state: "merged", target, providerMergeId: "merge-42" });
+  const base = "b".repeat(40);
+  const merge = () => mergeErrand(request, {
+    ...dependencies, holdLock, mergePinned,
+    readMerged: async () => ({ merged: false, providerMergeId: null }),
+    refreshTarget: async () => target,
+    observeChecks: async () => ({ schemaVersion: 1, mode: "review-checks-observe", state: "not-required", nextAction: "complete",
+      repository: target.repository, pullRequest: target.pullRequest, headSha: target.headSha, checks: [] }),
+    resolveMergeMethod: async repository => ({ schemaVersion: 1, mode: "review-merge-method-resolve", state: "validated", nextAction: "use-method",
+      repository, stackPosition: "non-delivery", ...request.mergeMethod, allowedMethods: ["merge"] }),
+    readFinalPlan: async () => ({ status: "available", target, baseOid: base, plan: { state: "proceed" },
+      observation: { movement: "disjoint", integrationEvidenceComplete: true, feasibility: { state: "clean", base, head: target.headSha },
+        admission: { state: "mergeable", repository: target.repository, changeRequest: target.pullRequest,
+          baseRef: target.baseRef, base, head: target.headSha } },
+      reviewApplicability: { verdict: "carries", residual: null, reason: "base-movement-disjoint", judgmentRequired: false } }),
+  });
+
+  const refused = await merge();
+  expect(holdLock).toHaveBeenCalledExactlyOnceWith(target);
+  expect(mergePinned).not.toHaveBeenCalled();
+  lifecycleSuccess(await store.write({ ...recordPut(primary, { links: { ...primary.links,
+    branches: [{ repository: projectId, ref: target.headRef, linkedAs: "created", excluded: [] }] } }),
+    provenance: { verb: "relink", lifecycleAction: "integrate" } }));
+  expect(await merge()).toMatchObject({ state: "merged" });
+  expect(mergePinned).toHaveBeenCalledExactlyOnceWith(target, "merge");
+
+  const formatted = formatErrandMergeResult(refused, false);
+  expect(formatted.text).toContain(`errand-branch-mismatch: pullRequest.headBranch:`);
+  expect(formatted.text).toContain(target.headRef);
+  expect(formatted.text).toContain("Correct the Errand's project branch link");
+  expect(refused).toMatchObject({ state: "operation-failed", nextAction: "retry",
+    diagnostics: expect.arrayContaining([expect.objectContaining({ code: "errand-branch-mismatch",
+      message: expect.stringContaining(target.headRef) })]),
+    continuation: { kind: "remedy", remedy: {
+      text: expect.stringMatching(/correct.*branch link/iu), argv: ["arc", "errand", "merge", record.slug, "-", "--json"], stdin: request,
+    } },
+  });
+}, 30_000);

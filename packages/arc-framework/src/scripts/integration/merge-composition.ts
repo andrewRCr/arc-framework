@@ -180,6 +180,8 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
     runner,
     (request) => evaluateReviewReadiness(request, {
       store: input.store,
+      projectId: input.projectId,
+      workItem: input.workItem,
       deliveryMemberLookup,
       readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
       fs: createGitTreeReadFs({

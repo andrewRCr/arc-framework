@@ -1834,7 +1834,7 @@ function readinessBoundTo(
   const rootExec: GitExec = (command, args, options) => exec(command, args, { ...options, cwd: root });
   const selectInvocation = createReviewInvocationResolver(rootExec, invocation);
   return (request) => evaluateReviewReadiness(request, {
-    ...(request.vehicle.kind === "delivery-member" ? {} : { store: selectInvocation(root).store }),
+    ...(request.vehicle.kind === "delivery-member" ? {} : selectInvocation(root)),
     deliveryMemberLookup,
     readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
   });

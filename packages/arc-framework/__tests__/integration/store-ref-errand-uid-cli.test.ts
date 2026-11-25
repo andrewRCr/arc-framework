@@ -25,6 +25,10 @@ import { makeGitExec } from "../helpers/integration.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
 import { acquireErrandCloseHeadLock } from "../../src/lib/errand/close-head-lock.js";
+import { createErrandMergeDependencies } from "../../src/scripts/integration/errand-merge-composition.js";
+import { defaultMergeLockPort } from "../../src/handlers/review.js";
+import { releaseMergeLock } from "../../src/scripts/review-gate/merge-lock.js";
+import { IntegrationMergeTargetSchema } from "../../src/scripts/integration/merge.js";
 import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
@@ -60,8 +64,9 @@ async function invoke(f: Fixture, cwd: string, args: readonly string[]) {
     return { stdout, stderr, exitCode: process.exitCode, result: stdout.trim().startsWith("{") ? JSON.parse(stdout) as unknown : null };
   } finally { binding.store = null; out.mockRestore(); err.mockRestore(); process.chdir(previous); process.exitCode = exit; }
 }
-async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true, slug = "shared", awaitingHead?: string) {
-  const claimId = (uid === uidA ? "a" : "b").repeat(32), branch = `${prefix}/${slug}`;
+async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true, slug = "shared", awaitingHead?: string,
+  branch = `${prefix}/${slug}`) {
+  const claimId = (uid === uidA ? "a" : "b").repeat(32);
   const state = awaitingHead === undefined ? { state: "open", savedHead: null, changeRequest: null } : { state: "awaiting-merge", savedHead: null,
     changeRequest: { repositoryRef: "owner/repo", hostRef: "github.com", baseRef: "main", headRef: branch, headSha: awaitingHead } };
   const record = TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand", purpose: "errand", slug, claimId,
@@ -147,6 +152,62 @@ it("closes only the UID-selected Errand and leaves the remaining slug resolvable
   expect(success(await f.store.read({ reference: selected.reference })).placement?.kind).toBe("completed");
   expect(success(await f.store.read({ reference: other.reference }))).toEqual(before);
   expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") })).reference).toEqual(other.reference);
+}, 60_000);
+
+it("keeps the selected Errand merge ready after a second live Errand arrives on its own branch", async () => {
+  const f = await fixture(), slug = "shared";
+  const head = (await f.exec("git", ["rev-parse", "main"])).stdout.trim();
+  const selected = await errand(f, uidA, "chore", true, slug, head, "chore/shared-abcdef01");
+  const target = IntegrationMergeTargetSchema.parse({ repository: "owner/repo", pullRequest: 42, baseRef: "main",
+    headRef: selected.branch, headSha: head });
+  const exec = makeGitExec(selected.holder);
+  const hostedRunner = { run: async (args: readonly string[]) => {
+    if (args[0] === "repo") return { stdout: JSON.stringify({ nameWithOwner: target.repository, defaultBranchRef: { name: "main" } }), stderr: "" };
+    if (args[0] === "api") return { stdout: JSON.stringify({ number: target.pullRequest, state: "open", draft: false,
+      head: { ref: selected.branch, sha: head }, base: { repo: { full_name: target.repository } } }), stderr: "" };
+    throw new Error(`Unexpected host call: ${args.join(" ")}`);
+  } };
+  const merge = createErrandMergeDependencies({ cwd: selected.holder, exec,
+    identity: "test-user", slug, store: f.store, hostedRunner });
+  const lock = defaultMergeLockPort(selected.holder, exec, hostedRunner, { store: f.store });
+  const releaseBySlug = () => releaseMergeLock({ schemaVersion: 1, treeRoot: selected.holder,
+    target: { repository: target.repository, pullRequest: target.pullRequest, headSha: head },
+    vehicle: { kind: "errand", slug } }, lock);
+  const identity = await merge.readCurrentIdentity();
+  expect(identity).toMatchObject({ slug, claimId: selected.claimId, branch: selected.branch });
+  const ready = { state: "no-lock", diagnostics: [], payload: { reason: "lock-disabled" } };
+  expect(await merge.releaseLock(target, identity)).toMatchObject(ready);
+
+  const other = await errand(f, uidB, "chore", false, slug, head, "chore/shared-abcdef02");
+  expect(await merge.readCurrentIdentity()).toEqual(identity);
+  for (const item of [selected, other]) {
+    const found = success(await f.store.lookup({ kind: "ref", repository: f.repository, ref: item.branch }));
+    expect(found.reference).toEqual(item.reference);
+  }
+  const standalone = await releaseBySlug();
+  const writeLink = async (ref: string) => {
+    const record = success(await f.store.read({ reference: other.reference }));
+    success(await f.store.write({
+      ...recordPut(record, { links: { branches: [{ repository: f.repository, ref, linkedAs: "created", excluded: [] }] } }),
+      provenance: { verb: "relink", lifecycleAction: "integrate" },
+    }));
+  };
+  await writeLink(selected.branch);
+  const blocked = await releaseBySlug();
+  await writeLink(`refs/heads/${selected.branch}`);
+  const normalizedTie = await releaseBySlug();
+  await writeLink(other.branch);
+  const repaired = await releaseBySlug();
+
+  expect(await merge.releaseLock(target, identity)).toMatchObject(ready);
+  expect(standalone).toMatchObject(ready);
+  expect(repaired).toMatchObject(ready);
+  expect(normalizedTie).toMatchObject({ state: "blocked", diagnostics: expect.arrayContaining([
+    expect.objectContaining({ message: expect.stringContaining(selected.branch) }),
+  ]) });
+  expect(blocked).toMatchObject({ state: "blocked", diagnostics: expect.arrayContaining([
+    expect.objectContaining({ message: expect.stringContaining("arc errand close") }),
+  ]) });
 }, 60_000);
 
 it("refuses a clashed branch on the machine holding only the other Errand checkout", async () => {
