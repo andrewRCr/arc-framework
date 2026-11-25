@@ -4,16 +4,19 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArc, runArcAnchoredSequence } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArc, runArcAnchoredSequence, runArcNoTty } from "./helpers.js";
+import { completeCutMapFixture } from "../fixtures/decompose-v4.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { primaryReference } from "../helpers/store-errand-fixture.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { CutMapMachineSchema } from "../../src/lib/decompose/cut-map-machine.js";
+import { DecomposeFinishAppliedSchema, DecomposeRetirementPreviewSchema } from "../../src/lib/decompose/finish-report.js";
 import { readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 
@@ -33,13 +36,15 @@ describe("commands that remove the checkout they run in (ref store)", () => {
     repo = await createTempRepo("arc-checkout-removal-");
     const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
     expect(init.exitCode, init.stdout + init.stderr).toBe(0);
+    checkouts = await mkdtemp(join(tmpdir(), "arc-checkout-removal-wt-"));
     const configPath = join(repo, ".arc", "system", "arc-config.yml");
     const config = await readFile(configPath, "utf8");
-    await writeFile(configPath, config.replace("branch.protection: partial", "branch.protection: full"));
+    await writeFile(configPath, config.replace("branch.protection: partial", "branch.protection: full")
+      .replace(/^worktree\.location_template:.*$/mu,
+        `worktree.location_template: ../${basename(checkouts)}/{name}`));
     await git(repo, ["add", "-A"]);
     await git(repo, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "chore: initialize ARC"]);
     origin = await mkdtemp(join(tmpdir(), "arc-checkout-removal-origin-"));
-    checkouts = await mkdtemp(join(tmpdir(), "arc-checkout-removal-wt-"));
     await git(origin, ["init", "--bare", "--initial-branch=main"]);
     await git(repo, ["remote", "add", "origin", origin]);
     await git(repo, ["push", "-u", "origin", "main"]);
@@ -107,6 +112,84 @@ describe("commands that remove the checkout they run in (ref store)", () => {
     } else {
       await expect(access(worktree)).rejects.toMatchObject({ code: "ENOENT" });
     }
+  }, SEQUENCE_TIMEOUT_MS);
+
+  it("finishes decomposition from the origin's linked checkout and reaps its created branch", async () => {
+    const branch = "plan/demo";
+    const worktree = join(checkouts, "demo");
+    const { meta } = await seedWorkUnit(repo, "demo", { identity: "test-user", branch,
+      meta: { state: "Planning", owner: "test-user", workClass: "Light", branch,
+        currentWorkflow: "draft-design", design: ["draft-demo.md"] },
+      records: [{ kind: "work-item/draft", content: "# Demo\n\n## Scope\n\nSplit the work.\n" }] });
+    await git(repo, ["config", "arc.selfTeardownMode", "remove"]);
+    await writeFile(join(repo, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+    await git(repo, ["worktree", "add", "-b", branch, worktree, "main"]);
+    await writeWorktreeMarker(worktree, { spawnedByArc: true, wuName: "demo", createdFor: seededWorkUnitSubject(meta),
+      spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00.000Z" });
+
+    async function decompose(...args: string[]): Promise<string> {
+      const result = await runArcNoTty(["decompose", "demo", ...args], worktree);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      return result.stdout;
+    }
+    const starter = JSON.parse(await decompose("--preflight")) as { machine: unknown };
+    const cutMap = completeCutMapFixture(CutMapMachineSchema.parse(starter.machine));
+    const cutPath = join(checkouts, "cut.json");
+    await writeFile(cutPath, JSON.stringify(cutMap));
+    await decompose("--execute", cutPath);
+    const preview = DecomposeRetirementPreviewSchema.parse(JSON.parse(await decompose("--finish")));
+
+    const applied = DecomposeFinishAppliedSchema.parse(JSON.parse(
+      await decompose("--finish", "--apply", preview.applyAuthority),
+    ));
+
+    expect(applied.continuation).toBeUndefined();
+    await expect(readStoreRecord(repo, SlugSchema.parse("test-user"), meta.reference)).rejects.toThrow(/not-found/u);
+    expect(await git(repo, ["branch", "--list", branch])).toBe("");
+    await expect(access(worktree)).rejects.toMatchObject({ code: "ENOENT" });
+  }, SEQUENCE_TIMEOUT_MS);
+
+  it("records the initiating checkout's actor when errand abandon removes that checkout", async () => {
+    const slug = "retire-actor";
+    await git(repo, ["config", "extensions.worktreeConfig", "true"]);
+    const sequence = await runArcAnchoredSequence([
+      ["errand", "open", slug, "--isolate", "--json"],
+      { command: ["git", "config", "--worktree", "arc.identity", "test-user"], cwdFromPreviousJson: "allocation.checkoutPath" },
+      { command: ["git", "config", "--worktree", "arc.identity", "primary-user"], cwd: repo },
+      { args: ["errand", "abandon", slug, "--json"], reuseResolvedCwd: true },
+    ], repo, { timeout: SEQUENCE_TIMEOUT_MS });
+    expect(sequence.exitCode, sequence.stdout + sequence.stderr).toBe(0);
+    const [opened, ended] = sequence.results as [{ allocation: { checkoutPath: string } }, unknown];
+    expect(ended).toMatchObject({ outcome: "applied", checkoutPath: opened.allocation.checkoutPath });
+    await expect(access(opened.allocation.checkoutPath)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const message = await git(repo, ["log", "-1", "--format=%B", "refs/arc/project/registry"]);
+    expect(message).toMatch(/^errand-abandon /u);
+    expect(/^Arc-Actor: ([^@\n]+)@/mu.exec(message)?.[1]).toBe("test-user");
+  }, SEQUENCE_TIMEOUT_MS);
+
+  it("cleans up the isolated checkout after leave refuses an unpublished Errand", async ({ onTestFinished }) => {
+    const slug = "unpublished";
+    const sequence = await runArcAnchoredSequence([
+      ["errand", "open", slug, "--isolate", "--json"],
+      { args: ["errand", "leave", slug, "--state", "paused", "--json"], cwdFromPreviousJson: "allocation.checkoutPath" },
+    ], repo, { timeout: SEQUENCE_TIMEOUT_MS });
+    const [opened, left] = sequence.results;
+    expect(opened, sequence.stdout + sequence.stderr).toMatchObject({
+      outcome: "applied", allocation: { kind: "spawned", checkoutPath: expect.any(String) },
+    });
+    const { checkoutPath } = (opened as { allocation: { checkoutPath: string } }).allocation;
+    onTestFinished(async () => {
+      try {
+        await expect(access(repo)).rejects.toMatchObject({ code: "ENOENT" });
+        await expect(access(checkoutPath)).rejects.toMatchObject({ code: "ENOENT" });
+      } finally {
+        await removeGitBackedDir(checkoutPath);
+      }
+    });
+    expect(sequence.exitCode, sequence.stdout + sequence.stderr).toBe(1);
+    expect(left).toMatchObject({ operation: "errand-leave", outcome: "refused", reason: "preservation-unproven" });
+    await access(checkoutPath);
   }, SEQUENCE_TIMEOUT_MS);
 
   // Pausing keeps the Errand's branch, so its work is published first.

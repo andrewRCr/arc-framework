@@ -23,7 +23,7 @@ import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
 import { spineRemedy, SpineRemedySchema, type SpineRemedy } from "../scripts/integration/spine-refusal.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
-import { SlugSchema } from "../lib/kernel/index.js";
+import { SlugSchema, type Slug } from "../lib/kernel/index.js";
 import { type InteractionContext } from "../lib/command-input/interaction-context.js";
 
 /** The production filesystem seam for the lifecycle-index scan (mirrors `start`). */
@@ -123,8 +123,8 @@ export async function resolveVerbBase(context?: InteractionContext, json = false
   return bindDefaultVerbStore({ identity, cwd, io });
 }
 /** Open the operational store over the command's selected checkout. */
-export function openDefaultStore(cwd: string, exec: GitExec): Store {
-  return createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+export function openDefaultStore(cwd: string, exec: GitExec, identity?: Slug): Store {
+  return createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec, identity }));
 }
 function bindDefaultVerbStore(base: Pick<VerbBase, "identity" | "cwd" | "io">): VerbBase {
   const store = openDefaultStore(base.cwd, base.io.exec);
