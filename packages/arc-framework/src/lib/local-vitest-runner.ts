@@ -17,7 +17,6 @@ import { resolve, sep } from "node:path";
  */
 export const ARC_CONTRACT_SUITES = [
   "framework-sync",
-  "live-transition-records",
   "pr-lifecycle",
   "review-gate-workflows",
   "ci-check-plumbing",
@@ -303,8 +302,6 @@ const PORTABILITY_SUITES = [
   "store-ref-separate-conformance-records-",
   "store-ref-separate-conformance-reads-",
   "store-ref-separate-conformance-sync-",
-  "store-ref-timing.test.ts",
-  "store-ref-projection-timing.test.ts",
   "store-ref-timing-isolation.test.ts",
   "checks/runner/",
   "lib/checks/result.test.ts",
@@ -379,6 +376,8 @@ const PORTABILITY_SUITES = [
   "unit/locus/terminal-occupancy-admission.test.ts",
   "unit/locus/unbound-marker.test.ts",
   "unit/locus/user-sync-exclusion.test.ts",
+  // Errand provisioning through the anchored shell.
+  "e2e/errand-open-provisioning-recovery.e2e.test.ts",
 ];
 
 /**

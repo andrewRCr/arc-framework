@@ -32,6 +32,7 @@
 import { execa } from "execa";
 
 import { PUSH_GATE_ID_VARIABLE, type GitExec } from "./exec.js";
+import { gitExecutable } from "./executable.mjs";
 import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "./process-executor.js";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import { type GitProcessError, normalizeGitRejection } from "./process-error.js";
@@ -172,7 +173,7 @@ const defaultSpawnPush: PushWorktreeSpawn = async ({ branch, remote, args, cwd, 
   const env = pushGateId === undefined
     ? promptEnvironment
     : { ...(promptEnvironment ?? process.env), [PUSH_GATE_ID_VARIABLE]: pushGateId };
-  const result = await execa("git", invocation, {
+  const result = await execa(gitExecutable(env), invocation, {
     cwd,
     env,
     extendEnv: false,

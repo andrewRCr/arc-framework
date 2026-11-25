@@ -1,7 +1,8 @@
-/** Compiler-free self-hosting freshness checks and isolated owned refresh. */
+/** Compiler-free self-hosting freshness checks, rebuild-and-rerun admission and isolated owned refresh. */
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { constants } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { selectFirstPartyInputs } from "./build-inputs.js";
 import { DEV_BUILD_STAMP_NAME, parseBuildEvidence } from "./build-evidence.js";
@@ -65,6 +66,9 @@ export const DEV_BUILD_REFRESH_COMMAND = "npm run build:fast";
 
 /** Internal build-time override used to direct a fast build into a staging directory. */
 export const DEV_BUILD_OUTPUT_DIRECTORY_ENV = "ARC_DEV_BUILD_OUT_DIR";
+
+/** Marks the one re-run of a command after its stale build was rebuilt, which refuses rather than rebuilding again. */
+export const DEV_BUILD_RERUN_ENV = "ARC_DEV_BUILD_RERUN";
 
 /** Command families whose successful action may change the running development bundle's inputs. */
 export const DEV_BUILD_REFRESH_COMMAND_PATHS = Object.freeze([
@@ -131,42 +135,73 @@ export interface DevBuildGuardInput {
   readonly writeCompactionSeed?: boolean;
 }
 
-/** Independent lease, freshness and process-output boundaries for command admission. */
+/** Independent lease, freshness, rebuild and process-output boundaries for command admission. */
 export interface DevBuildGuardDeps {
   readonly token: string | undefined;
   readonly readHolder: () => AdvisoryLockReadResult;
   readonly now: () => number;
   readonly freshness: DevCheckDeps;
+  /** Whether this process is the re-run of a command whose stale build was already rebuilt. */
+  readonly rerunning: boolean;
+  /** Bring the runtime build current under checkout ownership. */
+  readonly rebuild: DevBuildRefreshDeps["rebuild"];
   readonly writeStderr: (message: string) => void;
   readonly exit: (code: number) => void;
 }
 
+/** What a command does once the development build guard admits it. */
+export type DevBuildAdmission =
+  | { readonly kind: "run"; readonly refreshEligible: boolean }
+  | { readonly kind: "rerun" };
+
+const RUN_WITHOUT_REFRESH: DevBuildAdmission = { kind: "run", refreshEligible: false };
+
 /**
  * Admit a command against the live controller lease or ordinary build qualification.
+ *
+ * This process has already loaded the bundle it checks, so a stale build is rebuilt and the command runs again on the
+ * new bundle. A failed rebuild, a rebuild that leaves the bundle stale, and the re-run itself refuse instead.
  * @param input - Command path and compaction-seed exception
- * @param deps - Synchronous holder, freshness and process boundaries
- * @returns Whether this command is eligible for a post-action development rebuild
+ * @param deps - Holder, freshness, rebuild and process boundaries
+ * @returns Whether to run the command here and refresh the build after it, or to run it again on the rebuilt bundle
  */
-export function runDevBuildGuard(input: DevBuildGuardInput, deps: DevBuildGuardDeps): boolean {
-  if (shouldSkipDevBuildStaleness(deps.token, deps.readHolder(), deps.now())) return false;
+export async function runDevBuildGuard(
+  input: DevBuildGuardInput, deps: DevBuildGuardDeps,
+): Promise<DevBuildAdmission> {
+  if (shouldSkipDevBuildStaleness(deps.token, deps.readHolder(), deps.now())) return RUN_WITHOUT_REFRESH;
   const verdict = checkDevBuildStaleness(deps.freshness);
-  if (verdict.kind === "skip") return false;
-  if (verdict.kind === "fresh") return isDevBuildRefreshCommandPath(input.commandPath);
+  if (verdict.kind === "skip") return RUN_WITHOUT_REFRESH;
+  if (verdict.kind === "fresh") {
+    return { kind: "run", refreshEligible: isDevBuildRefreshCommandPath(input.commandPath) };
+  }
+  const staleness = describeStaleness(verdict);
+  // A stale seed is revalidated during recovery and is preferable to no seed.
+  if (input.writeCompactionSeed === true) {
+    deps.writeStderr(`warn: arc dev build is stale (${staleness}). Run \`npm run build:fast\` before relying on output.\n`);
+    return RUN_WITHOUT_REFRESH;
+  }
+  if (!deps.rerunning) {
+    deps.writeStderr(`info: rebuilding the stale arc dev build (${staleness}), `
+      + `then running \`${input.commandPath}\` again.\n`);
+    const refreshed = await refreshStaleDevBuild({
+      check: () => checkDevBuildStaleness(deps.freshness), rebuild: deps.rebuild,
+    });
+    if (refreshed.kind !== "failed") return { kind: "rerun" };
+    deps.writeStderr(`error: arc could not rebuild the dev build (${refreshed.message}).\n`);
+  }
+  deps.writeStderr(`error: arc dev build is stale (${staleness}). Refusing \`${input.commandPath}\` against stale `
+    + "dist; run `npm run build:fast`, then retry.\n");
+  deps.exit(1);
+  return RUN_WITHOUT_REFRESH;
+}
+
+function describeStaleness(verdict: Extract<DevCheckResult, { kind: "stale" }>): string {
   const distAgeText = verdict.distAge === null ? "dist/cli.js missing"
     : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
   const staleCause = verdict.basis === "content-hash"
     ? verdict.qualificationReason
     : `${verdict.newestSrc} changed ${formatAge(verdict.srcAge)} ago`;
-  const baseMsg = `arc dev build is stale (${staleCause}; ${distAgeText}).`;
-  // A stale seed is revalidated during recovery and is preferable to no seed.
-  if (input.writeCompactionSeed === true) {
-    deps.writeStderr(`warn: ${baseMsg} Run \`npm run build:fast\` before relying on output.\n`);
-    return false;
-  }
-  deps.writeStderr(`error: ${baseMsg} Refusing \`${input.commandPath}\` against stale dist; `
-    + "run `npm run build:fast`, then retry.\n");
-  deps.exit(1);
-  return false;
+  return `${staleCause}; ${distAgeText}`;
 }
 
 function formatAge(seconds: number): string {
@@ -182,17 +217,141 @@ function formatAge(seconds: number): string {
  * @returns Native synchronous dependencies without performing a freshness read
  */
 export function createDevBuildGuardDeps(cliJsPath: string): DevBuildGuardDeps {
+  const packageRoot = dirname(dirname(cliJsPath));
+  const rerunning = process.env[DEV_BUILD_RERUN_ENV] === "1";
+  // Commands this one starts check their own build rather than inheriting its single re-run.
+  Reflect.deleteProperty(process.env, DEV_BUILD_RERUN_ENV);
   return {
     token: process.env[TEST_CONTROLLER_TOKEN_ENV], now: () => Date.now(),
     readHolder: () => {
       try {
-        return classifyAdvisoryLockRead({ text: readFileSync(join(dirname(dirname(cliJsPath)), BUILD_ARTIFACT_LOCK_NAME), "utf8") });
+        return classifyAdvisoryLockRead({ text: readFileSync(join(packageRoot, BUILD_ARTIFACT_LOCK_NAME), "utf8") });
       } catch (error) { return classifyAdvisoryLockRead({ error }); }
     },
     freshness: createDevCheckDeps(cliJsPath),
+    rerunning,
+    rebuild: () => prepareDevBuild(packageRoot),
     writeStderr: (message) => { process.stderr.write(message); },
     exit: (code) => { process.exit(code); },
   };
+}
+
+/**
+ * Build the runtime under checkout ownership only if it is still unqualified once owned, so commands that found the
+ * same stale build wait for one build instead of each publishing their own. A wait for another owner and any build
+ * error show on this process's standard error; standard output stays the command's. A command cancelled during the
+ * build ends the build, then ends as asked rather than refusing.
+ */
+async function prepareDevBuild(packageRoot: string): Promise<{ kind: "completed" } | { kind: "failed"; message: string }> {
+  // On POSIX the build leads its own process group, so a signal reaches it only through this process, once, and
+  // ends the compiler it starts as well. Windows' console signals every attached process directly.
+  const ownGroup = process.platform !== "win32";
+  const child = spawn(process.execPath,
+    ["--import", "tsx", join(packageRoot, "src/scripts/run-build.ts"), "prepare"],
+    { cwd: packageRoot, env: process.env, stdio: ["ignore", "ignore", "inherit"], detached: ownGroup });
+  const ended = await superviseChild(child, ownGroup ? (signal) => { signalGroup(child, signal); } : undefined);
+  if (ended.kind === "unstarted") return { kind: "failed", message: ended.message };
+  if (ended.received !== null) endBySignal(ended.received);
+  return ended.code === 0 ? { kind: "completed" }
+    : { kind: "failed", message: `the build exited with ${ended.signal ?? `code ${String(ended.code)}`}` };
+}
+
+/**
+ * Run this command again on the rebuilt bundle, ending this process with the re-run's status.
+ *
+ * On POSIX the re-run replaces this process, keeping its process ID, process group and standard streams, so every
+ * signal reaches the re-run directly and exactly once, and input this process never read stays unread for it. On
+ * Windows the re-run is a child that inherits the standard streams, and the console signals both directly.
+ * @returns Never: the re-run replaces this process, or this process exits with its exit code or by its signal
+ */
+export async function rerunDevCommand(): Promise<never> {
+  const args = [...process.execArgv, ...process.argv.slice(1)];
+  const env = { ...process.env, [DEV_BUILD_RERUN_ENV]: "1" };
+  if (process.platform !== "win32" && typeof process.execve === "function") {
+    // Nothing after the replacement runs, so output already written must leave this process first, and the
+    // descriptors it shares with its caller must be back in blocking mode, as Node's own exit would leave them.
+    await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
+    for (const stream of [process.stdin, process.stdout, process.stderr]) restoreBlockingMode(stream);
+    try {
+      process.execve(process.execPath, [process.execPath, ...args], env);
+    } catch (error) {
+      reportUnstartedRerun(error instanceof Error ? error.message : String(error));
+    }
+  }
+  const ended = await superviseChild(spawn(process.execPath, args, { stdio: "inherit", env }));
+  if (ended.kind === "unstarted") reportUnstartedRerun(ended.message);
+  if (ended.signal !== null) endBySignal(ended.signal);
+  process.exit(ended.code ?? 1);
+}
+
+function reportUnstartedRerun(message: string): never {
+  process.stderr.write(`error: arc could not run the command again on the rebuilt dev build (${message}).\n`);
+  process.exit(1);
+}
+
+/** Resolve once output already written to a stream has been handed to the system, or the stream has failed. */
+async function flushed(stream: NodeJS.WriteStream): Promise<void> {
+  await new Promise<void>((settle) => { stream.write("", () => { settle(); }); });
+}
+
+/**
+ * Return a standard stream's descriptor to blocking mode. Node opens a pipe or socket for a standard stream in
+ * non-blocking mode, whichever module first touches it, and restores the mode only on exit, which a replaced process
+ * never reaches; the mode belongs to the descriptor the caller shares. Node offers no public control for it, so this
+ * uses the stream's own handle. A file has no handle and is never switched, and opening a stream here does not read it.
+ */
+function restoreBlockingMode(stream: NodeJS.ReadStream | NodeJS.WriteStream): void {
+  const handle = (stream as { _handle?: { setBlocking?: (blocking: boolean) => number } | null })._handle;
+  handle?.setBlocking?.(true);
+}
+
+/** How a supervised child ended, and the first signal this process received while it ran. */
+type SupervisedEnd =
+  | { readonly kind: "exited"; readonly code: number | null; readonly signal: NodeJS.Signals | null;
+      readonly received: NodeJS.Signals | null }
+  | { readonly kind: "unstarted"; readonly message: string };
+
+/** Signals that end a command, as a POSIX supervisor or terminal may send them and as Windows' console raises them. */
+const SUPERVISED_SIGNALS: readonly NodeJS.Signals[] = process.platform === "win32"
+  ? ["SIGINT", "SIGHUP"]
+  : ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"];
+
+/**
+ * Wait for a child of this process, recording the first ending signal this process receives meanwhile and handing
+ * each one to `passOn`. Without `passOn` the child is signalled only directly, so this process outlasts the signal.
+ */
+async function superviseChild(
+  child: ChildProcess, passOn?: (signal: NodeJS.Signals) => void,
+): Promise<SupervisedEnd> {
+  let received: NodeJS.Signals | null = null;
+  const handle = (signal: NodeJS.Signals): void => { received ??= signal; passOn?.(signal); };
+  for (const signal of SUPERVISED_SIGNALS) process.on(signal, handle);
+  const detach = (): void => { for (const signal of SUPERVISED_SIGNALS) process.off(signal, handle); };
+  return await new Promise((settle) => {
+    child.on("error", (error) => {
+      // A started child reports its end through `exit`; only a launch failure settles here.
+      if (child.pid !== undefined) return;
+      detach();
+      settle({ kind: "unstarted", message: error.message });
+    });
+    child.once("exit", (code, signal) => { detach(); settle({ kind: "exited", code, signal, received }); });
+  });
+}
+
+/** Signal every process in the group a child leads, including any it started; a group already ended is left alone. */
+function signalGroup(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (child.pid === undefined) return;
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    // Every process in the group has already ended.
+  }
+}
+
+/** End this process by a signal, or by its conventional status where the signal is ignored here. */
+function endBySignal(signal: NodeJS.Signals): never {
+  process.kill(process.pid, signal);
+  process.exit(128 + constants.signals[signal]);
 }
 
 /**

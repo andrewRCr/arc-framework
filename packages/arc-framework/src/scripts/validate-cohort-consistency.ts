@@ -16,6 +16,7 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import type { Store } from "../lib/store/contract.js";
 import { readLifecycleView } from "../lib/store/lifecycle-view.js";
 import { requireCompleteInventory } from "../lib/store/lifecycle-storage.js";
@@ -23,7 +24,6 @@ import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   checkCohortConsistency,
@@ -187,7 +187,7 @@ export async function resolveCohortValidationContext(cwd: string, store: Store):
 
 // --- CLI entry ---
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   const argvPaths = process.argv.slice(2);
   const cwd = deriveScanRoot(argvPaths);
   const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd }));

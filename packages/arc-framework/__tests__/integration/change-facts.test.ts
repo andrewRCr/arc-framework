@@ -20,7 +20,10 @@ describe("change-facts executable", () => {
   let repo: string;
   let base: string;
   let head: string;
-  const hostilePath = "name\n$(touch should-not-exist).ts";
+  // Windows disallows newlines in filenames, so use legal shell metacharacters there.
+  const hostilePath = process.platform === "win32"
+    ? "name & (literal).ts"
+    : "name\n$(touch should-not-exist).ts";
 
   beforeAll(async () => {
     repo = await createTempRepo("arc-change-facts-");

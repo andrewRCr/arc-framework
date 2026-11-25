@@ -3,7 +3,7 @@
 import { directoryExists } from "./designation.js";
 import { logicalReadRef, physicalReadRef } from "./read-source-namespace.js";
 import type { RefBackendContext } from "./context.js";
-import { isGitProcessError } from "../../git/process-error.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import { retryTornRefListing } from "../../git/ref-listing.js";
 import { enumerateRefTrees } from "./tree-enumeration.js";
 
@@ -45,7 +45,10 @@ export async function readRefTips(context: RefBackendContext, options: { include
   return tips;
 }
 
-/** Read objects in one process, recursively partitioning only an exceeded output bound. */
+/**
+ * Read objects in one process. A batch that exceeds the output bound, or that Git fails on, splits until the failing
+ * query stands alone; a lone query naming a damaged object then reads as unavailable, as a missing object does.
+ */
 export async function readBatchObjects(context: RefBackendContext, queries: readonly string[]): Promise<Map<string, BatchObject | null>> {
   if (queries.length === 0) return new Map();
   if (context.blobStage) {
@@ -61,14 +64,22 @@ export async function readBatchObjects(context: RefBackendContext, queries: read
   }
   const retained = await readRetainedObjects(context, queries);
   if (retained) return retained;
-  try { return await readStoredObjects(context, queries);
-  } catch (error) {
-    if (!isGitProcessError(error) || error.kind !== "output-limit" || queries.length === 1) throw error;
-    const middle = Math.ceil(queries.length / 2);
-    const left = await readBatchObjects(context, queries.slice(0, middle));
-    const right = await readBatchObjects(context, queries.slice(middle));
-    return new Map([...left, ...right]);
+  try { return await readStoredObjects(context, queries); }
+  catch (error) { return await readAfterFailure(context, queries, error); }
+}
+
+/** Split a batch Git could not finish; a lone query keeps its error unless it names a damaged object. */
+async function readAfterFailure(context: RefBackendContext, queries: readonly string[], error: unknown): Promise<Map<string, BatchObject | null>> {
+  if (!isGitProcessError(error) || error.kind !== "output-limit" && !isCompletedGitFailure(error)) throw error;
+  const [query] = queries;
+  if (queries.length === 1 && query !== undefined) {
+    if (error.kind === "output-limit" || !await namesDamagedObject(context, query)) throw error;
+    return new Map([[query, null]]);
   }
+  const middle = Math.ceil(queries.length / 2);
+  const left = await readBatchObjects(context, queries.slice(0, middle));
+  const right = await readBatchObjects(context, queries.slice(middle));
+  return new Map([...left, ...right]);
 }
 
 async function readStoredObjects(context: RefBackendContext, queries: readonly string[]): Promise<Map<string, BatchObject | null>> {
@@ -83,6 +94,29 @@ async function readStoredObjects(context: RefBackendContext, queries: readonly s
   }
   retainObjects(context, objects);
   return context.readSource ? new Map(queries.map((query, index) => [query, objects.get(physical[index] ?? query) ?? null])) : objects;
+}
+
+/**
+ * Whether a lone query Git's batch reader failed on names a damaged object: the repository still shows the revision it
+ * starts from, before any peel or path suffix, and reading the query directly fails as well. A query that reads
+ * directly failed for another reason, and a repository that cannot show where it starts, as when its store directory
+ * is gone, keep the original error.
+ */
+async function namesDamagedObject(context: RefBackendContext, query: string): Promise<boolean> {
+  const physical = physicalReadRef(context, query);
+  return await gitSucceeds(context, ["cat-file", "-e", physical.split(/[:^]/u, 1)[0] ?? physical])
+    && !await gitSucceeds(context, ["cat-file", "-p", physical]);
+}
+
+async function gitSucceeds(context: RefBackendContext, args: string[]): Promise<boolean> {
+  try {
+    await context.rawExec(args, { cwd: context.checkoutRoot, objectAccess: "local-only" });
+    return true;
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "output-limit") return true;
+    if (isGitProcessError(error) && isCompletedGitFailure(error)) return false;
+    throw error;
+  }
 }
 
 async function missingFromDepartedStore(context: RefBackendContext, objects: ReadonlyMap<string, BatchObject | null>): Promise<boolean> {

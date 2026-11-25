@@ -8,6 +8,9 @@ import { ActivateCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { runActivate, type ActivateContext } from "../../src/lib/work-unit/verbs/activate-deactivate.js";
 import { buildStoreCurrentWuReconcile } from "../../src/lib/work-unit/store-current-wu-reconcile.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
+import { parseMetaRecord, setMetaBulletFields } from "../../src/lib/active/meta-reader.js";
 
 let root: string | undefined;
 afterEach(async () => { if (root !== undefined) await cleanupTempDir(root); root = undefined; });
@@ -65,6 +68,25 @@ async function freshActivation() {
   return { ...h, meta, exec, base, root, context,
     params: { name: input.slug!, toBranch: `${input.type}/${input.slug}`, baseBranch: "main", nextAction: input.action } };
 }
+
+it("reports a discharged dependency's stale blocker while completing the activation", async () => {
+  const h = await freshActivation();
+  await h.seedMeta("released", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  const blockers = "`released` must land before implementation.";
+  const content = setMetaBulletFields(writeMetaDependsOn(h.meta.content, ["released"]), { Blockers: blockers });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content }),
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+
+  const result = await runActivate(h.context(h.exec), h.params);
+
+  expect(result).toMatchObject({ status: "activated", report: expect.arrayContaining([
+    expect.stringContaining("Blockers mentions discharged dependencies: `released`."),
+    expect.stringContaining("Clear or restate"),
+  ]) });
+  const updated = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  expect(parseMetaRecord(updated.content)).toMatchObject({ state: "Active", dependsOn: [], blockers });
+  expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout.trim()).toBe("feat/example");
+}, ACTIVATION_TIMEOUT_MS);
 
 it("preserves activation state when a base probe times out and activates after repair", async () => {
   const h = await freshActivation();

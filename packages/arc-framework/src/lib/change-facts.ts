@@ -1,10 +1,12 @@
 /** Canonical, byte-preserving facts derived from Git raw-diff output. */
 
+import { isMainModule } from "./main-module.mjs";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { open, readFile, type FileHandle } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gitExecutable } from "./git/executable.mjs";
 import { sanitizeGitRepositoryEnvironment } from "./git/repository-environment.mjs";
 
 import type {
@@ -249,7 +251,7 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
           .filter(([name]) => !options?.removeEnvironment?.includes(name)));
         const env = options?.objectAccess === "local-only" ? { ...environment, GIT_NO_LAZY_FETCH: "1" } : environment;
         cancellation?.assertGitNotCanceled(options?.signal, { command: "git", args: effectiveArgs });
-        const child = spawn("git", effectiveArgs, {
+        const child = spawn(gitExecutable(env), effectiveArgs, {
           cwd: effectiveCwd, env,
           stdio: [input?.fd ?? "pipe", output?.fd ?? "pipe", "pipe"],
         });
@@ -698,12 +700,10 @@ async function runExecutable(args: string[]): Promise<void> {
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-const invokedPath = process.argv[1];
 const modulePath = fileURLToPath(import.meta.url);
 if (
-  invokedPath !== undefined
-  && /(?:^|[/\\])change-facts\.(?:ts|js)$/u.test(modulePath)
-  && modulePath === resolve(invokedPath)
+  /(?:^|[/\\])change-facts\.(?:ts|js)$/u.test(modulePath)
+  && await isMainModule(import.meta, process.argv[1])
 ) {
   try {
     await runExecutable(process.argv.slice(2));

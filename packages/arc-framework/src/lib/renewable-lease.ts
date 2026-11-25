@@ -1,4 +1,5 @@
 /** Shared process lifetime for renewable advisory ownership. */
+import { setTimeout as delay } from "node:timers/promises";
 import type { AdvisoryLockHandle, AdvisoryLockRenewalResult } from "./advisory-lock.js";
 
 /** Process, time, and native lock seams used by both admission and artifact ownership. */
@@ -34,14 +35,15 @@ export const ADVISORY_LEASE_RENEW_INTERVAL_MS = 10_000;
  * @param action - Work bound to the lease lifetime
  * @param deps - Actual process and native lock boundaries
  * @param labels - Operator diagnostics
+ * @param options - Maintenance contention wait budget for each explicit ownership confirmation
  * @returns The action result after release completes
  */
 export async function withRenewableLease<T>(
   handle: AdvisoryLockHandle, startedAt: number, action: (lease: RenewableLease) => Promise<T>,
-  deps: RenewableLeaseDependencies, labels: RenewableLeaseLabels,
+  deps: RenewableLeaseDependencies, labels: RenewableLeaseLabels, options: { maintenanceWaitMs?: number } = {},
 ): Promise<T> {
   const unregister = deps.registerExitCleanup(handle);
-  const monitor = createMonitor(handle, startedAt, deps, labels);
+  const monitor = createMonitor(handle, startedAt, deps, labels, options.maintenanceWaitMs ?? 0);
   const cancel = deps.scheduleEvery(monitor.tick, ADVISORY_LEASE_RENEW_INTERVAL_MS);
   try {
     return await action(monitor);
@@ -56,6 +58,7 @@ export async function withRenewableLease<T>(
 
 function createMonitor(
   handle: AdvisoryLockHandle, startedAt: number, deps: RenewableLeaseDependencies, labels: RenewableLeaseLabels,
+  maintenanceWaitMs: number,
 ) {
   let active = true;
   let releasing = false;
@@ -108,11 +111,19 @@ function createMonitor(
     void operation.then(clear, clear);
     return operation;
   };
+  const canConfirm = () => active && !releasing && !lost;
   const confirmOwnership = async (): Promise<void> => {
-    const result = active && !releasing && !lost ? await renew() : "ownership-lost";
-    if (!active || releasing || lost || result !== "renewed") {
-      throw new Error(`${labels.lock} ownership cannot be confirmed; rerun the operation after ownership repair.`);
-    }
+    const deadline = performance.now() + maintenanceWaitMs;
+    let backoff = 10;
+    do {
+      if (!canConfirm()) break;
+      const result = await renew();
+      if (result === "renewed" && canConfirm()) return;
+      if (result !== "maintenance-busy" || performance.now() + backoff >= deadline || cannotRetry()) break;
+      await delay(backoff);
+      backoff = Math.min(backoff * 2, 250);
+    } while (!cannotRetry() && performance.now() < deadline);
+    throw new Error(`${labels.lock} ownership cannot be confirmed; rerun the operation after ownership repair.`);
   };
   return {
     tick: () => {

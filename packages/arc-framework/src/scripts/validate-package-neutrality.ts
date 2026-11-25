@@ -18,9 +18,9 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { execFileSync } from "node:child_process";
 import { basename, isAbsolute, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { runPathListScript } from "./cli-runner.js";
 import { parseMethodFrontmatter } from "../lib/frontmatter/index.js";
@@ -148,6 +148,6 @@ function readStagedFile(path: string): string {
   });
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   runPathListScript(validateFiles, { readFile: readStagedFile });
 }

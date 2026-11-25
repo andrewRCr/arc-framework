@@ -17,9 +17,9 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { resolveRepoRoot } from "./repo-root.js";
 import { parseDevRulesFrontmatter } from "../lib/frontmatter/index.js";
@@ -99,6 +99,6 @@ function main(): void {
   process.stdout.write(`${summary}\n`);
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   main();
 }

@@ -107,6 +107,7 @@ it("merge observes the current stored meta version and lifecycle rather than the
     resolveRepository: async () => "owner/repo", readHeadRef: async () => ({ local: null, remote: h.head }),
     listByHead: async () => [{ number: 42, url: "https://github.com/owner/repo/pull/42", state: "OPEN",
       baseRefName: "main", headRefName: "topic/opaque", headRefOid: h.head }], searchByHeadSha: async () => [],
+    isAncestor: async () => false,
   } });
   expect(await dependencies.readStatus("example")).toMatchObject({ actualHead: h.head, lifecycleComplete: true,
     lifecycleVersion: lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).version });

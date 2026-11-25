@@ -87,15 +87,39 @@ arc check run test:integration:content --range
 Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
 to gates still have to pass by their declared deadlines.
 
+### Platform feedback at phase close
+
+Windows and macOS defects otherwise surface only at verification, when each hosted pair run takes 30 to 45 minutes. At
+each phase close of a work unit that changes tests or platform-sensitive code (paths, processes, the file system, Git
+or shell invocation, line endings), start a Windows and macOS run of that phase's changed test files and the tests that
+import its changed source. Do not wait for it: carry on with the next phase and report the result at the next approval.
+
+- List them from the package directory with `npx vitest list --filesOnly --changed <phase-start>`, and add by search
+  any integration test that reaches the change through a file it reads, which no import graph shows. Each listed line
+  names a project and a package-relative path: drop the project label and prefix `packages/arc-framework/` to name
+  the file from the repository root. When nothing is selected, report that the phase has no platform evidence.
+- Push the phase and dispatch them on the hosted pair with `gh workflow run ci.yml --ref <branch> -f
+  portability_files="<files>"`, naming repository-relative paths. Each job takes a few minutes. A local Windows runner
+  may stand in for Windows on files that pass there on `main`, with the dispatch still covering macOS.
+- For quick native macOS feedback during the phase, run `arc-offload --runner m4-mini-macos npm run -s test:file --
+  <file>` from the repository root for one test file. The hosted macOS dispatch supplies phase-close evidence.
+- When the phase changes test configuration or the lockfile, which no import graph bounds, say so in the report and
+  leave the whole pair to verification's run.
+
+A `portability_files` dispatch attests nothing (§ Hosted CI before verification attests). `ci.yml` cancels a dispatch
+when another starts on the same ref, so never dispatch while a verification run is in progress on the branch, and when
+a phase closes while the previous phase's dispatch still runs, dispatch both phases' files together, leaving out any
+the later phase renamed or deleted.
+
 ### Hosted CI before verification attests
 
 The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2e` among them, and a feature-branch push
 starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref
 <branch>`). Work-unit verification attests only on a passing run whose `headSha` is that head and that was dispatched
 with none of the diagnostic inputs set, recorded by run id in the verification commit body: `portability_timing_only`
-skips the build, lint, type-check, unit, integration, store, and E2E jobs, `store_per_change` narrows the store run to
-its per-change form, and `portability_files` runs only the named files on the Windows/macOS pair, so each such run
-passes for its own purpose and attests nothing. Dispatch again after any later code change; planning-only commits need
+runs only the Windows and macOS timing job, `store_per_change` narrows the store run to its per-change form, and
+`portability_files` runs only the named files on the Windows/macOS pair, so each such run passes for its own purpose and
+attests nothing. Dispatch again after any later code change; planning-only commits need
 no new run.
 
 ### Test execution
@@ -105,12 +129,18 @@ package-local filters stay native and package-relative. Focused execution does n
 quality gate. Test preparation may reuse a qualifying build, but the full `npm run build` declaration gate and both
 type checks remain required.
 
+The Linux job `Portability (concurrency guards) (linux)` runs on pull requests in the reviewed lane with `heavy`
+CI weight. Hosted Windows and macOS runs come from the weekly schedule and explicit dispatches. For a
+platform-sensitive change outside a work unit's phase-close process, push the branch and run
+`gh workflow run ci.yml --ref <branch> -f run_portability_pair=true`. Check both platforms' results on the pushed
+head before the integration interlock.
+
 The store suites, every `store-ref-*` integration file, run in the `test:store` merge-gate check, selected by each
 suite's reach into the change, instead of in the integration tier. This departs from the quality-gates strategy's
 complete suite at the merge gate: for the store suites the gate rests on that reach and on the full run CI makes on
 every push to `main`, so a miss shows on `main` after merge rather than before it. The integration tier, the lane, and
-a pull request's portability run leave the store suites out, as does a dispatched portability run whose change reaches
-none of them. `ARC_STORE_CHECK=full` asks for a full run, and `ARC_STORE_CHECK=every` for every suite in its
+the Linux pull-request portability job leave the store suites out, as does a dispatched portability run whose change
+reaches none of them. `ARC_STORE_CHECK=full` asks for a full run, and `ARC_STORE_CHECK=every` for every suite in its
 per-change form.
 
 ## Testing Requirements

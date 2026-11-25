@@ -14,9 +14,11 @@ export type DeclaredCheckEnvelope = { schemaVersion: typeof CHECK_REQUEST_SCHEMA
  * a count of every outcome; the machine envelope keeps every result.
  * @param outcome - Typed orchestration result
  * @param json - Whether to produce the versioned envelope
+ * @param reported - Check rows already written to human output
  * @returns A newline-terminated payload
  */
-export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boolean): string {
+export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boolean,
+  reported?: ReadonlySet<DeclaredCheckResult>): string {
   if (json) {
     const envelope: DeclaredCheckEnvelope = outcome.kind === "result"
       ? { schemaVersion: CHECK_REQUEST_SCHEMA_VERSION, result: outcome.result }
@@ -32,7 +34,7 @@ export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boo
   if (outcome.result.status === "none declared") return `${ignored}none declared\n${verification}\n`;
   const { checks, ci } = outcome.result;
   if (checks.length === 0) return `${ignored}${verification}\n`;
-  const failureFirst = checks.filter(isListed).sort((a, b) => Number(isNonPassing(b)) - Number(isNonPassing(a)));
+  const failureFirst = checks.filter(check => !reported?.has(check) && isListed(check)).sort((a, b) => Number(isNonPassing(b)) - Number(isNonPassing(a)));
   const listed = failureFirst.map(check => `${renderCheck(check, ci === true)}\n`).join("");
   return `${ignored}${listed}${renderRecordWarnings(checks)}${renderCount(checks)}\n`;
 }
@@ -80,6 +82,11 @@ function renderRecordWarnings(checks: readonly DeclaredCheckResult[]): string {
 /** Outcomes that hold a request back, and whose output and log explain why. */
 function isNonPassing(check: DeclaredCheckResult): boolean {
   return check.outcome === "failed" || check.outcome === "couldn't run" || check.outcome === "no evidence";
+}
+
+/** Render a completed nonpassing result with the same diagnostic and retry as the final human report. */
+export function renderNonPassingCheck(check: DeclaredCheckResult): string | undefined {
+  return isNonPassing(check) ? `${renderCheck(check, false)}\n` : undefined;
 }
 
 function renderCheck(check: DeclaredCheckResult, ci: boolean): string {

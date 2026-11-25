@@ -6,7 +6,7 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store
 import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 import type { GitExec, RawGitExec } from "../../../../src/lib/git/exec.js";
 import { runActivate, runDeactivate, type ActivateContext } from "../../../../src/lib/work-unit/verbs/activate-deactivate.js";
-import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, setMetaBulletFields } from "../../../../src/lib/active/meta-reader.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { writeMetaDependsOn } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
@@ -228,10 +228,15 @@ it("refuses activation on a branch linked by its completed namesake", async () =
 it("activation reconciles the live namesake's records through the real store ceremony", async () => {
   const h = await harness({ branch: "main", archived: true });
   await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
-  lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content: writeMetaDependsOn(h.meta.content, ["done"]) }), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const blockers = "`done` must land first (`Depends On`).";
+  const content = setMetaBulletFields(writeMetaDependsOn(h.meta.content, ["done"]), { Blockers: blockers });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content }), provenance: { verb: "edit", lifecycleAction: "edit" } }));
   h.ctx.currentWuReconcile = buildStoreCurrentWuReconcile("/project", h.store);
-  expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated" });
-  expect((await h.read()).fields).toMatchObject({ state: "Active", dependsOn: [] });
+  expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated", report: expect.arrayContaining([
+    expect.stringContaining("Blockers mentions discharged dependencies: `done`."),
+    expect.stringContaining("Clear or restate"),
+  ]) });
+  expect((await h.read()).fields).toMatchObject({ state: "Active", dependsOn: [], blockers });
   if (h.archived === undefined) throw Error("Expected archived namesake");
   expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
 });

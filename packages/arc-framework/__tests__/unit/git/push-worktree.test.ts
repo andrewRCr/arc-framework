@@ -9,6 +9,7 @@ import {
   type PushWorktreeSpawn,
 } from "../../../src/lib/git/push-worktree.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
+import { gitExecutable } from "../../../src/lib/git/executable.mjs";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
 import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
@@ -189,7 +190,7 @@ describe("pushWorktreeBranch — push gate identifier", () => {
       interaction: { terminalPrompts: "forbidden", presenters: "forbidden", ambientStdin: "closed" }, pushGateId });
 
     expect(result.status).toBe("success");
-    expect(execaMock).toHaveBeenCalledWith("git", ["push", "origin", "feature/x"], expect.objectContaining({
+    expect(execaMock).toHaveBeenCalledWith(gitExecutable(undefined), ["push", "origin", "feature/x"], expect.objectContaining({
       cwd: "/repo", extendEnv: false,
       env: expect.objectContaining({ ARC_PUSH_GATE_ID: pushGateId, GIT_TERMINAL_PROMPT: "0" }) }));
   });
