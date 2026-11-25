@@ -4,9 +4,13 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+import { seedStore } from "../helpers/store/seed-store.js";
+import { createDefaultRefStorePorts, createRefStore } from "../../src/lib/store/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { renderMetaFile } from "../../src/lib/store/kinds/meta/writers.js";
+import { projectIdentityRecord } from "../../src/lib/store/project-identity.js";
 import { runStoreRename } from "../../src/lib/work-unit/verbs/rename-store.js";
-import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { acquireStoreClaims } from "../../src/lib/errand/store-discovery.js";
 import { analyzeOrphanBranchesSnapshot, runOrphanBranchSweep, OrphanBranchSweepResultSchema } from "../../src/lib/session-init/orphan-branch-sweep.js";
 import type { OrphanStoreOptions } from "../../src/lib/session-init/orphan-store-candidates.js";
@@ -68,6 +72,23 @@ it.each(["snapshot", "run"] as const)("%s scans an arbitrary created link using 
   expect(result.orphans, JSON.stringify(result)).toEqual([{ branch: "arbitrary-branch", merged: true, shippedWorkUnit: "shipped-widget", teardown: { text: "arc teardown shipped-widget", argv: ["arc", "teardown", "shipped-widget"] }, actions: [{ text: "arc teardown shipped-widget", argv: ["arc", "teardown", "shipped-widget"] }] }]);
   expect((await h.exec("git", ["rev-parse", "arbitrary-branch"])).stdout.trim()).toBe(h.head);
 });
+it.each(["snapshot", "run"] as const)("%s offers the Shipped holder's teardown when its only link is a full local ref", async path => {
+  const h = await fixture(), branch = "topic/widget", ref = `refs/heads/${branch}`;
+  await h.branch(branch);
+  const identity = SlugSchema.parse("test-user");
+  await seedStore(h.cwd, identity, [projectIdentityRecord(repository), {
+    reference: recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "widget" })),
+    content: renderMetaFile("widget", { state: "Shipped", owner: identity, workClass: "Light", currentWorkflow: null }),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") },
+    links: { branches: [{ repository, ref, linkedAs: "created", excluded: [] }] },
+  }]);
+  const store = createRefStore({ ...createDefaultRefStorePorts({ checkoutRoot: h.cwd, backingRepository: async () => null }), identity: async () => identity });
+  expect(lifecycleSuccess(await store.lookup({ kind: "ref", repository, ref })).reference.owner.name).toBe("widget");
+  const result = await h.sweep(path, [branch], { store, identity, claims: undefined });
+  expect(result.warnings ?? []).toEqual([]);
+  const teardown = { text: "arc teardown widget", argv: ["arc", "teardown", "widget"] };
+  expect(result.orphans).toEqual([{ branch, merged: true, shippedWorkUnit: "widget", teardown, actions: [teardown] }]);
+});
 it.each(["snapshot", "run"] as const)("%s keeps adopted cleanup with its owner, whether merged or not", async path => {
   const h = await fixture();
   for (const [branch, unmerged] of [["adopted-landed", false], ["adopted-unique", true]] as const) {
@@ -113,12 +134,13 @@ it.each(["snapshot", "run"] as const)("%s excludes active Errands and live groom
   const result = await h.sweep(path, branches, { claims });
   expect(result.orphans).toEqual([{ branch: "chore/ended-errand", merged: true, shippedWorkUnit: null, actions: [{ text: "git branch -D chore/ended-errand", argv: ["git", "branch", "-D", "chore/ended-errand"] }] }]);
 });
-it.each(["snapshot", "run"] as const)("%s leaves out a branch no record links and keeps the offers beside it", async path => {
+it.each(["snapshot", "run"] as const)("%s keeps the teardown for a linked branch between two unlinked branches", async path => {
   const h = await fixture();
+  await h.branch("first-unlinked-branch");
   await h.branch("linked-branch");
   await h.branch("unlinked-branch");
   await h.seedMeta("widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, { branches: [{ repository, ref: "linked-branch", linkedAs: "created", excluded: [] }] });
-  const result = await h.sweep(path, ["linked-branch", "unlinked-branch"]);
+  const result = await h.sweep(path, ["first-unlinked-branch", "linked-branch", "unlinked-branch"]);
   expect(result.warnings ?? []).toEqual([]);
   const teardown = { text: "arc teardown widget", argv: ["arc", "teardown", "widget"] };
   expect(result.orphans).toEqual([{ branch: "linked-branch", merged: true, shippedWorkUnit: "widget", teardown, actions: [teardown] }]);
@@ -133,6 +155,34 @@ it.each(["snapshot", "run"] as const)("%s still declines the whole sweep on a br
     ? Promise.resolve({ status: "refused", refusal: { code: "refused", class: "terminal", message: "State unreadable", condition: "State unreadable.", remedy: { text: "Repair the state, then retry." } } })
     : lookup(input));
   expect(await h.sweep(path, ["linked-branch", "unreadable-branch"])).toMatchObject({ orphans: [], warnings: [expect.stringContaining("Repair the state, then retry.")] });
+});
+it.each(["snapshot", "run"] as const)("%s withholds all offers when a linked record disappears after lookup", async path => {
+  const h = await fixture();
+  const branches = ["eligible-branch", "vanished-branch"];
+  const quarter = ArchiveQuarterSchema.parse("2026-q1");
+  for (const branch of branches) {
+    await h.branch(branch);
+    await h.seedMeta(branch, { state: "Shipped" }, { kind: "completed", quarter },
+      { branches: [{ repository, ref: branch, linkedAs: "created", excluded: [] }] });
+  }
+  const ready = await h.sweep(path, branches);
+  expect(ready.warnings ?? []).toEqual([]);
+  expect(ready.orphans).toMatchObject(branches.map(branch => ({
+    branch, teardown: { argv: ["arc", "teardown", branch] },
+  })));
+
+  const read = h.store.read.bind(h.store);
+  const condition = "The linked record is missing.";
+  const remedy = "Restore the vanished record and retry the sweep.";
+  const readSpy = vi.spyOn(h.store, "read").mockImplementation(input => {
+    const { reference } = input;
+    if (reference.kind !== "work-item/meta" || reference.owner.name !== "vanished-branch") return read(input);
+    return Promise.resolve({ status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
+      condition, remedy: { text: remedy } } });
+  });
+  expect(await h.sweep(path, branches)).toMatchObject({ orphans: [], warnings: [expect.stringContaining(`${condition} ${remedy}`)] });
+  readSpy.mockRestore();
+  expect(await h.sweep(path, branches)).toEqual(ready);
 });
 it.each(["snapshot", "run"] as const)("%s declines incomplete claims independently of branch lookup", async path => {
   const h = await fixture();

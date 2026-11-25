@@ -206,12 +206,13 @@ it("keeps the selected Errand merge ready after a second live Errand arrives on 
   expect(await merge.releaseLock(target, identity)).toMatchObject(ready);
   expect(standalone).toMatchObject(ready);
   expect(repaired).toMatchObject(ready);
-  expect(normalizedTie).toMatchObject({ state: "blocked", diagnostics: expect.arrayContaining([
-    expect.objectContaining({ message: expect.stringContaining(selected.branch) }),
-  ]) });
-  expect(blocked).toMatchObject({ state: "blocked", diagnostics: expect.arrayContaining([
-    expect.objectContaining({ message: expect.stringContaining("arc errand close") }),
-  ]) });
+  for (const tie of [blocked, normalizedTie]) {
+    expect(tie).toMatchObject({ state: "blocked", diagnostics: expect.arrayContaining(
+      [uidA, uidB].map(uid => expect.objectContaining({
+        code: "unreadable-artifact", message: expect.stringContaining(`arc errand close ${uid}`),
+      })),
+    ) });
+  }
 }, 60_000);
 
 it("refuses a clashed branch on the machine holding only the other Errand checkout", async () => {
