@@ -15,7 +15,10 @@ import { personalReference } from "../helpers/store/personal-fixture.js";
 import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 
-it("reports an unreachable pull while completing local setup and clears the warning after repair", async () => {
+const unreachable = { status: "unreachable", condition: "State remote offline.",
+  remedy: { text: "Reconnect the state remote, then retry join." } } as const;
+
+it("stops setup on an unreachable state remote and completes it after repair", async () => {
   const cwd = await createTempRepo(); onTestFinished(() => cleanupTempDir(cwd));
   const exec = makeGitExec(cwd);
   await exec("git", ["config", "arc.identity", "previous-person"]);
@@ -24,7 +27,7 @@ it("reports an unreachable pull while completing local setup and clears the warn
   const h = createLifecycleHarness(); h.store.environment.identity = "alice";
   let offline = true, output = "";
   binding.ports = { openStore: () => h.store, sync: () => createStoreSyncPort({ pull: async () => offline
-    ? { status: "unreachable", condition: "State remote offline.", remedy: { text: "Reconnect the state remote, then retry join." } }
+    ? unreachable
     : { status: "pulled" } }) };
   const originalCwd = process.cwd(), originalExit = process.exitCode;
   const out = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
@@ -34,20 +37,24 @@ it("reports an unreachable pull while completing local setup and clears the warn
     await dispatchRegisteredCli(argv);
     expect(output).toContain("State remote offline.");
     expect(output).toContain("Reconnect the state remote, then retry join.");
-    expect(output).toContain("Workspace setup complete"); expect(output).toContain("Done.");
+    expect.soft(output).not.toContain("Workspace setup complete"); expect.soft(output).not.toContain("Done.");
+    expect.soft((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("previous-person");
+    for (const kind of ["personal/inbox", "personal/working-memory"] as const) {
+      expect.soft(await h.store.read({ reference: personalReference(kind, undefined, "alice") })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    }
+    expect.soft(process.exitCode).toBe(1);
+    offline = false; output = ""; process.exitCode = undefined;
+    await dispatchRegisteredCli(argv);
+    expect(output).not.toContain("State remote offline."); expect(output).not.toContain("Reconnect the state remote");
+    expect(output).toContain("Workspace setup complete"); expect(process.exitCode).toBeUndefined();
     expect((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("alice");
     for (const kind of ["personal/inbox", "personal/working-memory"] as const) {
       expect(await h.store.read({ reference: personalReference(kind, undefined, "alice") })).toMatchObject({ status: "ok" });
     }
-    expect(process.exitCode).toBeUndefined();
-    offline = false; output = "";
-    await dispatchRegisteredCli(argv);
-    expect(output).not.toContain("State remote offline."); expect(output).not.toContain("Reconnect the state remote");
-    expect(output).toContain("Workspace setup complete"); expect(process.exitCode).toBeUndefined();
   } finally { out.mockRestore(); binding.ports = null; process.chdir(originalCwd); process.exitCode = originalExit; }
 }, 30_000);
 
-it("cancels designation before setup mutations and completes an explicitly answered retry", async () => {
+it.each(["code", "state"])("cancels designation and checks the new pull after selecting %s", async role => {
   const cwd = await createTempRepo(); onTestFinished(() => cleanupTempDir(cwd));
   const exec = makeGitExec(cwd);
   await exec("git", ["config", "arc.identity", "previous-person"]);
@@ -58,16 +65,25 @@ it("cancels designation before setup mutations and completes an explicitly answe
   const beforeFiles = (await readdir(cwd)).sort();
   const h = createLifecycleHarness(); h.store.environment.identity = "alice";
   const beforeState = lifecycleSuccess(await h.store.version());
-  let cancel = true, output = "";
+  let cancel = true, output = "", pulledAfterDesignation = false, offline = role === "state";
   const designations = new Map<string, string>();
   binding.ports = { openStore: () => h.store,
-    sync: () => createStoreSyncPort({ pull: async () => ({ status: "designation-needed", remote: "upstream", choices: ["state", "code"],
-      remedy: { text: "arc store remote upstream state", argv: ["arc", "store", "remote", "upstream", "state"] } }) }),
+    sync: () => createStoreSyncPort({ pull: async () => {
+      if (designations.has("upstream")) {
+        expect((await exec("git", ["config", "--local", "--list"])).stdout).toBe(beforeConfig);
+        expect(lifecycleSuccess(await h.store.version())).toBe(beforeState);
+        pulledAfterDesignation = true;
+        if (offline) return unreachable;
+        return role === "code" ? { status: "no-remote" } : { status: "pulled" };
+      }
+      return { status: "designation-needed", remote: "upstream", choices: ["state", "code"],
+        remedy: { text: "arc store remote upstream state", argv: ["arc", "store", "remote", "upstream", "state"] } };
+    } }),
     renderer: { confirm: async () => ({ kind: "answered", value: true }), text: async () => ({ kind: "cancelled" }), multiselect: async () => ({ kind: "cancelled" }),
       select: async (_context, question) => {
         if (cancel) return { kind: "cancelled" };
-        const option = question.options.find(option => option.value === "code");
-        if (!option) throw new Error("No explicit code choice");
+        const option = question.options.find(option => option.value === role);
+        if (!option) throw new Error(`No ${role} choice`);
         return { kind: "answered", value: option.value };
       } },
     execute: async ([command, family, verb, remote, role]) => {
@@ -97,11 +113,23 @@ it("cancels designation before setup mutations and completes an explicitly answe
     expect(output).not.toContain("Workspace setup complete"); expect(output).not.toContain("Done.");
     cancel = false; output = "";
     await dispatchRegisteredCli(argv);
+    expect([...designations]).toEqual([["upstream", role]]);
+    expect(pulledAfterDesignation).toBe(true);
+    if (offline) {
+      expect(process.exitCode).toBe(1);
+      expect(output).toContain(unreachable.condition);
+      expect(output).not.toContain("Workspace setup complete");
+      expect((await exec("git", ["config", "--local", "--list"])).stdout).toBe(beforeConfig);
+      expect(lifecycleSuccess(await h.store.version())).toBe(beforeState);
+      offline = false; output = ""; process.exitCode = undefined;
+      await dispatchRegisteredCli(argv);
+      expect(output).not.toContain(unreachable.condition);
+    }
     expect((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("alice");
     for (const kind of ["personal/inbox", "personal/working-memory"] as const) {
       expect(await h.store.read({ reference: personalReference(kind, undefined, "alice") })).toMatchObject({ status: "ok" });
     }
-    expect([...designations]).toEqual([["upstream", "code"]]);
+    expect(process.exitCode).toBeUndefined();
     expect(output).toContain("Workspace setup complete"); expect(output).toContain("Done.");
   } finally {
     out.mockRestore(); binding.ports = null; process.chdir(originalCwd); process.exitCode = originalExit;

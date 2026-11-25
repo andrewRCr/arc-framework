@@ -182,6 +182,7 @@ function emitUserReferenceResult(
 /** Validated input for creating an identity workspace. */
 export const UserAddInputSchema = z.object({ identity: SlugSchema }).strict();
 
+/** Set up the named identity's inbox and working memory. */
 export async function handleUserAdd(
   rawIdentity: string,
   context?: InteractionContext,
@@ -206,12 +207,12 @@ export async function handleUserAdd(
 
   // The handler holds the spinner so the identity question can clear it before asking.
   const spinner = p.spinner();
-  const progress = { spinner, label: `Creating user directory for ${identity}...` };
+  const progress = { spinner, label: `Preparing personal records for ${identity}...` };
   spinner.start(progress.label);
   try {
     await runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(),
       confirmIdentityInUse: confirmPersonalIdentity(userAddIdentityInUsePromptSite, context, undefined, progress) });
-    spinner.stop(`User directory created for ${identity}.`);
+    spinner.stop(`Inbox and working memory are ready for ${identity}.`);
   } catch (err) {
     spinner.stop("Failed.");
     if (isHandledError(err)) return;

@@ -62,6 +62,7 @@ export interface JoinResult {
   role: "maintainer" | "contributor";
   tools: string[];
   identity: string | null;
+  stateOffBranch: boolean;
 }
 
 // --- Orchestrator ---
@@ -143,6 +144,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
     role: prompts.role,
     tools: prompts.tools,
     identity: identityResult,
+    stateOffBranch,
   };
 }
 
@@ -253,9 +255,8 @@ export async function runJoinReconfigure(
 /**
  * Build the post-join message displayed after successful workspace setup.
  *
- * Three optional sections atop the role-confirmation line: a skill-restart
- * cue when tools are configured, and a one-time orientation paragraph
- * introducing the user-notes feature when an identity is set.
+ * Includes workspace setup notices, a restart cue when tools are configured,
+ * and guidance for the identity's storage backend when an identity is set.
  *
  * @param result - Result from a successful join run
  * @returns Formatted message string ready for display
@@ -274,7 +275,14 @@ export function buildPostJoinMessage(result: JoinResult): string {
     );
   }
 
-  if (result.identity) {
+  if (result.identity && result.stateOffBranch) {
+    lines.push(
+      "",
+      "Use `arc sync` to synchronize your personal records through the store.",
+      "When you resume a work unit, session-init reads its session context",
+      "from the work unit's meta.",
+    );
+  } else if (result.identity) {
     lines.push("");
     lines.push(
       `Personal session context lives in .arc/user/${result.identity}/ (gitignored). It`,

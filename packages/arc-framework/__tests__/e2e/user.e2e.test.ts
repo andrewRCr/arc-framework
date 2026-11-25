@@ -55,10 +55,17 @@ describe("user add", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("creates user directory with the per-user file set", async () => {
-    const result = await runArc(["user", "add", "alice"], tmpDir);
-
-    expect(result.exitCode).toBe(0);
+  it("reports setup without claiming a directory for another identity on first and repeated adds", async () => {
+    for (const attempt of ["first", "repeat"]) {
+      const result = await runArcNoTty(["--no-input", "user", "add", "alice"], tmpDir);
+      const output = result.stdout + result.stderr;
+      expect(result.exitCode, output).toBe(0);
+      expect(await git(["config", "--get", "arc.identity"], tmpDir)).toBe("test-user");
+      expect(await pathExists(join(tmpDir, ".arc", "user", "alice"))).toBe(false);
+      if (attempt === "repeat") expect(output).toContain("already has personal records");
+      expect.soft(output, `${attempt} add`).not.toMatch(/creating user directory|user directory created/i);
+      expect.soft(output, `${attempt} add`).toMatch(/(?:personal records|inbox and working memory).*alice/i);
+    }
     await expectPersonalFileSet(tmpDir, "alice");
   });
 

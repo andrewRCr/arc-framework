@@ -56,7 +56,11 @@ it.each(verbs)("%s warns on reuse and seeds only the missing record for the sele
   expect(await codeRefs(root)).toBe(refs);
 }, SESSION_COMMAND_TIMEOUT_MS);
 
-it.each(["init", "join"] as const)("%s pulls the selected person's capture before checking for missing records", async verb => {
+it.each([
+  { verb: "init", offlineFirst: false },
+  { verb: "join", offlineFirst: false },
+  { verb: "join", offlineFirst: true },
+] as const)("$verb pulls the selected person's capture before setup (offline first: $offlineFirst)", async ({ verb, offlineFirst }) => {
   const publisher = await (verb === "init" ? scratchRepo() : sessionRepo());
   const origin = await addBareRemote(publisher);
   const designation = ["store", "remote", "origin", "push", "--json"];
@@ -77,10 +81,23 @@ it.each(["init", "join"] as const)("%s pulls the selected person's capture befor
   const head = await git(clone, ["rev-parse", "HEAD"]);
 
   const args = ["--no-input", ...argv(verb, chosen)];
+  const reader = fixtureStore(clone, chosen);
+  if (offlineFirst) {
+    await git(clone, ["remote", "set-url", "origin", join(root, "unreachable.git")]);
+    const blocked = await runArcNoTty(args, clone);
+    const output = blocked.stdout + blocked.stderr;
+    expect.soft(blocked.exitCode, output).not.toBe(0);
+    expect(output).toContain("unreachable.git");
+    expect(output).toContain("arc join");
+    expect.soft(await git(clone, ["config", "--local", "--default", "", "--get", "arc.identity"])).toBe("");
+    for (const reference of Object.values(personal)) {
+      expect.soft(await reader.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    }
+    await git(clone, ["remote", "set-url", "origin", origin]);
+  }
   const result = await runArcNoTty(args, clone);
   expectExit(args, result);
   expect(result.stdout + result.stderr).toContain(`Identity '${chosen}' already has personal records`);
-  const reader = fixtureStore(clone, chosen);
   const incoming = stored(await reader.read({ reference: personal.inbox }));
   expect(incoming).toMatchObject({ reference: published.inbox.reference, version: published.inbox.version, content: capture });
   expect(stored(await reader.history({ reference: personal.inbox }))).toHaveLength(1);

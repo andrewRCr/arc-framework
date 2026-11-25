@@ -28,7 +28,7 @@ import { SlugSchema, type Slug } from "../lib/kernel/index.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import type { Store } from "../lib/store/contract.js";
-import { bindStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-sync.js";
+import { bindStoreSyncPort, type PullResult, type StoreSyncPort } from "../lib/store/operational-sync.js";
 import { consumePull, pullDesignation } from "../lib/store/pull-consumption.js";
 import { describeStorePull, type StoreSessionInitUserValue } from "../lib/session-init/store-user-pull.js";
 import { joinStoreDesignationSite } from "../prompts/join-store-designation.js";
@@ -43,8 +43,8 @@ export interface JoinStorePorts {
   renderer?: PromptRenderer;
 }
 
-/** Cancellation stops setup before identity or workspace writes. */
-export type JoinStorePullResult = StoreSessionInitUserValue | { status: "cancelled" } | null;
+/** A cancelled or stopping pull prevents identity and workspace writes. */
+export type JoinStorePullResult = StoreSessionInitUserValue | { status: "cancelled" | "stopped" } | null;
 
 /** Pull the selected person's state and offer an explicit remote designation when required. */
 export async function pullJoinStore(input: { cwd: string; exec: GitExec; identity: Slug | null; context: InteractionContext },
@@ -53,24 +53,34 @@ export async function pullJoinStore(input: { cwd: string; exec: GitExec; identit
   const store = ports.openStore?.({ cwd: input.cwd, exec: input.exec, identity: input.identity })
     ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec, identity: input.identity }));
   if (!store.capabilities.stateOffBranch) return null;
-  const result = await (ports.sync?.(store) ?? bindStoreSyncPort(store)).pull();
-  const value = describeStorePull(result), consumed = consumePull(result);
-  const notices = consumed.notices.filter(notice => notice !== consumed.designationNotice);
-  for (const line of [...consumed.kind === "stop" ? [consumed.reason] : [], ...notices]) p.log.warn(line);
+  const sync = ports.sync?.(store) ?? bindStoreSyncPort(store);
+  const result = await sync.pull();
   const designation = pullDesignation(result);
+  const value = reportJoinPull(result, designation !== undefined);
   if (designation === undefined) return value;
-  p.log.info(value.summary);
   const designated = await offerStoreDesignation(joinStoreDesignationSite, designation, input.cwd, input.context, ports);
   if (designated.status === "cancelled") return { status: "cancelled" };
+  if (designated.status === "designated") return reportJoinPull(await sync.pull());
   if (designated.status === "failed") {
-    p.log.warn(`${designated.argv.join(" ")} ${designated.reason}; setup continues without that designation. Resolve its output above, then run it again.`);
+    const continuation = value.status === "stopped" ? "" : "; setup continues without that designation";
+    p.log.warn(`${designated.argv.join(" ")} ${designated.reason}${continuation}. Resolve its output above, then run it again.`);
   }
   return value;
 }
 
+function reportJoinPull(result: PullResult, offeringDesignation = false): StoreSessionInitUserValue | { status: "stopped" } {
+  const consumed = consumePull(result);
+  if (consumed.kind === "stop") p.log.warn(consumed.reason);
+  for (const notice of consumed.notices) {
+    if (offeringDesignation && notice === consumed.designationNotice) p.log.info(notice);
+    else p.log.warn(notice);
+  }
+  return consumed.kind === "stop" ? { status: "stopped" } : describeStorePull(result);
+}
+
 export type JoinOptions = JoinCommandOptions;
 
-/** Set up a personal workspace, then pull through its selected-identity store. */
+/** Pull through the selected identity's store before setting up the personal workspace. */
 export async function handleJoin(opts: JoinOptions, context: InteractionContext, storePorts: JoinStorePorts = {}): Promise<void> {
   const io = createIOContext(context.subprocess);
 
@@ -111,9 +121,14 @@ export async function handleJoin(opts: JoinOptions, context: InteractionContext,
     const identity = identityResult === null ? null : SlugSchema.parse(identityResult);
     const store = identity === null ? undefined : storePorts.openStore?.({ cwd, exec: io.exec, identity })
       ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: io.exec, identity }));
-    if (store?.capabilities.stateOffBranch) {
+    if (store !== undefined) {
       const pulled = await pullJoinStore({ cwd, exec: io.exec, identity, context }, { ...storePorts, openStore: () => store });
       if (pulled?.status === "cancelled") { spinner.stop("Workspace setup cancelled."); return; }
+      if (pulled?.status === "stopped") {
+        spinner.stop("Workspace setup stopped. Resolve the reported state pull issue, then rerun `arc join`.");
+        process.exitCode = 1;
+        return;
+      }
     }
     const result = await runJoin({
       cwd,
@@ -127,10 +142,6 @@ export async function handleJoin(opts: JoinOptions, context: InteractionContext,
     });
 
     spinner.stop("Workspace setup complete.");
-    if (!store?.capabilities.stateOffBranch) {
-      await pullJoinStore({ cwd, exec: io.exec, identity, context }, { ...storePorts, ...(store === undefined ? {} : { openStore: () => store }) });
-    }
-
     p.note(buildPostJoinMessage(result), "What's next");
   } catch (err) {
     spinner.stop("Setup failed.");

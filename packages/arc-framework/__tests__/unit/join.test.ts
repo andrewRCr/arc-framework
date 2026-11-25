@@ -427,6 +427,7 @@ describe("buildPostJoinMessage", () => {
       role: "maintainer",
       tools: ["claude"],
       identity: "andrew",
+      stateOffBranch: false,
       ...overrides,
     };
   }
@@ -449,7 +450,7 @@ describe("buildPostJoinMessage", () => {
     expect(msg).not.toContain("Restart your AI tool");
   });
 
-  it("introduces user-notes orientation when identity is set", () => {
+  it("introduces user notes for an in-repo identity", () => {
     const msg = buildPostJoinMessage(makeJoinResult({ identity: "alice" }));
 
     expect(msg).toContain(".arc/user/alice/");
@@ -459,11 +460,20 @@ describe("buildPostJoinMessage", () => {
     expect(msg).toContain("`arc sync`");
   });
 
-  it("omits user-notes orientation when identity is null", () => {
-    const msg = buildPostJoinMessage(makeJoinResult({ identity: null }));
+  it("introduces store sync and session recovery for an off-branch identity", () => {
+    const msg = buildPostJoinMessage(makeJoinResult({ identity: "alice", stateOffBranch: true }));
+
+    expect(msg).toMatch(/`arc sync`.*personal records.*store/u);
+    expect(msg).toMatch(/session-init[\s\S]*session context[\s\S]*\bmeta\b/u);
+    expect(msg).not.toMatch(/git notes|user notes/iu);
+  });
+
+  it.each([false, true])("omits personal storage guidance when identity is null (off-branch: %s)", stateOffBranch => {
+    const msg = buildPostJoinMessage(makeJoinResult({ identity: null, stateOffBranch }));
 
     expect(msg).not.toContain(".arc/user/");
     expect(msg).not.toContain("user notes");
+    expect(msg).not.toContain("`arc sync`");
   });
 
   it("interpolates the resolved identity into the user directory path", () => {
