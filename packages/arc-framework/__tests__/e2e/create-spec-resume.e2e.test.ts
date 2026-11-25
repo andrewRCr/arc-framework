@@ -1,9 +1,11 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { appendFile, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { lifecycleRepository, LIFECYCLE_IDENTITY, LIFECYCLE_TIMEOUT_MS, readLifecycleMeta } from "../helpers/store-lifecycle-fixture.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
+import { expectLifecycleResult, lifecycleRepository, LIFECYCLE_IDENTITY, LIFECYCLE_TIMEOUT_MS, readLifecycleMeta } from "../helpers/store-lifecycle-fixture.js";
+import { retainLateEdit, workflowSaveBlocked } from "../helpers/workflow-save-gate.js";
 
 it("resumes task generation with the Class approved during spec review", async () => {
   const { repo, run } = await lifecycleRepository();
@@ -40,4 +42,64 @@ it("resumes task generation with the Class approved during spec review", async (
     return;
   }
   throw new Error("Spec finalization never advanced to generate-tasks");
+}, LIFECYCLE_TIMEOUT_MS);
+
+it.each(["refused edit", "retained aside edit"] as const)("keeps the draft while migrated notes have a %s", async condition => {
+  const h = await lifecycleRepository();
+  const { records: [draft, , notes] } = await seedWorkUnit(h.repo, "example", {
+    identity: LIFECYCLE_IDENTITY, bind: h.repo,
+    meta: { state: "Planning", owner: LIFECYCLE_IDENTITY, currentWorkflow: "create-spec", design: ["draft-example.md"] },
+    records: [
+      { kind: "work-item/draft", content: "# Draft: Example\n\nMeasure from the north entrance.\n" },
+      { kind: "work-item/spec", content: "# Specification: Example\n" },
+      { kind: "work-item/notes", content: "# Notes: Example\n" },
+    ],
+  });
+  if (draft === undefined || notes === undefined) throw new Error("Expected draft and notes records");
+  const view = await h.run(["view", "spec", "--path"]);
+  expectLifecycleResult(view, 0, /spec-example\.md/u);
+  const spec = view.stdout.trim();
+  const path = join(dirname(spec), "notes-example.md");
+  const migrated = "Measure from the north entrance.";
+  let repair: () => Promise<void>;
+  if (condition === "refused edit") {
+    const original = await readFile(path, "utf8");
+    const invalid = `${migrated} See [the map](map.md).`;
+    await appendFile(path, `\n${invalid}\n`);
+    const save = await h.run(["save"]);
+    expect(save.exitCode, save.output).toBe(0);
+    expect(save.output).toContain("links.relative-in-movable");
+    expect(save.output).toContain("then save again");
+    expect(await readFile(path, "utf8")).toContain(invalid);
+    repair = async () => {
+      await writeFile(path, `${original}\n${migrated}\n`);
+      const retry = await h.run(["save"]);
+      expect(retry.exitCode, retry.output).toBe(0);
+    };
+  } else {
+    repair = await retainLateEdit(h, path, migrated);
+  }
+  const stored = () => readStoreRecord(h.repo, LIFECYCLE_IDENTITY, notes.reference);
+  expect((await stored()).content).not.toContain(migrated);
+
+  const workflow = await readFile(join(h.repo, ".arc/system/workflows/arc/create-spec.md"), "utf8");
+  const gate = workflow.split("**Check and save**")[1]?.split("**Update the meta")[0] ?? "";
+  const finalize = async (): Promise<void> => {
+    if (await workflowSaveBlocked(h, gate, [spec, path])) return;
+    for (const args of [["finalize", "create-spec", "--class", "Light"], ["repoint-design", "spec-finalized"]]) {
+      const result = await h.run(args);
+      expect(result.exitCode, result.output).toBe(0);
+    }
+  };
+  await finalize();
+  expect((await readLifecycleMeta(h.repo, "example")).fields).toMatchObject({ design: ["draft-example.md"] });
+  expect((await readStoreRecord(h.repo, LIFECYCLE_IDENTITY, draft.reference)).content).toContain(migrated);
+
+  await repair();
+  expect((await stored()).content).toContain(migrated);
+  await finalize();
+  expect((await readLifecycleMeta(h.repo, "example")).fields).toMatchObject({
+    currentWorkflow: "generate-tasks", design: ["spec-example.md"],
+  });
+  expect((await h.run(["view", "draft", "--path"])).exitCode).toBe(1);
 }, LIFECYCLE_TIMEOUT_MS);

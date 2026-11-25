@@ -1,10 +1,11 @@
 /** The installed CLI keeps the global bypass distinct from unsupported projection save. */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { projectionSaveStep } from "../../src/lib/store/pre-flip-steps.js";
+import { lifecycleRepository, LIFECYCLE_TIMEOUT_MS } from "../helpers/store-lifecycle-fixture.js";
 
 it.each([{ args: [] }, { args: ["--resolve", "personal/person/andrew/one"] }])("refuses unsupported projection save with $args as whole JSON", async ({ args }) => {
   useInRepoStore();
@@ -24,6 +25,36 @@ it.each([{ args: [] }, { args: ["--resolve", "personal/person/andrew/one"] }])("
     expect((await runArc(["save", "--help"], checkout)).stdout).toContain("--resolve <conflict>");
   } finally { await cleanupTempDir(checkout); }
 });
+
+it("continues through the in-repo save remedy when planning workflows confirm a save", async () => {
+  useInRepoStore();
+  const h = await lifecycleRepository();
+  const config = ".arc/system/arc-config.yml";
+  const edit = "# Save this tracked edit with the in-repo store.";
+  await appendFile(join(h.repo, config), `\n${edit}\n`);
+  const save = await h.run(["save", "--json"]);
+  expect(save.exitCode, save.output).toBe(1);
+  expect(JSON.parse(save.stdout)).toMatchObject({ status: "refused", refusal: { code: "unsupported",
+    condition: expect.stringContaining("storage backend"), remedy: { text: expect.stringContaining("git commit") } } });
+
+  const workflows = [
+    { file: "create-spec.md", confirmations: 2 },
+    { file: "generate-tasks.md", confirmations: 1 },
+    { file: "work-unit-lifecycle/activate-work-unit.md", confirmations: 1 },
+  ];
+  const missing = [];
+  for (const { file, confirmations } of workflows) {
+    const workflow = await readFile(join(h.repo, ".arc/system/workflows/arc", file), "utf8");
+    const withRemedy = workflow.match(/arc save`\s+refuses,[^.]*\bremedy\b[^.]*\bcontinue\b/giu) ?? [];
+    if (withRemedy.length !== confirmations) missing.push(file);
+  }
+  expect(missing, "Workflows must allow the reported in-repo remedy to satisfy the save gate").toEqual([]);
+  await git(h.repo, ["add", "--", config]);
+  await git(h.repo, ["commit", "-m", "Save tracked ARC edit"]);
+  expect(await git(h.repo, ["show", `HEAD:${config}`])).toContain(edit);
+  const status = await h.run(["status", "--json"]);
+  expect(JSON.parse(status.stdout)).toMatchObject({ projection: { ok: true, value: { kind: "disabled" } } });
+}, LIFECYCLE_TIMEOUT_MS);
 
 describe.each(["ref", "in-repo"] as const)("projection bypass with the %s backend", (backend) => {
   it.each([{ args: ["save", "--skip-projection", "--json"] }, { args: ["--skip-projection", "save", "--json"] }])(

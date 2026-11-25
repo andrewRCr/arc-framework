@@ -576,9 +576,12 @@ task list:
 arc save
 ```
 
-After a successful save, inspect `arc status --json`. Require `projection` to report a ready index with no
-`files` entry for the task list or companion notes edited here. Surface each outstanding file condition, apply its
-reported remedy or repair the pending edit, then repeat `arc check increment`, the save, and the status check.
+If `arc save` refuses, apply its reported remedy and continue once the edits are saved. After a successful save, inspect
+`arc status --json`. Require a ready projection with no `files` or `copies` entries for the task list or any companion
+notes edited here and no unresolved ARC conflict blocks in those files. Report outstanding conditions, finish pending
+edits, and apply any reported remedies. Recover the intended edits from each aside copy before removing it. Resolve
+conflict blocks in place and remove their markers and any resolve-by-hand line. Then repeat `arc check increment`, the
+save, and the status check.
 
 **Update the meta.** For a pre-start stub, persist the resolved Class with `arc set-class <Class> {name}` and stop.
 For a started work unit in `Planning`, verify that `arc locus` shows this checkout holds `{name}`. Then run

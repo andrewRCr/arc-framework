@@ -45,6 +45,27 @@ it("keeps the checkout's draft repoint off the pre-start grooming path", () => {
   expect(guarded, `Expected a checkout-holder check or a stub exit before the repoint. Found: ${beforeExit[repoint]}`).toBe(true);
 });
 
+it.each([
+  ["create-spec.md", "**Mark the stage**", "arc set-stage create-spec"],
+  ["create-spec.md", "**Update the meta", "arc finalize create-spec"],
+  ["generate-tasks.template.md", "### Canonicalize active delivery authoring", "arc delivery plan inventory schema"],
+  ["generate-tasks.template.md", "**Update the meta", "arc finalize generate-tasks"],
+])("checks the selected checkout holder in %s at %s before %s", (file, start, command) => {
+  const workflow = readFileSync(resolve(import.meta.dirname, "../../../arc/system/workflows/arc", file), "utf8");
+  const from = workflow.indexOf(start);
+  const to = workflow.indexOf(`\`${command}`, from);
+  expect(from).toBeGreaterThanOrEqual(0);
+  expect(to).toBeGreaterThan(from);
+  const gate = workflow.slice(from, to);
+  expect(gate).toMatch(/\bPlanning\b/u);
+  expect(gate).toMatch(/\bstarted\b/u);
+  expect(gate).toMatch(/`arc locus`[^.]*\bcheckout holds\s+(?:the selected unit|that started work unit|`?\{name\})/u);
+  if (start === "**Mark the stage**") expect(gate).toMatch(/\bwithout a draft\b/u);
+  if (start === "**Update the meta") {
+    expect(gate).toMatch(/\bstub\b[^.]*`arc set-class <Class> \{name\}`/u);
+  }
+});
+
 it("preserves unchecked projection edits during an approved no-draft confirmation", async () => {
   const { repo, run } = await lifecycleRepository();
   await run(["start", "determinate", "--new", "--here", "--yes"]);

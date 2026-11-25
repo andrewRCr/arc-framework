@@ -252,10 +252,14 @@ planning-review:
   prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
 
-Run `arc check increment` over the specification and report its result at Gate 1. After a successful `arc save`,
-inspect `arc status --json`. Require `projection` to report a ready index with no `files` entry for the spec.
-Surface any outstanding condition, apply its reported remedy or repair the pending edit, then repeat the check,
-save, and status check. Apply the same sequence to Gate 1 revisions.
+Run `arc check increment` over the specification and report its result at Gate 1, then run `arc save`. If `arc save`
+refuses, apply its reported remedy and continue once the spec is saved. After a successful `arc save`, inspect
+`arc status --json`. Require a ready projection with no `files` or `copies` entry for the spec and no unresolved ARC
+conflict blocks in the spec.
+
+Report outstanding conditions, finish pending edits, and apply any reported remedies. Recover the intended
+edits from each aside copy before removing it. Resolve conflict blocks in place and remove their markers and any
+resolve-by-hand line. Then repeat the check, save, and status check. Apply the same sequence to Gate 1 revisions.
 
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and checked with `spec-review`.
@@ -288,9 +292,10 @@ a second, separate approval:
     arc save
     ```
 
-   After a successful save, inspect `arc status --json` as at Gate 1. Require a ready projection with no `files`
-   entry for the spec or the migrated notes before updating the meta. Surface each outstanding condition, apply
-   its remedy or repair the pending edit, then repeat the check, save, and status check.
+   If `arc save` refuses, apply its reported remedy and continue once the edits
+   are saved. After a successful save, inspect `arc status --json`. Before updating the meta, require a ready
+   projection with no `files` or `copies` entries for the spec or migrated notes and no unresolved ARC conflict
+   blocks in either file. Repair outstanding conditions as at Gate 1 and repeat the check, save, and status check.
 4. **Update the meta.** For a pre-start stub, persist the resolved Class with `arc set-class <Class> {name}`.
    Its draft stays available until start. For a started work unit in `Planning`, verify that `arc locus` shows
    this checkout holds `{name}`. Persist Class with `arc finalize create-spec --class <Class>` and confirm success
