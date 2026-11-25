@@ -22,7 +22,7 @@ import { execa } from "execa";
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
-import type { MetaRenderOverrides } from "../../src/lib/active/meta-reader.js";
+import { renderMetaFile, type MetaRenderOverrides } from "../../src/lib/active/meta-reader.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
@@ -287,6 +287,31 @@ async function seedBoundWorkUnit(
     branch,
     bind: root,
   });
+}
+
+const boundDeliveryPlan = deliveryThreeMemberStackPlanForWorkUnitFixture("foo");
+const boundDeliveryTasks = ["# Task List: Foo", "", renderDeliveryPlanSection(boundDeliveryPlan).trimEnd(),
+  "", "## **Phase 1:** Work", "", "### `[ ]` **1.1 Repair the published delivery**", ""].join("\n");
+const boundDeliveryMeta = { state: "Integrating", workClass: "Heavy", priority: "P1",
+  currentWorkflow: "integrate-work-unit", lastCompleted: "Verification complete", nextAction: "Complete integration" } as const;
+
+async function reopenBoundDelivery(root: string, diagnosis: string): Promise<void> {
+  const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+  const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  const states = new RepositoryDeliveryStateStore(publisher);
+  const { planId } = boundDeliveryPlan;
+  expect(await plans.publishCurrent(planId, boundDeliveryPlan, null)).toMatchObject({ status: "ok" });
+  expect(await states.publish(planId, deliveryStateFixture(boundDeliveryPlan), 0)).toMatchObject({ status: "ok" });
+
+  const ghBin = join(root, ".git", "arc-test-bin");
+  const ghLog = join(ghBin, "gh.log");
+  await mkdir(ghBin, { recursive: true });
+  await writeFile(ghLog, "");
+  const env = await writeGhStub(ghBin, ghLog, false);
+  const result = await runArc(["reopen", "foo", "--keep-pr", "--task", "Task 1.1 — Repair the published delivery"], root, { env });
+  expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+  expect(result.stdout + result.stderr).toContain(diagnosis);
+  expect(await readFile(ghLog, "utf8")).toBe("");
 }
 
 async function writeUserReferenceStatusFixture(
@@ -682,52 +707,15 @@ describe("session-init E2E — sessionType across type variants", () => {
     });
   });
 
-  it("refuses ordinary reopen for a bound delivery before host or lifecycle mutation", async () => {
-    const plan = deliveryThreeMemberStackPlanForWorkUnitFixture("foo");
-    await seedBoundWorkUnit(tmpDir, "feat/foo", "foo", [
-      "# Task List: Foo",
-      "",
-      renderDeliveryPlanSection(plan).trimEnd(),
-      "",
-      "## **Phase 1:** Work",
-      "",
-      "### `[ ]` **1.1 Repair the published delivery**",
-      "",
-    ].join("\n"), {
-      state: "Integrating",
-      workClass: "Heavy",
-      priority: "P1",
-      currentWorkflow: "integrate-work-unit",
-      lastCompleted: "Task 9.1 — Complete verification",
-      nextAction: "Complete integration",
-    });
+  it("refuses ordinary reopen before host or lifecycle mutation when delivery evidence is unavailable", async () => {
+    await seedBoundWorkUnit(tmpDir, "feat/foo", "foo", boundDeliveryTasks, boundDeliveryMeta);
+    const before = await storedRecord(tmpDir, "foo", "work-item/meta");
 
-    const publisher = new RepositoryGitCommonStatePublisher(gitExec, tmpDir);
-    const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
-    const states = new RepositoryDeliveryStateStore(publisher);
-    expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
-    expect(await states.publish(plan.planId, deliveryStateFixture(plan), 0)).toMatchObject({ status: "ok" });
+    // Plan resolution needs transition records on the base ref, where the off-branch backend has none.
+    await reopenBoundDelivery(tmpDir,
+      "Resolve the delivery plan, authoring, task-list, and state evidence conflict before entering delivery.");
 
-    const ghBin = join(tmpDir, ".git", "arc-test-bin");
-    const ghLog = join(ghBin, "gh.log");
-    await mkdir(ghBin, { recursive: true });
-    await writeFile(ghLog, "");
-    const env = await writeGhStub(ghBin, ghLog, false);
-
-    const result = await runArc(
-      ["reopen", "foo", "--keep-pr", "--task", "Task 1.1 — Repair the published delivery"],
-      tmpDir,
-      { env },
-    );
-
-    // Off the branch, delivery's rename source refuses a base ref without its transition records, so plan resolution is
-    // indeterminate and the inspection refuses before it composes the bound route.
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout + result.stderr).toContain(
-      "Resolve the delivery plan, authoring, task-list, and state evidence conflict before entering delivery.",
-    );
-    expect(await readFile(ghLog, "utf8")).toBe("");
-    expect((await storedRecord(tmpDir, "foo", "work-item/meta")).content).toContain("| `Integrating`");
+    expect(await storedRecord(tmpDir, "foo", "work-item/meta")).toEqual(before);
   });
 
   it("resumes an open published correction without leaving integration", async () => {
@@ -827,7 +815,13 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
     const candidateBoundary = await integrateAttestedWorkUnit(tmpDir, "foo", {
       identity: "test-user",
-      publicationPush: "git push -u origin feat/foo",
+      publicationPending: true,
+    });
+
+    const replay = await runArc(["publish", "foo", "--json"], tmpDir);
+    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    expect(JSON.parse(replay.stdout)).toMatchObject({
+      status: "unchanged", boundary: { locus: "publication-pending", ...candidateBoundary },
     });
 
     await writeFile(join(tmpDir, "reviewed.txt"), "changed after publication\n");
@@ -1068,11 +1062,11 @@ describe("session-init E2E — sessionType across type variants", () => {
       await git(tmpDir, ["add", "-A"]);
       const attested = await runArc(["attest", "large-candidate", "--json"], tmpDir, { timeout: 29_000 });
       expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+      await git(tmpDir, ["commit", "-m", "integrate large candidate fixture"]);
       await integrateAttestedWorkUnit(tmpDir, "large-candidate", {
         identity: "test-user",
-        publicationPush: "git push -u origin technical/large-candidate",
+        publicationPending: true,
       });
-      await git(tmpDir, ["commit", "-m", "integrate large candidate fixture"]);
 
       const result = await runArc(
         ["status", "--session-init", "--write-compaction-seed", "--json"],
@@ -1667,6 +1661,22 @@ describe("session-init E2E — in-repo store arms", () => {
   afterEach(async () => {
     await cleanupTempDir(repo);
     await cleanupTempDir(worktreeParent);
+  });
+
+  it("refuses ordinary reopen for a bound delivery before host or lifecycle mutation", async () => {
+    await git(repo, ["add", "-A"]);
+    await git(repo, ["commit", "--no-verify", "-m", "initialize fixture"]);
+    await git(repo, ["switch", "-c", "feat/foo"]);
+    const active = join(repo, ".arc", "active");
+    const metaPath = join(active, "meta-foo.md");
+    const before = renderMetaFile("foo", { ...boundDeliveryMeta, owner: "test-user", branch: "feat/foo", taskList: "tasks-foo.md" });
+    await mkdir(active, { recursive: true });
+    await writeFile(metaPath, before);
+    await writeFile(join(active, "tasks-foo.md"), boundDeliveryTasks);
+
+    await reopenBoundDelivery(repo, "Ordinary reopen cannot withdraw a coherently bound delivery");
+
+    expect(await readFile(metaPath, "utf8")).toBe(before);
   });
 
   it("does not warn that a valid v3 Errand identity is malformed", async () => {

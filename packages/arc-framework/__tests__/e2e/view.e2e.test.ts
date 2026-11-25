@@ -229,6 +229,28 @@ describe("arc view", () => {
     expect(terminal).toEqual({ stdout: "No open task.\n", stderr: "", exitCode: 0 });
   });
 
+  it("shows a malformed edit to the projected task list in both view modes", async () => {
+    const path = await runArcNoTty(["view", "tasks", "--path"], cwd);
+    expect(path.exitCode, path.stderr).toBe(0);
+    const taskPath = path.stdout.trim();
+    const heading = "### `[ ]` **1.1**";
+    const edited = (await readFile(taskPath, "utf8")).replace("### `[ ]` **1.1 First task**", heading);
+    await writeFile(taskPath, edited);
+    const line = edited.split("\n").indexOf(heading) + 1;
+    expect(line).toBeGreaterThan(0);
+    const warning = `warning: Task list is malformed at line ${line}: task marker must include a valid id and title.`;
+
+    const current = await runArcNoTty(["view", "tasks", "--current"], cwd);
+    expect(current.exitCode).toBe(0);
+    expect(current.stdout).toBe("Current task unavailable: task list is malformed.\n");
+    expect(current.stderr).toContain(warning);
+
+    const full = await runArcNoTty(["view", "tasks"], cwd);
+    expect(full.exitCode).toBe(0);
+    expect(full.stdout).toBe(edited);
+    expect(full.stderr).toContain(warning);
+  });
+
   it.runIf(process.platform === "linux")(
     "composes a detected renderer through pager mode exactly once under a TTY",
     async () => {

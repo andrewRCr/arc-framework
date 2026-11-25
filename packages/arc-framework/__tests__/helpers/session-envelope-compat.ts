@@ -207,9 +207,9 @@ async function setupOrientFixture(state: MutableFixture): Promise<void> {
     throw new Error(`arc attest failed: ${attested.stderr || attested.stdout}`);
   }
   // Integrating, with the attested Candidate's publication pending at its idempotent push.
-  await integrateAttestedWorkUnit(state.repo, "heavy-widget", {
+  await integrateAttestedWorkUnit(linked, "heavy-widget", {
     identity: "test-user",
-    publicationPush: "git push -u origin feat/heavy-widget",
+    publicationPending: true,
   });
 }
 

@@ -9,6 +9,7 @@ import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 
 function canonicalize(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -576,7 +577,9 @@ describe("arc wu reconcile on the store", () => {
 
   it("refuses to write a work unit the checkout does not hold", async () => {
     const f = await storeFixture();
+    const successor = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "successor" } });
     const before = await f.read();
+    const successorBefore = await f.read(successor);
 
     const result = await runArc(["wu", "reconcile", "successor", "--apply", "--json"], f.repo);
 
@@ -587,6 +590,7 @@ describe("arc wu reconcile on the store", () => {
       reason: "The requested work unit does not match the checkout's work-unit identity.",
     });
     expect(await f.read()).toEqual(before);
+    expect(await f.read(successor)).toEqual(successorBefore);
     expect(await git(f.repo, ["diff", "--cached", "--name-only"])).toBe("");
   }, 30_000);
 

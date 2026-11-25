@@ -56,9 +56,15 @@ async function directorySnapshot(root: string): Promise<Record<string, string>> 
 async function snapshot(root: string) {
   return {
     status: await git(root, ["status", "--porcelain=v1", "--untracked-files=all"]),
+    ...await codeRefs(root),
+    personal: await directorySnapshot(join(root, ".arc", "user")),
+  };
+}
+
+async function codeRefs(root: string) {
+  return {
     refs: await git(root, ["for-each-ref", "--format=%(refname) %(objectname)"]),
     head: await git(root, ["rev-parse", "HEAD"]),
-    personal: await directorySnapshot(join(root, ".arc", "user")),
   };
 }
 
@@ -76,7 +82,7 @@ async function seedRemoteErrand(cwd: string): Promise<void> {
 }
 
 it("inspects stored work through each entry signal while preserving inspected state", async () => {
-  repository = await createTempRepo("arc-agenda-passive-");
+  const root = repository = await createTempRepo("arc-agenda-passive-");
   origin = await mkdtemp(join(tmpdir(), "arc-agenda-passive-origin-"));
   const initialized = await runArcNoTty(["--no-input", "init", "--name", "agenda", "--identity", "test-user", "--tools", ""], repository);
   expect(initialized.exitCode, initialized.stdout + initialized.stderr).toBe(0);
@@ -89,19 +95,24 @@ it("inspects stored work through each entry signal while preserving inspected st
     meta: { state: "Planning", owner: "test-user", branch: null, workClass: "Light", priority: "P3", currentWorkflow: null } });
   const person = OwnerIdentitySchema.parse({ type: "person", name: "test-user" });
   const inbox = recordReferences["personal/inbox"](person), queue = recordReferences["personal/errand-queue"](person);
-  const installed = success(await selectStore(createDefaultStorePorts({ checkoutRoot: repository }), {}).read({ reference: inbox }));
+  const store = selectStore(createDefaultStorePorts({ checkoutRoot: root }), {});
+  const installed = success(await store.read({ reference: inbox }));
   await seedStore(repository, SlugSchema.parse("test-user"), [{ reference: inbox, expected: installed.version,
     content: "# User Inbox\n\n## Errand\n\n### `[ ]` **Queued passive concern**\n\n- _Id:_ `5a5a5a5a`\n\n- Inspect a sample.\n" },
   { reference: queue, content: renderQueueSet({ reference: queue, saved: null, members: [] }, [{ inbox: "personal", id: "5a5a5a5a" }],
     new Map([["personal:5a5a5a5a", "Queued passive concern"]])).content }]);
-  // The first command projects the seeded personal records into the identity root; the snapshot follows it.
-  const projected = await runArcNoTty(["agenda", "session-init", "--json"], repository, { env: { FORCE_COLOR: undefined } });
+  const version = async () => success(await store.version());
+  const persisted = async () => ({ ...await codeRefs(root), version: await version() });
+  const beforeProjection = await persisted();
+  const projected = await runArcNoTty(["agenda", "session-init", "--json"], root, { env: { FORCE_COLOR: undefined } });
   expect(projected.exitCode, projected.stdout + projected.stderr).toBe(0);
-  const store = selectStore(createDefaultStorePorts({ checkoutRoot: repository }), {});
-  const state = async () => ({ ...await snapshot(repository!), version: success(await store.version()) });
+  expect(await persisted(), "The first plain inspection changed stored state or code refs").toEqual(beforeProjection);
+
+  // The first inspection projects the seeded personal records, so capture their files after it.
+  const state = async () => ({ ...await snapshot(root), version: await version() });
   const before = await state();
   for (const signals of [[], ["--errand", "--next"], ["--plan", "passive-target"], ["--start", "passive-target"]]) {
-    const result = await runArcNoTty(["agenda", "session-init", "--json", ...signals], repository, { env: { FORCE_COLOR: undefined } });
+    const result = await runArcNoTty(["agenda", "session-init", "--json", ...signals], root, { env: { FORCE_COLOR: undefined } });
     expect(result.stderr).toBe("");
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
     const output: unknown = JSON.parse(result.stdout);
