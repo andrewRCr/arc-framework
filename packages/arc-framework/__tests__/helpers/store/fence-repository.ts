@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { createRefStore } from "../../../src/lib/store/create.js";
 import { createDefaultRefStorePorts } from "../../../src/lib/store/default-ports.js";
 import { KIND_REGISTRY } from "../../../src/lib/store/registry.js";
-import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, type RecordReference } from "../../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, sameReference, type RecordReference } from "../../../src/lib/store/identity.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { cohortDocumentParent } from "../../../src/lib/store/kinds/cohort/check-support.js";
 import { writeMetaTitle } from "../../../src/lib/store/kinds/meta/writers.js";
@@ -77,7 +77,9 @@ export async function editWriter(store: Store, plan: Extract<FencePlan, { kind: 
   }
 }
 
-function recordEdit(reference: RecordReference, label: string): FenceChange {
+function recordEdit(reference: RecordReference): FenceChange {
+  const key = reference.key === undefined ? "" : `/${JSON.stringify(reference.key)}`;
+  const label = `${reference.kind}:${reference.owner.name}${key}`;
   return { name: `edit ${label}`, apply: async target => {
     const current = await target.read({ reference });
     if (current.status !== "ok") throw new Error(`The read record is unreadable: ${current.refusal.condition}`);
@@ -131,7 +133,7 @@ export async function fenceChanges(store: Store, writer: FenceWriter, identity: 
   const changes: FenceChange[] = [];
   for (const read of reads) {
     if (read.operation === "read" && KIND_REGISTRY[read.reference.kind].projection !== "never") {
-      changes.push(recordEdit(read.reference, read.target));
+      changes.push(recordEdit(read.reference));
     } else if (read.operation === "list" && read.input.kind === "work-item/meta") {
       changes.push(memberArrival(identity, memberPath));
     } else if (read.operation === "list" && read.input.kind === "cohort/document") {
@@ -140,6 +142,11 @@ export async function fenceChanges(store: Store, writer: FenceWriter, identity: 
       const rename = await slugRename(store, read.input);
       if (rename !== undefined) changes.push(rename);
     }
+  }
+  for (const { reference, expected } of batch?.observations ?? []) {
+    if (expected === null || KIND_REGISTRY[reference.kind].projection === "never"
+      || reads.some(read => read.operation === "read" && sameReference(read.reference, reference))) continue;
+    changes.push(recordEdit(reference));
   }
   const unrelated = recordReferences["personal/document"](OwnerIdentitySchema.parse({ type: "person", name: identity }), "scratch/fence-unrelated.md");
   return [...changes, { name: "an unrelated write", apply: async target => {
