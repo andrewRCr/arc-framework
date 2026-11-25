@@ -7,6 +7,10 @@ import { codeReviewSection } from "../helpers/code-review-section.js";
 import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 import { classifyFile } from "../../src/lib/classification.js";
+import { createTaskCloseOperations } from "../../src/handlers/release/task-close.js";
+import { computeUnclosedTaskCommits } from "../../src/lib/locus/unclosed-task-commits.js";
+import { runTaskClose } from "../../src/lib/work-unit/verbs/task-close.js";
+import { makeUnclosedTaskFixture } from "../helpers/unclosed-task-commits.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 
@@ -305,6 +309,31 @@ describe("packaged delivery workflow", () => {
     expect(nativeSection).toMatch(/partial-landed[\s\S]*stop/iu);
     expect(nativeSection).toMatch(/linked-single[\s\S]*contribution proof[\s\S]*new-head review/iu);
     expect(nativeSection).toMatch(/The terminal\s+member is never included/u);
+  });
+
+  it("gives the approved range a named close when the crash listing closes only the cursor", async () => {
+    const h = await makeUnclosedTaskFixture();
+    const approved = ["1.1.a", "1.1.b"];
+    const release = createTaskCloseOperations(approved, async () => h.input, () => {});
+    expect(await release.precheck()).toEqual({ status: "ready" });
+    const sha = await h.commit("Finish both approved leaves\n");
+
+    // Resume between the landed commit and the wrapper's close.
+    const listing = await computeUnclosedTaskCommits(h.input);
+    expect(listing).toMatchObject({ status: "available", commits: [{ sha }] });
+    const argv = listing?.actions[0]?.argv;
+    expect(argv).toEqual(["arc", "task", "close"]);
+
+    const workflow = await readFile(
+      resolve(root, "packages/arc-framework/arc/system/workflows/arc/process-task-loop.template.md"), "utf8",
+    );
+    const recovery = section(workflow, "Crash Recovery");
+    const ids = recovery.includes("`arc task close <ids>`") ? approved : argv?.slice(3);
+    expect(await runTaskClose(h.input, { ids })).toMatchObject({ status: "closed", captured: [sha] });
+    const captures = (await h.readMeta()).links?.taskCaptures ?? {};
+    expect(approved.filter(id => captures[id]?.some(commit => commit.sha === sha))).toEqual(approved);
+    expect(recovery).toMatch(/(?:resume|continue)[^.]+(?:remaining|unfinished)[^.]+split/iu);
+    expect(recovery).toMatch(/(?:uncertain|cannot establish)[^.]+leave[^.]+open/iu);
   });
 
   it("routes persisted review-fix acknowledgment through the controller only after task closure", async () => {

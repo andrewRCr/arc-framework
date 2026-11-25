@@ -110,17 +110,23 @@ guidance below.
   belong together. If they fail or succeed independently, they split.
 - **Pragmatic exception for intermingled code:** Changes tangled in the same file/function
   commit together; note the overlap in the body.
-- **Tasks close with the commit that carries their work.** A commit that completes tasks closes
-  them by ID; a task whose work spans several commits closes on the last of them.
+- **Tasks close after their work lands.** Once all of a task's commits have landed, close it by ID using step 6's
+  capture rules.
 - **ARC state rides with no commit.** The task list, the meta, and the other ARC records persist
   with `arc save`; commits carry tracked files only.
 
 ### 6. Execute and Verify
 
 Stage and commit each group using the [commit-format][arc-methods-cf] and [commit-footer][arc-methods-ccf]
-methods. A group that completes tasks closes them: commit it with `arc release commit --close=<ids>` where
-the commit routes to the wrapper, or run `arc task close <ids>` right after a raw commit. After all commits,
-save the state the tasks' completion notes changed:
+methods. Use default capture only when its outstanding commits are exactly the commits owed to every task being
+closed. In that case, use `arc release commit --close=<ids>` where the commit routes to the wrapper, or run
+`arc task close <ids>` right after a raw commit.
+
+For mixed ownership, retain the mapping from step 3 and record the SHAs as the commits land. Include a shared
+documentation commit in the mapping for each task it serves. Commit without `--close`. Once all commits for a task
+have landed, run `arc task close <id> --commit <sha>`, repeating `--commit <sha>` for each commit mapped to it.
+
+After all commits, save the state the tasks' completion notes changed:
 
 ```bash
 arc save

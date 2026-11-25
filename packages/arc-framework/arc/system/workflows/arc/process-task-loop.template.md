@@ -30,7 +30,7 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded unit of
   autonomous execution between human review points. Complete one, write its completion note, report, and
-  **stop** for user approval. The task closes with its commit (item 5).
+  **stop** for user approval. Apply the approved task disposition in item 5.
 
 - **Review vocabulary:** In this workflow, "review increment" and "deferred review" name task-interlock scope.
   Any evaluator review run before Candidate preparation is working review: it binds to no Candidate target and
@@ -75,8 +75,7 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 
   1. When you finish a **single task** (one checkbox item):
      - **First**: Prepare the task's completion note; finish it in item 4 after any coherent-unit and
-       delivery-member checks have completed. Never close a task by hand: it closes through `arc task close` after
-       its commit (item 5)
+       delivery-member checks have completed. Keep task markers unchanged for the task verbs in item 5.
        - Update task description to reflect actual work done (not just original plan)
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
@@ -117,11 +116,9 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
          to outcome at completion. Same shape, no label change — the indent under a closed task already signals
          "what got done." A `_Retired in:_ Phase N` or `_Amended in:_ X.R (An)` detail bullet stays verbatim instead
          of shifting.
-       - **Deferred or superseded tasks**: When a task is intentionally skipped — deferred to a later work
-         unit, made irrelevant by a design decision, or superseded by a different approach — defer it with
-         `arc task defer <id>`, which cascades its parent, and add a brief outcome note by hand explaining why (e.g.,
-         "Deferred to WU3", "Superseded by ADR-011"). This distinguishes deliberate deferrals from incomplete work
-         (`[ ]`).
+       - **Deferred or superseded tasks**: When a task is intentionally skipped, write a brief outcome note explaining
+         why (e.g., "Deferred to WU3", "Superseded by ADR-011"). Check the note with the increment in item 4 and report
+         the proposed deferral by ID at the approval stop.
        - **Do not update the meta at this step.** See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline.
      - **Second**: Verify the task work before the boundary checks below.
 
@@ -141,9 +138,9 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      including any advisory companions they invoke, still fire at their ordinary boundaries.
      Complete only the specified work — write each task's completion note and run the quality request after it, then
      continue without waiting for approval. Leave the completion notes written, quality gates passing, and changes
-     uncommitted and unsaved (user decides commit boundaries when they return). The range's tasks stay open until the
-     commit made on return closes them (`--close=<ids>`, item 5), so the cursor stays on the range's first task and
-     the completion notes carry the progress. Under
+     uncommitted and unsaved (user decides commit boundaries when they return). The range's tasks stay open until
+     item 5 applies their approved closes and deferrals. The cursor stays on the first open task and the notes carry
+     the progress. Under
      `arc.commitInterlock ∈ {on-task-approval, on-workflow}`, deferred review
      safe-accumulates by default — no per-task commit release within the deferred range. See
      [strategy-session-operations][session-ops] § Deferred-Review × Commit-Interlock Release for the explicit
@@ -283,8 +280,8 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 
      **Resolved completion branch:** Finalize the task completion and report it through the ordinary task interlock.
 
-     - **First**: Finish the prepared completion note; the task, and any parent it completes, close with its commit
-       (item 5). When item 3 fired, include the returned criteria evidence and span in that outcome.
+     - **First**: Finish the prepared completion or deferral note. When item 3 fired, include the returned criteria
+       evidence and span in that outcome.
      - **Quality request**: Run the request once over the final edits, including this completion note.
        Report feedback failures; failed enforcement holds the increment and follows the quality-gate-failure prompt
        below. Re-run after obvious fixes. If the segment request remains red, remove this task's completion note
@@ -338,30 +335,37 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 > `task-interlock`: Stop after reporting task completion. Surface verification status and await
 > approval before advancing.
 
-  5. Await user instructions on how to proceed. User may choose to commit changes
-     or request modifications. Under `arc.commitInterlock: manual`, task approval
-     advances work only; committing remains an explicit user-invoked action.
-     Under `on-task-approval` (or `on-workflow`, which subsumes it), the commit-interlock
-     releases on task approval per [Configurability Architecture Strategy][config-arch]
-     § Session interlocks; on approval signal, invoke the [arc-commit skill][arc-commit-skill]
-     — it owns the simple-vs-complex path decision and loads the format methods.
+  5. Await user instructions on how to proceed. User may choose to commit changes or request modifications. After
+     approval, omit tasks item 4 already closed from subsequent close calls.
+
+     **Approved deferrals.** Run `arc task defer <id>` for each approved skip. Exclude deferred IDs from all close
+     calls for the batch. If the increment contains only deferrals or tasks already closed, go directly to the save
+     below.
+
+     **Approved completions.** For an increment with no tracked file changes, run `arc task close <ids>` with the
+     approved completion IDs and go directly to the save below. When the increment needs a commit, follow the commit
+     interlock. Under `arc.commitInterlock: manual`, committing remains an explicit user-invoked action. Under
+     `on-task-approval` (or `on-workflow`, which subsumes it), the commit-interlock releases on task approval per
+     [Configurability Architecture Strategy][config-arch] § Session interlocks. Invoke the
+     [arc-commit skill][arc-commit-skill] for its simple-vs-complex path decision and format methods.
 
      **The commit closes the task.** Where `taskCommit` routes to the wrapper, commit with
      `arc release commit --close`, which commits and then closes the cursor's task. Name the IDs (`--close=<ids>`)
-     for a deferred range, a batched parent, or any other task, and put the flag on a split's last commit. On the raw
-     route, run `arc task close <ids>` right after the commit. When the wrapper's commit lands and its close fails, run
-     the `arc task close <ids>` it names, never the commit again. A task whose increment changed no tracked file closes
-     with `arc task close` alone, and a task item 4 already closed takes no close. Then save the increment's state:
+     for a deferred range, a batched parent, or a noncursor task. Use the approved completion IDs if the batch
+     included any deferrals. Put the flag on a split's last commit when using default capture. On the raw route, run
+     `arc task close <ids>` right after the commit. Follow the complex path's capture instructions when it applies.
+     When the wrapper's commit lands and its close fails, retry only the `arc task close <ids>` it names. Then save
+     the increment's state:
 
      ```bash
      arc save
      ```
 
-     A deferred delivery-member scale closeout is the bounded exception to ordinary
-     advancement: in manual mode, stop for the explicit commit invocation; in an
-     auto-fire mode, commit on approval. After that commit lands, return to item 3, record the scale result and save it
-     with `arc save`, then start the bundle's named target without re-prompting. Complexity criteria still bump to manual-with-prompt
-     rather than invoking prepare-commits silently.
+     A deferred delivery-member scale closeout is the bounded exception to ordinary advancement. In manual mode, stop
+     for the explicit commit invocation. In an auto-fire mode, commit on approval. After that commit lands, return to
+     item 3, record the scale result and disposition, and run `arc check increment`. Report feedback failures and
+     handle failed enforcement as in item 4. Once enforcement passes, save with `arc save` and start the bundle's named
+     target without re-prompting. Complexity criteria still bump to manual-with-prompt.
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? When in
      doubt, split and ask. See [Commit Discipline][dev-rules-arc].
@@ -374,8 +378,14 @@ version with the verb that wrote it; list the state edited since the last save w
 read the commits no task has closed yet, `arc locus --json`'s `active.context.unclosedTaskCommits`. Then inspect
 `git status --porcelain`, `git diff --cached --stat`, and recent commits (`git log --oneline -n 10`). Surface any
 mismatch between the workflow pointer, the state, staged changes, and commit history, and prompt the user to continue
-the interrupted cascade or roll it back; a commit no task has closed continues with the close that listing's `actions`
-name. Full per-mode recovery procedures live in [Session Operations Strategy][session-ops] § Failure-Mode Recovery.
+the interrupted cascade or roll it back.
+
+On continue, reconcile the listed SHAs with the approved task IDs and commit plan. Resume the remaining commits of an
+unfinished split before closing its tasks. Once the planned final commit for those tasks is confirmed, run
+`arc task close <ids>` with the approved completion IDs. If the default capture set differs from the plan, supply
+each task's matching `--commit <sha>` arguments in a separate close. If you cannot establish the approved scope,
+leave the tasks open and recover it from the previous approval or ask the user to confirm it before retrying the
+close. Full per-mode recovery procedures live in [Session Operations Strategy][session-ops] § Failure-Mode Recovery.
 
 ## Verification Phase
 
@@ -403,8 +413,9 @@ capture routing, and where captures drain.
 
 An atomic task from an inbox runs as an Errand, and closing the Errand with `arc errand close <slug>` completes it.
 Under full protection, the close archives the Errand's description, which holds the entry its start took from the
-inbox. Under partial protection, which keeps no record, the close removes the entry from its inbox by ID and version,
-reporting one another session already removed. Mark and reorder nothing: an inbox holds only work nobody has started.
+inbox. Under partial protection, leave the version-bound origin entry unmarked and in its inbox until close. The close
+removes it by ID and version, reporting if another session already removed it. Take the next execution offer from
+the first eligible entry in the person's Errand queue.
 
 ### Incidental Commit Discipline
 

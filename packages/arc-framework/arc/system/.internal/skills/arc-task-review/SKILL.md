@@ -30,10 +30,11 @@ Invoked at user discretion, not every review increment.
 
 2. Gather file change evidence.
 
-   - Identify all files modified during the task — use `git status` and `git
-     diff --stat` for uncommitted work, or `git diff --stat` against the pre-task
-     commit if changes are already committed, and `arc selection --changed` for the
-     ARC state edited since the last save.
+   - Identify tracked changes in the requested scope. Use `git status` and `git diff --stat` for uncommitted work,
+     or `git diff --stat <pre-task-commit> <task-end-commit>` for committed work.
+   - Use `arc selection --changed` only when the save interval matches the requested review scope. For a saved task,
+     use state evidence captured during that task, such as its increment report or recorded file list. Report where
+     state-file coverage cannot be verified.
    - Cross-reference against the task description: separate expected changes
      (files mentioned or implied by the task) from unexpected ones.
 

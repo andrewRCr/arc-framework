@@ -111,6 +111,16 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop.slice(memberBoundary, reportAndStop))
         .toMatch(softWrappedProse("approval does not authorize delivery-member advancement"));
 
+      const resumeCloseout = indexOfSoftWrappedProse(taskLoop, "return to item 3", reportAndStop);
+      const recordResult = taskLoop.indexOf("record", resumeCloseout);
+      const saveResult = taskLoop.indexOf("arc save", recordResult);
+      expect(resumeCloseout).toBeGreaterThan(reportAndStop);
+      expect(recordResult).toBeGreaterThan(resumeCloseout);
+      expect(saveResult).toBeGreaterThan(recordResult);
+      const closeoutCheck = taskLoop.slice(recordResult, saveResult);
+      expect(closeoutCheck).toContain("arc check increment");
+      expect(closeoutCheck).toMatch(/feedback[^.]+enforcement/iu);
+
       const recordedAttention = indexOfSoftWrappedProse(verification, "member-close scale-attention result");
       const mergeChecks = verification.indexOf("arc check gate merge --force");
       expect(recordedAttention).toBeGreaterThan(-1);

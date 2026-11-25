@@ -1,4 +1,5 @@
 /** Task closure and deferral use checked reference-store batches and scripted Git boundaries. */
+import { readFile } from "node:fs/promises";
 import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { expect, it } from "vitest";
@@ -59,6 +60,46 @@ it("bare close closes only the cursor leaf", async () => {
   const result = await runTaskClose(h.ctx);
   expect(result).toMatchObject({ status: "closed", ids: ["1.1.a"] });
   expect((await h.readTasks()).content).toBe(tasks(" ", "x", " "));
+});
+it.each([
+  { ids: [], skippedMarker: "~" },
+  { ids: ["1.1.a", "1.1.b"], skippedMarker: "x" },
+])("shows what closing $ids does after the first sibling is skipped", async ({ ids, skippedMarker }) => {
+  const h = await harness();
+  expect(await runTaskDefer(h.ctx, "1.1.a")).toMatchObject({ status: "deferred" });
+  expect((await h.readTasks()).content).toBe(tasks(" ", "~", " "));
+  expect(await runTaskClose(h.ctx, { ids })).toMatchObject({ status: "closed", captured: [] });
+  expect((await h.readTasks()).content).toBe(tasks("x", skippedMarker, "x"));
+});
+it("the task loop applies the named deferral after approval and before saving the increment", async () => {
+  const loop = await readFile(new URL("../../../../arc/system/workflows/arc/process-task-loop.template.md", import.meta.url), "utf8");
+  const approval = loop.indexOf("**MANDATORY STOP**");
+  const save = loop.indexOf("arc save", approval);
+  expect(approval).toBeGreaterThan(-1);
+  expect(save).toBeGreaterThan(approval);
+  const afterApproval = loop.slice(approval, save);
+  expect(afterApproval, "An approved skip needs a named deferral before save").toContain("`arc task defer <id>`");
+  expect(loop.slice(0, approval)).not.toContain("`arc task defer <id>`");
+  expect(afterApproval).toMatch(/exclude[^.]+deferred[^.]+clos/isu);
+  expect(afterApproval).toMatch(/if[^.]+only deferrals[^.]+save/isu);
+
+  const h = await harness();
+  expect(await runTaskDefer(h.ctx, "1.1.a")).toMatchObject({ status: "deferred", ids: ["1.1.a"] });
+  expect((await h.readTasks()).content).toBe(tasks(" ", "~", " "));
+});
+it.each([
+  { scope: "an approved batch", approved: ["1.1.a", "1.1.b"], expected: tasks("x", "x", "x") },
+  { scope: "a later approved leaf", approved: ["1.1.b"], expected: tasks(" ", " ", "x") },
+])("the workflow's state-only close marks $scope", async ({ approved, expected }) => {
+  const workflow = await readFile(new URL("../../../../arc/system/workflows/arc/process-task-loop.template.md", import.meta.url), "utf8");
+  const afterApproval = workflow.slice(workflow.indexOf("**MANDATORY STOP**"));
+  const command = /(?:no tracked (?:file|change)|state-only)[^`.]*`(arc task close\b[^`]*)`/iu.exec(afterApproval)?.[1];
+  if (!command) throw new Error("Missing standalone close command in the state-only instruction");
+  const ids = command.replace(/<ids?>/u, approved.join(" ")).split(/\s+/u).slice(3);
+
+  const h = await harness();
+  expect(await runTaskClose(h.ctx, { ids })).toMatchObject({ status: "closed", captured: [] });
+  expect((await h.readTasks()).content).toBe(expected);
 });
 it("named set closes leaves and its cascade parent without capturing the parent", async () => {
   const h = await harness();
