@@ -1,4 +1,5 @@
 /** The store's leg of `arc sync`: pull, settle a remote's designation, then publish state first and alone. */
+import { stripVTControlCharacters } from "node:util";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { reportHandoffTripwires, type HandoffTripwireReport } from "../lib/handoff/tripwires.js";
 import type { Store } from "../lib/store/contract.js";
@@ -129,7 +130,8 @@ function stoppedPushRecord(result: PushResult): StatePushRecord | undefined {
 function failedPush(failure: StoreRefusal): StatePushRecord {
   const parts = [failure.condition];
   if ("message" in failure && failure.message !== failure.condition) parts.push(failure.message);
-  return { action: "push", result: "failed", detail: renderExplained(parts, failure.remedy) };
+  const detail = stripVTControlCharacters(renderExplained(parts, failure.remedy)).replace(/(?![\n\t])\p{Cc}/gu, "");
+  return { action: "push", result: "failed", detail };
 }
 
 /** The contention report over the push's largest retry count and wait, or nothing when no figure exceeds its bound. */
