@@ -48,3 +48,24 @@ it("names an unlinked suffixed Errand branch's residue by the slug before its su
     { branch: "fix/plain", slug: "plain", reason: "no-record-or-meta" },
   ]));
 });
+it("reports an unlinked suffixed hotfix branch as residue with an inspection warning", async () => {
+  const { store } = createLifecycleHarness();
+  const branch = "hotfix/fix-it-0a1b2c3d";
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [
+    { stdout: `refs/heads/${branch}\t${"a".repeat(40)}\n` },
+  ] }]);
+  const result = await deriveStoreInFlight({ store, exec: fake.exec, identity: "test-user", teamMode: false, projectId: async () => "project" });
+  expect(result).toMatchObject({
+    residue: [{ branch, slug: "fix-it", reason: "no-record-or-meta" }],
+    warnings: [{ branch, code: "branch-residue" }],
+  });
+});
+it("keeps the full post-prefix name of nested branch residue", async () => {
+  const { store } = createLifecycleHarness();
+  const branch = "fix/team/widget-deadbeef";
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [
+    { stdout: `refs/heads/${branch}\t${"a".repeat(40)}\n` },
+  ] }]);
+  const result = await deriveStoreInFlight({ store, exec: fake.exec, identity: "test-user", teamMode: false, projectId: async () => "project" });
+  expect(result.residue).toEqual([{ branch, slug: "team/widget-deadbeef", reason: "no-record-or-meta" }]);
+});

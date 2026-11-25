@@ -1,28 +1,19 @@
 /** A real Git ref-lock fault proves failed-open capture return and retry through actual registrations. */
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { repairCliFixture, repairCli, cliRows } from "../helpers/repair-cli.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { readRoutingReceipts } from "../../src/lib/inbox/receipts.js";
-const BRANCH_SUFFIX = vi.hoisted(() => "0a1b2c3d");
-vi.mock("../../src/lib/errand/branch-type.js", async importOriginal => ({
-  ...await importOriginal<typeof import("../../src/lib/errand/branch-type.js")>(), mintErrandBranchSuffix: () => BRANCH_SUFFIX }));
-
 it("returns the capture and retires the failed claim after actual Git provisioning fails, then opens after ref-lock repair", async () => {
   const f = await repairCliFixture(), slug = "rollback-cli";
   await repairCli(f, ["errand", "queue", "set", "-"], { stdin: JSON.stringify({ schemaVersion: 1, members: [{ inbox: "project", id: "12345678" }] }) });
   const original = await cliRows(f, "project");
-  const lock = join(f.cwd, ".git/refs/heads/chore", `${slug}-${BRANCH_SUFFIX}.lock`);
-  await mkdir(join(f.cwd, ".git/refs/heads/chore"), { recursive: true });
-  await writeFile(lock, "Existing Git ref-lock holder\n");
+  await f.exec("git", ["branch", "chore", "main"]);
   const failed = await repairCli(f, ["errand", "open", slug, "--from-inbox", "project:12345678", "--json"]);
   expect(failed, JSON.stringify(failed)).toMatchObject({ exitCode: 1, result: { outcome: "error" } });
   expect(failed.stdout + failed.stderr).toContain("cannot lock ref");
-  expect(failed.stdout + failed.stderr).toContain(`${slug}-${BRANCH_SUFFIX}.lock`);
   const rolledBack = success(await f.h.context.store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) }));
   const record = success(await f.h.context.store.read({ reference: rolledBack.reference }));
   expect(record).toMatchObject({ placement: { kind: "completed" } });
@@ -36,7 +27,11 @@ it("returns the capture and retires the failed claim after actual Git provisioni
   expect((await repairCli(f, ["errand", "queue", "--json"])).result).toMatchObject({ state: "listed", members: [] });
   const receipts = await readRoutingReceipts(f.h.context);
   if (receipts.status !== "ok") throw new Error(receipts.refusal.condition);
-  const uid = record.reference.owner.type === "work-item" ? record.reference.owner.uid : undefined;
+  const owner = record.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the retired Errand owner's UID");
+  const uid = owner.uid, failedRef = `refs/heads/chore/${slug}-${uid.slice(0, 8)}`;
+  expect(failed.stdout + failed.stderr).toContain(failedRef);
+  expect(failed.stdout + failed.stderr).toContain("refs/heads/chore' exists");
   expect(receipts.result).toHaveLength(2);
   expect(receipts.result).toEqual(expect.arrayContaining([
     expect.objectContaining({ entryId: "12345678", source: { list: "project", section: "Inbox" }, destination: { list: uid, section: "Description" } }),
@@ -44,9 +39,9 @@ it("returns the capture and retires the failed claim after actual Git provisioni
   ]));
   expect(await readWorktreeMarker(f.cwd)).toEqual({ kind: "absent" });
   expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("main");
-  expect((await f.exec("git", ["for-each-ref", "--format=%(refname)", `refs/heads/chore/${slug}-${BRANCH_SUFFIX}`])).stdout).toBe("");
+  expect((await f.exec("git", ["for-each-ref", "--format=%(refname)", failedRef])).stdout).toBe("");
   expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(f.head);
-  await rm(lock);
+  await f.exec("git", ["branch", "-d", "chore"]);
   const retry = await repairCli(f, ["errand", "open", slug, "--from-inbox", "project:12345678", "--json"]);
   expect(retry, JSON.stringify(retry)).toMatchObject({ result: { outcome: "applied" } });
   expect(await cliRows(f, "project")).toEqual([]);
@@ -56,6 +51,8 @@ it("returns the capture and retires the failed claim after actual Git provisioni
   const active = success(await f.h.context.store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) }));
   expect(active.reference.owner).not.toEqual(record.reference.owner);
   expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "errand", slug } } });
-  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/${slug}-${BRANCH_SUFFIX}`);
+  const activeOwner = active.reference.owner;
+  if (activeOwner.type !== "work-item" || activeOwner.uid === undefined) throw new Error("Expected the active Errand owner's UID");
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/${slug}-${activeOwner.uid.slice(0, 8)}`);
   expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(f.head);
 }, 30000);

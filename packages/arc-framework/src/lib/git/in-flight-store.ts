@@ -136,8 +136,10 @@ class InFlightProjection {
   }
   addResidue(): void {
     for (const branch of new Set([...Object.keys(this.refs.refs.localHeads), ...Object.keys(this.refs.refs.remoteTracking)])) {
-      if (!/^(?:feat|fix|chore|plan|refactor|docs|test|perf|build|ci)\//u.test(branch) || this.linked.has(branch)) continue;
-      this.residue.push({ branch, slug: suffixedErrandBranchSlug(branch) ?? branch.slice(branch.indexOf("/") + 1), reason: "no-record-or-meta" });
+      if (this.linked.has(branch)) continue;
+      const errandSlug = suffixedErrandBranchSlug(branch);
+      if (errandSlug === null && !/^(?:feat|fix|chore|plan|refactor|docs|test|perf|build|ci)\//u.test(branch)) continue;
+      this.residue.push({ branch, slug: errandSlug ?? branch.slice(branch.indexOf("/") + 1), reason: "no-record-or-meta" });
       this.warnings.push({ code: "branch-residue", branch, rendered: `Branch ${branch} has no active work item or claim; inspect it before cleanup.` });
     }
   }

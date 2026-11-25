@@ -40,4 +40,8 @@ describe("errand branch-type vocabulary", () => {
     for (const branch of ["chore/fix-it", "feat/fix-it-0a1b2c3d", "chore/fix-it-0A1B2C3D", "chore/fix-it-0a1b2c3", "chore/-0a1b2c3d",
       "chore/0a1b2c3d", "fix-it-0a1b2c3d"]) expect(suffixedErrandBranchSlug(branch)).toBeNull();
   });
+
+  it("rejects a nested branch whose suffix follows an invalid errand slug", () => {
+    expect(suffixedErrandBranchSlug("fix/team/widget-deadbeef")).toBeNull();
+  });
 });

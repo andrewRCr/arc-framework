@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { expect, it, onTestFinished } from "vitest";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
-import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { readWorktreeLock } from "../helpers/worktree-lock.js";
 import { openOrdinaryErrandAtRuntime } from "../../src/lib/errand/open-runtime.js";
 import { createExecaGitExecInput } from "../../src/lib/git/process-executor.js";
@@ -39,11 +39,13 @@ it("opens from a Store-only parent without changing the default Store factory", 
   expect(await h.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("parent"), uid: boundWorkUnitSubject(h.meta).uid } })).toMatchObject({ status: "ok" });
 });
 
-it("names the Errand's branch with a minted suffix where state lives off the branch, and cuts that branch", async () => {
+it("names the Errand's branch from its stored owner when no description is planned, and cuts that branch", async () => {
   const h = await fixture();
   const result = await h.open();
   if (result.outcome !== "applied" || result.identity === null) throw new Error(JSON.stringify(result));
-  expect(result.identity.branch).toMatch(/^chore\/child-[0-9a-f]{8}$/u);
+  const { reference: { owner } } = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("child") }));
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the Errand owner's UID");
+  expect(result.identity.branch).toBe(`chore/child-${owner.uid.slice(0, 8)}`);
   await expect(h.exec("git", ["show-ref", "--verify", `refs/heads/${result.identity.branch}`])).resolves.toBeDefined();
 });
 

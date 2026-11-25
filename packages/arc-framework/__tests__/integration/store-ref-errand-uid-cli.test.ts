@@ -119,6 +119,10 @@ it.each([["no record holds the slug", false], ["the slug's earlier generation ha
       .filter(line => line.startsWith("Arc-Creation-Receipt: "))
       .map(line => JSON.parse(line.slice("Arc-Creation-Receipt: ".length)) as { createdOwners: unknown[] });
     expect(receipts.flatMap(receipt => receipt.createdOwners)).toContainEqual({ kind: "work-item/record", owner: record.owner });
+    if (record.owner.type !== "work-item" || record.owner.uid === undefined) throw new Error("Expected Errand owner UID");
+    const branch = success(await f.store.read({ reference: record })).links?.branches?.[0]?.ref;
+    await f.exec("git", ["show-ref", "--verify", `refs/heads/${branch}`]);
+    expect(branch).toBe(`chore/${slug}-${record.owner.uid.slice(0, 8)}`);
   }, 60_000);
 
 it("refuses a write naming a UID no owner holds when the write creates no record for that owner", async () => {

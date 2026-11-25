@@ -72,8 +72,6 @@ export interface OpenOrdinaryErrandExecution {
 /** Injected authority and local-provisioning boundaries for ordinary Errand open. */
 export interface OpenOrdinaryErrandDependencies {
   mintClaimId?: () => string;
-  /** Mints the branch suffix a new Errand's branch carries where state lives off the branch; absent before the flip. */
-  mintBranchSuffix?: () => string;
   readFrame(): Promise<DerivedLocusFrame>;
   readIdentity(): Promise<IdentityReadResult>;
   recoverOpen?: (record: OrdinaryErrandRecord) => Promise<OpenRecoveryResult>;
@@ -96,6 +94,8 @@ export interface OpenOrdinaryErrandDependencies {
 /** Complete ordinary Errand open request, independent of CLI rendering. */
 export interface OpenOrdinaryErrandOptions {
   slug: string;
+  /** Planned owner UID for a new Errand where state lives off the branch. */
+  ownerUid?: string;
   /** Select a new branch's nature; omission on re-entry preserves the recorded branch. */
   type?: ErrandBranchType;
   intent?: string;
@@ -134,8 +134,6 @@ export async function openOrdinaryErrand(
   const parent = warmWorkUnitParent(frame);
   if (parent.kind === "refused") return openRefusal(parent.reason, parent.message);
 
-  const branch = options.protection === "full"
-    ? errandBranch(options.type ?? DEFAULT_ERRAND_BRANCH_TYPE, slug, options.dependencies.mintBranchSuffix?.()) : null;
   let record: OrdinaryErrandRecord | null = null;
   let previousRecord: OrdinaryErrandRecord | null = null;
   let expectedBranchHead: string | null = null;
@@ -220,7 +218,7 @@ export async function openOrdinaryErrand(
         kind: "errand",
         purpose: "errand",
         intent: options.intent?.trim() || slug,
-        branch,
+        branch: errandBranch(options.type ?? DEFAULT_ERRAND_BRANCH_TYPE, slug, options.ownerUid),
         origin: originEntry === null ? "description" : "inbox",
         originEntry,
         ...(originEntry === null ? {} : { originEntrySourceDigest }),
@@ -280,7 +278,7 @@ export async function openOrdinaryErrand(
             : { originEntry, originEntrySourceDigest }),
         },
       } : {}),
-      branch: record?.branch ?? branch,
+      branch: record?.branch ?? null,
       expectedBranchHead,
       base: options.base,
       locationTemplate: options.locationTemplate,

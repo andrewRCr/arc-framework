@@ -15,7 +15,7 @@
  * @module
  */
 
-import { randomBytes } from "node:crypto";
+import { isSlugSafe } from "../kernel/index.js";
 
 /** Branch nature-types an errand may carry — the `branch-format` set minus `feat`. */
 export const ERRAND_BRANCH_TYPES = ["fix", "chore", "refactor", "hotfix"] as const;
@@ -35,24 +35,15 @@ export function isErrandBranchType(value: string): value is ErrandBranchType {
 const BRANCH_SUFFIX = /^[0-9a-f]{8}$/u;
 
 /**
- * Mint the suffix that keeps two same-slug errands from different clones off one remote branch.
- *
- * @returns Eight lowercase hex characters.
- */
-export function mintErrandBranchSuffix(): string {
-  return randomBytes(4).toString("hex");
-}
-
-/**
- * Name an errand's branch from its type and slug, with the suffix where one was minted.
+ * Name an errand's branch from its type and slug, using the owner UID prefix when supplied.
  *
  * @param type - The branch nature-type.
  * @param slug - The errand's slug.
- * @param suffix - The minted suffix, or none.
+ * @param ownerUid - The UID of the stored Errand generation, when state lives off the branch.
  * @returns `<type>/<slug>`, or `<type>/<slug>-<suffix>`.
  */
-export function errandBranch(type: ErrandBranchType, slug: string, suffix?: string): string {
-  return suffix === undefined ? `${type}/${slug}` : `${type}/${slug}-${suffix}`;
+export function errandBranch(type: ErrandBranchType, slug: string, ownerUid?: string): string {
+  return ownerUid === undefined ? `${type}/${slug}` : `${type}/${slug}-${ownerUid.slice(0, 8)}`;
 }
 
 /**
@@ -81,5 +72,7 @@ export function suffixedErrandBranchSlug(branch: string): string | null {
   const separator = branch.indexOf("/");
   if (separator < 0 || !isErrandBranchType(branch.slice(0, separator))) return null;
   const rest = branch.slice(separator + 1), cut = rest.length - 9;
-  return cut > 0 && rest[cut] === "-" && BRANCH_SUFFIX.test(rest.slice(cut + 1)) ? rest.slice(0, cut) : null;
+  if (cut <= 0 || rest[cut] !== "-" || !BRANCH_SUFFIX.test(rest.slice(cut + 1))) return null;
+  const slug = rest.slice(0, cut);
+  return isSlugSafe(slug) ? slug : null;
 }
