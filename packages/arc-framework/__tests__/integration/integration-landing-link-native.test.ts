@@ -1,5 +1,5 @@
 /** Already-landed native integration repairs durable traceability through the ordinary handler. */
-import { chmod, mkdir, readdir, rename, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { basename, delimiter, join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { handleIntegrationMerge } from "../../src/handlers/integration.js";
@@ -182,6 +182,26 @@ it("refuses an unrelated work unit's checkpoint even when its PR has landed", as
   });
 }, 30_000);
 
+it("refuses a landed checkpoint whose recorded work-unit name was changed", async () => {
+  const { h, checkpoint, mergeCommit, meta, host, run, uid } = await landed(true);
+  const beta = await h.reference.seedMeta("beta", { branch: null }, { kind: "active" });
+  const file = join(h.native.cwd, ".arc", "user", "test-user", ".internal", "integration-checkpoints", uid,
+    `${checkpoint.slice(checkpoint.lastIndexOf(":") + 1)}.json`);
+  const original = await readFile(file, "utf8");
+  await writeFile(file, original.replace('"workUnit":"example"', '"workUnit":"beta"'));
+  await host(mergeCommit);
+  expect(await run(h.reference.store, h.reference.projectId, false, "beta")).toMatchObject({
+    workUnit: "beta", state: "blocked", reason: "operation-failed",
+    detail: expect.stringContaining("does not match its handle"),
+    remedy: { argv: ["arc", "integrate", "checkpoint", "beta"] },
+  });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference }))).toEqual(meta);
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: beta.reference }))).toEqual(beta);
+  await writeFile(file, original);
+  expect(await run()).toMatchObject({ workUnit: "example", state: "merged", nextAction: "complete",
+    payload: { landingLink: { state: "written" } } });
+}, 30_000);
+
 it.each(["missing", "project"] as const)("preserves the landed host result without a link for %s checkpoint ownership", async fault => {
   const { h, meta, host, mergeCommit, run } = await landed(false, fault !== "missing");
   await host(mergeCommit);
@@ -212,4 +232,21 @@ it("retains the original UID after its work unit is renamed", async () => {
     payload: { landingLink: { state: "written" } } });
   expect(lifecycleSuccess(await h.reference.store.read({ reference })).links?.landingCommit)
     .toEqual({ repository: projectId, sha: mergeCommit });
+}, 30_000);
+
+it("replays a renamed completed work unit when a live work unit holds the same name", async () => {
+  const { h, projectId, mergeCommit, meta, host, run } = await landed(true);
+  const reference = RecordReferenceSchema.parse({ ...meta.reference, owner: { ...meta.reference.owner, name: "beta" } });
+  lifecycleSuccess(await h.reference.store.write({ ...recordPut(meta, { content: meta.content.replaceAll("example", "beta") }),
+    reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  const live = await h.reference.seedMeta("beta", { branch: null }, { kind: "active" });
+  expect(lifecycleSuccess(await h.reference.store.lookup({ kind: "slug", slug: SlugSchema.parse("beta") })).reference)
+    .toEqual(live.reference);
+  await host(mergeCommit);
+  expect(await run(h.reference.store, h.reference.projectId, false, "beta")).toMatchObject({
+    workUnit: "beta", state: "merged", nextAction: "complete", payload: { landingLink: { state: "written" } },
+  });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference })).links?.landingCommit)
+    .toEqual({ repository: projectId, sha: mergeCommit });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: live.reference }))).toEqual(live);
 }, 30_000);

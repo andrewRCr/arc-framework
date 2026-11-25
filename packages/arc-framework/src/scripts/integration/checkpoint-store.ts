@@ -59,6 +59,14 @@ export type IntegrationCheckpointCompositionRecord = z.infer<
   typeof IntegrationCheckpointCompositionRecordSchema
 >;
 
+/** A persisted checkpoint does not match the approval handle used to read it. */
+export class IntegrationCheckpointMismatchError extends Error {
+  constructor() {
+    super("The persisted integration checkpoint does not match its handle.");
+    this.name = "IntegrationCheckpointMismatchError";
+  }
+}
+
 export interface IntegrationCheckpointCompositionInput {
   workUnit: string;
   approvedHead: string;
@@ -101,6 +109,7 @@ const nodeStoreDependencies: IntegrationCheckpointStoreDependencies = {
 
 function digestComposition(input: {
   checkpointId: string;
+  workUnit: string;
   target: IntegrationCheckpointTarget;
   lifecycleVersion: string;
   nativeOwnership?: z.infer<typeof NativeCheckpointOwnershipSchema>;
@@ -110,6 +119,7 @@ function digestComposition(input: {
   return canonicalDigest({
     domain: "arc.integration-checkpoint-composition/v1",
     checkpointId: input.checkpointId,
+    workUnit: input.workUnit,
     target: input.target,
     lifecycleVersion: input.lifecycleVersion,
     ...(input.nativeOwnership === undefined ? {} : { nativeOwnership: input.nativeOwnership }),
@@ -246,7 +256,7 @@ export async function readIntegrationCheckpointComposition(
     || record.compositionDigest !== parsedHandle.digest
     || record.compositionDigest !== expectedDigest
   ) {
-    throw new Error("The persisted integration checkpoint does not match its handle.");
+    throw new IntegrationCheckpointMismatchError();
   }
   return record;
 }

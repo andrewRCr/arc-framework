@@ -137,7 +137,7 @@ it("finds and admits a renamed work unit's checkpoint at its unchanged head", as
   const record = await dependencies.readCheckpoint("renamed", handle);
   expect(record).toMatchObject({ workUnit: "example", approvedHead: h.head, nativeOwnership: { workItemUid: primaryUid(h) } });
   if (record === null) throw new Error("Expected the renamed work unit's checkpoint");
-  await expect(dependencies.validateCheckpointOwnership?.(record)).resolves.toBeUndefined();
+  await expect(dependencies.validateCheckpointOwnership?.(record, false)).resolves.toBeUndefined();
 });
 
 it("merge observes the current stored meta version and lifecycle rather than the projection", async () => {

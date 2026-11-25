@@ -3,6 +3,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
+import { makeTempRoot, removeGitBackedDir } from "../helpers/temp-repo.js";
 import { handleIntegrationCheckpoint, handleIntegrationMerge } from "../../src/handlers/integration.js";
 import { IntegrationCheckpointResultSchema } from "../../src/scripts/integration/checkpoint.js";
 import { IntegrationMergeResultSchema } from "../../src/scripts/integration/merge.js";
@@ -48,7 +49,7 @@ async function fixture() {
   const hostUrl = "git@github.com:owner/repo.git";
   await exec("git", ["remote", "set-url", "origin", hostUrl], { cwd });
   await exec("git", ["config", `url.${h.origin}.insteadOf`, hostUrl], { cwd });
-  const bin = join(cwd, "..", "integration-host-bin");
+  const bin = join(cwd, "integration-host-bin");
   await mkdir(bin, { recursive: true });
   const candidate = { number: 42, url: "https://github.com/owner/repo/pull/42", state: "OPEN",
     baseRefName: "main", headRefName: "topic/opaque", headRefOid: head };
@@ -67,6 +68,23 @@ async function fixture() {
   await chmod(join(bin, "gh"), 0o755);
   return { ...h, cwd, primary, bin, checkpoint };
 }
+
+it("isolates host call logs in clones that share a temporary root and removes them at teardown", async () => {
+  const root = await makeTempRoot("arc-integration-host-");
+  onTestFinished(() => removeGitBackedDir(root));
+  vi.stubEnv(process.platform === "win32" ? "TEMP" : "TMPDIR", root);
+  onTestFinished(() => { vi.unstubAllEnvs(); });
+  const first = await fixture(), second = await fixture();
+  const firstCalls = join(first.bin, "gh.calls"), secondCalls = join(second.bin, "gh.calls");
+  await writeFile(firstCalls, "pr list\n");
+  await writeFile(secondCalls, "repo view\n");
+  expect(await readFile(firstCalls, "utf8")).toBe("pr list\n");
+  await first.cleanup();
+  await expect(readFile(firstCalls, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(secondCalls, "utf8")).toBe("repo view\n");
+  await second.cleanup();
+  await expect(readFile(secondCalls, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+}, 30_000);
 
 it.each(["checkpoint", "merge"] as const)("preserves %s project repair and returns its ordinary verdict after restoration", async command => {
   const h = await fixture(), originalCwd = process.cwd(), originalPath = process.env.PATH;

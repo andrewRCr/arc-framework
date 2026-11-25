@@ -4,7 +4,7 @@ import { storeRepairCases } from "../../../fixtures/store-repair-remedies.js";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   mergeIntegration,
@@ -1153,6 +1153,26 @@ it.each(["already-merged", "recovered"] as const)("records the native landing li
     payload: { providerMergeId: oid("d"), landingLink: { state: "written" } } });
   expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links).toEqual({ ...h.links,
     landingCommit: { repository: h.projectId, sha: oid("d") } });
+});
+
+it("refuses an unrelated work unit's landed checkpoint after the first host read fails", async () => {
+  const h = await nativeLandingMerge();
+  const other = await h.seedMeta("other");
+  h.value.validateCheckpointOwnership = createIntegrationMergeDependencies({ cwd: "/unused", exec: scriptGitExec([]).exec,
+    workUnit: "other", store: h.store, projectId: async () => h.projectId }).validateCheckpointOwnership;
+  const readMerged = h.value.readMerged;
+  h.value.readMerged = vi.fn(readMerged).mockRejectedValueOnce(new Error("The first host read failed."));
+  h.state.merged = true;
+
+  expect(await mergeIntegration({ ...request, workUnit: "other" }, h.value)).toMatchObject({
+    workUnit: "other", state: "blocked", reason: "operation-failed",
+    detail: expect.stringContaining("generation differs from the checkpoint"),
+    remedy: { argv: ["arc", "integrate", "checkpoint", "other"] },
+  });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ workUnit: "example", state: "merged",
+    nextAction: "complete", payload: { landingLink: { state: "written" } } });
 });
 
 it("reports a landed merge when its link write fails and repairs the link on an already-merged retry", async () => {

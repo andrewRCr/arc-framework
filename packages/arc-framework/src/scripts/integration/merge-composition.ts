@@ -7,6 +7,7 @@ import { z } from "zod";
 import { resolveNamedReviewWorkUnitInvocation } from "../review-gate/runtime/review-work-unit.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
 import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
+import { currentNamedWorkItem } from "../../lib/store/kinds/review/access-shared.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import {
   createCurrentBaseDriftAdapters,
@@ -290,13 +291,18 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
 
   return {
     ...(input.store.capabilities.stateOffBranch ? {
-      validateCheckpointOwnership: async checkpoint => {
+      validateCheckpointOwnership: async (checkpoint, landed) => {
         const owner = await nativeCheckpointOwner(checkpoint, input.projectId);
-        const selected = await resolveNamedReviewWorkUnitInvocation(input, input.workUnit);
-        if (selected.workItem?.type !== "work-item" || owner.type !== "work-item" || selected.workItem.uid !== owner.uid) {
-          throw new Error("The selected work-item generation differs from the checkpoint. Recompose its checkpoint, then retry.");
+        if (landed) {
+          if (await currentNamedWorkItem(input.store, owner, input.workUnit) !== null) return;
+        } else {
+          const selected = (await resolveNamedReviewWorkUnitInvocation(input, input.workUnit)).workItem;
+          if (selected?.type === "work-item" && owner.type === "work-item" && selected.uid === owner.uid) {
+            input.workItem = selected;
+            return;
+          }
         }
-        input.workItem = selected.workItem;
+        throw new Error("The selected work-item generation differs from the checkpoint. Recompose its checkpoint, then retry.");
       },
       writeLandingCommit: async (workUnit, sha, checkpoint) => writeWorkUnitLandingCommit({ store: input.store,
         projectId: input.projectId, workUnit, owner: await nativeCheckpointOwner(checkpoint, input.projectId), sha }),
