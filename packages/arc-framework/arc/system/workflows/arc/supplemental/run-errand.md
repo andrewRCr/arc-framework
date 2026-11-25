@@ -99,8 +99,9 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
 
    In Launch mode, execute subsequent commands from `allocation.checkoutPath`; in Resume mode, remain in the selected
    checkout. Retain `parentCheckoutPath` when present as the warm-return parent; terminal results own restoration.
-   The Errand's goal is its description, read with `arc inbox <slug> --json`, under full protection, and its origin
-   entry in the inbox under partial protection.
+   Under full protection, read the Errand's description as its goal with `arc inbox <list> --json`. Use the Errand's
+   slug as the list selector, and for `personal` or `project` use the Errand's work-item UID. Under partial protection,
+   use the inbox origin entry when one was adopted, or the seed or intent agreed at launch for a direct Errand.
 
 4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
    after open, run `arc errand link <slug> --from-inbox <personal|project>:<id> --json`. It moves that entry into the
@@ -148,11 +149,12 @@ undecided; `dismiss` writes nothing.
 **Explicit abandon.** On explicit direction to discard a safely preserved generation, invoke
 `arc errand abandon <slug> --json`. A full identity and its local review tail abandon only when the verb proves
 provenance, cleanliness, exact refs, and host disposition. A partial Errand abandons only while its clean primary is
-at the freshly pushed base. A full abandon returns each description entry that came from the project inbox or the
-abandoner's personal inbox to that inbox, and every other entry to the abandoner's personal inbox; a partial abandon
-leaves its entry in the inbox. Neither puts it back on the queue. Never simulate abandonment by deleting a branch,
-marker, or identity. Consume the typed terminal result above; `subject.kind` distinguishes exact full and partial
-authority, while `settlement` reports whether the entries returned.
+at the freshly pushed base. On full abandon, an entry held by another open Errand stays with that holder. Report each
+holding Errand and entry ID given in `recommendedPromptText`. Returnable entries go back to the project inbox or
+the abandoner's personal inbox if they came from there. Other returnable entries go to the abandoner's personal
+inbox. A partial abandon leaves its entry in the inbox. Neither puts it back on the queue. Never simulate
+abandonment by deleting a branch, marker, or identity. Consume the typed terminal result above with `subject.kind`
+for the exact full or partial authority and `settlement` for the return disposition.
 
 Run each review increment (one for a typical errand; a few for an extended one):
 
@@ -572,6 +574,9 @@ checkout paths, and `settlement` are the sole closure evidence.
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin entry by its ID at the version observed at open, leaving an entry edited since in place and
   reporting it. It creates no branch, PR, or portable identity.
+
+Report each supplied `leftOut` and `skipped` queue member by inbox and entry ID with its reason and remedy. Report
+these diagnostics even when `nextOffer` is null.
 
 When the current conversation has already agreed one exact next Errand, that named target takes precedence over
 `nextOffer` and needs no additional completion offer. From the restored parent/between-WUs frame, derive and confirm

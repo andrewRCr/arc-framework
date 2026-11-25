@@ -595,12 +595,12 @@
     "system/workflows/arc/supplemental/run-errand.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "91db96b7366483b9c84df2dea020c89a617dcb9b3ccbd569a48266fe0cfcdff9"
+      "pristine_hash": "a6cb42278c2efca93340a62286d8a703a0482ede51565fdd17c1818886375399"
     },
     "system/workflows/arc/supplemental/drain-inbox.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f796a3a97fcefb42a18b9e40f3156a8236e8a00aa8ea4b9de14b96c09a10dafb"
+      "pristine_hash": "d12bfa45363b7eb98c28b0db9ddeacf544129216c2fe1a1d2176ffd7396452e3"
     },
     "system/workflows/arc/supplemental/deliver-stack.md": {
       "classification": "Framework",
@@ -680,7 +680,7 @@
     "system/methods/route-discovered-work.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "8087898ebae082ffeabe1ffb8834a07cc6fc47d5f35e2a7461ea0cc3b4c07281"
+      "pristine_hash": "eb1f18933cf196c4da7b17dc2cc5ddced126ef61da69b229ce2f3e83df5644af"
     },
     "system/.internal/scripts/validate-links.sh": {
       "classification": "Framework",

@@ -194,22 +194,29 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
 
 ### Binding: carrying out outcomes
 
-- **Inbound entries:** a work unit's inbound list, read with `arc inbox <slug> --json`. Anyone adds an entry, and
+- **Inbound entries:** a work unit's inbound list, read with `arc inbox <list> --json`. Anyone adds an entry, and
   anyone moves one out of a backlog stub's list; only a started work unit's owner moves one out of its list, and only
   the work unit's owner edits its list's file. A `hold` into a started work unit is an entry like any other, which its
   owner takes up; admitted Active entries take the amendment or task route above.
 - **Routes:** `arc route <id> --from <list> --expected-version <version> --to <destination>` moves a listed entry,
   with the ID and version `arc inbox <list> --json` reports; `arc route --to <destination>`, with the entry on standard
-  input, adds a new one. A list or destination is a work unit's slug, `personal`, or `project`, and `--section` names
-  the personal inbox's `Errand` or `Work Unit` section. The verb stamps the entry's `_Id:_` and `_Created:_`, writes
-  `_Routed from:_` into an inbound list, and drops the fields the destination does not take. Before moving a `hold`
-  entry, write its confirmed `_Shapes:_` line into it, save with `arc save`, and move it at the version the listing
-  then reports. `already-home` is a completed route. A refusal naming a newer version means the entry changed since it
-  was read: list it again and decide again.
+  input, adds a new one. The selectors `personal` and `project` are reserved for the inboxes. For a work item, use its
+  slug or UID, and use its UID for reads, `--from`, and `--to` if its slug is reserved. `--section` names the personal
+  inbox's `Errand` or `Work Unit` section. The verb stamps `_Id:_` and `_Created:_`, writes `_Routed from:_` into an
+  inbound list, and drops fields the destination does not take.
+
+  Before moving a `hold` entry, save any confirmed `_Shapes:_` change with `arc save`. For another person's stub,
+  ask its owner to make that edit and save it. After the save, re-list the source and compare the entry's ID, section,
+  and `raw` bytes against the reviewed row with only the confirmed `_Shapes:_` edit applied. Use the relisted version
+  only on an exact match. If the row is missing or differs, take the current listing back to the Owner for a routing
+  decision before moving anything for that entry. `already-home` is a completed route. If a refusal names a newer
+  version, re-list the source and reconsider the route before retrying.
 - **Removal:** a moved entry has already left its list. Remove a dismissed, folded, or minted personal capture with
-  `arc user inbox-remove --id <id> --expected-version <version>`. Remove an entry from the project inbox, or from an
-  inbound list whose work unit you own, by deleting it from the list's file, then save with `arc save`. To remove one
-  from another person's backlog stub, move it into your personal inbox and remove it there.
+  `arc user inbox-remove --id <id> --expected-version <version>`. The dispositions `removed` and `absent` both
+  complete the removal. On `retained`, re-list the personal capture and compare its current content with any fold or
+  mint already applied, then seek a disposition for the remaining work. Remove an entry from the project inbox, or
+  from an inbound list whose work unit you own, by deleting it from the list's file, then save with `arc save`. To
+  remove one from another person's backlog stub, move it into your personal inbox and remove it there.
 - **Dispositions table:** no other record keeps an owner's-pass disposition, so give every entry a row.
 - **Drain writes:** each is a store write from any checkout, with no branch or pull request. The store's history
   records what moved where, with a routing receipt for each move into or out of an inbox, never the target's draft. Its
