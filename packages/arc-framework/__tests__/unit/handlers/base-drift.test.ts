@@ -1,6 +1,8 @@
 /** Local base-drift handler locus degradation behavior. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createStore } from "../../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 
 const mocks = vi.hoisted(() => ({
   createCurrentBaseDriftAdapters: vi.fn((...args: unknown[]) => {
@@ -64,6 +66,17 @@ function workUnitRow(kind: "work-unit" | "retired", key: string) {
 }
 
 describe("base drift handler", () => {
+  it("passes the supplied store to both the archive adapter and the locus probe", async () => {
+    const store = createStore(createDefaultStorePorts({ checkoutRoot: "/repo" }));
+    const row = workUnitRow("work-unit", "example");
+    mocks.runDerivedLocusStateProbe.mockResolvedValue({ roster: [row], entering: { kind: "selected", row } });
+
+    await handleBaseDrift({ json: true }, undefined, store);
+
+    expect(mocks.createCurrentBaseDriftAdapters.mock.calls[0]?.[1]).toBe(store);
+    expect(mocks.runDerivedLocusStateProbe.mock.calls[0]?.[0].store, "locus probe store").toBe(store);
+  });
+
   it("degrades an invalid configured identity to an unbound authoritative result", async () => {
     mocks.readIdentityPointers.mockRejectedValue(
       Object.assign(new Error("Invalid configured identity"), { code: "identity.invalid" }),

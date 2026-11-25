@@ -189,6 +189,30 @@ describe("stored completed-record integration resolver", () => {
     });
   });
 
+  it.each([
+    { generation: "live", laterPr: null, unique: true },
+    { generation: "archived with a different PR", laterPr: 43, unique: true },
+    { generation: "archived with the same PR", laterPr: 42, unique: false },
+  ])("matches archived PR 42 when the next generation of shared is $generation", async ({ laterPr, unique }) => {
+    const h = createLifecycleHarness();
+    const archive = (pr: number, quarter: string) => h.seedMeta("shared",
+      { state: "Shipped", currentWorkflow: null, prUrl: `https://github.com/o/r/pull/${pr}` },
+      { kind: "completed", quarter: ArchiveQuarterSchema.parse(quarter) });
+    await archive(42, "2026-q3");
+    if (laterPr === null) await h.seedMeta("shared");
+    else await archive(laterPr, "2026-q4");
+
+    const resolver = createCurrentBaseDriftAdapters(offBranchExec, h.store).resolverFactory(BASE);
+    const identity = { slug: "shared", prNumber: 42, prUrl: "https://github.com/o/r/pull/42" };
+    const merge = { ...input("Merge pull request #42", 42), parents: [PARENT, BASE] };
+    expect.soft(await resolver.enrichTopologyEvent(topology(42), merge)).toEqual({
+      status: "available", value: unique ? identity : null,
+    });
+    expect.soft(await resolver.proveSingleParentEvents([input("delivery (#42)", 42)])).toEqual({
+      status: "available", value: unique ? [{ commits: [COMMIT], ...identity }] : [],
+    });
+  });
+
   it("names no work unit for a pull request two archived metas name, as for one no archived meta names", async () => {
     const resolver = createCurrentBaseDriftAdapters(offBranchExec, await archived({ widget: 7, gadget: 7, other: 8 }))
       .resolverFactory(BASE);

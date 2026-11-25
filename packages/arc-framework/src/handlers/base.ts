@@ -228,6 +228,7 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
               identity,
               baseBranch: config.settings["branch.base"],
               exec,
+              store: operational,
             });
             const row = frame.entering.kind === "selected" ? frame.entering.row : null;
             const workUnit = row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);

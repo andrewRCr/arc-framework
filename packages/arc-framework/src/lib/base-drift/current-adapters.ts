@@ -26,7 +26,7 @@ import {
 } from "../work-unit/completed-index.js";
 import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 import type { Store } from "../store/contract.js";
-import { readStoreCompletedEvidence } from "../store/lifecycle-completed.js";
+import { readStoreCompletedEvidenceByIdentity } from "../store/lifecycle-completed.js";
 
 export interface CurrentBaseDriftAdapters {
   resolverFactory: IntegrationEvidenceResolverFactory;
@@ -74,7 +74,7 @@ export function createCurrentBaseDriftAdapters(
  */
 export function createStoreCompletedResolver(store: Store): IntegrationEvidenceResolver {
   let archiveRead: Promise<CompletedEvidenceRead> | undefined;
-  const archive = (): Promise<CompletedEvidenceRead> => archiveRead ??= readStoreCompletedEvidence(store);
+  const archive = (): Promise<CompletedEvidenceRead> => archiveRead ??= readStoreCompletedEvidenceByIdentity(store);
   const read = <T>(value: T, completed: CompletedEvidenceRead): ResolverRead<T> =>
     resolverRead(value, completed, completed.status === "unavailable");
 
