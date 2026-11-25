@@ -187,7 +187,11 @@ export async function runSessionInitStatus(
   const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
     ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
     : await safeProbe("derivedLocusState", () => probes.derivedLocusState(identity));
-  const active = mapSlot(derivedLocusState, projectDerivedActiveSession);
+  const active = mapSlot(derivedLocusState, (frame) => {
+    const session = projectDerivedActiveSession(frame);
+    const warning = frame.active?.context.integrationBoundaryWarning;
+    return warning === undefined ? session : { ...session, warnings: [...session.warnings, warning] };
+  });
   const owningWorkUnitId = derivedLocusState.ok
     && derivedLocusState.value.active?.subject.kind === "work-unit"
       ? derivedLocusState.value.active.subject.key

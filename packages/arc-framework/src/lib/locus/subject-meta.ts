@@ -33,6 +33,7 @@ import {
 } from "../work-unit/candidate-effective-target.js";
 import { resolveCandidateRecordRelativePath } from "../store/kinds/review/paths.js";
 import { readSubmissionBoundary } from "../store/kinds/review/integration-boundary/access.js";
+import { isOffBranchStoreRefusal } from "../store/refusal-error.js";
 import {
   resolveLoadSetManifest,
   type LoadSetWorkUnitStage,
@@ -107,6 +108,7 @@ export type SubjectMetaProjection =
       cohortDocPath: string | null;
       loadSet: LoadSetManifest;
       integrationBoundary: PublishedIntegrationBoundaryLocus | null;
+      integrationBoundaryWarning?: string;
     };
 
 /** Select one exact subject meta and derive its workflow state with reads pinned to its checkout. */
@@ -122,6 +124,7 @@ export async function projectCheckoutSubjectMeta(options: {
     | { kind: "completed"; path: string };
   candidates: readonly DormantMetaEvidence[];
   foreignCheckout?: boolean;
+  allowUnavailableBoundary?: boolean;
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {
   if (options.store !== undefined) recordComposedStoreCapability(options.cwd, options.store.capabilities.stateOffBranch);
@@ -287,45 +290,12 @@ export async function projectCheckoutSubjectMeta(options: {
   const inferredSessionType = options.metaRoot.kind === "completed" || options.workUnit?.record.placement?.kind === "completed"
     ? "integration"
     : inferSessionType(record.state, taskListPath, record.branch);
-  let integrationBoundary: PublishedIntegrationBoundaryLocus | null = null;
-  const boundaryVersion = options.store?.capabilities.stateOffBranch === true ? 2 : 1;
-  if (candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
-    const stored = await readHeldSubmissionBoundary(options);
-    const exactDurableBoundary = !requireExactDurableBoundary
-      || stored?.candidateSubjectDigest === candidateSubjectDigest;
-    integrationBoundary = record.branch === null || !exactDurableBoundary
-      ? null
-      : recoverIntegratingBoundary({
-          stored,
-          workUnit: options.subjectKey,
-          branch: record.branch,
-          candidateId,
-          candidateSubjectDigest,
-        });
-  } else if (candidateId !== null && candidateSubjectDigest !== null && record.state === "Active") {
-    if (pendingCandidateFix) {
-      integrationBoundary = projectCandidateFixResumeBoundary({
-        workUnit: options.subjectKey,
-        candidateId,
-        candidateSubjectDigest,
-      }, boundaryVersion);
-    } else {
-      const stored = await readHeldSubmissionBoundary(options);
-      const recovered = recoverPrePublicationBoundary({
-        stored,
-        workUnit: options.subjectKey,
-        candidateId,
-        candidateSubjectDigest,
-      });
-      integrationBoundary = recovered ?? projectCandidateReviewBoundary({
-        workUnit: options.subjectKey,
-        candidateId,
-        candidateSubjectDigest,
-      }, boundaryVersion);
-    }
-  }
+  const { boundary: integrationBoundary, warning: integrationBoundaryWarning } = await projectSubjectBoundary(options, {
+    state: record.state, branch: record.branch, candidateId, candidateSubjectDigest,
+    requireExactDurableBoundary, pendingCandidateFix,
+  });
   let deliveryCorrection: DeliveryCorrectionProjection = { status: "none" };
-  if (inferredSessionType === "integration"
+  if (integrationBoundaryWarning === undefined && inferredSessionType === "integration"
     && taskListPath !== null
     && taskCursor?.status === "no-open-task"
     && (integrationBoundary !== null || requireExactDurableBoundary)) {
@@ -357,9 +327,8 @@ export async function projectCheckoutSubjectMeta(options: {
     && integrationBoundary === null
     && requireExactDurableBoundary
     && deliveryCorrection.status === "verification-required";
-  const sessionType: SessionType | null = record.state === "Integrating"
-    && integrationBoundary === null
-    && !candidateVerificationWithoutBoundary
+  const sessionType: SessionType | null = integrationBoundaryWarning !== undefined
+    || (record.state === "Integrating" && integrationBoundary === null && !candidateVerificationWithoutBoundary)
     ? null
     : record.state === "Active" && integrationBoundary !== null
       ? "prepublication"
@@ -413,6 +382,7 @@ export async function projectCheckoutSubjectMeta(options: {
       cohortDocPath,
     }),
     integrationBoundary,
+    ...(integrationBoundaryWarning === undefined ? {} : { integrationBoundaryWarning }),
   };
 }
 
@@ -524,4 +494,38 @@ async function readHeldSubmissionBoundary(options: Pick<Parameters<typeof projec
     return readSubmissionBoundary(cwd, workUnit, { store, owner });
   }
   return readSubmissionBoundary(cwd, workUnit, { readFile: path => io.readFile(path) });
+}
+
+async function projectSubjectBoundary(options: Parameters<typeof projectCheckoutSubjectMeta>[0], input: {
+  state: string | null;
+  branch: string | null;
+  candidateId: string | null;
+  candidateSubjectDigest: string | null;
+  requireExactDurableBoundary: boolean;
+  pendingCandidateFix: boolean;
+}): Promise<{ boundary: PublishedIntegrationBoundaryLocus | null; warning?: string }> {
+  const { state, branch, candidateId, candidateSubjectDigest, requireExactDurableBoundary, pendingCandidateFix } = input;
+  if (candidateId === null || candidateSubjectDigest === null || (state !== "Integrating" && state !== "Active")) {
+    return { boundary: null };
+  }
+  const coordinates = { workUnit: options.subjectKey, candidateId, candidateSubjectDigest };
+  const schemaVersion = options.store?.capabilities.stateOffBranch === true ? 2 : 1;
+  if (state === "Active" && pendingCandidateFix) {
+    return { boundary: projectCandidateFixResumeBoundary(coordinates, schemaVersion) };
+  }
+  let stored: PublishedIntegrationBoundaryLocus | null;
+  try {
+    stored = await readHeldSubmissionBoundary(options);
+  } catch (error) {
+    if (options.allowUnavailableBoundary !== true || !isOffBranchStoreRefusal(error)
+      || error.refusal.class !== "recoverable") throw error;
+    return { boundary: null, warning: `Integration boundary for ${options.subjectKey} is unavailable: ${error.message}` };
+  }
+  if (state === "Integrating") {
+    const exactDurableBoundary = !requireExactDurableBoundary || stored?.candidateSubjectDigest === candidateSubjectDigest;
+    return { boundary: branch === null || !exactDurableBoundary ? null
+      : recoverIntegratingBoundary({ ...coordinates, branch, stored }) };
+  }
+  return { boundary: recoverPrePublicationBoundary({ ...coordinates, stored })
+    ?? projectCandidateReviewBoundary(coordinates, schemaVersion) };
 }

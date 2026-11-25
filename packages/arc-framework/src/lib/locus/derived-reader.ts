@@ -142,6 +142,8 @@ export async function readDerivedLocusRoster(options: {
   identityGlobalUserDir?: string | null;
   /** Checkout whose context projection failures must remain operation-blocking. */
   strictCheckoutPath?: string;
+  /** Let session-init report a recoverable boundary refusal on the entering checkout. */
+  allowUnavailableBoundary?: boolean;
   topology: Extract<RegisteredWorktreeScanResult, { ok: true }>;
   checkouts: readonly DormantCheckoutReadEvidence[];
   completed: CompletedEvidenceRead;
@@ -252,6 +254,8 @@ export async function readDerivedLocusRoster(options: {
           workUnit: evidence.workUnit?.kind === "present" ? evidence.workUnit : undefined,
           foreignCheckout: options.strictCheckoutPath !== undefined
             && item.checkout.path !== options.strictCheckoutPath,
+          allowUnavailableBoundary: options.allowUnavailableBoundary === true
+            && item.checkout.path === options.strictCheckoutPath,
           io: options.subjectMetaIO,
         });
       } catch (error) {
