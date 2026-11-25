@@ -19,7 +19,7 @@ import { prepareIndexedProjectionSubmission } from "../../../src/lib/store/proje
 import type { ObjectFormat } from "../../../src/lib/store/projection/blob-id.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import type { LookupInput } from "../../../src/lib/store/lookup.js";
-import type { BatchInput, Mutation } from "../../../src/lib/store/write.js";
+import type { BatchInput } from "../../../src/lib/store/write.js";
 import type { ExecuteTransitionContext } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import { makeMetaFixture } from "../meta-fixture.js";
 import { projectRecordForWriteBack } from "./projection/write-back-fixture.js";
@@ -124,17 +124,18 @@ async function slugRename(store: Store, input: Extract<LookupInput, { kind: "slu
 /** Perturb the observed Markdown, lifecycle inventories, and slug resolutions, then add an unrelated write. */
 export async function fenceChanges(store: Store, writer: FenceWriter, identity: string): Promise<FenceChange[]> {
   const { reads, batch } = await dryRun(store, writer);
-  const cohorts = cohortPuts(batch);
-  const memberCohort = cohorts.find(write => write.placement?.kind === "completed") ?? cohorts[0];
-  const parent = cohorts.find(write => cohortDocumentParent(write.content) === null);
+  const cohorts = await currentOpenCohorts(store, batch);
+  const memberCohort = cohorts.find(cohort => cohort.closing) ?? cohorts[0];
+  const memberPath = memberCohort?.parent ? `${memberCohort.parent}/${memberCohort.name}` : memberCohort?.name ?? null;
+  const parent = cohorts.find(cohort => cohort.parent === null);
   const changes: FenceChange[] = [];
   for (const read of reads) {
     if (read.operation === "read" && KIND_REGISTRY[read.reference.kind].projection !== "never") {
       changes.push(recordEdit(read.reference, read.target));
     } else if (read.operation === "list" && read.input.kind === "work-item/meta") {
-      changes.push(memberArrival(identity, memberCohort === undefined ? null : cohortPath(memberCohort)));
+      changes.push(memberArrival(identity, memberPath));
     } else if (read.operation === "list" && read.input.kind === "cohort/document") {
-      changes.push(cohortArrival(parent?.reference.owner.name ?? null));
+      changes.push(cohortArrival(parent?.name ?? null));
     } else if (read.operation === "lookup" && read.input.kind === "slug") {
       const rename = await slugRename(store, read.input);
       if (rename !== undefined) changes.push(rename);
@@ -147,16 +148,18 @@ export async function fenceChanges(store: Store, writer: FenceWriter, identity: 
   } }];
 }
 
-type Put = Extract<Mutation, { action: "put" }>;
-
-function cohortPuts(batch: BatchInput | undefined): Put[] {
-  return (batch?.writes ?? []).filter((write): write is Put =>
-    write.action === "put" && write.reference.kind === "cohort/document");
-}
-
-function cohortPath(write: Put): string {
-  const parent = cohortDocumentParent(write.content);
-  return parent == null ? write.reference.owner.name : `${parent}/${write.reference.owner.name}`;
+// Arrivals land before the prepared batch, so they must use the current cohort hierarchy.
+async function currentOpenCohorts(store: Store, batch: BatchInput | undefined) {
+  const cohorts: { name: string; parent: string | null; closing: boolean }[] = [];
+  for (const write of batch?.writes ?? []) {
+    if (write.action !== "put" || write.reference.kind !== "cohort/document") continue;
+    const current = await store.read({ reference: write.reference });
+    if (current.status !== "ok" || current.result.placement !== undefined) continue;
+    const parent = cohortDocumentParent(current.result.content);
+    if (parent === undefined) continue;
+    cohorts.push({ name: current.result.reference.owner.name, parent, closing: write.placement?.kind === "completed" });
+  }
+  return cohorts;
 }
 
 async function storeGitDir(source: string): Promise<string> {

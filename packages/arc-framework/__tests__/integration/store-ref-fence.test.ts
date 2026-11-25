@@ -300,6 +300,24 @@ it("runs over a copy of a repository's store, leaving the repository's store unc
   ].sort());
 }, 120_000);
 
+it.each([
+  { move: "nesting", from: null, to: "parent", memberPath: "child", subcohortChange: "add an open subcohort to child" },
+  { move: "unnesting", from: "parent", to: null, memberPath: "parent/child", subcohortChange: "add an open cohort" },
+])("rehearses $move a cohort against its current membership and nesting", async ({ from, to, memberPath, subcohortChange }) => {
+  const f = await createRefFixture(registry);
+  await seed(f, cohort("parent"), cohortDoc("parent").content);
+  const child = await seed(f, cohort("child"), cohortDoc("child", from).content);
+
+  const reports = await runFenceOverRepository(f.root, [
+    { kind: "edit", reference: child.reference, edit: () => cohortDoc("child", to).content },
+  ], "test-user");
+
+  const outcomes = new Map(reports.map(({ change, outcome }) => [change, outcome]));
+  expect(outcomes.get(`add a member to ${memberPath}`)).toMatchObject({ kind: "refused" });
+  expect(outcomes.has(subcohortChange)).toBe(true);
+  expect(outcomes.get("an unrelated write")).toEqual({ kind: "admitted" });
+}, 120_000);
+
 it("rehearses a member joining the closing cohort and a change to the archive subject's slug resolution", async () => {
   const f = await createRefFixture(registry);
   await seed(f, cohort("parent"), cohortDoc("parent").content);
