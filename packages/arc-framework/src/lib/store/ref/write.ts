@@ -23,6 +23,7 @@ import { checkSerializationRules } from "../serialization.js";
 import { checkRefKey, checkRefBatchPaths } from "./path-admission.js";
 import { prepareRefPut } from "./prepare-content.js";
 import { changedRetainedBasisRefs } from "./write-retained.js";
+import { changedPlannedBirthRefs } from "./write-planned.js";
 import { checkRefWriterRules } from "./writer-admission.js";
 import { RefSyncLabelError } from "./sync-label.js";
 import { observeRefHistoryRead, recordRefHistoryRetry, type RefHistoryRetryState, type RefHistoryResolution, type RefHistoryAttempt } from "./write-retry.js";
@@ -172,6 +173,7 @@ async function attemptLockedRefBatch(context: RefBackendContext, batch: LockedRe
   const attempt: RefHistoryAttempt = { resolution, counted: false };
   const tips = await readRefTips(context, { includeHistory: true });
   const changed = [...new Set([...changedOwnerLocationRefs(context, resolved, tips), ...changedArchiveBasisRefs(resolved, tips),
+    ...changedPlannedBirthRefs(resolved.plannedBirthUids, resolved.tips, tips),
     ...changedRetainedBasisRefs(resolved.retained ?? [], resolved.tips, tips)])];
   if (changed.length) {
     const destinations = await capturedRefHistoryDestinations(context, resolved, provenance, batchId);
