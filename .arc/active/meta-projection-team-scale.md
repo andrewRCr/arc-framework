@@ -16,9 +16,10 @@
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 4.1 — Complete verification
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Waiting on the merge of `main` at the storage cutover's cutoff; the project manager gives the time.
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** prepare-work-unit Step 2 — merge `main` when told, then verify, select applicability, and take the
+  Owner's review terminus.
 
 - **PR URL:** [none]
 - **Completed:** [none]
