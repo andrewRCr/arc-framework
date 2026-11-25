@@ -1,0 +1,109 @@
+/** A consumer stops only for the state remote and surfaces every notice and failed read source beside it. */
+import { describe, expect, it } from "vitest";
+import { consumePull, pullHistoryForRetry, pullOutcomeNotices } from "../../../../src/lib/store/pull-consumption.js";
+import type { PullResult } from "../../../../src/lib/store/operational-sync.js";
+import { PullResultSchema, type PullOutcome, type SyncState } from "../../../../src/lib/store/sync.js";
+import { OwnerIdentitySchema, RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
+import { HistoryRefSchema } from "../../../../src/lib/store/refusal.js";
+
+const item = OwnerIdentitySchema.parse({ type: "work-item", name: "alpha", uid: "11111111-1111-4111-8111-111111111111" });
+const conflict = RecordReferenceSchema.parse({ kind: "work-item/conflict-record", owner: item, key: "held" });
+const ended = { kind: "ended-with-conflicts" as const, item, conflicts: [conflict], condition: "Alpha ended with conflicts.",
+  remedy: { text: "Resolve alpha's retained conflicts." } };
+const repair = { text: "Reconnect and retry." };
+const failed = (role: "state" | "read" | "candidate"): PullOutcome => ({ status: "failed", remote: role === "read" ? "upstream" : "origin",
+  role, families: ["work-item"], notices: [], failure: { code: "unreachable", class: "recoverable", cause: "network",
+    condition: `The ${role} remote is offline.`, remedy: repair } });
+const statePulled: PullOutcome = { status: "pulled", remote: "origin", role: "state", families: ["work-item"], notices: [ended] };
+const incomplete = (pulls: PullOutcome[], states: SyncState[] = []): PullResult => ({
+  status: "incomplete", condition: "The pull was incomplete.", remedy: repair, partial: PullResultSchema.parse({ states, pulls }) });
+
+describe("consumePull", () => {
+  it.each([false, true])("renders the designation question and command once: partial=%s", partial => {
+    const designation: Extract<SyncState, { status: "designation-needed" }> = { status: "designation-needed", remote: "backup", choices: ["push", "read", "off"],
+      remedy: { text: "Choose the backup role.", argv: ["arc", "store", "remote", "backup", "push"] } };
+    const question = "Remote backup needs a store designation. Choose the backup role. arc store remote backup push";
+    const pulled = partial ? incomplete([statePulled, failed("read")], [designation]) : { ...designation, notices: [ended] };
+    expect(consumePull(pulled)).toEqual({ kind: "proceed", designationNotice: question,
+      notices: [...partial ? ["Read source upstream was not pulled: The read remote is offline. Reconnect and retry."] : [],
+        expect.stringContaining("Alpha ended with conflicts."), question] });
+  });
+
+  it("proceeds past a lone failed read source and reports it with the state pull's notices", () => {
+    const result = consumePull(incomplete([statePulled, failed("read")]));
+    expect(result.kind).toBe("proceed");
+    const notices = result.kind === "proceed" ? result.notices : [];
+    expect(notices[0]).toBe("Read source upstream was not pulled: The read remote is offline. Reconnect and retry.");
+    expect(notices[1]).toContain("Alpha ended with conflicts.");
+    expect(notices[1]).toContain(JSON.stringify(conflict));
+    expect(notices).toHaveLength(2);
+  });
+
+  it.each(["state", "candidate"] as const)("stops on a failed %s remote", role => {
+    expect(consumePull(incomplete([failed(role)]))).toEqual({ kind: "stop", reason: "The pull was incomplete. Reconnect and retry.", notices: [] });
+  });
+
+  it("stops on a state the state remote reports, and on a refused pull with no partial result", () => {
+    expect(consumePull(incomplete([], [{ status: "move-incomplete", condition: "Moving.", remedy: repair }])).kind).toBe("stop");
+    expect(consumePull({ status: "unreachable", condition: "Offline.", remedy: repair })).toEqual({ kind: "stop", reason: "Offline. Reconnect and retry.", notices: [] });
+  });
+
+  it("carries the notices of merges a stopping pull already applied, with any failed read source", () => {
+    const stopped = consumePull(incomplete([{ ...failed("state"), notices: [ended] }, failed("read")]));
+    expect(stopped).toEqual({ kind: "stop", reason: "The pull was incomplete. Reconnect and retry.", notices: [
+      "Read source upstream was not pulled: The read remote is offline. Reconnect and retry.", expect.stringContaining("Alpha ended with conflicts.")] });
+  });
+
+  it.each([{ status: "designation-needed" as const, remote: "upstream", choices: ["push", "read"], remedy: repair },
+    { status: "no-identity" as const, families: ["work-item"], remedy: repair }])("proceeds past a failed read source beside a $status state, as without one", state => {
+    expect(consumePull(incomplete([statePulled, failed("read")], [state as SyncState])).kind).toBe("proceed");
+  });
+
+  it("surfaces a complete pull's notices and an unfinished move's advisory", () => {
+    const result = consumePull({ status: "pulled", notices: [ended], advisories: [{ condition: "The old source awaits cleanup.", remedy: repair }] });
+    expect(result).toEqual({ kind: "proceed", notices: [expect.stringContaining("Alpha ended with conflicts."),
+      "The old source awaits cleanup. Reconnect and retry."] });
+  });
+});
+
+it("renders every outcome's notices once, with each failed read source first", () => {
+  const notices = pullOutcomeNotices([statePulled, { ...statePulled, remote: "backup" }, failed("read"), failed("state")]);
+  expect(notices).toEqual(["Read source upstream was not pulled: The read remote is offline. Reconnect and retry.",
+    expect.stringContaining("Alpha ended with conflicts.")]);
+});
+
+describe("pullHistoryForRetry", () => {
+  const history = [HistoryRefSchema.parse("refs/arc/history/work/11111111-1111-4111-8111-111111111111")];
+  const store = (pulls: PullOutcome[], states: SyncState[] = []) => ({ pull: async () => ({ status: "ok" as const, result: PullResultSchema.parse({ states, pulls }) }) });
+
+  it.each([false, true])("keeps the refusal and writes the designation instead of retrying: readFailure=%s", async readFailure => {
+    const written: string[] = [];
+    const designation: SyncState = { status: "designation-needed", remote: "backup", choices: ["push", "read", "off"],
+      remedy: { text: "Choose the backup role.", argv: ["arc", "store", "remote", "backup", "push"] } };
+    expect(await pullHistoryForRetry(store(readFailure ? [statePulled, failed("read")] : [], [designation]), history,
+      line => written.push(line))).toBe(false);
+    expect(written).toEqual([...readFailure ? [
+      "Read source upstream was not pulled: The read remote is offline. Reconnect and retry.",
+      expect.stringContaining("Alpha ended with conflicts.")] : [],
+      "Remote backup needs a store designation. Choose the backup role. arc store remote backup push"]);
+  });
+
+  it("writes the pull's notices and retries past a lone failed read source", async () => {
+    const written: string[] = [];
+    expect(await pullHistoryForRetry(store([statePulled, failed("read")]), history, line => written.push(line))).toBe(true);
+    expect(written).toEqual(["Read source upstream was not pulled: The read remote is offline. Reconnect and retry.",
+      expect.stringContaining("Alpha ended with conflicts.")]);
+  });
+
+  it.each(["state", "candidate"] as const)("keeps the refusal on a failed %s remote, writing the notices it carried", async role => {
+    const written: string[] = [];
+    expect(await pullHistoryForRetry(store([{ ...failed(role), notices: [ended] }]), history, line => written.push(line))).toBe(false);
+    expect(written).toEqual([expect.stringContaining("Alpha ended with conflicts.")]);
+  });
+
+  it("keeps the refusal when the pull itself is refused", async () => {
+    const refused = { pull: async () => ({ status: "refused" as const, refusal: { code: "unsupported" as const, class: "terminal" as const,
+      case: "no-remote", condition: "No remote.", remedy: repair } }) };
+    expect(await pullHistoryForRetry(refused as never, history, () => { throw new Error("no notices expected"); })).toBe(false);
+  });
+});

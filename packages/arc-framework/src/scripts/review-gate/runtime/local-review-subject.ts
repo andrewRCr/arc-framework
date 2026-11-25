@@ -1,10 +1,10 @@
 /** Shared checkout vehicle, lineage, and Candidate inheritance resolution for local review consumers. */
-import type { GitExec } from "../../../lib/git/exec.js";
+import type { ReviewInvocationInput } from "./invocation.js";
 import type { CandidateManagedRecordV1, CandidateSupersessionAncestor } from "../../../lib/work-unit/candidate-attestation.js";
 import { LaneSubjectLineageSchema } from "../core/lane-admission.js";
 import { resolveLocalReviewVehicle } from "../hosts/local/review-authority.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
-import type { ResolvedLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { corroborateLocalReviewOwner, type ResolvedLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { readLocalWorkUnitBoundary } from "./local-reserved-obligation.js";
 import type { LocalPrepareDependencies } from "./local-prepare.js";
 
@@ -15,19 +15,22 @@ export interface LocalReviewCandidateReader {
 }
 
 /** Bind the same authenticated subject resolver to prepare and read-only commands. */
-export function createLocalReviewSubjectResolver(input: {
-  readonly cwd: string;
-  readonly exec: GitExec;
+export function createLocalReviewSubjectResolver(input: ReviewInvocationInput & {
   readonly readOnly?: boolean;
   readonly candidateReader: LocalReviewCandidateReader;
   readonly readLive: () => Promise<ResolvedLocalReviewLiveContext>;
 }): Pick<LocalPrepareDependencies, "resolveVehicle" | "resolveLineage" | "resolveSupersessionAncestors"> {
   const memberLookup = new RepositoryDeliveryMemberLookup(input);
+  const readLive = async () => {
+    const live = await input.readLive();
+    if (input.store?.capabilities.stateOffBranch) corroborateLocalReviewOwner(input.workItem, live);
+    return live;
+  };
   return {
     resolveVehicle: (memberHeadObjectId, deliveryAdmission) => resolveLocalReviewVehicle({
       ...(memberHeadObjectId === undefined ? {} : { memberHeadObjectId }),
       ...(deliveryAdmission === undefined ? {} : { deliveryAdmission }),
-    }, { readLiveContext: async () => (await input.readLive()).context, memberLookup }),
+    }, { readLiveContext: async () => (await readLive()).context, memberLookup }),
     resolveLineage: async (vehicle, headSha, deliveryAdmission, member) => {
       if (vehicle.kind === "delivery-member") {
         if (member === undefined) {
@@ -41,13 +44,14 @@ export function createLocalReviewSubjectResolver(input: {
         });
       }
       if (vehicle.kind === "work-unit") {
-        const boundary = await readLocalWorkUnitBoundary(input.cwd, vehicle.identity);
+        const boundary = await readLocalWorkUnitBoundary(input.cwd, vehicle.identity, undefined,
+          { store: input.store, exec: input.exec, owner: input.workItem });
         return LaneSubjectLineageSchema.parse({
           kind: "candidate",
           candidateId: boundary.candidateId,
         });
       }
-      const claim = (await input.readLive()).context.errand;
+      const claim = (await readLive()).context.errand;
       if (claim?.identity !== vehicle.identity || claim.claimId !== vehicle.claimId) {
         throw new Error("Errand claim authority is unavailable for local review");
       }

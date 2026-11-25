@@ -5,7 +5,7 @@ import { serializeTransientIdentityRecord, TransientIdentityRecordSchema, type T
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { syncFixture, syncPut, syncErrand, syncErrandRef, syncRecord, syncIdentity } from "../helpers/store/sync-fixture.js";
-import { success } from "../helpers/store/suite-tools.js";
+import { success, mutationOf } from "../helpers/store/suite-tools.js";
 
 function namedRecord(name: string): TransientIdentityRecord {
   return TransientIdentityRecordSchema.parse({ ...syncRecord(), slug: name, branch: `chore/${name}`,
@@ -59,7 +59,7 @@ for (const entry of ["producer", "write", "batch"] as const) {
         ? transactTransientIdentities({ exec: h.a.ports.exec, execInput: h.a.execInput, identity: syncIdentity },
           { remote: "origin", message: "add delta", transform })
         : entry === "write" ? h.a.store.write(put("delta"))
-          : h.a.store.batch({ writes: [put("delta")], provenance: syncPut().provenance });
+          : h.a.store.batch({ writes: [mutationOf(put("delta"))], provenance: syncPut().provenance });
       if (entry === "producer") {
         const outcome = await invoke();
         expect(outcome).toMatchObject({ kind: "error", stage: "basis" });

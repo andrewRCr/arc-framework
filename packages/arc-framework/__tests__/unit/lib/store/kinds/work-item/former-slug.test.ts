@@ -8,7 +8,7 @@ const other = "00000000-0000-4000-8000-000000000002";
 function change(name: string, before = ruleView(), prior?: WriteCheckInput["prior"]): WriteCheckInput {
   const next = ruleRecord("work-item/record", name, own);
   return { reference: next.reference, ...(prior === undefined ? {} : { prior }), next: { content: "", fields: {} },
-    writer: { kind: "verb", verb: "create" }, before, after: ruleView([next]) };
+    observations: [], writer: { kind: "verb", verb: "create" }, before, after: ruleView([next]) };
 }
 describe("former slug rule", () => {
   it("admits a creation taking an unused slug", async () => {

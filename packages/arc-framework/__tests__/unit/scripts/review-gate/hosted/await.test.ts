@@ -82,6 +82,31 @@ function observer(observe: HostedReviewObserver["observe"]): HostedReviewObserve
 }
 
 describe("hosted review await", () => {
+  it.each([
+    { boundary: "timeout", startAge: 0 },
+    { boundary: "attention", startAge: ATTENTION_AFTER_MS - 2_000 },
+  ].flatMap(timing => [
+    { ...timing, state: "clean" as const },
+    { ...timing, state: "findings" as const },
+  ]))("observes a $state review posted during the final sleep at the $boundary boundary", async ({ startAge, state }) => {
+    const time = clock(CREATED_AT_MS + startAge);
+    const result = await awaitHostedReview({ schemaVersion: 1, handle, timeoutMs: 2_000, pollIntervalMs: 500 }, {
+      clock: time, attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(async (_handle, options) => {
+        if (time.now() < CREATED_AT_MS + startAge + 2_000) return { kind: "pending" };
+        await new Promise(resolve => setTimeout(resolve, 1));
+        options?.signal?.throwIfAborted();
+        const reviewUrl = "https://github.com/owner/repo/pull/42#pullrequestreview-late";
+        return state === "clean" ? { kind: "clean", reviewUrl } : { kind: "findings", reviewUrl,
+          findings: [{ findingId: "late-finding", origin: "review-thread", commentId: "late-comment",
+            threadId: "late-thread", settlement: "reply-and-resolve", severity: "major", locus: "src/a.ts:7",
+            url: "https://github.com/owner/repo/pull/42#discussion-late", sourceOrdinal: 1 }] };
+      })],
+    });
+    expect(result).toMatchObject({ state, nextAction: state === "clean" ? "complete" : "triage", handle,
+      reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-late" });
+  });
+
   it("carries authenticated provider-native coverage evidence into the terminal result", async () => {
     const result = await awaitHostedReview({
       schemaVersion: 1,
@@ -507,7 +532,7 @@ describe("hosted review await", () => {
       nextAction: "inspect-or-extend",
       ageMs: ATTENTION_AFTER_MS,
     });
-    expect(observe).toHaveBeenCalledOnce();
+    expect(observe).toHaveBeenCalledTimes(2);
   });
 
   it("allows one explicitly extended bounded call without resetting request identity", async () => {
@@ -530,6 +555,6 @@ describe("hosted review await", () => {
       handle,
       ageMs: ATTENTION_AFTER_MS + 2_000,
     });
-    expect(observe).toHaveBeenCalledTimes(3);
+    expect(observe).toHaveBeenCalledTimes(4);
   });
 });

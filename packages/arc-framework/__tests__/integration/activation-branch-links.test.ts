@@ -8,6 +8,9 @@ import { ActivateCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { runActivate, type ActivateContext } from "../../src/lib/work-unit/verbs/activate-deactivate.js";
 import { buildStoreCurrentWuReconcile } from "../../src/lib/work-unit/store-current-wu-reconcile.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
+import { parseMetaRecord, setMetaBulletFields } from "../../src/lib/active/meta-reader.js";
 
 let root: string | undefined;
 afterEach(async () => { if (root !== undefined) await cleanupTempDir(root); root = undefined; });
@@ -33,7 +36,7 @@ it.each([null, "main", "person"])("activates from %s while retaining a different
     indexFs: { readdir: unsupported, readFile: unsupported }, setPhase: unsupported, relocateArtifacts: unsupported,
     reconcileBranch: unsupported, reconcileWorkUnitWorktree: unsupported, writeSoftFields: unsupported,
     writeBranchField: unsupported, writeCurrentWorkflowField: unsupported, writeDesignField: unsupported,
-    currentWuReconcile: buildStoreCurrentWuReconcile(h.store) };
+    currentWuReconcile: buildStoreCurrentWuReconcile(root!, h.store) };
   const input = ActivateCommandInputSchema.parse({ slug: "example", type: "feat", action: "Begin work" });
   expect(await runActivate(ctx, { name: input.slug!, toBranch: `${input.type}/${input.slug}`, baseBranch: "main", nextAction: input.action }))
     .toMatchObject({ status: "activated", branch: "feat/example" });
@@ -60,11 +63,49 @@ async function freshActivation() {
     indexFs: { readdir: unsupported, readFile: unsupported }, setPhase: unsupported, relocateArtifacts: unsupported,
     reconcileBranch: unsupported, reconcileWorkUnitWorktree: unsupported, writeSoftFields: unsupported,
     writeBranchField: unsupported, writeCurrentWorkflowField: unsupported, writeDesignField: unsupported,
-    currentWuReconcile: buildStoreCurrentWuReconcile(h.store) });
+    currentWuReconcile: buildStoreCurrentWuReconcile(root!, h.store) });
   const input = ActivateCommandInputSchema.parse({ slug: "example", type: "feat", action: "Begin work" });
   return { ...h, meta, exec, base, root, context,
     params: { name: input.slug!, toBranch: `${input.type}/${input.slug}`, baseBranch: "main", nextAction: input.action } };
 }
+
+it("reports a discharged dependency's stale blocker while completing the activation", async () => {
+  const h = await freshActivation();
+  await h.seedMeta("released", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  const blockers = "`released` must land before implementation.";
+  const content = setMetaBulletFields(writeMetaDependsOn(h.meta.content, ["released"]), { Blockers: blockers });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content }),
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+
+  const result = await runActivate(h.context(h.exec), h.params);
+
+  expect(result).toMatchObject({ status: "activated", report: expect.arrayContaining([
+    expect.stringContaining("Blockers mentions discharged dependencies: `released`."),
+    expect.stringContaining("Clear or restate"),
+  ]) });
+  const updated = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  expect(parseMetaRecord(updated.content)).toMatchObject({ state: "Active", dependsOn: [], blockers });
+  expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout.trim()).toBe("feat/example");
+}, ACTIVATION_TIMEOUT_MS);
+
+it("preserves activation state when a base probe times out and activates after repair", async () => {
+  const h = await freshActivation();
+  const failure = Object.assign(new Error("Base probe timed out"), { exitCode: 1, timedOut: true });
+  let broken = true;
+  const exec: GitExec = async (command, args, options) => {
+    if (broken && args[1] === "rev-parse" && args[4] === "refs/remotes/origin/main^{commit}") throw failure;
+    return h.exec(command, args, options);
+  };
+  const ctx = h.context(exec);
+  await expect(runActivate(ctx, h.params)).rejects.toBe(failure);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(h.base);
+  expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout.trim()).toBe("main");
+  expect(await h.exec("git", ["rev-parse", "--verify", `refs/heads/${h.params.toBranch}`])
+    .then(result => result.stdout.trim(), () => null)).toBeNull();
+  broken = false;
+  expect(await runActivate(ctx, h.params)).toMatchObject({ status: "activated", branch: h.params.toBranch });
+}, ACTIVATION_TIMEOUT_MS);
 
 it("preserves an independently created target when the activation cut fails, then activates after repair", async () => {
   const h = await freshActivation();

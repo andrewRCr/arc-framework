@@ -25,6 +25,7 @@ import {
   formatMissingHooksPathMessage,
   resolveHooksPathVerdict,
 } from "../../lib/git/hooks-path.js";
+import { gitExecutable } from "../../lib/git/executable.mjs";
 import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "../../lib/git/process-executor.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError, normalizeGitRejection } from "../../lib/git/process-error.js";
@@ -273,7 +274,7 @@ export function createSpawnGit(context?: InteractionContext, inheritOutput = tru
           PAGER: "cat",
         }
       : environmentForGitCwd(cwd);
-    const subprocess = execa("git", invocation, {
+    const subprocess = execa(gitExecutable(env), invocation, {
       cwd,
       env,
       extendEnv: false,

@@ -59,7 +59,7 @@ it.each(["inbox", "memory", "meta", "authority"] as const)("refuses changed %s e
 it("shares record-backed surfaces with the slot, scanning only the meta's session context", async () => {
   const { createStoreUserReferencePrepareContext } = await import("../../src/lib/user-reference-reconcile-store.js");
   const h = await fixture();
-  const prepared = lifecycleSuccess(await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew", workUnit: "dependent" }));
+  const prepared = lifecycleSuccess(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "andrew", workUnit: "dependent" }));
   expect(prepared.surfaces).toEqual({ stateOffBranch: true, userInbox: { path: inboxPath, content: h.inbox.content },
     workingMemory: { path: memoryPath, content: h.memory.content }, sessionNotes: { path: metaPath, content: "Keep former and `spec-former.md` as personal prose." } });
   expect(prepared.preparedStore.records).toEqual(expect.arrayContaining([h.inbox, h.memory, h.meta]));
@@ -76,13 +76,13 @@ it("refuses a conflicted selected personal record before planning edits", async 
       ? { status: "ok", result: { ...result.result, conflicts } } : result;
   });
   try {
-    const result = await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew", workUnit: "dependent" });
+    const result = await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "andrew", workUnit: "dependent" });
     expect(result).toMatchObject({ status: "refused", refusal: { code: "record-malformed", condition: expect.stringContaining("unresolved conflicts") } });
     if (result.status !== "refused") throw new Error("Expected conflicted personal record refusal");
     for (const reference of conflicts) expect(result.refusal.condition).toContain(JSON.stringify(reference));
     expect(`${result.refusal.condition} ${result.refusal.remedy.text}`).toMatch(/resolve.*retry/isu);
   } finally { disputed.mockRestore(); }
-  expect(await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew", workUnit: "dependent" })).toMatchObject({ status: "ok" });
+  expect(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "andrew", workUnit: "dependent" })).toMatchObject({ status: "ok" });
 });
 
 it("retains declared entry merges in the final revalidation-to-batch window", async () => {
@@ -144,7 +144,7 @@ it.each([true, false])("reports a scratch collision acquired under the lock with
       .toContain(managedEdits ? "_WU_Target:_ `current`" : "_WU_Target:_ `former`");
     await rename(join(from, "former-idea"), join(to, "former-idea"));
     await rm(from, { recursive: true });
-    const fresh = lifecycleSuccess(await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew" }));
+    const fresh = lifecycleSuccess(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "andrew" }));
     const retried = await runUserReferenceReconcile({ ...h.context, preparedStore: fresh.preparedStore,
       transitions: fresh.authority.transitions, readSurfaces: async () => fresh.surfaces,
       scratch: { cwd, identity: "andrew", store: h.store } });
@@ -164,7 +164,7 @@ it.each(["\n", "\r\n"])("updates only visible entry targets, preserving comments
     "- WU_Target: former (planned) <!-- keep this former example -->", "- _Id:_ `12345678`", "",
     "<!-- trailing comment", "- _WU_Target:_ `former`", "-->", "", "---", "- WU_Target: former", ""].join(newline);
   lifecycleSuccess(await h.store.write({ ...recordPut(h.inbox, { content }), provenance: { verb: "capture", lifecycleAction: "update" } }));
-  const fresh = lifecycleSuccess(await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew" }));
+  const fresh = lifecycleSuccess(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "andrew" }));
   expect(await runUserReferenceReconcile({ ...h.context, preparedStore: fresh.preparedStore,
     transitions: fresh.authority.transitions, readSurfaces: async () => fresh.surfaces })).toMatchObject({ status: "applied" });
   expect(lifecycleSuccess(await h.store.read({ reference: h.inbox.reference })).content).toBe(content.replace(

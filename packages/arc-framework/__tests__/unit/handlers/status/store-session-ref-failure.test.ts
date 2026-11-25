@@ -1,4 +1,6 @@
+import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 /** Session offers distinguish an unavailable ref inventory from branch absence. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { afterEach, expect, it, vi } from "vitest";
 import { createStoreSessionProbes } from "../../../../src/handlers/status/store-session.js";
 import { createTestStatusContext } from "../../../helpers/status-context.js";
@@ -21,13 +23,15 @@ const pausedContent = (content: string) => writeMetaPause(content, MetaPauseSche
   reason: "Waiting", waitsOn: null, open: false, resumeNotes: "" }));
 async function fixture() {
   const h = createLifecycleHarness(); h.store.environment.identity = "alice";
+  let heldUid: string | undefined;
   for (const name of ["demo", "waiting", "held"]) {
     const record = await h.seedMeta(name, { owner: "alice" }, { kind: "active" },
       { branches: [{ repository: "project", ref: `feat/${name}`, linkedAs: "created", excluded: [] }] });
+    if (name === "held") heldUid = boundWorkUnitSubject(record).uid;
     if (name !== "demo") ok(await h.store.write({ ...recordPut(record, { content: pausedContent(record.content) }),
       provenance: { verb: "pause", lifecycleAction: "pause" } }));
   }
-  await h.seedMeta("planning", { owner: "alice", state: "Planning", currentWorkflow: "draft-design" });
+  const planning = await h.seedMeta("planning", { owner: "alice", state: "Planning", currentWorkflow: "draft-design" });
   const errand = TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "fix-it", owner: "alice",
     intent: "Fix it", claimId: "b".repeat(32), branch: "chore/fix-it", origin: "description", originEntry: null,
     state: "paused", savedHead: head, changeRequest: null, createdAt: "2026-10-18T00:00:00Z", updatedAt: "2026-10-18T00:00:00Z" });
@@ -41,7 +45,7 @@ async function fixture() {
     { match: ["config", "--null", "--get", "arc.identity"], responses: [{ stdout: "alice\0" }] },
     { match: { prefix: ["cherry"] }, responses: [{ stdout: "" }] },
   ]);
-  const findHoldingCheckout = async (name: string) => name === "held" ? "/held" : null;
+  const findHoldingCheckout: LocusPorts["findHoldingCheckout"] = async request => request.kind === "owner" && request.uid === heldUid && request.checkoutPath !== "/held" ? { kind: "held", path: "/held" } : { kind: "none" };
   const caller = { kind: "unmanaged-checkout", subject: null, checkout: { path: "/current", head, branch: "main", detached: false, primary: false, folderPresent: true },
     markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [] };
   const frame = DerivedLocusFrameSchema.parse({ roster: [caller], entering: { kind: "selected", row: caller },
@@ -49,7 +53,7 @@ async function fixture() {
   const probes = () => createStoreSessionProbes({ store: h.store, cwd: "/current", exec: fake.exec, identity: "alice",
     readFrame: async () => frame, readSettings: async () => ({}), projectId: async () => "project", findHoldingCheckout,
     readUserInbox: id => readUserInboxFromStore(h.store, id) });
-  return { ...h, exec: fake.exec, probes, errand, findHoldingCheckout, repair: () => { repaired = true; } };
+  return { ...h, planning, exec: fake.exec, probes, errand, findHoldingCheckout, repair: () => { repaired = true; } };
 }
 
 it("withholds a named work-unit offer on unknown branch location and restores it on the next successful invocation", async () => {
@@ -123,7 +127,7 @@ it("carries failed ref evidence to paused work listed after the cached oracle", 
 
 it("checks a current work-unit branch link after branchless oracle membership was cached", async () => {
   const h = await fixture(), probes = h.probes(); await probes.getOracle();
-  const resolved = ok(await h.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("planning") } }));
+  const resolved = ok(await h.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("planning"), uid: boundWorkUnitSubject(h.planning).uid } }));
   const record = ok(await h.store.read({ reference: resolved.reference }));
   ok(await h.store.write({ ...recordPut(record, { links: { branches: [{ repository: "project", ref: "feat/planning", linkedAs: "created", excluded: [] }] } }),
     provenance: { verb: "link", lifecycleAction: "link" } }));

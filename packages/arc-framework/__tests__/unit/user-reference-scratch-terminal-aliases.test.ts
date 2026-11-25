@@ -51,18 +51,17 @@ it.each(["abandon", "decompose"] as const)("reports a former name as ended after
 
 it("withholds an ambiguous terminal alias and keeps personal files", async () => {
   const h = await fixture(); await h.retire("another-current");
-  await expect(applyScratchReconcile(h.input)).rejects.toThrow(/ambiguous.*retry/iu);
+  await expect(applyScratchReconcile(h.input)).rejects.toThrow(/(?:ambiguous|more than one).*(?:retry|repeat)/iu);
   expect(await readFile(join(h.path, "idea"), "utf8")).toBe("Still wanted");
 });
 
-it("withholds incomplete terminal discovery and retries after inventory repair", async () => {
+it("withholds unavailable terminal lookup and retries after authority repair", async () => {
   const h = await fixture(); let incomplete = true;
   const store = Object.create(h.store) as Store;
-  store.list = async input => {
-    const result = await h.store.list(input);
-    return incomplete && input.kind === "lineage/transition" && result.status === "ok" && result.result.status === "complete"
-      ? { status: "ok", result: { ...result.result, missed: true } } : result;
-  };
+  store.lookup = async input => incomplete && input.kind === "lineage" ? { status: "refused", refusal: {
+    code: "namespace-corrupt", class: "terminal", namespace: "lineage", condition: "Terminal lookup is incomplete.",
+    remedy: { text: "Restore terminal lookup and retry reconciliation." },
+  } } : h.store.lookup(input);
   const input = { ...h.input, store };
   await expect(applyScratchReconcile(input)).rejects.toThrow(/incomplete.*retry/iu);
   expect(await readFile(join(h.path, "idea"), "utf8")).toBe("Still wanted");
@@ -80,9 +79,9 @@ it("withholds conflicted terminal history and retries after explicit resolution"
   const exec = async () => { throw new Error("No checkout artifacts apply"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec },
     identity: "andrew", teamMode: false, internalTemplateDir: "/templates", projectId: async () => "project",
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "current", confirmed: true })).toMatchObject({ status: "abandoned" });
-  ok(await h.store.sync());
+  ok(await h.store.push());
   const disputed = ok(await h.store.read({ reference: h.terminal.reference })); expect(disputed.conflicts.length).toBeGreaterThan(0);
   const blocked = applyScratchReconcile(h.input);
   await expect(blocked).rejects.toThrow(/conflict.*retry/iu);

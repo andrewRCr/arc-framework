@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, rm, rmdir, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -12,6 +12,8 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
+import { parseGitWorktreePorcelain } from "../../src/lib/git/worktree-porcelain.js";
+import { localPathsEqual } from "../../src/lib/local-path-identity.js";
 import {
   nodeReconcileWorkUnitWorktreeFs,
   provisionSpawnedWorktree,
@@ -293,6 +295,7 @@ describe("atomicGraduate", () => {
     async (boundary) => {
       const fixture = await createInPlaceFixture();
       cleanup.push(fixture.repo);
+      const draftMode = (await stat(join(fixture.repo, fixture.sourceDirectory, "draft-widget.md"))).mode;
       let renameCalls = 0;
       const exec: GitExec = async (command, args, options) => {
         if (boundary === "branch" && args[0] === "checkout" && args[1] === "-b") {
@@ -305,7 +308,8 @@ describe("atomicGraduate", () => {
         return fixture.exec(command, args, options);
       };
       const injectedWriteFile: typeof writeFile = async (path, data, options) => {
-        if (boundary === "meta-write" && String(path).endsWith("/.arc/active/meta-widget.md")) {
+        if (boundary === "meta-write"
+          && String(path) === join(fixture.repo, fixture.targetDirectory, "meta-widget.md")) {
           throw new Error("injected meta write failure");
         }
         return writeFile(path, data, options);
@@ -335,8 +339,7 @@ describe("atomicGraduate", () => {
       expect(result.status).toBe("rejected");
       await expect(readFile(join(fixture.repo, fixture.sourceDirectory, "draft-widget.md"), "utf8"))
         .resolves.toBe("# Draft\n");
-      expect((await stat(join(fixture.repo, fixture.sourceDirectory, "draft-widget.md"))).mode & 0o111)
-        .not.toBe(0);
+      expect((await stat(join(fixture.repo, fixture.sourceDirectory, "draft-widget.md"))).mode).toBe(draftMode);
       await expect(readFile(join(fixture.repo, fixture.targetDirectory, "draft-widget.md")))
         .rejects.toMatchObject({ code: "ENOENT" });
       const { stdout: branch } = await fixture.exec("git", ["branch", "--show-current"]);
@@ -429,6 +432,10 @@ describe("atomicGraduate", () => {
 
       expect(result.status).toBe("rejected");
       await expect(stat(worktreePath)).rejects.toMatchObject({ code: "ENOENT" });
+      const { stdout: listing } = await fixture.exec("git", ["worktree", "list", "--porcelain"]);
+      const listed = await Promise.all(parseGitWorktreePorcelain(listing)
+        .map(({ path }) => localPathsEqual(path, worktreePath)));
+      expect(listed).not.toContain(true);
       const { stdout: created } = await fixture.exec(
         "git",
         ["for-each-ref", "--format=%(refname)", "refs/heads/plan/widget"],
@@ -453,6 +460,88 @@ describe("atomicGraduate", () => {
     expect(branch.trim()).toBe("main");
     await expect(readFile(join(fixture.repo, fixture.targetDirectory, "draft-widget.md")))
       .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it.each(["forward slashes", "a linked alias"] as const)(
+    "graduates in place when Git spells the current checkout with %s",
+    async (spelling) => {
+      const fixture = await createInPlaceFixture();
+      cleanup.push(fixture.repo);
+      const alias = `${fixture.repo}-alias`;
+      if (spelling === "a linked alias") await symlink(fixture.repo, alias, "junction");
+      const observed = spelling === "a linked alias" ? alias : fixture.repo.replaceAll("\\", "/");
+      const exec: GitExec = async (command, args, options) => (args[0] === "rev-parse" && args[1] === "--show-toplevel"
+        ? { stdout: `${observed}\n`, stderr: "" }
+        : fixture.exec(command, args, options));
+      try {
+        const result = await atomicGraduate(fixture.transaction, {
+          cwd: fixture.repo,
+          exec,
+          fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+        });
+        expect(result.status, JSON.stringify(result)).toBe("applied");
+      } finally {
+        if (spelling === "a linked alias") await unlink(alias);
+      }
+    },
+  );
+
+  it("refuses in-place graduation when Git reports a different checkout", async () => {
+    const fixture = await createInPlaceFixture();
+    const other = await createTempRepo("arc-atomic-graduate-other-");
+    cleanup.push(fixture.repo, other);
+    const exec: GitExec = async (command, args, options) => (args[0] === "rev-parse" && args[1] === "--show-toplevel"
+      ? { stdout: `${other}\n`, stderr: "" }
+      : fixture.exec(command, args, options));
+
+    const result = await atomicGraduate(fixture.transaction, {
+      cwd: fixture.repo,
+      exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+    });
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("occupation or index preimage") });
+    const { stdout: branch } = await fixture.exec("git", ["branch", "--show-current"]);
+    expect(branch.trim()).toBe("main");
+  });
+
+  it("refuses a spawned destination Git lists in its own path spelling", async () => {
+    const fixture = await createInPlaceFixture();
+    const worktreePath = `${fixture.repo}-widget`;
+    cleanup.push(fixture.repo, worktreePath);
+    fixture.transaction.occupation = {
+      mode: "spawned",
+      baseHead: fixture.transaction.occupation.baseHead,
+      branch: fixture.transaction.occupation.branch,
+      worktree: { kind: "absent", path: worktreePath },
+      indexTree: fixture.transaction.occupation.indexTree,
+      operation: {
+        kind: "spawned",
+        branch: "plan/widget",
+        base: fixture.transaction.occupation.baseHead,
+        worktreePath,
+        locationTemplate: `${fixture.repo}-{name}`,
+        repo: "repo",
+        wuName: "widget",
+        spawningIdentity: "andrew",
+      },
+    };
+    const listedSpelling = worktreePath.replaceAll("\\", "/");
+    const exec: GitExec = async (command, args, options) => {
+      const result = await fixture.exec(command, args, options);
+      if (args[0] !== "worktree" || args[1] !== "list") return result;
+      return { ...result, stdout: `${result.stdout.trimEnd()}\n\nworktree ${listedSpelling}\nHEAD `
+        + `${fixture.transaction.occupation.baseHead}\nbranch refs/heads/stale\n` };
+    };
+
+    const result = await atomicGraduate(fixture.transaction, {
+      cwd: fixture.repo,
+      exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+    });
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("destination is no longer absent") });
+    await expect(stat(worktreePath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
 });

@@ -3,6 +3,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 it("rejects empty discovery before attempting Git-backed admission and closes the controller", async () => {
   const fixture = await makeVitestControllerFixture();
@@ -14,7 +15,7 @@ it("rejects empty discovery before attempting Git-backed admission and closes th
     expect(result.code).toBe(1);
     expect(await readFile(fixture.events, "utf8")).toContain("closed");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("preserves native parsing errors before setup instead of explaining them as empty selection", async () => {
   const fixture = await makeVitestControllerFixture(true);
@@ -29,7 +30,7 @@ it("preserves native parsing errors before setup instead of explaining them as e
     expect(events).not.toContain("unit-setup");
     expect(events).toContain("closed");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("refines mixed native discovery with cross-file only before Git-backed heavy admission", async () => {
   const fixture = await makeVitestControllerFixture(true);
@@ -59,7 +60,7 @@ it("excluded integration", () => appendFileSync(${JSON.stringify(fixture.events)
     expect(nativeEvents).toContain("unit-worker");
     expect(nativeEvents).not.toContain("integration-");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("keeps mixed discovery heavy when native pre-parsing is disabled", async () => {
   const fixture = await makeVitestControllerFixture(false);
@@ -76,4 +77,4 @@ it("keeps mixed discovery heavy when native pre-parsing is disabled", async () =
     expect(events).not.toContain("integration-setup");
     expect(events).toContain("closed");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));

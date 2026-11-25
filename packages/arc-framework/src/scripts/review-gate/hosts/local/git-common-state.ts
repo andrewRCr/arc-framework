@@ -6,6 +6,8 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
+import { createProjectIdentityReader, resolveProjectIdentity, ProjectIdentityError } from "../../../../lib/store/project-identity.js";
+import type { ReviewInvocationOptions } from "../../runtime/invocation.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { canonicalDigest } from "../../../../lib/kernel/index.js";
@@ -23,7 +25,11 @@ const REPOSITORY_IDENTITY_RECORD = "repository-identity.json";
 /** Read an existing repository identity without minting or locking state on first use. */
 export async function readRepositoryIdentity(
   publisher: Pick<GitCommonStatePublisher, "read">,
+  invocation: Pick<ReviewInvocationOptions, "store" | "projectId"> = {},
 ): Promise<string | null> {
+  if (invocation.store?.capabilities.stateOffBranch) {
+    return requireProjectIdentity(invocation.projectId ?? createProjectIdentityReader(invocation.store));
+  }
   const raw = await publisher.read({ root: "review-gate", namespace: "identity" }, REPOSITORY_IDENTITY_RECORD);
   return raw === null ? null : RepositoryIdentityRecordSchema.parse(JSON.parse(raw)).repositoryId;
 }
@@ -60,19 +66,22 @@ export async function withRepositoryReviewOperationLock<T>(
 }
 
 /**
- * Resolves the stable identity of one local repository, minting it on first use.
- *
- * The record lives under the Git common directory, so every linked worktree
- * resolves the same identity and checkout-path relocation cannot change it.
+ * Resolve the Store's project identity when operational state is off branch.
+ * Repository-backed invocations retain their UUID under the Git common directory.
  *
  * @param publisher - Locked repository-common state boundary.
  * @param mint - UUID minting seam for deterministic tests.
- * @returns The repository-local UUID.
+ * @param invocation - Selected operational Store and its bound project-identity reader.
+ * @returns The selected repository identity.
  */
 export async function resolveRepositoryIdentity(
   publisher: GitCommonStatePublisher,
   mint: () => string = randomUUID,
+  invocation: Pick<ReviewInvocationOptions, "store" | "projectId"> = {},
 ): Promise<string> {
+  if (invocation.store?.capabilities.stateOffBranch) {
+    return requireProjectIdentity(invocation.projectId ?? createProjectIdentityReader(invocation.store));
+  }
   return publisher.update({ root: "review-gate", namespace: "identity" }, REPOSITORY_IDENTITY_RECORD, (current) => {
     if (current !== null) {
       return {
@@ -92,4 +101,10 @@ export async function resolveRepositoryIdentity(
       result: record.repositoryId,
     };
   });
+}
+
+async function requireProjectIdentity(reader: () => Promise<string>): Promise<string> {
+  const result = await resolveProjectIdentity(reader);
+  if (result.status !== "ready") throw new ProjectIdentityError(result);
+  return result.id;
 }

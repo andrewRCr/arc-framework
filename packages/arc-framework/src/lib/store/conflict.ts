@@ -1,7 +1,7 @@
 /** Serializable clashes retained beside their record instead of inline markers. */
 
 import { z } from "zod";
-import { EntryIdSchema, RecordReferenceSchema } from "./identity.js";
+import { EntryIdSchema, RecordReferenceSchema, RecordVersionSchema } from "./identity.js";
 import { StoreRecordSchema } from "./read.js";
 
 /** Caller-supplied machine or session and observation time. */
@@ -15,6 +15,7 @@ const entryLocation = z.strictObject({ kind: z.literal("entry"), id: EntryIdSche
 const hunkLocation = z.strictObject({ kind: z.literal("hunk"), start: z.number().int().nonnegative(), end: z.number().int().nonnegative() })
   .refine((range) => range.end >= range.start);
 const recordLocation = z.strictObject({ kind: z.literal("record") });
+const lineCount = z.number().int().nonnegative();
 /** Entry, base line range, or whole-record locus; range endpoints are zero-based and end-exclusive. */
 export const ConflictLocationSchema = z.union([entryLocation, hunkLocation, recordLocation]);
 const recordFields = {
@@ -26,7 +27,7 @@ const recordFields = {
 /** Text clashes keep entry sections or a base line range beside their preserved bytes. */
 export const TextConflictRecordSchema = z.union([
   z.strictObject({ ...recordFields, location: entryLocation, baseSection: z.string().nullable(), current: entrySide, incoming: entrySide }),
-  z.strictObject({ ...recordFields, location: hunkLocation }),
+  z.strictObject({ ...recordFields, location: hunkLocation, baseVersion: RecordVersionSchema.nullable(), currentLines: lineCount, incomingLines: lineCount }),
 ]);
 /** Entry or hunk data emitted by the pure text merge library. */
 export type TextConflictRecord = z.infer<typeof TextConflictRecordSchema>;

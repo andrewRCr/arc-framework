@@ -1,6 +1,7 @@
 /** Unit coverage for exact-bound Candidate applicability selection writes. */
 
 import { describe, expect, it } from "vitest";
+import { RecordVersionSchema } from "../../../src/lib/store/identity.js";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
@@ -12,6 +13,7 @@ import {
 import { classifyCandidateApplicability } from "../../../src/lib/work-unit/candidate-applicability.js";
 import {
   CandidateApplicabilityResolutionInputSchema,
+  composeCandidateApplicabilityResolutionSelector,
   resolveCandidateApplicability,
   type CandidateApplicabilityResolutionContext,
 } from "../../../src/lib/work-unit/candidate-applicability-resolution.js";
@@ -32,7 +34,7 @@ function subject(source: string) {
   }]);
 }
 
-function harness() {
+function harness(version: string = VERSION) {
   const rootSubject = subject("root");
   const currentSubject = subject("current");
   const attestation = createCandidateAttestation({
@@ -74,7 +76,7 @@ function harness() {
   });
   if (decision.state !== "decision-required") throw new Error("expected a bounded decision");
   const context: CandidateApplicabilityResolutionContext = {
-    readRecord: async () => ({ record: stored, version: VERSION }),
+    readRecord: async () => ({ record: stored, version }),
     currentTarget: async (baseRevision) => baseRevision === SHA_B
       ? currentTarget
       : { revision: SHA_C, subject: subject("wrong-base") },
@@ -88,7 +90,7 @@ function harness() {
   };
   const input = {
     schemaVersion: 1 as const,
-    expectedRecordVersion: VERSION,
+    expectedRecordVersion: RecordVersionSchema.parse(version),
     candidateId: request.candidateId,
     priorTarget: request.baselineTarget,
     currentTarget: request.currentTarget,
@@ -234,5 +236,57 @@ describe("resolveCandidateApplicability", () => {
       state: "version-conflict",
       nextAction: "rerun",
     });
+  });
+});
+
+it.each([VERSION, "backend:candidate/7"])("resolves Candidate applicability with exact opaque version %s", async (version) => {
+  const h = harness(version);
+  await expect(resolveCandidateApplicability(h.context, h.input)).resolves.toMatchObject({ state: "resolved", choice: "covered" });
+  expect(h.record().transitions).toHaveLength(1);
+});
+
+describe("composeCandidateApplicabilityResolutionSelector", () => {
+  it("binds the exact resolution input the resolver accepts for its decision", async () => {
+    const fixture = harness();
+    const composed = composeCandidateApplicabilityResolutionSelector({
+      record: fixture.record(),
+      recordVersion: VERSION,
+      decision: fixture.decision,
+      currentTarget: fixture.request.currentTarget,
+    });
+    if (composed.status !== "composed") throw new Error("expected a resolution selector");
+    const input = { ...composed.selector, selectedBy: "andrew", choice: "covered" as const };
+
+    expect(input).toEqual(fixture.input);
+    await expect(resolveCandidateApplicability(fixture.context, input)).resolves.toMatchObject({ state: "resolved" });
+  });
+
+  it.each([
+    ["collected subject", { currentTarget: { revision: SHA_B, subject: subject("moved") } }],
+    ["collected revision", { currentTarget: { revision: SHA_C, subject: subject("current") } }],
+  ] as const)("reports a decision whose %s moved as changed", (_label, moved) => {
+    const fixture = harness();
+
+    expect(composeCandidateApplicabilityResolutionSelector({
+      record: fixture.record(),
+      recordVersion: VERSION,
+      decision: fixture.decision,
+      ...moved,
+    })).toEqual({ status: "changed" });
+  });
+
+  it("reports a decision read against another baseline as changed", () => {
+    const fixture = harness();
+    const decision = {
+      ...fixture.decision,
+      baselineTarget: { revision: SHA_C, subjectDigest: fixture.decision.baselineTarget.subjectDigest },
+    };
+
+    expect(composeCandidateApplicabilityResolutionSelector({
+      record: fixture.record(),
+      recordVersion: VERSION,
+      decision,
+      currentTarget: fixture.request.currentTarget,
+    })).toEqual({ status: "changed" });
   });
 });

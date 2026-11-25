@@ -11,6 +11,7 @@ import {
   boundedGitInvocation,
   checkOriginExists,
   getCurrentBranch,
+  type BoundedFetchResult,
   type GitExec,
 } from "./exec.js";
 import { z } from "zod";
@@ -36,7 +37,7 @@ import type {
 import { BaseDriftResultSchema } from "./base-drift-types.js";
 import {
   countAheadBehindRef,
-  DEFAULT_FETCH_TIMEOUT_MS,
+  MATERIALIZING_FETCH_TIMEOUT_MS,
   type WorktreeSyncState,
 } from "./worktree-sync.js";
 
@@ -83,6 +84,10 @@ export const BaseDistanceSnapshotResultSchema = z.union([
 export interface RunBaseDriftOptions {
   exec: GitExec;
   baseBranch: string;
+  /**
+   * Bounds the base fetch. Defaults to {@link MATERIALIZING_FETCH_TIMEOUT_MS}: an authoritative read is one a
+   * requested operation acts on, never a quick status probe.
+   */
   fetchTimeoutMs?: number;
   /**
    * Acquiring base drift is authoritative-only; an advisory reading analyzes supplied
@@ -231,11 +236,27 @@ export async function runBaseDrift(options: RunBaseDriftOptions): Promise<BaseDr
   return runAuthoritativeBaseDrift(options);
 }
 
+/** Report a failed authoritative base fetch, naming the bound a timed-out fetch ran out. */
+function unavailableBaseFetch(
+  fetch: BoundedFetchResult,
+  baseBranch: string,
+  fetchTimeoutMs: number,
+): Extract<BaseDriftResult, { verdict: "unavailable" }> {
+  if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
+    return unavailable("authoritative", "remote-base-absent", "remote-unavailable", baseBranch);
+  }
+  if (fetch.outcome === "timeout") {
+    return unavailable("authoritative", "fetch-timeout", "remote-unavailable", baseBranch, "timeout",
+      `The fetch was bounded at ${fetchTimeoutMs / 1000} s.`);
+  }
+  return unavailable("authoritative", "fetch-failed", "remote-unavailable", baseBranch, "error", fetch.error);
+}
+
 async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<BaseDriftResult> {
   const {
     exec,
     baseBranch,
-    fetchTimeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
+    fetchTimeoutMs = MATERIALIZING_FETCH_TIMEOUT_MS,
     resolver,
     resolverFactory,
     classifyReconciliation = () => "reviewable",
@@ -261,19 +282,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
     ["fetch", "origin", fetchRefspec],
     fetchTimeoutMs,
   );
-  if (fetch.outcome !== "ok") {
-    if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
-      return unavailable("authoritative", "remote-base-absent", "remote-unavailable", baseBranch);
-    }
-    return unavailable(
-      "authoritative",
-      fetch.outcome === "timeout" ? "fetch-timeout" : "fetch-failed",
-      "remote-unavailable",
-      baseBranch,
-      fetch.outcome,
-      fetch.error,
-    );
-  }
+  if (fetch.outcome !== "ok") return unavailableBaseFetch(fetch, baseBranch, fetchTimeoutMs);
 
   let baseOid: string;
   try {
@@ -416,6 +425,15 @@ function resolveResolver(
   }
 }
 
+/** An authoritative unavailable verdict for a failure met before analysis, carrying its diagnostic text. */
+export function unavailableBaseDrift(
+  reason: BaseDriftUnavailableReason,
+  base: string | null,
+  diagnostic: unknown,
+): Extract<BaseDriftResult, { verdict: "unavailable" }> {
+  return unavailable("authoritative", reason, "remote-unavailable", base, "error", diagnostic);
+}
+
 function unavailable(
   mode: BaseDriftMode,
   reason: BaseDriftUnavailableReason,
@@ -466,6 +484,7 @@ function baseDriftFailureDetail(
     "fetched-base-unresolved": `The fetched origin/${namedBase} ref did not resolve to a commit.`,
     "distance-read-failed": `Git could not compare HEAD with the observed ${namedBase} commit.`,
     "remote-evidence-unreachable": `Remote snapshot evidence for ${namedBase} was unreachable.`,
+    "locus-unavailable": "The checkout's work-unit state could not be read, so its path treatment is unknown.",
   };
   const raw = diagnostic === undefined
     ? ""
@@ -493,6 +512,7 @@ function baseDriftTerminalExplanation(
     "fetched-base-unresolved": `Repair origin/${namedBase} so it resolves to a commit, then rerun arc base drift.`,
     "distance-read-failed": "Restore a complete readable Git history, then rerun arc base drift.",
     "remote-evidence-unreachable": "Restore remote evidence access, then repeat the calling operation.",
+    "locus-unavailable": "Repair the reported work-unit state, then rerun arc base drift.",
   };
   return explanations[reason];
 }

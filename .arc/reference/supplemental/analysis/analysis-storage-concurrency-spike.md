@@ -7,8 +7,8 @@ against the bar [the storage analysis][storage-analysis] set for concurrency (§
 
 **State:** Point-in-time record of runs on 2026-09-24 and 2026-09-25. The storage analysis § 11.3–§ 11.6 summarizes it
 and adds the later GitHub Enterprise Server run, and its § 11.7 tracks what stays open; the analysis and ADR-035
-govern wherever they differ. Scripts and raw results stayed outside this repository, in the scratch directories named
-below.
+govern wherever they differ. Scripts and raw results stayed outside this repository; only the workload model's scripts
+and extracts were kept, so the other scripts and results named below no longer exist.
 
 ## Workload model (from arc-framework history, 2026-09-24)
 
@@ -16,8 +16,8 @@ below.
 attributed to its branch. A branch's commits split into sessions wherever they are more than two hours apart, and a
 session runs from its first commit to 15 minutes after its last; concurrency is the number of overlapping sessions.
 The windows are the two parallel periods the data shows: 2026-07-13 to 08-09 (four weeks) and 2026-09-07 to 09-13.
-The sequential corrective weeks since are left out, as unrepresentative (Owner). Scripts and extracts are in
-`~/dev/scratch/arc-storage-spike/concurrency/workload/`.
+The sequential corrective weeks since are left out, as unrepresentative (Owner). Scripts and extracts
+(`concurrency/workload/`) are kept outside the repository.
 
 Only sessions that commit are visible, so the concurrency below is a floor. Planning and review sessions that commit
 nothing do not show; the Owner's three to six sessions at once is consistent with it. The user-notes row is a floor
@@ -66,7 +66,7 @@ minutes apart at the closest — but those are one session moving along its stac
 
 ## Prototype design
 
-A throwaway store in `~/dev/scratch/arc-storage-spike/concurrency/`, Node ESM, nothing shared with ARC's code.
+A throwaway store, Node ESM, nothing shared with ARC's code.
 
 - **Store.** Each surface is a commit whose tree holds its entries as files, under `refs/arc/state/<surface>` (one
   ref per surface) or `refs/arc/state/<surface>/<entry>` (one ref per entry) — both layouts run.

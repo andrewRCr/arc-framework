@@ -2,13 +2,13 @@
 
 import { z } from "zod";
 import { SlugSchema, LocusTokenSchema } from "../kernel/index.js";
-import { RecordReferenceSchema } from "./identity.js";
+import { RecordReferenceSchema, StoredUidSchema } from "./identity.js";
 import { CommitShaSchema, CopyKeySchema } from "./links.js";
 
 const slug = { slug: SlugSchema };
 /** Claims mirror marker discriminants; a branch alone is never an ARC claim. */
 export const CheckoutClaimSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("work-unit"), ...slug }),
+  z.strictObject({ kind: z.literal("work-unit"), ...slug, uid: z.uuid().optional() }),
   z.strictObject({ kind: z.literal("partial-errand"), ...slug, claimId: z.null() }),
   z.strictObject({ kind: z.literal("errand"), ...slug, claimId: LocusTokenSchema }),
   z.strictObject({ kind: z.literal("groom"), ...slug, claimId: LocusTokenSchema }),
@@ -16,10 +16,13 @@ export const CheckoutClaimSchema = z.discriminatedUnion("kind", [
 ]);
 /** A marker's logical claim, never its checkout path. */
 export type CheckoutClaim = z.infer<typeof CheckoutClaimSchema>;
-/** Every supported resolution request. */
+/** Every supported resolution request. Lineage origins select an exact UID or prefer current terminal names
+ * before authenticated former names retained after retirement. Multiple candidates refuse ambiguous-match;
+ * resolution uses retained identity evidence rather than enumerating terminal primary histories.
+ */
 export const LookupInputSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("slug"), ...slug }),
-  z.strictObject({ kind: z.literal("lineage"), origin: z.union([z.uuid(), SlugSchema]) }),
+  z.strictObject({ kind: z.literal("lineage"), origin: z.union([StoredUidSchema, SlugSchema]) }),
   z.strictObject({ kind: z.literal("claim"), claim: CheckoutClaimSchema }),
   z.strictObject({ kind: z.literal("commit"), repository: z.string().min(1), sha: CommitShaSchema, copyKey: CopyKeySchema.optional() }),
   z.strictObject({ kind: z.literal("ref"), repository: z.string().min(1), ref: z.string().min(1) }),

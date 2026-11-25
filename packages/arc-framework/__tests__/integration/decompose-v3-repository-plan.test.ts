@@ -4207,13 +4207,13 @@ describe("Git v3 repository plan", () => {
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
   });
 
-  it("refuses when the source remote cannot be read", async () => {
+  it("asks for a retry, not a push, when the source remote cannot be read, and executes once it answers", async () => {
     const { repo, completedMap, dependencies } = await startedRepository();
     const cutMapPath = join(repo, "cut-map.json");
     await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const remote = await git(repo, ["remote", "get-url", "origin"]);
     await git(repo, ["remote", "set-url", "origin", join(repo, "missing-remote.git")]);
-
-    const result = await executeGitV3DecomposeCommand({
+    const execute = () => executeGitV3DecomposeCommand({
       ...dependencies,
       spawningIdentity: "andrew",
     }, {
@@ -4223,21 +4223,21 @@ describe("Git v3 repository plan", () => {
       cutMapPath,
     });
 
-    expect(result).toMatchObject({
+    expect(await execute()).toMatchObject({
       status: "refused",
       stage: "repository-plan",
-      reason: "source-unpublished",
+      reason: "source-remote-unreachable",
       locus: "plan/origin",
-      evidence: {
-        expected: completedMap.machine.source.head,
-        actual: { kind: "absent" },
-      },
       recovery: { kind: "none" },
       remedy: {
-        argv: ["git", "push", "origin", "refs/heads/plan/origin:refs/heads/plan/origin"],
+        text: expect.stringContaining("Reading origin's refs/heads/plan/origin failed."),
+        argv: ["arc", "decompose", "origin", "--execute", cutMapPath],
       },
     });
     expect(await claimFiles(repo)).toEqual([]);
+
+    await git(repo, ["remote", "set-url", "origin", remote.trim()]);
+    expect(await execute()).toMatchObject({ status: "staged" });
   });
 
   it("preserves unexpected Git adapter diagnostics in the refusal locus", async () => {

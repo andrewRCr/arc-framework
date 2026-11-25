@@ -18,6 +18,7 @@ export function normalizeGitConfigValue(value: string | undefined): string | nul
  *
  * Invalid configured identities remain actionable failures. Other identity-read
  * failures collapse to absence so the composite status envelope can report them.
+ * Failed role reads likewise remain unresolved in this diagnostic view.
  *
  * @param exec - Injectable Git executor
  * @returns Resolved identity and normalized role pointers
@@ -31,7 +32,7 @@ export async function readIdentityPointers(exec: GitExec): Promise<{
       if (error instanceof Error && "code" in error && error.code === "identity.invalid") throw error;
       return null;
     }),
-    gitConfigGet(exec, "arc.role"),
+    gitConfigGet(exec, "arc.role").catch(() => undefined),
   ]);
   return {
     identity,

@@ -1,6 +1,8 @@
 /** Exact-checkpoint integration merge and its fail-closed compensating exits. */
 
+import { LandingLinkStateSchema, recordLandingLink } from "./landing-link.js";
 import { z } from "zod";
+import { nativeRefusalText } from "../../lib/store/native-refusal.js";
 
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import type {
@@ -319,6 +321,7 @@ export const IntegrationMergeResultSchema = z.union([
       pullRequest: z.number().int().positive(),
       target: IntegrationMergeTargetSchema,
       providerMergeId: z.string().trim().min(1).nullable(),
+      landingLink: LandingLinkStateSchema.optional(),
     }),
   }),
   z.strictObject({
@@ -527,14 +530,19 @@ function mergeCoordinates(
 
 export interface IntegrationMergeDependencies {
   readCheckpoint(workUnit: string, handle: string): Promise<IntegrationCheckpointCompositionRecord | null>;
+  validateCheckpointOwnership?(record: IntegrationCheckpointCompositionRecord): Promise<void>;
   executeSettlement(record: IntegrationCheckpointCompositionRecord): Promise<SettlementExecutionResult>;
   readStatus(workUnit: string): Promise<{
     actualHead: string;
     lifecycleComplete: boolean;
-    lifecycleVersion: string;
+    lifecycleVersion: string | null;
     target: IntegrationMergeTarget;
   }>;
-  readMerged(target: IntegrationMergeTarget): Promise<boolean>;
+  readMerged(target: IntegrationMergeTarget): Promise<
+    { merged: false; providerMergeId: null }
+    | { merged: true; providerMergeId: string | null; /** Why exact confirmation named no merge commit. */ confirmationDetail?: string }
+  >;
+  writeLandingCommit?(workUnit: string, sha: string, checkpoint: IntegrationCheckpointCompositionRecord): Promise<void>;
   refreshTarget(target: IntegrationMergeTarget): Promise<IntegrationMergeTarget>;
   releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
@@ -599,6 +607,18 @@ async function invalidated(
   });
 }
 
+async function completeMergedIntegration(request: IntegrationMergeRequest, checkpoint: IntegrationCheckpointCompositionRecord,
+  target: IntegrationMergeTarget, providerMergeId: string | null,
+  dependencies: IntegrationMergeDependencies, confirmationDetail?: string): Promise<IntegrationMergeResult> {
+  const writeLandingCommit = dependencies.writeLandingCommit?.bind(dependencies);
+  const landingLink = await recordLandingLink({ workUnit: request.workUnit, checkpointHandle: request.checkpointHandle,
+    providerMergeId, write: writeLandingCommit === undefined ? undefined
+      : (workUnit, sha) => writeLandingCommit(workUnit, sha, checkpoint), confirmationDetail });
+  return IntegrationMergeResultSchema.parse({ schemaVersion: 1, mode: "integrate-merge", workUnit: request.workUnit,
+    state: "merged", nextAction: "complete", payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest, target, providerMergeId,
+      ...(landingLink === undefined ? {} : { landingLink }) } });
+}
+
 /** Execute the exact persisted post-approval span and merge only its approved head. */
 export async function mergeIntegration(
   input: z.input<typeof IntegrationMergeRequestSchema>,
@@ -624,18 +644,12 @@ export async function mergeIntegration(
       );
     }
     target = IntegrationMergeTargetSchema.parse(checkpoint.target);
-    if (await dependencies.readMerged(target)) {
-      return IntegrationMergeResultSchema.parse({
-        ...base,
-        state: "merged",
-        nextAction: "complete",
-        payload: {
-          approvedHead: checkpoint.approvedHead,
-          pullRequest: target.pullRequest,
-          target,
-          providerMergeId: null,
-        },
-      });
+    const existing = await dependencies.readMerged(target);
+    if (existing.merged) return await completeMergedIntegration(request, checkpoint, target,
+      existing.providerMergeId, dependencies, existing.confirmationDetail);
+    try { await dependencies.validateCheckpointOwnership?.(checkpoint); }
+    catch (error) {
+      return mergeOperationRefusal(request.workUnit, nativeRefusalText(error) ?? (error instanceof Error ? error.message : String(error)));
     }
     const settlement = await dependencies.executeSettlement(checkpoint);
     if (settlement.state === "invalidated") {
@@ -1053,33 +1067,13 @@ export async function mergeIntegration(
         payload: { target: merged.target, detail: mergedDetail },
       });
     }
-    return IntegrationMergeResultSchema.parse({
-      ...base,
-      state: "merged",
-      nextAction: "complete",
-      payload: {
-        approvedHead: checkpoint.approvedHead,
-        pullRequest: target.pullRequest,
-        target: merged.target,
-        providerMergeId: merged.providerMergeId,
-      },
-    });
+    return await completeMergedIntegration(request, checkpoint, merged.target, merged.providerMergeId, dependencies);
   } catch (error) {
     if (target !== undefined) {
       try {
-        if (await dependencies.readMerged(target)) {
-          return IntegrationMergeResultSchema.parse({
-            ...base,
-            state: "merged",
-            nextAction: "complete",
-            payload: {
-              approvedHead: checkpoint?.approvedHead ?? target.headSha,
-              pullRequest: target.pullRequest,
-              target,
-              providerMergeId: null,
-            },
-          });
-        }
+        const recovered = await dependencies.readMerged(target);
+        if (recovered.merged && checkpoint !== null) return await completeMergedIntegration(request, checkpoint,
+          target, recovered.providerMergeId, dependencies, recovered.confirmationDetail);
       } catch {
         // Without exact merged-state evidence the compensating lock remains the safe fallback.
       }

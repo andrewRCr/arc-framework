@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-cohort-reference-resolution.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

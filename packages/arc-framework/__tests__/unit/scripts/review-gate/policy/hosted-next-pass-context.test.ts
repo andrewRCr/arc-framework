@@ -22,8 +22,7 @@ describe("hosted next-pass context", () => {
         historicalAttempt: { attemptId: predecessor.producerId, logicalPass: 1, sourceId: predecessor.sourceIdentity,
           outcome: predecessor.originalOutcome, headSha: predecessor.target.headSha } }],
       evidence: { resultReader: { readResult: async () => predecessor },
-        dispositionStore: { readDispositionRecord: async () => record,
-          appendDispositionRecord: async () => { throw new Error("read-only"); } },
+        dispositionStore: { readDispositionRecord: async () => record },
         readResponsePerformance: async () => record === null ? null
           : { ...performedFix(predecessor, record), producedHeadSha: target.headSha },
       }, cwd: "/repo", exec: async () => { throw new Error("unexpected Git read"); },

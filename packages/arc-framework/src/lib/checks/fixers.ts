@@ -3,7 +3,7 @@ import { normalizeGitRejection } from "../git/process-error.js";
 import type { GitExec } from "../git/exec.js";
 import type { CheckRequest } from "./request.js";
 import type { ResolvedCheckRequest } from "./resolve-request.js";
-import { createWorktreeSnapshot, readTreeChange } from "./tree.js";
+import { ageRewrittenIndex, createWorktreeSnapshot, readTreeChange } from "./tree.js";
 
 /**
  * Refresh the current snapshot after a fixer and list its admitted file rewrites.
@@ -39,9 +39,11 @@ async function hasWorktreeChanges(git: GitExec, root: string, indexFile: string)
     await git("git", args, { cwd: root, indexFile });
   } catch (cause) {
     const failure = normalizeGitRejection(cause, { command: "git", args });
-    if (failure.kind === "nonzero-exit" && failure.exitCode === 1 && failure.signal === undefined) return true;
-    throw cause;
+    if (failure.kind !== "nonzero-exit" || failure.exitCode !== 1 || failure.signal !== undefined) throw cause;
+    await ageRewrittenIndex(indexFile);
+    return true;
   }
+  await ageRewrittenIndex(indexFile);
   return (await git("git", ["ls-files", "--others", "--exclude-standard", "-z"], { cwd: root, indexFile, preserveOutput: true })).stdout !== "";
 }
 

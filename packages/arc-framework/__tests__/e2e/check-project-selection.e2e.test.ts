@@ -1,10 +1,12 @@
 /** Repository declarations keep archived planning edits out of code checks. */
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js";
+import { createRunnerMachineHome } from "../fixtures/checks/runner-machine.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { runArc } from "./helpers.js";
 
@@ -44,12 +46,20 @@ it("selects the local E2E tier for a declaration-only change", async () => {
   await writeFile(join(root, path), `${declaration}\n# Declaration-only change\n`);
   expect((await git("git", ["diff", "--name-only"], { cwd: root })).stdout.trim()).toBe(path);
 
-  const result = await runArc(["check", "run", "test:e2e:local", "--changed", "--dry-run", "--json"], root);
-  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-  const checks = JSON.parse(result.stdout).result.checks;
-  expect(checks).toMatchObject([{ id: "test:e2e:local", outcome: "would run" }]);
-  expect(checks).toHaveLength(1);
-  expect(checks[0].batches.flat()).toContain(path);
+  const ambient = await createRunnerMachineHome(repositories, ["ambient-check-runner"]);
+  const nativeHome = await mkdtemp(join(tmpdir(), "arc-native-machine-"));
+  repositories.push(nativeHome);
+  vi.stubEnv("HOME", ambient.home);
+  vi.stubEnv("USERPROFILE", ambient.home);
+  try {
+    const result = await runArc(["check", "run", "test:e2e:local", "--changed", "--dry-run", "--json"], root,
+      { env: { HOME: nativeHome, USERPROFILE: nativeHome } });
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    const checks = JSON.parse(result.stdout).result.checks;
+    expect(checks).toMatchObject([{ id: "test:e2e:local", outcome: "would run" }]);
+    expect(checks).toHaveLength(1);
+    expect(checks[0].batches.flat()).toContain(path);
+  } finally { vi.unstubAllEnvs(); }
 }, 60_000);
 
 it.each([
@@ -59,6 +69,11 @@ it.each([
   { change: "a backlog planning artifact", path: ".arc/backlog/planned/example/draft-example.md",
     outcome: "not selected" },
   { change: "personal notes", path: ".arc/user/someone/notes.md", outcome: "not selected" },
+  { change: "a decision record", path: ".arc/reference/adr/adr-099-example.md", outcome: "not selected" },
+  { change: "supplemental research", path: ".arc/reference/supplemental/research/research-example.md",
+    outcome: "not selected" },
+  { change: "supplemental analysis", path: ".arc/reference/supplemental/analysis/analysis-example.md",
+    outcome: "not selected" },
   { change: "source code", path: "src/a.ts", outcome: "not selected" },
 ])("selects the content integration tier for $change: $outcome", async ({ path, outcome }) => {
   const root = await createDeclaredCheckRepository({});

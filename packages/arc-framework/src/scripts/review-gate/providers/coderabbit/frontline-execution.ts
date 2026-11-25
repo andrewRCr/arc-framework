@@ -8,7 +8,7 @@ import type {
   FrontlineSourceDescriptor,
   FrontlineSourceRegistration,
 } from "../../policy/frontline-source.js";
-import { parseCodeRabbitAgentResult } from "./frontline-agent.js";
+import { parseCodeRabbitAgentResult, type CodeRabbitChangedFile } from "./frontline-agent.js";
 import {
   CodeRabbitExecutableUnavailableError,
 } from "./executable.js";
@@ -55,11 +55,49 @@ function awaitWithSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise
   });
 }
 
+/** The exact-target inputs that list the changed files a run has to cover. */
+interface ChangedFileListingInput {
+  reviewRoot: string;
+  diffBaseSha: string;
+  headSha: string;
+  signal: AbortSignal;
+}
+
+/** The listed changed files, or the provider result that ends a run whose files could not be listed. */
+type ChangedFileListing =
+  | { files: readonly CodeRabbitChangedFile[] }
+  | { failure: { kind: "timed-out" } | { kind: "failed"; reason: string } };
+
+/**
+ * List the target's changed files before the provider runs, so a run whose coverage cannot be checked never starts.
+ */
+async function listChangedFilesBeforeRun(
+  input: { reviewRoot: string; target: ReviewTarget; signal: AbortSignal },
+  listChangedFiles: (input: ChangedFileListingInput) => Promise<readonly CodeRabbitChangedFile[]>,
+): Promise<ChangedFileListing> {
+  try {
+    return {
+      files: await awaitWithSignal(listChangedFiles({
+        reviewRoot: input.reviewRoot,
+        diffBaseSha: input.target.diffBaseSha,
+        headSha: input.target.headSha,
+        signal: input.signal,
+      }), input.signal),
+    };
+  } catch (error) {
+    return {
+      failure: input.signal.aborted
+        ? { kind: "timed-out" }
+        : { kind: "failed", reason: codeRabbitProcessDiagnostic(error, "changed-file listing") },
+    };
+  }
+}
+
 /**
  * Execute the structurally qualified adapter against one exact diff base and normalize its truthful outcome.
  *
  * @param input - Resolved CodeRabbit source, exact target, pass, and immutable checkout.
- * @param dependencies - Executable resolution and direct process ports.
+ * @param dependencies - Executable resolution, the target's changed-file listing, and direct process ports.
  * @returns The normalized outcome plus the identity of the executable that produced it.
  */
 export async function executeCodeRabbitFrontline(input: {
@@ -80,6 +118,7 @@ export async function executeCodeRabbitFrontline(input: {
     argv: readonly string[],
     options: { cwd: string; remainingMs: number; signal: AbortSignal },
   ): Promise<CodeRabbitProcessResult>;
+  listChangedFiles(input: ChangedFileListingInput): Promise<readonly CodeRabbitChangedFile[]>;
 }): Promise<{
   outcome: FrontlineExecutionOutcome;
   executableIdentity: FrontlineExecutableIdentity | null;
@@ -135,6 +174,19 @@ export async function executeCodeRabbitFrontline(input: {
     return {
       outcome: normalizeFrontlineOutcome({
         providerResult,
+        source: input.source,
+        target: input.target,
+        pass: input.pass,
+        maxPasses: input.maxPasses,
+      }),
+      executableIdentity: null,
+    };
+  }
+  const changed = await listChangedFilesBeforeRun(input, listing => dependencies.listChangedFiles(listing));
+  if ("failure" in changed) {
+    return {
+      outcome: normalizeFrontlineOutcome({
+        providerResult: changed.failure,
         source: input.source,
         target: input.target,
         pass: input.pass,
@@ -209,6 +261,7 @@ export async function executeCodeRabbitFrontline(input: {
       ...processResult,
       expectedHead: input.target.headSha,
       observedHead: input.target.headSha,
+      changedFiles: changed.files,
     });
   return {
     outcome: normalizeFrontlineOutcome({

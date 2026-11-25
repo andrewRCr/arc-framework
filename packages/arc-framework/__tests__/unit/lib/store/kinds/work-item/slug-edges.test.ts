@@ -19,7 +19,7 @@ function meta(name: string, uid: string, edges: string[] = [], completed = false
 function change(beforeRecords: StoreRecord[], afterRecords: StoreRecord[], prior?: WriteCheckInput["prior"]): WriteCheckInput {
   const next = meta("reused", own);
   return { reference: next.reference, next: { content: next.content, fields: next.fields },
-    ...(prior === undefined ? {} : { prior }), writer: { kind: "verb", verb: "create" },
+    ...(prior === undefined ? {} : { prior }), observations: [], writer: { kind: "verb", verb: "create" },
     before: ruleView(beforeRecords), after: ruleView([next, ...afterRecords]) };
 }
 const retirement = LineageRecordSchema.parse({

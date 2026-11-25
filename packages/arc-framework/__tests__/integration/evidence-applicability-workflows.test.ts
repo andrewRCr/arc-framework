@@ -60,6 +60,32 @@ describe("evidence applicability workflow fire-points", () => {
     expect(method).not.toMatch(softWrappedProse("Receive the exact normalized `delta`, evidence kind, and typed result/action"));
   });
 
+  it("runs the bounded movement check only on the Owner's choice", async () => {
+    const method = await readPair("system/methods/assess-evidence-applicability.md");
+    const integrate = await readPair(workflows.integrate);
+
+    expect(method).toMatch(softWrappedProse("Whether it runs is the Owner's choice"));
+    expect(method).toMatch(softWrappedProse("Run the check only when the Owner chooses it"));
+    expect(method).not.toMatch(softWrappedProse("have a fresh-context local evaluator check the movement"));
+    expect(method).toMatch(softWrappedProse("other evidence already reads each residual change"));
+    expect(method).toMatch(softWrappedProse("the residual holds code no review or check has read"));
+    expect(method).not.toMatch(softWrappedProse("nothing in the residual could contradict a premise"));
+    expect(integrate).toMatch(softWrappedProse("whether to run the movement check first"));
+    expect(integrate).not.toMatch(softWrappedProse("Show the bounded check's findings and"));
+  });
+
+  it("keeps the residual judgment for a fix that only adds verification", async () => {
+    const method = await readPair("system/methods/assess-evidence-applicability.md");
+
+    expect(method).not.toMatch(softWrappedProse("finds a material defect or prompts any fix"));
+    expect(method).toMatch(softWrappedProse("including when every fix only adds verification"));
+    expect(method).toMatch(softWrappedProse("Show such a fix's proof"));
+    expect(method).toMatch(softWrappedProse(
+      "unless the check found no material defect in what the change does, every approved fix only adds verification",
+    ));
+    expect(method).toMatch(softWrappedProse("with the same exception and conditions as outside a bound delivery"));
+  });
+
   it.each(Object.entries(workflows))("declares bounded residual judgment in %s", async (_name, path) => {
     const workflow = await readPair(path);
     const frontmatter = parseWorkflowFrontmatter(workflow);

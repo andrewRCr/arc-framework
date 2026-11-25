@@ -1,0 +1,108 @@
+{
+  "gitVersion": "git version 2.55.0",
+  "records": [
+    {
+      "scenario": "new",
+      "args": [
+        "fetch",
+        "--porcelain",
+        "--verbose",
+        "--refmap=",
+        "--no-tags",
+        "--prune",
+        "--show-forced-updates",
+        "origin",
+        "refs/heads/*:refs/heads/*"
+      ],
+      "exitCode": 0,
+      "stdout": "* 0000000000000000000000000000000000000000 7d45eb16e903e3baaa0329366cce903213eaceaf refs/heads/example\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "unchanged",
+      "args": [
+        "fetch",
+        "--porcelain",
+        "--verbose",
+        "--refmap=",
+        "--no-tags",
+        "--prune",
+        "--show-forced-updates",
+        "origin",
+        "refs/heads/*:refs/heads/*"
+      ],
+      "exitCode": 0,
+      "stdout": "= 7d45eb16e903e3baaa0329366cce903213eaceaf 7d45eb16e903e3baaa0329366cce903213eaceaf refs/heads/example\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "fast-forward",
+      "args": [
+        "fetch",
+        "--porcelain",
+        "--verbose",
+        "--refmap=",
+        "--no-tags",
+        "--prune",
+        "--show-forced-updates",
+        "origin",
+        "refs/heads/*:refs/heads/*"
+      ],
+      "exitCode": 0,
+      "stdout": "  7d45eb16e903e3baaa0329366cce903213eaceaf 4c5154f05545e5963dd0e38ac3a96cc1cc739436 refs/heads/example\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "refused",
+      "args": [
+        "fetch",
+        "--porcelain",
+        "--verbose",
+        "--refmap=",
+        "--no-tags",
+        "--prune",
+        "--show-forced-updates",
+        "origin",
+        "refs/heads/*:refs/heads/*"
+      ],
+      "exitCode": 1,
+      "stdout": "! 4c5154f05545e5963dd0e38ac3a96cc1cc739436 2dea9cf5238fa3e535f71b1429bdb0530f18e447 refs/heads/example\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "forced",
+      "args": [
+        "fetch",
+        "--porcelain",
+        "--verbose",
+        "--refmap=",
+        "--no-tags",
+        "--prune",
+        "--show-forced-updates",
+        "--force",
+        "origin",
+        "refs/heads/*:refs/heads/*"
+      ],
+      "exitCode": 0,
+      "stdout": "+ 4c5154f05545e5963dd0e38ac3a96cc1cc739436 2dea9cf5238fa3e535f71b1429bdb0530f18e447 refs/heads/example\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "pruned",
+      "args": [
+        "fetch",
+        "--porcelain",
+        "--verbose",
+        "--refmap=",
+        "--no-tags",
+        "--prune",
+        "--show-forced-updates",
+        "origin",
+        "refs/heads/*:refs/heads/*"
+      ],
+      "exitCode": 0,
+      "stdout": "- 2dea9cf5238fa3e535f71b1429bdb0530f18e447 0000000000000000000000000000000000000000 refs/heads/example\n",
+      "stderr": ""
+    }
+  ]
+}

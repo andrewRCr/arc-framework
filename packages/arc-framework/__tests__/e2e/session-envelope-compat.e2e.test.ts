@@ -200,6 +200,14 @@ describe("recovery-audit wire compatibility", () => {
       stopReasons: [],
     });
     await expectGolden("recovery-audit-ready.json", normalized);
+
+    const seedPath = join(fixture.cwd, ".arc", "user", "test-user", ".internal", "compaction-seed.json");
+    const seed = JSON.parse(await readFile(seedPath, "utf8"));
+    seed.locus.extra = { authority: "retired" };
+    await writeFile(seedPath, JSON.stringify(seed));
+
+    const reread = await capture(fixture, ["recover", "audit", "--json"]);
+    await expectGolden("recovery-audit-ready.json", reread);
   });
 
   it("locks the complete post-seed dirty-path-drift report", async () => {

@@ -2,6 +2,9 @@
 import { afterEach, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { startRunnerCli, waitForRunnerObservation } from "../fixtures/checks/runner-cli.js";
 import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { runArc } from "./helpers.js";
@@ -74,8 +77,9 @@ it("reports a failing push files check as feedback beside commit enforcement at 
   expect(JSON.parse(result.stdout).result.checks).toMatchObject([
     { id: "commit", kind: "enforcement", outcome: "failed" },
     { id: "push_files", kind: "feedback", outcome: "failed" },
+    { id: "push_project", kind: "feedback", outcome: "not selected", reason: "runs at the push gate" },
   ]);
-  expect(JSON.parse(result.stdout).result.checks).toHaveLength(2);
+  expect(JSON.parse(result.stdout).result.checks).toHaveLength(3);
 });
 it.each([{ form: ["segment"] }, { form: ["new-head", "--from", "HEAD"] }])("runs commit and push enforcement for $form", async ({ form }) => {
   const root = await fixture();
@@ -93,4 +97,47 @@ it("labels an explicit named request as feedback without a deadline", async () =
   expect(JSON.parse(result.stdout).result.checks).toMatchObject([
     { id: "commit", kind: "feedback", outcome: "passed" }, { id: "manual", kind: "feedback", outcome: "passed" },
   ]);
+});
+
+it("reports a completed build failure before another gate check finishes", async () => {
+  const build = [process.execPath, "-e", `
+const { existsSync } = require("node:fs");
+if (!existsSync("build-repaired")) {
+  process.stderr.write("Build artifact lock refused: EROFS");
+  process.exitCode = 1;
+}
+`];
+  const slow = [process.execPath, "-e", `
+const { existsSync, writeFileSync } = require("node:fs");
+writeFileSync("slow-started", "ready");
+const wait = setInterval(() => {
+  if (existsSync("finish-slow")) clearInterval(wait);
+}, 10);
+setTimeout(() => process.exit(3), 25_000).unref();
+`];
+  const root = await createDeclaredCheckRepository({
+    build: { command: build, gate: "merge" },
+    slow: { command: slow, gate: "merge" },
+  });
+  repositories.push(root);
+  const cli = startRunnerCli(root, {}, ["check", "gate", "merge", "--all", "--force"]);
+  try {
+    await waitForRunnerObservation(join(root, "slow-started"), cli);
+    await expect.poll(() => cli.diagnostics, { timeout: 10_000 }).toContain("Retry: arc check run build --all");
+    expect(cli.diagnostics).toContain("Build artifact lock refused: EROFS");
+    expect(cli.diagnostics).not.toContain("Checks:");
+    expect(cli.closed).toBe(false);
+  } finally {
+    await writeFile(join(root, "finish-slow"), "finish");
+    await cli.completed;
+  }
+
+  const result = await cli.completed;
+  expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+  expect(result.stdout.match(/^build: failed/gmu)).toHaveLength(1);
+  expect(result.stdout).toContain("Checks: 1 failed, 1 passed.");
+
+  await writeFile(join(root, "build-repaired"), "repair");
+  const retry = await runArc(["check", "run", "build", "--all"], root);
+  expect(retry.exitCode, retry.stdout + retry.stderr).toBe(0);
 });

@@ -13,6 +13,8 @@ const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-
 const standardReview = { obligation: "required" as const, reasons: ["sensitive-change-set"] as const,
   rubricVersion: "standard-review/v1", rubricDigest: canonicalDigest({ rubric: "standard" }), retrigger: "full-final" as const, count: 1 as const };
 const lineage = { kind: "head-bound" as const, vehicleKind: "errand", vehicleIdentity: "claim", headSha: target.headSha };
+const fullFinalConsiderations = (facts: Parameters<typeof nextPassConsiderations>[0]) =>
+  nextPassConsiderations(facts, "full-final");
 function input(convergence: "converged" | "unconverged") {
   const nextPassContext = { completePasses: 1, convergence, responseDue: false, incremental: null };
   const facts = nextPassFactsFixture(); facts.chainProven = false; facts.rangeSize.fix = null;
@@ -37,6 +39,24 @@ describe("shared local coverage context", () => {
       state: "coverage-required", action: { choices: [{ requestedCoverage: "incremental", correctionScope: scope },
         { requestedCoverage: "complete" }] },
     });
+  });
+  it("offers the fix check beside a complete pass after converged fixes that change behavior", () => {
+    const base = input("converged");
+    const scope = { schemaVersion: 1 as const, predecessorProducerId: "earlier-minor-producer",
+      predecessorHeadSha: "e".repeat(40), basisHeadSha: "e".repeat(40), headSha: target.headSha, requiredFindings: [] };
+    expect(resolveLocalReviewCoverageSelection({ ...base, facts: nextPassFactsFixture(),
+      nextPassContext: { ...base.nextPassContext, incremental: { basis: "fix-check" as const, scope } } })).toMatchObject({
+      state: "coverage-required", action: { choices: [{ requestedCoverage: "incremental", correctionScope: scope },
+        { requestedCoverage: "complete" }], interactionText: expect.stringContaining("weigh the fix check beside it") },
+    });
+  });
+  it("refuses a fix check after convergence when none is offered", () => {
+    const base = input("converged");
+    const scope = { schemaVersion: 1 as const, predecessorProducerId: "earlier-minor-producer",
+      predecessorHeadSha: "e".repeat(40), basisHeadSha: "e".repeat(40), headSha: target.headSha, requiredFindings: [] };
+    expect(() => resolveLocalReviewCoverageSelection({ ...base,
+      coverageAdmission: { requestedCoverage: "incremental", correctionScope: scope } }))
+      .toThrow("Local review coverage selection does not match a current offered choice.");
   });
   it("keeps the complete-only choice when a material fix has no proven chain", () => {
     expect(resolveLocalReviewCoverageSelection(input("unconverged")))
@@ -82,13 +102,11 @@ it("renders each fact with the decision it informs and asks for an advisory reco
   expect(text).toContain("Fix checks since the last complete pass: 1");
   expect(text).toContain("Fix range: 5 changed lines in 1 file; target: 100 changed lines in 10 files");
   expect(text).toContain("Correction chain: proven");
-  expect(text).toContain("Material trend:");
+  expect(text).toContain("Critical and major findings: Standard pass 1: 2 → 1.");
   expect(text.indexOf("local fix check")).toBeLessThan(text.indexOf("Complete passes:"));
-  expect(text).toContain("Round 1, paths outside cited loci: no");
-  expect(text).toContain("Round 2, paths outside cited loci: yes");
-  expect(text).toContain("Round 2, added files: yes");
-  expect(text).toContain("complete pass 1 of 4: findings, 2 material");
-  expect(text).toContain("fix check, round 1 since pass 1: findings, 1 material");
+  expect(text).toContain("Change signals after fixes: after fix check, round 1 since pass 1, the fixes changed paths "
+    + "outside the cited loci and added files; no signal fired after 1 other fix round.");
+  expect(text).not.toMatch(/Material trend|Round \d,/u);
   expect(text).toContain("a smaller fix range favors a fix check");
   expect(text).toContain("after fix checks converge");
   expect(text).toContain("advisory");
@@ -108,19 +126,75 @@ it("names only the complete pass when the chain fails and asks the agent to chec
   expect(offered.action.interactionText).toMatch(/What do you recommend, why, and what would change your recommendation\?$/u);
 });
 
-it("numbers complete passes and repair rounds independently in the offered trend", () => {
+it("groups the offered critical and major counts by complete pass, not by look", () => {
   const facts = nextPassFactsFixture();
   const complete = { producerId: "complete-2", logicalPass: 4, coverage: "complete" as const,
     outcome: "findings", materialCount: 1, provisional: false };
   const check = { producerId: "fix-check-3", logicalPass: 5, coverage: "fix-check" as const,
     outcome: "clean", materialCount: 0, provisional: false };
-  const text = nextPassConsiderations({ ...facts, completePasses: 2, fixChecksSinceLastComplete: [check],
+  const text = fullFinalConsiderations({ ...facts, completePasses: 2, fixChecksSinceLastComplete: [check],
     materialTrend: [...facts.materialTrend, { ...facts.materialTrend[1]!, producerId: "fix-check-2", logicalPass: 3 },
       complete, check, { ...check, provisional: true }] }).join("\n");
-  expect(text).toContain("complete pass 2 of 4: findings");
-  expect(text).toContain("fix check, round 2 since pass 1: findings");
-  expect(text).toContain("fix check, round 1 since pass 2: clean");
-  expect(text).toContain("round 1: clean");
-  expect(text).not.toContain("complete pass 4");
-  expect(text).not.toContain("round 2 since pass 2");
+  expect(text).toContain("Critical and major findings: Standard pass 1: 2 → 1 → 1; Standard pass 2: 1 → 0 "
+    + "(this look).");
+  expect(text).toContain("Fix checks since the last complete pass: 1 (round 1: clean)");
+  expect(text).not.toContain("pass 4");
+});
+
+it("keeps another complete pass the default when fix checks converge after a high-yield complete pass", () => {
+  const facts = nextPassFactsFixture();
+  const [complete, check] = facts.materialTrend;
+  const text = fullFinalConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 12 },
+    { ...check!, materialCount: 2 }, { ...check!, producerId: "fix-check-2", logicalPass: 3, materialCount: 0,
+      provisional: true }] }).join("\n");
+  expect(text).toContain("Critical and major findings: Standard pass 1: 12 → 2 → 0 (this look). "
+    + "Complete pass 1 found 12.");
+  expect(text).toContain("until a complete pass finds no critical or major finding, another complete pass after fix "
+    + "checks converge is the default. Recommending a stop before then needs a reason specific to this change. "
+    + "An Owner's decision on where review stops ends this default.");
+  expect(text).toContain("Prefer a different source for a successor pass.");
+  expect(text).not.toMatch(/favou?r stopping/u);
+  const met = fullFinalConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 0 }] }).join("\n");
+  expect(met).toContain("Complete pass 1 found none, which meets the review's bar. If later repairs make that "
+    + "assessment cease to hold, another complete pass is due under the re-inspection test.");
+  expect(met).not.toContain("is the default");
+});
+
+it("names an incremental lane's closure on converged fix checks instead of a successor default", () => {
+  const facts = nextPassFactsFixture();
+  const [complete, check] = facts.materialTrend;
+  const text = nextPassConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 12 },
+    { ...check!, materialCount: 0, provisional: true }] }, "incremental").join("\n");
+  expect(text).toContain("Complete pass 1 found 12. Fix checks show whether repairs hold, not what a complete pass "
+    + "missed. This lane's policy closes it once the fix-check chain converges; a further complete pass runs only if "
+    + "the Owner directs one.");
+  expect(text).not.toContain("is the default");
+  expect(text).not.toContain("Prefer a different source");
+  expect(text).toContain("a broad range supports considering an additional complete pass the Owner directs once fix "
+    + "checks converge.");
+  expect(text).toContain("either favors an additional complete pass the Owner directs once fix checks converge");
+  expect(text).not.toContain("a complete pass after fix checks converge");
+  const met = nextPassConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 0 }] }, "incremental")
+    .join("\n");
+  expect(met).toContain("Complete pass 1 found none, which meets the review's bar.");
+  expect(met).not.toContain("re-inspection test");
+  const offered = resolveLocalReviewCoverageSelection({ ...input("unconverged"),
+    standardReview: { ...standardReview, retrigger: "incremental" as const } });
+  if (offered.state !== "coverage-required") throw new Error("expected coverage offer");
+  expect(offered.action.interactionText).toContain("This lane's policy closes it once the fix-check chain converges");
+});
+
+it("says when no look found a critical or major finding, and when there is no look yet", () => {
+  const facts = nextPassFactsFixture();
+  const zero = facts.materialTrend.map(look => ({ ...look, materialCount: 0 }));
+  expect(fullFinalConsiderations({ ...facts, materialTrend: zero }).join("\n"))
+    .toContain("Critical and major findings: none at any look.");
+  expect(fullFinalConsiderations({ ...facts, materialTrend: [], fixRounds: [] }).join("\n"))
+    .toContain("Critical and major findings: no completed looks.");
+  expect(fullFinalConsiderations({ ...facts, fixRounds: [] }).join("\n")).not.toContain("Change signals");
+  const quiet = facts.fixRounds.map(round => ({ ...round, outsideCitedLoci: false, addedFiles: false }));
+  expect(fullFinalConsiderations({ ...facts, fixRounds: quiet }).join("\n"))
+    .toContain("Change signals after fixes: no signal fired after 2 fix rounds.");
+  expect(fullFinalConsiderations({ ...facts, fixRounds: quiet.slice(0, 1) }).join("\n"))
+    .toContain("Change signals after fixes: no signal fired after 1 fix round.");
 });

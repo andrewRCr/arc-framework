@@ -142,6 +142,23 @@ versions will validate manifest entries against files on disk.
 
 - **INFO** — manifest present or absent (both are valid states).
 
+### Git Maintenance
+
+Checks the repository's object directory for `maintenance.lock`, including when verification runs from a linked
+worktree. An interrupted maintenance process can leave this lock behind and prevent later maintenance from running.
+
+**Severity:**
+
+- **WARN** — the lock exists, or Git cannot resolve its path. A present lock may belong to running maintenance;
+  the check reports its presence without determining whether it is abandoned.
+- **PASS** — Git resolved the path and no maintenance lock exists.
+
+**Remediation:** Confirm no Git maintenance process is running, including outside the current agent sandbox. Wait for
+active maintenance to finish. Once the lock is confirmed abandoned, remove the reported lock and run
+`git maintenance run --task=gc`. To prevent interrupted sandbox commands from leaving locks again, run
+`git maintenance start` outside the sandbox to schedule maintenance and disable commit-triggered automatic maintenance.
+Verification leaves the lock and Git configuration untouched.
+
 ## Agent Role
 
 When invoked via the `arc-verify` skill:

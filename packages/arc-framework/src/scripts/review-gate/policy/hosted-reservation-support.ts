@@ -22,7 +22,7 @@ import {
 } from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
-import type { ReviewResolveEnvelope } from "./review-policy-driver.js";
+import type { ReviewResolveEnvelope, ReviewPolicyCommandRequest } from "./review-policy-driver.js";
 import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
@@ -303,6 +303,7 @@ export function pendingHostedReservationReview(
   }[],
   reservation: StandardReviewReservationV1,
   position: "current" | "retained",
+  bindOperationRef?: (operationId: string) => string,
 ): HostedReservationDischarge | null {
   const pending = attempts.filter((attempt) => attempt.outcome === "pending"
     && reservation.sources.includes(attempt.sourceId));
@@ -322,7 +323,8 @@ export function pendingHostedReservationReview(
     detail: `Hosted source \`${attempt.sourceId}\` has one ${position === "retained" ? "retained " : ""}`
       + "pending request awaiting a verdict.",
     nextSource: null,
-    awaitAction: { schemaVersion: 1, handle },
+    awaitAction: { schemaVersion: 1, handle,
+      ...(bindOperationRef === undefined ? {} : { operationRef: bindOperationRef(handle.admission.admissionId) }) },
   };
 }
 
@@ -424,7 +426,7 @@ export interface HostedReservationRequestAttempt {
 export interface PendingFindingRoute {
   readonly sourceId: string;
   readonly responsePlan?: HostedFindingsResponsePlan;
-  readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
+  readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string; readonly operationRef?: string };
 }
 
 export function projectPendingFindings(
@@ -482,8 +484,10 @@ export interface HostedReservationDischarge {
   applicabilityAuthority?: "decision-required" | "blocked";
   responsePlan?: HostedFindingsResponsePlan;
   awaitAction?: HostedAwaitEnvelope;
-  localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
+  localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string; readonly operationRef?: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
+  /** Verified terminal producer whose stored extra-pass judgment opened the next request. */
+  terminalAttempt?: ReviewPolicyCommandRequest["attempts"][number];
   /** Existing admitted source choice carried into a native request continuation. */
   invocation?: HostedRequestEnvelope["invocation"];
   completedPasses?: number;

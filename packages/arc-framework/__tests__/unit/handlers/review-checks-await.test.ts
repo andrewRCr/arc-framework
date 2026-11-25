@@ -122,9 +122,22 @@ describe("handleReviewChecksAwait timing", () => {
     },
     { label: "caps the configured interval to a shorter flagged bound", flags: { timeoutMs: "2000" }, expected: [2_000, 2_000] },
   ])("$label", async ({ flags, expected }) => {
-    const { awaited, exitCode } = await run({ ...target, ...flags });
+    const { awaited, exitCode, result } = await run({ ...target, ...flags });
     expect(awaited).toEqual([{ timeoutMs: expected[0], pollIntervalMs: expected[1] }]);
     expect(exitCode).toBeUndefined();
+    expect(result).not.toHaveProperty("diagnostics");
+  });
+
+  it("waits up to each limit for over-limit flags and names what it applied", async () => {
+    const { awaited, exitCode, result } = await run({ ...target, timeoutMs: "3600000", pollIntervalMs: "120000" });
+    expect(awaited).toEqual([{ timeoutMs: 1_800_000, pollIntervalMs: 60_000 }]);
+    expect(exitCode).toBeUndefined();
+    expect(result).toMatchObject({ state: "green", nextAction: "complete", diagnostics: [
+      { code: "await-timing-limited",
+        message: "--timeout-ms is above the 30-minute limit, so this call waits up to 30 minutes." },
+      { code: "await-timing-limited",
+        message: "--poll-interval-ms is above the 60-second limit, so this call starts polling every 60 seconds." },
+    ] });
   });
 
   it.each([
@@ -139,6 +152,36 @@ describe("handleReviewChecksAwait timing", () => {
       flags: { timeoutMs: "1000", pollIntervalMs: "2000" },
       timeoutSeconds: "900",
       detail: "--poll-interval-ms must not exceed --timeout-ms",
+    },
+    {
+      label: "an over-limit flagged interval longer than its over-limit bound",
+      flags: { timeoutMs: "2000000", pollIntervalMs: "2500000" },
+      timeoutSeconds: "900",
+      detail: "--poll-interval-ms must not exceed --timeout-ms",
+    },
+    {
+      label: "an infinite flagged bound",
+      flags: { timeoutMs: "Infinity" },
+      timeoutSeconds: "900",
+      detail: "--timeout-ms must be a positive whole number",
+    },
+    {
+      label: "a fractional over-limit flagged bound",
+      flags: { timeoutMs: "3600000.5" },
+      timeoutSeconds: "900",
+      detail: "--timeout-ms must be a positive whole number",
+    },
+    {
+      label: "a fractional over-limit flagged interval",
+      flags: { pollIntervalMs: "120000.5" },
+      timeoutSeconds: "900",
+      detail: "--poll-interval-ms must be a positive whole number",
+    },
+    {
+      label: "an infinite flagged interval inside an infinite flagged bound",
+      flags: { timeoutMs: "Infinity", pollIntervalMs: "Infinity" },
+      timeoutSeconds: "900",
+      detail: "--timeout-ms must be a positive whole number",
     },
   ])("refuses $label as invalid input without waiting", async ({ flags, timeoutSeconds, detail }) => {
     const { awaited, exitCode, result } = await run({ ...target, ...flags }, timeoutSeconds);

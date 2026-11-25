@@ -78,6 +78,7 @@ const SURFACE_RULES: readonly SurfaceRule[] = [
       !path.endsWith(".md") &&
       (path.startsWith("packages/arc-framework/src/") ||
         path.startsWith("packages/arc-framework/bin/") ||
+        path.startsWith("packages/arc-framework/examples/") ||
         path.startsWith("packages/arc-framework/eslint/") ||
         path.startsWith("packages/arc-framework/arc/system/.internal/githooks/") ||
         path.startsWith("packages/arc-framework/arc/system/.internal/harness-hooks/") ||

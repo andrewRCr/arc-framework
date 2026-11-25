@@ -7,8 +7,8 @@ Command patterns and environment context for the ARC framework.
 **Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
-**On-demand sections**: `Command Patterns`, `ARC CLI Commands`,
-`npm Publishing` — load on demand when workflow steps reference them.
+**On-demand sections**: `Command Patterns`, `ARC CLI Commands`, `Platform Commands`, `npm Publishing` — load on
+demand when workflow steps reference them.
 
 ### Critical Path Reference
 
@@ -207,14 +207,14 @@ when controller evidence is absent; that convenience owns generation alone and d
 > not local source, so changes you make here wouldn't run. Use `npx arc <command>` for every ARC
 > CLI command in the sections below; npm workspaces symlinks the local package binary into
 > `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires a current build (the
-> binary points at `packages/arc-framework/dist/cli.js`); the guard refuses against a stale one,
-> and `npm run build:fast` regenerates qualified runtime output. This guidance applies only
-> to the self-hosting repo; adopter projects install the published CLI globally and use `arc`
-> directly.
+> binary points at `packages/arc-framework/dist/cli.js`); the guard rebuilds a stale one and runs
+> the command again, refusing only when that rebuild fails, and `npm run build:fast` regenerates
+> qualified runtime output. This guidance applies only to the self-hosting repo; adopter projects
+> install the published CLI globally and use `arc` directly.
 
 ### Command Prerequisites and Remote Access
 
-ARC requires Node.js 24 or newer and Git 2.45 or newer.
+ARC requires Node.js 24 or newer and Git 2.53 or newer.
 
 `npx arc status --session-init --json` is passive for code-repository evidence: it reads one live advertised-head
 generation and inspects only objects already present locally. It does not fetch code objects, update or create code

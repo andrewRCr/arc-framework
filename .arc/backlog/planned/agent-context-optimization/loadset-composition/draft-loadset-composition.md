@@ -144,6 +144,11 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
 - _Captured during:_ `recovery-load-scoping` retirement (2026-07-24). The analysis doc is the record-of-record;
   this capture is the pointer.
 
+- _Additional evidence:_ the always-loaded audit, a `reviewer` pass for `project-manager.ARC` (2026-11-12,
+  Owner-approved; routed from `USER-INBOX § Work Unit`, housekeep drain, 2026-11-16), measured item 1's shared lines at
+  about 55 words (the hybrid layout, commands from the repository root, the quality tools), and found fresh reviewers
+  read the brief but not `QUICK-REFERENCE`, so the brief is the side with a second readership.
+
 ### `[ ]` **Retire the vestigial `session-state` method**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: loadset-composition`), housekeep drain
@@ -155,6 +160,23 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
   method from both copies, the install recipe and manifest, classification configuration, both lifecycle
   workflows, and the session-init template. Keep this with the load-set owner rather than treating deletion as
   a standalone cleanup.
+
+### `[ ]` **Record in `loadset-composition`'s draft that its always-loaded trims for session-init moved to `session-init-agenda`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ § Working Framing's decision rule, and the layers its meta records as independent of
+  `composable-workflows` (the decision rule and the manifest audit).
+
+- _Observation:_ the Owner carved the session-init overhaul as `session-init-agenda` (2026-10-31, in draft-design):
+  `composable-workflows`' D3 applied to session-init, with this draft's always-loaded trims (Gate B,
+  `RELEASE-GATES.md`, 2026-10-30). This draft still owns those trims, so two drafts claim the same decisions.
+
+- _Approach:_ record which trims and layers `session-init-agenda` takes, likely the always-loaded set's reductions and
+  whatever of the decision rule and manifest audit its design applies; keep the loop canon and the rest here, after the
+  deadline. Read `session-init-agenda`'s specification for what it took.
+
+- _Captured during:_ PM sequencing of the session-init start, 2026-10-31.
 
 ---
 

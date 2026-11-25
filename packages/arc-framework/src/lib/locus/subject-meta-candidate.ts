@@ -6,11 +6,13 @@ import { recordReferences, type OwnerIdentity } from "../store/identity.js";
 /** Read Candidate bytes while preserving Store refusals and unresolved conflict authority.
  * @param store - The same operational Store that acquired the work-unit record.
  * @param owner - The work unit's already-resolved owner, including its generation UID.
- * @returns Exact Candidate content for the existing delivery parser and projectors.
+ * @returns Exact Candidate content for the existing delivery parser and projectors, or null when the work unit holds
+ * no Candidate record.
  */
-export async function readStoreSubjectCandidate(store: Store, owner: OwnerIdentity): Promise<string> {
+export async function readStoreSubjectCandidate(store: Store, owner: OwnerIdentity): Promise<string | null> {
   const reference = recordReferences["review/candidate"](owner);
   const read = await store.read({ reference });
+  if (read.status === "refused" && read.refusal.code === "not-found") return null;
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   if (read.result.conflicts.length > 0) {
     throw new Error(`Candidate record for ${owner.name} has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);

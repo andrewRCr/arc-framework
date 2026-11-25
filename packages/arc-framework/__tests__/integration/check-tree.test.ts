@@ -1,10 +1,12 @@
 /** Real Git staging semantics for check-request snapshots. */
 import { afterEach, expect, it } from "vitest";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, rename, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
-import { readTreeChange, stagedWorktreeTree } from "../../src/lib/checks/tree.js";
+import { refreshFixerContent } from "../../src/lib/checks/fixers.js";
+import { createWorktreeSnapshot, readTreeChange, stagedWorktreeTree } from "../../src/lib/checks/tree.js";
+import { readCheckHead } from "../../src/lib/checks/head.js";
 
 const git = createExecaGitExec();
 const repositories: string[] = [];
@@ -19,6 +21,13 @@ async function fixture(): Promise<string> {
   await git("git", ["add", "-A"], { cwd });
   await git("git", ["commit", "-m", "base"], { cwd });
   return cwd;
+}
+
+// A whole-second mtime two seconds back makes an index Git writes now look newer than the entry, as a backward
+// wall-clock step does. With ctime untrusted, a same-size rewrite given that mtime keeps the entry's cached stat.
+async function keepCachedStat(cwd: string): Promise<Date> {
+  await git("git", ["config", "core.trustctime", "false"], { cwd });
+  return new Date(Math.floor(Date.now() / 1000) * 1000 - 2_000);
 }
 
 it("includes staged, unstaged, and admitted untracked content, excluding ignored files", async () => {
@@ -74,4 +83,34 @@ it("leaves the real index and worktree bytes unchanged", async () => {
   expect(await readFile(join(cwd, ".git", "index"))).toEqual(indexBefore);
   expect(await readFile(join(cwd, "unstaged.txt"), "utf8")).toBe("worktree\n");
   expect(await readFile(join(cwd, "new.txt"), "utf8")).toBe("untracked\n");
+});
+
+it("re-reads a same-size rewrite that keeps a staged file's cached stat", async () => {
+  const cwd = await fixture();
+  const mtime = await keepCachedStat(cwd);
+  const path = join(cwd, "staged.txt");
+  await writeFile(path, "changed\n");
+  await utimes(path, mtime, mtime);
+  await git("git", ["add", "staged.txt"], { cwd });
+  await writeFile(path, "forming\n");
+  await utimes(path, mtime, mtime);
+  const tree = await stagedWorktreeTree(git, cwd);
+  expect((await git("git", ["show", `${tree}:staged.txt`], { cwd })).stdout).toBe("forming");
+});
+
+it("reports a fixer's same-size rewrite that keeps the snapshot's cached stat", async () => {
+  const cwd = await fixture();
+  const mtime = await keepCachedStat(cwd);
+  const path = join(cwd, "unstaged.txt");
+  await utimes(path, mtime, mtime);
+  const snapshot = await createWorktreeSnapshot(git, cwd);
+  try {
+    const coordinates = { scope: { kind: "all" as const }, tree: snapshot.tree, snapshot, worktreeTree: snapshot.tree,
+      source: { kind: "worktree" as const, head: await readCheckHead(git, cwd) } };
+    await writeFile(path, "edit\n");
+    await utimes(path, mtime, mtime);
+    expect(await refreshFixerContent(git, cwd, coordinates)).toEqual(["unstaged.txt"]);
+  } finally {
+    await snapshot.remove();
+  }
 });

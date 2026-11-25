@@ -7,6 +7,7 @@ import type { StandardReviewObligationProjection } from "./policy/standard-revie
 import { projectHostedIncrementalRefusal, projectReviewDriverRefusal, ReviewDriverRefusalReasonSchema, ReviewDriverRefusalSchema } from "./status-driver-refusal.js";
 import { routeDischargeCoverageOffer, type ReviewStatusRoute } from "./status-route.js";
 import { z } from "zod";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "./core/review-operation-reference.js";
 
 import {
   BaseMovementObservationSchema,
@@ -41,6 +42,7 @@ import {
   type HostedReviewCoverage,
 } from "./hosted/request.js";
 import { HostedAwaitEnvelopeSchema } from "./hosted/await.js";
+import { ErrandReviewContinuationDecisionSchema } from "./errand-review-continuation.js";
 import { HostReviewStatusSchema, type HostReviewStatus } from "./host-review.js";
 import { ReviewContributionApplicabilityResultSchema } from
   "./policy/review-contribution-applicability.js";
@@ -65,10 +67,10 @@ import {
 import {
   DeliveryReviewTerminusAcceptanceActionSchema,
 } from "./policy/delivery-review-terminus.js";
-import type { DeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
+import type { ResolvedDeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
 import {
   ContinuePrePublicationActionSchema,
-  RunConvergenceVerificationActionSchema,
+  PublishedRunConvergenceVerificationActionSchema,
   RunSelfReviewActionSchema,
 } from "./policy/integration-boundary-locus.js";
 import {
@@ -251,8 +253,10 @@ export const DeliveryReviewCursorSchema = z.strictObject({
 
 export const DeliveryLocalResumeActionSchema = z.strictObject({
   schemaVersion: z.literal(1),
+  operationRef: NativeReviewOperationRefSchema.optional(),
   operationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u),
-});
+}).refine(value => value.operationRef === undefined || nativeReviewOperationReferenceMatches(value.operationRef, value.operationId),
+{ path: ["operationRef"], message: "reference must match the requested operation" });
 
 const RoutedReviewCoverageRefusalSchema = z.strictObject({
   state: z.literal("blocked"),
@@ -277,7 +281,7 @@ const RoutedReviewCoverageRequiredSchema = z.strictObject({
 const PrePublicationContinuationSchema = z.discriminatedUnion("kind", [
   RunSelfReviewActionSchema,
   ContinuePrePublicationActionSchema,
-  RunConvergenceVerificationActionSchema,
+  PublishedRunConvergenceVerificationActionSchema,
 ]);
 
 export const RoutedReviewObligationSchema = z.union([
@@ -324,6 +328,12 @@ export const RoutedReviewObligationSchema = z.union([
     detail: z.string().min(1),
     scope: z.literal("errand"),
     action: HostedRequestEnvelopeSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    scope: z.literal("errand"),
+    continuationDecision: ErrandReviewContinuationDecisionSchema,
   }),
   z.strictObject({
     state: z.literal("review-required"),
@@ -494,7 +504,7 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
     readonly coverageSelectionAction?: ReviewCoverageSelectionAction;
     readonly completedPasses: number;
   };
-  readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  readonly ownerTermini?: readonly ResolvedDeliveryReviewMemberTerminus[];
   readonly ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): boolean {
   const terminus = input.ownerTermini?.find((record) => {
@@ -755,7 +765,7 @@ export function composeDeliveryReviewObligation(input: {
   };
   requestCoverage?: HostedReviewCoverage;
   requestInvocation?: { readonly mode: "force"; readonly sourceId: string };
-  ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  ownerTermini?: readonly ResolvedDeliveryReviewMemberTerminus[];
   ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): RoutedReviewObligation {
   if (input.targets.length === 0 || input.targets.length !== input.discharges.length) {
@@ -1050,6 +1060,12 @@ const ReviewStatusHostedRequestSchema = z.strictObject({
   action: HostedRequestEnvelopeSchema,
   terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
+const ReviewStatusContinuationDecisionSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("decide-review-continuation"),
+  decision: ErrandReviewContinuationDecisionSchema,
+});
 const ReviewStatusHostedAwaitSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("review-required"),
@@ -1192,6 +1208,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusRunReviewSchema>
   | z.infer<typeof ReviewStatusPrePublicationSchema>
   | z.infer<typeof ReviewStatusHostedRequestSchema>
+  | z.infer<typeof ReviewStatusContinuationDecisionSchema>
   | z.infer<typeof ReviewStatusHostedAwaitSchema>
   | z.infer<typeof ReviewStatusLocalPrepareSchema>
   | z.infer<typeof ReviewStatusSingletonLocalPrepareSchema>
@@ -1215,6 +1232,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusRunReviewSchema,
   ReviewStatusPrePublicationSchema,
   ReviewStatusHostedRequestSchema,
+  ReviewStatusContinuationDecisionSchema,
   ReviewStatusHostedAwaitSchema,
   ReviewStatusLocalPrepareSchema,
   ReviewStatusSingletonLocalPrepareSchema,
@@ -1527,16 +1545,6 @@ export async function resolveReviewStatus(
         : { deliveryCursor: projectDeliveryReviewCursor(conjunction, currentMember) }),
       detail: base.routedObligation.detail, remedy: base.routedObligation.remedy };
   }
-  if (base.currentBaseOid === null) {
-    return {
-      ...base,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "status-unavailable",
-      detail: "The current base revision is unavailable.",
-      remedy: reviewStatusRetryRemedy(request.target),
-    };
-  }
   if (base.routedObligation.state === "blocked") {
     if ("reason" in base.routedObligation && currentMember !== null && conjunction !== undefined) {
       return ReviewStatusCoverageRefusalSchema.parse({
@@ -1563,6 +1571,16 @@ export async function resolveReviewStatus(
       nextAction: "stop",
       reason: "status-unavailable",
       detail: base.routedObligation.detail,
+      remedy: reviewStatusRetryRemedy(request.target),
+    };
+  }
+  if (base.currentBaseOid === null) {
+    return {
+      ...base,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail: "The current base revision is unavailable.",
       remedy: reviewStatusRetryRemedy(request.target),
     };
   }
@@ -1598,6 +1616,10 @@ export async function resolveReviewStatus(
         nextAction: "review-hosted-await",
         action: base.routedObligation.awaitAction,
       };
+    }
+    if ("continuationDecision" in base.routedObligation) {
+      return { ...base, state: "review-required", nextAction: "decide-review-continuation",
+        decision: base.routedObligation.continuationDecision };
     }
     if ("action" in base.routedObligation) {
       return {

@@ -35,23 +35,20 @@ Confirm that `.arc/` was created at the repo root with the expected structure:
 No active meta file exists yet — per-WU meta files (`meta-{name}.md`) are created
 in `.arc/active/` at first work unit activation, not at init.
 
-Initial session state lives in the bootstrap Persistent Context entry in `.arc/user/{identity}/SESSION-NOTES.md`,
-pre-populated by `arc init`:
+Initial session state lives in the bootstrap entry `arc init` seeds into `.arc/user/{identity}/WORKING-MEMORY.md`:
 
 ```markdown
-## Persistent Context
+## Memories
 
 **Post-install setup:**
 _Remove when: initial-setup sequence complete._
 
-- First session after `arc init`. Work through the initial-setup sequence,
-  starting at `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`.
-  The workflow guides onward steps.
+- First session after `arc init`. Work through the initial-setup sequence, starting at
+  `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`. The workflow guides onward steps.
 ```
 
-Confirm the entry is present. Session-init treats Persistent Context as active
-constraints, so the next `arc-session` invocation surfaces the pointer to this
-workflow in its orientation output.
+Confirm the entry is present. Session-init loads WORKING-MEMORY in every session, so the next `arc-session` invocation
+surfaces the pointer to this workflow in its orientation output.
 
 ### Verify Agent Configuration
 
@@ -61,9 +58,9 @@ settings for that agent platform.
 
 ### User Workspace
 
-`arc init` created `user/{identity}/` as a personal workspace directory (gitignored).
-This is where session-specific files live — SESSION-NOTES.md (written at session handoff),
-and with arc-in-git PM mode, ATOMIC-INBOX.md (deferred tasks).
+`arc init` created `user/{identity}/` as a personal workspace directory (gitignored), seeded with WORKING-MEMORY.md
+(context that spans work units) and USER-INBOX.md (concerns captured for later). Each work unit's SESSION-NOTES.md
+lives in `user/{identity}/{work-unit}/`, created when the work unit starts and written at session handoff.
 
 Confirm identity is set:
 

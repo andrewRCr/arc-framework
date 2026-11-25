@@ -3,6 +3,8 @@ import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOp
 
 import type { GitExecInput } from "../git/exec.js";
 import { syncLocalBase } from "../git/base-sync.js";
+import { createProjectionRemovalSlots } from "../store/projection/removal-slots.js";
+import { passingProjectionRemovalSlots } from "../git/worktree-removal.js";
 import { provisionTransientLocus } from "../locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import { runDerivedLocusStateProbe } from "../../handlers/derived-locus-state-probe.js";
@@ -78,7 +80,8 @@ export async function openOrdinaryErrandAtRuntime(
 export async function openOrdinaryErrandAtRuntimeWithDisposition(
   options: OpenOrdinaryErrandRuntimeOptions,
 ): Promise<OpenOrdinaryErrandExecution> {
-  return openOrdinaryErrandWithDisposition({
+  let spawnLock: OpenOrdinaryErrandExecution["spawnLock"];
+  const execution = await openOrdinaryErrandWithDisposition({
     slug: options.slug,
     type: options.type,
     intent: options.intent,
@@ -181,10 +184,12 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           : { kind: "generation-mismatch" as const };
       },
       provision: async (request) => {
-        return provisionTransientLocus({
+        const provisioned = await provisionTransientLocus({
           ...request,
           dependencies: createNodeProvisioningDependencies({
             exec: options.exec,
+            projectionRemovalSlots: options.store === undefined ? passingProjectionRemovalSlots
+              : createProjectionRemovalSlots({ store: options.store, identity: options.identity }),
             base: options.base,
             branch: request.branch,
             ...(options.syncBase ? {
@@ -194,9 +199,14 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
             registeredHarnessDirs: options.registeredHarnessDirs,
           }),
         });
+        if (provisioned.kind === "provisioned" && provisioned.receipt.lock !== undefined) {
+          spawnLock = { checkoutPath: provisioned.receipt.checkoutPath, lock: provisioned.receipt.lock };
+        }
+        return provisioned;
       },
     },
   });
+  return spawnLock === undefined ? execution : { ...execution, spawnLock };
 }
 
 function matchesExpectedResumeGeneration(

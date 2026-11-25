@@ -281,7 +281,6 @@ function localDependencies(
 ) {
   const publishOperation = vi.fn();
   const appendOutcome = vi.fn();
-  const appendDispositionRecord = vi.fn();
   const adapterDependencies: ReviewReductionAdapterDependencies = {
     operationStore: {
       readOperation: async () => ({ version: 1, state: records.operation }),
@@ -298,7 +297,6 @@ function localDependencies(
     resultReader: { readResult: async () => localResult(records) },
     dispositionStore: {
       readDispositionRecord: async () => disposition,
-      appendDispositionRecord,
     },
     readReceiptEntries: async () => [{
       receipt: records.receipt,
@@ -314,7 +312,6 @@ function localDependencies(
     adapterDependencies,
     publishOperation,
     appendOutcome,
-    appendDispositionRecord,
   };
 }
 
@@ -726,7 +723,6 @@ function frontlineDependencies(
 ) {
   const publishOperation = vi.fn();
   const appendOutcome = vi.fn();
-  const appendDispositionRecord = vi.fn();
   const adapterDependencies: ReviewReductionAdapterDependencies = {
     operationStore: {
       readOperation: async () => ({ version: 2, state: records.state }),
@@ -743,7 +739,6 @@ function frontlineDependencies(
     resultReader: { readResult: async () => frontlineResult(records, record) },
     dispositionStore: {
       readDispositionRecord: async () => disposition,
-      appendDispositionRecord,
     },
     readReceiptEntries: vi.fn(),
     confirmTarget: async (target) => ({ state: "current", target }),
@@ -756,7 +751,6 @@ function frontlineDependencies(
     adapterDependencies,
     publishOperation,
     appendOutcome,
-    appendDispositionRecord,
   };
 }
 
@@ -824,7 +818,6 @@ describe("review reduction command: frontline", () => {
     }, setup.dependencies)).resolves.toMatchObject({ state: "stale-target" });
     expect(setup.publishOperation).not.toHaveBeenCalled();
     expect(setup.appendOutcome).not.toHaveBeenCalled();
-    expect(setup.appendDispositionRecord).not.toHaveBeenCalled();
   });
 
   it("rejects a missing or digest-mismatched outcome behind a terminal claim", async () => {

@@ -167,7 +167,7 @@ describe("ROADMAP conflict auto-remedy wiring", () => {
     const markerCheckIndex = block.indexOf("conflict_markers=");
     const remedyCommands = [
       'node --import "$tsx_loader" packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts',
-      "arc hook-remedy-roadmap-conflict",
+      "run_arc_cli hook-remedy-roadmap-conflict",
     ];
     for (const command of remedyCommands) {
       expect(block.indexOf(command)).toBeGreaterThanOrEqual(0);

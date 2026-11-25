@@ -894,7 +894,7 @@ describe("arc delivery", () => {
       candidateSubjectDigest: candidate.subject.subjectDigest,
       reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 44 },
-    });
+    }, 1);
     const continuation = projectDeliveryPublicReviewContinuation({
       plan,
       state,

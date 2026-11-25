@@ -23,9 +23,17 @@ function nextPassCoverage(consequence: Extract<ProvisionalFixConsequence, { kind
       : ", covering only the fix where its chain is proven";
 }
 
+/** Both looks a minor-only fix admits, the complete pass first below the ceiling and after the fix check at it. */
+function eitherLookText(belowCeiling: boolean, nextPass: string, nextFixCheck: string): string {
+  return belowCeiling
+    ? `${nextPass}, or a ${nextFixCheck}, where its chain is proven`
+    : `a ${nextFixCheck}, where its chain is proven, or another complete pass, which needs a ceiling decision`;
+}
+
 function fixConsequenceText(
   consequence: ProvisionalFixConsequence,
   lane: "frontline" | "standard",
+  belowCeiling: boolean,
   nextPass: string,
   nextFixCheck: string,
 ): string {
@@ -37,6 +45,9 @@ function fixConsequenceText(
     case "next-pass": {
       if (lane === "standard" && consequence.coverage === "incremental-when-proven") {
         return ` Approving a FIX moves the head, which needs a ${nextFixCheck}, where its chain is proven.`;
+      }
+      if (lane === "standard" && consequence.coverage === "complete-or-incremental") {
+        return ` Approving a FIX moves the head, which needs ${eitherLookText(belowCeiling, nextPass, nextFixCheck)}.`;
       }
       return ` Approving a FIX moves the head, which needs ${nextPass}${nextPassCoverage(consequence, lane)}.`;
     }
@@ -51,6 +62,7 @@ function fixConsequenceText(
 function nextActivityText(
   consequence: ProvisionalFixConsequence,
   lane: "frontline" | "standard",
+  belowCeiling: boolean,
   nextPass: string,
   nextFixCheck: string,
 ): string | null {
@@ -60,8 +72,11 @@ function nextActivityText(
     case "lane-closes":
       return `no further ${lane === "standard" ? "standard complete" : lane} pass`;
     case "next-pass":
-      return lane === "standard" && consequence.coverage === "incremental-when-proven"
-        ? `${nextFixCheck}, where its chain is proven`
+      if (lane === "standard" && consequence.coverage === "incremental-when-proven") {
+        return `${nextFixCheck}, where its chain is proven`;
+      }
+      return lane === "standard" && consequence.coverage === "complete-or-incremental"
+        ? eitherLookText(belowCeiling, nextPass, nextFixCheck)
         : `${nextPass}${nextPassCoverage(consequence, lane)}`;
     case "ceiling-decision":
       return `another ${lane === "standard" ? "complete pass" : "pass"}, which needs a ceiling decision`;
@@ -92,14 +107,50 @@ function fixCheckRound(result: ReviewResult, facts: NextPassFacts): number {
   return round;
 }
 
-function standardPositionText(result: ReviewResult, facts: NextPassFacts, ceiling: number): string {
-  if (result.admission.effectiveCoverage === "complete") {
-    return `Standard complete pass ${facts.completePasses} of ${ceiling}`;
+/** Hosted providers by the name a report gives them; an unlisted provider keeps its source identifier. */
+const HOSTED_SOURCE_NAMES: Readonly<Record<string, string>> = { "coderabbit-pr": "CodeRabbit", "codex-pr": "Codex" };
+
+/** The source a code-review report names: the provider when the review is hosted, otherwise the local reviewer. */
+function sourceText(result: ReviewResult): string {
+  switch (result.kind) {
+    case "hosted":
+      return `${HOSTED_SOURCE_NAMES[result.sourceIdentity] ?? result.sourceIdentity} (hosted)`;
+    case "attested-local":
+      return "delegated agent (local)";
+    case "frontline":
+      return `${result.sourceIdentity} (local)`;
   }
-  if (result.admission.effectiveCoverage === null) {
-    return `Standard review with unproven coverage; ${facts.completePasses} complete passes of ${ceiling}`;
-  }
-  return `Standard fix check, round ${fixCheckRound(result, facts)} since pass ${facts.completePasses}`;
+}
+
+/**
+ * Mark a pass at or past the configured limit, where another pass needs an override; below it the limit goes unsaid,
+ * since the reader configured it.
+ */
+function limitNote(pass: number, limit: number): string {
+  return pass < limit ? "" : pass === limit ? " (limit reached)" : " (over limit)";
+}
+
+function standardPosition(result: ReviewResult, facts: NextPassFacts, ceiling: number): string {
+  const pass = facts.completePasses;
+  const note = limitNote(pass, ceiling);
+  if (result.admission.effectiveCoverage === "complete") return `pass ${pass}${note}`;
+  if (result.admission.effectiveCoverage === null) return `unproven coverage since pass ${pass}${note}`;
+  return `fix check, round ${fixCheckRound(result, facts)} since pass ${pass}${note}`;
+}
+
+/** Name the review kind, then the look's position, then its source. */
+function positionText(input: {
+  lane: "frontline" | "standard";
+  result: ReviewResult;
+  admittedLogicalPass: number;
+  configuredMaxPasses: number;
+  standardFacts?: ProvisionalStandardPassFacts;
+}): string {
+  const position = input.lane === "standard" && input.standardFacts !== undefined
+    ? `Standard code review — ${standardPosition(input.result, input.standardFacts.facts, input.configuredMaxPasses)}`
+    : `Frontline code review — pass ${input.admittedLogicalPass}`
+      + limitNote(input.admittedLogicalPass, input.configuredMaxPasses);
+  return `${position}, ${sourceText(input.result)}`;
 }
 
 /** Project a proposal against repository-derived standard facts or the recorded frontline ordinal. */
@@ -134,16 +185,12 @@ export function projectProvisionalPassAssessment(input: {
     ? "No confirmed findings."
     : `${confirmedFindingCount} confirmed finding${confirmedFindingCount === 1 ? "" : "s"}, `
       + `highest ${severitySymbol[maxConfirmedSeverity]} ${maxConfirmedSeverity}.`;
-  const capText = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over the limit)" }[
-    capPosition
-  ];
-  const nextPass = `${input.lane === "standard" ? "standard complete" : "frontline"} pass ${ceilingPassCount + 1} of ${input.configuredMaxPasses}`;
+  const nextPass = `${input.lane === "standard" ? "standard complete" : "frontline"} pass ${ceilingPassCount + 1}`;
   const nextFixCheck = input.standardFacts === undefined ? ""
     : `fix check, round ${fixCheckRound(input.result, input.standardFacts.facts) + 1} since pass ${ceilingPassCount}`;
-  const consequenceText = fixConsequenceText(fixConsequence, input.lane, nextPass, nextFixCheck);
-  const reviewText = input.lane === "standard" && input.standardFacts !== undefined
-    ? standardPositionText(input.result, input.standardFacts.facts, input.configuredMaxPasses)
-    : `Frontline pass ${input.admittedLogicalPass} of ${input.configuredMaxPasses}`;
+  const belowCeiling = capPosition === "below-ceiling";
+  const consequenceText = fixConsequenceText(fixConsequence, input.lane, belowCeiling, nextPass, nextFixCheck);
+  const reviewText = positionText(input);
   return ProvisionalPassAssessmentSchema.parse({
     status: "provisional",
     lane: input.lane,
@@ -155,10 +202,9 @@ export function projectProvisionalPassAssessment(input: {
     fixConsequence,
     potentialStopReason,
     nextPassAuthority: "none",
-    summaryText: `${reviewText}${capText}. `
-      + `${signalText}${consequenceText}`,
-    positionText: `${reviewText}${capText}`,
-    nextActivityText: nextActivityText(fixConsequence, input.lane, nextPass, nextFixCheck),
+    summaryText: `${reviewText}. ${signalText}${consequenceText}`,
+    positionText: reviewText,
+    nextActivityText: nextActivityText(fixConsequence, input.lane, belowCeiling, nextPass, nextFixCheck),
   });
 }
 

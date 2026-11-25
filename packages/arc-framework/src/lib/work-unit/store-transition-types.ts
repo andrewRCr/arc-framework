@@ -1,5 +1,5 @@
 /** Caller-provided record bases and recoverable Git steps around lifecycle batches. */
-import type { Mutation } from "../store/write.js";
+import type { Mutation, RecordObservation } from "../store/write.js";
 import type { StoreRecord } from "../store/read.js";
 import type { WritePlacement } from "../store/placement.js";
 import type { CallerProvenance, Links } from "../store/links.js";
@@ -39,6 +39,8 @@ export interface StoreTransitionInputs {
   additionalWrites?: Mutation[];
   /** Acquired inputs whose exact versions must still hold immediately before the batch. */
   preparedRecords?: readonly StoreRecord[];
+  /** Strict read-only evidence admitted atomically with the prepared mutations. */
+  observations?: readonly RecordObservation[];
   provenance?: CallerProvenance;
   gitSteps?: LifecycleGitStep[];
 }

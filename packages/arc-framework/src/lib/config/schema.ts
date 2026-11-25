@@ -22,7 +22,8 @@ export type ArcConfigFieldPolicy =
       | "branch"
       | "worktree-template"
       | "harness-directories"
-      | "shell-command";
+      | "shell-command"
+      | "repository-url";
   };
 
 /** One catalog entry for a project-level `arc-config.yml` field. */
@@ -218,6 +219,14 @@ export const ARC_CONFIG_FIELDS = [
     "unset",
     "harness-directories",
   ),
+  // Catalog validation is lossless so its output agrees with the string-record intersection; pointer I/O trims.
+  stringField(
+    "storage.backing_repository",
+    z.union([z.literal(""), z.string().regex(/\S/u)]),
+    "",
+    "unset",
+    "repository-url",
+  ),
   enumField("commit.format", ["conventional", "custom", "any"], "conventional"),
   enumField(
     "commit.context_footer",
@@ -297,6 +306,8 @@ export const ARC_CONFIG_FIELDS = [
   enumField("user.notes_push", ["manual", "prompt", "on-sync"], "on-sync"),
   booleanField("sync.auto_pull", "false"),
   enumField("archive.cadence", ["with-integration", "manual"], "with-integration"),
+  enumField("storage.track_design_docs", ["none", "specs"], "specs"),
+  enumField("layout.active", ["nested", "flat"], "nested"),
   positiveSafeIntegerField("inbox.remind_after_days", "1", 1),
   positiveSafeIntegerField("inbound.retriage_after_entries", "10", 1),
   positiveSafeIntegerField("inbound.retriage_after_days", "30", 1),
@@ -377,7 +388,13 @@ const AuthorableConfigRecordSchema = z.record(
 export const ArcConfigSchema = z.intersection(
   AuthorableConfigRecordSchema,
   z.looseObject(knownConfigShape).partial(),
-);
+).superRefine((value, context) => {
+  // Key constraints remain conjunctive even when another object accepts an unrecognized key.
+  const result = AuthorableConfigRecordSchema.safeParse(value);
+  if (!result.success) for (const issue of result.error.issues) {
+    context.addIssue({ code: "custom", path: issue.path, message: issue.message });
+  }
+});
 
 /** Project keys surfaced to agents rather than consumed only by hooks. */
 export type AgentConsumableConfigKey = Exclude<ArcConfigKey, `hooks.${string}`>;

@@ -14,6 +14,55 @@ concession.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Co-locate light code maps of each codebase area's modules and seams, kept true by the lifecycle**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Proposed Shape, the orientation layer.
+
+- _Observation:_ Owner interest (2026-11-08) as a potential ARC product feature, possibly soon, and backfilled in this
+  repository and CineXplorer as work goes, if it can be made principled and researched. A short Markdown map
+  co-located with an area of code (its domains, how its modules interact, its seams and invariants) serves people
+  refreshing their understanding and agents orienting without as much read-only scouting. The risks: a brittle
+  maintenance trap, sprawl no one reads, and a stale map misleading an agent worse than none. The deciding design
+  question is altitude.
+
+- _Approach:_ research first. Prior art: matklad's `ARCHITECTURE.md` (a bird's-eye view and a codemap that names
+  modules and symbols without linking them, invariants often stated as what is deliberately absent, only what is
+  unlikely to change, kept short); the C4 model's levels as an altitude scale (a map at component level, never code
+  level); arc42's building-block view; nested `AGENTS.md` and `CLAUDE.md` files that harnesses load by directory, a
+  transport ARC could compose with; generated repository maps (Aider's symbol map) as the deterministic alternative;
+  any studies of whether repository context files help agents. Owner's starting constraints: co-located, light (under
+  about 500 lines, one read), maintained when anything in the area changes. Candidate shape: one map per area or
+  domain rather than per directory; a per-fact altitude test (it survives a typical refactor inside the area and is
+  not learned from one file read: seams, invariants, ownership, where a thing lives, what is deliberately absent);
+  lifecycle backstops like the ADRs' (planning names the maps a change affects, verification or review confirms each
+  still holds or updates it); a deterministic check that every name a map gives still resolves; agents treat a map as
+  a starting point and still verify against source. Value for people is the surer case; value for agents needs evals,
+  counting scouting calls, tokens and task outcomes with and without maps. Pilot one area in each repository before
+  committing to a backfill.
+
+- _Captured during:_ `project-manager.ARC`, at the Owner's request to track it for when there is time, 2026-11-08
+  (Owner-requested capture).
+
+- _Follow-up:_ the Owner's priority (2026-11-08): the value to the developer is the main case, and agent orientation
+  is secondary. Building CineXplorer's first half by hand left a strong mental map of its architecture; since agents
+  took over most of the writing, in both repositories, that map has faded faster than the developer could keep up. The
+  cost is not that agents are wrong but that the developer often cannot tell whether they are, and so cedes judgment.
+  Prior art to read: Peter Naur, "Programming as Theory Building" (1985), on a program's substance as the theory its
+  programmers hold, which documents cannot fully carry, so a map is a scaffold for rebuilding that theory rather than
+  a substitute. Design consequences: write for a developer returning after weeks; surface a change's map diff in
+  review as a structural changelog, so keeping up does not mean reading every code diff; let a decision prompt cite
+  the map section it touches, so the developer can check the claim; treat agent evals as optional, not gating. Pilot
+  in CineXplorer first, in an area the developer once knew, to judge whether the map rebuilds the understanding.
+
+---
+
 ## Problem / Motivation
 
 Per-leaf involvement kept the human's model of the codebase fresh as a _side effect_ — watching implementation

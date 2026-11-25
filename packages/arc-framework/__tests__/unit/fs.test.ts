@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { join } from "node:path";
+import { join, posix, win32 } from "node:path";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, writeFile, rm, mkdir, chmod, readdir, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,6 +14,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import {
   atomicWriteJson,
   createAtomicFileCreator,
+  displayLocalPath,
+  listArcFiles,
   retryTransientFileSystemRefusal,
   toForwardSlash,
   type AtomicCreateFileContext,
@@ -274,6 +276,26 @@ describe("retryTransientFileSystemRefusal", () => {
   });
 });
 
+describe("listArcFiles", () => {
+  let arcDir: string;
+
+  beforeEach(async () => {
+    arcDir = await mkdtemp(join(tmpdir(), "arc-list-files-"));
+  });
+
+  afterEach(async () => {
+    await rm(arcDir, { recursive: true, force: true });
+  });
+
+  it("lists no machine-local file under system/.local/", async () => {
+    await mkdir(join(arcDir, "system", ".local", "projection", "aside", "active"), { recursive: true });
+    await writeFile(join(arcDir, "system", ".local", "projection", "reference"), "");
+    await writeFile(join(arcDir, "system", ".local", "projection", "aside", "active", "copy.aside"), "");
+    await writeFile(join(arcDir, "system", "arc-config.yml"), "");
+    expect(await listArcFiles(arcDir)).toEqual(["system/arc-config.yml"]);
+  });
+});
+
 describe("toForwardSlash", () => {
   it("replaces backslashes with forward slashes", () => {
     expect(toForwardSlash("system\\.internal\\file.json")).toBe("system/.internal/file.json");
@@ -289,5 +311,26 @@ describe("toForwardSlash", () => {
 
   it("handles empty string", () => {
     expect(toForwardSlash("")).toBe("");
+  });
+});
+
+describe("displayLocalPath", () => {
+  it("shows a path inside the directory relative to it with forward slashes", () => {
+    expect(displayLocalPath("/work/repo", "/work/repo/.arc/user/dev/WORKING-MEMORY.md", posix))
+      .toBe(".arc/user/dev/WORKING-MEMORY.md");
+    expect(displayLocalPath("C:\\work\\repo", "C:\\work\\repo\\.arc\\user\\dev\\WORKING-MEMORY.md", win32))
+      .toBe(".arc/user/dev/WORKING-MEMORY.md");
+    expect(displayLocalPath("C:\\work\\repo", "C:\\work\\repo", win32)).toBe(".");
+  });
+
+  it("shows a path outside the directory absolute in the platform's spelling", () => {
+    expect(displayLocalPath("/work/repo.linked", "/work/repo/.arc/user/dev", posix)).toBe("/work/repo/.arc/user/dev");
+    expect(displayLocalPath("C:\\work\\repo.linked", "C:\\work\\repo\\.arc\\user\\dev", win32))
+      .toBe("C:\\work\\repo\\.arc\\user\\dev");
+    expect(displayLocalPath("D:\\a\\repo", "C:\\Users\\dev\\repo\\.arc", win32)).toBe("C:\\Users\\dev\\repo\\.arc");
+  });
+
+  it("gives a relative input forward slashes", () => {
+    expect(displayLocalPath("C:\\work\\repo", ".arc\\user\\dev", win32)).toBe(".arc/user/dev");
   });
 });

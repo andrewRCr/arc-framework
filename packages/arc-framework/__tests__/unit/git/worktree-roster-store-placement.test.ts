@@ -1,4 +1,5 @@
 /** Physical registrations stay complete while logical roster consumers use active placement. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -22,8 +23,8 @@ async function fixture() {
     ["completed", { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, "Novel"],
   ] as const) {
     const path = join(cwd, name); await mkdir(path);
-    await h.seedMeta(name, { state: "Integrating", currentWorkflow: "integrate-work-unit", owner: "andrew", workClass }, placement);
-    await writeWorktreeOwnershipMarker(path, { createdByArc: true, createdFor: { kind: "work-unit", name }, spawningIdentity: "andrew", now: 0 });
+    const record = await h.seedMeta(name, { state: "Integrating", currentWorkflow: "integrate-work-unit", owner: "andrew", workClass }, placement);
+    await writeWorktreeOwnershipMarker(path, { createdByArc: true, createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", now: 0 });
     worktrees.push(`worktree ${path}`, `HEAD ${"a".repeat(40)}`, ...(name === "completed" ? ["detached"] : [`branch refs/heads/feat/${name}`]), "", "");
   }
   return { cwd, store: h.store, exec: async () => ({ stdout: worktrees.join("\0") }),

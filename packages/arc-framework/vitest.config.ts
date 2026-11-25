@@ -1,12 +1,12 @@
 import { configDefaults, defineConfig } from "vitest/config";
 import { HeavyFirstSequencer } from "./__tests__/helpers/heavy-first-sequencer.js";
 import { realpathSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { ISOLATED_UNIT_MOCK_FILES } from "./__tests__/helpers/isolated-unit-mock-files.js";
-import { selectIntegrationTempRoot } from "./__tests__/helpers/integration-temp-root.js";
+import { integrationRunRootPath, selectIntegrationTempRoot } from "./__tests__/helpers/integration-temp-root.js";
 import { resolveVitestMaxWorkers } from "./__tests__/helpers/vitest-worker-policy.js";
 
 // Absolute package root from this config file — not process.cwd(). `root: "."`
@@ -18,10 +18,11 @@ import { resolveVitestMaxWorkers } from "./__tests__/helpers/vitest-worker-polic
 const packageRoot = dirname(fileURLToPath(import.meta.url));
 
 // Git reports physical worktree paths while `os.tmpdir()` can retain a host
-// alias (macOS `/var` vs `/private/var`). Give every temp fixture one canonical
-// root so ordinary tests do not accidentally assert on two spellings of the
-// same checkout; dedicated path-identity tests exercise the alias boundary.
-const canonicalTempRoot = realpathSync(tmpdir());
+// alias (macOS `/var` vs `/private/var`, a Windows short name such as `RUNNER~1`).
+// Give every temp fixture one canonical root so ordinary tests do not accidentally
+// assert on two spellings of the same checkout; dedicated path-identity tests
+// exercise the alias boundary. The native form also expands Windows short names.
+const canonicalTempRoot = realpathSync.native(tmpdir());
 if (process.platform === "win32") {
   process.env.TEMP = canonicalTempRoot;
   process.env.TMP = canonicalTempRoot;
@@ -30,22 +31,32 @@ if (process.platform === "win32") {
 }
 
 // Integration fixtures are write-heavy and short-lived. Use Linux's memory-backed root
-// only when it can execute the shims created by integration tests.
+// only when it can execute the shims created by integration tests. Each run takes its
+// own directory there, which the integration global setup creates and removes, so what
+// children write to their temp directory leaves memory with the run: tsx's and Node's
+// compile caches would otherwise accumulate there across every checkout's runs.
 const integrationTempRoot = selectIntegrationTempRoot("/dev/shm");
+const integrationRunRoot = integrationTempRoot === undefined ? undefined : integrationRunRootPath(integrationTempRoot);
 
 // Test repositories must not inherit developer-machine Git configuration. A
 // long-lived workstation can carry `arc.identity` globally even when a fixture
 // intentionally omits the local key, while hosted runners usually cannot expose
 // that leak. Keep every project on the same hermetic system/global baseline;
-// fixtures install the local values they exercise explicitly.
+// fixtures install the local values they exercise explicitly. The baseline turns
+// off automatic maintenance, whose background repacks race fixtures that inspect
+// object files.
 process.env.GIT_CONFIG_NOSYSTEM = "1";
-process.env.GIT_CONFIG_GLOBAL = process.platform === "win32" ? "NUL" : "/dev/null";
+process.env.GIT_CONFIG_GLOBAL = join(packageRoot, "__tests__", "fixtures", "git", "global.gitconfig");
 
 // Local quality gates share developer machines with parallel sessions and native child tools.
 // Use half available parallelism with an eight-worker ceiling and one-worker floor. CI
 // uses native sizing unless its workflow supplies an explicit capacity override.
 // An empty CI override retains native sizing.
 const maxWorkers = resolveVitestMaxWorkers(process.env);
+
+// Vitest workers honor this project setting although ProjectConfig excludes it.
+// Preserve empty groups without allowing unmatched root selections.
+const emptySuiteRuntimeOptions = { passWithNoTests: true } as const;
 
 // Single multi-project config so one `vitest run` executes every tier and prints
 // one combined summary. Per-tier runs use `--project <name>` (see package.json).
@@ -54,6 +65,17 @@ const maxWorkers = resolveVitestMaxWorkers(process.env);
 // per-file isolation, and `unit` runs everything else. The split keeps the
 // mock-heavy files quarantined so the main tier can relax isolation for its
 // import-cost win without their hoisted mocks leaking across file boundaries.
+const timingTests = ["__tests__/integration/store-ref-timing.test.ts", "__tests__/integration/store-ref-projection-timing.test.ts"];
+const burstTests = ["__tests__/integration/store-ref-bursts.test.ts", "__tests__/integration/store-ref-projection-bursts-default.test.ts",
+  "__tests__/integration/store-ref-projection-bursts-separate.test.ts"];
+const integrationTest = {
+  root: packageRoot,
+  ...(integrationRunRoot === undefined ? {} : { env: { TMPDIR: integrationRunRoot } }),
+  globalSetup: ["__tests__/integration/global-setup.ts"],
+  testTimeout: 30_000,
+  ...emptySuiteRuntimeOptions,
+};
+
 export default defineConfig({
   test: {
     sequence: { sequencer: HeavyFirstSequencer },
@@ -70,7 +92,7 @@ export default defineConfig({
           // Module-mocking files are quarantined to the `unit-mocks` tier, so the
           // main unit tier can drop per-file isolation for its module-import win.
           isolate: false,
-          passWithNoTests: true,
+          ...emptySuiteRuntimeOptions,
         },
       },
       {
@@ -81,18 +103,37 @@ export default defineConfig({
           setupFiles: ["__tests__/helpers/unit-setup.ts"],
           include: [...ISOLATED_UNIT_MOCK_FILES],
           isolate: true,
-          passWithNoTests: true,
+          ...emptySuiteRuntimeOptions,
         },
       },
       {
         test: {
+          ...integrationTest,
           name: "integration",
-          root: packageRoot,
+          setupFiles: ["__tests__/helpers/store/projection/index-schema-guard.ts"],
           include: ["__tests__/integration/**/*.test.ts"],
-          ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
-          globalSetup: ["__tests__/integration/global-setup.ts"],
-          testTimeout: 30_000,
-          passWithNoTests: true,
+          exclude: [...configDefaults.exclude, ...timingTests, ...burstTests],
+        },
+      },
+      // The timing and burst projects load no index schema guard, so their measurements carry no check.
+      {
+        test: {
+          ...integrationTest,
+          name: "integration-timing",
+          include: timingTests,
+          // Finish the parallel group before collecting uncontended operation medians.
+          sequence: { groupOrder: 1 },
+          maxWorkers: 1,
+        },
+      },
+      {
+        test: {
+          ...integrationTest,
+          name: "integration-bursts",
+          include: burstTests,
+          // Keep unrelated selected tests outside the twenty-writer workload.
+          sequence: { groupOrder: 2 },
+          maxWorkers: 1,
         },
       },
       {
@@ -102,7 +143,8 @@ export default defineConfig({
           include: ["__tests__/e2e/**/*.test.ts"],
           globalSetup: ["__tests__/e2e/global-setup.ts"],
           testTimeout: 30_000,
-          passWithNoTests: true,
+          hookTimeout: 60_000,
+          ...emptySuiteRuntimeOptions,
         },
       },
     ],

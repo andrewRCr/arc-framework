@@ -24,7 +24,7 @@ it.each(["canceled", "output-limit", "unknown"] as const)("preserves an incomple
     return actual(command, args, options);
   };
   let failure: unknown;
-  try { await h.a.store.sync(); } catch (error) { failure = error; }
+  try { await h.a.store.push(); } catch (error) { failure = error; }
   expect(original).toBeDefined();
   expect(failure).toMatchObject({ code: "store.sync-failed", cause: original });
   expect(afterFailure.filter((args) => args[0] === "fetch" || args[0] === "push"
@@ -32,5 +32,5 @@ it.each(["canceled", "output-limit", "unknown"] as const)("preserves an incomple
   expect((await h.a.exec("git", ["rev-parse", syncNotesRef])).stdout).toBe(localTip);
   expect((await h.a.exec("git", ["ls-remote", "origin", syncNotesRef])).stdout).toBe(before.stdout);
   h.a.ports.exec = actual;
-  expect(success(await h.a.store.sync()).publishes[0]?.status).toBe("pushed");
+  expect(success(await h.a.store.push()).publishes[0]?.status).toBe("pushed");
 });

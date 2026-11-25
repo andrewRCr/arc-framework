@@ -1,5 +1,5 @@
 ---
-purpose: Execute the task list's verification phase — merge quality gate, success criteria, completion notes.
+purpose: Execute the task list's verification phase — merge quality gate, success criteria, verification record.
 audience: agent
 arc:
   methods:
@@ -16,8 +16,8 @@ Every task list ends with a verification phase containing a single task that poi
 tasks fire criteria validation as member-scope verification tasks without loading this workflow. They remain distinct
 from the sole terminal work-unit verification task. The terminal task description is intentionally thin — this
 workflow is the authoritative protocol. Complete the first two steps below, mark the single verification task `[x]` with
-completion notes covering what was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable
-edit, then complete Step 3.
+a [verification record](#verification-record) covering what was verified, stage every verified reviewable edit, then
+complete Step 3.
 
 **Relationship to preparation and integration:** This is the implementer's validation pass and the final execution
 task. Candidate attestation hands off to [prepare-work-unit][prepare-work-unit] for private review and convergence;
@@ -148,7 +148,7 @@ Before closing the criteria pass, verify delivery integrity:
 
 ## Step 3 — Attest the Candidate
 
-Complete the verification task's success-criteria and completion-note edits, then run `arc attest {name} --json`. It
+Complete the verification task's success-criteria and verification-record edits, then run `arc attest {name} --json`. It
 attests the staged subject as a Candidate, leaves lifecycle `State` unchanged, and returns the typed pre-publication
 locus. It requires the canonical task list to be readable, structurally valid, and closed with `no-open-task`; an
 open, missing, unbound, unreadable, or malformed task list refuses before Candidate authority is written. It also
@@ -166,13 +166,12 @@ This Step 3 invocation is the initial Candidate attestation or an explicitly req
 attestation belongs to `prepare-work-unit`; it keeps its projections staged and creates no second verification commit
 boundary.
 
-## Completion Notes
+## Verification Record
 
-When marking the verification task `[x]`, include completion notes that make the task
-self-documenting — a reader of the archived task list should understand what was verified
-without loading this workflow. The verification task uses two italic descriptor bullets in
-lieu of the single `_Outcome:_` rule (per [strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] —
-verification-task exception). Cover both:
+When marking the verification task `[x]`, include a verification record that makes the task self-documenting — a reader
+of the archived task list should understand what was verified without loading this workflow. The verification task
+uses two italic descriptor bullets in lieu of the single `_Outcome:_` rule (per
+[strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] — verification-task exception). Cover both:
 
 - _Quality gates:_ what ran and the outcome (e.g., "md lint, code lint, typecheck,
   42 tests, build — all passed")

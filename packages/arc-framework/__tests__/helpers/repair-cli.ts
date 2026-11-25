@@ -12,6 +12,7 @@ import { createInboxHarness } from "./inbox-harness.js";
 import { seed, success } from "./store/suite-tools.js";
 import { runArc } from "../e2e/helpers.js";
 import { dispatchRegisteredCli } from "./registered-cli.js";
+import { seedImportedUserProjection } from "./store/projection/imported-user.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
@@ -35,11 +36,18 @@ export async function repairCliFixture(protection: "full" | "partial" = "full") 
   await exec("git", ["config", "arc.identity", "test-user"]);
   const h = createInboxHarness(); await h.inbox("project"); await h.inbox("personal", "");
   await seed(h.fixture, recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "test-project", uid: randomUUID() })), "{}");
+  await seedImportedUserProjection(cwd, h.context.store);
   const fixture = { cwd, exec, h, head: (await exec("git", ["rev-parse", "HEAD"])).stdout };
   return fixture;
 }
 export type RepairCliFixture = Awaited<ReturnType<typeof repairCliFixture>>;
-export async function repairCli(f: RepairCliFixture, args: readonly string[], options: { stdin?: string; store?: Store } = {}) {
+/** Exercise a reader against the same operational Store boundary used by CLI dispatch. */
+export async function withRepairStore<T>(store: Store, read: () => Promise<T>): Promise<T> {
+  const previous = binding.store;
+  try { binding.store = store; return await read(); }
+  finally { binding.store = previous; }
+}
+export async function repairCli(f: RepairCliFixture, args: readonly string[], options: { stdin?: string; store?: Store; storeFactory?: () => Promise<Store> } = {}) {
   const oldCwd = process.cwd(), oldExit = process.exitCode;
   let stdout = "", stderr = "";
   const out = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { stdout += String(chunk); return true; });
@@ -47,7 +55,8 @@ export async function repairCli(f: RepairCliFixture, args: readonly string[], op
   const stdin = options.stdin === undefined ? null : vi.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(async function* (): AsyncGenerator<string, undefined> { yield options.stdin ?? ""; return undefined; });
   try {
     binding.store = options.store ?? f.h.context.store; process.chdir(f.cwd); process.exitCode = undefined;
-    await dispatchRegisteredCli(["--no-input", ...args]);
+    const factory = options.storeFactory;
+    await dispatchRegisteredCli(["--no-input", ...args], undefined, factory === undefined ? undefined : async () => { binding.store = await factory(); });
     return { exitCode: process.exitCode, stdout, stderr, result: stdout.trim().startsWith("{") ? JSON.parse(stdout) as unknown : null };
   } finally { binding.store = null; stdin?.mockRestore(); out.mockRestore(); err.mockRestore(); process.chdir(oldCwd); process.exitCode = oldExit; }
 }

@@ -5,7 +5,8 @@
  * with an injectable executor for testability.
  */
 
-import { normalizeGitRejection } from "./process-error.js";
+import type { GitBatchReadScope } from "./batch-reader.js";
+import { isCompletedGitFailure, normalizeGitRejection } from "./process-error.js";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
@@ -24,6 +25,8 @@ export interface GitExecOptions {
    * with a `GitProcessError` whose kind is `canceled`.
    */
   signal?: AbortSignal;
+  /** Let deadline wrappers refuse admission without canceling a call already admitted. */
+  uninterruptible?: true;
   /**
    * Working directory for the process, allowing callers to pin the invocation
    * against a resolved repo root regardless of `process.cwd()`.
@@ -43,6 +46,10 @@ export interface GitExecOptions {
   diagnosticLocale?: "stable";
   /** Forbid Git from lazily fetching missing objects during passive inspection. */
   objectAccess?: "local-only";
+  /** Invocation-owned stdin, independent of the ambient-stdin interaction policy. */
+  input?: string;
+  /** Check the final native Windows push argv before launching its process. */
+  checkNativeWindowsArgv?: boolean;
   /** Preserve captured stdout exactly instead of trimming trailing whitespace. */
   preserveOutput?: boolean;
   /**
@@ -89,14 +96,14 @@ export async function resolveCheckoutGitDir(exec: GitExec, cwd: string): Promise
  * A git invocation that pipes `input` to the subprocess stdin and resolves with
  * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that
  * reads its payload from stdin (`hash-object --stdin`, `mktree`) — which
- * captured-output {@link GitExec} cannot provide. Production wires an
+ * captured-output {@link GitExec} also supports through its owned-input option. Production wires an
  * execa stdin adapter without shell interpolation. Callers may pin the
  * repository when the ambient process directory is unavailable or unsafe.
  */
 export type GitExecInput = (
   args: string[],
   input: string,
-  options?: Pick<GitExecOptions, "cwd" | "objectAccess">,
+  options?: Pick<GitExecOptions, "cwd" | "objectAccess" | "signal" | "diagnosticLocale" | "uninterruptible">,
 ) => Promise<string>;
 
 /** Result from a byte-preserving Git invocation. */
@@ -105,10 +112,24 @@ export interface RawGitResult {
   stderr?: Uint8Array;
 }
 
-/** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
+/** Byte-preserving Git boundary. Optional files use caller-owned input and exclusive
+ * output streams; outputFile returns empty stdout instead of buffering artifact bytes.
+ * input and inputFile are mutually exclusive; the executor closes its opened handles.
+ */
 export type RawGitExec = (
   args: string[],
-  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only"; indexFile?: string; removeEnvironment?: readonly string[] },
+  options?: {
+    signal?: AbortSignal;
+    cwd?: string;
+    input?: Uint8Array;
+    inputFile?: string;
+    outputFile?: string;
+    objectAccess?: "local-only";
+    indexFile?: string;
+    removeEnvironment?: readonly string[];
+    /** Operation-owned native cat-file reuse; injected executors may retain one-shot behavior. */
+    batchReader?: GitBatchReadScope;
+  },
 ) => Promise<RawGitResult>;
 
 /** One Git index transaction staged through the repository's index lock. */
@@ -341,7 +362,8 @@ export async function checkOriginExists(exec: GitExec): Promise<boolean> {
 }
 
 /**
- * Retrieves a git config value by key.
+ * Retrieves a git config value by key. Only a completed missing-value result with
+ * captured empty streams is absence; failed or incomplete reads propagate.
  *
  * @param exec - Injectable command executor
  * @param key - Git config key (e.g., "user.name", "arc.identity")
@@ -354,9 +376,19 @@ export async function gitConfigGet(
   try {
     const { stdout } = await exec("git", ["config", "--get", key]);
     return stdout.trim();
-  } catch {
-    return undefined;
+  } catch (rejection) {
+    const error = normalizeGitRejection(rejection, { command: "git", args: ["config", "--get", key] });
+    // Normalization fills omitted streams; only captured empty output can prove a missing value.
+    if (hasConfigFailureStreams(rejection) && isCompletedGitFailure(error) && error.exitCode === 1
+      && error.stdout === "" && error.stderr === "") return undefined;
+    throw error;
   }
+}
+
+function hasConfigFailureStreams(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || !("stdout" in value) || !("stderr" in value)) return false;
+  return (typeof value.stdout === "string" || value.stdout instanceof Uint8Array)
+    && (typeof value.stderr === "string" || value.stderr instanceof Uint8Array);
 }
 
 /** Git config scope (`--local` / `--global` / `--system`). */
@@ -423,19 +455,20 @@ export async function gitMergeFile(
   other: string,
 ): Promise<MergeResult> {
   try {
+    // The merged text becomes the file, so its trailing newlines and whitespace must survive
     const { stdout } = await exec("git", [
       "merge-file",
       "-p",
       current,
       base,
       other,
-    ]);
+    ], { preserveOutput: true });
     return { content: stdout, hasConflicts: false };
   } catch (err: unknown) {
     const error = normalizeGitRejection(err, {
       command: "git", args: ["merge-file", "-p", current, base, other],
     });
-    if (error.exitCode !== undefined && error.exitCode >= 1 && error.exitCode <= 127) {
+    if (isCompletedGitFailure(error) && error.exitCode !== undefined && error.exitCode >= 1 && error.exitCode <= 127) {
       return { content: error.stdout, hasConflicts: true };
     }
     throw error;

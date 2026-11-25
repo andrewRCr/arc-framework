@@ -3,6 +3,7 @@ import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import { parseLineageRecord } from "../store/kinds/lineage/parser.js";
 import { SlugSchema } from "../kernel/index.js";
+import { sameReference } from "../store/identity.js";
 import { z } from "zod";
 
 /** Read unique, unconflicted terminal authority; authoritative absence returns null. */
@@ -28,7 +29,7 @@ export async function readWorkUnitLineage(store: Store, name: string): Promise<S
     `Terminal lineage for '${name}' has unresolved conflicts: ${record.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry.`);
   const lineage = parseLineageRecord(record.content), owner = record.reference.owner;
   if (record.reference.kind !== "lineage/transition" || owner.type !== "work-item"
-    || (uid.success ? owner.uid !== name : owner.name !== name)
+    || !sameReference(record.reference, lookup.result.reference) || (uid.success && owner.uid !== name)
     || lineage === null || lineage.origin.name !== owner.name
     || (lineage.origin.uid !== undefined && lineage.origin.uid !== owner.uid)) {
     throw new Error(`Terminal lineage for '${name}' does not corroborate its work-unit identity. Repair the named lineage record, then retry.`);

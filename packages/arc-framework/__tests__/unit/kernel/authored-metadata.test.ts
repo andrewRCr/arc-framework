@@ -32,18 +32,23 @@ describe("authored schema metadata", () => {
       const meta = registry.meta(id);
       return meta?.authored === "request";
     });
+    expect(registry.meta("cut-map")).toMatchObject({ id: "cut-map", version: 4, migrationPosture: "strict-current", authored: "request" });
     expect(marked).toEqual([
+      "cut-map",
       "decompose-cut-map",
       "delivery-design-inventory-input",
       "errand-queue-set-request",
+      "review-adversarial-record-request",
       "review-chunking-resolve-request",
       "review-frontline-resolve-request",
       "review-frontline-run-request",
       "review-hosted-await-request",
+      "review-hosted-dismiss-request",
       "review-hosted-request-request",
       "review-hosted-settle-request",
       "review-lane-read-request",
       "review-local-attest-request",
+      "review-local-cancel-request",
       "review-local-prepare-request",
       "review-local-resume-request",
       "review-planning-grooming-resolve-request",
@@ -52,6 +57,7 @@ describe("authored schema metadata", () => {
       "review-resolve-request",
       "review-respond-request",
       "review-terminus-accept-request",
+      "store-repair-review-roots-request",
     ]);
     expect(registry.ids().filter((id) => {
       const meta = registry.meta(id);

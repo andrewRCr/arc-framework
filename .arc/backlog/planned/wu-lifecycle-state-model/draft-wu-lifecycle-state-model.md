@@ -15,9 +15,7 @@
 ## Inbound Buffer — Pending Integration
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
-> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration. Seed material_
-> _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
-> _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Decide whether an Owner-invoked lifecycle rewind is a proven need**
 

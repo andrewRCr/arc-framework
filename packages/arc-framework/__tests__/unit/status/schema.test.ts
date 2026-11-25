@@ -1,3 +1,4 @@
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
 /** Full session-slot contracts and evidence-qualified envelope routing. */
 
 import { ErrandStateResultSchema } from "../../../src/lib/session-init/errand-state-schema.js";
@@ -161,10 +162,7 @@ describe("deep advisory routing views", () => {
         {
           kind: "husk", worktreePath: "/tmp/alpha", branch: null, stampedBranch: "feat/alpha", completedWorkUnit: "alpha",
           subject: { kind: "work-unit", name: "alpha" },
-          stamp: {
-            kind: "legacy",
-            authorization: "merged-preserved",
-          },
+          stamp: fixtureHuskProof,
           decision: { action: "outside", reason: "missing-stamp" },
         },
       ],

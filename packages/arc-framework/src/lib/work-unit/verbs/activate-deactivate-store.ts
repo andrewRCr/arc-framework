@@ -1,4 +1,5 @@
 /** Store-capability activation and deactivation around the shared lifecycle executor. */
+import { sameReference } from "../../store/identity.js";
 import { resolveProjectIdentity } from "../../store/project-identity.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
@@ -10,6 +11,8 @@ import { readLifecycleView } from "../../store/lifecycle-view.js";
 import { lifecycleArtifactPath, requireCompleteInventory } from "../../store/lifecycle-storage.js";
 import { mergeLifecycleLinks, readWorkUnit } from "../../store/lifecycle-write.js";
 import { executeTransition } from "../lifecycle-executor.js";
+import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
+import { activationBlockerReport } from "./activation-blocker-report.js";
 import { activationCaptureReport, planActivationBranch } from "./activation-branch-plan.js";
 import type { ActivateContext, ActivateParams, ActivateResult, DeactivateContext, DeactivateParams, DeactivateResult } from "./activate-deactivate.js";
 
@@ -17,11 +20,11 @@ import type { ActivateContext, ActivateParams, ActivateResult, DeactivateContext
 export async function runStoreActivate(ctx: ActivateContext, params: ActivateParams): Promise<ActivateResult> {
   if (ctx.store === undefined || ctx.exec === undefined || ctx.projectId === undefined) return { status: "rejected", reason: "Activation requires the operational store, Git boundary, and repository project ID." };
   const store = ctx.store;
-  const facts = await readLifecyclePrimary(store, params.name);
+  const facts = await readLifecyclePrimary(ctx.cwd, store, params.name);
   if (facts.status === "rejected") return facts;
   const { primary, entry } = facts;
   const record = entry.fields;
-  const pause = await checkAdvancingPause(store, params.name);
+  const pause = await checkAdvancingPause(store, params.name, primary);
   if (pause.status === "rejected") return pause;
   if (record.state !== "Planning" || primary.placement?.kind !== "active") return { status: "rejected", reason: `${params.name} is not a Planning work unit held in active placement.` };
   const peers = await readOtherPrimaries(store, primary);
@@ -31,12 +34,12 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   const plan = await planActivationBranch({ exec: ctx.exec, execRaw: ctx.execRaw, cwd: ctx.cwd, name: params.name,
     toBranch: params.toBranch, baseBranch: params.baseBranch, repository: repository.id, primary, otherPrimaries: peers.records });
   if (plan.status === "refused") return { status: "rejected", reason: plan.reason };
-  const metaPath = lifecycleArtifactPath(entry, "meta");
-  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath });
+  const metaPath = await lifecycleArtifactPath(ctx.cwd, entry, "meta");
+  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath, reference: primary.reference });
   if (prepared.status === "conflict") return { status: "rejected", reason: `Cannot activate ${params.name}: current-WU reconcile refused (${prepared.reason}).` };
   const reconcile = await ctx.currentWuReconcile.apply(prepared.prepared);
   if (reconcile.status === "conflict") return { status: "reconcile-failed", reason: `Activation reconcile became stale; retry arc activate ${params.name}.`, metaPath, reconcile };
-  const updated = await readWorkUnit(store, params.name);
+  const updated = await store.read({ reference: primary.reference });
   if (updated.status === "refused") return { status: "rejected", reason: updated.refusal.condition, refusal: updated.refusal };
   const links = mergeLifecycleLinks(updated.result.links, { branches: [plan.link] },
     plan.priorRef === null ? {} : { branches: [{ repository: plan.link.repository, ref: plan.priorRef }] });
@@ -45,17 +48,18 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,
     ...(outcome.status === "rejected" ? { refusal: outcome.refusal, remedy: outcome.remedy } : {}) };
-  return { status: "activated", outcome, metaPath, reconcile, branch: plan.link.ref, report: plan.report,
+  return { status: "activated", outcome, metaPath, reconcile, branch: plan.link.ref,
+    report: [...plan.report, ...activationBlockerReport(ParsedMetaRecordSchema.parse(updated.result.fields).blockers, reconcile.prepared.plan.dependency.discharged)],
     ...(plan.remoteDelete === undefined ? {} : { remoteDelete: plan.remoteDelete }) };
 }
 
 /** Keep the branch and its link, reporting task work while returning the work unit to Planning. */
 export async function runStoreDeactivate(ctx: DeactivateContext, params: DeactivateParams): Promise<DeactivateResult> {
   if (ctx.store === undefined) return { status: "rejected", reason: "Deactivation requires the operational store." };
-  const facts = await readLifecyclePrimary(ctx.store, params.name);
+  const facts = await readLifecyclePrimary(ctx.cwd, ctx.store, params.name);
   if (facts.status === "rejected") return facts;
   const { primary, entry } = facts;
-  const pause = await checkAdvancingPause(ctx.store, params.name);
+  const pause = await checkAdvancingPause(ctx.store, params.name, primary);
   if (pause.status === "rejected") return pause;
   const meta = entry.fields;
   const planningWorkflow = meta.design.length !== 0 && meta.design.every((name) => name.startsWith("spec-")) ? "generate-tasks" : "draft-design";
@@ -66,7 +70,7 @@ export async function runStoreDeactivate(ctx: DeactivateContext, params: Deactiv
   const report = await deactivationReport(ctx, params, primary);
   const chosen = await deactivationBranch(ctx, primary);
   if (chosen.reason !== undefined) report.push(chosen.reason);
-  return { status: "deactivated", outcome, metaPath: lifecycleArtifactPath(entry, "meta"), branch: chosen.branch, report };
+  return { status: "deactivated", outcome, metaPath: await lifecycleArtifactPath(ctx.cwd, entry, "meta"), branch: chosen.branch, report };
 }
 
 async function deactivationReport(ctx: DeactivateContext, params: DeactivateParams, primary: StoreRecord): Promise<string[]> {
@@ -84,14 +88,14 @@ async function deactivationReport(ctx: DeactivateContext, params: DeactivatePara
 }
 
 type Rejected = Extract<ActivateResult, { status: "rejected" }>;
-async function readLifecyclePrimary(store: Store, name: string): Promise<{ status: "ready"; primary: StoreRecord; entry: LifecycleEntry } | Rejected> {
-  const view = await readLifecycleView(store);
+async function readLifecyclePrimary(checkoutRoot: string, store: Store, name: string): Promise<{ status: "ready"; primary: StoreRecord; entry: LifecycleEntry } | Rejected> {
+  const view = await readLifecycleView(checkoutRoot, store);
   if (view.status === "refused") return { status: "rejected", reason: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(store, view.result.listing); } catch (error) { return { status: "rejected", reason: String(error) }; }
   const read = await readWorkUnit(store, name);
   if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
   const primary = read.result;
-  const entry = view.result.entries.find((candidate) => candidate.reference.owner.name === primary.reference.owner.name);
+  const entry = view.result.entries.find((candidate) => sameReference(candidate.reference, primary.reference));
   return entry === undefined ? { status: "rejected", reason: `Lifecycle inventory does not contain ${name}.` } : { status: "ready", primary, entry };
 }
 async function readOtherPrimaries(store: Store, primary: StoreRecord): Promise<{ status: "ready"; records: StoreRecord[] } | Rejected> {
@@ -103,7 +107,7 @@ async function readOtherPrimaries(store: Store, primary: StoreRecord): Promise<{
     if (result.status === "unreadable") return { status: "rejected", reason: `${result.condition} ${result.remedy.text}` };
     if (result.status === "complete" && (result.missed || result.diagnostics.length !== 0)) return { status: "rejected",
       reason: result.diagnostics.map((entry) => `${entry.condition} ${entry.remedy.text}`).join("; ") || "Lifecycle inventory missed records; repair the inventory and retry activation." };
-    if (result.status === "complete") records.push(...result.records.filter((other) => other.reference.owner.name !== primary.reference.owner.name));
+    if (result.status === "complete") records.push(...result.records.filter((other) => !sameReference(other.reference, primary.reference)));
   }
   return { status: "ready", records };
 }

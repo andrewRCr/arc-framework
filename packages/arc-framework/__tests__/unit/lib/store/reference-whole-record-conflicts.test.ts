@@ -32,16 +32,16 @@ it("adopts a remote named resolution without resurrecting the local conflict", a
   const fixture = createReferenceFixture();
   const remote = fixture.remote(true)!;
   const base = await seed(fixture, fixture.reference("project-registry/counter"));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   success(await fixture.store.write(update(fixture, base)));
   success(await remote.write(update(fixture, base, fixture.content(base.reference, "changed-again"))));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const { record } = await clash(fixture, base.reference);
   const before = success(await fixture.store.version());
   const current = success(await remote.read({ reference: base.reference }));
   success(await remote.write({ ...update(fixture, current), resolves: [record.reference],
     provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   for (const store of [fixture.reopen(), remote]) {
     expect(await store.read({ reference: record.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     expect(success(await store.read({ reference: base.reference })).conflicts).toEqual([]);
@@ -49,7 +49,7 @@ it("adopts a remote named resolution without resurrecting the local conflict", a
   }
   expect(success(await fixture.reopen().read({ reference: record.reference, asOf: before })).content).toBe(record.content);
   expect(success(await remote.history({ reference: record.reference }))[0]).toMatchObject({ provenance: { verb: "resolve" } });
-  expect(success(await fixture.store.sync()).publishes[0]?.status).toBe("noop");
+  expect(success(await fixture.store.push()).publishes[0]?.status).toBe("noop");
 });
 
 describe.each(["work-item/meta", "project-registry/counter"] as const)("%s removal conflict", (kind) => {
@@ -57,13 +57,13 @@ describe.each(["work-item/meta", "project-registry/counter"] as const)("%s remov
     const fixture = createReferenceFixture();
     const remote = fixture.remote(true)!;
     const base = await seed(fixture, fixture.reference(kind));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const remover = removing === "remote" ? remote : fixture.store;
     const editor = removing === "remote" ? fixture.store : remote;
     success(await remover.write({ action: "remove", reference: base.reference, expected: base.version, provenance: testProvenance }));
     success(await editor.write(update(fixture, base)));
     const edited = StoreRecordSchema.parse(success(await editor.read({ reference: base.reference })));
-    expect(success(await fixture.store.sync()).publishes[0]?.status).toBe("reconciled");
+    expect(success(await fixture.store.push()).publishes[0]?.status).toBe("reconciled");
     const { record, data } = await clash(fixture, base.reference);
     expect(data).toEqual({ record: base.reference, location: { kind: "record" }, base: value(base),
       current: { value: removing === "remote" ? null : value(edited), label: label("remote") },
@@ -90,7 +90,7 @@ describe.each(["work-item/meta", "project-registry/counter"] as const)("%s remov
       success(await fixture.store.write({ action: "remove", reference: edited.reference, expected: edited.version,
         resolves: [record.reference], provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
     }
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     expect(await remote.read({ reference: record.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     expect(success(await remote.read({ reference: record.reference, asOf: from })).content).toBe(record.content);
     expect(success(await remote.history({ reference: record.reference }))[0]).toMatchObject({ version: null, provenance: { verb: "resolve" } });
@@ -105,7 +105,7 @@ describe("whole-record metadata conflicts", () => {
     const fixture = createReferenceFixture();
     const remote = fixture.remote(true)!;
     const base = await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, {});
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const links = { branches: [{ repository: "owner/repo", ref: "feat/local", linkedAs: "created" as const, excluded: [] }] };
     const localWrite = { ...update(fixture, base, changes === "remote-metadata" ? fixture.content(base.reference, "changed") : base.content),
       ...(changes === "remote-metadata" ? {} : { placement: { kind: "backlog" as const, commitment: "planned" as const }, links }) };
@@ -115,7 +115,7 @@ describe("whole-record metadata conflicts", () => {
     success(await remote.write(WriteInputSchema.parse(remoteWrite)));
     const incoming = StoreRecordSchema.parse(success(await fixture.store.read({ reference: base.reference })));
     const current = StoreRecordSchema.parse(success(await remote.read({ reference: base.reference })));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const { record, data } = await clash(fixture, base.reference);
     expect(data).toEqual({ record: base.reference, location: { kind: "record" }, base: value(base),
       current: { value: value(current), label: label("remote") }, incoming: { value: value(incoming), label: label("local") } });
@@ -124,7 +124,7 @@ describe("whole-record metadata conflicts", () => {
     expect(success(await remote.read({ reference: record.reference, asOf: saved })).content).toBe(record.content);
     success(await fixture.store.write(WriteInputSchema.parse({ ...update(fixture, current, incoming.content),
       placement: incoming.placement, links: incoming.links, resolves: [record.reference], provenance: { verb: "resolve", lifecycleAction: "resolve" } })));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     expect(success(await remote.read({ reference: base.reference }))).toMatchObject({ reference: incoming.reference,
       content: incoming.content, placement: incoming.placement, links: incoming.links, conflicts: [] });
     expect(await remote.read({ reference: record.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
@@ -134,20 +134,20 @@ describe("whole-record metadata conflicts", () => {
     const fixture = createReferenceFixture();
     const remote = fixture.remote(true)!;
     const base = await seed(fixture, fixture.reference("work-item/meta"));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     success(await remote.write({ action: "remove", reference: base.reference, expected: base.version, provenance: testProvenance }));
     success(await fixture.store.write(update(fixture, base)));
     const local = success(await fixture.store.read({ reference: base.reference }));
     const from = success(await fixture.store.version());
     fixture.remoteState("contended");
-    expect(success(await fixture.store.sync()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
+    expect(success(await fixture.store.push()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
     expect(success(await fixture.store.version())).toBe(from);
     expect(success(await fixture.store.read({ reference: base.reference }))).toEqual(local);
     expect(success(await fixture.store.list({ family: "work-item", kind: "work-item/conflict-record" })).status).toBe("absent");
     fixture.remoteState("available");
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const { record } = await clash(fixture, base.reference);
-    expect(success(await fixture.store.sync()).publishes[0]?.status).toBe("noop");
+    expect(success(await fixture.store.push()).publishes[0]?.status).toBe("noop");
     expect(success(await remote.read({ reference: record.reference })).content).toBe(record.content);
   });
 });
@@ -169,10 +169,10 @@ describe("absent-primary conflict completion", () => {
     const fixture = createReferenceFixture();
     const remote = fixture.remote(true)!;
     const conflict = await seed(fixture, fixture.reference("work-item/conflict-record"));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const primary = success(await fixture.store.read({ reference: fixture.reference("work-item/meta") }));
     success(await fixture.store.write({ action: "remove", reference: primary.reference, expected: primary.version, provenance: testProvenance }));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const from = success(await fixture.store.version());
     const input = WriteInputSchema.parse({ action: "remove", reference: conflict.reference, expected: conflict.version,
       resolves: [conflict.reference], provenance: { verb: "resolve", lifecycleAction: "resolve" } });
@@ -190,7 +190,7 @@ describe("absent-primary conflict completion", () => {
     ]);
     expect(success(await fixture.reopen().read({ reference: conflict.reference, asOf: from })).content).toBe(conflict.content);
     expect(await fixture.reopen().read({ reference: primary.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     expect(await remote.read({ reference: conflict.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     expect(success(await remote.history({ reference: conflict.reference }))[0]).toMatchObject({ version: null, provenance: { verb: "resolve" } });
   });
@@ -200,13 +200,13 @@ it("retains the removing writer's time instead of the removed record's earlier l
   const fixture = createReferenceFixture();
   const remote = fixture.remote(true)!;
   const base = await seed(fixture, fixture.reference("work-item/meta"));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   success(await fixture.store.write(update(fixture, base)));
   fixture.remoteState("contended");
-  expect(success(await fixture.store.sync()).publishes[0]).toMatchObject({ status: "failed", failure: { waitedMs: 30 } });
+  expect(success(await fixture.store.push()).publishes[0]).toMatchObject({ status: "failed", failure: { waitedMs: 30 } });
   fixture.remoteState("available");
   success(await remote.write({ action: "remove", reference: base.reference, expected: base.version, provenance: testProvenance }));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const { data } = await clash(fixture, base.reference);
   expect(data).toMatchObject({ current: { value: null, label: { actor: "remote", time: new Date(30).toISOString() } },
     incoming: { label: label("local") } });
@@ -216,19 +216,19 @@ it.each(["local", "receiver"] as const)("restores the incoming generation and ea
   const fixture = createReferenceFixture();
   const remote = fixture.remote(true)!;
   const base = await seed(fixture, fixture.reference("work-item/meta"));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const renamed = (name: string) => RecordReferenceSchema.parse({ ...base.reference, owner: { ...base.reference.owner, name } });
   const middle = renamed("middle-name"), final = renamed("final-name");
   success(await fixture.store.write({ ...update(fixture, base), reference: middle }));
   success(await fixture.store.write({ ...update(fixture, success(await fixture.store.read({ reference: middle }))), reference: final }));
   const incoming = success(await fixture.store.read({ reference: final }));
   success(await remote.write({ action: "remove", reference: base.reference, expected: base.version, provenance: testProvenance }));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const { record } = await clash(fixture, final);
   const resolvingStore = resolver === "local" ? fixture.store : remote;
   success(await resolvingStore.write(WriteInputSchema.parse({ ...update(fixture, incoming), expected: null,
     content: incoming.content, resolves: [record.reference], provenance: { verb: "resolve", lifecycleAction: "resolve" } })));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   for (const store of [fixture.reopen(), remote]) {
     for (const slug of [base.reference.owner.name, middle.owner.name, final.owner.name]) {
       expect(success(await store.lookup({ kind: "slug", slug }))).toEqual({ reference: final });
@@ -240,7 +240,7 @@ it("keeps published incoming aliases with their UID despite name reuse and faile
   const fixture = createReferenceFixture();
   const remote = fixture.remote(true)!;
   const base = await seed(fixture, fixture.reference("work-item/meta"));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const renamed = (name: string) => RecordReferenceSchema.parse({ ...base.reference, owner: { ...base.reference.owner, name } });
   const middle = renamed("middle-isolated"), final = renamed("final-isolated");
   success(await fixture.store.write({ ...update(fixture, base), reference: middle }));
@@ -251,16 +251,16 @@ it("keeps published incoming aliases with their UID despite name reuse and faile
     content: fixture.content(base.reference), placement: { kind: "active" }, provenance: testProvenance }));
   const before = success(await fixture.store.version());
   fixture.remoteState("contended");
-  expect(success(await fixture.store.sync()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
+  expect(success(await fixture.store.push()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
   expect(success(await fixture.store.version())).toBe(before);
   expect(success(await fixture.reopen().lookup({ kind: "slug", slug: middle.owner.name }))).toEqual({ reference: final });
   expect(success(await fixture.store.list({ family: "work-item", kind: "work-item/conflict-record" })).status).toBe("absent");
   fixture.remoteState("available");
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const { record } = await clash(fixture, final);
   success(await remote.write(WriteInputSchema.parse({ ...update(fixture, incoming), expected: null,
     content: incoming.content, resolves: [record.reference], provenance: { verb: "resolve", lifecycleAction: "resolve" } })));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   for (const store of [fixture.reopen(), remote]) {
     expect(success(await store.lookup({ kind: "slug", slug: middle.owner.name }))).toEqual({ reference: final });
     expect(success(await store.lookup({ kind: "slug", slug: base.reference.owner.name }))).toEqual({ reference: replacement.reference });
@@ -277,7 +277,7 @@ describe.each(["work-item/task-list", "review/candidate"] as const)("%s inherite
     if (beforeBase) success(await fixture.store.write(WriteInputSchema.parse({ ...update(fixture, primary),
       placement: { kind: "backlog", commitment: "planned" } })));
     const base = StoreRecordSchema.parse(success(await fixture.store.read({ reference: dependent.reference })));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const baseState = success(await fixture.store.version());
     success(await fixture.store.write(update(fixture, base)));
     success(await remote.write(update(fixture, base, fixture.content(base.reference, "changed-again"))));
@@ -289,7 +289,7 @@ describe.each(["work-item/task-list", "review/candidate"] as const)("%s inherite
     const current = StoreRecordSchema.parse(success(await remote.read({ reference: base.reference })));
     expect(incoming.placement).toEqual({ kind: "backlog", commitment: "provisional" });
     expect(current.placement).toEqual({ kind: "backlog", commitment: "planned" });
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const resolved = StoreRecordSchema.parse(success(await fixture.reopen().read({ reference: base.reference })));
     expect(resolved).toMatchObject({ version: current.version, placement: current.placement });
     expect(resolved.conflicts).toHaveLength(1);

@@ -62,18 +62,37 @@ primarily for the sake of agent isolation rather than developer convenience.
   rather than between branch states. For a person steering several work units this is convenience; for the
   isolation guarantee above it is structural.
 
-- **A fresh worktree comes up working.** Worktree creation includes provisioning, not just `git worktree add`: a
-  configured post-create step (`worktree.post_create`) installs project dependencies, and registered harness
-  integration directories (agent skills, hooks, allowlists — gitignored, so git alone won't carry them) are
-  provisioned from the primary. A spawned worktree runs its quality gates and boots an agent session without
-  hand setup — "cheap to create" includes coming up working, not just existing.
+- **A fresh worktree comes up working.** Worktree creation includes provisioning, not just `git worktree add`: the
+  gitignored files a `.worktreeinclude` file lists are copied from the primary, a configured post-create step
+  (`worktree.post_create`) installs project dependencies, and registered harness integration directories (agent
+  skills, hooks, allowlists — gitignored, so git alone won't carry them) are provisioned from the primary. Once a
+  project configures what its worktrees need (the next section), a spawned worktree runs its quality gates and boots
+  an agent session without hand setup — "cheap to create" includes coming up working, not just existing.
+
+### What each checkout needs its own of
+
+A worktree starts with only what Git tracks, and work units running side by side each run their checks from their
+own. Anything a check or service reads or writes outside Git is either the checkout's own or shared on purpose. ARC
+provisions the first two; the rest are the project's to arrange:
+
+- **Dependencies** — installed by `worktree.post_create`, for example `npm ci` or creating a virtual environment.
+- **Gitignored configuration and secrets** — `.env` files, local certificates, and other gitignored files a run reads,
+  copied from the primary by gitignore-syntax patterns in `.worktreeinclude` at the repository root. A matched file is
+  copied only when the new worktree's own ignore rules ignore it, so a copy never leaves that worktree dirty, and the
+  copies land before `worktree.post_create` runs, so the script can read them.
+- **Services and ports** — a service started from one checkout can answer another checkout's commands, and services on
+  fixed ports collide. Give each checkout its own service names and ports, or share one stack deliberately.
+- **Databases** — tests from two checkouts that use the same database name overwrite each other's data. Name test
+  databases per checkout.
+- **Toolchain versions** — a worktree runs whatever runtime the machine resolves. Record the versions checks depend on
+  in files a version manager reads in every checkout, such as `.nvmrc`, `.python-version`, or `.tool-versions`.
 
 ### Discovery and cleanup discipline
 
 Worktrees are cheap to create and therefore easy to accumulate. Two habits keep them from becoming clutter:
 
 - **Sweep as you go.** A worktree exists to host an in-flight work unit. Once that work unit ships — merged and
-  archived — its worktree has no further purpose; remove it (use `git worktree remove`, never `rm -rf`). Session
+  archived — its worktree has no further purpose; remove it with `arc teardown <name>`, never `rm -rf`. Session
   initialization surfaces worktrees whose work units have already shipped as a between-sessions nudge; act on
   that surface rather than letting stale directories pile up.
 
@@ -214,7 +233,10 @@ holding the old history. Append-only keeps a pushed branch a safe, shared base. 
   `git -c merge.directoryRenames=false merge refs/remotes/origin/main`, as `arc base merge` does. Substitute the
   configured base branch for `main` in both commands. Disabling directory-rename inference for that invocation keeps
   a branch's new active artifacts in place when base archives the last active work unit, while preserving individual
-  file renames. The repository's Git configuration stays unchanged.
+  file renames. The repository's Git configuration stays unchanged. A merge that applies cleanly can still break the
+  branch, where base code assumes the old shape of something the branch changed. Before building on the merge, run
+  `arc check new-head --from <pre-merge head>`, the check integration runs after its own base merge, and fix what it
+  finds.
 - **Integration is the single sanctioned rewrite point.** Any history cleanup — squash, reorder, final rebase —
   happens at integration, after review, when the branch stops being a shared working base and becomes a merge
   candidate.
@@ -253,10 +275,17 @@ Concurrency means several worktrees live at once. Typed locus and terminal opera
 one worktree does not become a global merge coordinator and a base landing does not trigger a refresh sweep of other
 live branches:
 
-- **Remove worktrees with `git worktree remove`, never `rm -rf`.** `git worktree remove` also cleans up git's
-  internal bookkeeping (the administrative link under `.git/worktrees`); `rm -rf` deletes the directory but
-  strands that record, which then needs a `git worktree prune` to clear. If a directory has already been deleted
-  out from under git, `git worktree prune` recovers the stale reference.
+- **Remove a work item's worktree through its exit verb, never `rm -rf`.** Each worktree ARC spawns for a work unit
+  or an Errand carries a `git worktree lock` whose reason names its exits — `arc teardown <name>` for a work unit,
+  `arc errand close`, `abandon`, or `leave` for an Errand — and Git refuses a plain `git worktree remove` of it,
+  printing that reason. The exit first persists what ARC holds in the checkout, then unlocks its own lock and removes
+  it; forcing past the lock (`git worktree remove -f -f`) skips that persist. A move keeps the lock and needs the
+  same double force (`git worktree move -f -f`). A worktree no ARC verb spawned is removed with `git worktree remove`,
+  which also clears git's record under `.git/worktrees`; `rm -rf` strands that record.
+- **Clear a deleted folder's registration by its path.** When a folder was deleted out from under git, its
+  registration stays, and `git worktree prune` passes over it while it is locked. Session initialization reports it
+  with its remedy: `arc teardown <name>` where the work unit's teardown removes it, otherwise
+  `git worktree unlock <path>` where it is locked, then `git worktree remove <path>`.
 - **Mind cross-worktree state after a history rewrite.** A branch is checked out in only one worktree at a time,
   but a rebase or other rewrite in one worktree changes what another sees if it tracks the same branch line. After
   any rewrite (integration cleanup, a private-window rebase), re-fetch in the other worktrees before trusting
@@ -506,9 +535,10 @@ conventions above (append-only, primary-on-base, one session per checkout).
   notes leg — lag, not loss: the work is safe on its own machine. Proceed with context; let the owning machine
   re-push. Never force-push notes to clear the line.
 
-- **Worktree removal is refused (uncommitted changes, or unmerged work).** Git is protecting state that would be
-  lost. Inspect the worktree; commit, stash, or hand the work off, then remove with `git worktree remove`. Don't
-  `rm -rf` — it strands git's bookkeeping (recoverable afterward with `git worktree prune`, but avoidable).
+- **Worktree removal is refused (uncommitted changes, unmerged work, or a lock).** Git is protecting state that
+  would be lost. Inspect the worktree; commit, stash, or hand the work off, then remove it with the exit verb the lock
+  reason names. Don't `rm -rf` — it strands git's registration, which then needs `git worktree unlock <path>` and
+  `git worktree remove <path>` to clear.
 
 - **Teardown leaves the session in a detached worktree husk.** A worktree cannot safely remove the directory the
   current session is standing in. Self-teardown therefore verifies preservation and user-surface reconciliation,

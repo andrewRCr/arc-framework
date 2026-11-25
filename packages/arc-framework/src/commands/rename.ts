@@ -1,4 +1,7 @@
 /** Production command adapter for the work-unit rename verb. */
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
 import type { Store } from "../lib/store/contract.js";
 
 
@@ -72,8 +75,8 @@ import {
   type RunRenameResult,
 } from "../lib/work-unit/verbs/rename.js";
 import { reconcileRoadmap } from "../lib/work-unit/side-effects/readiness-regen.js";
-import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
-import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
+import { readCandidateRecord } from "../lib/store/kinds/review/candidate/access.js";
+import { readSubmissionBoundary } from "../lib/store/kinds/review/integration-boundary/access.js";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
 import { storeRenameAdapters } from "./rename-store.js";
 import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
@@ -114,6 +117,8 @@ async function runInRepoRenameCommand(
   const lifecycleFs = nodeLifecycleFs();
   const referenceFs = nodeReferenceFs(command.cwd);
   const exec = command.io.exec;
+  const store = command.store ?? createStore(createDefaultStorePorts({ checkoutRoot: command.cwd, exec }));
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity: command.identity });
   const ctx: RunRenameContext = {
     ...(command.store === undefined ? {} : { store: command.store }),
     retirement: command.retirement,
@@ -121,8 +126,8 @@ async function runInRepoRenameCommand(
     onPrepared: async (plan) => {
       if (!plan.resuming) {
         const [candidate, boundary] = await Promise.all([
-          readCandidateRecord(command.cwd, plan.sourceSlug),
-          readSubmissionBoundary(command.cwd, plan.sourceSlug),
+          readCandidateRecord(command.cwd, plan.sourceSlug, { store: command.store, exec }),
+          readSubmissionBoundary(command.cwd, plan.sourceSlug, { store: command.store, exec }),
         ]);
         if (candidate !== null || boundary !== null) {
           throw new Error("A work unit with Candidate publication state cannot be renamed.");
@@ -372,7 +377,7 @@ async function runInRepoRenameCommand(
               move: {
                 apply: async () => {
                   worktree = await reconcileWorkUnitWorktree({
-                    exec,
+                    exec, store, projectionRemovalSlots,
                     chdir: (path) => {
                       process.chdir(path);
                     },
@@ -386,7 +391,7 @@ async function runInRepoRenameCommand(
                 },
                 rollback: async () => {
                   await reconcileWorkUnitWorktree({
-                    exec,
+                    exec, store, projectionRemovalSlots,
                     chdir: (path) => {
                       process.chdir(path);
                     },

@@ -16,15 +16,14 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import type { Store } from "../lib/store/contract.js";
 import { readLifecycleView } from "../lib/store/lifecycle-view.js";
 import { requireCompleteInventory } from "../lib/store/lifecycle-storage.js";
-import { buildCohortMembership } from "../lib/work-unit/lifecycle-membership.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   checkCohortConsistency,
@@ -171,16 +170,24 @@ export function deriveScanRoot(paths: string[]): string {
  */
 export async function resolveCohortValidationContext(cwd: string, store: Store): Promise<{ context?: LiveCohortContext; diagnostics: string[] }> {
   if (!store.capabilities.stateOffBranch) return { context: buildLiveCohortContextFromDisk(cwd), diagnostics: [] };
-  const view = await readLifecycleView(store);
+  const view = await readLifecycleView(cwd, store);
   if (view.status === "refused") return { diagnostics: [`${view.refusal.condition} ${view.refusal.remedy.text}`] };
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { return { diagnostics: [error instanceof Error ? error.message : String(error)] }; }
-  return { context: { liveMembersByDir: buildCohortMembership(view.result.index), existingCohortDocDirs: new Set() }, diagnostics: [] };
+  const liveMembersByDir = new Map<string, Set<string>>();
+  for (const entry of view.result.entries) {
+    const cohort = entry.fields.cohort;
+    if (cohort === null) continue;
+    const members = liveMembersByDir.get(cohort) ?? new Set<string>();
+    members.add(entry.reference.owner.name);
+    liveMembersByDir.set(cohort, members);
+  }
+  return { context: { liveMembersByDir, existingCohortDocDirs: new Set() }, diagnostics: [] };
 }
 
 // --- CLI entry ---
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   const argvPaths = process.argv.slice(2);
   const cwd = deriveScanRoot(argvPaths);
   const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd }));

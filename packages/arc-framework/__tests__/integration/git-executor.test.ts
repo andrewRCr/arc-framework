@@ -30,6 +30,13 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
+it("honors an already requested cancellation for byte-preserving Git reads", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await expect(createExecaRawGitExec()(["--version"], { signal: controller.signal }))
+    .rejects.toMatchObject({ kind: "canceled", isCanceled: true });
+});
+
 describe("production GitExec", () => {
   it("uses argument arrays, cwd, raw stderr, and compatible stdout normalization", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-execa-git-"));

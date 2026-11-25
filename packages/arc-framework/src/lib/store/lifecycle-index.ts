@@ -2,7 +2,7 @@
 import { MetaPauseSchema, ParsedMetaRecordSchema, type ParsedMetaRecord } from "../active/meta-schema.js";
 import { inspectMetaPauseStructure } from "./kinds/meta/line-reading.js";
 import { validateCohortPath } from "../active/cohort-path.js";
-import { workUnitMetaPath } from "./lifecycle-write.js";
+import { flatWorkUnitMetaPath } from "./lifecycle-write.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { validateState, validatePriority } from "../kernel/schema/vocabulary.js";
 import type { Phase, Location } from "../work-unit/lifecycle-state.js";
@@ -45,7 +45,7 @@ export interface LifecycleIndexInput { asOf?: StateVersion; locations?: Location
  * @param input - Optional saved-state anchor.
  * @returns Indexed fields and combined listing and projection completeness evidence.
  */
-export async function listLifecycleIndex(store: Store, input: LifecycleIndexInput = {}): Promise<StoreResult<LifecycleIndexOutcome>> {
+export async function listLifecycleIndex(store: Pick<Store, "list">, input: LifecycleIndexInput = {}): Promise<StoreResult<LifecycleIndexOutcome>> {
   const { locations, ...anchor } = input;
   return indexedListing(await store.list({ family: "work-item", kind: "work-item/meta", ...anchor,
     ...(locations === undefined ? {} : { filter: { locations } }) }));
@@ -129,7 +129,7 @@ function lifecycleEntry(record: StoreRecord): LifecycleEntry | ListingDiagnostic
     const cohortDefect = validateCohortPath(fields.cohort ?? "");
     if (cohortDefect !== null) return malformedMeta(record, cohortDefect);
     const placement = record.placement;
-    workUnitMetaPath({ ...record, fields });
+    flatWorkUnitMetaPath({ ...record, fields });
     const location = placement.kind === "backlog" ? placement.commitment : placement.kind;
     return { reference: record.reference, version: record.version, fields, placement, phase, location,
       ...(record.links === undefined ? {} : { links: record.links }),

@@ -1,4 +1,5 @@
 /** Registered view commands read one selected store and preserve file/content destinations. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdir, writeFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
@@ -25,7 +26,7 @@ async function fixture() {
   await makeGitExec(cwd)("git", ["config", "arc.identity", "alice"]);
   const h = createLifecycleHarness(), meta = await h.seedMeta("demo", { owner: "alice" });
   const spec = await h.seed(recordReferences["work-item/spec"](meta.reference.owner), "# Spec\n\n**Purpose:** Selected record content.\n");
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, spawningIdentity: "alice", now: 0, createdFor: { kind: "work-unit", name: "demo" } });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, spawningIdentity: "alice", now: 0, createdFor: boundWorkUnitSubject(meta) });
   binding.store = h.store;
   return { ...h, cwd, meta, spec, run: (args: string[]) => runHandlerAt(cwd, () => dispatchRegisteredCli(["--no-input", "view", ...args])) };
 }

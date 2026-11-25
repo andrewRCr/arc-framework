@@ -35,3 +35,24 @@ it("applies exact initial selection before determining heavy membership", async 
   expect(selection.requiresRuntime).toBe(false);
   expect(selection.specifications.map(({ moduleId }) => moduleId)).toEqual(["unit.test.ts"]);
 });
+
+it.each([false, true])("awaits initial refinement before pre-parsing=%s and runtime membership", async (preParse) => {
+  const fake = makeVitestControllerFake([
+    { path: "unit.test.ts", project: "unit" }, { path: "heavy.test.ts", project: "e2e" },
+  ], { preParse });
+  const selection = await discoverVitestSelection([], {}, async (specs) => {
+    await Promise.resolve();
+    return specs.filter(({ project }) => project.name === "unit");
+  }, fake.create);
+  expect(selection.specifications.map(({ moduleId }) => moduleId)).toEqual(["unit.test.ts"]);
+  expect(selection.requiresRuntime).toBe(false);
+  expect(fake.events).toEqual(["initialized"]);
+});
+
+it("closes without execution when asynchronous initial refinement rejects", async () => {
+  const fake = makeVitestControllerFake([{ path: "unit.test.ts", project: "unit" }]);
+  const refused = Promise.reject(new Error("async refinement refused"));
+  void refused.catch(() => undefined);
+  await expect(discoverVitestSelection([], {}, () => refused, fake.create)).rejects.toThrow("async refinement refused");
+  expect(fake.events).toEqual(["initialized", "closed"]);
+});

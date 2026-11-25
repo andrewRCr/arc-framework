@@ -500,9 +500,9 @@
   Separate machine delay from attended decisions. The agent also waited too long before bounding diagnosis and
   asking for the bridge continuation; that execution mistake compounded the product's opaque wait.
 
-- _Post-mortem:_ Identity-global `postmortems/2026-10-05-artifact-editor-handoff/POST-MORTEM.md` records outcomes,
-  witnessed failures, ownership and avoidable execution costs. Reassess the successful path after storage cutover;
-  branch-carried record commits and the two-PR archive bridge already belong to the storage program.
+- _Post-mortem:_ `postmortems/2026-10-05-artifact-editor-handoff/POST-MORTEM.md`, kept outside the repository, records
+  outcomes, witnessed failures, ownership and avoidable execution costs. Reassess the successful path after storage
+  cutover; branch-carried record commits and the two-PR archive bridge already belong to the storage program.
 
 - _Field evidence:_ PR #790's complete hosted Codex pass 2 returned clean at `e478b13646f6510b62fbfc017a781a7fdc3139da`
   on 2026-10-04 at 00:56:03 UTC. The approved final head `ce04ece722980873628ca26e94624b4a5fcd91b7` merged at
@@ -573,8 +573,8 @@
   green) that the reuse path the hook consults can accept, plus an amendment to the invariant's named local command.
   Local enforcement accepting a remote attestation is an authority change, so it is design work, not an Errand.
 
-- _Evidence:_ `postmortems/2026-10-10-quality-gate-hooks-bridge/BRIDGE-LANDING/DUPLICATE-MERGED-TREE-EVIDENCE.json`,
-  `NEW-HEAD-CHECKS.json`.
+- _Evidence:_ `postmortems/2026-10-10-quality-gate-hooks-bridge/BRIDGE-LANDING/DUPLICATE-MERGED-TREE-EVIDENCE.json` and
+  `NEW-HEAD-CHECKS.json`, kept outside the repository.
 
 - _Captured during:_ housekeep triage of the `quality-gate-hooks` landing inefficiencies, 2026-10-10.
 
@@ -948,9 +948,9 @@
   the baseline rather than redesigning or re-executing them by default. Genuinely new authority or design decisions
   remain with the WU; stronger enforcement needs fresh evidence.
 
-- _Analysis:_ `analysis-seam-locus-verification-expansion-2026-10-18.md`. This historical, untracked identity-global
-  user document preserves the timeline, transcript identity, exact target, concrete temporary-control examples, workflow
-  gaps, interim candidates, longer-term design, and standard-review implications.
+- _Analysis:_ `analysis-seam-locus-verification-expansion-2026-10-18.md`. This historical user document, kept outside
+  the repository, preserves the timeline, transcript identity, exact target, concrete temporary-control examples,
+  workflow gaps, interim candidates, longer-term design, and standard-review implications.
 
 - _Files:_ `verify-work-unit.md`, `validate-criteria.md`, `adversarial-review.md`, `review-chunking.md`, preparation and
   integration review entry, delivery-member criteria closing, shared changeset sizing policy/input contract, and
@@ -964,6 +964,291 @@
 
 - _Routing update (2026-10-19):_ PR1037 already shipped the urgent verification safeguards. Route only the remaining
   shared-contract and evidence-reuse design, retaining historical incident detail as history.
+
+### `[ ]` **Size every whole-target review read before it runs, and reopen the effort-bound decision on recurrence**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the draft's "Bound adversarial review effort and detect verification scale before the first pass" entry —
+  its settled scope decision ("mechanical enforcement is not needed on this evidence; reconsider it if recurrence
+  establishes a pattern") and its remaining shared pre-review attention contract.
+
+- _Observation:_ `storage-ref-backend`'s verification (53k changed lines, no Delivery Plan) met three gaps in that
+  contract. `verify-work-unit` Step 1 runs code review's author check over `git diff {parent}...HEAD` before Step 2
+  invokes `arc review changeset resolve`, so the first whole-target read is unsized. Of the seam-locus post-mortem's
+  seven guards, the in-pass effort circuit breaker never landed and progress-as-remaining-work landed only through the
+  report-incomplete rule, so the session set its effort budget by hand. And the resolver measures and recommends chunks
+  but derives none: drawing them took an ad hoc import-graph script, where direct-import majority misplaced tests
+  (nearly every test imports the contract) and phase-tagged `Context:` footers placed tests most reliably.
+
+- _Observation:_ pre-publication repeats the pattern. `prepare-work-unit` sends the first `arc review pre-publication`
+  call before the chunk gate runs, and that call settled `storage-ref-backend`'s Candidate boundary at whole-target
+  scope with a hosted reservation; the chunked call that followed refused, offering only re-entry, which publishes. The
+  command could refuse to settle a hosted reservation for a target the chunk gate would flag, or let a later call
+  replace its own unconsumed judgment; the workflow reorder ships as its own Errand (PR #1119). Evidence:
+  `envelope-1.json`, `envelope-2.json`, and both `boundary-*.json` under `storage-ref-backend`'s review and measurement
+  evidence (kept outside the repository), `verification/prepublication/`.
+
+- _Verb gap (2026-10-24):_ the workflow reorder landed (Errand `prepublication-chunk-gate-order`), but no command
+  returns pre-publication's exact target before its first call, so `prepare-work-unit` spells out its three parts:
+  `branch.base`, the sole merge base of `refs/heads/<branch.base>` and `HEAD`, and `HEAD` (`observeTarget` in
+  `policy/pre-publication-composition.ts`). A sizing read that composes it belongs with the command side above.
+
+- _Recurrence:_ seam-locus Pass 5 overran without an effort bound; this verification avoided that only by setting one by
+  hand. Weigh that against the settled scope decision rather than reading the decision as closing the question.
+
+- _Evidence:_ `process-lessons.md`, `review-partition.py`, and `review-partition.md` under
+  `.arc/user/andrew/storage-ref-backend/` in that work unit's checkout. They are checkout-local and leave at its
+  teardown.
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-22.
+
+### `[ ]` **Give a chunked-scale disposition report a grouped view for approval**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ § Scope: a ceremony reduction that keeps the exact-head lock — approving a chunked-scale disposition set.
+
+- _Observation:_ `storage-ref-backend`'s chunked standard pass attested 81 findings, and `arc review respond -` rendered
+  a 64,416-character, 1,061-line disposition report that `review-triage` has the approver read in full, with no summary
+  in its place. The table at the top is the only overview, similar fixes cannot be grouped, and changing one disposition
+  means re-proposing and re-reading the whole set.
+
+- _Approach:_ at chunked scale, approve through a grouped view, per chunk or per fix area, with per-group dispositions,
+  while the bound canonical set stays whole.
+
+- _Evidence:_ `standard-pass-1/disposition-report-1.md` under `storage-ref-backend`'s review and measurement evidence
+  (kept outside the repository), `verification/prepublication/`.
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
+### `[ ]` **Give a shipped work unit's review records a retention rule, so they go with teardown**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Define terminal ownership and collection for review evidence". It would reverse shipped
+  `seam-delivery-review` § 10.4, which keeps an archived work item's records readable from its quarter's archive ref;
+  this unit's owner decides.
+
+- _Observation:_ from the flip, a work item's review records ride its ref; archive moves them under
+  `refs/arc/history/work/<uid>`, readable from the quarter's archive ref, and keeps them indefinitely; only abandonment
+  and a cut remove an ended item's records. Adversarial pass records become store records then, so they stop going
+  with teardown as the personal pass files do today. The machine-local hosted-request owner index (`identity/`) also
+  keeps growing. Per `seam-delivery-review` (2026-10-31), nothing reads a shipped item's review facts to decide; the
+  Candidate and boundary are read around landing and during corrections (the checkpoint, merge, readiness and landing
+  link under `with-integration`; `attest --new-root` on a Shipped work unit; the Candidate history read of an ended
+  item; an applicability selection on an archived one), and nothing needs them once the work unit is merged and torn
+  down. The Owner's view (2026-10-31): a work unit's review records have no value after it ships and should go with
+  teardown, as adversarial pass records do today. No work unit owns this.
+
+- _Approach:_ at teardown after landing, remove the ended item's review records, adversarial passes included, and its
+  Candidate and boundary once landing completes, reusing the removal abandonment and a cut already perform; give the
+  hosted-request owner index a pruning rule keyed to ended items. A capture with the same aim for Candidates,
+  "Retire a work unit's internal Candidate records when it archives", left `USER-INBOX` on 2026-09-28; find where it
+  went before shaping this. After the deadline, under "everything else waits".
+
+- _Captured during:_ PM follow-up on the import trial, answered by `seam-delivery-review`, 2026-10-31.
+
+### `[ ]` **Give an Errand's material-fix review loop a stop rule and a same-class recurrence valve**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Conserve Errand scope across successive review corrections" — the remainder after `review-model` § Trend
+  gained its three-look `sustained non-convergence` stop (`ec1b7dcf21`): a stop agreed before the second look, and a
+  valve at the first same-class recurrence.
+
+- _Observation:_ PR #1202 (Codex Errand "Accept a wrapped bold title in a working-memory entry", 2026-10-30 to 10-31)
+  ran one complete hosted review, then five separately authorized local fix checks, with majors 1, 1, 1, 1, 2. Each
+  round fixed its exact examples while a sibling of the same class failed, because every finding's correction boundary
+  required wrapped titles to parse exactly as one-line ones for any interior, a standard an executable ambiguity proof
+  later showed unsatisfiable. Nothing in the Errand's review path returned the loop to the Owner: no stop rule was
+  agreed up front, each round's disposition accepted the reviewer's framing rather than testing the finding against the
+  capture's scope, and `adversarial-review`'s sustained non-convergence reading (with fold verification on) was never
+  reached on this path. The Owner stopped it by hand after round five. The investigation's records are kept outside the
+  repository.
+
+- _Approach:_ give the Errand review path the work-unit loops' controls in proportion: a stop rule agreed before the
+  second look (the program's practice since `storage-ref-backend`), and a valve that returns the loop to the Owner when
+  a fix check's material finding recurs in the class an earlier round fixed, before another round is authorized. Name
+  "out of scope: refuse this input" as a disposition to weigh when a finding's correction boundary outruns the
+  capture's own Approach. Candidate homes to test at drain: `review-orchestration-right-sizing` (the gate's
+  orchestration ceremony) and `adversarial-review`'s non-convergence reading; neither is settled. After the deadline
+  unless it recurs.
+
+- _Captured during:_ PM assessment of PR #1202 for the Owner, 2026-10-31.
+
+### `[ ]` **Decide whether an `incremental` review lane offers a complete pass after a high-yield first pass**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Collapse approved review correction into one resumable action", its interim-extraction line on review
+  retrigger authority.
+
+- _Observation:_ review routing sends a work unit's code to `retrigger: incremental` when the change set is known,
+  the risk call is `routine`, and the surface is `ordinary` (`routing.ts`; `Class` adds terminal-aggregate assurance
+  but never promotes the retrigger, and this repository configures no project promotion). Under `incremental`, a
+  proved converged fix-check chain closes the standard lane, and `code-review`'s successor decision fires only under
+  `full-final`, so no step weighs the last complete pass's count. A first complete pass that finds ten majors,
+  followed by converged fix checks, closes with no recommendation and no second complete pass unless the Owner
+  thinks to elect one. `review-model` § Successor passes (Errand "keep recommending complete passes until one
+  converges", 2026-11-02) now states the review's bar as a complete pass that finds no critical or major finding;
+  `incremental` closure departs from that bar by policy. Here most work routes `sensitive` (`full-final`), but most
+  CineXplorer product work would route `incremental`.
+
+- _Approach:_ decide whether, under `incremental`, a high-yield complete pass makes the converged chain offer the
+  Owner a further complete pass instead of closing silently, and what counts as high yield without a fixed threshold
+  (the successor guidance reads the complete-pass series rather than a number). Engage the recorded rationale for
+  `incremental` closure first. Owner direction: settle it before CineXplorer migrates onto ARC.
+
+- _Captured during:_ the `successor-pass-yield` Errand, 2026-11-02.
+
+### `[ ]` **Settle a Candidate's applicability as `covered` when a clean fix check reviewed exactly its residual**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Retire a retained attempt when a later clean pass proves complete residual coverage", and "Make settled
+  singleton integration a short, measurable path to merge".
+
+- _Observation:_ the residual `seam-delivery-review`'s refusal named (three paths between the verified target
+  `f56ba89ab` and `d5c7fb18b`) was the correction range of a clean fix check at that head, where the Owner had just
+  accepted the review stop. Recorded state determined `covered`, yet the CLI asked. It recurs whenever fix checks
+  follow verification, so the storage cutover does not remove it (unlike the landing bridge's record-commit re-asks
+  in `WORKING-MEMORY`).
+
+- _Approach:_ when the bounded residual lies within a settled clean correction review's range at the current head,
+  record `covered` (or `targeted-check` citing that review) with its evidence and no stop; ask as now otherwise.
+  Candidate homes: `review-source-authority`, `review-activity-contracts`.
+
+- _Evidence:_ the records of `seam-delivery-review`'s 2026-11-02 landing, kept outside the repository.
+
+- _Captured during:_ `project-manager.ARC`, a process review of `seam-delivery-review`'s landing, 2026-11-02.
+
+### `[ ]` **Give ARC a verb that opens the change request `review change-request resolve` says to create**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Make settled singleton integration a short, measurable path to merge".
+
+- _Observation:_ `resolve` answers `nextAction: create-change-request`, and no verb performs it. In
+  `seam-delivery-review`'s landing (2026-11-02) the agent read the merge-lock schema, composed the `merge lock resolve`
+  input by hand, wrote the title and body, ran `gh pr create`, and resolved again to bind the result: three `resolve`
+  calls, three `merge lock` calls including help and schema, about ten minutes.
+
+- _Approach:_ one verb that takes a title file and a body file, applies the merge lock, opens the pull request
+  through the provider path ARC already uses for merges (`gh` or the GitHub API), binds and records it, and answers
+  "reuse" on a retry. The agent supplies only the judgment content. Own it in the CLI rather than through harness
+  tools (Owner question, 2026-11-02): the stacked-change CLIs ARC follows own pull-request creation, harness tools are
+  not portable across agents, and a pull request opened outside ARC is what made it resolve again. Engage any recorded
+  rationale for leaving the provider write with the agent before changing it. Candidate homes: the delivery and
+  integration surface, `review-orchestration-right-sizing`.
+
+- _Evidence:_ the change-request, merge-lock and pull-request creation results from `seam-delivery-review`'s 2026-11-02
+  landing, kept outside the repository.
+
+- _Captured during:_ `project-manager.ARC`, a process review of `seam-delivery-review`'s landing, 2026-11-02.
+
+### `[ ]` **Decide how cancelling an unused conditional review admission affects consumed permission**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Define terminal ownership and collection for review evidence" (held for the storage seam, which has
+  shipped).
+
+- _Observation:_ `bindConditionalPendingAdmission` in `review-gate/lane-progress-conditional.ts` consumes a bound
+  next-pass authorization atomically when it publishes the pending admission, before the provider run starts.
+  The withdrawal path refuses consumed authority, and consumed retries require the original attempt to survive.
+  Deleting an unrun admission would leave its consumed permission pointing at a missing attempt; resetting that
+  permission could revive a stale ready response or silently authorize another review.
+
+- _Approach:_ Decide whether unused conditional permission stays spent, can authorize a replacement under the
+  same contract, or requires renewed approval, and define cancellation/supersession and stale-response rejection
+  together. Coordinate durable representation with `seam-delivery-review`; this is a policy decision, not a general
+  cleanup command or a reason to reset review evidence. The ordinary-admission Errand preserves this special case
+  and returns an explicit diagnostic instead of changing consumed authority.
+
+- _Captured during:_ Errand `frontline-unrun-admission`, 2026-10-15; separate policy treatment accepted after
+  explaining the reservation-versus-execution distinction.
+
+### `[ ]` **Restore a reachable retry for a frontline run interrupted before its outcome is recorded**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Define terminal ownership and collection for review evidence" (held for the storage seam, which has
+  shipped).
+
+- _Observation:_ A started frontline run with pending operation state and no durable outcome is retained by
+  ordinary resolve, which returns its original admission. `executeFrontlineRun` then refuses replay with
+  `uncertain-provider-execution` and asks for an explicit `retryOfOperationId`. `assertFreshRetryAdmission` refuses
+  that retry against the original admission because it requires a different operation identity and a higher retry
+  generation; ordinary resolve never supplies one while the original lane attempt stays pending. The advertised
+  retry therefore has no reachable fresh-admission path for this interrupted case.
+
+- _Approach:_ Define an explicit operator-approved retry continuation that preserves the uncertain original run
+  and its evidence, provides a fresh admission under the correct pass allowance, and prevents duplicate provider
+  execution from ordinary replay. Coordinate with conditional next-pass authority, without treating a started run
+  as an unused reservation or silently clearing pending records.
+
+- _Captured during:_ Errand `frontline-unrun-admission`, 2026-10-15; source investigation requested by its origin
+  capture, with the separate follow-up accepted at the increment approval.
+
+### `[ ]` **Give an unbound or out-of-order Errand review response a typed recovery**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-11-10). The two refusals run as an Errand; this is the
+  recovery half.
+
+- _Shapes:_ "Collapse approved review correction into one resumable action".
+
+- _Observation:_ on PR #1297 the fix was committed before the findings response was recorded, and the first
+  `arc review respond -` call returned `stale-target / prepare-current-target`, which reads as "re-run at the current
+  target" while the round needs the response recorded against the reviewed head. A detached-head workaround followed:
+  `resolveActiveErrand` (`respond-composition.ts`) matches the Errand record's branch against
+  `git rev-parse --abbrev-ref HEAD`, which reads `HEAD` when detached, so `respond` wrote the approved record with
+  `errand: null` and a fix authorization. Back on the branch, the verified-fix replay refused, and no review verb
+  rebinds or withdraws an approved record, so the Errand was re-run under a new claim, spending another frontline run
+  and Codex pass.
+
+- _Approach:_ two designs to weigh, beside the Errand that makes both refusals explicit. Rebind a record written
+  unbound to the producer's Errand claim when the claim, branch and producer lineage agree, or withdraw an unperformed
+  approval so the round can restart. And decide whether to accept a proposal and approval for the producer's reviewed
+  target while the Errand branch has advanced by the commits the response will claim. Either changes the approved
+  disposition record's contract or relaxes an exact-target authority rule.
+
+- _Files:_ `src/scripts/review-gate/runtime/respond-composition.ts` (`resolveActiveErrand`) and `respond-command.ts`
+  (the approval record build, `persistErrandResponse`, and the stale-target arm) under `packages/arc-framework/`.
+
+- _Captured during:_ `repeat-review-guard` Errand, PR #1297's first findings round, 2026-11-07.
+
+### `[ ]` **Make each review round on a large change cheaper, at the same rigor**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Scope, beside the buffered "Let a Candidate fix's verified-fix record defer its approved suite to
+  convergence".
+
+- _Observation:_ `projection-worktrees` (about 27,000 changed lines, 382 files) ran three independent criteria passes
+  (3, 25 and 16 findings) with six fix checks, then three complete standard passes with five, between verification
+  start (2026-11-12 10:40 pm CT) and publication (11-16 9:26 am). The Owner judged that count, and the balance of
+  complete passes to fix checks, right for the change: stopping earlier ships code likelier to carry major issues
+  (2026-11-16). The cost to cut is each round's. In standard review about 12 hours fell inside the eight operations
+  (start to approval) and about 10 daytime hours between them, mostly after the complete passes (4 h 46 m after pass
+  1, 3 h 5 m after pass 3; pass 2's fixes ran overnight). Each complete pass's approved set fixed nearly all of its
+  43–49 findings, nearly all minor (3, 2 and 0 major), over 58–79 files (+1,238/−369, +1,459/−247, +1,599/−376), all
+  at `full` verification scope, so each set ran the forced merge gate (see the Errand "Find why one check runs
+  several times on identical content…"); fix checks' findings named recurrences ("recurs: A26", "a propagation
+  gap"). The elapsed times mix review, fix work, checks and Owner waits.
+
+- _Approach:_ first split the time between operations into fix authoring, checks and Owner waits, from the session
+  logs. Then weigh, against prior art: the verification scope minor repairs are approved at (`full` forces the merge
+  gate; `focused`, for a bounded interaction, the push gate over the range); how a large fix set is authored (serially
+  in one session, or split by chunk); and whether fixes breed the next pass's findings, which pass 3's findings
+  sitting in lines the earlier fix sets touched would show. Minor findings stay fixed in the unit: the Owner reads
+  deferring them as the change dodging its own responsibility (2026-11-16), and any change to their default
+  disposition waits on an idiom research pass (how teams treat minor review comments on a large change).
+
+- _Evidence:_ the unit's review-gate records, and the post-implementation summary kept outside the repository.
+
+- _Captured during:_ `project-manager.ARC`'s review of `projection-worktrees`' post-implementation time, at the
+  Owner's request, 2026-11-16.
 
 ---
 

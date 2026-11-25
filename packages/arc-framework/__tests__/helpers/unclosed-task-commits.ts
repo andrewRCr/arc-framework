@@ -1,4 +1,5 @@
 /** Real Git and checked operational records shared by unclosed-task integration cases. */
+import { boundWorkUnitSubject } from "./store/bound-checkout.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { onTestFinished } from "vitest";
@@ -31,6 +32,6 @@ export async function makeUnclosedTaskFixture(options: { state?: "Planning" | "A
     const facts = (await computeCopyKeys({ cwd, commits: [sha] })).get(sha);
     return { repository: "repo", sha, ...(facts?.copyKey === undefined ? {} : { copyKey: facts.copyKey }) };
   };
-  const input = { store: h.store, slug: "demo", cwd, baseBranch: "main", projectId: async () => "repo", exec: createExecaGitExec(), execRaw: createExecaRawGitExec(cwd) };
+  const input = { store: h.store, slug: "demo", uid: boundWorkUnitSubject(primary).uid, cwd, baseBranch: "main", projectId: async () => "repo", exec: createExecaGitExec(), execRaw: createExecaRawGitExec(cwd) };
   return { ...h, cwd, git, commit, readMeta, putLinks, capture, tasks, input };
 }

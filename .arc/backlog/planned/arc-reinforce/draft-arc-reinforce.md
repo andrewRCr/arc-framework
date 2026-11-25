@@ -50,6 +50,32 @@ destinations. Artifact named `arc-reinforce`; "backpressure" is the working term
 
 - _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
 
+### `[ ]` **Compose deterministic lint and AST rules with ARC's prose rules, starting from prior art**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Routing Model › Axis 2 — Form: a deterministic check as a form beside rule, procedure, reference and
+  trigger.
+
+- _Observation:_ Owner interest (2026-11-08) as a potential ARC product feature, not only for this repository and
+  CineXplorer. Many prose rules in `DEV-RULES` files are syntactically detectable, and this repository already
+  enforces some by check (the size and complexity baseline, TSDoc on the exported surface, `lint:arc:section-refs`
+  against planning references in code, Markdown lint); others are judgment, such as a shared helper never baking in
+  one consumer's default. A prose rule an agent must remember can be forgotten, while a check cannot and costs nothing
+  at review.
+
+- _Approach:_ research prior art first, then design. To survey: ESLint custom rules and plugins
+  (`eslint-plugin-boundaries`); Semgrep and ast-grep, whose YAML pattern rules an agent can also author; CodeQL;
+  architecture rules as tests (ArchUnit, dependency-cruiser) for seams; Danger for pull-request rules. ARC composes
+  rather than owns: the project brings its linters, in any language. ARC's possible contributions: binding a prose
+  rule to the check that enforces it, so the rule cites its check and the check's failure cites the rule; proposing a
+  deterministic rule when a review finding class recurs, the code-side corollary of review-model's rule of three; and
+  declaring such checks at gate deadlines through `arc check`, as now. Prose keeps the judgment rules. Architecture
+  rules can also enforce the seams that the code-map entry routed to `comprehension-preservation` would describe.
+
+- _Captured during:_ `project-manager.ARC`, at the Owner's request to track it for when there is time, 2026-11-08
+  (Owner-requested capture).
+
 ## Problem / Motivation
 
 When the user observes an unwanted agent behavior that traces clearly to a guidance gap (no rule,

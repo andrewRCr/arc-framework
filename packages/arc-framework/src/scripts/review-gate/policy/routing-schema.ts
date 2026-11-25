@@ -108,7 +108,9 @@ export const LocalReviewRoutingInputSchema = z.strictObject({
   reviewRisk: z.unknown().optional(),
   changeDeterminacy: z.unknown().optional(),
   ownership: z.unknown().optional(),
-  surfaceAuthority: z.unknown().optional(),
+  surfaceAuthority: z.unknown().optional().refine((value) => value !== "planning-grooming", {
+    message: "planning-grooming requires classified applicability; use arc review planning-grooming resolve instead",
+  }),
 });
 export type LocalReviewRoutingInput = z.infer<typeof LocalReviewRoutingInputSchema>;
 

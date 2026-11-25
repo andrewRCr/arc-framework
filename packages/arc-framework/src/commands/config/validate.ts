@@ -69,6 +69,8 @@ const VALIDATION_DOMAIN_ORDER = [
   "user.notes_push",
   "sync.auto_pull",
   "archive.cadence",
+  "storage.track_design_docs",
+  "layout.active",
 ] as const satisfies readonly ArcConfigKey[];
 
 const OPTIONAL_INTEGER_KEYS = [
@@ -353,6 +355,10 @@ export async function validateConfigFile(
   const locationTemplate = values["worktree.location_template"];
   if (locationTemplate !== undefined && invalidKeys.has("worktree.location_template")) {
     error(output, "worktree.location_template: '' is not valid (expected: non-empty value)");
+  }
+
+  if (invalidKeys.has("storage.backing_repository")) {
+    error(output, "storage.backing_repository must be empty (unset) or contain a non-whitespace repository pointer");
   }
 
   renderCrossFieldChecks(output, values);

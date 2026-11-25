@@ -21,7 +21,9 @@ it.each(routes)("preserves native root $command tier membership and owned setup"
       'import { it } from "vitest"; it("native portability case", () => { console.log("PORTABILITY-CASE-RAN"); });');
     await writeFile(join(fixture.packageRoot, "__tests__/integration/framework-sync.test.mjs"),
       'import { it } from "vitest"; it("native contract case", () => { console.log("CONTRACT-CASE-RAN"); });');
-    const result = await execa("npm", ["run", "-s", command], { cwd: fixture.root, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" },
+    // An enclosing check's base names a commit the fixture lacks; a run given none takes every store suite.
+    const result = await execa("npm", ["run", "-s", command], { cwd: fixture.root,
+      env: { CI: "1", ARC_E2E_SKIP_BUILD: "", ARC_CHECK_BASE: undefined, ARC_CHECK_TREE: undefined },
       reject: false, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 });
     expect(result, result.stderr).toMatchObject({ exitCode: 0 });
     const events = (await readFile(fixture.events, "utf8")).split("\n").filter((line) => line.startsWith("{"))

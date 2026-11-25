@@ -6,13 +6,31 @@ import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
 import {
   checkpointBaseIsAccepted,
   createCheckpointCandidateContext,
+  createIntegrationCheckpointDependencies,
   readSingletonCheckpointDischarge,
 } from "../../../../src/scripts/integration/checkpoint-composition.js";
+
+import { readCandidateRecordVersioned, readCandidateRecordVersion, writeCandidateRecord } from
+  "../../../../src/lib/store/kinds/review/candidate/access.js";
+import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
+import { candidateFixture } from "../../../helpers/store/tracked-write-fixture.js";
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 
 const oid = (character: string): string => character.repeat(40);
 const RECORD_VERSION = CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`);
 
 describe("integration checkpoint composition", () => {
+  it("retains the supplied store's Candidate refusal and resumes after repair", async () => {
+    const h = createLifecycleHarness();
+    const meta = await h.seedMeta("example");
+    const input = { cwd: "/unavailable", exec: scriptGitExec([]).exec, store: h.store, workItem: meta.reference.owner };
+    h.store.state.corrupt = true;
+    await expect(createIntegrationCheckpointDependencies(input).readCandidate("example", oid("a")))
+      .rejects.toThrow(/structurally corrupt.*Rebuild the namespace index/isu);
+    h.store.state.corrupt = false;
+    await expect(createIntegrationCheckpointDependencies(input).readCandidate("example", oid("a"))).resolves.toBeNull();
+  });
+
   it("shares one managed Candidate record across classification and downstream projection", async () => {
     let reads = 0;
     const record = { attestation: { candidateId: "candidate" } } as never;
@@ -69,6 +87,27 @@ describe("integration checkpoint composition", () => {
     expect(first?.effective).toMatchObject({ detail: oid("a") });
     expect(second?.effective).toMatchObject({ detail: oid("b") });
     expect(projectedBases).toEqual([oid("a"), oid("b")]);
+  });
+
+  it("compares opaque Candidate versions from the supplied store without digest coercion", async () => {
+    const h = createLifecycleHarness();
+    const { owner } = (await h.seedMeta("example")).reference;
+    const options = { store: h.store, owner };
+    const record = candidateFixture();
+    await writeCandidateRecord("/unavailable", "example", record, null, options);
+    const context = createCheckpointCandidateContext({
+      readRecord: (workUnit) => readCandidateRecordVersioned("/unavailable", workUnit, options),
+      readVersion: (workUnit) => readCandidateRecordVersion("/unavailable", workUnit, options),
+      project: async () => { throw new Error("Target projection is unused during version comparison"); },
+    });
+    const expected = (await context.readRecord("example")).version;
+    expect(expected).not.toMatch(/^sha256:/u);
+    await expect(context.assertRecordVersion("example")).resolves.toEqual({ status: "unchanged", recordVersion: expected });
+    await writeCandidateRecord("/unavailable", "example", record, expected, options);
+    const observed = await readCandidateRecordVersion("/unavailable", "example", options);
+    expect(observed).not.toBe(expected);
+    await expect(context.assertRecordVersion("example")).resolves.toEqual({ status: "moved",
+      expectedRecordVersion: expected, observedRecordVersion: observed });
   });
 
   it("accepts the configured base and a validated delivery-member predecessor", () => {

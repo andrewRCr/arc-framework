@@ -1,4 +1,5 @@
 /** The registered reconcile command plans and applies checkout-local scratch under its lock. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
@@ -119,7 +120,7 @@ it("applies registered managed-target repairs to the Store while preserving sess
   const dependent = await h.seedMeta("dependent", { owner: "andrew", state: "Planning", currentWorkflow: "draft-design" });
   const metaContent = writeMetaSessionContext(dependent.content, "Keep former and `spec-former.md` as prose.");
   lifecycleSuccess(await h.store.write({ ...recordPut(dependent, { content: metaContent }), provenance: { verb: "handoff", lifecycleAction: "update" } }));
-  await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-16T12:00:00Z", createdFor: { kind: "work-unit", name: "dependent" } });
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-16T12:00:00Z", createdFor: boundWorkUnitSubject(dependent) });
   const owner = OwnerIdentitySchema.parse({ type: "person", name: "andrew" });
   const inbox = await h.seed(recordReferences["personal/inbox"](owner), "# Inbox\n\n## Work Unit\n\n### **Managed target**\n\n- _WU_Target:_ `former`\n- _Id:_ `12345678`\n");
   const originalCwd = process.cwd(), originalExit = process.exitCode;
@@ -132,7 +133,7 @@ it("applies registered managed-target repairs to the Store while preserving sess
     await dispatchRegisteredCli(["--no-input", "user", "reconcile-references", "--apply", "--json"]);
     expect(lifecycleSuccess(await h.store.read({ reference: inbox.reference })).content).toContain("_WU_Target:_ `current`");
     expect(JSON.parse(output)).toMatchObject({ status: "applied", plan: { edits: [{ path: ".arc/user/andrew/USER-INBOX.md" }],
-      advisories: [expect.objectContaining({ path: ".arc/active/meta-dependent.md", subject: "former" })] } });
+      advisories: [expect.objectContaining({ path: ".arc/active/current/meta-dependent.md", subject: "former" })] } });
     expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).content).toBe(metaContent);
     await expect(readFile(join(cwd, ".arc/user/andrew/USER-INBOX.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     expect((await exec("git", ["rev-parse", "HEAD"])).stdout).toBe(head);

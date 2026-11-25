@@ -6,6 +6,7 @@ import {
   type PreBindingDeliveryReviewTargetDependencies,
 } from "../../../../../src/scripts/review-gate/policy/pre-publication-delivery-targets.js";
 import { deliveryThreeMemberStackPlanFixture } from "../../../../fixtures/delivery-plan.js";
+import { nativeListingRefusal } from "../../../../fixtures/native-refusal.js";
 
 const oid = (character: string): string => character.repeat(40);
 
@@ -86,6 +87,18 @@ describe("composePreBindingDeliveryReviewTargets", () => {
       reason: "evidence-unavailable",
       detail: "candidate record read failed while resolving delivery",
     });
+  });
+
+  it("raises a native refusal resolving the originating top whole, and composes the targets once it reads", async () => {
+    const deps = dependencies();
+    const refusal = nativeListingRefusal();
+    let repaired = false;
+    deps.resolveOriginatingTop = async () => { if (!repaired) throw refusal; return "refs/heads/feat/example"; };
+    const request = { workUnitId: deliveryThreeMemberStackPlanFixture().workUnitId, baseRef: "main" };
+
+    await expect(composePreBindingDeliveryReviewTargets(request, deps)).rejects.toBe(refusal);
+    repaired = true;
+    await expect(composePreBindingDeliveryReviewTargets(request, deps)).resolves.toMatchObject({ status: "composed" });
   });
 
   it("projects every member in plan order and uses the originating top for the terminal target", async () => {

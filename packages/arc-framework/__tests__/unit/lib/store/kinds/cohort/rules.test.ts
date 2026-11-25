@@ -1,9 +1,12 @@
 /** Cohort integrity is checked against the proposed complete batch. */
 import { CohortReadPlacementSchema } from "../../../../../../src/lib/store/placement.js";
 import { describe, expect, it } from "vitest";
-import { checkCohortPurpose, checkCohortParent, checkCohortOpenMembers } from "../../../../../../src/lib/store/kinds/cohort/rules.js";
+import { RecordReferenceSchema, type StoreRecord } from "../../../../../../src/lib/store/index.js";
+import { checkCohortPurpose, checkCohortParent, checkCohortOpenMembers, checkCohortArchiveCloseout } from "../../../../../../src/lib/store/kinds/cohort/rules.js";
 import { cohortDoc as doc, cohortMember as member, cohortRuleInput as input } from "../../../../../helpers/store/cohort-rule-input.js";
 const complete = CohortReadPlacementSchema.parse({ kind: "completed", quarter: "2026-q4", sequence: "01", closeout: "a" });
+const disputed = (record: StoreRecord): StoreRecord => ({ ...record, conflicts: [RecordReferenceSchema.parse({ owner: record.reference.owner,
+  kind: record.reference.owner.type === "cohort" ? "cohort/conflict-record" : "work-item/conflict-record", key: "membership-gap" })] });
 describe("Purpose floor", () => {
   it.each([null, "", "—"])("refuses a new Purpose %s", (purpose) => expect(checkCohortPurpose(input(doc("group", null, purpose))))
     .toMatchObject([{ rule: "cohort.purpose" }]));
@@ -63,6 +66,25 @@ describe("valid cohort writes and legacy repairs", () => {
     ["no completed placement", doc(), doc(), [member("group")]],
     ["unchanged completed placement", doc("group", null, "Authored.", complete), doc("group", null, "Authored.", complete), [member("group")]],
   ] as const)("admits retention writes for %s", async (_name, next, prior, after) => expect(await checkCohortOpenMembers(input(next, prior, after))).toEqual([]));
+});
+describe("disputed open evidence", () => {
+  const records = [["an open member", disputed(member("other"))], ["an open cohort", disputed(doc("other"))]] as const;
+  it.each(records)("refuses a Parent write while %s has open conflicts", async (_name, record) =>
+    expect(await checkCohortParent(input(doc(), null, [record])))
+      .toMatchObject([{ rule: "cohort.parent", condition: expect.stringContaining("Resolve the named conflict records") }]));
+  it.each(records)("refuses retirement while %s has open conflicts", async (_name, record) =>
+    expect(await checkCohortOpenMembers(input(null, doc(), [record])))
+      .toMatchObject([{ rule: "cohort.open-members", condition: expect.stringContaining("membership-gap") }]));
+  it("refuses archive closeout while an open member has open conflicts", async () => {
+    const proposal = { ...input(doc(), doc(), [disputed(member("other"))], [disputed(member("other"))]),
+      writer: { kind: "verb" as const, verb: "archive" } };
+    expect(await checkCohortArchiveCloseout(proposal))
+      .toMatchObject([{ rule: "cohort.archive-closeout", condition: expect.stringContaining("membership-gap") }]);
+  });
+  it("admits retirement over a disputed completed member", async () =>
+    expect(await checkCohortOpenMembers(input(null, doc(), [disputed(member("group", true))]))).toEqual([]));
+  it("admits retirement when the same batch resolves the dispute", async () =>
+    expect(await checkCohortOpenMembers(input(null, doc(), [member("other")], [disputed(member("other"))]))).toEqual([]));
 });
 describe("incomplete proposed observations", () => {
   it.each(["parent", "retention"])("refuses an incomplete %s family enumeration", async (rule) => {

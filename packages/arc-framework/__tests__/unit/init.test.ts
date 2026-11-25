@@ -1,3 +1,4 @@
+import { virtualIgnoreSetup } from "../helpers/ignore-setup.js";
 /**
  * Unit tests for init command orchestration.
  *
@@ -42,6 +43,7 @@ import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import { DEFAULT_PROMPTS } from "../helpers/integration.js";
+import { ARC_IGNORE_BLOCK } from "../helpers/arc-ignore-block.js";
 
 const __testdir = dirname(fileURLToPath(import.meta.url));
 const actualRecipe = JSON.parse(
@@ -451,14 +453,18 @@ function mockIO(
     ...files,
   };
   const written: Record<string, string> = {};
+  const virtualFiles = new Map(Object.entries(allFiles));
+  const ignoreIO = virtualIgnoreSetup(virtualFiles);
   return {
+    lstat: ignoreIO.lstat,
     writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     readFile: vi.fn(async (path: string) => {
-      if (path in allFiles) return allFiles[path]!;
+      if (virtualFiles.has(path)) return virtualFiles.get(path)!;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     }),
     writeFile: vi.fn(async (path: string, content: string) => {
       written[path] = content;
+      virtualFiles.set(path, content);
     }),
     mkdir: vi.fn(async () => undefined),
     access: vi.fn(async (path: string) => {
@@ -473,8 +479,8 @@ function mockIO(
     // Init lock primitives — default virtual behavior is "lock always free":
     // create resolves, release resolves. Contention tests override
     // exclusiveCreate to reject with an EEXIST error.
-    exclusiveCreate: vi.fn(async () => undefined),
-    removeFile: vi.fn(async () => undefined),
+    exclusiveCreate: vi.fn(ignoreIO.exclusiveCreate),
+    removeFile: vi.fn(async (path: string) => { virtualFiles.delete(path); }),
     _written: written,
   } as IOContext & { _written: Record<string, string> };
 }
@@ -857,6 +863,24 @@ describe("runInit", () => {
     expect(result).not.toBeNull();
     expect(result!.filesWritten).toHaveLength(2);
     expect(result!.tools).toEqual(["claude", "cursor"]);
+  });
+
+  it("fresh mode: writes ARC's managed .ignore block", async () => {
+    const io = mockIO({ "/templates/README.md": "# hi", "/templates/system/arc-config.yml": "pm.mode: none" });
+    const files = new Map<string, string>();
+    const write = io.writeFile;
+    (io as { writeFile: typeof write }).writeFile = async (path, content) => {
+      files.set(path, content);
+      await write(path, content);
+    };
+
+    await runInit({
+      cwd: "/project", io, templateDir: "/templates", internalTemplateDir: "/internal-templates",
+      recipe: { include_files: ["README.md", "system/arc-config.yml"], prompts: minimalRecipe.prompts, conditions: {} },
+      prompts: DEFAULT_PROMPTS, identityResult: "andrew",
+    });
+
+    expect(files.get("/project/.ignore")).toBe(`${ARC_IGNORE_BLOCK}\n`);
   });
 
   it("fresh mode: sets up git integration (gitignore, hooks)", async () => {

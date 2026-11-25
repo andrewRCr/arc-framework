@@ -56,7 +56,7 @@ const cases = [
   ["src/lib/kernel/canonical/canonical-json.ts", 'import "zod";', "no-restricted-imports"],
   ["src/lib/config/status-reader.ts", 'parseMetaProjectionRecord("record");', "no-restricted-syntax"],
   ["src/lib/config/status-reader.ts", 'parseIdentifierList("identifiers");', "no-restricted-syntax"],
-  ["src/lib/active/meta-reader.ts", 'import type { Store } from "../store/create.js";', "no-restricted-syntax"],
+  ["src/lib/active/meta-reader.ts", 'import { createStore } from "../store/create.js"; void createStore;', "no-restricted-syntax"],
   ["src/lib/active/meta-reader.ts", 'import "../store/kinds/meta/registration.js";', "no-restricted-syntax"],
   ["src/lib/errand/promote.ts", 'type Projection = MetaProjectionOverrides;', "no-restricted-syntax"],
   ["src/lib/config/status-reader.ts", 'const DEFAULTS = {}; void DEFAULTS;', "no-restricted-syntax"],
@@ -170,6 +170,7 @@ describe("actual architecture table enforcement", () => {
     ["src/lib/store/in-repo/write-admission.ts", 'parseMetaProjectionRecord("record");'],
     ["src/scripts/validate-meta-spec.ts", 'parseIdentifierList("names");'],
     ["src/lib/active/meta-reader.ts", 'void import("../store/create.js");'],
+    ["src/lib/active/meta-reader.ts", 'import type { Store } from "../store/create.js"; export type Example = Store;'],
     ["src/lib/active/meta-reader.ts", 'import "../store/kinds/meta/projection.js";'],
     ["src/lib/store/kinds/meta/projection.ts", 'parseIdentifierList("names");'],
     ["src/lib/errand/promote.ts", 'const example = "MetaProjectionOverrides renderMetaProjectionFile"; void example;'],
@@ -195,6 +196,7 @@ describe("actual architecture table enforcement", () => {
     ["src/lib/store/planted.ts", 'import "../active/meta-reader.js";'],
     ["src/lib/work-unit/composed-lifecycle-index.ts", 'import "./lifecycle-index.js";'],
     ["src/lib/layout/planted.ts", 'const inbox = "USER-INBOX.md"; void inbox;'],
+    ["src/lib/store/registry.ts", 'const inbox = "USER-INBOX.md"; void inbox;'],
     ["src/lib/store/planted.ts", 'import { resolveArcPath } from "../layout/index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });'],
     ["src/lib/layout/planted.ts", 'import { resolveArcPath } from "./index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });'],
   ])("allows the ratchet's owning boundary in %s: %s", async (path, text) => {
@@ -244,4 +246,27 @@ describe("meta check boundary", () => {
       }
     },
   );
+});
+
+describe("projection personal-surface boundary", () => {
+  it.each([
+    'import { createUserSurfaceResolver } from "../../user-surfaces.js";',
+    'import { resolveUserSurfaceResolver } from "../../user-surfaces.js";',
+    'import * as surfaces from "../../user-surfaces.js";',
+    'import surfaces from "../../user-surfaces.js";',
+    'void import("../../user-surfaces.js");',
+    'const surfaces = require("../../user-surfaces.js");',
+    'import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";',
+    'void import("../../user-surface-migration.js");',
+    'export * from "../../user-surfaces.js";',
+  ])("rejects legacy access and permits the status filename constant: %s", async text => {
+    const filePath = resolve(packageRoot, "src/lib/store/projection/planted.ts");
+    const restricted = new Set(["no-restricted-imports", "no-restricted-syntax"]);
+    const [result] = await eslint.lintText(text, { filePath });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.some(({ ruleId }) => restricted.has(ruleId ?? ""))).toBe(true);
+    const [corrected] = await eslint.lintText('import { IDENTITY_STATUS_FILENAME as filename } from "../../user-surfaces.js"; void filename;', { filePath });
+    expect(corrected?.fatalErrorCount).toBe(0);
+    expect(corrected?.messages.filter(({ ruleId }) => restricted.has(ruleId ?? ""))).toEqual([]);
+  });
 });

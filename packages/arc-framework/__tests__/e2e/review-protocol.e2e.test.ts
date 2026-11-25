@@ -12,6 +12,7 @@ import {
 import { afterEach, describe, expect, it } from "vitest";
 
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { fakeCodeRabbitCompletionLines } from "../helpers/fake-coderabbit.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 import {
@@ -110,7 +111,7 @@ async function fixture(): Promise<string> {
   roots.push(root);
   const initialized = await runArc(["init", "--yes", "--name", "review-protocol"], root);
   expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
-  await git(root, ["add", ".arc", ".gitignore"]);
+  await git(root, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(root, ["commit", "-m", "install ARC"]);
   await git(root, ["switch", "-c", "feat/review-protocol"]);
   await mkdir(join(root, ".arc", "active"), { recursive: true });
@@ -350,6 +351,45 @@ describe("built review protocol", () => {
       schemaVersion: 1,
       operationId: prepared.operationId,
     })).resolves.toMatchObject({ state: "advisory-complete", nextAction: "none" });
+  });
+
+  it("cancels a pending dispatch and accepts a fresh evaluator without settling the old review", async () => {
+    const root = await fixture();
+    const prepared = await prepareLocal(root);
+    const request = { schemaVersion: 1, operationId: prepared.operationId };
+    const cancelled = await invoke(root, ["review", "local", "cancel", "-"], request);
+    expect(cancelled).toMatchObject({ state: "cancelled", nextAction: "rerun-review" });
+    expect(cancelled.payload).not.toHaveProperty("result");
+    expect(cancelled.payload).not.toHaveProperty("receiptRef");
+    await expect(access(prepared.reviewerPayload.reviewRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(invoke(root, ["review", "local", "cancel", "-"], request)).resolves.toMatchObject({
+      state: "terminal-operation", nextAction: "resume-review",
+    });
+    await expect(invoke(root, ["review", "local", "resume", "-"], request)).resolves.toMatchObject({
+      state: "terminal-operation", nextAction: "rerun-review",
+    });
+    await expect(invoke(root, ["review", "local", "attest", "-"], {
+      ...request, result: localResult(prepared, "clean"),
+    })).resolves.toMatchObject({ state: "terminal-operation", nextAction: "rerun-review" });
+
+    const fresh = await invoke(root, ["review", "local", "prepare", "-"], {
+      ...localPrepareRequest(), evaluatorIdentity: "reviewer-2",
+    });
+    expect(fresh).toMatchObject({ state: "ready", nextAction: "launch-review" });
+    const replacement = fresh.payload as LocalPreparePayload;
+    expect(replacement.operationId).not.toBe(prepared.operationId);
+    expect(replacement.target).toEqual(prepared.target);
+    expect(replacement.request.evaluatorIdentity).toBe("reviewer-2");
+    await expect(invoke(root, ["review", "local", "attest", "-"], {
+      schemaVersion: 1, operationId: replacement.operationId, result: localResult(replacement, "clean"),
+    })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
+    await expect(invoke(root, ["review", "local", "cancel", "-"], {
+      schemaVersion: 1, operationId: replacement.operationId,
+    })).resolves.toMatchObject({ state: "terminal-operation", nextAction: "resume-review" });
+    await expect(invoke(root, ["review", "local", "resume", "-"], {
+      schemaVersion: 1, operationId: replacement.operationId,
+    })).resolves.toMatchObject({ state: "review-complete", nextAction: "reduce" });
+    expect(await git(root, ["status", "--porcelain"])).toBe("");
   });
 
   it("settles local findings and replays the approved disposition through public verbs", async () => {
@@ -597,8 +637,7 @@ describe("built review protocol", () => {
       'if [ "${1:-}" = "--version" ]; then printf "coderabbit 0.6.5\\n"; exit 0; fi',
       'printf "started\\n" > "$STARTED_FILE"',
       'while [ ! -f "$RELEASE_FILE" ]; do sleep 0.1; done',
-      "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":0,"
-        + "\"reviewedFiles\":[\"reviewed.txt\"]}'", ""].join("\n"));
+      ...fakeCodeRabbitCompletionLines(0), ""].join("\n"));
     await chmod(executable, 0o755);
     const request = {
       schemaVersion: 1, target,
@@ -645,8 +684,7 @@ describe("built review protocol", () => {
       "fi",
       "printf 'run\\n' >> \"$COUNT_FILE\"",
       "sleep 1",
-      "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":0,"
-        + "\"reviewedFiles\":[\"reviewed.txt\"]}'",
+      ...fakeCodeRabbitCompletionLines(0),
       "",
     ].join("\n"), "utf8");
     await chmod(executable, 0o755);

@@ -2,9 +2,10 @@
 import { z } from "zod";
 import { BranchLinkSchema } from "../../links.js";
 import { SlugSchema } from "../../../kernel/schema/slug.js";
+import { StoredUidSchema } from "../../identity.js";
 
 /** A work item's name at the transition, with its generation when available. */
-export const WorkItemRefSchema = z.strictObject({ name: SlugSchema, uid: z.uuid().optional() });
+export const WorkItemRefSchema = z.strictObject({ name: SlugSchema, uid: StoredUidSchema.optional() });
 /** One validated work-item reference in terminal history. */
 export type WorkItemRef = z.infer<typeof WorkItemRefSchema>;
 

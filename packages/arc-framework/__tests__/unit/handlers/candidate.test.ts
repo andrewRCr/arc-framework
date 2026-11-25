@@ -6,6 +6,11 @@ import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-jso
 import { createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { handleCandidateApplicabilityResolve } from "../../../src/handlers/candidate.js";
 import { CandidateSubjectUncollectableError } from "../../../src/lib/work-unit/git-candidate-subject.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
+import { StoreRefusalError } from "../../../src/lib/store/refusal-error.js";
+import { ReviewOwnerSelectionError } from "../../../src/lib/store/kinds/review/errors.js";
+import { createProjectIdentityReader, ProjectIdentityError } from "../../../src/lib/store/project-identity.js";
+import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { classifyReviewContributionApplicability } from
   "../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 
@@ -268,6 +273,66 @@ describe("handleCandidateApplicabilityResolve", () => {
     expect(exitCodes).toEqual([1]);
   });
 
+  it("carries a native refusal from the mutation-owner check with its repair, and continues once repaired", async () => {
+    const output: string[] = [];
+    const request = makeRequest();
+    const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+      condition: "The work unit's locus record's objects are missing.",
+      remedy: { text: "Restore or fetch the missing record objects, then retry the read." } };
+    const resolved = { schemaVersion: 1, mode: "candidate-applicability-resolve", state: "resolved", nextAction: "continue",
+      candidateId: request.candidateId, choice: request.choice } as const;
+    let repaired = false;
+    const dependencies = {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => {
+        if (!repaired) throw new StoreRefusalError(refusal, true);
+        return { status: "owned" as const, workUnit: "example" };
+      },
+      readText: async () => JSON.stringify(request),
+      execute: async () => resolved,
+      write: (text: string) => output.push(text),
+      setExitCode: () => undefined,
+    };
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+    expect(JSON.parse(output.join(""))).toEqual({ schemaVersion: 1, mode: "candidate-applicability-resolve",
+      state: "execution-unavailable", nextAction: "stop", reason: "active-work-unit-unavailable", detail: refusal.condition,
+      remedy: { invariant: refusal.condition, text: expect.stringContaining(refusal.remedy.text),
+        argv: ["arc", "candidate", "applicability", "resolve", "example", "-"], stdin: request } });
+    output.length = 0;
+    repaired = true;
+    await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+    expect(JSON.parse(output.join(""))).toEqual(resolved);
+  });
+
+  it("names a missing project ID that stops the resolution with its port's repair, and resolves once the clone holds it", async () => {
+    const output: string[] = [];
+    const request = makeRequest();
+    const identity = await createProjectIdentityReader(createReviewHarness().store)().then(() => null, (error: unknown) => error);
+    if (!(identity instanceof ProjectIdentityError)) throw new Error("Expected the identity port to refuse a clone with no project ID");
+    const resolved = { schemaVersion: 1, mode: "candidate-applicability-resolve", state: "resolved", nextAction: "continue",
+      candidateId: request.candidateId, choice: request.choice } as const;
+    let repaired = false;
+    const dependencies = {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "owned" as const, workUnit: "example" }),
+      readText: async () => JSON.stringify(request),
+      execute: async () => { if (!repaired) throw identity; return resolved; },
+      write: (text: string) => output.push(text),
+      setExitCode: () => undefined,
+    };
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+    expect(JSON.parse(output.join(""))).toEqual({ schemaVersion: 1, mode: "candidate-applicability-resolve",
+      state: "execution-unavailable", nextAction: "stop", reason: "execution-failed", detail: identity.failure.reason,
+      remedy: { invariant: identity.failure.reason, text: expect.stringContaining(identity.failure.remedy.text),
+        argv: ["arc", "candidate", "applicability", "resolve", "example", "-"], stdin: request } });
+    output.length = 0;
+    repaired = true;
+    await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+    expect(JSON.parse(output.join(""))).toEqual(resolved);
+  });
+
   it("rechecks checkout authority before the service mutation boundary", async () => {
     const output: string[] = [];
     const exitCodes: number[] = [];
@@ -346,6 +411,97 @@ describe("handleCandidateApplicabilityResolve", () => {
       },
     });
     expect(exitCodes).toEqual([1]);
+  });
+
+  it.each([
+    ["a store keeping state off the branch", true],
+    ["an in-repo store", false],
+  ])("carries %s's refusal and its repair as the failure's cause only off the branch", async (_label, offBranch) => {
+    const output: string[] = [];
+    const request = makeRequest();
+    const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+      reference: recordReferences["review/candidate"](OwnerIdentitySchema.parse({ type: "work-item", name: "example",
+        uid: "00000000-0000-4000-8000-000000000001" })),
+      condition: "The stored record's objects are missing.",
+      remedy: { text: "Restore or fetch the missing record objects, then retry the read." } };
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
+      readText: async () => JSON.stringify(request),
+      execute: async () => { throw new StoreRefusalError(refusal, offBranch); },
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(JSON.parse(output.join(""))).toEqual({
+      schemaVersion: 1,
+      mode: "candidate-applicability-resolve",
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: "execution-failed",
+      ...(offBranch ? { detail: refusal.condition, remedy: { invariant: refusal.condition,
+        text: expect.stringContaining(refusal.remedy.text), argv: ["arc", "candidate", "applicability", "resolve", "example", "-"],
+        stdin: request } } : {}),
+    });
+  });
+
+  it.each([
+    ["a native inventory refusal", true],
+    ["an in-repo inventory failure", false],
+  ])("carries the ownership check's cause and repair from %s only off the branch, and continues once repaired",
+    async (_label, offBranch) => {
+      const output: string[] = [];
+      const request = makeRequest();
+      const condition = "The completed work-unit inventory is incomplete. Metadata for `other` is malformed.";
+      const resolved = { schemaVersion: 1, mode: "candidate-applicability-resolve", state: "resolved", nextAction: "continue",
+        candidateId: request.candidateId, choice: request.choice } as const;
+      let repaired = false;
+      const dependencies = {
+        resolveRoot: () => "/repo",
+        resolveMutationOwner: async () => ({ status: "unowned" as const }),
+        resolveCompletedWorkUnits: async () => {
+          if (repaired) return ["example"];
+          throw offBranch ? new ReviewOwnerSelectionError("corrupt-state", condition,
+            { text: "Repair the completed work units' metadata, then retry." }) : new Error(condition);
+        },
+        readText: async () => JSON.stringify(request),
+        execute: async () => resolved,
+        write: (text: string) => output.push(text),
+        setExitCode: () => undefined,
+      };
+
+      await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+      expect(JSON.parse(output.join(""))).toEqual({ schemaVersion: 1, mode: "candidate-applicability-resolve",
+        state: "execution-unavailable", nextAction: "stop", reason: "active-work-unit-unavailable",
+        ...(offBranch ? { detail: condition, remedy: { invariant: condition, text: expect.stringContaining("Repair the "
+          + "completed work units' metadata, then retry."), argv: ["arc", "candidate", "applicability", "resolve", "example",
+          "-"], stdin: request } } : {}) });
+      repaired = true;
+      output.length = 0;
+      await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+      expect(JSON.parse(output.join(""))).toEqual(resolved);
+    });
+
+  it("carries a work-item selection the command cannot use as its cause and repair", async () => {
+    const output: string[] = [];
+    const remedy = { text: "Run the command from its checkout." };
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
+      readText: async () => JSON.stringify(makeRequest()),
+      execute: async () => {
+        throw new ReviewOwnerSelectionError("invalid-input", "`example` is not a completed work unit.", remedy);
+      },
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(JSON.parse(output.join(""))).toMatchObject({ reason: "execution-failed",
+      detail: "`example` is not a completed work unit.", remedy: { text: expect.stringContaining(remedy.text) } });
   });
 
   it("keeps an ordinary execution failure closed, with no cause to carry", async () => {

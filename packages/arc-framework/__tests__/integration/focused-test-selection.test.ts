@@ -3,6 +3,7 @@ import { access, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeFocusedVitestFixture, runFocusedDiscoveryFixture } from "../helpers/focused-vitest-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 const tree = "packages/arc-framework/__tests__/";
 
@@ -17,7 +18,7 @@ it.each([
       .toBe("SELECTION:" + JSON.stringify(expected));
     expect(result.stdout).toContain("RUNTIME:false");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it.each(["unit/excluded.test.mjs"])("rejects %s even beside a valid operand", async (operand) => {
   const fixture = await makeFocusedVitestFixture();
@@ -33,7 +34,7 @@ it.each(["unit/excluded.test.mjs"])("rejects %s even beside a valid operand", as
     expect(events).not.toContain("unit-setup");
     expect(await readFile(join(fixture.packageRoot, "dist/cli.js"), "utf8")).toContain("previous-live-runtime");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("requires each target to contribute after native project filtering", async () => {
   const fixture = await makeFocusedVitestFixture();
@@ -45,7 +46,7 @@ it("requires each target to contribute after native project filtering", async ()
     await expect(access(join(fixture.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(fixture.events, "utf8")).not.toContain('"stage":"integration:setup"');
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("retains every eligible operand and its native project after explicit filtering", async () => {
   const fixture = await makeFocusedVitestFixture();
@@ -60,4 +61,4 @@ it("retains every eligible operand and its native project after explicit filteri
     expect(await readFile(fixture.events, "utf8")).not.toContain('"stage":"integration:setup"');
     await expect(access(join(fixture.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));

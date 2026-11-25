@@ -16,7 +16,7 @@ function reference(kind: KindId, key?: string) {
 function write(content?: string, prior?: string): WriteCheckInput {
   const view = new ReferenceBackend();
   return {
-    reference: reference("work-item/notes"), writer: { kind: "hand-edit" }, before: view, after: view,
+    reference: reference("work-item/notes"), observations: [], writer: { kind: "hand-edit" }, before: view, after: view,
     ...(content === undefined ? {} : { next: { content, fields: {} } }),
     ...(prior === undefined ? {} : { prior: { content: prior, fields: null } }),
   };
@@ -60,7 +60,7 @@ describe("record link targets", () => {
   ] as const)("admits legal target from %s: %s %s", (kind, key, url) => {
     expect(readRecordLinkViolations(reference(kind, key), `[x](${url})`)).toEqual([]);
   });
-  it.each(["diagram", "spec-prd", "spec-rfc"])("reads conventional Markdown companion %s", key => {
+  it.each(["diagram", "spec-prd", "spec-rfc", "diagram.md", "spec-prd.md", "spec-rfc.md"])("reads Markdown companion path %s", key => {
     expect(readRecordLinkViolations(reference("work-item/companion", key), "[x](relative.md)"))
       .toEqual([expect.objectContaining({ rule: "links.relative-in-movable" })]);
   });
@@ -148,7 +148,7 @@ describe("introduced record link rules", () => {
     expect(rules[0]?.condition).not.toContain("old.md");
   });
   it("applies the same shape rules to verb writes", async () => {
-    const input = { ...write("[x](new.md)"), writer: { kind: "verb", verb: "pause" } } as const;
+    const input = { ...write("[x](new.md)"), observations: [], writer: { kind: "verb", verb: "pause" } } as const;
     expect(await checkRecordLinks(input)).toEqual([expect.objectContaining({ rule: "links.relative-in-movable" })]);
   });
 });

@@ -7,6 +7,7 @@
  * `isLandedInBase` oracle, covered in `branch-containment.test.ts`.)
  */
 
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { describe, it, expect } from "vitest";
 
 import {
@@ -133,12 +134,12 @@ describe("decideHuskCleanup", () => {
     kind: "present",
     marker: {
       ...marker,
-      husk: {
+      husk: makeHuskStamp({
         sha: "0123456789abcdef0123456789abcdef01234567",
         at: "2026-07-14T20:00:00.000Z",
         subject: { kind: "work-unit", name: "worktree-foundation" },
         branch: "feat/worktree-foundation",
-      },
+      }),
     },
   };
 

@@ -63,6 +63,12 @@ describe("resolveCurrentWuName", () => {
     expect(result).toBe("errand-thing");
   });
 
+  it("falls back to the branch slug when active work-unit ownership is ambiguous", async () => {
+    await writeMeta("first");
+    await writeMeta("second");
+    expect(await resolveCurrentWuName(root, branchExec("feat/branch-owner"))).toBe("branch-owner");
+  });
+
   it("returns undefined when no meta resolves and the branch carries no WU slug", async () => {
     const exec = branchExec("main");
 

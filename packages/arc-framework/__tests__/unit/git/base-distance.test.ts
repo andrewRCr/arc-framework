@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
@@ -10,6 +10,7 @@ import {
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { makeGitProcessError, scriptGitExec, type GitExecCall } from "../../helpers/git-exec-fake.js";
 import { BaseDriftResultSchema } from "../../../src/lib/git/base-drift-types.js";
+import { MATERIALIZING_FETCH_TIMEOUT_MS } from "../../../src/lib/git/worktree-sync.js";
 
 const BASE_OID = "b".repeat(40);
 const HEAD_OID = "f".repeat(40);
@@ -20,6 +21,8 @@ const PARENT_B = "e".repeat(40);
 interface MockOptions {
   distance?: string;
   fetchFails?: boolean;
+  /** The fetch answers after this many milliseconds, unless its own bound aborts it first. */
+  fetchMs?: number;
   /** Raw `merge-base --all` output, or "none" for the exit-1 no-common-ancestor rejection. */
   mergeBases?: string;
   historyScanFails?: boolean;
@@ -30,9 +33,17 @@ function gitMock(options: MockOptions = {}) {
     { match: { prefix: ["check-ref-format"] }, responses: [{ stdout: "" }] },
     { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "feat/example\n" }] },
     { match: ["remote", "get-url", "origin"], responses: [{ stdout: "git@example/repo\n" }] },
-    { match: { prefix: ["fetch"] }, responses: [() => {
+    { match: { prefix: ["fetch"] }, responses: [({ options: callOptions }: GitExecCall) => {
       if (options.fetchFails) throw new Error("fetch failed");
-      return { stdout: "" };
+      const { fetchMs } = options;
+      if (fetchMs === undefined) return { stdout: "" };
+      return new Promise<{ stdout: string } | { failure: { isCanceled: true } }>((resolve) => {
+        const timer = setTimeout(() => { resolve({ stdout: "" }); }, fetchMs);
+        callOptions?.signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          resolve({ failure: { isCanceled: true } });
+        }, { once: true });
+      });
     }] },
     { match: ["rev-parse", "--is-shallow-repository"], responses: [{ stdout: "false" }] },
     { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: `${HEAD_OID}\n` }] },
@@ -458,6 +469,24 @@ describe("base drift raw-distance boundary", () => {
       continuation: { kind: "terminal-explanation" },
     });
     expect(calls.some(({ args }) => args[0] === "fetch")).toBe(false);
+  });
+
+  it.each([
+    ["waits out a fetch slower than a status probe's 3 s bound", 10_000, { verdict: "clean", baseOid: BASE_OID }],
+    ["names the bound a fetch outlasts", MATERIALIZING_FETCH_TIMEOUT_MS + 10_000, {
+      verdict: "unavailable",
+      unavailableReason: "fetch-timeout",
+      detail: expect.stringContaining(`bounded at ${MATERIALIZING_FETCH_TIMEOUT_MS / 1000} s`),
+    }],
+  ] as const)("%s by default, since a requested operation acts on the read", async (_label, fetchMs, expected) => {
+    vi.useFakeTimers();
+    try {
+      const read = runBaseDrift({ exec: gitMock({ fetchMs }).exec, baseBranch: "main", mode: "authoritative" });
+      await vi.advanceTimersByTimeAsync(fetchMs);
+      await expect(read).resolves.toMatchObject(expected);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("maps a fetch failure without claiming zero-distance parity", async () => {

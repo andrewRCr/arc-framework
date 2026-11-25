@@ -27,6 +27,7 @@ export async function createTaskCommandContext(base: VerbBase): Promise<TaskVerb
   const common = { store: executor.store, projectId: executor.projectId, cwd: base.cwd, exec: base.io.exec, baseBranch: settings["branch.base"] };
   if (!usesOffBranchState(executor.store)) return { ...common, slug: "" };
   const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store });
+  if (current.status === "unbound") { refuse(current.unbound.reason); return null; }
   if (current.status !== "resolved") { refuse(`Task commands require one current work unit (${current.status}). Run session-init to select it.`); return null; }
   return { ...common, slug: current.candidate.reference.owner.name };
 }

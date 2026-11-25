@@ -9,8 +9,8 @@ it("reports a branchless work item's checkout edits by identity without a commit
     { match: ["status", "--porcelain", "--", "src/app.ts"], responses: [{ stdout: " M src/app.ts\n" }] },
   ]);
   const roster = projectInFlightToOverlapRoster([
-    { kind: "work-unit", name: "planning", worktreePath: "/holder", state: "Planning", dependsOn: [], remoteOnly: false },
-    { kind: "work-unit", name: "caller", branch: "feat/caller", state: "Active", dependsOn: [], remoteOnly: false },
+    { kind: "work-unit", uid: "11111111-1111-4111-8111-111111111111", name: "planning", worktreePath: "/holder", state: "Planning", dependsOn: [], remoteOnly: false },
+    { kind: "work-unit", uid: "11111111-1111-4111-8111-111111111111", name: "caller", branch: "feat/caller", state: "Active", dependsOn: [], remoteOnly: false },
   ], true);
   const result = await detectForeignArtifactOverlap({ exec: fake.exec, roster,
     targetPaths: ["src/app.ts"], baseBranch: "main", originatingWorktreePath: "/caller", originatingWorkUnitName: "caller" });
@@ -26,8 +26,8 @@ it("counts paused work through both probes", async () => {
     { match: ["status", "--porcelain", "--", "src/committed.ts", "src/uncommitted.ts"], responses: [{ stdout: " M src/uncommitted.ts\n" }] },
   ]);
   const roster = projectInFlightToOverlapRoster([
-    { kind: "work-unit", branch: "feat/paused", name: "paused", worktreePath: "/holder", state: "Active", scheduling: "paused", dependsOn: [], remoteOnly: false },
-    { kind: "work-unit", branch: "feat/caller", name: "caller", state: "Active", dependsOn: [], remoteOnly: false },
+    { kind: "work-unit", uid: "11111111-1111-4111-8111-111111111111", branch: "feat/paused", name: "paused", worktreePath: "/holder", state: "Active", scheduling: "paused", dependsOn: [], remoteOnly: false },
+    { kind: "work-unit", uid: "11111111-1111-4111-8111-111111111111", branch: "feat/caller", name: "caller", state: "Active", dependsOn: [], remoteOnly: false },
   ], true);
   expect(await detectForeignArtifactOverlap({ exec: fake.exec, roster,
     targetPaths: ["src/committed.ts", "src/uncommitted.ts"], baseBranch: "main", originatingWorktreePath: "/caller", originatingWorkUnitName: "caller" })).toMatchObject({ overlaps: [{ workItem: "paused", matchedPaths: ["src/committed.ts", "src/uncommitted.ts"] }] });

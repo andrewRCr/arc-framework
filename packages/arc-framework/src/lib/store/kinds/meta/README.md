@@ -25,6 +25,9 @@ so an unrelated malformed cohort does not block an edit.
 Preparation checks the projected own task-list filename and the resulting cursor when its fields change; stored stale
 values stay readable, and unavailable placement or task-list observations retain an explicit retry remedy.
 
-`check.ts` composes the nine metadata rules and both shared slug rules, returning every violation. The registration
+`removal-edges-rule.ts` protects surviving dependency and pause edges during a decomposition primary removal, judging
+the complete batch after-state against the removed generation's current name and authenticated aliases.
+
+`check.ts` composes the ten metadata rules and both shared slug rules, returning every violation. The registration
 supplies the inbound kind's declared grammar to `inbound-held-rule.ts`; no grammar means no held-entry obligation.
 Integration and archive transitions judge the resulting list, so a batch can settle its last entry before leaving.

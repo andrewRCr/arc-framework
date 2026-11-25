@@ -211,12 +211,6 @@ and its checks, then enforcement at each ceremony — decided after the cutover.
 > _Routed-in concerns pending holistic integration into the body at this work unit's next planning iteration; each
 > carries its origin. Integrate — or consciously reject — at iteration._
 
-### Dispositions — grooming, 2026-10-15
-
-| Entry                                                          | Outcome | Where, or why                                |
-| -------------------------------------------------------------- | ------- | -------------------------------------------- |
-| Qualify dependency edges with the lifecycle boundary they gate | fold    | § Decisions, D1 (gates) and D3 (enforcement) |
-
 ### `[ ]` **Take a cut's provider-keyed edge handling as the input to cohort endpoints**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
@@ -234,5 +228,52 @@ and its checks, then enforcement at each ceremony — decided after the cutover.
   whose task annotation (its D2) stays in the origin's task list.
 
 - _Captured during:_ `seam-decomposition` draft-design close, 2026-10-16.
+
+### `[ ]` **Decide whether typed relations bind their endpoint by UID**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the record format and gate model (§ Decisions, § Open questions).
+
+- _Observation:_ `lifecycle-slug-selection` leaves UID-bearing dependency edges to this work unit: its draft's rejected
+  re-key alternative cites storage contract D2 ("machine records reference each other by UID") as owned here, and its
+  Non-Goals exclude "UID-bearing dependency edges or typed relations (`work-item-relations`)". This draft never mentions
+  UIDs, identity, or how an edge's endpoint binds to a record. A `Depends On` edge that stores a slug is looked up again
+  at every reconcile against whoever holds the slug then, so under slug reuse and clashes made on two machines its
+  meaning shifts as holders complete, close, or rename. `lifecycle-slug-selection` works around this by classifying
+  against the standing holder and confirming discharge by reference, and accepts the narrow windows left.
+
+- _Approach:_ decide whether a typed edge binds its endpoint by UID, resolved once when the edge is written, and how
+  that meets rename, slug reuse, decomposition's lineage settling (`decomposeSlugSettlementWrites`), and status's
+  dependency view. Binding by UID would retire the windows `lifecycle-slug-selection` accepts.
+
+- _Captured during:_ `lifecycle-slug-selection` create-spec, re-entered discovery over its dependency reconcile,
+  2026-10-23.
+
+### `[ ]` **Let a work unit start and activate past an unlanded dependency on a recorded Owner override**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ Open question 4, where an Owner's override of a `start` or `task` stop is recorded (D1–D3 already design the
+  gated edges).
+
+- _Observation:_ the storage chain keeps starting dependents before their dependency lands, a part at a time:
+  `storage-ref-hardening` planned ahead of `store-operation-git-access`, `cohort-identity-verbs`' Phase 1 runs during
+  the hardening's verification (Owner, 2026-10-31), and `projection-write-back` builds all but Tasks 1.6 and 2.3 before
+  the hardening ships (Owner, 2026-11-03). ARC reads a `Depends On` edge as whole-unit: `assess-start-readiness` Tier 1
+  says an unmet dependency blocks the green launch path, and the Owner expects `arc activate` to refuse on one. The PM
+  session found only satisfied-edge discharge in `lib/work-unit/verbs/activate-deactivate.ts`; write-back's activation
+  will show which holds. Each early start is negotiated by message, and nothing durable records which parts may run
+  before the dependency lands.
+
+- _Approach:_ make an unmet edge advisory with an Owner override. The gate reports the unlanded dependency and its
+  state, and proceeds on an override recorded on the meta (who, when, and which tasks or phases may run first), with
+  the rest keyed to the dependency's landing. Keep the edge itself, so the dependent's base-merge obligation stays
+  visible. `lib/work-unit/lifecycle-deps.ts`' header already reserves a starts-at-integration policy for
+  `lifecycle-transition-core`; a partial-start override sits beside it. After the deadline unless activation refuses
+  write-back now.
+
+- _Captured during:_ `project-manager.ARC`, planning `projection-write-back`'s start before `storage-ref-hardening`
+  lands, 2026-11-03 (Owner's suggestion).
 
 ---

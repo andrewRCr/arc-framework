@@ -54,6 +54,34 @@ function parseTreeDiff(output: string): TreePathChange[] {
   return paths;
 }
 
+/**
+ * How much older than Git wrote it a private index is made to look. Git re-reads any entry whose mtime is not older
+ * than its index, so a same-size rewrite in the entry's second stays visible across a backward wall-clock step up to
+ * this long. Only entries changed within the margin are re-read.
+ */
+const RACY_MARGIN_MS = 5_000;
+
+/**
+ * Age a private index after Git rewrites it, so later stat comparisons distrust recently changed entries.
+ * @param indexFile - The private index; one already aged since Git last wrote it, or never written, is left unchanged
+ * @returns Resolves after the index's timestamp is aged
+ */
+export async function ageRewrittenIndex(indexFile: string): Promise<void> {
+  let written;
+  try {
+    written = await stat(indexFile);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  if (written.mtimeMs > Date.now() - RACY_MARGIN_MS) await utimes(indexFile, written.atime, agedIndexTime(written.mtimeMs));
+}
+
+// An index newer than now was written before the clock stepped back; age it from now instead.
+function agedIndexTime(mtimeMs: number): Date {
+  return new Date(Math.min(mtimeMs, Date.now()) - RACY_MARGIN_MS);
+}
+
 /** A retained worktree snapshot and the index carrying its cached file metadata. */
 export interface WorktreeSnapshot {
   tree: string;
@@ -79,6 +107,7 @@ export async function createWorktreeSnapshot(git: GitExec, cwd: string, parent =
     refresh: async () => {
       await git("git", ["add", "-A"], { cwd, indexFile });
       snapshot.tree = (await git("git", ["write-tree"], { cwd, indexFile })).stdout;
+      await ageRewrittenIndex(indexFile);
       return snapshot.tree;
     },
   };
@@ -121,8 +150,8 @@ async function copyIndex(git: GitExec, cwd: string, source: string, indexFile: s
   try {
     const original = await stat(source);
     await copyFile(source, indexFile);
-    // Preserve the timestamp used by Git to distrust racy cached file metadata.
-    await utimes(indexFile, original.atime, original.mtime);
+    // Keep, and widen, the timestamp Git uses to distrust racy cached file metadata.
+    await utimes(indexFile, original.atime, agedIndexTime(original.mtimeMs));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     await git("git", ["read-tree", "--empty"], { cwd, indexFile });

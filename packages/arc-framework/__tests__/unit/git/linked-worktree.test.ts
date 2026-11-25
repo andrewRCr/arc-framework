@@ -3,7 +3,7 @@
 import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -72,14 +72,14 @@ describe("createLinkedWorktree", () => {
     expect(result).toEqual({
       kind: "created",
       receipt: {
-        worktreePath: "/work/repo.existing",
+        worktreePath: resolve("/work/repo.existing"),
         branch: "feat/existing",
         worktreeCreated: true,
         branchCreated: false,
         base: null,
       },
     });
-    expect(calls).toEqual([["git", "worktree", "add", "/work/repo.existing", "feat/existing"]]);
+    expect(calls).toEqual([["git", "worktree", "add", resolve("/work/repo.existing"), "feat/existing"]]);
   });
 
   it("fails closed when relative placement has no resolvable primary worktree", async () => {
@@ -187,7 +187,7 @@ describe("setupLinkedWorktree", () => {
         copyFileIfAbsent: async () => {},
         directoryExists: async (path) => {
           events.push(`exists ${path}`);
-          return path.endsWith("/.codex");
+          return path === join("/work/repo", ".codex");
         },
         copyDirectory: async (source, destination) => {
           events.push(`copy ${source} ${destination}`);
@@ -206,9 +206,9 @@ describe("setupLinkedWorktree", () => {
     expect(result).toEqual({});
     expect(events).toEqual([
       command,
-      "exists /work/repo/.codex",
-      "copy /work/repo/.codex /work/target/.codex",
-      "exists /work/repo/.missing",
+      `exists ${join("/work/repo", ".codex")}`,
+      `copy ${join("/work/repo", ".codex")} ${join("/work/target", ".codex")}`,
+      `exists ${join("/work/repo", ".missing")}`,
     ]);
   });
 

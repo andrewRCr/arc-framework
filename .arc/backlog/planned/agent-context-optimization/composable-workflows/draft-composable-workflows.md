@@ -311,6 +311,43 @@
 
 - _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
 
+### `[ ]` **Co-design D3's `render` and `offer` step arguments with `cli-output-contract`'s result types**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ D3, the session-agenda compiler — § Open questions, "Agenda schema residuals": the remaining per-step
+  argument schemas (`render` / `note` surfaces, `offer`).
+
+- _Observation:_ `cli-output-contract` (draft at `maturing`, commit `87ed54c11`) settled that every command's
+  machine-mode result carries an Owner-facing part: a precomposed `report` and an optional `offer` — text plus a choice
+  set marked enforced or anticipated — designed to lift into D3's `render` and `offer` steps without translation, with
+  the recommendation left to the agent. The schemas are D3's own open residual, so neither work unit settles them alone.
+
+- _Approach:_ co-design the `report` and `offer` schemas and D3's `render` and `offer` arguments as one type set in the
+  shared schema kernel after the storage cutover, with `loadset-composition` for where the relay rule lives.
+  `cli-output-contract` is held in place for it (`RELEASE-GATES` § Holds). A shared seam, not types to adopt.
+
+- _Captured during:_ `cli-output-contract` draft-design, 2026-10-20.
+
+### `[ ]` **Keep install class in the claims table when methods gain an override policy**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ D2's `override-policy: overridable | fixed` method property.
+
+- _Observation:_ `adopter-install-authority` makes one claims table in `init-recipe.json` the authority for each shipped
+  file's install class (`draft-adopter-install-authority.md` D1). An overridable method installs Configurable, so a
+  project's override survives `arc update`; a Framework file is overwritten wholesale. Its coverage check refuses a file
+  that declares an override contract (`override-active`) under a claim other than Configurable, and checks nothing in
+  the other direction.
+
+- _Approach:_ a fixed method lands with its own Framework claim and without its override contract; `override-policy`
+  must not become a second class authority. On `arc update`, that unit's reclassification guard (D8) holds the method as
+  Configurable in any project that edited its override, and taking it over needs an install migration. If class should
+  derive from `override-policy` instead, move that derivation into the claims resolver, so one place still answers.
+
+- _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
+
 ---
 
 ### `[ ]` **Fire the execution-entry delivery inspection on the state it reads, not once per leaf task**
@@ -414,6 +451,50 @@
   re-deriving review's split; check whether the procedure/check distinction they use generalizes as stated.
 
 - _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
+### `[ ]` **Record in `composable-workflows`' draft that the agenda compiler's session-init application moved to `session-init-agenda`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ D3 (its first consumer, the `session-init` Step 3 rewire), § Worked example, § Scope Estimate, and
+  `cohort-agent-context-optimization.md` § Sequencing.
+
+- _Observation:_ the Owner moved the session-init overhaul into Gate B (`RELEASE-GATES.md`, 2026-10-30) and carved it
+  as its own work unit, `session-init-agenda`, started 2026-10-31 with `arc start --new` and now in draft-design. It
+  applies D3 to session-init with `loadset-composition`'s always-loaded trims, plus whatever minimum of D2's fragment
+  resolver session-init's arms need; the general substrate (D1 and D2) stays here and follows the deadline. This draft
+  still claims D3's first consumer and the session-init rewire as its own deliverable, and the cohort document names
+  D3 as what the siblings consume, so two drafts hold one design.
+
+- _Approach:_ record that D3's session-init application, its first consumer and the worked example's fixtures belong
+  to `session-init-agenda`; keep D3's general compiler contract here, or move it too, by what that unit's spec
+  settles; amend § Scope Estimate and the cohort's § Sequencing to match. Of the inbound items on session-init (the
+  read-group budget, the growth evidence, `analysis-load-set-scoping`, the envelope-schema reference, the
+  release-wrapper fragment, the `render` and `offer` co-design, fixtures against the storage contract), move those the
+  new unit takes. Read `session-init-agenda`'s specification for what it took.
+
+- _Captured during:_ PM sequencing of the session-init start, 2026-10-31.
+
+---
+
+### `[ ]` **Give the landing ceremony its steps as resolved invocations, not prose to rediscover**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § D3 "The session-agenda compiler".
+
+- _Observation:_ from the Owner's accepted stop to an open pull request, `seam-delivery-review`'s landing (2026-11-02,
+  Codex, 45 minutes) ran 12 distinct ARC verbs and about 40 tool calls whose commands took under a minute in total;
+  the rest was reasoning between steps. It made six `--help` calls and read about 700 lines of
+  `integrate-work-unit.md` and `pull-request-format` in chunks, rediscovering invocations after its 18th compaction.
+
+- _Approach:_ have each step's typed result name the next step as an exact invocation with its input, so the agent
+  supplies only judgment content and approvals; fold deterministic chains into one verb where nothing between them
+  needs a judgment. Measure a landing's calls and wall time before and after.
+
+- _Evidence:_ the timeline of `seam-delivery-review`'s 2026-11-02 landing, kept outside the repository.
+
+- _Captured during:_ `project-manager.ARC`, a process review of `seam-delivery-review`'s landing, 2026-11-02.
 
 ---
 

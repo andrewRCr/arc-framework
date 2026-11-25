@@ -181,11 +181,11 @@ describe("amend forms", () => {
     expect(classify(["--amend"], { stdinIsTTY: true })).toMatchObject({ kind: "pass-through" });
   });
 
-  it("leaves an amend that keeps HEAD's message to Git without an editor", () => {
-    expect(classify(["--amend", "--no-edit"])).toEqual({
-      kind: "pass-through",
-      reason: "git-managed-message",
-    });
+  it.each([
+    { args: ["--amend", "--no-edit"] },
+    { args: ["--no-edit", "--amend"] },
+  ])("recognizes editor-free reuse of HEAD's message in $args", ({ args }) => {
+    expect(classify(args)).toEqual({ kind: "reuse-head" });
   });
 
   it("still assembles an explicit message beside --no-edit", () => {

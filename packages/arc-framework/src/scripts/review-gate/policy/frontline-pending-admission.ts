@@ -4,11 +4,11 @@ import { AdvisoryLockTimeoutError } from "../../../lib/advisory-lock.js";
 import type { FrontlineAdmission } from "../core/frontline-admission.js";
 import { FrontlineAdmissionError } from "../core/frontline-admission-error.js";
 import { LaneProgressStateSchema, type LaneProgressState } from "../core/operation-state-schema.js";
-import type { ReviewOperationStateStore } from "../core/ports.js";
+import type { ReviewLaneTransitionStore } from "../core/ports.js";
 
 /** Preserve started runs without waiting for their lock; serialize withdrawal under the caller's lane lock. */
 export async function withdrawUnrunFrontlineAdmission(
-  store: ReviewOperationStateStore,
+  store: ReviewLaneTransitionStore,
   owner: LaneProgressState,
   ownerVersion: number,
   admission: FrontlineAdmission,
@@ -26,20 +26,21 @@ export async function withdrawUnrunFrontlineAdmission(
   }
 }
 
-async function admissionHasStarted(store: ReviewOperationStateStore, admission: FrontlineAdmission): Promise<boolean> {
+async function admissionHasStarted(store: ReviewLaneTransitionStore, admission: FrontlineAdmission): Promise<boolean> {
+  if (store.outcomeWriter !== undefined && await store.outcomeWriter.read(admission.operationId) !== null) return true;
   const operation = await store.readOperation(admission.operationId);
   return operation.state !== null || operation.version !== 0;
 }
 
 async function withdrawLockedAdmission(
-  store: ReviewOperationStateStore,
+  store: ReviewLaneTransitionStore,
   owner: LaneProgressState,
   ownerVersion: number,
   admission: FrontlineAdmission,
   now: string,
 ): Promise<{ state: LaneProgressState; version: number } | null> {
   if (await admissionHasStarted(store, admission)) return null;
-  const consumedAuthority = owner.attempts.some((attempt) =>
+  const consumedAuthority = await nativeConditionalAuthorityConsumed(store, owner, admission) || owner.attempts.some((attempt) =>
     attempt.conditionalPassAuthorizations?.authorizations.some((authorization) =>
       authorization.status === "consumed" && authorization.admissionId === admission.operationId));
   if (consumedAuthority) {
@@ -55,4 +56,14 @@ async function withdrawLockedAdmission(
   });
   const { version } = await store.publishOperation(state, ownerVersion);
   return { state, version };
+}
+
+async function nativeConditionalAuthorityConsumed(store: ReviewLaneTransitionStore, owner: LaneProgressState,
+  admission: FrontlineAdmission): Promise<boolean> {
+  const id = owner.attempts.find(attempt => attempt.attemptId === admission.operationId)?.admittedBy;
+  if (id === undefined) return false;
+  if (store.nativeFacts === undefined) throw new Error("Bind the native decision reader before withdrawing this cited admission.");
+  const decision = await store.nativeFacts.decisions.read(id);
+  if (decision === null) throw new Error("Restore the admission's recorded pass decision before trying to withdraw it.");
+  return decision.value.choice.kind === "extra-pass" && decision.value.choice.precondition.kind === "approved-fix";
 }

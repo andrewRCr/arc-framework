@@ -24,19 +24,18 @@ import { pathToFileURL } from "node:url";
 import {
   cleanupTempDir,
   copyPreparedRepository,
-  initInTempRepo,
   removeGitBackedDir,
   makeUserIO,
   makeCommit,
   addBareRemote,
   execFileAsync,
-  getInternalTemplatePath,
   prepareRepositoryTemplate,
   PREPARED_REMOTE_PATH,
   DEFAULT_PROMPTS,
   type PreparedRepositoryShape,
   type PreparedRepositoryTemplate,
 } from "../helpers/integration.js";
+import { initInTempRepo, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { hashSyncManifest, serializeSplitUserManifest } from "../../src/commands/user/save-load.js";
 import { buildLoadSummary } from "../../src/commands/user/format.js";
 import { runRetiredSubdirDetection } from "../../src/lib/session-init/retired-subdir-detection.js";

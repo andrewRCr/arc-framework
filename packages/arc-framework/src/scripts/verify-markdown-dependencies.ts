@@ -1,5 +1,6 @@
 /** Worktree loader for the shared Markdown dependency-alignment check. */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, parse } from "node:path";
@@ -8,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { getVersion as getMarkdownlintVersion } from "markdownlint";
 import stringWidth from "string-width";
 
-import { assertMarkdownDependencyAlignment } from "../lib/markdown/index.js";
+import { assertMarkdownDependencyAlignment } from "../lib/markdown/dependency-alignment.js";
 import type { MarkdownRuntimeVersions } from "../lib/markdown/dependency-alignment.js";
 import { resolveRepoRoot } from "./repo-root.js";
 
@@ -62,4 +63,4 @@ function main(): void {
   verifyMarkdownDependencies(resolveRepoRoot());
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) main();
+if (await isMainModule(import.meta, process.argv[1])) main();

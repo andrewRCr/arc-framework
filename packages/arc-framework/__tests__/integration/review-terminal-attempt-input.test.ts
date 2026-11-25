@@ -83,7 +83,7 @@ describe("terminal attempt recovery through the CLI and repository records", () 
     expect(refusal.exitCode, refusal.stderr).toBe(1);
     const error = ReviewCommandErrorEnvelopeSchema.parse(JSON.parse(refusal.stdout));
     expect(error.error.code).toBe("invalid-input");
-    if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+    if (error.mode !== "review-resolve" || !("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
     expect(error.remedy.text).toContain(scenario === "short pass count" || scenario === "grant progress" ? "completedPasses to 2" : `sourceId to ${provider}`);
     expect(error.remedy.argv).toEqual(["arc", "review", "resolve", "-"]);
     const { invocation, ...expectedRequest } = request;
@@ -140,7 +140,7 @@ describe("terminal attempt recovery through the CLI and repository records", () 
     expect(refusal.exitCode, refusal.stderr).toBe(1);
     const error = ReviewCommandErrorEnvelopeSchema.parse(JSON.parse(refusal.stdout));
     expect(error.error.code).toBe("invalid-input");
-    if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+    if (error.mode !== "review-resolve" || !("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
     expect(error.remedy.stdin).toMatchObject({ lane: "frontline", completedPasses: 1,
       attempts: [{ sourceId: "coderabbit-cli", reviewOperationId: admission.operationId, outcome: "clean" }] });
     expect(error.remedy.stdin).not.toHaveProperty("ceilingOverride");

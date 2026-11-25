@@ -21,7 +21,6 @@ export const MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS = [
   "packages/arc-framework/src/lib/markdown/indexed-dependencies.ts",
   "packages/arc-framework/src/lib/markdown/indexed-lint.ts",
   "packages/arc-framework/src/lib/markdown/indexed-snapshot.ts",
-  "packages/arc-framework/src/lib/markdown/index.ts",
   "packages/arc-framework/src/lib/markdown/selection.ts",
   "packages/arc-framework/src/lib/markdown/staged-gate.ts",
   "packages/arc-framework/src/lib/task-list/scanner.ts",

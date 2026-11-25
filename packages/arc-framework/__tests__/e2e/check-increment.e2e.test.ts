@@ -84,7 +84,7 @@ async function declaredFixture(checks: Record<string, unknown>): Promise<string>
   return cwd;
 }
 
-it("runs only the commit checks reached by the change and succeeds when they pass", async () => {
+it("runs only the commit checks reached by the change, names the push check it leaves, and succeeds", async () => {
   const cwd = await declaredFixture({
     selected: { command: [process.execPath, "capture.cjs"], gate: "commit", inputs: ["src/**"] },
     unchanged: { command: [process.execPath, "-e", "process.exit(1)"], gate: "commit", inputs: ["docs/**"] },
@@ -95,6 +95,7 @@ it("runs only the commit checks reached by the change and succeeds when they pas
   expect(JSON.parse(result.stdout)).toMatchObject({ result: { status: "completed", checks: [
     { id: "selected", kind: "enforcement", outcome: "passed" },
     { id: "unchanged", kind: "enforcement", outcome: "not selected", reason: "inputs unchanged" },
+    { id: "later", kind: "feedback", outcome: "not selected", reason: "runs at the push gate" },
   ] } });
   expect(JSON.parse(await readFile(join(cwd, "receipt.json"), "utf8"))).toEqual({ args: [], cwd });
 });

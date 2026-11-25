@@ -40,6 +40,11 @@ async function staticClosure(start: string): Promise<Set<string>> {
   return paths;
 }
 describe("repository store import boundaries", () => {
+  it("excludes review registrations from the static backend closure", async () => {
+    const closure = await staticClosure(join(sourceRoot, "lib/store/in-repo/backend.ts"));
+    const registrations = [...closure].filter((path) => path.includes(join("kinds", "review")) && path.endsWith("registration.ts"));
+    expect(registrations).toEqual([]);
+  });
   it("defers every heavy active projection until a kind or operation needs it", async () => {
     const closure = await staticClosure(join(sourceRoot, "lib/store/in-repo/backend.ts"));
     const deferred = ["lib/config/status-reader.ts", "lib/work-unit/submission-boundary-store.ts",

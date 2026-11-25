@@ -1,5 +1,5 @@
 /** Ordinary composition retains the Errand generation while cutting a second work branch. */
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import { createStorePromotionSteps } from "../../../src/lib/errand/promote-store.js";
 import { promoteOrdinaryErrand } from "../../../src/lib/errand/promote.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
@@ -38,7 +38,7 @@ async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbo
 }
 async function disputePrimary(f: Awaited<ReturnType<typeof fixture>>) {
   const remote = createMemoryRemote(); f.store.context.publication.remote = remote;
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const other = new ReferenceBackend({ state: remote.state, registry: f.store.context.registry });
   for (const [store, digit] of [[f.store, "2"], [other, "3"]] as const) {
     const record = lifecycleSuccess(await store.read({ reference: f.primary.reference }));
@@ -48,7 +48,7 @@ async function disputePrimary(f: Awaited<ReturnType<typeof fixture>>) {
       content: record.content, placement: { kind: "active" }, links,
       provenance: { verb: "test", lifecycleAction: "update" } }));
   }
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const disputed = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0); return disputed;
 }
@@ -303,4 +303,63 @@ it("preserves a qualified inbox origin's null digest through role change and his
   if (read.kind !== "ready" || read.record?.kind !== "errand" || read.record.purpose !== "errand") throw new Error("Expected source");
   expect(await f.steps.replaceFrame(read.record)).toMatchObject({ kind: "applied", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
   expect(await f.steps.recoverPromoted()).toMatchObject({ kind: "idempotent", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
+});
+
+it("refuses a live promotion target before changing either owner", async () => {
+  const f = await fixture(), held = await f.seedMeta("example");
+  const before = lifecycleSuccess(await f.store.version());
+  const result = await f.run();
+  expect(result).toMatchObject({ outcome: "refused", recommendedPromptText: expect.stringMatching(/choose another name/iu) });
+  if (held.reference.owner.type === "person" || held.reference.owner.uid === undefined) throw new Error("Expected work-item UUID");
+  expect(JSON.stringify(result)).toContain(held.reference.owner.uid);
+  expect(JSON.stringify(result)).not.toMatch(/rename/iu);
+  expect(lifecycleSuccess(await f.store.version())).toBe(before);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(lifecycleSuccess(await f.store.read({ reference: held.reference }))).toEqual(held);
+});
+
+it("recovers the original Errand receipt when retried by the promoted work-unit name", async () => {
+  const f = await fixture("derivation", true);
+  expect(await f.run()).toMatchObject({ outcome: "error" });
+  const options = { ...f.options, slug: f.options.name };
+  const result = await promoteOrdinaryErrand({ ...options, protection: "full", dependencies: {
+    ...createStorePromotionSteps(options), settleInbox: async frame => frame, settleOccupancy: async frame => frame,
+  } });
+  expect(result).toMatchObject({ outcome: "idempotent", subject: { slug: "errand-source", claimId },
+    branch: "feat/example", settlement: { state: "settled" } });
+  const meta = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  expect(meta.content).toContain(`errand-v1/errand-source/${claimId}`);
+});
+
+it("refuses unreadable checkout layout before the role write and retries after repair", async () => {
+  const { mkdtemp, rm, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const { writeWorktreeMarker } = await import("../../../src/lib/git/worktree-marker.js");
+  const { createRefStore } = await import("../../../src/lib/store/create.js");
+  const { createDefaultRefStorePorts } = await import("../../../src/lib/store/default-ports.js");
+  const { beginProjectionCommand } = await import("../../../src/lib/store/projection/process-state.js");
+  const cwd = await mkdtemp(join(tmpdir(), "arc-promote-layout-"));
+  onTestFinished(async () => { await rm(cwd, { recursive: true, force: true }); beginProjectionCommand(); });
+  const f = await fixture(), exec = f.options.exec;
+  f.options.cwd = cwd;
+  f.options.checkout = async () => ({ kind: "ready", checkoutPath: cwd, allocation: "primary", parentCheckoutPath: null });
+  f.options.exec = async (command, args, controls) => {
+    if (args.includes("--quiet") && args.includes("refs/heads/feat/example^{commit}")) {
+      throw makeGitProcessError({ command, args, exitCode: 1 });
+    }
+    return exec(command, args, controls);
+  };
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: { kind: "errand", slug: "errand-source", claimId },
+    provisioning: "ready", spawningIdentity: "test-user", createdAt: "2026-11-05T00:00:00Z" });
+  createRefStore(createDefaultRefStorePorts({ checkoutRoot: cwd, backingRepository: async () => null }));
+  const config = join(cwd, ".arc", "system", "arc-config.yml");
+  await writeFile(config, "branch.protection: invalid\n");
+  const before = lifecycleSuccess(await f.store.version());
+  expect(await f.run()).toMatchObject({ outcome: "error", error: { message: expect.stringContaining("configuration") } });
+  expect(lifecycleSuccess(await f.store.version())).toBe(before);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  await writeFile(config, "layout.active: nested\n");
+  expect(await f.run()).toMatchObject({ outcome: "applied" });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).reference.kind).toBe("work-item/meta");
 });

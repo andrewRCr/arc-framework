@@ -1,8 +1,9 @@
 /** Disposable first-party build sources using the real installed compiler and native loaders. */
-import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { copyLiveDependencies } from "./copy-live-dependencies.js";
+import { REACH_DECLARATIONS } from "../../src/lib/local-vitest-runner.js";
 
 /**
  * Make a native compiler checkout with a tiny CLI and fixture-owned compiler success hook.
@@ -11,7 +12,11 @@ import { copyLiveDependencies } from "./copy-live-dependencies.js";
 export async function makeNativeBuildFixture(): Promise<{ root: string; packageRoot: string }> {
   const sourcePackage = resolve(import.meta.dirname, "../..");
   const sourceRoot = resolve(sourcePackage, "../..");
-  const root = await mkdtemp(join(tmpdir(), "arc-native-build-"));
+  // Windows may spell the temporary directory with an 8.3 alias, as hosted runners' `C:\Users\RUNNER~1` does. Vite
+  // resolves each config root with an alias-keeping realpath until an asynchronous probe settles and with the native
+  // one after, so one run can see both spellings and relate a test file to a root spelled differently. Root every
+  // fixture at the native long form.
+  const root = await mkdtemp(join(await realpath(tmpdir()), "arc-native-build-"));
   const packageRoot = join(root, "packages/arc-framework");
   await mkdir(packageRoot, { recursive: true });
   await copyLiveDependencies(sourcePackage, packageRoot, [
@@ -20,6 +25,8 @@ export async function makeNativeBuildFixture(): Promise<{ root: string; packageR
     "src/lib/build-command.ts", "src/lib/build-generation.ts",
     "src/scripts/run-local-test-tier.ts", "src/scripts/run-focused-tests.ts",
     "src/scripts/measure-test-cost.ts", "src/lib/unit-process-metadata.ts",
+    // The test-tier runner reads these to leave the suites that run by reach out of the tiers that hold them.
+    ...REACH_DECLARATIONS,
   ]);
   for (const file of ["package.json", "package-lock.json"]) {
     await writeFile(join(root, file), await readFile(join(sourceRoot, file)));

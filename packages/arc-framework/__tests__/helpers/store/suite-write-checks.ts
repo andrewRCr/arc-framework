@@ -47,7 +47,7 @@ export function registerWriteCheckAssertions(context: SuiteContext): void {
     }, reason);
   for (const verb of [...HAND_EDIT_VERBS, "handoff", "custom-verb"]) {
     const expected = HAND_EDIT_VERBS.some((handEdit) => handEdit === verb) ? { kind: "hand-edit" }
-      : { kind: "verb", verb };
+      : { kind: "verb", verb, lifecycleAction: "edit" };
     assertion(checked(context, kind, async ({ writer }) => JSON.stringify(writer) === JSON.stringify(expected)
       ? [] : [broken("writer.test")]), "personal", `write-check-writer:${verb}`, async (fixture) => {
       const reference = fixture.reference(kind);

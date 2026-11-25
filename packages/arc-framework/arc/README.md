@@ -20,22 +20,28 @@ full installation and setup walkthrough.
 │   ├── ROADMAP.md             # Sequencing strategy for upcoming work
 │   ├── provisional/<wu>/      # Captured WU stubs, not yet committed-to
 │   └── planned/[<cohort>/]<wu>/   # Committed-to WUs, optionally grouped by cohort
+├── completed/                 # Completed work (arc-in-git pm.mode only)
 ├── reference/                 # Stable, long-lived documentation
 │   ├── QUICK-REFERENCE.md     # Environment context and command patterns
-│   ├── constitution/          # Foundational documents (PROJECT-PRD, rules, architecture)
+│   ├── briefs/                # Agent briefings loaded at session-init (ARC, PROJECT, CONTRIBUTOR variants)
 │   ├── strategies/            # Codified implementation patterns
 │   │   ├── arc/               # Framework methodology (ships with ARC)
 │   │   └── project/           # Your project-specific patterns
 │   ├── adr/                   # Architecture Decision Records
-│   ├── analysis/              # Internal investigation and synthesis
-│   ├── research/              # External technical research
-│   └── archive/               # Completed work (by work type, quarterly as volume grows)
+│   ├── supplemental/         # Supporting investigations and research
+│   │   ├── analysis/          # Internal investigation and synthesis
+│   │   └── research/          # External technical research
+│   └── templates/            # Document and configuration templates
 ├── user/                      # Personal workspace: per-developer session state and task capture
 └── system/                    # Agent-facing operational files
     ├── arc-config.yml         # Project settings (base branch, protection mode)
-    ├── briefs/                # Agent briefings loaded at session-init (ARC, PROJECT, CONTRIBUTOR variants)
-    ├── skills/                # Canonical skill definitions (arc-setup, arc-session, arc-commit, arc-handoff)
-    ├── githooks/              # Git hook scripts
+    ├── rules/                 # Development standards and domain rules
+    ├── methods/               # Reusable workflow behavior
+    ├── .internal/             # Managed hooks, scripts, and canonical skills
+    │   ├── githooks/          # Git hook scripts
+    │   ├── harness-hooks/     # Agent harness lifecycle hooks
+    │   ├── scripts/           # Shared support scripts
+    │   └── skills/            # Canonical skill definitions
     └── workflows/             # Development process workflows
         ├── arc/               # ARC framework workflows (setup, session lifecycle, supplemental)
         └── project/           # Project-specific workflows

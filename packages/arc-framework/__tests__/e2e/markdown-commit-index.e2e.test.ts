@@ -14,6 +14,7 @@ const MARKDOWN_COMMIT_TIMEOUT_MS = 60_000;
 const MARKDOWN_CASE_TIMEOUT_MS = 90_000;
 const roots: string[] = [];
 const sourceRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+const unrelatedImplementation = "packages/arc-framework/src/lib/store/read.ts";
 const loader = createRequire(import.meta.url).resolve("tsx");
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
@@ -22,7 +23,7 @@ async function prepare(): Promise<string> {
   roots.push(root);
   const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root: sourceRoot,
     readBlob: async (cwd, path) => readFile(join(cwd, path)) });
-  for (const path of runtimePaths) {
+  for (const path of new Set([...runtimePaths, unrelatedImplementation])) {
     await mkdir(dirname(join(root, path)), { recursive: true });
     await copyFile(join(sourceRoot, path), join(root, path));
   }
@@ -67,4 +68,21 @@ it.each([true, false])("checks Git's commit -a candidate with an opposite reposi
     expect(await git(root, ["show", "HEAD:README.md"])).toBe("# Candidate valid");
     expect(await git(root, ["show", ":README.md"])).toBe("# Candidate valid");
   }
+}, MARKDOWN_CASE_TIMEOUT_MS);
+
+it("commits an indexed documentation capture while unrelated implementation stays unstaged", async () => {
+  const root = await prepare();
+  const original = await readFile(join(root, unrelatedImplementation), "utf8");
+  const edited = `${original}\n// Unstaged implementation.\n`;
+  await writeFile(join(root, unrelatedImplementation), edited);
+  await writeFile(join(root, "README.md"), "# Documentation capture\n");
+  await git(root, ["add", "README.md"]);
+
+  const result = await commitThroughManager(root, undefined, {}, [], { timeoutMs: MARKDOWN_COMMIT_TIMEOUT_MS });
+  expect(result.exitCode, result.output).toBe(0);
+  expect(result.output).toContain("Checks: 2 passed.");
+  expect(await git(root, ["show", "HEAD:README.md"])).toBe("# Documentation capture");
+  expect(await git(root, ["show", `HEAD:${unrelatedImplementation}`])).toBe(original.trimEnd());
+  expect(await readFile(join(root, unrelatedImplementation), "utf8")).toBe(edited);
+  expect(await git(root, ["diff", "--name-only"])).toBe(unrelatedImplementation);
 }, MARKDOWN_CASE_TIMEOUT_MS);

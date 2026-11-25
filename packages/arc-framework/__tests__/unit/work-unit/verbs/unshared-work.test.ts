@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
 /** Sharing observations follow recorded work branches and refreshed published refs. */
 import { expect, it } from "vitest";
 import { readUnsharedWork } from "../../../../src/lib/work-unit/verbs/unshared-work.js";
@@ -7,7 +8,7 @@ import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 it.each(["main", "person"])("observes linked work for pause and handover while the holder is on %s", async (branch) => {
   const h = createLifecycleHarness(), sha = "1".repeat(40), base = "2".repeat(40);
-  await h.seedMeta("example", { state: "Planning", currentWorkflow: "draft-design" }, { kind: "active" },
+  const primary = await h.seedMeta("example", { state: "Planning", currentWorkflow: "draft-design" }, { kind: "active" },
     { branches: [{ repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] }] });
   const git = scriptGitExec([
     { match: ["status", "--porcelain"], responses: [{ stdout: "" }] },
@@ -18,7 +19,7 @@ it.each(["main", "person"])("observes linked work for pause and handover while t
     { match: ["--no-replace-objects", "rev-parse", "--verify", "--quiet", "refs/heads/feat/example^{commit}"], responses: [{ stdout: sha }] },
     { match: ["--no-replace-objects", "rev-list", "refs/heads/feat/example", "--not", "refs/heads/main"], responses: [{ stdout: sha }] },
   ]);
-  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => "/checkout",
+  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: boundHolderLookup(primary, () => "/checkout"),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
   const ctx = { store: h.store, cwd: "/checkout", identity: "test-user", exec: git.exec, baseBranch: "main", repository: "repo", locusPorts };
   const report = { kind: "observed", branch: "feat/example", changedPaths: [], origin: "none", unsharedCommits: [], heldOnlyCommits: [sha] };
@@ -38,8 +39,8 @@ it("drops even a locally resolvable stale branch tracking ref after bounded ls-r
     { match: ["--no-replace-objects", "rev-parse", "--verify", "--quiet", "refs/heads/feat/example^{commit}"], responses: [{ stdout: sha }] },
     { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [(call) => ({ stdout: call.args.includes("refs/remotes/origin/feat/example") ? "" : sha })] },
   ]);
-  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => null, writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
-  expect(await readUnsharedWork({ cwd: "/checkout", exec: git.exec, baseBranch: "main", repository: "repo", locusPorts }, primary))
+  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => ({ kind: "none" as const }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
+  expect(await readUnsharedWork({ store: h.store, cwd: "/checkout", exec: git.exec, baseBranch: "main", repository: "repo", locusPorts }, primary))
     .toMatchObject({ kind: "observed", origin: "refreshed", unsharedCommits: [sha], warnings: [] });
   expect(git.calls.filter((call) => call.args[0] === "fetch" || call.args[0] === "ls-remote").every((call) => call.options?.signal !== undefined)).toBe(true);
 });

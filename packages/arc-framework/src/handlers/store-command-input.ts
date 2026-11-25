@@ -1,4 +1,4 @@
-/** Input schemas and interaction policy for the six newly registered store verbs. */
+/** Input schemas and interaction policy for newly registered store verbs. */
 import { z } from "zod";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { declareCliOptionSite, declareCliOperandSite, declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
@@ -19,6 +19,10 @@ export const ErrandQueueInputSchema = z.strictObject({ json: z.boolean().optiona
 export const ErrandQueueSetInputSchema = z.strictObject({ file });
 /** Explicit path or stdin marker for a versioned handoff write request. */
 export const HandoffWriteInputSchema = z.strictObject({ file });
+/** Cohort lifecycle subjects accept a slug or full generation UID. */
+export const CohortCloseInputSchema = z.strictObject({ cohort: z.union([SlugSchema, z.uuid()]), json: z.boolean().optional() });
+/** Removal owns a distinct schema registration with the same operand shape. */
+export const CohortRemoveInputSchema = CohortCloseInputSchema.clone();
 
 /** Canonical schemas for each invocable command path. */
 export const storeCommandInputRegistrations = [
@@ -28,6 +32,8 @@ export const storeCommandInputRegistrations = [
   { commandPath: "errand queue", schema: ErrandQueueInputSchema, schemaFields: { "option.json": "json" } },
   { commandPath: "errand queue set", schema: ErrandQueueSetInputSchema, schemaFields: { "operand.file": "file" } },
   { commandPath: "handoff write", schema: HandoffWriteInputSchema, schemaFields: { "operand.file": "file" } },
+  { commandPath: "cohort close", schema: CohortCloseInputSchema, schemaFields: { "operand.cohort": "cohort", "option.json": "json" } },
+  { commandPath: "cohort remove", schema: CohortRemoveInputSchema, schemaFields: { "operand.cohort": "cohort", "option.json": "json" } },
 ] as const satisfies readonly CommandInputRegistration[];
 
 const inboxStdinSites = ([1, 2] as const).map((occurrence) => declareInteractionSite(
@@ -43,10 +49,17 @@ const handoffStdinSite = declareInteractionSite(
 
 /** Explicit stdin belongs to insertion and versioned request forms; output selection is deterministic. */
 export const storeCommandInputPolicyDeclarations: readonly CommandInputDeclaration[] = [
-  ...["inbox", "errand queue"].map((commandPath) => ({
+  ...["inbox", "errand queue", "cohort close", "cohort remove"].map((commandPath) => ({
     commandPath, aliases: [], sites: [declareCliOptionSite("json", {
       acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json", cancellation: "not-applicable",
       automation: { noInput: "same", flags: ["--json", "--no-input"], acceptedSyntax: [] }, mutationBoundary: "output selection", subprocess: "none",
+    })],
+  })),
+  ...["cohort close", "cohort remove"].map((commandPath) => ({
+    commandPath, aliases: [], sites: [declareCliOptionSite("yes", {
+      acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
+      mutationBoundary: `${commandPath} handler`, subprocess: "none",
     })],
   })),
   { commandPath: "route", aliases: [], sites: [declareCliOptionSite("to", {

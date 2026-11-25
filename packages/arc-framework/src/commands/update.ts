@@ -26,10 +26,14 @@ import {
   readManifest,
   buildChangePlan,
   applyChangePlan,
+  resolveMissingBaselines,
+  missingBaselineError,
+  refuseUnsafePlanWrites,
+  writeManifest,
   type FileMergeFn,
 } from "../lib/manifest/index.js";
 import { gitMergeFile, type GitExec } from "../lib/git/index.js";
-import { writeArcGitignoreBlock } from "../lib/template/index.js";
+import { preflightIgnoreFiles, writeArcIgnoreBlocks } from "../lib/template/index.js";
 import { ensureDir } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
@@ -65,6 +69,8 @@ export interface UpdateOptions {
   io: IOContext;
   templateDir: string;
   recipe: Recipe;
+  /** Keep customized files that have no merge baseline as they are, instead of refusing the update. */
+  keepLocalWithoutBaseline?: boolean;
 }
 
 /** Cause of pristine store load failure. */
@@ -78,7 +84,7 @@ export interface UpdateResult {
   migrated: string[];
   /** Conflicted file paths requiring manual resolution (have conflict markers). */
   conflicts: string[];
-  /** Files whose pristine baseline was missing — rebuilt from framework content. */
+  /** Customized files with no merge baseline, kept local without this update's upstream changes. */
   pristineRebuilt: string[];
   /** Newly added file paths. */
   added: string[];
@@ -372,6 +378,27 @@ export async function runUpdate(
       pristineStoreError = "not-found"; // Permission or other read error
     }
   }
+  const renderCtx = { templateDir, tokens, config, configKeyOverrides };
+  const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
+
+  // Refuse before any write over a symbolic link on a path it writes, over uncommitted changes to the files the update
+  // writes, or over files already at the paths it adds, then recover the baselines the manifest proves and refuse
+  // where merging a customized file with no baseline would drop its upstream changes
+  const readAsMerged = async (path: string): Promise<string> => {
+    const content = await io.readFile(path);
+    return path === arcConfigPath ? migrateUserSyncPush(content).content : content;
+  };
+  const initialPlan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
+  await refuseUnsafePlanWrites({
+    plan: initialPlan, cwd, arcDir, manifestPath, renderCtx, exec: io.exec, readFile: io.readFile, command: "update",
+  });
+  const missing = await resolveMissingBaselines(
+    initialPlan, manifest, arcDir, { readFile: io.readFile, readAsMerged }, renderCtx,
+  );
+  if (missing.edits.length > 0 && options.keepLocalWithoutBaseline !== true) {
+    throw missingBaselineError(missing.edits, "update");
+  }
+  Object.assign(pristineStore, missing.recovered);
 
   let templateHasReviewChunkingThresholds = false;
   try {
@@ -391,11 +418,12 @@ export async function runUpdate(
   // Build change plan (pure computation)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
 
+  await preflightIgnoreFiles(cwd, io.readFile, io);
+
   const checkBootstrap = await bootstrapRetiredChecks(arcDir, plan.removals, io);
 
   // Apply change plan (I/O)
   const mergeFn = createContentMergeFn(io.exec);
-  const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
   const migrated = new Set<string>();
   const migrationWarnings: string[] = [];
   const applyResult = await applyChangePlan(
@@ -404,8 +432,10 @@ export async function runUpdate(
     manifest,
     mergeFn,
     {
-      readFile: async (path) => {
-        const content = await io.readFile(path);
+      readFile: io.readFile,
+      writeFile: io.writeFile,
+      mkdir: io.mkdir,
+      migrate: (path, content) => {
         if (path !== arcConfigPath) return content;
 
         const notesPushMigration = migrateUserSyncPush(content);
@@ -415,10 +445,8 @@ export async function runUpdate(
         migrationWarnings.push(...notesPushMigration.warnings);
         return notesPushMigration.content;
       },
-      writeFile: io.writeFile,
-      mkdir: io.mkdir,
     },
-    { templateDir, tokens, config, configKeyOverrides },
+    renderCtx,
   );
 
   // Restore executable installation modes even when file content is unchanged.
@@ -439,15 +467,7 @@ export async function runUpdate(
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Write managed gitignore block with all ARC entries
-  const gitignorePath = join(cwd, ".gitignore");
-  const gitignoreEntries = [
-    ".arc/system/.internal/pristine.json",
-    ".arc/system/.internal/worktree-marker.json",
-    ".arc/user/*/",
-    ...skillGitignoreEntries(skillResult.targetDirs),
-  ];
-  await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile, io);
 
   // Refresh merge-driver wiring added after the original installation, and
   // track the ROADMAP attribute only for arc-in-git projects.
@@ -500,7 +520,7 @@ async function writeUpdatedState(
   cwd: string, manifest: Manifest, pristineStore: Record<string, string>, io: IOContext,
 ): Promise<void> {
   const internalDir = join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...INTERNAL_DIR_SEGMENTS);
-  await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
+  await writeManifest(join(internalDir, MANIFEST_FILENAME), manifest);
   await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
   await writeEditorDocumentsOrThrow(cwd, io.exec, nodeEditorDocumentsFs, undefined, io.writeEditorDocuments);
 }
@@ -529,7 +549,7 @@ export function buildUpdateSummary(result: UpdateResult): string {
     parts.push(`${result.conflicts.length} conflicts`);
   }
   if (result.pristineRebuilt.length > 0) {
-    parts.push(`${result.pristineRebuilt.length} rebuilt`);
+    parts.push(`${result.pristineRebuilt.length} kept local`);
   }
   if (result.added.length > 0) parts.push(`${result.added.length} new`);
   if (result.removed.length > 0) parts.push(`${result.removed.length} removed`);
@@ -554,26 +574,17 @@ export function buildUpdateSummary(result: UpdateResult): string {
     );
   }
 
-  // Pristine rebuild details
+  // Customized files kept local for want of a merge baseline
   if (result.pristineRebuilt.length > 0) {
     lines.push("");
-    if (result.pristineStoreError) {
-      // Whole-store failure — single consolidated message
-      const cause = result.pristineStoreError === "invalid-json"
-        ? "pristine.json contains invalid JSON"
-        : "pristine.json not found";
-      lines.push(
-        `Pristine baseline was missing or corrupt (${cause}) — rebuilt from current framework version.`,
-      );
-    } else {
-      // Per-file misses (partial store)
-      lines.push("Pristine baseline was missing for some files — rebuilt from current framework version:");
-      for (const path of result.pristineRebuilt) {
-        lines.push(`  .arc/${path}`);
-      }
+    const cause = result.pristineStoreError === "invalid-json"
+      ? " (pristine.json contains invalid JSON)"
+      : result.pristineStoreError === "not-found" ? " (pristine.json not found)" : "";
+    lines.push(`No merge baseline for these customized files${cause}.`);
+    lines.push("They kept your version; any upstream changes to them were skipped:");
+    for (const path of result.pristineRebuilt) {
+      lines.push(`  .arc/${path}`);
     }
-    lines.push("");
-    lines.push("Your customizations are preserved.");
   }
 
   // Skill regeneration warnings

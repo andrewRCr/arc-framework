@@ -1,7 +1,6 @@
 /** Dormant worktree-first reader over one fully injected evidence snapshot. */
 
 import { markerIdentitySnapshot, projectStoreIdentityDiscovery, type StoreIdentityEvidence, type StoreIdentityDiscovery } from "./store-identities.js";
-import { noRecordMarkerExit } from "./marker-occupancy.js";
 import type { z } from "zod";
 import { DerivedLocusFrameSchema } from "./derived-schema.js";
 import type { Store } from "../store/contract.js";
@@ -232,19 +231,7 @@ export async function readDerivedLocusRoster(options: {
         ? options.primarySafety
         : { kind: "error", message: "Primary safety does not apply to linked checkouts" },
     });
-    if (evidence.workUnit?.kind === "unreadable" && evidence.workUnit.code !== undefined) {
-      row = { ...row, diagnostics: row.diagnostics.map(diagnostic => diagnostic.source === "lifecycle"
-        ? { ...diagnostic, code: "subject-unresolved" } : diagnostic) };
-    }
-    if (evidence.workUnit?.kind === "unreadable" && evidence.workUnit.missingRecord === true
-      && evidence.marker.kind === "present" && evidence.marker.marker.createdFor.kind === "work-unit"
-      && row.subject?.kind === "work-unit" && row.diagnostics.every(diagnostic => diagnostic.source === "lifecycle")) {
-      const name = evidence.marker.marker.createdFor.name;
-      const spawned = evidence.marker.marker.spawnedByArc;
-      row = { ...row, diagnostics: row.diagnostics.map(diagnostic => ({ ...diagnostic, code: "work-unit-record-missing" })),
-        actions: [{ text: noRecordMarkerExit(item.checkout.path, name, spawned),
-        checkout: item.checkout.path, ...(spawned ? { argv: ["arc", "locus", "release", name] } : {}) }] };
-    }
+    row = withWorkUnitRecovery(row, evidence.workUnit);
     const subjectMeta = activeMeta.kind === "present"
       ? activeMeta
       : archivedMeta.kind === "present"
@@ -292,7 +279,7 @@ export async function readDerivedLocusRoster(options: {
     }
     rows.push(row);
   }
-  const guardedRows = guardDuplicateMarkerClaims(guardWorkUnitLocusCollisions(rows));
+  const guardedRows = guardDuplicateMarkerClaims(guardWorkUnitLocusCollisions(rows), options.store?.capabilities.stateOffBranch === true);
   guardedRows.sort((left, right) => Buffer.compare(
     Buffer.from(left.checkout.path),
     Buffer.from(right.checkout.path),
@@ -302,6 +289,17 @@ export async function readDerivedLocusRoster(options: {
     identityDiscovery: options.identityAcquisitions === undefined ? projectIdentityDiscovery(options.identities, guardedRows)
       : projectStoreIdentityDiscovery(options.identityAcquisitions, guardedRows),
   };
+}
+
+function withWorkUnitRecovery(row: DerivedCheckoutRow, workUnit: StoreWorkUnitEvidence | undefined): DerivedCheckoutRow {
+  if (workUnit?.kind !== "unreadable") return row;
+  const code = workUnit.missingRecord ? "work-unit-record-missing" : workUnit.code;
+  const diagnostics = row.diagnostics.map(diagnostic => diagnostic.source === "lifecycle" && code !== undefined
+    ? { ...diagnostic, code } : diagnostic);
+  if (row.subject?.kind !== "work-unit" || diagnostics.some(diagnostic => diagnostic.source !== "lifecycle")) return { ...row, diagnostics };
+  if (workUnit.unbound !== undefined) return { ...row, diagnostics, actions: [...workUnit.unbound.exits] };
+  return workUnit.missingRecord ? { ...row, diagnostics, actions: [{ text: "arc locus release",
+    argv: ["arc", "locus", "release"], checkout: row.checkout.path }] } : { ...row, diagnostics };
 }
 
 function guardWorkUnitLocusCollisions(rows: readonly DerivedCheckoutRow[]): DerivedCheckoutRow[] {
@@ -424,18 +422,25 @@ function projectPrimaryAvailability(rows: readonly DerivedCheckoutRow[]): Derive
   };
 }
 
-function guardDuplicateMarkerClaims(rows: readonly DerivedCheckoutRow[]): DerivedCheckoutRow[] {
+function guardDuplicateMarkerClaims(rows: readonly DerivedCheckoutRow[], stateOffBranch: boolean): DerivedCheckoutRow[] {
   const holders = new Map<string, string[]>();
   for (const row of rows) {
-    if (row.markerGeneration === null || row.subject?.kind !== "work-unit") continue;
-    const paths = holders.get(row.subject.key) ?? [];
+    const key = row.markerGeneration === null ? undefined : markerClaimKey(row, stateOffBranch);
+    if (key === undefined) continue;
+    const paths = holders.get(key) ?? [];
     paths.push(row.checkout.path);
-    holders.set(row.subject.key, paths);
+    holders.set(key, paths);
   }
   return rows.map(row => {
-    const paths = row.subject?.kind === "work-unit" ? holders.get(row.subject.key) : undefined;
+    const key = markerClaimKey(row, stateOffBranch), paths = key === undefined ? undefined : holders.get(key);
     return paths === undefined || paths.length < 2 ? row : { ...row, kind: "unresolved-checkout", context: null, actions: undefined,
       diagnostics: [...row.diagnostics, { code: "work-unit-locus-conflict",
         message: `Work unit '${row.subject?.key ?? "unknown"}' has multiple marker holders: ${paths.join(", ")}. Inspect and release the stray checkout's claim.` }] };
   });
+}
+
+function markerClaimKey(row: DerivedCheckoutRow, stateOffBranch: boolean): string | undefined {
+  const subject = row.subject;
+  if (subject?.kind !== "work-unit" || (stateOffBranch && row.kind === "retired" && subject.uid === undefined)) return undefined;
+  return subject.uid === undefined ? `slug:${subject.key}` : `uid:${subject.uid}`;
 }

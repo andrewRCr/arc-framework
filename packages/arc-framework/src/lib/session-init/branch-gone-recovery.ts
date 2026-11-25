@@ -12,11 +12,13 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
+import { usesOffBranchState } from "../store/lifecycle-write.js";
 import { isLandedInBase, isLandedInBaseStrict } from "../git/branch-containment.js";
 import { stat } from "node:fs/promises";
 import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
-import { missingRegistrationActions } from "./missing-worktree-folders.js";
+import { missingRegistrationActions, missingRegistrationLock } from "./missing-worktree-folders.js";
 import type { SessionAction } from "./actions.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
 import type { GitExec } from "../git/exec.js";
@@ -47,6 +49,7 @@ import { projectCleanupRemoteEvidence, type CleanupBaseEvidence } from "./cleanu
 export const RECOVERY_RECENCY_DAYS = 30;
 
 export interface RunBranchGoneRecoveryOptions {
+  store?: Store;
   /** The same reader-owned checkout rows used by session entry. */
   derivedRoster: readonly DerivedCheckoutRow[] | null;
   /** Projection policy used by read-only removal observations. */
@@ -94,6 +97,7 @@ export async function runBranchGoneRecovery(
   const candidates = await Promise.all(
     worktreeEntries.map((entry) =>
       buildWorktreeCandidate(entry, {
+        store: options.store,
         exec,
         readMarker,
         row: rows.get(entry.worktreePath),
@@ -138,6 +142,7 @@ export async function runBranchGoneRecovery(
 }
 
 interface CandidateContext {
+  store?: Store;
   row: DerivedCheckoutRow | undefined;
   folderExists?: (path: string) => Promise<boolean>;
   projectionRemovalSlots?: ProjectionRemovalSlots;
@@ -164,7 +169,7 @@ async function buildWorktreeCandidate(
       disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists });
     if (check.kind === "missing" || (check.kind === "refused" && check.reason === "locked" && !check.folderPresent)) {
       ctx.missingFolders.push({ worktreePath: entry.worktreePath, branch: entry.branch,
-        actions: missingRegistrationActions(entry.worktreePath, { locked: check.kind === "refused" }) });
+        actions: missingRegistrationActions(entry.worktreePath, { lock: missingRegistrationLock(check, ctx.row) }) });
     }
     return null;
   }
@@ -184,7 +189,7 @@ async function buildWorktreeCandidate(
     ctx.readMarker(entry.worktreePath),
     checkWorktreeRemoval({ exec: ctx.exec, checkoutPath: entry.worktreePath, disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists }),
     resolveCandidateMerged(ctx, entry.branch),
-    linkedIdentityGlobalUserSurfacesAreSafe({
+    usesOffBranchState(ctx.store) ? true : linkedIdentityGlobalUserSurfacesAreSafe({
       primaryWorktreePath: ctx.primaryWorktreePath,
       worktreePath: entry.worktreePath,
       fs: ctx.userSurfaceFs,
@@ -195,9 +200,14 @@ async function buildWorktreeCandidate(
     userSurfacesSafe, merged: merged ?? false });
   const candidate = { branch: entry.branch, worktreePath: entry.worktreePath };
   if (proposedAction !== "removable") return { ...candidate, proposedAction };
-  const workUnitName = marker.kind === "present" ? marker.marker.wuName : undefined;
+  const workUnitName = cleanupOperand(ctx.row, marker);
   return workUnitName === undefined ? { ...candidate, proposedAction: "external" }
     : { ...candidate, proposedAction, workUnitName };
+}
+
+function cleanupOperand(row: DerivedCheckoutRow, marker: WorktreeMarkerReadResult): string | undefined {
+  if (row.subject?.kind === "work-unit" && row.subject.uid !== undefined) return row.subject.uid;
+  return marker.kind === "present" ? marker.marker.wuName : undefined;
 }
 
 async function administrativeFolderAction(path: string, folderExists: CandidateContext["folderExists"]): Promise<"switch" | "external"> {

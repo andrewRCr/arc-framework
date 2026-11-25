@@ -17,6 +17,9 @@ import {
 } from "../../src/commands/status.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
+import { describeStorePull } from "../../src/lib/session-init/store-user-pull.js";
+import { nameAsideFile } from "../../src/lib/store/projection/aside.js";
 import type {
   Probe,
   SessionInitProbeResult,
@@ -64,6 +67,7 @@ function okConfig(): Probe<ConfigStatusResult> {
         "worktree.location_template": "../{repo}.{name}",
         "worktree.post_create": "",
         "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+        "storage.backing_repository": "",
         "commit.format": "conventional",
         "commit.context_footer": "required",
         "commit.custom_pattern": "",
@@ -89,6 +93,8 @@ function okConfig(): Probe<ConfigStatusResult> {
         "session.init_load.notes": "prompt",
         "sync.auto_pull": "false",
         "archive.cadence": "with-integration",
+        "storage.track_design_docs": "specs",
+        "layout.active": "nested",
         "user.notes_push": "on-sync",
         "inbox.remind_after_days": "1",
         "inbound.retriage_after_entries": "10",
@@ -118,6 +124,7 @@ function makeFullResult(overrides: Partial<StatusResult> = {}): StatusResult {
     user: okUser(),
     config: okConfig(),
     active: okActive(),
+    projection: { ok: true, value: { kind: "disabled" } },
     ...overrides,
   };
 }
@@ -267,6 +274,28 @@ function makeSessionInitResult(
 }
 
 describe("buildStatusSummary — full mode", () => {
+  it("renders projection file states, remedies, unseen conflicts, and retained-copy paths", () => {
+    const copy = nameAsideFile({ path: ".arc/document.md", base: "a".repeat(40), role: "aside",
+      writer: { pid: 123, processInstance: "status-test", processScope: "unit" } });
+    const conflict = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" },
+      kind: "personal/conflict-record", key: "11111111-1111-4111-8111-111111111111" });
+    const text = buildStatusSummary(makeFullResult({ projection: { ok: true, value: { kind: "ready",
+      files: [{ path: ".arc/document.md", ownerless: false, pending: true, withheld: true,
+        refused: { reason: "parser: Invalid prose.", remedy: { text: "Repair this file.", argv: ["repair-prose", "local data"] } },
+        unshown: [conflict] }],
+      copies: [{ path: ".arc/document.md", copy, withheld: false }],
+    } } }));
+    for (const value of ["Projection", ".arc/document.md", "pending", "withheld", "Invalid prose.", "Repair this file.",
+      "repair-prose 'local data'", "personal/person/andrew/11111111-1111-4111-8111-111111111111", copy])
+      expect(text).toContain(value);
+  });
+
+  it("shows an unavailable projection alongside the healthy status sections", () => {
+    const text = buildStatusSummary(makeFullResult({ projection: { ok: false,
+      error: { kind: "runtime", message: "Projection cannot be read." } } }));
+    for (const value of ["Projection", "Projection cannot be read.", "User", "Config", "Active"]) expect(text).toContain(value);
+  });
+
   it("omits the retired probe heading", () => {
     expect(buildStatusSummary(makeFullResult())).not.toContain("Extensions:");
   });
@@ -304,7 +333,7 @@ describe("buildStatusSummary — full mode", () => {
     // User formatter output: "andrew: git note up to date"
     expect(summary).toContain("andrew: git note up to date");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("38 agent-consumable settings");
+    expect(summary).toContain("41 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });
@@ -572,6 +601,36 @@ it("renders a store designation and omits an empty user slot", () => {
     actions: [{ text: "arc store remote origin state", argv: ["arc", "store", "remote", "origin", "state"] }] };
   expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }))).toContain(value.summary);
   expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value: null } }))).not.toContain("User:");
+});
+
+it("renders retained-conflict notices and their remedies in human session entry", () => {
+  const conflict = RecordReferenceSchema.parse({ kind: "work-item/conflict-record",
+    owner: { type: "work-item", name: "example", uid: "11111111-1111-4111-8111-111111111111" }, key: "retained-conflict" });
+  const remedy = { text: "Resolve the retained alternatives, then retry.", argv: ["arc", "store", "resolve"] };
+  const value = describeStorePull({ status: "pulled", notices: [{ kind: "ended-with-conflicts", item: conflict.owner,
+    conflicts: [conflict], condition: "The ended item retains conflicting alternatives.", remedy }] });
+  const text = buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }));
+  expect(text).toContain("The ended item retains conflicting alternatives.");
+  expect(text).toContain(remedy.text);
+  expect(value.actions).toContainEqual(remedy);
+});
+
+it.each(["unreachable", "incomplete"] as const)("renders %s pull failures and partial remedies in human session entry", status => {
+  const remedy = { text: "Repair the primary transport and retry." };
+  const partialRemedy = { text: "Repair the other remote's policy and retry." };
+  const value = describeStorePull({ status, condition: "Primary transport failed.", remedy,
+    ...(status === "unreachable" ? {} : { partial: { states: [], pulls: [{
+      status: "failed" as const, remote: "other", role: "state" as const, families: ["work-item" as const], notices: [],
+      failure: { code: "refused" as const, class: "terminal" as const, message: "Other policy failed.", condition: "Other policy failed.", remedy: partialRemedy },
+    }] } }) });
+  const text = buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }));
+  expect(text).toContain("Primary transport failed.");
+  expect(text).toContain(remedy.text);
+  if (status === "incomplete") {
+    expect(text).toContain("Other policy failed.");
+    expect(text).toContain(partialRemedy.text);
+  }
+  expect(value.actions).toContainEqual(remedy);
 });
 
 it("renders the entering checkout's pause before work starts", () => {

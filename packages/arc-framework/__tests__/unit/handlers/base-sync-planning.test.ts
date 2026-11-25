@@ -1,4 +1,5 @@
 /** Detached Planning checkout catch-up belongs to the base handler, outside the shared Git synchronizer. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -12,10 +13,10 @@ import type { BaseSyncResult } from "../../../src/lib/git/base-sync.js";
 const base = "a".repeat(40), ahead = "b".repeat(40), next = "c".repeat(40);
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
-async function fixture(options: { branch?: string; commits?: string[]; result?: BaseSyncResult } = {}) {
+async function fixture(options: { branch?: string; commits?: string[]; result?: BaseSyncResult; unbound?: boolean } = {}) {
   const cwd = await mkdtemp(join(tmpdir(), "arc-planning-sync-")); roots.push(cwd);
-  const h = createLifecycleHarness(); await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
-  await writeWorktreeMarker(cwd, { spawnedByArc: true, wuName: "demo", createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" });
+  const h = createLifecycleHarness(); const record = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
+  await writeWorktreeMarker(cwd, { spawnedByArc: true, wuName: "demo", createdFor: options.unbound ? { kind: "work-unit", name: "demo" } : boundWorkUnitSubject(record), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" });
   let head = options.commits?.length ? ahead : base; let synced = false;
   const exec: GitExec = async (_command, args) => {
     if (args[0] === "--no-replace-objects") args = args.slice(1);
@@ -26,9 +27,20 @@ async function fixture(options: { branch?: string; commits?: string[]; result?: 
     throw Error(`unexpected Git operation ${args.join(" ")}`);
   };
   const result: BaseSyncResult = options.result ?? { status: "updated", base: "main", from: base, to: next, worktreePath: "/base", method: "checked-out" };
-  return { cwd, store: h.store, exec, sync: () => { synced = true; return Promise.resolve(result); }, state: () => ({ head, synced }) };
+  return { cwd, record, store: h.store, exec, sync: () => { synced = true; return Promise.resolve(result); }, state: () => ({ head, synced }) };
 }
 describe("detached Planning base sync", () => {
+  it("refuses an unbound detached checkout and syncs after its marker is bound", async () => {
+    const h = await fixture({ unbound: true });
+    expect(await runPlanningBaseSync({ ...h, baseBranch: "main" })).toMatchObject({ status: "refused",
+      reason: "detached-planning-unobservable", remedy: { text: expect.stringContaining("arc materialize demo --here") } });
+    expect(h.state()).toEqual({ head: base, synced: false });
+    await writeWorktreeMarker(h.cwd, { spawnedByArc: true, wuName: "demo", createdFor: boundWorkUnitSubject(h.record),
+      spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" });
+    expect(await runPlanningBaseSync({ ...h, baseBranch: "main" })).toMatchObject({ status: "updated" });
+    expect(h.state()).toEqual({ head: next, synced: true });
+  });
+
   it.each(["updated", "unchanged"] as const)("re-detaches at base after a %s sync", async (status) => {
     const h = await fixture({ result: status === "updated" ? undefined : { status: "unchanged", base: "main", at: next } });
     expect(await runPlanningBaseSync({ ...h, baseBranch: "main" })).toMatchObject({ status });

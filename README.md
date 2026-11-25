@@ -112,6 +112,12 @@ files for your platform. Run `arc join` to onboard additional developers. See th
 [Getting Started guide](https://andrewrcr.github.io/arc-framework/getting-started/)
 for a first session walkthrough.
 
+Project checks keep their native unsharded command by default. A machine can configure a provider-neutral runner;
+checks that opt in with `runner: true` and `shards.routed: true` replay their declared shard plan through it. Group
+execution is optional: the [standalone basic adapter](packages/arc-framework/examples/check-runner/README.md) plays
+shards serially, including their native overhead. See the [runner guide](packages/arc-framework/README.md) for
+explicit inputs, reuse, recovery and execution-profile qualification.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

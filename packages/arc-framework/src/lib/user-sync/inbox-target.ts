@@ -2,16 +2,18 @@
  * Work-unit target reads over `USER-INBOX` captures.
  *
  * A capture names the work unit it is addressed to on a top-level `WU_Target`
- * bullet, written in any of three forms: `` - `WU_Target: <slug>` ``,
- * `` - _WU_Target:_ `<slug>` ``, or a bare `- WU_Target: <slug>`. A
- * `(planned)` or `(provisional)` commitment hint may follow the slug. A mention
- * inside prose or a nested bullet is not a target line, and an undecided `TBD`
- * names no work unit.
+ * bullet, written in any of four forms: `` - `WU_Target: <slug>` ``,
+ * `` - _WU_Target:_ `<slug>` ``, `- _WU_Target:_ <slug>`, or a bare
+ * `- WU_Target: <slug>`. A `(planned)` or `(provisional)` commitment hint may
+ * follow the slug. A mention inside prose or a nested bullet is not a target
+ * line, and an undecided `TBD` names no work unit. An unindented target line
+ * that is not a list item names nothing, so it is reported rather than read.
  *
  * @module
  */
 
 import { managedFlagIsTrue } from "../session-init/managed-field.js";
+import { maskComments } from "../store/concurrency/entries.js";
 import { parsePersonalInboxEntries, stripHtmlComments } from "../store/kinds/personal-inbox.js";
 import { targetNamedByLine } from "../store/kinds/entry-fields.js";
 import type { CrossWuEntry } from "./schema.js";
@@ -57,6 +59,15 @@ function strayTargetLines(content: string, target: string, readLines: readonly s
 }
 
 /**
+ * Unindented lines that would name `target` as a list item but are not one, so no capture reads them. A comment
+ * left unclosed hides everything after it, as the store's entry parser reads it.
+ */
+function unlistedTargetLines(content: string, target: string): string[] {
+  return maskComments(content).split("\n").map((line) => line.trimEnd())
+    .filter((line) => /^[`_]?WU_Target:/u.test(line) && targetNamedByLine(`- ${line}`) === target);
+}
+
+/**
  * Select the `USER-INBOX` captures whose target line names one work unit.
  *
  * Callers that must prove no capture names the target treat a non-empty
@@ -85,6 +96,9 @@ export function listInboxEntriesNamingTarget(content: string, target: string): I
   }
   for (const line of strayTargetLines(content, target, readLines)) {
     diagnostics.push(`A line naming ${target} sits outside any readable inbox entry: ${line}`);
+  }
+  for (const line of unlistedTargetLines(content, target)) {
+    diagnostics.push(`A target line naming ${target} is not a list item, so no capture reads it: ${line}`);
   }
   return { entries, diagnostics };
 }

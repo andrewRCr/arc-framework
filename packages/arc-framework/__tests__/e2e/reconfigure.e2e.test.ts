@@ -7,11 +7,12 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile, access } from "node:fs/promises";
+import { readFile, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, cleanupTempDir, commitAll } from "./helpers.js";
+import { initializedRepository } from "../helpers/initialized-repository.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,16 +42,32 @@ describe("arc init --reconfigure", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(
-      ["init", "--yes", "--name", "test-project", "--tools", "claude"],
-      tmpDir,
-    );
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("claude-initialized");
+    await commitAll(tmpDir);
   });
 
   afterEach(async () => {
     await cleanupTempDir(tmpDir);
+  });
+
+  it("uncommitted changes to a file it rewrites refuse the reconfigure until committed", async () => {
+    const configPath = join(tmpDir, ".arc", "system", "arc-config.yml");
+    const customized = `${await readFile(configPath, "utf-8")}\n# Local note\n`;
+    await writeFile(configPath, customized, "utf-8");
+
+    const refused = await runArc(["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"], tmpDir);
+
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stdout + refused.stderr).toContain("manifest.uncommitted-changes");
+    expect(refused.stdout + refused.stderr).toContain(".arc/system/arc-config.yml");
+    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(false);
+
+    await commitAll(tmpDir);
+    const reconf = await runArc(["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"], tmpDir);
+
+    expect(reconf.exitCode, reconf.stdout + reconf.stderr).toBe(0);
+    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
+    expect(await readFile(configPath, "utf-8")).toContain("# Local note");
   });
 
   it("reconfigure pm.mode adds files, update preserves new config", async () => {
@@ -75,7 +92,8 @@ describe("arc init --reconfigure", () => {
     const manifest = JSON.parse(manifestRaw) as { install_config: { pm_mode: string } };
     expect(manifest.install_config.pm_mode).toBe("arc-in-git");
 
-    // Update should preserve the new config
+    // Once committed, update should preserve the new config
+    await commitAll(tmpDir);
     const update = await runArc(["update"], tmpDir);
     expect(update.exitCode).toBe(0);
 
@@ -218,7 +236,8 @@ describe("arc init --reconfigure", () => {
     const roadmapPath = join(tmpDir, ".arc", "backlog", "ROADMAP.md");
     expect(await pathExists(roadmapPath)).toBe(true);
 
-    // Reconfigure back to none — removals happen via --yes defaults
+    // Reconfigure back to none from the committed arc-in-git install — removals happen via --yes defaults
+    await commitAll(tmpDir);
     const reconf = await runArc(
       ["init", "--reconfigure", "--yes", "--pm-mode", "none"],
       tmpDir,
@@ -239,12 +258,7 @@ describe("arc join --reconfigure", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo("arc-reconf-join-");
-    const init = await runArc(
-      ["init", "--yes", "--name", "test-project"],
-      tmpDir,
-    );
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {

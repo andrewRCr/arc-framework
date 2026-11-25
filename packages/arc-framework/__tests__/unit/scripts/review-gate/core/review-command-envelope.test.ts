@@ -153,6 +153,14 @@ const localResult = {
   applicabilityId: null,
   findings: [],
 };
+const frontlineFinding = {
+  findingId: "finding-1",
+  severity: "major",
+  locus: "src/index.ts",
+  evidenceUrlOrId: "Guard the read before indexing.",
+  sourceOrdinal: 1,
+  sourceLabel: "Unguarded index read",
+};
 const dispositionProposal = proposeDispositionSet(createDispositionSet({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
@@ -181,6 +189,14 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
 }));
 const dispositionReportText = "Verification: full\n\nFinding F1: The source supports this finding.";
 const dispositionEvidenceText = "Evidence\n- F1 · src/index.ts:7 · verified at source:src/index.ts:7";
+const approvalPolicyBinding = {
+  lane: "standard",
+  headSha: target.headSha,
+  pullRequest: null,
+  scopeMode: "whole-target",
+  completedPasses: 1,
+  finalAttempt: { outcome: "findings", reviewOperationId: "local-1" },
+} as const;
 const provisionalPassAssessment = {
   status: "provisional",
   lane: "standard",
@@ -192,7 +208,7 @@ const provisionalPassAssessment = {
   potentialStopReason: "cap-exhausted",
   nextPassAuthority: "none",
   summaryText: "Provisional pass 2 of 2; approval and response are pending; no next-pass authority.",
-  positionText: "Standard complete pass 2 of 2 (limit reached)",
+  positionText: "Standard code review — pass 2 (limit reached), Codex (hosted)",
   nextActivityText: "another complete pass, which needs a ceiling decision",
 } as const;
 
@@ -288,7 +304,7 @@ describe("review command envelopes", () => {
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
-      state: "findings", nextAction: "respond", payload: operationPayload(),
+      state: "findings", nextAction: "respond", payload: operationPayload({ findings: [frontlineFinding] }),
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
@@ -331,7 +347,7 @@ describe("review command envelopes", () => {
       state: "awaiting-approval", nextAction: "obtain-approval",
       payload: {
         operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
-        provisionalPassAssessment,
+        provisionalPassAssessment, approvalPolicyBinding,
       },
     }],
     [RespondEnvelopeSchema, {
@@ -493,7 +509,7 @@ describe("review command envelopes", () => {
       state: "awaiting-approval", nextAction: "obtain-approval",
       payload: {
         operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
-        provisionalPassAssessment: { ...provisionalPassAssessment, ...change },
+        provisionalPassAssessment: { ...provisionalPassAssessment, ...change }, approvalPolicyBinding,
       },
     })).toThrow();
   });
@@ -508,6 +524,7 @@ describe("review command envelopes", () => {
           ...provisionalPassAssessment,
           proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "minor", materialFix: false },
         },
+        approvalPolicyBinding,
       },
     })).toMatchObject({ payload: { provisionalPassAssessment: { potentialStopReason: "cap-exhausted" } } });
   });
@@ -640,6 +657,16 @@ describe("review command envelopes", () => {
     })).toThrow();
   });
 
+  it("carries findings on a findings run and on no other run state", () => {
+    const run = (state: string, nextAction: string, findings?: unknown[]) => ({
+      ...header("review-frontline-run"), state, nextAction,
+      payload: operationPayload(findings === undefined ? {} : { findings }),
+    });
+    expect(() => FrontlineRunEnvelopeSchema.parse(run("findings", "respond"))).toThrow();
+    expect(() => FrontlineRunEnvelopeSchema.parse(run("findings", "respond", []))).toThrow();
+    expect(() => FrontlineRunEnvelopeSchema.parse(run("clean", "none", [frontlineFinding]))).toThrow();
+  });
+
   it.each([
     localResult,
     { ...localResult, status: "failed", result: null },
@@ -696,7 +723,7 @@ describe("review command envelopes", () => {
     expect(ReviewCommandErrorEnvelopeSchema.parse(error)).toEqual(error);
   });
 
-  it("lets only the response verb's invalid-input refusal carry a replay remedy", () => {
+  it("lets an invalid-input or corrupt-state refusal carry a replay remedy, and no other failure", () => {
     const remedy = {
       invariant: "A verified fix is recorded only against the clean committed head that contains it.",
       text: "Commit the fix, then replay the response: `arc review respond -`.",
@@ -708,12 +735,15 @@ describe("review command envelopes", () => {
       error: { code: "invalid-input", message: "dirty-worktree" },
       remedy,
     };
+    const corrupt = { ...refusal, error: { code: "corrupt-state", message: "the durable record is unreadable" } };
     expect(ReviewCommandErrorEnvelopeSchema.parse(refusal)).toEqual(refusal);
+    expect(ReviewCommandErrorEnvelopeSchema.parse(corrupt)).toEqual(corrupt);
+    expect(ReviewCommandErrorEnvelopeSchema.parse({ ...corrupt, ...header("review-reduce") }))
+      .toEqual({ ...corrupt, ...header("review-reduce") });
     expect(() => ReviewCommandErrorEnvelopeSchema.parse({
       ...refusal,
-      error: { code: "corrupt-state", message: "the durable record is unreadable" },
+      error: { code: "unexpected-failure", message: "the review failed" },
     })).toThrow();
-    expect(() => ReviewCommandErrorEnvelopeSchema.parse({ ...refusal, ...header("review-reduce") })).toThrow();
   });
 });
 

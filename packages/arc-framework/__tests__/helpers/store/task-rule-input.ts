@@ -22,7 +22,7 @@ export function taskRuleInput(nextContent: string | null = TASK_RULE_CONTENT, pr
     nextContent, parseTaskListRecord(nextContent));
   const reference = next?.reference ?? prior?.reference;
   if (reference === undefined) throw new Error("A task-list input needs a prior or next version.");
-  return { reference, writer, before: ruleView([primary, ...(prior === undefined ? [] : [prior])]),
+  return { reference, observations: [], writer, before: ruleView([primary, ...(prior === undefined ? [] : [prior])]),
     after: ruleView([primary, ...(next === undefined ? [] : [next])]),
     ...(prior === undefined ? {} : { prior: { content: prior.content, fields: prior.fields } }),
     ...(next === undefined ? {} : { next: { content: next.content, fields: next.fields } }) };

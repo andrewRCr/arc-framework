@@ -13,26 +13,42 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-### `[ ]` **Backstop shipped-file inventory drift (recipe / manifest omissions)**
+### `[ ]` **Backstop self-host manifest omissions when a shippable file is added, renamed, or removed**
 
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: self-hosting-manifest-freshness`), housekeep drain
-  (2026-06-08); captured at `scalable-authoring-pipeline` PR #67 review cycle.
-- _Concern:_ PR #67 exposed a shipped-file inventory gap: new package-source authoring surfaces (`draft-design`,
-  planning-depth methods, `spec-review`, `pre-spec-finalization-review`) existed in
-  `packages/arc-framework/arc/**` but were missing from `packages/arc-framework/init-recipe.json`, so fresh
-  installs would ship broken references. The same WU's verification also caught a stale retired-template entry in
-  the recipe / manifest path. This WU covers tracked manifest/pristine drift; this is the **additive**
-  development-time backstop: catch recipe / manifest inventory omissions whenever a shippable file is added,
-  renamed, or removed. (The one-off #67 fixes already landed; this is the recurrence guard.)
-- _Proposed:_ a project-level guard (not adopter-shipped): compare package-source shippable files against
-  `init-recipe.json` and the self-host `.arc/system/.internal/manifest.json`, with an explicit allowlist for
-  intentionally-unshipped internal-dev files. Decide whether it belongs as a unit/integration test,
-  package-sync validator, CI check, or pre-PR/Tier-3 audit.
-- _Also (stronger fix to weigh):_ consider eliminating the manual enumeration outright — derive the shipped-file
-  list by glob / auto-discovery over package source with an explicit unship allowlist — so `init-recipe.json`
-  can't drift in the first place, rather than only guarding against drift after the fact. (Surfaced 2026-06-28,
-  `compaction-recovery` grounding audit, on hitting the explicit per-file enumeration.)
+  (2026-06-08); captured at `scalable-authoring-pipeline` PR #67 review cycle. Split 2026-10-23: its recipe-omission
+  half and the derive-the-list direction went to `adopter-install-authority`, whose scope is the install inventory.
+- _Concern:_ PR #67's verification caught a stale retired-template entry in the recipe / manifest path. A shippable
+  file added, renamed, or removed in package source can leave `.arc/system/.internal/manifest.json` with a missing,
+  stale, or orphaned entry, and nothing reports it before someone hand-edits the keys.
+- _Proposed:_ a project-level guard (not adopter-shipped) comparing package-source shippable files with the self-host
+  manifest, or the reconciliation command in § Scope, which would turn the guard's finding into a one-command repair.
 - _Scope:_ repo development-time validation and tests/scripts only; do not ship the guard to adopters.
+- _Shapes:_ § Scope, direction 1 (the reconciliation command).
+
+### `[ ]` **Decide whether the self-host manifest's stored hashes earn their upkeep, and automate whichever survives**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ § Scope's open fork (a reconcile command versus content equality as the authority), with fresh evidence for
+  its second arm.
+
+- _Observation:_ 92 of the 148 entries in `.arc/system/.internal/manifest.json` carry a `pristine_hash` that no longer
+  matches package source (66 Framework, 26 Configurable), and 11 entries name files package source no longer has. Only
+  three entries are kept current, each by a `framework-sync.test.ts` case that pins the hash of a method a work unit
+  added (`pull-request-format`, `route-discovered-work`, `assess-evidence-applicability`). Every later edit to one of
+  those three needs a hand-recomputed hash, while the rest drift silently.
+
+- _Observation:_ the first question is whether this repository needs stored hashes at all. Nothing runs `arc health` or
+  `arc diff` against it, and the byte-equality checks between the two copies already prove content. If the hashes stay,
+  they are derived state and want a generator or a check, not a per-method test pinning one value.
+
+- _Approach:_ settle the draft's fork with this in view, then either drop the three per-method hash assertions in favor
+  of one whole-manifest freshness check backed by a reconcile command, or stop storing hashes in the self-host copy.
+  Check first whether the storage cohort's register already places `.internal/manifest.json`.
+
+- _Captured during:_ the `applicability-movement-check-choice` Errand, 2026-10-20, whose method edit needed a
+  hand-updated hash while two other stale hashes in the same diff went unnoticed.
 
 ## Problem / Motivation
 

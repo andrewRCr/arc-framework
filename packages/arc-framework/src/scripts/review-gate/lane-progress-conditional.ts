@@ -1,9 +1,11 @@
 /** Conditional next-pass authorization transitions for durable lane owners. */
 
+import { captureNativeConditionalPassTransition, withdrawNativeConditionalPassTransition, inspectNativeConditionalPassTransition, invalidateNativeConditionalPassTransition } from "./runtime/native-conditional-transitions.js";
+import { bindNativeConditionalAdmission } from "./runtime/native-conditional-admission.js";
 import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
-import { computeConditionalPassAuthorizationId, LaneProgressStateSchema, type LaneProgressState,
-  type LocalReviewState, type ReviewOperationState } from "./core/operation-state-schema.js";
-import { frontlineRetryContract } from "./core/frontline-retry-contract.js";
+import { computeConditionalPassAuthorizationId, conditionalPassFollowsProducer, LaneProgressStateSchema,
+  type LaneProgressState, type LocalReviewState, type ReviewOperationState } from "./core/operation-state-schema.js";
+import { requireConsumedReviewRetryAttempts, localReviewRetryActorContract, requireCompleteConditionalCoverage } from "./core/conditional-retry-contract.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "./core/lane-admission.js";
 import type { ReviewOperationStateSnapshotIndex, ReviewOperationStateStore } from "./core/ports.js";
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "./core/version-conflict.js";
@@ -59,8 +61,7 @@ function requireCaptureProducer(
   if (attempt === undefined
     || !attempt.terminalProducer
     || attempt.headSha !== input.headSha
-    || attempt.logicalPass !== input.exhaustedPassCount
-    || input.nextPass !== input.exhaustedPassCount + 1) {
+    || !conditionalPassFollowsProducer(input, attempt.logicalPass)) {
     throw new Error("conditional pass authorization does not match its terminal producer");
   }
   return { attempt, index };
@@ -164,7 +165,15 @@ export function bindCompletedConditionalPassAuthorization(
   });
 }
 
-export async function captureConditionalNextPassAuthorization(
+/** Capture conditional authority through the invocation's selected fact and execution adapters. */
+export async function captureConditionalNextPassAuthorization(store: ReviewOperationStateStore,
+  input: Parameters<typeof captureRepositoryConditionalNextPassAuthorization>[1]):
+  ReturnType<typeof captureRepositoryConditionalNextPassAuthorization> {
+  return store.nativeFacts === undefined ? captureRepositoryConditionalNextPassAuthorization(store, input)
+    : captureNativeConditionalPassTransition(store.nativeFacts, store, input);
+}
+
+async function captureRepositoryConditionalNextPassAuthorization(
   store: ReviewOperationStateStore,
   input: {
     lane: LaneProgressState["lane"];
@@ -311,7 +320,15 @@ function withdrawnAuthorization(
  * @param confirmDispositionSetCurrent - Current approved-disposition confirmation boundary.
  * @returns A typed withdrawal, replay, or refusal without rewriting other authority.
  */
-export async function withdrawConditionalNextPassAuthorization(
+export async function withdrawConditionalNextPassAuthorization(store: ReviewOperationStateStore,
+  input: Parameters<typeof withdrawRepositoryConditionalNextPassAuthorization>[1],
+  confirmDispositionSetCurrent: Parameters<typeof withdrawRepositoryConditionalNextPassAuthorization>[2]):
+  ReturnType<typeof withdrawRepositoryConditionalNextPassAuthorization> {
+  return store.nativeFacts === undefined ? withdrawRepositoryConditionalNextPassAuthorization(store, input, confirmDispositionSetCurrent)
+    : withdrawNativeConditionalPassTransition(store.nativeFacts, store, input);
+}
+
+async function withdrawRepositoryConditionalNextPassAuthorization(
   store: ReviewOperationStateStore,
   input: {
     authorizationId: CanonicalDigest;
@@ -392,7 +409,13 @@ export async function withdrawConditionalNextPassAuthorization(
  * @param input - Superseded authorization binding and successor disposition identity.
  * @returns Updated progress, unchanged progress when no capture exists, or null when the lane owner is absent.
  */
-export async function invalidateConditionalNextPassAuthorization(
+export async function invalidateConditionalNextPassAuthorization(store: ReviewOperationStateStore,
+  input: Parameters<typeof invalidateRepositoryConditionalNextPassAuthorization>[1]): ReturnType<typeof invalidateRepositoryConditionalNextPassAuthorization> {
+  return store.nativeFacts === undefined ? invalidateRepositoryConditionalNextPassAuthorization(store, input)
+    : invalidateNativeConditionalPassTransition(store.nativeFacts, store, input);
+}
+
+async function invalidateRepositoryConditionalNextPassAuthorization(
   store: ReviewOperationStateStore,
   input: {
     lane: LaneProgressState["lane"];
@@ -465,7 +488,13 @@ export async function invalidateConditionalNextPassAuthorization(
  * @param input - Superseded authorization binding and successor disposition identity.
  * @returns A typed refusal only when the named authorization has already been consumed.
  */
-export async function inspectConditionalNextPassInvalidation(
+export async function inspectConditionalNextPassInvalidation(store: ReviewOperationStateStore,
+  input: Parameters<typeof inspectRepositoryConditionalNextPassInvalidation>[1]): ReturnType<typeof inspectRepositoryConditionalNextPassInvalidation> {
+  return store.nativeFacts === undefined ? inspectRepositoryConditionalNextPassInvalidation(store, input)
+    : inspectNativeConditionalPassTransition(store.nativeFacts, store, input);
+}
+
+async function inspectRepositoryConditionalNextPassInvalidation(
   store: ReviewOperationStateStore,
   input: {
     lane: LaneProgressState["lane"];
@@ -555,16 +584,6 @@ function terminalContinuationAttemptIds(
     : []);
 }
 
-function localRetryContract(attempt: LaneAttempt): unknown {
-  const local = attempt.local;
-  if (local === undefined) return null;
-  return {
-    logicalPass: attempt.logicalPass, sourceId: attempt.sourceId,
-    vehicle: local.vehicle, scopeMode: local.scopeMode, requestedCoverage: local.requestedCoverage,
-    correctionScope: local.correctionScope ?? null, rubricIdentity: local.rubricIdentity,
-    deliveryAdmission: local.deliveryAdmission ?? null,
-  };
-}
 
 function retryOperation(snapshot: CompleteOperationSnapshot, attempt: LaneAttempt): LocalReviewState | null {
   const matches = snapshot.records.map(({ state }) => state).filter((state) =>
@@ -578,46 +597,7 @@ function retryOperation(snapshot: CompleteOperationSnapshot, attempt: LaneAttemp
     ? state : null;
 }
 
-function retryOperationContract(state: LocalReviewState): unknown {
-  return {
-    authorIdentity: state.request.authorIdentity, evaluatorIdentity: state.request.evaluatorIdentity,
-    policyBindingDigest: state.policyBindingDigest, requestMechanism: state.request.requestMechanism,
-    attestationRuntimeKind: state.attestationRuntimeKind, attestationMechanism: state.attestation.mechanism,
-  };
-}
 
-function consumedRetryContract(attempt: LaneAttempt): unknown {
-  return attempt.frontline === undefined ? localRetryContract(attempt) : frontlineRetryContract(attempt.frontline.admission);
-}
-
-function consumedAttemptRetryable(attempt: LaneAttempt | undefined): boolean {
-  if (attempt === undefined || attempt.terminalProducer) return false;
-  return attempt.frontline === undefined
-    ? attempt.outcome === "stale-target" || attempt.outcome === "terminal-failure"
-    : attempt.outcome !== "pending";
-}
-
-function requireConsumedRetryAttempts(
-  match: ReturnType<typeof uniqueAuthorizationSnapshotMatch>,
-  input: ConditionalPendingAdmission,
-  next: LaneProgressState,
-): { original: LaneAttempt; replacement: LaneAttempt } {
-  const authorization = match.authorization;
-  if (authorization.status !== "consumed") throw new Error("conditional pass authorization is not consumed");
-  const original = match.progress.attempts.find((attempt) => attempt.attemptId === authorization.admissionId);
-  const previous = match.progress.attempts.filter((attempt) => attempt.logicalPass === input.nextPass).at(-1);
-  const replacement = next.attempts.find((attempt) => attempt.attemptId === input.admissionId);
-  if (original === undefined || previous === undefined || replacement === undefined
-    || !consumedAttemptRetryable(original) || !consumedAttemptRetryable(previous)
-    || replacement.outcome !== "pending" || replacement.terminalProducer
-    || replacement.retryGeneration !== previous.retryGeneration + 1
-    || consumedRetryContract(original) === null
-    || canonicalize(consumedRetryContract(original)) !== canonicalize(consumedRetryContract(previous))
-    || canonicalize(consumedRetryContract(original)) !== canonicalize(consumedRetryContract(replacement))) {
-    throw new Error("conditional pass authorization retry must retain its original admission's source, scope and coverage");
-  }
-  return { original, replacement };
-}
 
 function assertConsumedRetry(
   snapshot: CompleteOperationSnapshot,
@@ -625,12 +605,13 @@ function assertConsumedRetry(
   input: ConditionalPendingAdmission,
   next: LaneProgressState,
 ): void {
-  const { original, replacement } = requireConsumedRetryAttempts(match, input, next);
+  if (match.authorization.status !== "consumed") throw new Error("conditional pass authorization is not consumed");
+  const { original, replacement } = requireConsumedReviewRetryAttempts(match.progress, match.authorization.admissionId, input, next);
   if (original.frontline !== undefined) return;
   const originalOperation = retryOperation(snapshot, original);
   const replacementOperation = retryOperation(snapshot, replacement);
   if (originalOperation === null || replacementOperation === null
-    || canonicalize(retryOperationContract(originalOperation)) !== canonicalize(retryOperationContract(replacementOperation))) {
+    || canonicalize(localReviewRetryActorContract(originalOperation)) !== canonicalize(localReviewRetryActorContract(replacementOperation))) {
     throw new Error("conditional pass authorization retry must retain its original admission's actors and policy");
   }
 }
@@ -643,12 +624,6 @@ function requirePendingAuthorization(
   }
 }
 
-function requireCompletePendingCoverage(lane: LaneProgressState["lane"], attempt: LaneAttempt): void {
-  if (lane === "standard" && (attempt.local?.requestedCoverage ?? attempt.hosted?.requestedCoverage) !== "complete") {
-    throw new Error("conditional next-pass authorization admits only a complete pass; "
-      + "choose complete coverage or use conditionalNextPassWithdrawal before the fix check");
-  }
-}
 
 /** Fold consumption into the pending attempt's one versioned lane-owner publication. */
 export async function bindConditionalPendingAdmission(
@@ -657,6 +632,7 @@ export async function bindConditionalPendingAdmission(
   ownerVersion: number,
   next: LaneProgressState,
 ): Promise<LaneProgressState> {
+  if (store.nativeFacts !== undefined) return bindNativeConditionalAdmission(store.nativeFacts, store, input, ownerVersion, next);
   const readOperationSnapshot = (store as Partial<ReviewOperationStateSnapshotIndex>)
     .readOperationSnapshot;
   if (typeof readOperationSnapshot !== "function") {
@@ -699,7 +675,7 @@ export async function bindConditionalPendingAdmission(
   if (attemptIndex < 0 || pending === undefined) {
     throw new Error("conditional pass authorization pending admission is unavailable");
   }
-  requireCompletePendingCoverage(input.lane, pending);
+  requireCompleteConditionalCoverage(input.lane, pending);
   if (authorization.status === "consumed") {
     assertConsumedRetry(snapshot, match, input, next);
     return next;

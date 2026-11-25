@@ -6,6 +6,8 @@ import { LaneProgressStateSchema, type LaneProgressState } from "./core/operatio
 import type { ReviewOperationStateStore } from "./core/ports.js";
 import type { HostedAdmission, HostedRequestResult, HostedTarget } from "./hosted/request.js";
 import { completeHostedAttemptIfReady, laneProgressOperationId, recordLaneAttempt } from "./lane-progress.js";
+import { publishNativeHostedSettlement } from "./runtime/native-hosted-settlement.js";
+import { bindNativeHostedDisposition } from "./runtime/native-response-transitions.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 
@@ -141,6 +143,31 @@ function isHostedDispositionReplay(
   return false;
 }
 
+/** Refuse a host reply action that the sealed finding cannot support, before recording its binding. */
+export class HostedDispositionBindingError extends Error {
+  readonly code = "invalid-input" as const;
+  readonly reason = "unsupported-channel-action" as const;
+
+  constructor(readonly findingId: string) {
+    super(`hosted finding ${findingId} does not support reply-and-resolve; use record-only for this finding and retry`);
+    this.name = "HostedDispositionBindingError";
+  }
+}
+
+function assertHostedFindingActions(
+  hosted: NonNullable<LaneAttempt["hosted"]>,
+  actions: readonly { findingId: string; channelAction: "record-only" | "reply-and-resolve" }[],
+): void {
+  const settlementByFindingId = new Map(hosted.sealedResult?.findings.map(finding =>
+    [finding.findingId, finding.settlement]));
+  for (const action of actions) {
+    if (action.channelAction === "reply-and-resolve"
+      && settlementByFindingId.get(action.findingId) !== "reply-and-resolve") {
+      throw new HostedDispositionBindingError(action.findingId);
+    }
+  }
+}
+
 /** Bind approval to one hosted findings attempt and settle findings with no host-side action. */
 export async function bindHostedAttemptDisposition(
   store: ReviewOperationStateStore,
@@ -157,6 +184,7 @@ export async function bindHostedAttemptDisposition(
     now: string;
   },
 ): Promise<LaneProgressState> {
+  if (store.nativeFacts !== undefined) return bindNativeHostedDisposition(store.nativeFacts, store, input);
   const { version, state } = await store.readOperation(input.operationId);
   if (state === null || state.kind !== "lane-progress" || state.lane !== "standard") {
     throw new Error("hosted lane findings attempt is unavailable");
@@ -171,6 +199,7 @@ export async function bindHostedAttemptDisposition(
   if (!findingIdsMatch(recordedFindingIds, dispositionFindingIds)) {
     throw new Error("approved disposition details do not cover the hosted finding set");
   }
+  assertHostedFindingActions(attempt.hosted, input.findingDispositions);
   const dispositionByFindingId = new Map(input.findingDispositions.map((finding) => [finding.findingId, finding]));
   const noHostSettlementFindingIds = input.findingDispositions
     .filter(({ channelAction }) => channelAction === "record-only")
@@ -272,6 +301,12 @@ export async function settleHostedAttemptFinding(
     performedAt: input.now,
     carriedFromDispositionSetId: null,
   };
+  if (store.nativeFacts !== undefined) {
+    await publishNativeHostedSettlement({ ...store.nativeFacts, producerId: input.attemptId,
+      settlement: evidence, confirmResponseHeadContinuation: input.confirmResponseHeadContinuation });
+    const next = await store.readOperation(input.operationId);
+    return LaneProgressStateSchema.parse(next.state);
+  }
   const currentEvidence = attempt.hosted.settlementEvidence.find((candidate) =>
     candidate.dispositionSetId === input.dispositionSetId && candidate.findingId === input.findingId);
   const currentDisposition = attempt.hosted.dispositionSetLineage.at(-1)?.findingActions
@@ -442,6 +477,7 @@ function requireHostedSuccessorAttempt(
     || canonicalize(successorFindingIds) !== canonicalize(recordedFindingIds)) {
     throw new Error("successor dispositions do not cover the hosted finding set");
   }
+  assertHostedFindingActions(hosted, input.findingDispositions);
   return { index, attempt, hosted, recordedFindingIds };
 }
 

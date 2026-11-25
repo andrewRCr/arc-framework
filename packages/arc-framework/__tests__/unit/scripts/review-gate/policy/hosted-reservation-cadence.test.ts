@@ -131,8 +131,7 @@ describe("converged fix-check continuation", () => {
         await expect(resolveEvidenceBoundSingletonHostedReservationPolicy({ reservation: reserved,
           discharge: { ...result, nextPassContext }, target: incremental.target, maxPasses: 4 }, {
           resultReader: { readResult: async () => { throw new Error("No terminal binding is needed for fresh admission."); } },
-          dispositionStore: { readDispositionRecord: async () => null,
-            appendDispositionRecord: async () => { throw new Error("Admission does not write disposition records."); } },
+          dispositionStore: { readDispositionRecord: async () => null },
           confirmTarget: async target => target,
         })).resolves.toMatchObject({ state: "ready", nextAction: "hosted-request", payload: { sourceId: "codex-pr", pass: 2 } });
       }

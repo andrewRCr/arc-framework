@@ -72,6 +72,7 @@ function buildSettings(pushInterlock: PushInterlock): ResolvedSettingsResult {
     "worktree.location_template": "../{repo}.{name}",
     "worktree.post_create": "",
     "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+    "storage.backing_repository": "",
     "commit.format": "conventional",
     "commit.context_footer": "required",
     "commit.custom_pattern": "",
@@ -97,6 +98,8 @@ function buildSettings(pushInterlock: PushInterlock): ResolvedSettingsResult {
     "session.init_load.notes": "prompt",
     "sync.auto_pull": "false",
     "archive.cadence": "with-integration",
+    "storage.track_design_docs": "specs",
+    "layout.active": "nested",
     "user.notes_push": "on-sync",
   };
   return {

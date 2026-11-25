@@ -30,9 +30,20 @@ function locus(location: string, target: HostedTarget): string | null {
   return `${path}:${start}${end === start ? "" : `-${end}`}`;
 }
 
-/** Read the provider's marked single-finding review without creating synthetic thread settlement. */
+/** A finding's shape in a body without the marker: a priority badge, or a link into the reviewed head's files. */
+function unmarkedFindingShape(body: string, target: HostedTarget): boolean {
+  return /!\[P[0-3] Badge\]/u.test(body)
+    || body.includes(`https://github.com/${target.repository}/blob/${target.headSha}/`);
+}
+
+/**
+ * Read the provider's marked single-finding review without creating synthetic thread settlement. A body that carries
+ * a finding's shape without the marker is malformed, so a finding is never dropped because the marker changed.
+ */
 export function parseCodexReviewBody(review: HostedGitHubReview, target: HostedTarget): BodyResult {
-  if (!review.body.includes(MARKER)) return { kind: "parsed", findings: [] };
+  if (!review.body.includes(MARKER)) {
+    return unmarkedFindingShape(review.body, target) ? { kind: "malformed" } : { kind: "parsed", findings: [] };
+  }
   if (review.body.split(MARKER).length !== 2) return { kind: "malformed" };
   const content = review.body.split(/^[\t ]*<details>[\t ]*<summary>/mu, 1)[0]?.trim() ?? "";
   const lines = content.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);

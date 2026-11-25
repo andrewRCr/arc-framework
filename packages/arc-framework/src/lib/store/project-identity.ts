@@ -1,6 +1,7 @@
 /** Project identity comes from the selected store's unique project owner, independently of code remotes. */
 import type { Store } from "./contract.js";
 import type { Remedy, StoreRefusal } from "./refusal.js";
+import type { OwnerIdentity } from "./identity.js";
 
 /** Actionable failure to resolve the selected project's stable identity. */
 export interface ProjectIdentityUnavailable {
@@ -8,6 +9,8 @@ export interface ProjectIdentityUnavailable {
   reason: string;
   remedy: Remedy;
   refusal?: StoreRefusal;
+  /** The identity was not judged: its listing could not be read or came back incomplete. */
+  readFailure?: true;
 }
 /** Expected identity-read failure carried through a callback that returns a project ID. */
 export class ProjectIdentityError extends Error {
@@ -21,7 +24,7 @@ export class ProjectIdentityError extends Error {
  * @param store - Selected operational backend.
  * @returns A callback retaining its exact observation across checkout rebinding.
  */
-export function createProjectIdentityReader(store: Store): () => Promise<string> {
+export function createProjectIdentityReader(store: Pick<Store, "list">): () => Promise<string> {
   let observation: Promise<string> | undefined;
   return () => observation ??= readProjectIdentity(store);
 }
@@ -36,15 +39,22 @@ export async function resolveProjectIdentity(reader?: () => Promise<string>): Pr
   catch (error) { if (error instanceof ProjectIdentityError) return error.failure; throw error; }
 }
 
-async function readProjectIdentity(store: Store): Promise<string> {
+async function readProjectIdentity(store: Pick<Store, "list">): Promise<string> {
+  return (await readProjectIdentityBinding(store)).id;
+}
+
+/** Read the unique selected project's owner and stable ID from one complete identity observation. */
+export async function readProjectIdentityBinding(store: Pick<Store, "list">): Promise<{ id: string; owner: OwnerIdentity }> {
   const listing = await store.list({ family: "project-registry", kind: "project-registry/identity" });
   if (listing.status === "refused") throw new ProjectIdentityError({ status: "unavailable", reason: listing.refusal.condition,
     remedy: listing.refusal.remedy, refusal: listing.refusal });
   const result = listing.result;
-  if (result.status === "unreadable") throw new ProjectIdentityError({ status: "unavailable", reason: result.condition, remedy: result.remedy });
+  if (result.status === "unreadable") throw new ProjectIdentityError({ status: "unavailable", reason: result.condition, remedy: result.remedy,
+    readFailure: true });
   if (result.status === "absent") throw new ProjectIdentityError(unavailable("Project identity record is missing."));
-  if (result.missed || result.diagnostics.length > 0) throw new ProjectIdentityError(unavailable(
-    `Project identity inventory is incomplete: ${result.diagnostics.map((item) => item.condition).join("; ") || "records were missed"}.`));
+  if (result.missed || result.diagnostics.length > 0) throw new ProjectIdentityError({ ...unavailable(
+    `Project identity inventory is incomplete: ${result.diagnostics.map((item) => item.condition).join("; ") || "records were missed"}.`),
+    readFailure: true });
   if (result.records.length !== 1) throw new ProjectIdentityError(unavailable(result.records.length === 0
     ? "Project identity record is missing." : "Project identity records are ambiguous."));
   const record = result.records[0];
@@ -52,7 +62,7 @@ async function readProjectIdentity(store: Store): Promise<string> {
     || record.reference.owner.uid === undefined || record.conflicts.length > 0) {
     throw new ProjectIdentityError(unavailable("Project identity record has no unambiguous project UID."));
   }
-  return record.reference.owner.uid;
+  return { id: record.reference.owner.uid, owner: record.reference.owner };
 }
 function unavailable(reason: string): ProjectIdentityUnavailable {
   return { status: "unavailable", reason, remedy: { text: "Restore the project's unique, valid identity record from its authoritative state source, then retry." } };

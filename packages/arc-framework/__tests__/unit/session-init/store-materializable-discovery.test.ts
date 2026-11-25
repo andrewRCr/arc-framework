@@ -10,7 +10,7 @@ it("admits a released branchless Store offer in a session with no remote", async
   await h.seedMeta("planning", { state: "Planning", currentWorkflow: "draft-design", owner: "alice" });
   const { exec } = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
   const oracle = await deriveStoreInFlight({ store: h.store, exec, identity: "alice", teamMode: false, roster: [], projectId: async () => "project" });
-  const offer = await findMaterializableWorkUnits({ store: h.store, entries: oracle.entries, identity: "alice", findHoldingCheckout: async () => null });
+  const offer = await findMaterializableWorkUnits({ store: h.store, entries: oracle.entries, identity: "alice", findHoldingCheckout: async () => ({ kind: "none" as const }) });
   const result = MaterializableWorkUnitDiscoveryResultSchema.parse({ ...offer, remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null });
   expect(result.candidates).toEqual([expect.objectContaining({ name: "planning", actions: [{ text: "arc materialize planning", argv: ["arc", "materialize", "planning"] }] })]);
 });

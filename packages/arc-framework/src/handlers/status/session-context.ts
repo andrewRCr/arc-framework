@@ -5,7 +5,7 @@ import { OwnerIdentitySchema, recordReferences } from "../../lib/store/identity.
 import { parseEntryList } from "../../lib/store/kinds/entry-list.js";
 import { createStore } from "../../lib/store/create.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
-import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
+import { bindStoreSyncPort, type StoreSyncPort } from "../../lib/store/operational-sync.js";
 import type { Store } from "../../lib/store/contract.js";
 import { readdir, readFile } from "node:fs/promises";
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
@@ -75,7 +75,7 @@ export async function createSessionStatusContext(
 
   return {
     cwd, exec, transitionExec, localOnlyTransitionExec, lifecycleFs, io,
-    identity, role, store, storeSync: operational?.sync, userSurfacesFor, readUserInbox,
+    identity, role, store, storeSync: operational?.sync ?? bindStoreSyncPort(store), userSurfacesFor, readUserInbox,
   };
 }
 

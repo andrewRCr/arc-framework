@@ -22,11 +22,11 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import type { Store } from "../lib/store/contract.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { readdir, readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 import { runActiveInFlight } from "../commands/active.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
@@ -283,7 +283,7 @@ async function main(): Promise<void> {
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   main()
     .catch(() => {
       // Advisory backstop — never block a commit on a detection failure.

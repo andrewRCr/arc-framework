@@ -6,7 +6,7 @@ export interface NoInputMatrixCase {
   readonly upstreamRefusalFor?: "safety.indeterminate-lifecycle";
   readonly args: readonly string[];
   readonly fixture?: "bare" | "arc-project";
-  readonly setup?: "provisional-stub" | "planned-stub" | "local-notes" | "reachable-origin" | "unreachable-origin";
+  readonly setup?: "provisional-stub" | "planned-stub" | "local-notes" | "reachable-origin" | "unreachable-origin" | "store-pointer";
   readonly configuration?: "full-protection";
   readonly expected: { readonly exitCode: number; readonly outputIncludes?: string };
   readonly stdin?: string;
@@ -18,12 +18,15 @@ export interface NoInputMatrixCase {
  * Repository inventory tests reconcile command coverage and named prompt-policy coverage separately.
  */
 export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
+  { commandPath: "agenda", args: ["agenda", "session-init", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"mode\":\"agenda\"" } },
   { commandPath: "inbox", args: ["inbox", "personal", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "route", args: ["route", "--to", "project"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "locus release", args: ["locus", "release"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "errand queue", args: ["errand", "queue", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "errand queue set", args: ["errand", "queue", "set", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "handoff write", args: ["handoff", "write", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "cohort close", args: ["cohort", "close", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "cohort remove", args: ["cohort", "remove", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "abandon", args: ["abandon", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "activate", args: ["activate", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "archive", args: ["archive", "matrix"], expected: { exitCode: 1 } },
@@ -73,6 +76,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "Missing USER-INBOX entry 'Matrix title'" } },
   { commandPath: "finalize", args: ["finalize", "invalid"], expected: { exitCode: 1 } },
   { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"], fixture: "bare", expected: { exitCode: 0 } },
+  { commandPath: "hook-validate-frontmatter", args: ["hook-validate-frontmatter"], fixture: "bare", expected: { exitCode: 0 } },
   { commandPath: "init", promptSite: "prompt.init.tools", args: ["init", "--name", "matrix", "--identity", "matrix"], fixture: "bare", expected: { exitCode: 0, outputIncludes: "Installation complete" } },
   { commandPath: "integrate checkpoint", args: ["integrate", "checkpoint", "matrix"], expected: { exitCode: 0, outputIncludes: "\"reason\":\"drift-unavailable\"" } },
   { commandPath: "integrate merge", args: ["integrate", "merge", "matrix", "--checkpoint", "invalid"], expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
@@ -104,6 +108,10 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "start", promptSite: "prompt.start.create-new", args: ["start", "matrix", "--new"], setup: "reachable-origin", expected: { exitCode: 0, outputIncludes: "Ceremony committed and pushed." } },
   { commandPath: "start", upstreamRefusalFor: "safety.indeterminate-lifecycle", args: ["start", "matrix", "--new"], setup: "unreachable-origin", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "could not completely expand remote work-unit candidates; retry `arc start`." } },
   { commandPath: "status", args: ["status", "--json"], expected: { exitCode: 0, outputIncludes: "\"mode\":\"full\"" } },
+  { commandPath: "store conflict", args: ["store", "conflict", "11111111-1111-4111-8111-111111111111", "work-item/conflict-record", "absent", "--json"], fixture: "bare", expected: { exitCode: 0, outputIncludes: '"status":"absent"' } },
+  { commandPath: "store repair-review-roots", args: ["store", "repair-review-roots", "-"], stdin: "{}\n", fixture: "bare", expected: { exitCode: 1, outputIncludes: "review.evidence-root-selection.request" } },
+  { commandPath: "store migrate", args: ["store", "migrate", "--json"], fixture: "bare", expected: { exitCode: 0, outputIncludes: '"move":"layout"' } },
+  { commandPath: "store remote", promptSite: "prompt.store.own-state", args: ["store", "remote", "origin", "push"], fixture: "bare", setup: "store-pointer", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "--own-state" } },
   { commandPath: "stub", promptSite: "prompt.stub.commitment", args: ["stub", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input: --commitment <tier>, --priority <priority>" } },
   { commandPath: "sync", args: ["sync", "--json"], expected: { exitCode: 1, outputIncludes: "notes-blocked" } },
   { commandPath: "teardown", args: ["teardown", "matrix"], expected: { exitCode: 1 } },

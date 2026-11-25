@@ -5,6 +5,7 @@ import { createStore } from "../../../../src/lib/store/create.js";
 import { KIND_REGISTRY } from "../../../../src/lib/store/registry.js";
 import type { KindId } from "../../../../src/lib/store/catalog.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
+import { newPersonalAdmission } from "../../../helpers/store/projection/admission-request.js";
 import { testStorePorts } from "../../../helpers/store/in-repo-ports.js";
 
 const unavailable = async (): Promise<never> => { throw new Error("No Git repository exists"); };
@@ -37,4 +38,32 @@ describe("repository store registry dispatch", () => {
     await expect(store.read({ reference })).rejects.toBeInstanceOf(ArcError);
     await expect(store.read({ reference })).rejects.toMatchObject({ cause: original });
   });
+});
+
+it("explicitly refuses nonempty read observations before dispatch and preserves empty requests", async () => {
+  const store = createStore(testStorePorts("/unavailable", unavailable, unavailable));
+  const fixture = createReferenceFixture();
+  const input = { writes: [{ action: "put" as const, reference: fixture.reference("work-item/cut-map"),
+    expected: null, content: "unhomed" }], provenance,
+  observations: [{ reference: fixture.reference("personal/document"), expected: null }] };
+  expect(await store.batch(input)).toMatchObject({ status: "refused", refusal: {
+    code: "unsupported", class: "terminal", case: "batch-observations", remedy: { text: expect.any(String) },
+  } });
+  for (const observations of [undefined, []]) {
+    expect(await store.batch({ ...input, observations })).toMatchObject({ status: "refused", refusal: {
+      code: "unsupported", case: "unhomed-kind",
+    } });
+  }
+});
+
+
+it("explicitly refuses prepared projection admission before consulting checkout I/O", async () => {
+  const store = createStore(testStorePorts("/unavailable", unavailable, unavailable));
+  const fixture = createReferenceFixture();
+  const reference = fixture.reference("personal/working-memory");
+  const content = fixture.content(reference);
+  expect(await store.batch({ writes: [{ action: "put", reference, expected: null, content }],
+    provenance: { verb: "write-back", lifecycleAction: "edit" },
+    projectionAdmission: newPersonalAdmission(reference, content) })).toMatchObject({ status: "refused",
+    refusal: { code: "unsupported", class: "terminal", case: "projection-admission" } });
 });

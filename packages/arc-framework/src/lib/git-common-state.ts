@@ -10,7 +10,7 @@ import { resolveGitCommonDir, type GitExec } from "./git/exec.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock.js";
 
 /** Closed review-state namespace vocabulary. */
-export type ReviewStateNamespace = "evidence" | "identity" | "operations" | "outcomes" | "sources";
+export type ReviewStateNamespace = "evidence" | "identity" | "in-flight" | "operations" | "outcomes" | "sources";
 
 /** Closed delivery-state namespace vocabulary. */
 export type DeliveryStateNamespace = "plans" | "state" | "authoring";
@@ -19,7 +19,7 @@ export type DeliveryStateNamespace = "plans" | "state" | "authoring";
 export const GitCommonStateLocationSchema = z.discriminatedUnion("root", [
   z.strictObject({
     root: z.literal("review-gate"),
-    namespace: z.enum(["evidence", "identity", "operations", "outcomes", "sources"]),
+    namespace: z.enum(["evidence", "identity", "in-flight", "operations", "outcomes", "sources"]),
   }),
   z.strictObject({
     root: z.literal("delivery"),
@@ -131,6 +131,7 @@ function parseAddress(location: unknown, recordName: string): GitCommonStateLoca
 export class RepositoryGitCommonStatePublisher implements GitCommonStatePublisher {
   private readonly writeFile: typeof atomicWriteFile;
   private readonly removeFile: (path: string) => Promise<void>;
+  private commonDir: Promise<string> | undefined;
 
   constructor(
     private readonly exec: GitExec,
@@ -317,7 +318,16 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
   }
 
   private async namespaceRoot(location: GitCommonStateLocation): Promise<string> {
-    return join(await resolveGitCommonDir(this.exec, this.cwd), "arc", location.root, location.namespace);
+    return join(await this.resolveCommonDir(), "arc", location.root, location.namespace);
+  }
+
+  /** The checkout's Git common directory, resolved once per publisher; a failed resolution is retried. */
+  private resolveCommonDir(): Promise<string> {
+    this.commonDir ??= resolveGitCommonDir(this.exec, this.cwd).catch((error: unknown) => {
+      this.commonDir = undefined;
+      throw error;
+    });
+    return this.commonDir;
   }
 
   private async recordPath(location: GitCommonStateLocation, recordName: string): Promise<string> {

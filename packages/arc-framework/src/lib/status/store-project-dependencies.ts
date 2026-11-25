@@ -38,14 +38,12 @@ type ResolutionStep = ProjectDependencyResolution | { kind: "retarget"; slug: st
 
 class StoreDependencyResolver {
   readonly liveNames: ReadonlySet<string>;
-  readonly completedNames: ReadonlySet<string>;
   readonly standing: ReadonlyMap<string, LifecycleEntry>;
   readonly entries: ReadonlyMap<string, LifecycleEntry>;
   private lineage?: Promise<StoreResult<StoreLineageEnumeration>>;
 
   constructor(readonly options: StoreProjectDependencyOptions) {
     this.liveNames = new Set(options.standingEntries.filter(entry => entry.location !== "completed").map(entry => entry.reference.owner.name));
-    this.completedNames = new Set(options.standingEntries.filter(entry => entry.location === "completed").map(entry => entry.reference.owner.name));
     this.standing = new Map(options.standingEntries.map(entry => [identityKey(entry.reference.owner), entry]));
     this.entries = new Map(options.entries.map(entry => [identityKey(entry.reference.owner), entry]));
   }
@@ -77,11 +75,6 @@ class StoreDependencyResolver {
     if (this.options.failClosedNames.has(name)) return { kind: "unsatisfied" };
     const lookup = await this.options.store.lookup({ kind: "slug", slug: slug.data });
     if (lookup.status === "ok") return this.found(lookup.result.reference);
-    if (lookup.refusal.code === "ambiguous-match" && this.completedNames.has(name)
-      && lookup.refusal.candidates.every(reference => reference.kind === "work-item/meta"
-        && this.entries.get(identityKey(reference.owner))?.location === "completed")) {
-      return { kind: "listed", slug: name };
-    }
     if (lookup.refusal.code !== "not-found") return this.failed(dependent, written, lookup.refusal);
     return this.resolveRetired(dependent, written, name);
   }

@@ -5,7 +5,7 @@ import { isTerminalSnapshotRepair } from "../../../src/lib/store/kinds/lineage/r
 import { assignCompletedCohorts } from "./cohort-placement.js";
 import { randomUUID } from "node:crypto";
 import {
-  ConflictRecordSchema, LinksSchema, ReadPlacementSchema, RecordReferenceSchema, familyOf, sameOwner, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
+  WriteInputSchema, BatchInputSchema, ConflictRecordSchema, LinksSchema, ReadPlacementSchema, RecordReferenceSchema, familyOf, sameOwner, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
   type StoreRefusal, type StoreResult, type WriteInput, type WriteResult, type OwnerIdentity, sameReference,
 } from "../../../src/lib/store/index.js";
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
@@ -14,10 +14,16 @@ import {
   advanceMemoryState, canonicalReference, generationAliases, ownerNameKey, recordKey, type MemoryRecord,
 } from "./model.js";
 import { malformed, ok, namespaceAdmission, recordAdmission, refused, surfaceLock, versionConflict } from "./refusals.js";
-import { mergeBase, mergeContents, persistedContent, storeConflicts } from "./merge.js";
+import { splitEntryList } from "../../../src/lib/store/concurrency/index.js";
+import { entryConfig, mergeBase, mergeContents, persistedContent, storeConflicts } from "./merge.js";
 import { withStateQueue } from "./state-queue.js";
-import { checkPreparedWrites } from "./write-checks.js";
+import { checkPreparedWrites, createReferenceWriteBefore } from "./write-checks.js";
 import { indexIdentities } from "./identities.js";
+import { checkProjectionAdmission, projectionObservationRefusal } from "../../../src/lib/store/projection/admission-check.js";
+import { checkRecordObservations } from "../../../src/lib/store/record-observations.js";
+import { readReference } from "./read.js";
+import { proposedBirths, retainCreationReceipt } from "./creation-receipts.js";
+import { malformedStoreInput } from "../../../src/lib/store/malformed-input.js";
 
 function detachedWrite(write: WriteInput): WriteInput {
   return { ...write, reference: structuredClone(write.reference), provenance: structuredClone(write.provenance),
@@ -32,26 +38,30 @@ function primary(write: Mutation): boolean {
   return write.reference.kind === "work-item/meta" || write.reference.kind === "work-item/record";
 }
 
-function prepareGenerations(context: ReferenceContext, writes: WriteInput[]): WriteInput[] {
+function prepareGenerations(context: ReferenceContext, writes: WriteInput[]): { mutations: WriteInput[]; allocated: readonly OwnerIdentity[] } {
   const fresh = new Map<string, OwnerIdentity>();
   for (const write of writes) {
     const owner = write.reference.owner;
-    if (!primary(write) || write.action !== "put" || write.expected !== null || owner.type === "person" || owner.uid !== undefined) continue;
+    if ((!primary(write) && write.reference.kind !== "cohort/document") || write.action !== "put" || write.expected !== null
+      || owner.type === "person" || owner.uid !== undefined) continue;
     const name = ownerNameKey(owner);
     if (fresh.has(name)) continue;
     const prior = canonicalReference(context.state, write.reference).owner;
-    const live = [...context.state.records.values()].some((record) => primary({ ...write, reference: record.reference })
-      && record.reference.owner.type !== "person" && prior.type !== "person" && record.reference.owner.uid === prior.uid
-      && record.placement?.kind !== "completed");
+    const live = [...context.state.records.values()].some((record) => (primary({ ...write, reference: record.reference })
+      || record.reference.kind === "cohort/document")
+      && record.reference.owner.type !== "person" && prior.type !== "person" && record.reference.owner.type === prior.type
+      && record.reference.owner.uid === prior.uid
+      && (record.reference.kind === "cohort/document" || record.placement?.kind !== "completed"));
     if (live) continue;
     context.state.identities.delete(name);
     fresh.set(name, canonicalReference(context.state, write.reference, true).owner);
   }
-  return writes.map((write) => {
+  const mutations = writes.map((write) => {
     if (write.reference.owner.type === "person" || write.reference.owner.uid !== undefined) return write;
     const owner = fresh.get(ownerNameKey(write.reference.owner));
     return owner === undefined ? write : { ...write, reference: RecordReferenceSchema.parse({ ...write.reference, owner }) };
   });
+  return { mutations, allocated: [...fresh.values()] };
 }
 
 function parseConflict(write: Extract<WriteInput, { action: "put" }>): StoreResult<ConflictRecord> {
@@ -98,6 +108,14 @@ function preflight(context: ReferenceContext, write: WriteInput, validatedConfli
   if (write.action === "put") {
     const links = write.links === undefined ? undefined : LinksSchema.safeParse(write.links);
     if (links?.success === false) return malformed(write.reference,`links: ${links.error.message}`);
+    if (definition.merge === "entry") {
+      const seen = new Set<string>();
+      for (const part of splitEntryList(write.content, entryConfig(context, write.reference)).parts) {
+        if (part.kind !== "entry" || part.id === undefined) continue;
+        if (seen.has(part.id)) return malformed(write.reference, `Entry ID ${part.id} occurs more than once.`);
+        seen.add(part.id);
+      }
+    }
     const parsed = definition.parser?.(write.content);
     if (parsed?.success === false) return malformed(write.reference, parsed.error);
     if (write.reference.kind.endsWith("/conflict-record")) {
@@ -140,7 +158,7 @@ function cohortPlacement(write: Extract<Mutation, { action: "put" }>, prior?: Me
   return write.placement ?? prior?.placement;
 }
 
-function land(context: ReferenceContext, write: WriteInput, batchId?: string, validatedConflict?: ConflictRecord): WriteResult {
+function land(context: ReferenceContext, write: WriteInput, batchId?: string, validatedConflict?: ConflictRecord): StoreResult<WriteResult> {
   let reference = canonicalReference(context.state, write.reference, true);
   const key = recordKey(reference);
   const prior = context.state.records.get(key);
@@ -152,6 +170,10 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
     content = merged.content;
     conflicts = merged.conflicts;
   }
+  if (content !== undefined) {
+    const parsed = context.registry[reference.kind].parser?.(content);
+    if (parsed?.success === false) return refused(malformed(reference, parsed.error));
+  }
   const allocated = advanceMemoryState(context.state);
   const label = { actor: context.environment.actor, time: new Date(context.environment.now()).toISOString() };
   const provenance = {
@@ -161,9 +183,10 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
   };
   if (write.action === "remove") context.state.records.delete(key);
   else {
-    const formerSlugs = primary(write) && write.resolves?.length ? generationAliases(context.state, reference)
+    const namedHolder = primary(write) || reference.kind === "cohort/document";
+    const formerSlugs = namedHolder && write.resolves?.length ? generationAliases(context.state, reference)
       : [...(prior?.formerSlugs ?? [])];
-    if (primary(write) && prior && prior.reference.owner.name !== reference.owner.name) {
+    if (namedHolder && prior && prior.reference.owner.name !== reference.owner.name) {
       formerSlugs.push(prior.reference.owner.name);
       for (const record of context.state.records.values()) {
         if (record.reference.owner.type !== "person" && reference.owner.type !== "person"
@@ -183,6 +206,9 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
     context.state.records.set(key, {
       reference, content: content!, version: allocated.version,
       formatVersion: context.registry[reference.kind].formatVersion, formerSlugs,
+      ...(reference.kind === "lineage/transition" ? { terminalFormerSlugs: [...new Set([
+        ...generationAliases(context.state, { ...reference, kind: "work-item/meta" }), ...prior?.terminalFormerSlugs ?? [],
+      ])] } : {}),
       label,
       ...(selectedPlacement === undefined ? {} : { placement: selectedPlacement }),
       ...(write.links === undefined ? prior?.links === undefined ? {} : { links: prior.links } : { links: write.links }),
@@ -200,7 +226,7 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
   context.state.events.push({ id: randomUUID(), reference, ...(write.action === "remove" ? {} : { version: allocated.version }), stateVersion: allocated.stateVersion, provenance, label });
   context.state.snapshots.set(allocated.stateVersion, structuredClone(context.state.records));
   const storedConflicts = storeConflicts(context, conflicts, write.provenance, batchId);
-  return { reference, ...(write.action === "remove" ? {} : { version: allocated.version }), conflicts: storedConflicts };
+  return ok({ reference, ...(write.action === "remove" ? {} : { version: allocated.version }), conflicts: storedConflicts });
 }
 
 function validatePlacement(context: ReferenceContext, since: number): StoreRefusal | undefined {
@@ -231,22 +257,28 @@ function validatePlacement(context: ReferenceContext, since: number): StoreRefus
  * @returns Exact new mutation basis or an actionable refusal.
  */
 export async function writeReference(context: ReferenceContext, input: WriteInput): Promise<StoreResult<WriteResult>> {
-  const write = detachedWrite(input);
+  const parsed = WriteInputSchema.safeParse(input);
+  if (!parsed.success) return refused(malformedStoreInput(input, parsed.error, "write"));
+  const write = detachedWrite(parsed.data);
   return withStateQueue(context.state, async () => {
     const prepared = { ...context, state: structuredClone(context.state) };
-    const mutation = prepareGenerations(prepared, [write])[0]!;
+    const generations = prepareGenerations(prepared, [write]);
+    const mutation = generations.mutations[0]!;
     const validatedConflicts = new Map<WriteInput, ConflictRecord>();
     const refusal = preflight(prepared, mutation, validatedConflicts);
     if (refusal) return refused(refusal);
     if (stale(prepared, mutation)) return refused(versionConflict([write.reference]));
-    const result = land(prepared, mutation, undefined, validatedConflicts.get(mutation));
+    const landed = land(prepared, mutation, undefined, validatedConflicts.get(mutation));
+    if (landed.status === "refused") return landed;
+    const result = landed.result;
     assignCompletedCohorts(prepared, [mutation], context.state.counter);
     const placementRefusal = validatePlacement(prepared, context.state.counter);
     if (placementRefusal) return refused(placementRefusal);
     const identities = indexIdentities(prepared.state.records);
     if (identities.status === "refused") return identities;
     prepared.state.identities = identities.result;
-    const checkRefusal = await checkPreparedWrites(context, prepared, [result.reference], write.provenance);
+    const births = proposedBirths(context, prepared, [mutation], generations.allocated);
+    const checkRefusal = await checkPreparedWrites(context, prepared, [result.reference], write.provenance, [], births);
     if (checkRefusal) return refused(checkRefusal);
     Object.assign(context.state, prepared.state);
     return ok(structuredClone(result));
@@ -259,13 +291,25 @@ export async function writeReference(context: ReferenceContext, input: WriteInpu
  * @returns Every requested write with one shared batch ID, or no applied write.
  */
 export async function batchReference(context: ReferenceContext, input: BatchInput): Promise<StoreResult<BatchResult>> {
+  const parsed = BatchInputSchema.safeParse(input);
+  if (!parsed.success) return refused(malformedStoreInput(input, parsed.error, "batch"));
+  input = parsed.data;
   const provenance = structuredClone(input.provenance);
   const writes = input.writes.map((write) => detachedWrite({ ...write, provenance }));
+  const observations = structuredClone(input.observations ?? []);
   return withStateQueue(context.state, async () => {
     const namespace = namespaceAdmission(context.state);
     if (namespace) return refused(namespace);
+    for (const observation of observations) {
+      const admission = recordAdmission(context.state, observation.reference, context.environment.identity);
+      if (admission) return refused(admission);
+    }
+    const observed = await checkRecordObservations({ read: async (reading) => readReference(context, reading) }, observations);
+    if (observed.status === "refused") return refused(projectionObservationRefusal(input, observed.refusal));
+    const projection = await checkProjectionAdmission(createReferenceWriteBefore(context), input, context.registry, context.environment.identity);
+    if (projection) return refused(projection);
     const prepared = { ...context, state: structuredClone(context.state) };
-    const mutations = prepareGenerations(prepared, writes);
+    const generations = prepareGenerations(prepared, writes), mutations = generations.mutations;
     const keys = new Set<string>();
     for (const write of mutations) {
       const key = recordKey(canonicalReference(prepared.state,write.reference));
@@ -277,15 +321,22 @@ export async function batchReference(context: ReferenceContext, input: BatchInpu
     const conflicts = mutations.flatMap((write, index) => stale(prepared, write) ? [writes[index]!.reference] : []);
     if (conflicts.length > 0) return refused(versionConflict(conflicts));
     const batchId = randomUUID();
-    const results = mutations.map((write) => land(prepared, write, batchId, validatedConflicts.get(write)));
+    const results: WriteResult[] = [];
+    for (const write of mutations) {
+      const landed = land(prepared, write, batchId, validatedConflicts.get(write));
+      if (landed.status === "refused") return landed;
+      results.push(landed.result);
+    }
     assignCompletedCohorts(prepared, mutations, context.state.counter);
     const placementRefusal = validatePlacement(prepared, context.state.counter);
     if (placementRefusal) return refused(placementRefusal);
     const identities = indexIdentities(prepared.state.records);
     if (identities.status === "refused") return identities;
     prepared.state.identities = identities.result;
-    const checkRefusal = await checkPreparedWrites(context, prepared, results.map((result) => result.reference), provenance);
+    const births = proposedBirths(context, prepared, mutations, generations.allocated);
+    const checkRefusal = await checkPreparedWrites(context, prepared, results.map((result) => result.reference), provenance, observations, births);
     if (checkRefusal) return refused(checkRefusal);
+    retainCreationReceipt(prepared, context.state.events.length, batchId, births);
     Object.assign(context.state, prepared.state);
     return ok(structuredClone({ batchId, writes: results }));
   });

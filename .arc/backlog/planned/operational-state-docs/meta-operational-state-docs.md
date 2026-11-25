@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** `cli-validation-surfaces`, `storage-cutover`
+- **Depends On:** `cli-validation-surfaces`, `cutover-flip`
 
 - **Origin:** [internal]
 - **Design:** `draft-operational-state-docs.md`

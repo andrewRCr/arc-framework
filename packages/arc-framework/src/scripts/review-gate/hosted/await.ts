@@ -17,7 +17,6 @@ import {
 
 import {
   HostedAwaitActionSchema,
-  HostedRequestHandleSchema,
   HostedTargetSchema,
   hostedAwaitAction,
   hostedLaneAttemptId,
@@ -26,6 +25,8 @@ import {
 } from "./request.js";
 import { ReviewAttemptSchema } from "../policy/review-policy-attempt.js";
 import { HostedGitHubReadError } from "./github.js";
+import { AWAIT_POLL_INTERVAL_LIMIT_MS, AWAIT_TIMEOUT_LIMIT_MS } from "../await-timing.js";
+import { ReviewCommandDiagnosticSchema } from "../core/review-command-diagnostic.js";
 
 const HostedFindingNavigationShape = {
   sourceOrdinal: ReviewFindingSourceOrdinalSchema,
@@ -200,18 +201,15 @@ const HostedReadFailureSchema = z.strictObject({
 });
 type HostedReadFailure = z.infer<typeof HostedReadFailureSchema>;
 
-const HostedAwaitRequestShape = {
-  schemaVersion: z.literal(1),
-  handle: HostedRequestHandleSchema,
-};
+const HostedAwaitRequestSchema = HostedAwaitActionSchema.unwrap();
 
-const TimeoutSecondsSchema = z.int().positive().max(30 * 60);
-const InitialPollIntervalSecondsSchema = z.int().positive().max(60);
-const TimeoutMsSchema = z.int().positive().max(30 * 60 * 1_000);
-const PollIntervalMsSchema = z.int().positive().max(60 * 1_000);
+// A request above a limit waits at the limit, so only the composed execution timing is bounded.
+const TimeoutSecondsSchema = z.int().positive();
+const InitialPollIntervalSecondsSchema = z.int().positive();
+const TimeoutMsSchema = z.int().positive().max(AWAIT_TIMEOUT_LIMIT_MS);
+const PollIntervalMsSchema = z.int().positive().max(AWAIT_POLL_INTERVAL_LIMIT_MS);
 
-export const HostedAwaitEnvelopeSchema = z.strictObject({
-  ...HostedAwaitRequestShape,
+export const HostedAwaitEnvelopeSchema = HostedAwaitRequestSchema.safeExtend({
   timeoutSeconds: TimeoutSecondsSchema.optional(),
   initialPollIntervalSeconds: InitialPollIntervalSecondsSchema.optional(),
   continueAfterAttention: z.literal(true).optional(),
@@ -222,8 +220,7 @@ export const HostedAwaitEnvelopeSchema = z.strictObject({
 });
 export type HostedAwaitEnvelope = z.infer<typeof HostedAwaitEnvelopeSchema>;
 
-export const HostedAwaitExecutionEnvelopeSchema = z.strictObject({
-  ...HostedAwaitRequestShape,
+export const HostedAwaitExecutionEnvelopeSchema = HostedAwaitRequestSchema.safeExtend({
   timeoutMs: TimeoutMsSchema,
   pollIntervalMs: PollIntervalMsSchema,
   continueAfterAttention: z.literal(true).optional(),
@@ -240,14 +237,13 @@ export interface HostedReviewObserver {
   observe(handle: HostedRequestHandle, options?: { signal?: AbortSignal }): Promise<unknown>;
 }
 
-const HostedAwaitResultBaseShape = {
-  schemaVersion: z.literal(1),
+const HostedAwaitResultBaseSchema = HostedAwaitRequestSchema.safeExtend({
   mode: z.literal("review-hosted-await"),
-  handle: HostedRequestHandleSchema,
-};
+  /** This call's notices, such as a timing override applied at its limit; never part of a sealed result. */
+  diagnostics: z.array(ReviewCommandDiagnosticSchema).min(1).optional(),
+});
 
-const HostedAwaitCleanResultSchema = z.strictObject({
-  ...HostedAwaitResultBaseShape,
+const HostedAwaitCleanResultSchema = HostedAwaitResultBaseSchema.safeExtend({
   state: z.literal("clean"),
   nextAction: z.literal("complete"),
   reviewUrl: z.url(),
@@ -257,8 +253,7 @@ const HostedAwaitCleanResultSchema = z.strictObject({
   attempt: ReviewAttemptSchema.optional(),
 });
 
-const HostedAwaitFindingsResultSchema = z.strictObject({
-  ...HostedAwaitResultBaseShape,
+const HostedAwaitFindingsResultSchema = HostedAwaitResultBaseSchema.safeExtend({
   state: z.literal("findings"),
   nextAction: z.literal("triage"),
   reviewUrl: z.url(),
@@ -270,16 +265,14 @@ const HostedAwaitFindingsResultSchema = z.strictObject({
 });
 
 const HostedAwaitNonTerminalResultSchema = z.union([
-  z.strictObject({
-    ...HostedAwaitResultBaseShape,
+  HostedAwaitResultBaseSchema.safeExtend({
     state: z.literal("pending"),
     nextAction: z.literal("await"),
     action: HostedAwaitActionSchema,
     elapsedMs: z.number().nonnegative(),
     readFailure: HostedReadFailureSchema.optional(),
   }),
-  z.strictObject({
-    ...HostedAwaitResultBaseShape,
+  HostedAwaitResultBaseSchema.safeExtend({
     state: z.literal("pending"),
     nextAction: z.literal("inspect-or-extend"),
     action: HostedAwaitActionSchema,
@@ -287,25 +280,21 @@ const HostedAwaitNonTerminalResultSchema = z.union([
     attentionAfterMs: z.number().int().positive(),
     readFailure: HostedReadFailureSchema.optional(),
   }),
-  z.strictObject({
-    ...HostedAwaitResultBaseShape,
+  HostedAwaitResultBaseSchema.safeExtend({
     state: z.enum(["rate-limited", "transient-unavailable"]),
     nextAction: z.literal("try-next-source"),
   }),
-  z.strictObject({
-    ...HostedAwaitResultBaseShape,
+  HostedAwaitResultBaseSchema.safeExtend({
     state: z.literal("stale-target"),
     nextAction: z.literal("stop"),
     expectedHeadSha: HostedTargetSchema.shape.headSha,
     actualHeadSha: HostedTargetSchema.shape.headSha,
   }),
-  z.strictObject({
-    ...HostedAwaitResultBaseShape,
+  HostedAwaitResultBaseSchema.safeExtend({
     state: z.literal("source-unavailable"),
     nextAction: z.literal("stop"),
   }),
-  z.strictObject({
-    ...HostedAwaitResultBaseShape,
+  HostedAwaitResultBaseSchema.safeExtend({
     state: z.enum(["malformed-output", "terminal-failure"]),
     nextAction: z.literal("stop"),
     reason: z.string().min(1),
@@ -363,8 +352,8 @@ export type HostedAwaitResult = z.infer<typeof HostedAwaitResultSchema>;
 /** Public terminal output carries the sealed producer reference accepted by the policy command. */
 export const HostedAwaitCommandResultSchema = z.union([
   HostedAwaitNonTerminalResultSchema,
-  HostedAwaitCleanResultSchema.extend({ attempt: ReviewAttemptSchema }),
-  HostedAwaitFindingsResultSchema.extend({ attempt: ReviewAttemptSchema }),
+  HostedAwaitCleanResultSchema.safeExtend({ attempt: ReviewAttemptSchema }),
+  HostedAwaitFindingsResultSchema.safeExtend({ attempt: ReviewAttemptSchema }),
 ]).superRefine(validateHostedTerminalCoverage).superRefine((result, context) => {
   if (result.state !== "clean" && result.state !== "findings") return;
   const attempt = result.attempt;

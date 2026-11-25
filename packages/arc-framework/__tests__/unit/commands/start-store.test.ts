@@ -1,5 +1,7 @@
 /** Store-backed graduation preserves the caller's Git coordinate and changes only operational state. */
 import { describe, expect, it } from "vitest";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
+import { createClashDouble } from "../../helpers/store/clash-double.js";
 import { runGraduate } from "../../../src/commands/start.js";
 import type { ExecuteTransitionContext } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import type { ReconcileWorkUnitWorktreeOp } from "../../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
@@ -23,6 +25,8 @@ async function harness(refuse = false) {
     exec: async (_command, args) => {
       if (args[0] === "rev-parse") return { stdout: "a".repeat(40) };
       if (args[0] === "symbolic-ref") return { stdout: "refs/heads/person" };
+      if (args[0] === "worktree" && args[1] === "list") return { stdout: worktreePorcelainZ(`worktree /spawn\nHEAD ${"a".repeat(40)}\ndetached\n`) };
+      if (args[0] === "worktree" && args[1] === "lock") return { stdout: "" };
       if (args.join(" ") === "worktree remove --force /spawn") { occupied = false; return { stdout: "" }; }
       throw Error(`unexpected Git mutation ${args.join(" ")}`);
     },
@@ -39,7 +43,7 @@ describe("store start graduation", () => {
   it("graduates a retained former name as the same renamed work item", async () => {
     const h = await harness();
     expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.exec!, baseBranch: "main" },
-      { sourceSlug: "demo", targetSlug: "current" })).toMatchObject({ status: "renamed" });
+      { operand: "demo", targetSlug: "current" })).toMatchObject({ status: "renamed" });
     expect(await runGraduate(h.ctx, { name: "demo", spawningIdentity: "starter", baseBranch: "main", locationTemplate: "../{repo}.{name}", repo: "repo" }))
       .toMatchObject({ status: "graduated", previousOwner: "previous" });
     const alias = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
@@ -126,4 +130,15 @@ it("derives graduation's planning stage from the stored spec pointer", async () 
   expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).fields)
     .toMatchObject({ state: "Planning", currentWorkflow: "generate-tasks",
       design: ["spec-specified.md"], nextAction: "[begin current workflow]" });
+});
+
+it("retains the graduation lookup refusal after initial subject admission", async () => {
+  const h = await harness(), other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "demo", holders: [h.meta.reference, other.reference], mode: "mid-verb" });
+  lifecycleSuccess(await store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
+  const result = await runGraduate({ ...h.ctx, store }, { name: "demo", inPlace: true, spawningIdentity: "starter" });
+  expect(result).toMatchObject({ status: "rejected", refusal: { code: "ambiguous-match", tie: { liveness: "live", name: "current" },
+    candidates: expect.arrayContaining([h.meta.reference, { ...other.reference, owner: { ...other.reference.owner, name: "demo" } }]) } });
+  expect(h.state()).toEqual({ occupation: undefined, occupied: false });
+  expect(await h.read()).toEqual(h.meta);
 });

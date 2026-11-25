@@ -110,6 +110,20 @@ function partialRow(): DerivedCheckoutRow {
 }
 
 describe("Errand terminal authority", () => {
+  it.each(["close", "abandon"] as const)("repeats the original UID in the %s confirmation retry", operation => {
+    const operand = "ABCDEF01-2345-4678-9ABC-DEF012345678";
+    const result = authorizeErrandTerminal({ frame: frame(transientRow(), foreignEnteringRow()), operation, subject: SUBJECT, operand });
+    expect(result).toMatchObject({ kind: "confirmation-required",
+      recommendedPromptText: `Retry with: arc errand ${operation} ${operand} --confirm-foreign-generation ${GENERATION}` });
+  });
+
+  it("repeats the original UID when restoring an off-branch checkout", () => {
+    const row: DerivedCheckoutRow = { ...transientRow(), kind: "unresolved-checkout", checkout: { ...transientRow().checkout, branch: "main" } };
+    const operand = "abcdef01-2345-4678-9abc-def012345678";
+    expect(authorizeErrandTerminal({ frame: frame(row, row), operation: "close", subject: SUBJECT, operand }))
+      .toMatchObject({ kind: "refused", message: expect.stringContaining(`retry arc errand close ${operand} from that checkout`) });
+  });
+
   it("authorizes the exact subject from its current checkout without confirmation", () => {
     expect(authorizeErrandTerminal({ frame: frame(), operation: "close", subject: SUBJECT })).toMatchObject({
       kind: "authorized",

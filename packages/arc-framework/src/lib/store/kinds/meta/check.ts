@@ -6,7 +6,9 @@ import { checkMetaFieldBlock, checkMetaDurableFields } from "./shape-rules.js";
 import { checkMetaDependsOn, checkMetaDesignEntry, checkMetaCohort } from "./reference-rules.js";
 import { checkMetaStage, checkMetaPrepareTasks } from "./lifecycle-rules.js";
 import { checkMetaInboundHeld } from "./inbound-held-rule.js";
+import { checkMetaRemovalEdges } from "./removal-edges-rule.js";
 import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
+import { checkPreparedRename } from "../../rename-admission.js";
 /** Run every metadata and shared work-item rule.
  * @param input - Proposed metadata write and both complete views.
  * @param inboundGrammar - Declared entry grammar, absent until inbound declares one.
@@ -16,7 +18,8 @@ export async function checkMetaRecord(input: WriteCheckInput, inboundGrammar?: E
   const observed = await Promise.all([
     checkMetaDependsOn(input), checkMetaDesignEntry(input), checkMetaCohort(input),
     checkMetaStage(input), checkMetaPrepareTasks(input), checkMetaInboundHeld(input, inboundGrammar),
-    checkFormerSlug(input), checkSlugEdges(input),
+    checkFormerSlug(input), checkSlugEdges(input), checkMetaRemovalEdges(input),
+    checkPreparedRename(input),
   ]);
   return [...checkMetaVerbOwnedField(input), ...checkMetaFieldBlock(input), ...checkMetaDurableFields(input), ...observed.flat()];
 }

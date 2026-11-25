@@ -33,6 +33,7 @@ import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.
 import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
 import { DEFAULT_ERRAND_BRANCH_TYPE, type ErrandBranchType } from "./branch-type.js";
+import type { SpawnLock } from "../git/worktree-removal.js";
 
 /** Accepted slug format and retry guidance shared by core and CLI input refusals. */
 export const ERRAND_SLUG_INPUT_REMEDY = "Choose a valid, non-empty slug of lowercase alphanumeric segments joined by hyphens "
@@ -64,6 +65,8 @@ export type OpenRollbackDisposition = "not-required" | "complete" | "retained-or
 export interface OpenOrdinaryErrandExecution {
   readonly result: ErrandOperationResult;
   readonly rollbackDisposition: OpenRollbackDisposition;
+  /** The lock the checkout it spawned carries; absent when it opened in the primary or spawned none. */
+  readonly spawnLock?: { readonly checkoutPath: string; readonly lock: SpawnLock };
 }
 
 /** Injected authority and local-provisioning boundaries for ordinary Errand open. */
@@ -493,9 +496,10 @@ async function rollbackIdentity(
 ): Promise<
   { kind: "rolled-back" } | { kind: "retained"; residue: string } | { kind: "failed"; message: string }
 > {
-  if (record === null || claimKind !== "applied") return { kind: "rolled-back" };
-  const residue = durableResidue(evidence);
+  if (record === null) return { kind: "rolled-back" };
+  const residue = durableResidue(evidence, record.branch);
   if (residue !== null) return { kind: "retained", residue };
+  if (claimKind !== "applied") return { kind: "rolled-back" };
   const rollbackResume = options.dependencies.rollbackResume;
   try {
     let result: { kind: "rolled-back" | "generation-mismatch" };
@@ -515,12 +519,17 @@ async function rollbackIdentity(
   }
 }
 
-/** Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. */
-function durableResidue(evidence: ProvisioningEvidence | null): string | null {
+/**
+ * Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. A marker that could not be
+ * parsed is named as such, its checkout never having held the branch; residue with neither names the retained checkout.
+ */
+function durableResidue(evidence: ProvisioningEvidence | null, branch: string): string | null {
   if (evidence === null) return "an unestablished local provisioning state";
   if (evidence.kind === "identity-only") return null;
-  if (evidence.kind === "pending-marker") return `a worktree marker at ${evidence.checkoutPath}`;
-  return `a worktree marker at ${evidence.checkoutPath}`;
+  const retained = evidence.markerBytes !== null ? `a worktree marker at ${evidence.checkoutPath}`
+    : evidence.kind === "marker-residue" && evidence.malformedMarker === true ? `a malformed worktree marker at ${evidence.checkoutPath}`
+      : `the checkout ${evidence.checkoutPath} for branch ${branch}`;
+  return `${retained}${evidence.detail === undefined ? "" : `; ${evidence.detail}`}`;
 }
 
 function provisioningReason(reason: ProvisioningRefusalReason): LocusAllocationPlanningRefusalReason {

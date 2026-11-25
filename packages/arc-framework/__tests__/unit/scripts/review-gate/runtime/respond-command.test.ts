@@ -255,7 +255,7 @@ describe("review response command", () => {
             dispositionSetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
           },
         },
-        dispositionReportText: `**Standard complete pass 1 of 2** · 🟠 1 major · 🟡 1 minor
+        dispositionReportText: `**Standard code review — pass 1, delegated agent (local)** · 🟠 1 major · 🟡 1 minor
 
 | # | Grade | Finding | Action |
 |---|---|---|---|
@@ -284,8 +284,10 @@ describe("review response command", () => {
 
 **Detail:** The selected source supports this disposition.
 
+---
+
 **Decisions**
-- After the fix: fix check, round 1 since pass 1, where its chain is proven. Check approved repairs before considering a successor complete pass.
+- After the fix: fix check, round 1 since pass 1, where its chain is proven. Recommended: Check approved repairs before considering a successor complete pass.
 
 Approve: 2 fixes → focused verification → commit → push?`,
         dispositionEvidenceText: [
@@ -359,16 +361,14 @@ Approve: 2 fixes → focused verification → commit → push?`,
     });
     if (response.state !== "awaiting-approval") throw new Error("expected proposal assessment");
     const assessment = response.payload.provisionalPassAssessment;
-    const position = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over the limit)" }[
-      capPosition
-    ];
+    const position = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over limit)" }[capPosition];
     const symbol = { minor: "🟡", major: "🟠", critical: "🔴" }[severity];
     expect(assessment.summaryText).toBe(
-      `Standard complete pass ${logicalPass} of ${maxPasses}${position}. 1 confirmed finding, highest ${symbol} ${severity}.`
-        + consequenceText,
+      `Standard code review — pass ${logicalPass}${position}, delegated agent (local). `
+        + `1 confirmed finding, highest ${symbol} ${severity}.${consequenceText}`,
     );
     expect(response.payload.dispositionReportText).toContain("### F1 — ");
-    expect(response.payload.dispositionReportText).toContain("Standard complete pass");
+    expect(response.payload.dispositionReportText).toContain("**Standard code review — pass ");
   });
 
   const errandLineage = {
@@ -395,12 +395,14 @@ Approve: 2 fixes → focused verification → commit → push?`,
   }
 
   function hostedErrandCase(sourceIdentity: string, retrigger: "incremental" | "full-final") {
-    return hostedCase(workUnitVehicle, (result) => ({
+    const entry = hostedCase(workUnitVehicle, (result) => ({
       ...result,
       sourceIdentity,
       admission: { ...result.admission, lineage: errandLineage },
       requirement: { ...result.requirement, retrigger },
     }));
+    entry.deps.resolveActiveErrand = async () => activeErrandBinding();
+    return entry;
   }
 
   function frontlineCase(recordedMaxPasses = 2) {
@@ -415,51 +417,60 @@ Approve: 2 fixes → focused verification → commit → push?`,
   it.each([
     { name: "a full-final local Errand's minor fix", build: () => localErrandCase(1), severity: "minor" as const,
       consequence: { kind: "next-pass", coverage: "complete" },
-      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs standard complete pass 2 of 2." },
+      text: "Standard code review — pass 1, delegated agent (local). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2." },
     { name: "a local Errand's minor fix at the ceiling", build: () => localErrandCase(2), severity: "minor" as const,
       consequence: { kind: "ceiling-decision" },
-      text: "Standard complete pass 2 of 2 (limit reached). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the "
+      text: "Standard code review — pass 2 (limit reached), delegated agent (local). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the "
         + "head, and another complete pass needs a ceiling decision." },
     { name: "a codex-pr Errand review's incremental minor fix", build: () => hostedErrandCase("codex-pr", "incremental"),
-      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
-      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs a fix check, round 1 since pass 1, where its chain is proven." },
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete-or-incremental" },
+      text: "Standard code review — pass 1, Codex (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2, or a fix check, round 1 since pass 1, where its chain is proven.",
+      decision: "- After the fix: standard complete pass 2, or a fix check, round 1 since pass 1, where its chain is "
+        + "proven. Recommended: " },
+    { name: "a codex-pr Errand review's incremental minor fix at the ceiling",
+      build: () => hostedErrandCase("codex-pr", "incremental"), maxPasses: 1,
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete-or-incremental" },
+      text: "Standard code review — pass 1 (limit reached), Codex (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves "
+        + "the head, which needs a fix check, round 1 since pass 1, where its chain is proven, or another complete pass, "
+        + "which needs a ceiling decision." },
     { name: "a full-final hosted Errand review's material fix", build: () => hostedErrandCase("coderabbit-pr", "full-final"),
       severity: "major" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
-      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
+      text: "Standard code review — pass 1, CodeRabbit (hosted). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
         + "needs a fix check, round 1 since pass 1, where its chain is proven." },
     { name: "a full-final coderabbit-pr Errand review's fix",
       build: () => hostedErrandCase("coderabbit-pr", "full-final"),
       severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
-      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs standard complete pass 2 of 2." },
+      text: "Standard code review — pass 1, CodeRabbit (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2." },
     { name: "a coderabbit-pr Errand review's fix once that source is removed",
       build: () => hostedErrandCase("coderabbit-pr", "incremental"), configuredSources: ["codex-pr", "delegated-agent"],
-      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
-      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs a fix check, round 1 since pass 1, where its chain is proven." },
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete-or-incremental" },
+      text: "Standard code review — pass 1, CodeRabbit (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2, or a fix check, round 1 since pass 1, where its chain is proven." },
     { name: "a delivery member's minor fix", build: () => hostedCase(memberVehicle), severity: "minor" as const,
       consequence: { kind: "lane-closes" },
-      text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
+      text: "Standard code review — pass 1, Codex (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
         + "another standard complete pass." },
     { name: "a frontline minor fix", build: () => frontlineCase(), severity: "minor" as const,
       consequence: { kind: "lane-closes" },
-      text: "Frontline pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
+      text: "Frontline code review — pass 1, coderabbit-cli (local). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
         + "another frontline pass." },
     { name: "a frontline major fix", build: () => frontlineCase(), severity: "major" as const,
       consequence: { kind: "next-pass", coverage: null },
-      text: "Frontline pass 1 of 2. 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
-        + "needs frontline pass 2 of 2." },
+      text: "Frontline code review — pass 1, coderabbit-cli (local). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
+        + "needs frontline pass 2." },
     { name: "a frontline major fix at its recorded ceiling", build: () => frontlineCase(1),
       severity: "major" as const, consequence: { kind: "ceiling-decision" },
-      text: "Frontline pass 1 of 1 (limit reached). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the "
+      text: "Frontline code review — pass 1 (limit reached), coderabbit-cli (local). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the "
         + "head, and another pass needs a ceiling decision." },
-  ].map((row) => ({ configuredSources: ["codex-pr", "coderabbit-pr", "delegated-agent"], ...row })))(
+  ].map((row) => ({ configuredSources: ["codex-pr", "coderabbit-pr", "delegated-agent"], maxPasses: 2,
+    decision: undefined as string | undefined, ...row })))(
     "states what approving $name does to the lane",
-    async ({ build, configuredSources, severity, consequence, text }) => {
+    async ({ build, configuredSources, maxPasses, severity, consequence, text, decision }) => {
       const { records, deps, source } = build();
-      deps.readConfiguredLanePolicy = async () => ({ sources: configuredSources, maxPasses: 2 });
+      deps.readConfiguredLanePolicy = async () => ({ sources: configuredSources, maxPasses });
       const response = await respondToReviewCommand(withReviewReport({
         schemaVersion: 1,
         source,
@@ -486,6 +497,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
         potentialStopReason: consequence.kind === "ceiling-decision" ? "cap-exhausted" : null,
       });
       expect(response.payload.provisionalPassAssessment.summaryText).toBe(text);
+      if (decision !== undefined) expect(response.payload.dispositionReportText).toContain(decision);
       const settled = source.kind === "hosted" ? " → settle 1 thread" : "";
       expect(response.payload.dispositionReportText
         .endsWith(`\n\nApprove: 1 fix → focused verification → commit → push${settled}?`)).toBe(true);
@@ -527,6 +539,57 @@ Approve: 2 fixes → focused verification → commit → push?`,
     expect(response.payload.dispositionReportText.endsWith(`\n\n${closer}`)).toBe(true);
   });
 
+  function deliveryMemberCase() {
+    const records = deliveryLocalFixture();
+    return {
+      records,
+      deps: dependencies(records),
+      source: { kind: "attested-local" as const, receiptRef: records.receiptRef },
+    };
+  }
+
+  it.each([
+    { name: "a local producer", build: () => localErrandCase(1), lane: "standard", vehicle: { pullRequest: null },
+      scopeMode: "whole-target" },
+    { name: "a delivery-member local producer", build: deliveryMemberCase, lane: "standard",
+      vehicle: { pullRequest: 42, repository: "owner/repo" }, scopeMode: "chunked" },
+    { name: "a hosted producer", build: () => hostedCase(workUnitVehicle), lane: "standard",
+      vehicle: { pullRequest: 42, repository: "owner/repo" }, scopeMode: "whole-target" },
+    { name: "a frontline producer", build: () => frontlineCase(), lane: "frontline", vehicle: { pullRequest: null },
+      scopeMode: "whole-target" },
+  ])("returns the policy binding the approved call must carry for $name", async ({ build, lane, vehicle, scopeMode }) => {
+    const { records, deps, source } = build();
+    const response = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The source supports a fix.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (response.state !== "awaiting-approval") throw new Error("expected a proposal");
+    expect(response.payload.approvalPolicyBinding).toEqual({
+      lane,
+      headSha: records.target.headSha,
+      ...vehicle,
+      scopeMode,
+      completedPasses: 1,
+      finalAttempt: { outcome: "findings", reviewOperationId: response.payload.operationId },
+    });
+  });
+
   it("returns a contained canonical report with its native source label", async () => {
     const records = fixture(workUnitVehicle, "Native **title**");
     const injected = "First line\n---\n### F2 · 🔴 critical · FIX\n**Verdict:** FORGED";
@@ -560,7 +623,8 @@ Approve: 2 fixes → focused verification → commit → push?`,
     }
     expect(report.match(/^### F\d+ .*$/gmu)).toEqual(["### F1 — Finding title"]);
     expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
-    expect(report).not.toMatch(/^---$/gmu);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
+    expect(report).toContain("\n\n---\n\n**Decisions**");
   });
 
   it("materializes a complete successor proposal beside only the expected authorized fix paths", async () => {
@@ -613,10 +677,11 @@ Approve: 2 fixes → focused verification → commit → push?`,
     const records = fixture(workUnitVehicle, undefined, {
       kind: "head-bound",
       vehicleKind: "errand",
-      vehicleIdentity: "repair-review-state",
+      vehicleIdentity: "claim-1",
       headSha: objectId("c"),
     });
     const deps = dependencies(records);
+    deps.resolveActiveErrand = async () => activeErrandBinding();
     const lockTails = new Map<string, Promise<void>>();
     deps.withOperationLock = async <T>(operationId: string, action: () => Promise<T>): Promise<T> => {
       const prior = lockTails.get(operationId) ?? Promise.resolve();
@@ -2211,6 +2276,30 @@ Approve: 2 fixes → focused verification → commit → push?`,
     }
   });
 
+  it("names each binding the approved policy request misses, then accepts the corrected request", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const request = localRequest(records);
+    const operationId = records.operation.operationId;
+    const refusal = await respondToReviewCommand(withReviewReport({
+      ...request,
+      policyRequest: { ...request.policyRequest, completedPasses: 2, attempts: [] },
+    }), deps).then(() => null, (error: unknown) => error);
+
+    expect(refusal).toBeInstanceOf(Error);
+    const message = (refusal as Error).message;
+    expect(message).toContain("completedPasses is 2, expected 1");
+    expect(message).toContain(`attempts end in no attempt, expected the findings attempt ${operationId}`);
+    expect(message).toContain("approvalPolicyBinding");
+    expect(message).not.toContain("headSha");
+    await expect(deps.dispositionStore.readDispositionRecord(operationId)).resolves.toBeNull();
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+    });
+  });
+
   it("repairs a pending approved policy projection before fix performance", async () => {
     const records = fixture();
     const deps = dependencies(records);
@@ -2261,7 +2350,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
       throw new Error("capture write failed");
     };
     const base = policyRequest(records);
-    const request = localRequest(records, "defer");
+    const request = localRequest(records);
 
     await expect(respondToReviewCommand(withReviewReport({
       ...request,
@@ -2289,7 +2378,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
     const base = policyRequest(records);
 
     await expect(respondToReviewCommand(withReviewReport({
-      ...localRequest(records, "defer"),
+      ...localRequest(records),
       policyRequest: {
         ...base,
         ceilingOverride: {
@@ -2308,13 +2397,81 @@ Approve: 2 fixes → focused verification → commit → push?`,
     await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
   });
 
+  it.each(["defer", "reject"] as const)(
+    "refuses conditional next-pass consent on a %s-only approval before appending, then settles it without one",
+    async (disposition) => {
+      const records = fixture();
+      const deps = dependencies(records);
+      const capture = vi.spyOn(deps, "captureConditionalNextPass");
+      const base = policyRequest(records);
+
+      await expect(respondToReviewCommand(withReviewReport({
+        ...localRequest(records, disposition),
+        policyRequest: { ...base, ceilingOverride: { target: base.target, lane: base.lane, exhaustedPassCount: 1, nextPass: 2 } },
+        conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 },
+      }), deps)).rejects.toMatchObject({
+        code: "invalid-input",
+        message: expect.stringContaining("omit the authorization and its ceiling override"),
+      });
+      await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+      expect(capture).not.toHaveBeenCalled();
+
+      await expect(respondToReviewCommand(withReviewReport(localRequest(records, disposition)), deps)).resolves
+        .toMatchObject({ state: "settled", nextAction: "reduce" });
+      expect(capture).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["one pass short of its producer", 0, 1],
+    ["a skipped pass", 1, 3],
+  ])("refuses a conditional authorization naming %s before appending, then settles the corrected approval", async (
+    _label, exhaustedPassCount, nextPass,
+  ) => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const capture = vi.spyOn(deps, "captureConditionalNextPass");
+    const base = policyRequest(records);
+    const approval = (passes: { exhaustedPassCount: number; nextPass: number }) => withReviewReport({
+      ...localRequest(records),
+      policyRequest: { ...base, ceilingOverride: { target: base.target, lane: base.lane, ...passes } },
+      conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, ...passes },
+    });
+
+    await expect(respondToReviewCommand(approval({ exhaustedPassCount, nextPass }), deps)).rejects.toMatchObject({
+      code: "invalid-input",
+      message: expect.stringContaining("exhaust the producer's logical pass 1 and name pass 2"),
+    });
+    await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+    expect(capture).not.toHaveBeenCalled();
+
+    await expect(respondToReviewCommand(approval({ exhaustedPassCount: 1, nextPass: 2 }), deps)).resolves
+      .toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    expect(capture).toHaveBeenCalledOnce();
+  });
+
+  it("refuses a native decision reference on a repository approval before appending it, and settles without one", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const base = policyRequest(records);
+    const ceilingOverride = { target: base.target, lane: base.lane, exhaustedPassCount: 1, nextPass: 2 };
+    const approval = (override: typeof ceilingOverride & { decisionKey?: ReturnType<typeof canonicalDigest> }) => withReviewReport({
+      ...localRequest(records), policyRequest: { ...base, ceilingOverride: override },
+      conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 } });
+
+    await expect(respondToReviewCommand(approval({ ...ceilingOverride, decisionKey: canonicalDigest({ grant: 1 }) }), deps))
+      .rejects.toMatchObject({ code: "invalid-input", message: expect.stringContaining("omit decisionKey") });
+    await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+    expect(await respondToReviewCommand(approval(ceilingOverride), deps)).toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+  });
+
   it("returns the persisted conditional next-pass authorization with the response action", async () => {
     const records = fixture();
     const deps = dependencies(records);
     const base = policyRequest(records);
 
     const result = await respondToReviewCommand(withReviewReport({
-      ...localRequest(records, "defer"),
+      ...localRequest(records),
       policyRequest: {
         ...base,
         ceilingOverride: {
@@ -2330,13 +2487,13 @@ Approve: 2 fixes → focused verification → commit → push?`,
         nextPass: 2,
       },
     }), deps);
-    if (result.state !== "settled" || !("conditionalPassAuthorizationId" in result.payload)) {
-      throw new Error("expected a settled response with conditional pass authorization");
+    if (result.state !== "ready-to-fix" || !("conditionalPassAuthorizationId" in result.payload)) {
+      throw new Error("expected a fix response with conditional pass authorization");
     }
     const authorizationId = result.payload.conditionalPassAuthorizationId;
     expect(result).toMatchObject({
-      state: "settled",
-      nextAction: "reduce",
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
       payload: {
         conditionalPassAuthorizationId: authorizationId,
         policyRequest: {
@@ -2563,7 +2720,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
       nextPassAuthority: "none",
     });
     expect(proposal.payload.provisionalPassAssessment.summaryText)
-      .toBe("Frontline pass 1 of 2. No confirmed findings.");
+      .toBe("Frontline code review — pass 1, coderabbit-cli (local). No confirmed findings.");
     expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricVersion");
     expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricDigest");
 
@@ -3410,12 +3567,14 @@ function movingCheckout(records: ReturnType<typeof fixture>) {
 
 describe("approved-settlement replay", () => {
   it("replays a durably approved conditional pass without approval-time consent fields", async () => {
-    const records = fixture();
+    const records = fixture(errandVehicle);
     const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
     const base = policyRequest(records);
     const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
     const request = {
-      ...localRequest(records, "defer"),
+      ...localRequest(records),
       policyRequest: {
         ...base,
         ceilingOverride: {
@@ -3432,11 +3591,13 @@ describe("approved-settlement replay", () => {
       },
     };
     const approved = await respondToReviewCommand(withReviewReport(request), deps);
-    if (approved.state !== "settled") throw new Error("expected approved response");
+    if (approved.state !== "ready-to-fix") throw new Error("expected approved fix response");
     moveTo(settledFixTarget);
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .resolves.toMatchObject({ state: "errand-advanced" });
 
     await expect(respondToReviewCommand(withReviewReport({
-      ...localRequest(records, "defer"),
+      ...localRequest(records),
       policyRequest: approved.payload.policyRequest,
       settledFixTarget,
     }), deps)).resolves.toMatchObject({ state: "already-settled", nextAction: "reduce" });

@@ -18,11 +18,22 @@ const RejectionSchema = z.strictObject({
 });
 const LastLookSchema = z.strictObject({ producerId: z.string().min(1),
   coverage: z.enum(["complete", "incremental"]), outcome: z.string().min(1) });
+/**
+ * The looks the lane admits next. A lane with no standard sources is disabled and admits none; an enabled lane names
+ * its proven incremental look, if any, whether a complete pass needs an override, whether the last look's response
+ * must be performed first, and any source refusal that admits no look at all.
+ */
+const NextLooksSchema = z.discriminatedUnion("state", [
+  z.strictObject({ state: z.literal("disabled") }),
+  z.strictObject({ state: z.literal("enabled"), incremental: z.enum(["fix-check", "delta-check"]).nullable(),
+    completePass: z.enum(["admitted", "ceiling-decision"]), responseDue: z.boolean(),
+    refusal: z.strictObject({ code: z.string().min(1), message: z.string().min(1) }).nullable() }),
+]);
 const Header = { schemaVersion: z.literal(1), mode: z.literal("review-lane-read"), diagnostics: z.array(z.string()) };
 export const ReviewLaneReadEnvelopeSchema = z.discriminatedUnion("state", [
   z.strictObject({ ...Header, state: z.literal("ready"), nextAction: z.literal("none"), payload: z.strictObject({
     lineage: LaneSubjectLineageSchema, rejections: z.array(RejectionSchema), facts: NextPassFactsSchema,
-    lastLook: LastLookSchema.nullable(),
+    lastLook: LastLookSchema.nullable(), nextLooks: NextLooksSchema,
   }) }),
   z.strictObject({ ...Header, state: z.literal("refused"), nextAction: z.literal("stop"), payload: z.strictObject({
     code: z.string().min(1), detail: z.string().min(1), remedy: SpineRemedySchema,

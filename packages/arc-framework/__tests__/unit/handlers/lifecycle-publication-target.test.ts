@@ -18,6 +18,6 @@ it.each(["publish", "reopen"] as const)("%s carries an explicit former name into
   onTestFinished(() => rm(cwd, { recursive: true, force: true }));
   const candidate = candidateFixture("current"); await writeCandidateRecord(cwd, "current", candidate, null);
   const selected = await resolvePublicationTarget({ cwd, store: h.store }, verb, "former");
-  expect(selected).toBe("current");
-  expect((await readCandidateRecordVersioned(cwd, selected!)).record).toEqual(candidate);
+  expect(selected).toEqual({ name: "current", record: lifecycleSuccess(await h.store.read({ reference: prior.reference })) });
+  expect((await readCandidateRecordVersioned(cwd, selected!.name)).record).toEqual(candidate);
 });

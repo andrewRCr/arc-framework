@@ -1,6 +1,9 @@
 /** Public native-controller boundary fixtures for warmed timing and failure policy. */
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type createVitest, type TestResult, parseCLI } from "vitest/node";
+import { localVitestTierArguments } from "../../src/lib/local-vitest-runner.js";
+import type { MeasurementProjectSet } from "../../src/lib/test-cost/mode.js";
 import { runTestCostMeasurement } from "../../src/lib/test-cost/run.js";
 
 const mode = { condition: "tier-isolated", projectSet: "unit", workerSizing: "12" } as const;
@@ -97,5 +100,26 @@ describe("runTestCostMeasurement", () => {
     expect(run).toMatchObject({ requestedWorkerSizing: "native", mode: { workerSizing: "15" },
       capturedAt: new Date(1_143).toISOString() });
     expect(JSON.parse(fixture.retained() ?? "null")).toEqual(run);
+  });
+});
+
+describe("measured project sets", () => {
+  const packageRoot = resolve(import.meta.dirname, "../..");
+  async function measuredArguments(projectSet: MeasurementProjectSet): Promise<string[]> {
+    let argv: string[] = [];
+    const stop = new Error("selection composed");
+    await expect(runTestCostMeasurement({ ...input, cwd: packageRoot, mode: { ...mode, projectSet } },
+      { ...nativeBoundary().dependencies, parseCli: (composed) => { argv = composed; throw stop; } })).rejects.toBe(stop);
+    return argv;
+  }
+
+  it.each(["integration", "lane"] as const)("measure the %s tier without the suites that run by reach", async (set) => {
+    expect(await measuredArguments(set)).toEqual(["vitest", "run", ...localVitestTierArguments(set),
+      "--exclude", "__tests__/integration/store-ref-*.test.ts", "--maxWorkers", "12"]);
+  });
+
+  it.each(["unit", "e2e", "full"] as const)("measure the %s tier with every suite it holds", async (set) => {
+    expect(await measuredArguments(set)).toEqual(["vitest", "run", ...localVitestTierArguments(set),
+      "--maxWorkers", "12"]);
   });
 });

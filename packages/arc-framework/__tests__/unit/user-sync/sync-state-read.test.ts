@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { readLocalSyncState } from "../../../src/lib/user-sync/sync-state.js";
+import { getOrCreateMachineIdAtCommonDir, readLocalSyncState } from "../../../src/lib/user-sync/sync-state.js";
 import type { CoreIO } from "../../../src/lib/types.js";
 
 const identity = "andrew";
@@ -92,4 +92,13 @@ describe("readLocalSyncState", () => {
     await expect(readLocalSyncState(root, { ...realIo(), readFile: read }, identity)).rejects.toThrow("EACCES");
     expect(read).toHaveBeenCalledTimes(1);
   });
+});
+
+
+it("adopts the checkout's legacy machine id into an already located common directory without calling Git", async () => {
+  const id = "682204d3-88dc-4743-a5b8-c25637f4c849";
+  await writeFile(join(root, ".arc/user/andrew/.internal/.machine-id"), id);
+  const common = join(root, "shared-git");
+  expect(await getOrCreateMachineIdAtCommonDir(root, common, realIo(), identity)).toBe(id);
+  expect((await readFile(join(common, "arc/user/andrew/.internal/.machine-id"), "utf8")).trim()).toBe(id);
 });

@@ -304,7 +304,7 @@ Update session state files before ending session:
 **Task List**: [filename of task list, e.g., tasks-config-parser.md]
   [OR: [none associated] for planning/boundary work between task lists]
 **Next Task**: Task 3.3 — Write unit tests (line ~247)
-  [REQUIRED when following task list — triple-anchor format enables graduated lookup at session init]
+  [REQUIRED when following task list — use triple-anchor format]
   [Always points to the next task to work on (or continue if mid-task). Never [none] when incomplete tasks remain.]
   [Omit only when no task list exists or all tasks are complete.]
 **Last Completed**: Task 3.2 — Add validation logic
@@ -411,7 +411,8 @@ Markers:
   is unknown, state it: "Path unclear — will return to Task X.Y when resolved."
 - **Additional Context:** Debugging insights, decisions not in tracked state, things tried and
   ruled out, observed risks, "currently mid-X with concrete next action Y" mid-task stops.
-  Filter applies — empty is normal.
+  Record an Owner direction with the subject it answered — the gate, Errand, or head — so the next session does
+  not read it as standing posture for other work. Filter applies — empty is normal.
 
 - **WORKING-MEMORY entries:** Cross-WU persistent context — entries that survive across handoffs
   (and WU boundaries) at the resolver-backed identity-global `WORKING-MEMORY.md` path. Under
@@ -666,10 +667,11 @@ Dispatch only on its typed state and action:
       branch containment-safe, removes any distinct worktree, and prunes stale remote-tracking refs;
     - run the [Notes-sync leg](#notes-sync-leg) to re-anchor the saved user note onto the merged HEAD.
 - `none / create-change-request`, `merged-stale-head / reconcile-head`, `closed-unmerged / reopen-change-request`,
-  `ambiguous / stop`, or `blocked / stop` → **failed / blocked** — surface loudly, for both the manual- and
-  auto-merge lanes.
-- `open / reuse-change-request` → **still-pending** — hand to the session-init completion sweep; no action this
-  session.
+  `blocked / stop`, or `ambiguous / stop` without `headAhead` → **failed / blocked** — surface loudly, for both the
+  manual- and auto-merge lanes.
+- `open / reuse-change-request`, or `ambiguous / stop` with `headAhead: true` (the open request lags only a newer
+  head that is unpushed or not yet seen by the host) → **still-pending** — hand to the session-init completion
+  sweep; no action this session.
 
 ## Notes-sync leg
 

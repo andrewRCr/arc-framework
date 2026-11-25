@@ -1,4 +1,5 @@
 /** Reopening keeps cursor authority while the meta and tasks live outside code history. */
+import { seedPausedCompletedWorkUnit } from "../../../helpers/store/paused-completed-work-unit.js";
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
@@ -19,12 +20,13 @@ function ctx(store: Store): ExecuteTransitionContext {
       name: "withdraw-pr", run: async () => undefined, retryCommand: ["gh", "pr", "close", "feat/example"],
     }) }) } };
 }
-async function fixture(open: boolean) {
+async function fixture(open: boolean, reused = false) {
   const h = createLifecycleHarness();
+  const archived = reused ? await seedPausedCompletedWorkUnit(h, "example") : undefined;
   const meta = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit", taskList: "tasks-example.md" });
   await h.seed(recordReferences["work-item/task-list"](meta.reference.owner),
     `# Task List: Example\n\n## **Phase 1:** Build\n\n### \`[${open ? " " : "x"}]\` **1.1 Build feature**\n`);
-  return { ...h, meta };
+  return { ...h, meta, archived };
 }
 describe("store reopen", () => {
   it("rejects malformed selected fields without writes and reopens after repair", async () => {
@@ -95,4 +97,12 @@ it("binds the inspected task version through the atomic reopen write and permits
   expect(withdrawn).toBe(true);
   expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).fields)
     .toMatchObject({ state: "Active", currentWorkflow: "prepare-work-unit" });
+});
+
+it("reopens the unpaused live holder despite its paused completed namesake", async () => {
+  const h = await fixture(false, true);
+  expect(await runReopen(ctx(h.store), { name: "example", prMerged: false })).toMatchObject({ status: "reopened" });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).fields).toMatchObject({ state: "Active", pause: null });
+  if (h.archived === undefined) throw Error("Expected completed namesake");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
 });

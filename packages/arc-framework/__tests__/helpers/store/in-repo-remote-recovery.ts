@@ -41,5 +41,5 @@ export async function produceRemoteRecovery(fixture: ConformanceFixture, repairs
     const current = success(await fixture.store.read({ reference }));
     input = update(fixture, current, input.content);
   });
-  return { run: () => id.startsWith("transient-write:") ? fixture.store.write(input) : fixture.store.sync() };
+  return { run: () => id.startsWith("transient-write:") ? fixture.store.write(input) : fixture.store.push() };
 }

@@ -5,9 +5,14 @@ import { z } from "zod";
 import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import {
+  BoundedEvidenceResidualSchema,
   MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
   MAX_EVIDENCE_APPLICABILITY_PATHS,
 } from "../evidence-applicability/schema.js";
+import {
+  boundApplicabilityResidual,
+  type ApplicabilityResidual,
+} from "../evidence-applicability/applicability-residual.js";
 import {
   composeEvidenceDelta,
   EvidenceApplicabilityResultSchema,
@@ -17,12 +22,10 @@ import {
   DeliveryContributionEndpointsSchema,
   DeliveryContributionProofResultSchema,
 } from "../delivery/contribution-proof.js";
-import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { CandidateLineageTargetSchema } from "./candidate-attestation.js";
 
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const DigestSchema = CanonicalDigestSchema;
-const ApplicabilityPathSchema = z.string().min(1).refine(isManagedPath, "must be a managed repository path");
 
 export const MAX_CANDIDATE_APPLICABILITY_PATHS = MAX_EVIDENCE_APPLICABILITY_PATHS;
 export const MAX_CANDIDATE_APPLICABILITY_PATH_BYTES = MAX_EVIDENCE_APPLICABILITY_PATH_BYTES;
@@ -32,25 +35,6 @@ export const CandidateApplicabilityChoicesSchema = z.tuple([
   z.literal("targeted-check"),
   z.literal("changed"),
 ]);
-
-const BoundedApplicabilityPathsSchema = z.array(ApplicabilityPathSchema)
-  .min(1)
-  .max(MAX_CANDIDATE_APPLICABILITY_PATHS)
-  .superRefine((paths, context) => {
-    const bytes = new TextEncoder().encode(paths.join("\0")).byteLength;
-    if (bytes > MAX_CANDIDATE_APPLICABILITY_PATH_BYTES) {
-      context.addIssue({ code: "custom", message: "path evidence exceeds the byte bound" });
-    }
-    let previous: string | undefined;
-    const notStrictlyIncreasing = paths.some((path) => {
-      const invalid = previous !== undefined && path <= previous;
-      previous = path;
-      return invalid;
-    });
-    if (new Set(paths).size !== paths.length || notStrictlyIncreasing) {
-      context.addIssue({ code: "custom", message: "path evidence must be sorted and unique" });
-    }
-  });
 
 export const CandidateApplicabilityRequestSchema = z.strictObject({
   candidateId: DigestSchema,
@@ -111,7 +95,7 @@ export const CandidateApplicabilityDecisionResultSchema = z.strictObject({
   verdict: z.enum(["clean-divergence", "interaction"]),
   applicability: EvidenceApplicabilityResultSchema,
   projection: DeliveryContributionEndpointsSchema,
-  paths: BoundedApplicabilityPathsSchema,
+  paths: BoundedEvidenceResidualSchema,
   choices: CandidateApplicabilityChoicesSchema,
   selectionOfferText: z.string().min(1),
   recommendedActionText: z.string().min(1),
@@ -230,6 +214,33 @@ export function candidateApplicabilityResultBase(request: CandidateApplicability
   };
 }
 
+/** State a residual the applicability bounds refused, in the Candidate's own terms. */
+function residualRefusal(residual: Exclude<ApplicabilityResidual, { status: "bounded" }>) {
+  switch (residual.status) {
+    case "empty":
+      return {
+        state: "classification-unavailable",
+        nextAction: "stop",
+        reason: "residual-empty",
+        detail: "D4 returned a non-mechanical result without path evidence.",
+      } as const;
+    case "unbounded":
+      return {
+        state: "classification-unavailable",
+        nextAction: "stop",
+        reason: "residual-unbounded",
+        detail: "D4 path evidence exceeds the Candidate applicability bound.",
+      } as const;
+    case "malformed":
+      return {
+        state: "classification-failed",
+        nextAction: "stop",
+        reason: "malformed-evidence",
+        detail: residual.issues,
+      } as const;
+  }
+}
+
 /** Classify one exact Candidate projection from already-derived structural facts. */
 export function classifyCandidateApplicability(
   input: CandidateApplicabilityRequest,
@@ -304,49 +315,25 @@ export function classifyCandidateApplicability(
       const verdict = structural.proof.reason === "contribution-diverged"
         ? "clean-divergence" as const
         : "interaction" as const;
-      const paths = reviewableDivergence ?? structural.proof.paths;
-      if (paths.length === 0) {
+      const residual = boundApplicabilityResidual(reviewableDivergence ?? structural.proof.paths);
+      if (residual.status !== "bounded") {
         return CandidateApplicabilityResultSchema.parse({
           ...candidateApplicabilityResultBase(request),
-          state: "classification-unavailable",
-          nextAction: "stop",
-          reason: "residual-empty",
-          detail: "D4 returned a non-mechanical result without path evidence.",
-        });
-      }
-      const pathBytes = new TextEncoder().encode(paths.join("\0")).byteLength;
-      if (paths.length > MAX_CANDIDATE_APPLICABILITY_PATHS
-        || pathBytes > MAX_CANDIDATE_APPLICABILITY_PATH_BYTES) {
-        return CandidateApplicabilityResultSchema.parse({
-          ...candidateApplicabilityResultBase(request),
-          state: "classification-unavailable",
-          nextAction: "stop",
-          reason: "residual-unbounded",
-          detail: "D4 path evidence exceeds the Candidate applicability bound.",
-        });
-      }
-      const bounded = BoundedApplicabilityPathsSchema.safeParse(paths);
-      if (!bounded.success) {
-        return CandidateApplicabilityResultSchema.parse({
-          ...candidateApplicabilityResultBase(request),
-          state: "classification-failed",
-          nextAction: "stop",
-          reason: "malformed-evidence",
-          detail: bounded.error.issues.map(({ message }) => message).join("; "),
+          ...residualRefusal(residual),
         });
       }
       const digests = candidateApplicabilityDigests({
         request,
         projection: structural.endpoints,
         verdict,
-        paths: bounded.data,
+        paths: residual.paths,
       });
       const applicability = reduceEvidenceApplicability(composeEvidenceDelta({
         cause: "member-rewrite",
         endpoints: structural.endpoints,
-        proof: { ...structural.proof, paths: bounded.data },
+        proof: { ...structural.proof, paths: residual.paths },
       }), "review-clearance");
-      const presentation = decisionPresentation({ request, verdict, paths: bounded.data, ...digests });
+      const presentation = decisionPresentation({ request, verdict, paths: residual.paths, ...digests });
       return CandidateApplicabilityResultSchema.parse({
         ...candidateApplicabilityResultBase(request),
         state: "decision-required",
@@ -354,7 +341,7 @@ export function classifyCandidateApplicability(
         verdict,
         applicability,
         projection: structural.endpoints,
-        paths: bounded.data,
+        paths: residual.paths,
         choices: CANDIDATE_APPLICABILITY_CHOICES,
         ...digests,
         ...presentation,

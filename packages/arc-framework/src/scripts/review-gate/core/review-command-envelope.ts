@@ -3,7 +3,14 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "./review-operation-reference.js";
+import { ReviewCommandModeSchema, ReviewCommandHeaderShape as HeaderShape,
+  reviewCommandEnvelopeVariant as envelopeVariant, type ReviewCommandMode } from "./review-command-envelope-base.js";
+export { ReviewCommandModeSchema, ReviewCommandDiagnosticSchema } from "./review-command-envelope-base.js";
+export type { ReviewCommandMode } from "./review-command-envelope-base.js";
+
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
+import { StoreRefusalSchema } from "../../../lib/store/refusal.js";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import { FixNotPerformedPayloadSchema } from "./fix-not-performed-envelope.js";
@@ -27,14 +34,18 @@ import {
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewPassSchema } from "./review-pass.js";
 import { PrePublicationScopeMismatchSchema } from "./pre-publication-scope-mismatch.js";
+import { CandidateApplicabilityDecisionSelectionSchema } from
+  "../../../lib/work-unit/candidate-applicability-resolution.js";
 import { ReviewCommandErrorCodeSchema, ReviewPrePublicationRefusalCodeSchema } from
   "./review-command-error-codes.js";
 import type { ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
-import { ReviewReductionProjectionSchema } from "./advisory-records.js";
+import { ReviewAdversarialUnsupportedEnvelopeSchema } from "./adversarial-record-schema.js";
+import { ErrandReviewBindingSchema, ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { ProvisionalPassAssessmentSchema } from "./provisional-pass-assessment.js";
+import { ApprovalPolicyBindingSchema } from "../policy/approval-policy-binding.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import {
@@ -51,28 +62,7 @@ import { StandardReviewObligationProjectionSchema } from
 
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const DurableReferenceSchema = z.string().trim().min(1);
-const PersistedVersionSchema = z.number().int().positive();
-
-export const ReviewCommandModeSchema = z.enum([
-  "review-readiness",
-  "review-lane-read",
-  "review-resolve",
-  "review-frontline-resolve",
-  "review-chunking-resolve",
-  "review-planning-grooming-resolve",
-  "review-frontline-run",
-  "review-local-prepare",
-  "review-local-attest",
-  "review-respond",
-  "review-reduce",
-  "review-local-resume",
-  "review-hosted-request",
-  "review-hosted-await",
-  "review-hosted-settle",
-  "review-terminus-accept",
-  "review-pre-publication",
-]);
-export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
+const PersistedVersionSchema = z.number().int().nonnegative();
 
 export {
   ReviewCommandErrorCodeSchema,
@@ -81,31 +71,14 @@ export {
 } from "./review-command-error-codes.js";
 export type { ReviewCommandErrorCode, ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
 
-export { prePublicationRemedy, prePublicationTargetRemedy } from "./pre-publication-remedy.js";
-
-const RepositoryPreconditionDiagnosticSchema = z.strictObject({
-  code: z.literal("repository-precondition"),
-  message: z.string().trim().min(1),
-  precondition: z.enum([
-    "repository-born",
-    "base-resolved",
-    "clean-worktree",
-    "commit-head",
-  ]),
-});
-const GeneralReviewCommandDiagnosticSchema = z.strictObject({
-  code: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
-  message: z.string().trim().min(1),
-});
-export const ReviewCommandDiagnosticSchema = z.union([
-  RepositoryPreconditionDiagnosticSchema,
-  GeneralReviewCommandDiagnosticSchema,
-]);
-
-const HeaderShape = {
-  schemaVersion: z.literal(1),
-  diagnostics: z.array(ReviewCommandDiagnosticSchema),
-};
+export {
+  prePublicationCandidateRefusal,
+  prePublicationRemedy,
+  prePublicationRoutingMismatchRemedy,
+  prePublicationTargetRemedy,
+  type PrePublicationCandidateContinuation,
+  type PrePublicationRoutingMismatch,
+} from "./pre-publication-remedy.js";
 
 const TargetPairPayloadSchema = z.strictObject({
   attemptedTarget: ReviewTargetSchema,
@@ -113,6 +86,7 @@ const TargetPairPayloadSchema = z.strictObject({
 });
 const OperationPayloadShape = {
   operationId: IdentifierSchema,
+  operationRef: NativeReviewOperationRefSchema.optional(),
   persistedVersion: PersistedVersionSchema,
 };
 const CurrentOperationPayloadShape = {
@@ -129,33 +103,6 @@ const ExecutableIdentitySchema = z.strictObject({
   digest: CanonicalDigestSchema,
   qualifiedVersion: z.string().trim().min(1),
 });
-
-function envelopeVariant<
-  Mode extends ReviewCommandMode,
-  State extends string,
-  NextAction extends string,
-  Payload extends z.ZodType,
->(
-  mode: Mode,
-  state: State,
-  nextAction: NextAction,
-  payload: Payload,
-): z.ZodObject<{
-  schemaVersion: z.ZodLiteral<1>;
-  diagnostics: z.ZodArray<typeof ReviewCommandDiagnosticSchema>;
-  mode: z.ZodLiteral<Mode>;
-  state: z.ZodLiteral<State>;
-  nextAction: z.ZodLiteral<NextAction>;
-  payload: Payload;
-}> {
-  return z.strictObject({
-    ...HeaderShape,
-    mode: z.literal(mode),
-    state: z.literal(state),
-    nextAction: z.literal(nextAction),
-    payload,
-  });
-}
 
 const ReviewChunkingBasePayload = {
   target: ReviewTargetSchema,
@@ -409,6 +356,7 @@ const FrontlineReadyPayloadSchema = z.strictObject({
   pass: ReviewPassSchema,
   maxPasses: ReviewPassSchema,
   admission: FrontlineAdmissionSchema,
+  operationRef: NativeReviewOperationRefSchema.optional(),
 }).superRefine((payload, context) => {
   if (payload.pass > payload.maxPasses) {
     context.addIssue({
@@ -433,6 +381,10 @@ const FrontlineReadyPayloadSchema = z.strictObject({
       message: "frontline ready payload must match its durable admission",
       path: ["admission"],
     });
+  }
+  if (payload.operationRef !== undefined
+    && !nativeReviewOperationReferenceMatches(payload.operationRef, payload.admission.operationId)) {
+    context.addIssue({ code: "custom", path: ["operationRef"], message: "reference must match the frontline admission" });
   }
 });
 export const FrontlineCommandResultEnvelopeSchema = z.union([
@@ -467,6 +419,12 @@ const FrontlineCompletedPayloadSchema = z.strictObject({
   ...FrontlineTerminalPayloadShape,
   executableIdentity: ExecutableIdentitySchema.optional(),
 });
+/** A findings run carries its recorded provider findings, so the response step needs no separate read. */
+const FrontlineFindingsPayloadSchema = z.strictObject({
+  ...FrontlineTerminalPayloadShape,
+  executableIdentity: ExecutableIdentitySchema.optional(),
+  findings: NormalizedReviewFindingsSchema.refine((findings) => findings.length > 0),
+});
 const FrontlineReasonPayload = <Reason extends z.ZodType>(reason: Reason) => z.strictObject({
   ...FrontlineTerminalPayloadShape,
   executableIdentity: ExecutableIdentitySchema.optional(),
@@ -474,7 +432,7 @@ const FrontlineReasonPayload = <Reason extends z.ZodType>(reason: Reason) => z.s
 });
 export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant("review-frontline-run", "clean", "none", FrontlineCompletedPayloadSchema),
-  envelopeVariant("review-frontline-run", "findings", "respond", FrontlineCompletedPayloadSchema),
+  envelopeVariant("review-frontline-run", "findings", "respond", FrontlineFindingsPayloadSchema),
   envelopeVariant(
     "review-frontline-run",
     "unavailable",
@@ -564,10 +522,11 @@ export const LocalAttestEnvelopeSchema = z.union([
     z.strictObject({
       ...OperationPayloadShape,
       target: ReviewTargetSchema,
-      sourceRef: DurableReferenceSchema,
+      sourceRef: DurableReferenceSchema.optional(),
       receiptRef: DurableReferenceSchema,
       receiptRecorded: z.literal(true),
-    }),
+    }).refine(payload => payload.sourceRef !== undefined || payload.operationRef !== undefined,
+      { path: ["sourceRef"], message: "omitting the source record requires a native operation reference" }),
   ),
   envelopeVariant(
     "review-local-attest",
@@ -661,6 +620,9 @@ const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
   dispositionReportText: z.string().trim().min(1),
+  /**
+   * The request the response evaluated, at the reviewed head; after a fix advances the head, re-enter at the new head.
+   */
   policyRequest: ReviewPolicyCommandRequestSchema.optional(),
   policy: ReviewResolveEnvelopeSchema.optional(),
   conditionalPassAuthorizationId: CanonicalDigestSchema.optional(),
@@ -712,6 +674,7 @@ export const RespondEnvelopeSchema = z.union([
       dispositionReportText: z.string().trim().min(1),
       dispositionEvidenceText: z.string().trim().min(1),
       provisionalPassAssessment: ProvisionalPassAssessmentSchema,
+      approvalPolicyBinding: ApprovalPolicyBindingSchema,
     }),
   ),
   envelopeVariant(
@@ -772,6 +735,17 @@ export const RespondEnvelopeSchema = z.union([
   envelopeVariant(
     "review-respond",
     "stale-target",
+    "stop",
+    z.strictObject({
+      operationId: IdentifierSchema,
+      ...TargetPairPayloadSchema.shape,
+      errand: ErrandReviewBindingSchema,
+      detail: z.string().min(1),
+    }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "stale-target",
     "prepare-current-target",
     z.strictObject({
       operationId: IdentifierSchema,
@@ -786,7 +760,7 @@ export const RespondEnvelopeSchema = z.union([
       operationId: IdentifierSchema,
       candidateId: CanonicalDigestSchema,
       responseId: CanonicalDigestSchema,
-      recordPath: DurableReferenceSchema,
+      recordPath: DurableReferenceSchema.optional(),
       implementationChanged: z.boolean(),
       dispositionReportText: z.string().trim().min(1),
       policyRequest: ReviewPolicyCommandRequestSchema,
@@ -800,7 +774,7 @@ export const RespondEnvelopeSchema = z.union([
     z.strictObject({
       operationId: IdentifierSchema,
       candidateId: CanonicalDigestSchema,
-      recordPath: DurableReferenceSchema,
+      recordPath: DurableReferenceSchema.optional(),
       implementationChanged: z.boolean(),
       dispositionReportText: z.string().trim().min(1),
       policyRequest: ReviewPolicyCommandRequestSchema,
@@ -989,34 +963,41 @@ export const LocalResumeEnvelopeSchema = z.union([
 ]);
 
 export const ReviewCommandErrorEnvelopeSchema = z.union([
+  ReviewAdversarialUnsupportedEnvelopeSchema,
   ...ReviewCommandModeSchema.options
     .filter((mode) => mode !== "review-pre-publication")
-    .flatMap((mode) => ReviewCommandErrorCodeSchema.options.map((code) => errorVariant(mode, code))),
+    .flatMap((mode) => ReviewCommandErrorCodeSchema.options
+      .filter((code) => code !== "project-identity-unavailable" && code !== "store-refused")
+      .map((code) => errorVariant(mode, code))),
+  ...ReviewCommandModeSchema.options
+    .filter((mode) => mode !== "review-pre-publication")
+    .map((mode) => remedialErrorVariant(mode, "project-identity-unavailable")),
+  // An off-branch store's refusal keeps its code, class, and remedy whole beside the command's corrective route.
+  ...ReviewCommandModeSchema.options
+    .map((mode) => remedialErrorVariant(mode, "store-refused").extend({ refusal: StoreRefusalSchema })),
   // The pre-publication verb is the review spine's middle verb, so its refusals carry the same
   // corrective guidance the checkpoint and merge verbs do.
   ...ReviewPrePublicationRefusalCodeSchema.options
-    .filter((code) => code !== "scope-judgment-required")
+    .filter((code) => code !== "scope-judgment-required" && code !== "store-refused"
+      && code !== "candidate-unexplained-delta")
     .map((code) => remedialErrorVariant("review-pre-publication", code)),
   remedialErrorVariant("review-pre-publication", "scope-judgment-required")
     .extend({ scopeMismatch: PrePublicationScopeMismatchSchema }),
-  // Corrective continuations for uncommitted fixes, moved heads, unavailable producers, and stale admissions.
-  ...(["review-respond", "review-resolve", "review-local-prepare",
-    "review-hosted-request", "review-frontline-run"] as const)
-    .map((mode) => remedialErrorVariant(mode, "invalid-input")),
+  // A bounded decision carries its exact resolution selector; other unrecognized Candidates carry none.
+  remedialErrorVariant("review-pre-publication", "candidate-unexplained-delta")
+    .extend({ applicability: CandidateApplicabilityDecisionSelectionSchema.optional() }),
+  // A native work-item selection refusal carries its repair on every command; respond, resolve, local prepare, hosted
+  // request, and frontline run also carry corrective continuations for uncommitted fixes, moved heads, unavailable
+  // producers, and stale admissions.
+  ...ReviewCommandModeSchema.options
+    .filter((mode) => mode !== "review-pre-publication")
+    .flatMap((mode) => (["invalid-input", "corrupt-state"] as const).map((code) => remedialErrorVariant(mode, code))),
 ]);
 
 function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(
   mode: Mode,
   code: Code,
-): z.ZodObject<{
-  schemaVersion: z.ZodLiteral<1>;
-  diagnostics: z.ZodArray<typeof ReviewCommandDiagnosticSchema>;
-  mode: z.ZodLiteral<Mode>;
-  error: z.ZodObject<{
-    code: z.ZodLiteral<Code>;
-    message: z.ZodString;
-  }>;
-}> {
+) {
   return z.strictObject({
     ...HeaderShape,
     mode: z.literal(mode),
@@ -1030,16 +1011,7 @@ function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePubl
 function remedialErrorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(
   mode: Mode,
   code: Code,
-): z.ZodObject<{
-  schemaVersion: z.ZodLiteral<1>;
-  diagnostics: z.ZodArray<typeof ReviewCommandDiagnosticSchema>;
-  mode: z.ZodLiteral<Mode>;
-  error: z.ZodObject<{
-    code: z.ZodLiteral<Code>;
-    message: z.ZodString;
-  }>;
-  remedy: typeof SpineRemedySchema;
-}> {
+) {
   return errorVariant(mode, code).extend({ remedy: SpineRemedySchema });
 }
 

@@ -94,7 +94,7 @@ async function createAtCapPublicationRepo(): Promise<string> {
     "review.standard_sources: []",
     "review.standard_sources: [delegated-agent]",
   ));
-  await git(repository, ["add", ".arc", ".gitignore"]);
+  await git(repository, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(repository, ["commit", "-m", "install ARC"]);
   await git(repository, ["switch", "-c", "feat/example"]);
   await mkdir(join(repository, ".arc", "active"), { recursive: true });
@@ -1077,7 +1077,8 @@ describe("attest → pre-publication → publish", () => {
     expect(rerouted.exitCode).toBe(1);
     expect(JSON.parse(rerouted.stdout)).toMatchObject({
       error: { code: "candidate-unexplained-delta" },
-      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+      applicability: { state: "decision-required", resolutionSelector: { candidateId: pending.candidateId } },
+      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
     });
     expect(await reviewAccounting(repository)).toEqual(accountingAtCap);
 

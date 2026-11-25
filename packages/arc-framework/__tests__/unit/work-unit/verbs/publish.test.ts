@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 
 import type {
   ExecuteTransitionContext,
@@ -84,9 +85,9 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) =>
-      path === activeDir ? Promise.resolve(entries) : Promise.reject(new Error(`ENOENT: ${path}`)),
+      fixturePath(path) === activeDir ? Promise.resolve(entries) : Promise.reject(new Error(`ENOENT: ${path}`)),
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
     },
   };
@@ -193,7 +194,7 @@ const CANDIDATE_ID = `sha256:${"a".repeat(64)}` as const;
 const CANDIDATE_SUBJECT = `sha256:${"b".repeat(64)}` as const;
 const OTHER_SUBJECT = `sha256:${"c".repeat(64)}` as const;
 const WORK_UNIT = SlugSchema.parse("foo");
-const BASE: PublishParams = {
+const BASE: PublishParams & { boundary: IntegrationBoundaryLocus } = {
   name: "foo",
   lastCompleted: "Phase 7 — verification",
   nextAction: "open the PR",
@@ -238,7 +239,7 @@ function publicationBoundary(
     standardLaneOwnerVersion: 0,
     reservation,
     changeRequest: null,
-  });
+  }, 1);
 }
 
 /** The same submission with neither orientation override supplied. */
@@ -406,7 +407,7 @@ describe("runPublish — the set-phase-only move", () => {
 
   it("preserves the Owner-accepted conclusion in the publication claim", async () => {
     const { ctx } = buildCtx([ACTIVE]);
-    let claimed: IntegrationBoundaryLocus | null = null;
+    let claimed: PublishParams["boundary"] | null = null;
     const boundary = CandidatePublishReadyBoundarySchema.parse({
       ...BASE.boundary,
       terminus: OWNER_ACCEPTED_TERMINUS,

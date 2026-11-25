@@ -1,4 +1,5 @@
 /** Terminal lineage resolves a removed primary without inventing metadata or active work. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +8,10 @@ import { readStoreWorkUnitEvidence } from "../../../src/lib/locus/store-work-uni
 import { runWorktreeRoster } from "../../../src/lib/git/worktree-roster.js";
 import { runActiveRoster } from "../../../src/commands/active/roster.js";
 import { resolveInFlightComposition } from "../../../src/lib/session-init/in-flight-composition.js";
-import { writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, writeWorktreeMarker, writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
+import { inspectCheckoutMarker } from "../../../src/lib/locus/marker-occupancy.js";
+import { selectStoreWorktreeCleanup } from "../../../src/lib/session-init/store-worktree-selection.js";
+import { claimFrame } from "../../helpers/store/claim-frame.js";
 import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { LineageRecordSchema, writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
@@ -38,9 +42,36 @@ async function fixture(kind: "abandon" | "decompose" = "abandon") {
     return ok(await h.store.read({ reference }));
   };
   const terminal = await retire();
-  const input = { store: h.store, slug: "ended", head: "a".repeat(40) };
+  const input = { store: h.store, cwd: "/checkout", marker: { spawnedByArc: false, createdFor: boundWorkUnitSubject(terminal),
+    spawningIdentity: "andrew", createdAt: new Date(0).toISOString() }, slug: "ended", uid: boundWorkUnitSubject(terminal).uid, head: "a".repeat(40) };
   return { ...h, terminal, retire, input };
 }
+
+it.each(["evidence", "occupancy", "roster", "cleanup"] as const)("%s reads a decomposed marker's lineage by its bound UID", async reader => {
+  const h = await fixture("decompose");
+  await h.retire();
+  const owner = h.terminal.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the retired owner's UID");
+  const cwd = await mkdtemp(join(tmpdir(), "bound-terminal-"));
+  onTestFinished(() => rm(cwd, { recursive: true, force: true }));
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "ended", uid: owner.uid },
+    spawningIdentity: "andrew", createdAt: "2026-10-24T00:00:00Z" });
+  if (reader === "evidence") {
+    expect(await readStoreWorkUnitEvidence({ ...h.input, uid: owner.uid })).toMatchObject({ kind: "terminal", lifecycle: { state: "retired" } });
+  } else if (reader === "occupancy") {
+    expect(await inspectCheckoutMarker({ cwd, store: h.store })).toMatchObject({ kind: "occupied", missingRecord: false,
+      workUnit: null, reason: expect.stringContaining("retained lineage") });
+  } else if (reader === "roster") {
+    expect(await runWorktreeRoster({ cwd, store: h.store,
+      exec: async () => ({ stdout: `worktree ${cwd}\0HEAD ${"a".repeat(40)}\0detached\0\0` }),
+      fs: { readdir: async () => [], readFile: async () => { throw new Error("No checkout metadata"); } } }))
+      .toMatchObject({ warnings: [], entries: [{ workUnit: "ended", retired: true }] });
+  } else {
+    const frame = await claimFrame(h.store, cwd);
+    expect(await selectStoreWorktreeCleanup({ store: h.store, topology: frame.roster.map(row => row.checkout), derivedRoster: frame.roster,
+      readMarker: readWorktreeMarker })).toMatchObject({ warnings: [], ended: [], releases: [{ workUnit: "ended" }] });
+  }
+});
 
 it.each((["manual", "with-integration"] as const).flatMap(archiveCadence =>
   (["abandon", "decompose"] as const).map(kind => ({ archiveCadence, kind }))))(
@@ -49,7 +80,7 @@ it.each((["manual", "with-integration"] as const).flatMap(archiveCadence =>
     expect(result).toMatchObject({ kind: "terminal", subject: { kind: "work-unit", key: "ended" },
       lifecycle: { state: "retired", expectedTopology: {} } });
     expect(result).not.toHaveProperty("record"); expect(result).not.toHaveProperty("fields"); expect(result).not.toHaveProperty("branch");
-    expect(await h.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(h.terminal.reference.owner.name) } }))
+    expect(await h.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(h.terminal.reference.owner.name), uid: boundWorkUnitSubject(h.terminal).uid } }))
       .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 
@@ -57,7 +88,7 @@ it("keeps a terminal physical association out of logical rosters and class compo
   const h = await fixture(), cwd = await mkdtemp(join(tmpdir(), "arc-terminal-roster-"));
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
   await mkdir(join(cwd, ".arc"));
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "ended" }, spawningIdentity: "andrew", now: 0 });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(h.terminal), spawningIdentity: "andrew", now: 0 });
   const options = { store: h.store, cwd, exec: async () => ({ stdout: `worktree ${cwd}\0HEAD ${"a".repeat(40)}\0detached\0\0` }),
     fs: { readdir: async () => [], readFile: async () => { throw new Error("No primary projection exists"); } } };
   const physical = await runWorktreeRoster(options);
@@ -67,10 +98,11 @@ it("keeps a terminal physical association out of logical rosters and class compo
   expect(resolveInFlightComposition(physical.entries)).toBeNull();
 });
 
-it("reports ambiguous terminal generations instead of choosing a retirement", async () => {
+it("reports release for an unbound terminal name instead of choosing a retirement", async () => {
   const h = await fixture(); await h.retire();
-  const result = await readStoreWorkUnitEvidence(h.input);
-  expect(result).toMatchObject({ kind: "unreadable", code: "subject-unresolved", reason: expect.stringMatching(/more than one record generation.*retry/iu) });
+  const result = await readStoreWorkUnitEvidence({ ...h.input, uid: undefined, marker: { ...h.input.marker, createdFor: { kind: "work-unit", name: "ended" } } });
+  expect(result).toMatchObject({ kind: "unreadable", code: "work-unit-marker-unbound", unbound: { exit: { kind: "release" },
+    exits: [{ argv: ["arc", "locus", "release"], checkout: "/checkout" }] } });
 });
 
 it("reports a failed terminal read with its remedy and retires after authority is restored", async () => {
@@ -92,9 +124,9 @@ it("withholds conflicted terminal authority after primary removal and retries af
   const exec = async () => { throw new Error("No checkout artifact applies"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec }, identity: "andrew",
     teamMode: false, internalTemplateDir: "/templates", projectId: async () => "project",
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "ended", confirmed: true })).toMatchObject({ status: "abandoned" });
-  ok(await h.store.sync());
+  ok(await h.store.push());
   const disputed = ok(await h.store.read({ reference: h.terminal.reference })); expect(disputed.conflicts.length).toBeGreaterThan(0);
   const blocked = await readStoreWorkUnitEvidence(h.input);
   expect(blocked).toMatchObject({ kind: "unreadable", code: "subject-unresolved", reason: expect.stringMatching(/conflicts.*resolve.*retry/iu) });

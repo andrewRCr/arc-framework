@@ -11,6 +11,7 @@ import {
   type IncrementalReviewScope,
 } from "../core/incremental-review-scope.js";
 import type { ReviewResult } from "../core/review-result.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 /** Response evidence needed before a predecessor may support narrower review. */
 export type IncrementalPredecessorResponseEvidence =
@@ -113,9 +114,9 @@ export async function resolveIncrementalCorrectionScope(input: {
   const applicability = await dependencies.confirmCurrentApplicability(
     input.predecessor,
     input.currentHeadSha,
-  ).catch(() => "unavailable" as const);
+  ).catch((error: unknown) => { rethrowNativeRefusal(error); return "unavailable" as const; });
   if (!correctionLegHolds(applicability)) return null;
-  const response = await dependencies.readResponseEvidence(input.predecessor).catch(() => null);
+  const response = await dependencies.readResponseEvidence(input.predecessor).catch((error: unknown) => { rethrowNativeRefusal(error); return null; });
   return response === null ? null : buildIncrementalCorrectionScope({
     ...input,
     response, applicability,
@@ -223,7 +224,7 @@ async function resolveCoverageChain(
   const read = (producerId: string): Promise<ReviewResult | null> => {
     const existing = reads.get(producerId);
     if (existing !== undefined) return existing;
-    const pending = dependencies.resultReader.readResult(producerId).catch(() => null);
+    const pending = dependencies.resultReader.readResult(producerId).catch((error: unknown) => { rethrowNativeRefusal(error); return null; });
     reads.set(producerId, pending);
     return pending;
   };
@@ -256,7 +257,7 @@ async function resolveCoverageChain(
     const predecessorFailure = validatePredecessor(predecessor, result, scope.predecessorHeadSha);
     if (predecessorFailure !== null) return predecessorFailure;
     const applicability = await dependencies.confirmApplicability(predecessor, result)
-      .catch(() => "unavailable" as const);
+      .catch((error: unknown) => { rethrowNativeRefusal(error); return "unavailable" as const; });
     if (!correctionLegHolds(applicability)) {
       return inadequate(
         applicability === "review-required" ? "applicability-required" : "applicability-unavailable",
@@ -264,7 +265,7 @@ async function resolveCoverageChain(
       );
     }
     const response = await dependencies.readResponseEvidence(predecessor)
-      .catch(() => ({ status: "incomplete" as const, hasFix: false, requiredFindings: [] }));
+      .catch((error: unknown) => { rethrowNativeRefusal(error); return { status: "incomplete" as const, hasFix: false, requiredFindings: [] }; });
     if (response.status !== "performed") {
       return inadequate("response-incomplete", { producerId: predecessor.producerId });
     }

@@ -24,6 +24,11 @@ const rawGitSubprocessPolicy = {
   subprocess: "close-stdin" as const,
 };
 
+const batchReadInteractionSite = declareInteractionSite(
+  { file: "lib/git/batch-reader.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+  { ...rawGitSubprocessPolicy, subprocess: "explicit-stdin", mutationBoundary: "operation-scoped local object acquisition" },
+);
+
 const hostedGhSubprocessPolicy = {
   acquisition: "subprocess" as const,
   schemaOwnership: "none" as const,
@@ -41,6 +46,22 @@ const devBuildRefreshSubprocessPolicy = {
   mutationBoundary: "post-action development build refresh",
   subprocess: "close-stdin" as const,
 };
+
+/**
+ * The stale-build guard's launches run before every command, and the inventory has no program-wide declaration, so they
+ * are claimed beside the development build's post-action refresh as a representative, not a record of their reach.
+ */
+const devBuildGuardSites = [
+  declareInteractionSite(
+    { file: "lib/dev-check.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+    { ...devBuildRefreshSubprocessPolicy, mutationBoundary: "pre-action development build preparation" },
+  ),
+  declareInteractionSite(
+    { file: "lib/dev-check.ts", kind: "subprocess", callee: "spawn", occurrence: 2 },
+    { ...devBuildRefreshSubprocessPolicy, mutationBoundary: "re-run of the command on the rebuilt development build",
+      subprocess: "terminal-prompts" },
+  ),
+];
 
 const nativeDeliveryCommandPaths: ReadonlySet<string> = new Set([
   "delivery native link",
@@ -140,6 +161,12 @@ export const infrastructureCommandInputPolicyDeclarations = [{
   commandPath: "sync",
   aliases: [],
   sites: [
+    declareInteractionSite(
+      { file: "lib/git/process-cancellation.ts", kind: "subprocess", callee: "execFile", occurrence: 1 },
+      { acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "Git process-tree cancellation", subprocess: "close-stdin" },
+    ),
     ...([1, 3] as const).map((occurrence) => declareInteractionSite(
       { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence },
       terminalSubprocessPolicy,
@@ -153,10 +180,23 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       terminalSubprocessPolicy,
     ),
   ],
-}, ...rawGitCommandPaths.map((commandPath) => ({
+}, ...["store conflict", "store migrate", "store remote", "store repair-review-roots"].map((commandPath) => ({
+  commandPath, aliases: [], sites: [
+    batchReadInteractionSite,
+    ...([1, 3] as const).map((occurrence) => declareInteractionSite(
+      { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence },
+      { ...terminalSubprocessPolicy, mutationBoundary: "explicit ref-store transport" },
+    )),
+    declareInteractionSite(
+      { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence: 2 },
+      rawGitSubprocessPolicy,
+    ),
+  ],
+})), ...rawGitCommandPaths.map((commandPath) => ({
   commandPath,
   aliases: [],
   sites: [
+    batchReadInteractionSite,
     declareInteractionSite(
       { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence: 2 },
       rawGitSubprocessPolicy,
@@ -174,5 +214,6 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       { file: "lib/dev-check.ts", kind: "subprocess", callee: "execFile", occurrence: 1 },
       devBuildRefreshSubprocessPolicy,
     ),
+    ...devBuildGuardSites,
   ],
 }))] satisfies readonly CommandInputDeclaration[];

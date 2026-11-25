@@ -11,6 +11,13 @@ import type { WriteCheckInput } from "../../../../src/lib/store/write-check.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 
 describe("production kind registrations", () => {
+  it.each(["review/outcome", "review/decision", "review/evidence", "review/evidence-root-selection", "review/adversarial-pass",
+    "review/candidate", "review/integration-boundary"] as const)("installs the %s codec and its owned write rules", (kind) => {
+    const registration = createKindRegistry(PRODUCTION_REGISTRATIONS)[kind];
+    expect(registration.parser?.("{")).toMatchObject({ success: false, error: expect.any(String) });
+    if (kind === "review/candidate") expect(registration.check).toBeNull();
+    else expect(registration.check).toBeTypeOf("function");
+  });
   it("derives exactly the projecting stored kinds and preserves one registration per kind", () => {
     const derived = (Object.keys(KIND_MECHANISMS) as KindId[]).filter(kind =>
       KIND_MECHANISMS[kind].projection !== "never" && FAMILY_REGISTRY[familyOf(kind)].ref !== null
@@ -32,7 +39,7 @@ describe("production kind registrations", () => {
     const view = new ReferenceBackend();
     const input: WriteCheckInput = {
       reference: recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" })),
-      writer: { kind: "hand-edit" }, before: view, after: view, next: { content, fields: parsed.data },
+      observations: [], writer: { kind: "hand-edit" }, before: view, after: view, next: { content, fields: parsed.data },
     };
     const original = await META_REGISTRATION.check?.(input) ?? [];
     expect(registry["work-item/meta"].parser).toBe(META_REGISTRATION.parser);
@@ -44,7 +51,7 @@ describe("production kind registrations", () => {
     const view = new ReferenceBackend();
     const input: WriteCheckInput = {
       reference: recordReferences["work-item/notes"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" })),
-      writer: { kind: "verb", verb: "pause" }, before: view, after: view,
+      observations: [], writer: { kind: "verb", verb: "pause" }, before: view, after: view,
       next: { content: "[x](relative.md)", fields: undefined },
     };
     expect(registry["work-item/notes"].parser).toBeNull();

@@ -122,7 +122,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: null,
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    })).toMatchObject({
+    }, 1)).toMatchObject({
       locus: "publication-pending",
       nextAction: {
         kind: "continue-publication",
@@ -138,7 +138,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: reservation(),
       changeRequest: null,
-    })).toMatchObject({
+    }, 1)).toMatchObject({
       locus: "publication-pending",
       nextAction: { kind: "continue-publication" },
     });
@@ -151,7 +151,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: reservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    })).toMatchObject({
+    }, 1)).toMatchObject({
       locus: "hosted-review-pending",
       nextAction: {
         kind: "continue-pre-publication-review",
@@ -167,7 +167,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    })).toMatchObject({
+    }, 1)).toMatchObject({
       locus: "delivery-status-required",
       nextAction: {
         kind: "resolve-delivery-status",
@@ -177,14 +177,14 @@ describe("integration boundary locus", () => {
     });
   });
 
-  it("normalizes the exact legacy delivery placeholder during a persisted-boundary read", () => {
+  it("refuses the retired delivery placeholder during a persisted-boundary read", () => {
     const current = projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
+    }, 1);
     if (current.nextAction.kind !== "resolve-delivery-status") {
       throw new Error("expected delivery status");
     }
@@ -198,25 +198,18 @@ describe("integration boundary locus", () => {
       },
     };
 
-    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
-      locus: "delivery-status-required",
-      nextAction: {
-        kind: "resolve-delivery-status",
-        workUnitId: "example",
-        command: "arc review status --work-unit example",
-        interactionText: "Resolve the retained delivery status.",
-      },
-    });
+    expect(() => parseIntegrationBoundaryLocus(legacy)).toThrow();
+    expect(parseIntegrationBoundaryLocus(current)).toEqual(current);
   });
 
-  it("normalizes the former work-unit delivery action without admitting it as a canonical boundary", () => {
+  it("refuses the former work-unit delivery action through both parser entry points", () => {
     const current = projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
+    }, 1);
     const legacy = {
       ...current,
       locus: "hosted-review-pending" as const,
@@ -228,13 +221,8 @@ describe("integration boundary locus", () => {
     };
 
     assertSchemaRefuses(IntegrationBoundaryLocusSchema, legacy);
-    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
-      locus: "delivery-status-required",
-      nextAction: {
-        kind: "resolve-delivery-status",
-        interactionText: "Resolve the retained delivery status.",
-      },
-    });
+    expect(() => parseIntegrationBoundaryLocus(legacy)).toThrow();
+    expect(parseIntegrationBoundaryLocus(current)).toEqual(current);
   });
 
   it("rebinds the carried public delivery reservation to one exact renewed-Candidate continuation", () => {
@@ -258,7 +246,7 @@ describe("integration boundary locus", () => {
         branch: "feat/example",
         reservation: deliveryReservation(),
         changeRequest: null,
-      }),
+      }, 1),
       deliveryReviewTermini: [memberTerminus],
     });
     assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
@@ -313,7 +301,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: null,
-    });
+    }, 1);
     const firstContinuation = {
       schemaVersion: 1 as const,
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
@@ -364,7 +352,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: reservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
+    }, 1);
 
     expect(recoverPublicationBoundary({
       stored: carried,
@@ -415,7 +403,7 @@ describe("integration boundary locus", () => {
       reservation: null,
       terminus: ownerAcceptedTerminus,
       changeRequest: null,
-    });
+    }, 1);
     expect(published).toMatchObject({
       locus: "publication-pending",
       terminus: ownerAcceptedTerminus,
@@ -447,7 +435,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: reservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
+    }, 1);
 
     assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...singleton,
@@ -465,7 +453,7 @@ describe("integration boundary locus", () => {
       branch: "feat/example",
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
+    }, 1);
     assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...delivery,
       nextAction: {

@@ -14,6 +14,21 @@ it("registers the runtime schema as an authored editor contract", () => {
     id: "check-declaration", version: 1, migrationPosture: "strict-current", authored: "editor-document",
   });
 });
+
+it("projects runner eligibility and explicit input shape into the authored editor document", () => {
+  const registry = registerCheckDeclarationSchemas(createRegistry());
+  const document = foldKernelSchemaClosure(projectKernelSchemas("input", registry), "check-declaration");
+  const validate = new Ajv2020({ strict: true, validateFormats: false }).compile(document);
+  const authored = { checks: { verify: { command: ["verify"], runner: true,
+    environment_inputs: { CHECK_MODE: "value", CHECK_FILE: "file" } } } };
+  expect(validate(authored), JSON.stringify(validate.errors)).toBe(true);
+  expect(validate({ checks: { verify: { command: ["verify"], runner: "provider" } } })).toBe(false);
+  expect(validate({ checks: { verify: { command: ["verify"], environment_inputs: { "INVALID-NAME": "value" } } } })).toBe(false);
+  expect(validate({ checks: { verify: { command: ["verify"], environment_inputs: { CHECK_FILE: "path" } } } })).toBe(false);
+  const runtimeInvalid = { checks: { verify: { ...authored.checks.verify, fixes: true } } };
+  expect(validate(runtimeInvalid)).toBe(true);
+  expect(CheckDeclarationSchema.safeParse(runtimeInvalid).success).toBe(false);
+});
 it("supplies the declaration's checkout-local editor reference", () => {
   expect(editorDocumentReference("check-declaration", ".arc/system/arc-checks.yml")).toEqual({
     status: "found", reference: "# yaml-language-server: $schema=./.internal/schemas/check-declaration.schema.json",
@@ -39,7 +54,7 @@ it("documents selection scope and enforces its authored restrictions in the edit
   const document = foldKernelSchemaClosure(projectKernelSchemas("input", registry), "check-declaration");
   const validate = new Ajv2020({ strict: true, validateFormats: false }).compile(document);
   expect(validate({ checks: { selected: { command: ["lint"], mode: "selection" } } })).toBe(true);
-  for (const field of ["gate", "shell", "fixes", "reads_index", "ci_only", "cache", "widen", "pass_paths"]) {
+  for (const field of ["gate", "shell", "fixes", "reads_index", "ci_only", "cache", "widen", "pass_paths", "select_deletions"]) {
     const value = field === "gate" ? "commit" : field === "pass_paths" ? false : true;
     expect(validate({ checks: { selected: { command: ["lint"], mode: "selection", [field]: value } } })).toBe(false);
   }

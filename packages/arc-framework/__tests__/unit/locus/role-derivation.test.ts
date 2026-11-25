@@ -19,6 +19,17 @@ function authorityFacts(
 }
 
 describe("checkout role derivation", () => {
+  it.each([true, false])("compares work-unit generations before display names, sameOwner=%s", sameOwner => {
+    const uid = "10000000-0000-4000-8000-000000000001";
+    const result = deriveCheckoutRole(authorityFacts({
+      marker: { kind: "present", subject: { kind: "work-unit", key: sameOwner ? "former" : "current", uid }, expectedTopology: {} },
+      lifecycle: { kind: "present", state: "active", expectedTopology: {}, subject: { kind: "work-unit", key: "current",
+        uid: sameOwner ? uid : "10000000-0000-4000-8000-000000000002" } },
+    }));
+    expect(result).toMatchObject(sameOwner ? { kind: "work-unit", subject: { kind: "work-unit", key: "current", uid } }
+      : { kind: "unresolved-checkout", diagnostics: [{ code: "authority-conflict" }] });
+  });
+
   it("keeps unreadable authority evidence unresolved for only that checkout", () => {
     expect(deriveCheckoutRole(authorityFacts({
       marker: { kind: "unreadable", reason: "marker bytes are malformed" },

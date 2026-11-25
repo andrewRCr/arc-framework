@@ -334,8 +334,10 @@ describe("disjoint delivery eligibility", () => {
       nextAction: "continue",
       evidence: { baselineRevision: terminalHead, baseRevision: observedTip, mergeBase: firstHead },
     });
+    // The terminal head never took the base in, so only its own contribution is compared: the landed
+    // predecessor and the regenerated readiness file are the base's own commits and leave it current.
     await expect(production.readCandidate("example", observedTip))
-      .resolves.not.toMatchObject({ status: "current" });
+      .resolves.toMatchObject({ status: "current" });
 
     const downstreamReads: string[] = [];
     const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, {

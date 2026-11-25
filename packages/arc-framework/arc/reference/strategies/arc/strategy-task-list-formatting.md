@@ -25,6 +25,11 @@ checklist, see [generate-tasks.md § Finalize the task list][generate-tasks].
 
 ## Task List Headers
 
+**Implementation scope.** Cross-work-unit coordination routing — seam captures, messages to live sessions, and
+routing into sibling planning artifacts — is planning work. Keep it out of specs and implementation task lists,
+including their tasks, phases and success criteria. Route each concern when it arises; its evidence lives outside
+the implementation record.
+
 See [`template-tasks.md`][template-tasks] for skeletons.
 
 **Task List** (`# Task List: {Name}`) — work with an upstream spec artifact (PRD by default):
@@ -485,6 +490,8 @@ relative-path links.
 Required final section of every task list. Each Scope "Will Do" item maps to a verifiable
 criterion — the checkable operationalization of the PRD's success criteria. See
 [`template-tasks.md`][template-tasks] for the block.
+
+Track a success criterion at the earliest boundary whose validator can see its evidence.
 
 When a Delivery Plan is present, group criteria beneath plain `### Member {ordinal} —` headings carrying a
 backticked chunk key and one `### Cross-member seams` heading. A member's ordinary closing task walks its group;

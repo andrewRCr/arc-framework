@@ -3,6 +3,10 @@
 Module-local architecture predicates and the file-level doc comment check run through ESLint using its parsed
 TypeScript source.
 
+`arc/ref-completed-failure` checks `.ts` modules under `src/lib/store/ref/` for exit-code decisions without proof of
+completed Git failure through the canonical `isCompletedGitFailure` import. It follows direct `const` projections and
+single-return helpers, reporting the offending operand through ESLint.
+
 Architecture bans live in the ESLint configuration as one table. Rooted directory scopes use
 `**/*.{ts,tsx,cts,mts}`; exact files express narrower scopes and exceptions. Composition partitions those anchors
 without enumerating current source files, so future modules receive every matching row's rules.

@@ -47,6 +47,7 @@ import {
 } from "./checkpoint.js";
 import {
   createIntegrationMergeDependencies,
+  finalBaseMovementUnavailableDetail,
 } from "./merge-composition.js";
 import { IntegrationBindingChangedError, type IntegrationMergeTarget } from "./merge.js";
 import type {
@@ -207,8 +208,11 @@ export function createErrandMergeDependencies(input: {
   const common = createIntegrationMergeDependencies({
     cwd: input.cwd,
     exec: input.exec,
+    store,
     workUnit: slug,
     hostedRunner: runner,
+    // An Errand records no landing link, so its merged read needs no exact merge identity.
+    confirmMergeIdentity: false,
     ...(input.changeRequestPort === undefined ? {} : { changeRequestPort: input.changeRequestPort }),
   });
   const rawExec = createRawGitExec(input.cwd);
@@ -249,7 +253,7 @@ export function createErrandMergeDependencies(input: {
       return selectCurrentErrandMergeIdentity(frame, slug, store);
     },
     readMerged: async (target) => ({
-      merged: await common.readMerged(target),
+      merged: (await common.readMerged(target)).merged,
       providerMergeId: null,
     }),
     refreshTarget: (target) => common.refreshTarget(target),
@@ -273,10 +277,7 @@ export function createErrandMergeDependencies(input: {
           status: "unavailable",
           target: observedTarget,
           baseOid: drift.baseOid,
-          detail: typeof drift.headOid === "string" && drift.headOid !== observedTarget.headSha
-            ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head `
-              + `${observedTarget.headSha}.`
-            : "The final authoritative base movement could not be established.",
+          detail: finalBaseMovementUnavailableDetail(drift, observedTarget.headSha),
         };
       }
       const coordinates = {

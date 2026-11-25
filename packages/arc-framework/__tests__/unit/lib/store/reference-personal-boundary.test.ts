@@ -9,7 +9,7 @@ it.each([".internal/request.json", "work-unit/.internal/checkpoint.json"])("neve
   const remote = fixture.remote(true)!;
   const allowed = fixture.reference("personal/document");
   const record = await seed(fixture, allowed);
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const localVersion = success(await fixture.store.version());
   const remoteVersion = success(await remote.version());
   const excluded = RecordReferenceSchema.parse({ ...record.reference, key });
@@ -21,7 +21,7 @@ it.each([".internal/request.json", "work-unit/.internal/checkpoint.json"])("neve
   expect(result.refusal.remedy.text).toContain("path");
   expect(success(await fixture.store.version())).toEqual(localVersion);
   expect(success(await remote.version())).toEqual(remoteVersion);
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   expect(await remote.read({ reference: excluded })).toMatchObject({ status: "refused" });
   const localList = success(await fixture.store.list({ family: "personal", kind: "personal/document" }));
   const remoteList = success(await remote.list({ family: "personal", kind: "personal/document" }));
@@ -43,7 +43,7 @@ it("reserves only the derived identity-root STATUS.USER.md address", async () =>
   expect(await fixture.store.batch({ writes: [{ ...put, reference: base }, put], provenance: testProvenance })).toMatchObject({ status: "refused" });
   expect(success(await fixture.store.version())).toBe(before);
   for (const key of ["scratch/STATUS.USER.md", "work-unit/one/STATUS.USER.md", "STATUS.USER"]) await seed(fixture, RecordReferenceSchema.parse({ ...base, key }));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   for (const store of [fixture.reopen(), remote]) {
     expect(await store.read({ reference: derived })).toMatchObject({ status: "refused" });
     const listed = success(await store.list({ family: "personal", kind: "personal/document" }));

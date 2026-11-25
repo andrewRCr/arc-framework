@@ -261,7 +261,7 @@ describe("runUserFetch — ancestry-guarded updates", () => {
     });
     const io = buildIo(exec);
 
-    const result = await runUserFetch({ io, identity: "andrew" });
+    const result = await runUserFetch({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result).toEqual({ kind: "fast-forwarded", localTip: LOCAL_TIP, remoteTip: REMOTE_TIP });
     expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
@@ -286,7 +286,7 @@ describe("runUserFetch — ancestry-guarded updates", () => {
     });
     const io = buildIo(exec);
 
-    const result = await runUserFetch({ io, identity: "andrew" });
+    const result = await runUserFetch({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result).toEqual({ kind: "refused-local-ahead", localTip: LOCAL_TIP, remoteTip: REMOTE_TIP });
     expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
@@ -312,7 +312,7 @@ describe("runUserFetch — ancestry-guarded updates", () => {
     });
     const io = buildIo(exec);
 
-    const result = await runUserFetch({ io, identity: "andrew" });
+    const result = await runUserFetch({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result).toEqual({ kind: "refused-diverged", localTip: LOCAL_TIP, remoteTip: REMOTE_TIP });
     expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
@@ -332,7 +332,7 @@ describe("runUserFetch — ancestry-guarded updates", () => {
     });
     const io = buildIo(exec);
 
-    const result = await runUserFetch({ io, identity: "andrew" });
+    const result = await runUserFetch({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result).toEqual({ kind: "created", remoteTip: REMOTE_TIP });
     expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
@@ -362,7 +362,7 @@ describe("runUserFetch — ancestry-guarded updates", () => {
     });
     const io = buildIo(exec);
 
-    const result = await runUserFetch({ io, identity: "andrew" });
+    const result = await runUserFetch({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result).toEqual({ kind: "refused-local-ahead", localTip: NEW_LOCAL_TIP, remoteTip: REMOTE_TIP });
     expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
@@ -393,7 +393,7 @@ describe("runUserFetch — ancestry-guarded updates", () => {
     });
     const io = buildIo(exec);
 
-    const result = await runUserFetch({ io, identity: "andrew" });
+    const result = await runUserFetch({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result).toEqual({ kind: "fast-forwarded", localTip: NEW_LOCAL_TIP, remoteTip: REMOTE_TIP });
     expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
@@ -430,7 +430,7 @@ describe("runUserFetch — ancestry-guarded updates", () => {
     });
     const io = buildIo(exec);
 
-    const result = await runUserFetch({ io, identity: "andrew" });
+    const result = await runUserFetch({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result.kind).toBe("remote-unavailable");
     if (result.kind === "remote-unavailable") {

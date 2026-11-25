@@ -248,45 +248,61 @@ checks:
     gate: commit
     inputs:
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
     mode: files
     root: packages/arc-framework
   typecheck:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
       - typecheck
     gate: commit
     inputs:
+      - packages/arc-framework/tsconfig*.json
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
   typecheck:test:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
       - typecheck:test
     gate: commit
     inputs:
+      - packages/arc-framework/tsconfig*.json
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
   lint:ts:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
       - lint:ts
     gate: push
     inputs:
+      - packages/arc-framework/tsconfig*.json
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
   lint:sh:
     command:
       - npm
@@ -317,6 +333,36 @@ checks:
         - -version
       - - shellcheck
         - --version
+  lint:adr:status:
+    command: [npm, run, -s, lint:adr, --, status]
+    gate: merge
+    mode: files
+    widen: false
+    inputs:
+      - .arc/reference/adr/adr-*.md
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          ["packages/arc-framework/src/scripts/check-adr-records.ts"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
+  lint:adr:numbers:
+    command: [npm, run, -s, lint:adr, --, numbers]
+    gate: merge
+    mode: files
+    pass_paths: false
+    inputs:
+      - .arc/reference/adr/adr-*.md
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          ["packages/arc-framework/src/scripts/check-adr-records.ts"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
   check-package-sync:
     command:
       - bash
@@ -354,9 +400,8 @@ checks:
       - packages/arc-framework/tsup*.ts
       - packages/arc-framework/build-compiler.config.ts
   test:changed:
+    runner: true
     command:
-      - bash
-      - ../../scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -367,13 +412,13 @@ checks:
     root: packages/arc-framework
     inputs:
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
       - '!packages/arc-framework/__tests__/integration/**/*.test.ts'
       - '!packages/arc-framework/__tests__/e2e/**/*.e2e.test.ts'
   test:unit:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -391,16 +436,42 @@ checks:
     shards:
       count: 2
       argument: --shard={index}/{count}
-  test:integration:
+  # Give retirement regressions early feedback while the integration tier still runs the full file in CI.
+  test:retirement-release:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
+      - node
+      - --import
+      - tsx
+      - scripts/run-reach-check.mjs
+      - packages/arc-framework/__tests__/reach/retirement-release.json
+    gate: push
+    mode: files
+    pass_paths: false
+    widen: false
+    environment_inputs:
+      ARC_RETIREMENT_RELEASE_CHECK: value
+    inputs:
+      - packages/arc-framework/src/lib/store/projection/**/*.ts
+      - packages/arc-framework/__tests__/helpers/store/projection/**/*.ts
+      - packages/arc-framework/__tests__/helpers/store/projection-retirement.ts
+      - packages/arc-framework/__tests__/integration/retirement-store-release.test.ts
+      - packages/arc-framework/__tests__/reach/retirement-release.json
+      - scripts/run-reach-check.mjs
+      - packages/arc-framework/src/lib/vitest-reach.ts
+      - packages/arc-framework/src/lib/reach-check.ts
+  test:integration:
+    runner: true
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
+    command:
       - npm
       - run
       - -s
       - test:integration
       - --
     gate: merge
+    ci_only: true
     inputs:
       - '**'
       - '!.arc/active/**'
@@ -408,17 +479,50 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/system/.internal/candidates/**'
     shards:
+      routed: true
       count: 4
+      argument: --shard={index}/{count}
+  # The store suites run by reach: the runner selects the suites a change reaches from the base and tree it is given,
+  # as its data file declares them, and runs in full when asked, given no base, or changed itself. CI divides the
+  # selection among shards balanced by the integration durations. An opted-in routed run divides it the same way when
+  # given a duration file, and by the partitioner's fallback estimates without one; an unmanaged run stays one.
+  test:store:
+    runner: true
+    command:
+      - node
+      - --import
+      - tsx
+      - scripts/run-reach-check.mjs
+      - packages/arc-framework/__tests__/reach/store-suites.json
+    gate: merge
+    mode: files
+    pass_paths: false
+    widen: false
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
+    environment_inputs:
+      ARC_STORE_CHECK: value
+      ARC_STORE_BURSTS: value
+      ARC_TEST_DURATION_FILE: file
+    shards:
+      routed: true
+      count: 6
       argument: --shard={index}/{count}
   # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.
   test:integration:content:
+    runner: true
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
       - test:integration
+      - --
     mode: files
     pass_paths: false
     cache: false
@@ -430,10 +534,17 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/user/**'
       - '!.arc/system/.internal/candidates/**'
+      # Decision records and supplemental research and analysis, which no integration test reads.
+      - '!.arc/reference/adr/adr-*.md'
+      - '!.arc/reference/supplemental/research/research-*.md'
+      - '!.arc/reference/supplemental/analysis/analysis-*.md'
+    shards:
+      routed: true
+      count: 4
+      argument: --shard={index}/{count}
   test:arc-contracts:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -463,13 +574,24 @@ checks:
     shards:
       count: 4
       argument: --shard={index}/{count}
+  # The hosted Windows/macOS job divides the tier among shards balanced by each platform's own recorded durations, or
+  # by the integration durations until a full run has saved them; the Linux job runs it whole. Outside a pull request,
+  # a change that reaches none of the store suites leaves them all out; any other run takes them all.
   test:portability:
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
+      ARC_STORE_CHECK: value
+      ARC_STORE_BURSTS: value
     command:
       - npm
       - run
       - -s
       - test:portability
+      - --
     gate: merge
+    mode: files
+    pass_paths: false
+    widen: false
     ci_only: true
     inputs:
       - '**'
@@ -477,6 +599,9 @@ checks:
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
       - '!.arc/system/.internal/candidates/**'
+    shards:
+      count: 7
+      argument: --shard={index}/{count}
   test:portability:macos:
     command:
       - npm
@@ -492,14 +617,14 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/system/.internal/candidates/**'
   test:e2e:local:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - node
       - --import
       - tsx
       - scripts/run-local-e2e.mjs
     mode: files
+    select_deletions: true
     cache: false
     inputs:
       - packages/arc-framework/__tests__/e2e/**
@@ -509,7 +634,6 @@ global_inputs:
   - .npmrc
   - scripts/check-install-policy.mjs
   - package.json
-  - scripts/check-runner.sh
   - package-lock.json
   - packages/arc-framework/package.json
   - .editorconfig

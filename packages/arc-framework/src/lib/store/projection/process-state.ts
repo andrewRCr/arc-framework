@@ -1,0 +1,166 @@
+/** One command's projection bindings, shared by stores constructed at different call sites. */
+import type { Slug } from "../../kernel/index.js";
+import type { ActiveLayoutContext } from "../../layout/index.js";
+import { onCheckoutChange } from "../../git/checkout-change.js";
+import { canonicalCheckoutSync } from "./checkout-identity.js";
+import type { Store } from "../contract.js";
+import type { RecordReference } from "../identity.js";
+import type { HistoryMemo } from "./base-recovery.js";
+import type { ProjectionStubMintPort } from "./stub-mint-port.js";
+import type { ProjectionLocation } from "./location.js";
+import type { ProjectionEnginePorts } from "./engine-ports.js";
+import type { ReadBackContext } from "./read-back.js";
+import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
+import type { ProjectionConfiguration } from "./configuration.js";
+import type { TakeInPort, TakeInRequest } from "./take-in-port.js";
+import type { WriteBackDiagnostic, WriteBackResolution } from "./write-back.js";
+import type { ProjectionStart } from "./engine.js";
+import type { ProjectionResolution } from "./save-resolution.js";
+import type { ProjectionRefreshRequest } from "./refresh.js";
+import type { ProjectionLinkBoundary } from "./discovery-links.js";
+import type { ProjectionFanOutBinding } from "./fan-out-binding.js";
+
+/** A round visits every registered checkout; `own` visits the writer's checkout alone. */
+export type FanOutScope = "all" | "own";
+
+/** A start that disables this command's projection while preserving the command's ordinary execution. */
+export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch" | "mismatch"; readonly mark: RefusedMark }
+
+/** Bound edit policy; an absent policy grants the edit. */
+export type ProjectionRights = (request: TakeInRequest) => Promise<RefusedMark | null>;
+
+/** The selected backend and checkout, retained even when initialization is disabled or refused. */
+export interface ProjectionCommandBinding {
+  readonly store: Store;
+  readonly checkout: string;
+  readonly mint?: ProjectionStubMintPort;
+}
+
+/** Per-worktree bindings and copy bookkeeping owned by this command. */
+export interface ProjectionRootState {
+  readonly checkout: string;
+  readonly store: Store;
+  readonly location: ProjectionLocation;
+  readonly ports: ProjectionEnginePorts;
+  readonly context: ReadBackContext;
+  readonly takeIn: TakeInPort;
+  readonly identity: Slug;
+  readonly view: ProjectionIndex["projectedUnder"]["view"];
+  blockedByLink: ProjectionLinkBoundary;
+  /** Links the command's start already reported here, which a later lay in the same command does not report again. */
+  readonly reportedLinks: readonly string[];
+  claim: Slug | null;
+  claimUid?: string;
+  claimKind?: "work-unit" | "errand" | "partial-errand";
+  layoutActive: "nested" | "flat";
+  checkpoint: (() => Promise<void>) | null;
+  readonly copies: { path: string; copy: string }[];
+  readonly removals: string[];
+  readonly unsent: Set<string>;
+  readonly discovered: string[];
+  changed: boolean;
+  sent?: boolean;
+  sweepEmpty?: boolean;
+  fanOutTimes?: number[];
+  ready: boolean;
+  spawned?: boolean;
+  writable: (path: string) => boolean;
+  rights?: ProjectionRights;
+  mint?: ProjectionStubMintPort;
+  refresh?: (input: ProjectionRefreshRequest) => Promise<ProjectionIndex>;
+  reproject?: (input: ProjectionRefreshRequest) => Promise<ProjectionIndex>;
+  materialize?: () => Promise<void>;
+}
+
+/** Mutable state with a deliberate command boundary; no binding outlives the next start. */
+export interface ProjectionProcessState {
+  command: ProjectionCommandBinding | null;
+  start: ProjectionStart | null;
+  resolution: ProjectionResolution | null;
+  skip: ProjectionSkip | null;
+  lockHeld: boolean;
+  /** Runs one fan-out round, or a visit to the writer's checkout alone, answering the own writes it could not mark. */
+  fanOut?: (ownWrites: readonly RecordReference[], round: number, scope?: FanOutScope) => Promise<readonly RecordReference[] | undefined>;
+  fanOutBinding?: ProjectionFanOutBinding;
+  fanOutRunning: boolean;
+  fanOutHolds: number;
+  fanOutSuppressed: number;
+  fanOutOwnWrites: RecordReference[];
+  history: HistoryMemo | null;
+  materializeSpawn: ((checkout: string) => Promise<void>) | null;
+  readonly roots: Map<string, ProjectionRootState>;
+  readonly retiring: Set<string>;
+  /** Checkouts whose marker or layout configuration this command's start could not read; its fan-out leaves them for their next command. */
+  readonly faulted: Set<string>;
+  readonly actors: Map<string, Promise<string>>;
+  readonly capabilities: Map<string, boolean>;
+  readonly composedCapabilities: Map<string, boolean>;
+  readonly engineCapabilityRoots: Set<string>;
+  readonly layoutContexts: Map<string, Promise<ActiveLayoutContext>>;
+  readonly configurations: Map<string, Promise<ProjectionConfiguration>>;
+  readonly fanOutRounds: Set<string>;
+  readonly notices: string[];
+  readonly diagnostics: WriteBackDiagnostic[];
+  readonly resolutions: WriteBackResolution[];
+}
+
+function freshState(composedCapabilities = new Map<string, boolean>()): ProjectionProcessState {
+  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, fanOutRunning: false,
+    fanOutHolds: 0, fanOutSuppressed: 0, fanOutOwnWrites: [],
+    history: null, materializeSpawn: null, roots: new Map(), retiring: new Set(), faulted: new Set(), actors: new Map(),
+    capabilities: new Map(composedCapabilities), composedCapabilities,
+    engineCapabilityRoots: new Set(), layoutContexts: new Map(), configurations: new Map(), fanOutRounds: new Set(),
+    notices: [], diagnostics: [], resolutions: [] };
+}
+const key = Symbol.for("arc.projection.command-state");
+const processState = globalThis as typeof globalThis & { [key]?: ProjectionProcessState };
+
+/** Read the current command's bindings without consulting a store, configuration, or filesystem. */
+export function projectionProcessState(): ProjectionProcessState { return processState[key] ??= freshState(); }
+
+/** Record the layout capability of a lazily composed local operational store. */
+export function recordComposedStoreCapability(checkoutRoot: string, stateOffBranch: boolean): void {
+  const state = projectionProcessState();
+  state.composedCapabilities.set(checkoutRoot, stateOffBranch);
+  if (!state.engineCapabilityRoots.has(checkoutRoot)) setEffectiveCapability(state, checkoutRoot, stateOffBranch);
+}
+
+/** Keep the command engine's selected capability authoritative over later composition. */
+export function recordEngineStoreCapability(checkoutRoot: string, stateOffBranch: boolean): void {
+  const state = projectionProcessState();
+  state.engineCapabilityRoots.add(checkoutRoot);
+  setEffectiveCapability(state, checkoutRoot, stateOffBranch);
+}
+
+function setEffectiveCapability(state: ProjectionProcessState, checkoutRoot: string, stateOffBranch: boolean): void {
+  if (state.capabilities.get(checkoutRoot) !== stateOffBranch) state.layoutContexts.delete(checkoutRoot);
+  state.capabilities.set(checkoutRoot, stateOffBranch);
+}
+
+/** Start a new command, dropping old ports, memoized history, skip verdicts, and copy bookkeeping. */
+export function beginProjectionCommand(): ProjectionProcessState {
+  processState[key]?.fanOutBinding?.close();
+  return processState[key] = freshState(projectionProcessState().composedCapabilities);
+}
+
+onCheckoutChange(change => {
+  const state = projectionProcessState();
+  // Layout contexts are cached under a reader's spelling and under the projection's canonical one, so a change drops both.
+  const dropLayout = (checkout: string): void => {
+    state.layoutContexts.delete(checkout);
+    state.layoutContexts.delete(canonicalCheckoutSync(checkout));
+  };
+  if (change.kind === "marker") { dropLayout(change.checkoutRoot); return; }
+  // Roots take the canonical spelling; the capability maps keep the store's own root spelling.
+  if (state.roots.delete(canonicalCheckoutSync(change.from))) state.diagnostics.push({ path: change.from, copy: null, mark: {
+    reason: `Projection checkout moved from ${change.from} to ${change.to}; its old binding was released.`,
+    remedy: { text: "The next projection visit binds the new path; kept copies settle at its next command." } } });
+  dropLayout(change.from);
+  dropLayout(change.to);
+  for (const capabilities of [state.capabilities, state.composedCapabilities]) {
+    const value = capabilities.get(change.from);
+    if (value !== undefined) capabilities.set(change.to, value);
+    if (change.from !== change.to) capabilities.delete(change.from);
+  }
+  if (state.engineCapabilityRoots.delete(change.from)) state.engineCapabilityRoots.add(change.to);
+});

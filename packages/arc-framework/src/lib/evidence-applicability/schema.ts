@@ -5,6 +5,7 @@ import { z } from "zod";
 import { DeliveryContributionEndpointsSchema, DeliveryContributionProofResultSchema } from
   "../delivery/contribution-proof.js";
 import { GitMergeFeasibilitySchema } from "../git/merge-feasibility.js";
+import { compareByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import {
@@ -21,16 +22,11 @@ const DigestSchema = CanonicalDigestSchema;
 const EvidencePathSchema = z.string().min(1)
   .refine((value): boolean => isManagedPath(value), "must be a managed repository path");
 
-/** Compare evidence paths by their repository-facing UTF-8 bytes. */
-export function compareEvidencePaths(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
-}
-
 function canonicalPathArray(minimum: number) {
   return z.array(EvidencePathSchema).min(minimum).superRefine((paths, context) => {
     let previous: string | undefined;
     if (paths.some((path) => {
-      const invalid = previous !== undefined && compareEvidencePaths(previous, path) >= 0;
+      const invalid = previous !== undefined && compareByCanonicalBytes(previous, path) >= 0;
       previous = path;
       return invalid;
     })) {

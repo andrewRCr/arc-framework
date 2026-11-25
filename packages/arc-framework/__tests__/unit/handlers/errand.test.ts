@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildErrandNextResult,
   buildErrandCheckJsonEnvelope,
   formatErrandCheckCaveats,
   formatErrandCloseResult,
   formatErrandNextResult,
 } from "../../../src/handlers/errand.js";
+import { buildErrandNextResult } from "../../../src/commands/errand-next.js";
 import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
 import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 

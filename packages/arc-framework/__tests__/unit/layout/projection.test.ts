@@ -142,3 +142,13 @@ describe("resolveArcPath", () => {
     expect((thrown as Error).cause).toBeDefined();
   });
 });
+
+it.each([
+  [{ kind: "own", claim: "hyphenated-example", layoutActive: "nested" }, ".arc/active/current"],
+  [{ kind: "own", claim: "hyphenated-example", layoutActive: "flat" }, ".arc/active"],
+  [{ kind: "another" }, ".arc/active/in-flight/hyphenated-example"],
+])("resolves an active work item's projected location %j", (location, directory) => {
+  const projected = address({ kind: "work-unit-artifact", slug: "hyphenated-example", artifact: "meta",
+    placement: { kind: "active", scope: { kind: "project", location } } });
+  expect(resolveArcPath(projected)).toBe(`${directory}/meta-hyphenated-example.md`);
+});

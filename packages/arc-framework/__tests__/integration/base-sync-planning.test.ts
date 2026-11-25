@@ -1,4 +1,5 @@
 /** Detached Planning catch-up preserves commits in Git's original object graph. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, expect, it } from "vitest";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -23,8 +24,8 @@ it("refuses detached work concealed by a replacement graft and syncs after a bra
   const head = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
   await exec("git", ["replace", "--graft", base, head]);
   expect((await exec("git", ["rev-list", "HEAD", "--not", base])).stdout.trim()).toBe("");
-  const h = createLifecycleHarness(); await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user" });
+  const h = createLifecycleHarness(); const meta = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(meta), spawningIdentity: "test-user" });
   let synchronized = false;
   const ctx = { cwd, exec, store: h.store, baseBranch: "main", sync: async () => {
     synchronized = true; return { status: "unchanged" as const, base: "main", at: base };

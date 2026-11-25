@@ -13,7 +13,6 @@
  * @module
  */
 
-import { resolveArcPath } from "../layout/index.js";
 import { join, relative, sep } from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
 
@@ -31,12 +30,14 @@ import {
 } from "./meta-schema.js";
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
 import { WorkUnitStateSchema } from "../kernel/index.js";
+import type { Store } from "../store/contract.js";
+import type { OwnerIdentity } from "../store/identity.js";
 import { writePreformattedMetaBullet } from "../store/kinds/meta/preformatted-writer.js";
 import {
   writeMetaState, writeMetaBranch, writeMetaClass, writeMetaTitle,
 } from "../store/kinds/meta/writers.js";
 import {
-  META_FIELDS, formatValue, renderCoreTable, parseIdentifierList, PLACEHOLDER, isSentinel,
+  META_FIELDS, formatValue, renderCoreTable, parseIdentifierList, PLACEHOLDER, isSentinel, isNarrativeInternalOrigin,
   type MetaFieldName, type MetaProjectionOverrides, type MetaRecord,
 } from "../store/kinds/meta/projection.js";
 export * from "../store/kinds/meta/projection.js";
@@ -53,6 +54,8 @@ const META_PREFIX = "meta-";
 const FULL_SUFFIX = ".md";
 
 export interface ReadActiveCandidatesOptions {
+  /** Retain the invocation's operational authority for checkout-held records. */
+  store?: Store;
   /**
    * Active dir relative to `cwd` as path segments. Defaults to `[".arc", "active"]`.
    * Contributor flow uses `[".arc", "user", identity, "active"]`.
@@ -64,6 +67,8 @@ export interface ReaderResult {
   layout: ActiveLayout;
   candidates: MetaFileCandidate[];
   warnings: string[];
+  /** Native generation identities, kept outside the serialized candidate fields. */
+  owners?: ReadonlyMap<string, OwnerIdentity>;
 }
 
 /**
@@ -72,8 +77,8 @@ export interface ReaderResult {
  * The default project root resolves checkout-held work-unit records. Custom
  * and contributor roots enumerate `meta-*.md` files directly at their root.
  *
- * A missing root directory is not an error — returns an empty candidate set
- * with a warning naming the supplied root.
+ * A missing legacy or custom root returns no candidates and a warning.
+ * Operational state does not require a materialized active directory.
  * @param cwd - Checkout root.
  * @param options - Optional custom active-root segments.
  * @returns Parsed meta candidates in the full layout, with reader warnings.
@@ -95,12 +100,13 @@ export async function readActiveMetaCandidates(
     // Swallow — handled below as a warning.
   }
 
+  if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd, options?.store,
+    exists ? undefined : `${rootDisplay} not found — no active work units to enumerate.`);
+
   if (!exists) {
     warnings.push(`${rootDisplay} not found — no active work units to enumerate.`);
     return { layout: "full", candidates: [], warnings };
   }
-
-  if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd);
 
   const paths = await findMetaFiles(activeDir);
   paths.sort();
@@ -188,25 +194,30 @@ function candidateFromContent(cwd: string, absPath: string, content: string, war
   };
 }
 
-async function readHeldCandidates(cwd: string): Promise<ReaderResult> {
-  const [{ resolveCurrentWorkUnit }, { createStore }, { createDefaultStorePorts }] = await Promise.all([
+async function readHeldCandidates(cwd: string, selectedStore?: Store, missingRootWarning?: string): Promise<ReaderResult> {
+  const [{ resolveCurrentWorkUnit }, { createStore }, { createDefaultStorePorts }, { workItemArtifactPath }] = await Promise.all([
     import("../store/current-work-unit.js"), import("../store/create.js"), import("../store/default-ports.js"),
+    import("../store/lifecycle-storage.js"),
   ]);
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd }));
+  const store = selectedStore ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd }));
+  if (missingRootWarning !== undefined && !store.capabilities.stateOffBranch) return {
+    layout: "full", candidates: [], warnings: [missingRootWarning],
+  };
   const resolved = await resolveCurrentWorkUnit({ cwd, store });
   const warnings = [...resolved.warnings];
+  if (resolved.status === "unbound") warnings.push(resolved.unbound.reason);
   const candidates: MetaFileCandidate[] = [];
+  const owners = new Map<string, OwnerIdentity>();
   for (const current of resolved.candidates) {
-    const path = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: current.reference.owner.name,
-      placement: { kind: "active", scope: { kind: "project" } } });
+    const path = await workItemArtifactPath(cwd, current.reference.owner.name, "meta", { kind: "active" }, null);
     try {
       const read = await store.read({ reference: current.reference });
       if (read.status === "refused") { warnings.push(`Unable to read ${path}: ${read.refusal.condition}`); continue; }
       const candidate = candidateFromContent(cwd, join(cwd, path), read.result.content, warnings);
-      if (candidate !== null) candidates.push(candidate);
+      if (candidate !== null) { candidates.push(candidate); owners.set(candidate.path, current.reference.owner); }
     } catch (error) { warnings.push(`Unable to read ${path}: ${error instanceof Error ? error.message : String(error)}`); }
   }
-  return { layout: "full", candidates, warnings };
+  return { layout: "full", candidates, warnings, ...(store.capabilities.stateOffBranch ? { owners } : {}) };
 }
 
 export interface ParsedMetaFields {
@@ -558,20 +569,29 @@ export function parseMetaProjectionRecord(content: string): MetaProjectionRecord
   const record = {} as MetaProjectionRecord;
   for (const field of META_FIELDS) {
     const raw = field.render === "core-table" ? table[field.name] ?? null : extractField(section, field.name);
-    // Token fields strip to a bare value; `url` additionally unwraps the `<…>`
-    // autolink (a real URL) before the backtick strip (a non-URL ref); narrative
-    // keeps its code spans. (Core table values arrive pre-stripped and are all
-    // non-narrative, so the strip is a no-op there.)
-    if (raw === null || field.valueClass === "narrative") {
+    // Token fields strip to a bare value; locators also unwrap autolinks.
+    // Narrative values, including internal Origin explanations, retain code spans.
+    if (raw === null || field.valueClass === "narrative"
+      || field.valueClass === "origin" && isNarrativeInternalOrigin(raw)) {
       record[field.name] = raw;
       continue;
     }
 
-    const stripped = stripInlineCode(field.valueClass === "url" ? stripAutolink(raw) : raw);
+    const locator = field.valueClass === "url" || field.valueClass === "origin";
+    const stripped = stripInlineCode(locator ? stripAutolink(raw) : raw);
     record[field.name] =
       field.valueClass === "identifier-list" ? normalizeIdentifierListValue(stripped) : stripped;
   }
   return MetaProjectionRecordSchema.parse(record);
+}
+
+/** Read creation inputs while preserving invalid explicit values for the command's validator. */
+export function parseMetaCreationFields(content: string): {
+  owner: string | null; priority: string | null; workClass: string | null; origin: string | null; design: string | null;
+} {
+  const fields = parseMetaProjectionRecord(content);
+  return { owner: nullableProjectionValue(fields.Owner), priority: fields.Priority,
+    workClass: fields.Class === "[TBD]" ? null : fields.Class, origin: fields.Origin, design: fields.Design };
 }
 
 /**

@@ -72,7 +72,7 @@ export type DeliveryReviewFixDriveEffect =
     }
   | {
       readonly kind: "boundary-carry";
-      readonly path: string;
+      readonly path?: string;
       readonly candidateId: string;
       readonly stateRevision: number;
     }
@@ -110,7 +110,7 @@ export interface DeliveryReviewFixDrivePorts<TAction extends DeliveryReviewFixDr
   }): Promise<
     | {
         readonly status: "carried";
-        readonly path: string;
+        readonly path?: string;
         readonly candidateId: string;
         readonly stateRevision: number;
       }
@@ -329,7 +329,7 @@ export async function driveDeliveryReviewFixContinuation<
       }
       effectLog.push({
         kind: "boundary-carry",
-        path: carried.path,
+        ...(carried.path === undefined ? {} : { path: carried.path }),
         candidateId: carried.candidateId,
         stateRevision: carried.stateRevision,
       });
@@ -363,12 +363,11 @@ export async function driveDeliveryReviewFixContinuation<
     });
     const boundaryCarry = result.boundaryCarry;
     if (typeof boundaryCarry === "object" && boundaryCarry !== null
-      && "path" in boundaryCarry && typeof boundaryCarry.path === "string"
       && "candidateId" in boundaryCarry && typeof boundaryCarry.candidateId === "string"
       && "stateRevision" in boundaryCarry && typeof boundaryCarry.stateRevision === "number") {
       effectLog.push({
         kind: "boundary-carry",
-        path: boundaryCarry.path,
+        ...("path" in boundaryCarry && typeof boundaryCarry.path === "string" ? { path: boundaryCarry.path } : {}),
         candidateId: boundaryCarry.candidateId,
         stateRevision: boundaryCarry.stateRevision,
       });

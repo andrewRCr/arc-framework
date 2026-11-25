@@ -66,7 +66,6 @@ describe("hosted producer reference refusals", () => {
             confirmTarget: async () => handle.admission.reviewTarget,
             dispositionStore: {
               readDispositionRecord: async () => null,
-              appendDispositionRecord: async () => { throw new Error("not used"); },
             },
           }),
           write: (text) => output.push(text), setExitCode: (code) => exitCodes.push(code),

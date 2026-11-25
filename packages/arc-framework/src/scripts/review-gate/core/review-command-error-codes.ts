@@ -4,6 +4,8 @@ import { z } from "zod";
 
 export const ReviewCommandErrorCodeSchema = z.enum([
   "invalid-input",
+  "project-identity-unavailable",
+  "store-refused",
   "corrupt-state",
   "uncertain-provider-execution",
   "unexpected-failure",

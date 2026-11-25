@@ -36,7 +36,7 @@ it("refuses a detached merge absent from base, then adopts the branch preserving
     indexFs: { readdir: unsupported, readFile: unsupported }, setPhase: unsupported, relocateArtifacts: unsupported,
     reconcileBranch: unsupported, reconcileWorkUnitWorktree: unsupported, writeSoftFields: unsupported,
     writeBranchField: unsupported, writeCurrentWorkflowField: unsupported, writeDesignField: unsupported,
-    currentWuReconcile: buildStoreCurrentWuReconcile(h.store) };
+    currentWuReconcile: buildStoreCurrentWuReconcile(root!, h.store) };
   const input = ActivateCommandInputSchema.parse({ slug: "example", type: "feat", action: "Begin work" });
   const params = { name: input.slug!, toBranch: `${input.type}/${input.slug}`, baseBranch: "main", nextAction: input.action };
   expect(await runActivate(ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining(head) });

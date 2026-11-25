@@ -1,21 +1,28 @@
 /** Public API for semantic ARC layout projection and materialization. */
 
-export { identifyArcFileAddress } from "./file-identification.js";
+export { companionArtifactName, companionStoredName, companionKeyForFile, validateCompanionKey } from "./companion-key.js";
+export { identifyArcFileAddress, type FileAddressContext } from "./file-identification.js";
 export { LayoutError } from "./errors.js";
 export type { LayoutErrorCode } from "./errors.js";
 export {
   identifyWorkUnitArtifactPath,
   isProjectDocumentPath,
   type IdentifiedWorkUnitArtifact,
+  type ActiveLayoutContext,
 } from "./identification.js";
 export { materializeArcPath } from "./materialization.js";
 export { LAYOUT_SCHEMA_IDS, createLayoutRegistry } from "./registry.js";
 export { resolveArcPath } from "./projection.js";
+export { resolveWorkUnitSpecExportPath } from "./work-unit-export.js";
 export {
+  PROJECTED_LIFECYCLE_PATTERNS,
   PROJECTED_LIFECYCLE_ROOTS,
+  PROJECTED_PERSONAL_PATTERN,
   PROJECTED_PERSONAL_ROOT,
   isProjectedPath,
   isProjectedLifecyclePath,
+  projectedRootPaths,
+  projectedRootPatterns,
 } from "./projected-roots.js";
 export {
   TEMPLATE_BINDING_SUFFIX,
@@ -46,4 +53,5 @@ export type {
   TemplateRelativePath,
   WorkUnitArtifactKind,
   WorkUnitPlacement,
+  OwnActiveLocation,
 } from "./schema.js";

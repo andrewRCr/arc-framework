@@ -10,7 +10,8 @@ import { writeEditorDocuments } from "../../../src/lib/schema-command/editor-doc
 import type { SpawnWorktreeContext } from "../../../src/lib/git/worktree-scaffold.js";
 import { readWorktreeMarkerGeneration } from "../../../src/lib/git/worktree-marker.js";
 import { createTempRepo, cleanupTempDir, makeIOContext, makeGitExec, makeGitExecInput,
-  loadRecipe, DEFAULT_PROMPTS, getArcTemplatePath, getInternalTemplatePath } from "../../helpers/integration.js";
+  DEFAULT_PROMPTS } from "../../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../../helpers/init-temp-repo.js";
 
 const directory = resolveArcPath({ kind: "editor-document-root" });
 describe("cold-start editor-document provisioning", () => {

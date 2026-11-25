@@ -45,6 +45,8 @@ function mechanicalReapplyExec(): RawGitExec {
   ]);
   return scriptRawGitExec([
     { match: ["merge-base", "--all", oid("a"), oid("b")], responses: [result(`${oid("1")}\n`)] },
+    // The current head has already taken the base in, so its contribution starts at the base itself.
+    { match: ["merge-base", "--all", oid("c"), oid("b")], responses: [result(`${oid("b")}\n`)] },
     { match: { prefix: ["merge-base", "--is-ancestor"] }, responses: [divergent] },
     { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [result(`${oid("c")}\n`)] },
     {

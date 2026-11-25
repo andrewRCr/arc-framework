@@ -7,6 +7,8 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { CALL_LIMIT } from "../helpers/call-limit.js";
+
 const execute = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -58,10 +60,12 @@ describe("one-shot TypeScript package scripts", () => {
       "lint:md:descriptors": "node --import tsx packages/arc-framework/src/scripts/lint-task-descriptors.ts",
       "lint:md:dependencies": "node --import tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
       "format:tables": "node --import tsx packages/arc-framework/src/scripts/format-tables.ts",
+      "format:prose": "node --import tsx packages/arc-framework/src/scripts/format-prose.ts",
       "render:framework": "node --import tsx packages/arc-framework/src/scripts/render-framework.ts",
       "audit:tables": "node --import tsx packages/arc-framework/src/scripts/audit-tables.ts",
       "audit:emphasis": "node --import tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
       "inventory:command-inputs": "node --import tsx packages/arc-framework/src/scripts/render-command-input-inventory.ts",
+      "lint:adr": "node --import tsx packages/arc-framework/src/scripts/check-adr-records.ts",
       "lint:arc:triggers": "node --import tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
       "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
       "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
@@ -106,6 +110,7 @@ describe("one-shot TypeScript package scripts", () => {
       {
         cwd: repositoryRoot,
         encoding: "utf8",
+        timeout: CALL_LIMIT,
         env: { ...process.env, FORCE_COLOR: undefined, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
       },
     )).rejects.toMatchObject({
@@ -114,6 +119,15 @@ describe("one-shot TypeScript package scripts", () => {
       stderr: expect.stringContaining("--output requires a path"),
     });
     expect(await readFile(marker, "utf8")).toMatch(/^armed:\d+\n(?:armed:\d+\n)*$/u);
+  }, 2 * CALL_LIMIT);
+
+  it("shows prose formatter usage before validating help as a Markdown path", async () => {
+    const result = await execute(npmExecutable, ["run", "-s", "format:prose", "--", "--help"], {
+      cwd: repositoryRoot, encoding: "utf8", env: { ...process.env, FORCE_COLOR: undefined },
+    });
+    expect(result.stdout).toContain("Usage: npm run format:prose");
+    expect(result.stdout).toContain("--line");
+    expect(result.stderr).toBe("");
   }, PROCESS_TIMEOUT_MS);
 
   it("shows framework renderer usage before validating help as a Markdown path", async () => {

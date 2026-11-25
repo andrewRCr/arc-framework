@@ -17,8 +17,9 @@ function placed(input: WriteCheckInput, nextPlacement: ReadPlacement = active, p
 const inconsistent = content.replace("`process-task-loop`", "`integrate-work-unit`");
 const planning = content.replace("`Active`", "`Planning`").replace("`process-task-loop`", "`generate-tasks`");
 const unavailable = (input: WriteCheckInput, side: "before" | "after"): WriteCheckInput => {
-  input[side] = { ...input[side], read: async () => ({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
+  const view: WriteCheckInput["before"] = { ...input.before, read: async () => ({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
     namespace: "work-item", condition: "Record observation unavailable", remedy: { text: "Repair the namespace and retry." } } }) };
+  input[side] = view;
   return input;
 };
 describe("metadata lifecycle stage", () => {

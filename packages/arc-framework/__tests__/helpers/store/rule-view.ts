@@ -1,7 +1,8 @@
 /** Map-backed read views with real record envelopes and explicit exceptional lookups. */
+import { clashRepair } from "../../../src/lib/store/clash-repair.js";
 import {
   OwnerIdentitySchema, RecordVersionSchema, StoreRecordSchema, recordReferences, sameReference, sameOwner,
-  type LookupInput, type LookupResult, type ReadPlacement, type StoreRecord, type StoreResult, type StoreView,
+  type LookupInput, type LookupResult, type ReadPlacement, type StoreRecord, type StoreResult, type WriteCheckInput,
 } from "../../../src/lib/store/index.js";
 
 /** Build a validated fixture record with a stable generation and canonical placement.
@@ -13,7 +14,7 @@ import {
  * @param placement - Primary lifecycle location, or undefined for cohort/lineage.
  * @returns A validated contract record.
  */
-export function ruleRecord(kind: "work-item/meta" | "work-item/record" | "work-item/task-list" | "work-item/draft" | "work-item/spec" | "work-item/inbound" | "cohort/document" | "lineage/transition", name: string, uid: string, content = "", fields?: unknown, placement?: ReadPlacement): StoreRecord {
+export function ruleRecord(kind: "work-item/meta" | "work-item/record" | "work-item/task-list" | "work-item/draft" | "work-item/spec" | "work-item/inbound" | "work-item/cut-map" | "cohort/document" | "lineage/transition", name: string, uid: string, content = "", fields?: unknown, placement?: ReadPlacement): StoreRecord {
   const type = kind === "cohort/document" ? "cohort" : "work-item";
   const owner = OwnerIdentitySchema.parse({ type, name, uid });
   const reference = recordReferences[kind](owner);
@@ -28,10 +29,11 @@ export type RuleLookups = ReadonlyMap<string, StoreResult<LookupResult>>;
 /** Create a pure view whose normal lookups prefer live primary records.
  * @param records - Stored records in this side of the batch.
  * @param lookups - Explicit former-name, retired-origin, or refusal observations.
- * @returns The three read-only contract operations.
+ * @returns Read-only views; fixture history must be explicitly supplied by history-based tests.
  */
-export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLookups = new Map()): StoreView {
+export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLookups = new Map()): WriteCheckInput["before"] {
   return {
+    history: async () => { throw new Error("No history was supplied for this rule fixture."); },
     read: async ({ reference }) => {
       const candidates = records.filter((candidate) => sameReference(candidate.reference, reference)
         || (!("uid" in reference.owner) || reference.owner.uid === undefined)
@@ -40,7 +42,8 @@ export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLook
       const live = candidates.filter((record) => record.placement?.kind !== "completed");
       const selected = live.length > 0 ? live : candidates;
       if (selected.length > 1) return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
-        candidates: selected.map(({ reference }) => reference), condition: "Multiple fixture generations match.", remedy: { text: "Choose a unique fixture name." } } };
+        candidates: selected.map(({ reference }) => reference), tie: { liveness: live.length > 0 ? "live" : "completed", name: "current" },
+        condition: "Multiple fixture generations match.", remedy: clashRepair(selected.map(({ reference }) => reference), { liveness: live.length > 0 ? "live" : "completed", name: "current" }) } };
       return selected.length === 0 ? missing({ reference }) : { status: "ok", result: selected[0]! };
     },
     list: async ({ family, kind, owner, filter }) => {
@@ -64,7 +67,11 @@ export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLook
       const resolved = live.length > 0 ? live : candidates;
       if (resolved.length === 0) return missing({ lookup: input });
       if (resolved.length > 1) return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
-        candidates: resolved.map(({ reference }) => reference), condition: "Multiple fixture generations match.", remedy: { text: "Choose a unique fixture name." } } };
+        candidates: resolved.map(({ reference }) => reference),
+        ...(input.kind === "slug" ? { tie: { liveness: live.length > 0 ? "live" as const : "completed" as const, name: "current" as const } } : {}),
+        condition: "Multiple fixture generations match.", remedy: input.kind === "slug"
+          ? clashRepair(resolved.map(({ reference }) => reference), { liveness: live.length > 0 ? "live" : "completed", name: "current" })
+          : { text: "Name the intended owner by UID, then repeat the lookup." } } };
       return { status: "ok", result: { reference: resolved[0]!.reference } };
     },
   };

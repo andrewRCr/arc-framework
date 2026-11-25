@@ -3,6 +3,7 @@ import type { Store } from "./contract.js";
 import type { StoreSyncPort } from "./operational-sync.js";
 import type { Mutation } from "./write.js";
 import type { Links } from "./links.js";
+import type { StoreRecord } from "./read.js";
 import type { ErrandRecordIO } from "../errand/ref-tree.js";
 import { transactTransientIdentities, type IdentityTransactionOutcome } from "../errand/identity-transaction.js";
 import { ordinaryErrandTransform, type OrdinaryErrandTransition, type OrdinaryErrandRecord } from "../errand/identity-transitions.js";
@@ -12,6 +13,8 @@ import { readStoreErrand, transitionStoreErrand } from "../errand/store-runtime.
 /** Optional invocation-bound store and backend synchronization operations. */
 export interface ErrandRuntimeStorageOptions {
   readonly store?: Store;
+  readonly selectedRecord?: StoreRecord;
+  readonly operand?: string;
   readonly sync?: StoreSyncPort;
   readonly projectId?: () => Promise<string>;
   readonly now?: () => string;

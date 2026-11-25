@@ -173,6 +173,24 @@ describe("review contribution applicability", () => {
     })).toMatchObject({ state: "classification-failed", reason: "malformed-evidence" });
   });
 
+  /**
+   * A private-use BMP character sorts after an astral one by UTF-16 code units but before it by UTF-8 bytes,
+   * so only this pair tells the residual's canonical order apart from JavaScript's default string order.
+   */
+  it("holds residual paths to their UTF-8 byte order", () => {
+    const input = movedSelector();
+    const bmpPath = "packages/arc-framework/src/\uE000.ts";
+    const astralPath = "packages/arc-framework/src/\u{10000}.ts";
+    expect(classifyReviewContributionApplicability(input, {
+      endpoints: endpoints(),
+      proof: { status: "refused", reason: "contribution-diverged", paths: [bmpPath, astralPath] },
+    })).toMatchObject({ state: "decision-required", paths: [bmpPath, astralPath] });
+    expect(classifyReviewContributionApplicability(input, {
+      endpoints: endpoints(),
+      proof: { status: "refused", reason: "contribution-diverged", paths: [astralPath, bmpPath] },
+    })).toMatchObject({ state: "classification-failed", reason: "malformed-evidence" });
+  });
+
   it("preserves D8.7 rerun, stop, upgrade, and unavailable outcomes", () => {
     const input = movedSelector();
     expect(classifyReviewContributionApplicability(input, null)).toMatchObject({

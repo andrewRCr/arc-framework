@@ -1,4 +1,4 @@
-/** Internal next-pass context shared by evidence composition and the policy reducer. */
+/** Next-pass context and the next look's coverage it settles, shared by evidence composition and the policy reducer. */
 import { z } from "zod";
 import { IncrementalReviewScopeSchema } from "../core/incremental-review-scope.js";
 
@@ -31,4 +31,40 @@ export function validateReviewNextPassContext(
     context.addIssue({ code: "custom", path: ["nextPassContext"],
       message: "next-pass context can be applied only to the standard lane" });
   }
+}
+
+type NextLookRequest = {
+  readonly lane: "frontline" | "standard";
+  readonly nextPassContext?: ReviewNextPassContext;
+  readonly chosenCoverage?: "complete" | "incremental";
+};
+
+/** Whether the next standard look is an incremental one, which runs outside the complete-pass ceiling. */
+export function incrementalNextPass(request: NextLookRequest): boolean {
+  return request.lane === "standard" && request.nextPassContext?.incremental != null && request.chosenCoverage !== "complete";
+}
+
+/**
+ * At the ceiling a converged `full-final` look's offered fix check is the only look admitted without an override, so
+ * unchosen coverage selects it. A forced hosted source or an Owner grant asks for a complete pass instead.
+ */
+export function withCeilingFixCheck<Request extends NextLookRequest & {
+  readonly invocation?: { readonly mode: string; readonly sourceId?: string };
+  readonly standardReview?: { readonly retrigger: string };
+  readonly ceilingOverride?: unknown;
+  readonly additionalPassAuthorization?: unknown;
+}>(request: Request, atCeiling: boolean): Request {
+  const forcedHosted = request.invocation?.mode === "force" && request.invocation.sourceId !== "delegated-agent";
+  const granted = request.ceilingOverride !== undefined || request.additionalPassAuthorization !== undefined;
+  return atCeiling && !forcedHosted && !granted && request.chosenCoverage === undefined
+    && request.standardReview?.retrigger === "full-final" && request.nextPassContext?.convergence === "converged"
+    ? { ...request, chosenCoverage: "incremental" } : request;
+}
+
+/** Settle the next standard look's coverage as the ceiling counts it, or null while preparation offers the choice. */
+export function nextLookCoverage(request: NextLookRequest): "complete" | "incremental" | null {
+  if (request.lane !== "standard") return null;
+  if (!incrementalNextPass(request)) return "complete";
+  return request.chosenCoverage === "incremental" || request.nextPassContext?.incremental?.basis === "delta-check"
+    ? "incremental" : null;
 }

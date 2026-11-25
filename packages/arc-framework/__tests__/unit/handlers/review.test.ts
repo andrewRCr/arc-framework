@@ -1,4 +1,7 @@
 import { withReviewReport } from "../../fixtures/review-report-input.js";
+import { createStore } from "../../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,6 +9,7 @@ import { dirname, join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 import { createHostedHandleFixture } from "../../fixtures/hosted-review.js";
+import { candidateDecisionSelectionFixture } from "../../helpers/candidate.js";
 
 import {
   hostedFixSettlementPerformed,
@@ -1052,6 +1056,34 @@ describe("handleReviewResolve", () => {
 });
 
 describe("handleReviewStatus", () => {
+  it.each(["target", "work-unit"] as const)("refuses a native decision reference on the %s route in the repository arm, "
+    + "and resolves once it is omitted", async route => {
+    const statusTarget = { repository: "owner/repo", headRef: "delivery/example/member-1", headSha: "c".repeat(40) };
+    const result = { schemaVersion: 1 as const, mode: "review-status" as const, target: statusTarget,
+      requiredChecks: "green" as const, hostReview: { state: "clear" as const },
+      routedObligation: { state: "review-required" as const, detail: "Resolved." }, currentBaseOid: "b".repeat(40),
+      movement: "disjoint" as const, baseMovement: { coordinates: { repository: "owner/repo", changeRequest: 42,
+        base: "b".repeat(40), head: statusTarget.headSha },
+      overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] } },
+      state: "review-required" as const, nextAction: "run-review" as const };
+    const ceiling = { target: { repository: "owner/repo", pullRequest: 42, headSha: statusTarget.headSha }, lane: "standard",
+      exhaustedPassCount: 1, nextPass: 2 };
+    const store = createStore(createDefaultStorePorts({ checkoutRoot: "/repo", exec: scriptGitExec([]).exec }));
+    const run = async (override: object) => {
+      const output: string[] = [];
+      let exitCode: number | undefined;
+      await handleReviewStatus({ ...(route === "target" ? { target: JSON.stringify(statusTarget) } : { workUnit: "example" }),
+        ceilingOverride: JSON.stringify(override) }, undefined, { resolveRoot: () => "/repo",
+        resolve: async () => result, resolveWorkUnit: async () => result,
+        write: text => { output.push(text); }, setExitCode: code => { exitCode = code; } }, { store });
+      return { result: JSON.parse(output.join("")) as unknown, exitCode };
+    };
+
+    expect(await run({ ...ceiling, decisionKey: canonicalDigest({ grant: 1 }) })).toMatchObject({ exitCode: 64,
+      result: { state: "blocked", reason: "invalid-input", detail: expect.stringContaining("omit decisionKey") } });
+    expect(await run(ceiling)).toEqual({ result, exitCode: undefined });
+  });
+
   it("routes a work-unit cursor through joined delivery status without requiring a target", async () => {
     const output: string[] = [];
     const resolve = vi.fn();
@@ -2523,6 +2555,7 @@ describe("handleReviewPrePublication", () => {
       changeSet: undefined,
       lanes: { standard: { scopeMode: "chunked" } },
       frontlineCeilingHeadSha: undefined,
+      scopeJudgmentTarget: request.target,
     });
     expect(JSON.parse(String(resumed.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
@@ -4016,12 +4049,15 @@ describe("handleReviewPrePublication", () => {
     expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
   });
 
-  it("preserves a stale Candidate's typed refusal and deliberate re-root remedy", async () => {
+  it("binds a stale Candidate's deliberate re-root to the subject outside its lineage", async () => {
+    const candidateId = canonicalDigest({ candidate: "stale" });
+    const subjectDigest = canonicalDigest({ subject: "unverified" });
     const dependencies = boundary({
       compose: vi.fn(async () => ({
         status: "refused",
         code: "candidate-unexplained-delta",
         reason: "Run full work-unit verification to establish a new Candidate lineage root.",
+        candidateContinuation: { kind: "establish-new-root", candidateId, subjectDigest },
       })),
     });
 
@@ -4030,8 +4066,35 @@ describe("handleReviewPrePublication", () => {
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "review-pre-publication",
       error: { code: "candidate-unexplained-delta" },
-      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+      remedy: {
+        argv: ["arc", "attest", "example", "--new-root", "--expected-candidate", candidateId,
+          "--expected-subject", subjectDigest, "--json"],
+      },
     });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("routes a bounded applicability decision to the resolver its carried selector feeds", async () => {
+    const { selection } = candidateDecisionSelectionFixture();
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "refused",
+        code: "candidate-unexplained-delta",
+        reason: `${selection.selectionOfferText}\n${selection.recommendedActionText}`,
+        candidateContinuation: { kind: "resolve-applicability", applicability: selection },
+      })),
+    });
+
+    await handleReviewPrePublication("example", {}, dependencies);
+
+    const refusal = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(refusal).toMatchObject({
+      mode: "review-pre-publication",
+      error: { code: "candidate-unexplained-delta", message: expect.stringContaining(selection.selectionOfferText) },
+      applicability: selection,
+      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
+    });
+    expect(refusal).not.toHaveProperty("remedy.stdin");
     expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
   });
 

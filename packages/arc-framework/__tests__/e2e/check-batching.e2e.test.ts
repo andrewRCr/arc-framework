@@ -67,5 +67,5 @@ it.each([
   expect(result.exitCode, result.stderr).toBe(1);
   const [check] = JSON.parse(result.stdout).result.checks;
   expect(check).toMatchObject({ outcome: "failed" });
-  expect(check).not.toHaveProperty("reason");
+  expect(check.reason).toContain("killed before it finished");
 });

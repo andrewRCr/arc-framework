@@ -31,16 +31,18 @@ it.each(["absent", "malformed", "old"])("refuses %s qualification despite newer 
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-function guardDiagnostics(cli: string) {
+/** Admit a command as its re-run, which reports a stale build's qualification failure without rebuilding. */
+async function guardDiagnostics(cli: string) {
   const messages: string[] = [];
   let exitCode: number | undefined;
-  const eligible = runDevBuildGuard({ commandPath: "arc base merge" }, {
+  const admission = await runDevBuildGuard({ commandPath: "arc base merge" }, {
     token: undefined, readHolder: () => "absent", now: () => Date.now(),
-    freshness: createDevCheckDeps(cli),
+    freshness: createDevCheckDeps(cli), rerunning: true,
+    rebuild: () => { throw new Error("a re-run must not rebuild"); },
     writeStderr: (message) => { messages.push(message); },
     exit: (code) => { exitCode = code; },
   });
-  return { eligible, stderr: messages.join(""), exitCode };
+  return { admission, stderr: messages.join(""), exitCode };
 }
 
 it.each(["inventory", "installation", "read"])(
@@ -59,8 +61,8 @@ it.each(["inventory", "installation", "read"])(
         await writeFile(installedLock, JSON.stringify({ lockfileVersion: 3, packages: {} }));
       }
       if (fault === "read") await rm(stamp);
-      const refused = guardDiagnostics(cli);
-      expect(refused.eligible).toBe(false);
+      const refused = await guardDiagnostics(cli);
+      expect(refused.admission).toEqual({ kind: "run", refreshEligible: false });
       expect(refused.exitCode).toBe(1);
       expect(refused.stderr).toContain("error: arc dev build is stale (");
       expect(refused.stderr).toContain(
@@ -79,7 +81,8 @@ it.each(["inventory", "installation", "read"])(
       await rm(addedSource, { force: true });
       await writeFile(installedLock, originalLock);
       await writeFile(stamp, originalStamp);
-      expect(guardDiagnostics(cli)).toEqual({ eligible: true, stderr: "", exitCode: undefined });
+      await expect(guardDiagnostics(cli)).resolves.toEqual({ admission: { kind: "run", refreshEligible: true },
+        stderr: "", exitCode: undefined });
     } finally { await rm(root, { recursive: true, force: true }); }
   },
 );

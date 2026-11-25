@@ -1405,6 +1405,7 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+
   it("keeps unproved provider-native coverage outstanding without inventing a coverage offer", async () => {
     const vehicle = DeliveryReviewMemberVehicleSchema.parse({
       kind: "delivery-member",
@@ -2849,7 +2850,7 @@ describe("hosted reservation discharge", () => {
     });
 
     await expect(confirmIncrementalPredecessorApplicability({
-      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      dispositionStore: { readDispositionRecord: async () => null },
       readResponsePerformance: async () => null,
       predecessor: complete,
       current,
@@ -2905,7 +2906,7 @@ describe("hosted reservation discharge", () => {
       })],
     }));
     await expect(confirmIncrementalPredecessorApplicability({
-      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      dispositionStore: { readDispositionRecord: async () => null },
       readResponsePerformance: async () => null,
       predecessor,
       current: { ...current, target: changedTarget },
@@ -2968,7 +2969,7 @@ describe("hosted reservation discharge", () => {
     });
     const applicability = (predecessor: ReviewResult, result: ReviewResult) =>
       confirmIncrementalPredecessorApplicability({
-      dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      dispositionStore: { readDispositionRecord: async () => null },
       readResponsePerformance: async () => null,
         predecessor,
         current: result,

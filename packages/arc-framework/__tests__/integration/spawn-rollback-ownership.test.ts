@@ -13,11 +13,13 @@ import { reconcileWorkUnitWorktree, nodeReconcileWorkUnitWorktreeFs } from "../.
 import { IncompleteWorktreePreparationError } from "../../src/lib/work-unit/incomplete-worktree-preparation.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
-import { resolveWorktreeMarkerPath, writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, resolveWorktreeMarkerPath, writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 
+import { beginProjectionCommand, projectionProcessState } from "../../src/lib/store/projection/process-state.js";
+
 let root: string | undefined;
-afterEach(async () => { if (root !== undefined) await cleanupTempDir(root); root = undefined; });
+afterEach(async () => { beginProjectionCommand(); if (root !== undefined) await cleanupTempDir(root); root = undefined; });
 const TIMEOUT_MS = 30_000;
 async function fixture() {
   const cwd = root = await createTempRepo();
@@ -50,6 +52,25 @@ async function fixture() {
   const repair = () => exec("git", ["worktree", "remove", "--force", path]);
   return { ...h, cwd, exec, io, context, path, params, configure, changeClaim, retained, repair };
 }
+
+it("materializes a newly created work unit after binding its final marker", async () => {
+  const h = await fixture(); await h.configure();
+  projectionProcessState().materializeSpawn = async checkout => {
+    const marker = await readWorktreeMarker(checkout);
+    const subject = marker.kind === "present" ? marker.marker.createdFor : undefined;
+    if (subject?.kind !== "work-unit" || subject.uid === undefined) return;
+    await mkdir(join(checkout, ".arc/system/.local"), { recursive: true });
+    await writeFile(join(checkout, ".arc/system/.local/final-materialization"), subject.uid);
+  };
+  const input = StartCommandInputSchema.parse({ name: "demo", new: true });
+  expect(await runCreateNew({ store: h.store, io: h.io, internalTemplateDir: "/templates" },
+    { name: input.name, worktreePath: h.cwd, identity: "starter" })).toMatchObject({ ok: true });
+  const listing = lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/meta" }));
+  if (listing.status !== "complete") throw new Error("Missing created work unit");
+  const owner = listing.records[0]?.reference.owner;
+  if (owner?.type !== "work-item" || owner.uid === undefined) throw new Error("Missing created owner");
+  expect(await readFile(join(h.path, ".arc/system/.local/final-materialization"), "utf8")).toBe(owner.uid);
+}, TIMEOUT_MS);
 
 it("preserves a changed spawned graduation claim after batch refusal and graduates after owner repair", async () => {
   const h = await fixture();
@@ -154,7 +175,7 @@ it.each(["created", "existing"] as const)("preserves a %s branch advanced before
   };
   const input = StartCommandInputSchema.parse({ name: "demo" });
   const op = { mutation: "spawn" as const, branch: `feat/${input.name}`, createBranch: branchMode === "created",
-    base: "main", locationTemplate: h.path, repo: "repo", wuName: input.name!, spawningIdentity: "starter" };
+    base: "main", locationTemplate: h.path, repo: "repo", wuName: input.name!, holder: { kind: "creation" as const, slug: input.name! }, spawningIdentity: "starter" };
   const ctx = { exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
   await expect(reconcileWorkUnitWorktree(ctx, { ...op, postCreateScript: "exit 7" }))
     .rejects.toBeInstanceOf(IncompleteWorktreePreparationError);
@@ -218,7 +239,7 @@ it.each(["untracked", "commit"] as const)("preserves %s work and its created bra
   };
   const input = StartCommandInputSchema.parse({ name: "demo" });
   const op = { mutation: "spawn" as const, branch: `feat/${input.name}`, base: "main", locationTemplate: h.path,
-    repo: "repo", wuName: input.name!, spawningIdentity: "starter", primaryWorktreePath: h.cwd };
+    repo: "repo", wuName: input.name!, holder: { kind: "creation" as const, slug: input.name! }, spawningIdentity: "starter", primaryWorktreePath: h.cwd };
   const ctx = { exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
   await expect(reconcileWorkUnitWorktree(ctx, { ...op, postCreateScript: "exit 7" })).rejects.toBeInstanceOf(IncompleteWorktreePreparationError);
   await h.retained(marker!);
@@ -244,19 +265,19 @@ it("preserves a created branch advanced between checkout cleanup and ref deletio
   const input = StartCommandInputSchema.parse({ name: "demo" });
   const ctx = { exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
   await expect(reconcileWorkUnitWorktree(ctx, { mutation: "spawn", branch: `feat/${input.name}`, base: "main",
-    locationTemplate: h.path, repo: "repo", wuName: input.name!, spawningIdentity: "starter", postCreateScript: "exit 7" }))
+    locationTemplate: h.path, repo: "repo", wuName: input.name!, holder: { kind: "creation" as const, slug: input.name! }, spawningIdentity: "starter", postCreateScript: "exit 7" }))
     .rejects.toThrow();
   expect(moved).toBe(true);
   expect((await h.exec("git", ["rev-parse", "refs/heads/feat/demo"])).stdout).toBe(tip);
   await h.exec("git", ["branch", "-D", "feat/demo"]);
   expect(await reconcileWorkUnitWorktree({ ...ctx, exec: h.exec }, { mutation: "spawn", branch: "feat/demo", base: "main",
-    locationTemplate: h.path, repo: "repo", wuName: "demo", spawningIdentity: "starter" })).toMatchObject({ mutation: "spawn" });
+    locationTemplate: h.path, repo: "repo", wuName: "demo", holder: { kind: "creation", slug: "demo" }, spawningIdentity: "starter" })).toMatchObject({ mutation: "spawn" });
 }, TIMEOUT_MS);
 
 it("removes an unchanged failed spawn and its created branch, then provisions on retry", async () => {
   const h = await fixture(), input = StartCommandInputSchema.parse({ name: "demo" });
   const op = { mutation: "spawn" as const, branch: `feat/${input.name}`, base: "main", locationTemplate: h.path,
-    repo: "repo", wuName: input.name!, spawningIdentity: "starter" };
+    repo: "repo", wuName: input.name!, holder: { kind: "creation" as const, slug: input.name! }, spawningIdentity: "starter" };
   const ctx = { exec: h.exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
   await expect(reconcileWorkUnitWorktree(ctx, { ...op, postCreateScript: "exit 7" })).rejects.toThrow("post_create failed");
   expect(await stat(h.path).catch(() => null)).toBeNull();
@@ -344,7 +365,7 @@ it.each(["create-new", "materialize"] as const)("reports retained cleanup and re
   else expect(h.store.state.records.size).toBe(0);
   expect(await run("exit 7")).toMatchObject(verb === "create-new"
     ? { reason: expect.stringMatching(/collision|already held/isu) }
-    : { status: "rejected", reason: expect.stringContaining("run arc pause demo --reason <text>, then arc locus release demo") });
+    : { status: "rejected", reason: expect.stringContaining("run arc pause demo --reason <text>, then arc locus release") });
   blocked = false; await h.repair(); await h.configure();
   expect(await run()).toMatchObject(verb === "create-new" ? { ok: true } : { status: "materialized" });
 }, TIMEOUT_MS);

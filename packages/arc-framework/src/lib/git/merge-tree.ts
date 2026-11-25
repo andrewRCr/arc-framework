@@ -1,5 +1,6 @@
 /** Shared byte-preserving execution and parsing for Git merge-tree composition. */
 
+import { compareByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
 import type { RawGitExec } from "./exec.js";
 import { gitFailureText, normalizeGitRejection } from "./process-error.js";
 import { supportsMergeTreeWriteTree } from "./merge-tree-capability.js";
@@ -47,7 +48,7 @@ function parseConflict(bytes: Uint8Array): { state: "conflict"; tree: string; pa
   const parsed = fields(bytes);
   const [tree, ...rawPaths] = parsed ?? [];
   if (tree === undefined || !objectId.test(tree)) return null;
-  const paths = [...new Set(rawPaths)].sort();
+  const paths = [...new Set(rawPaths)].sort(compareByCanonicalBytes);
   return paths.length === 0 ? null : { state: "conflict", tree, paths };
 }
 

@@ -240,6 +240,88 @@ describe("Candidate applicability over base movement under a pinned baseline", (
     expect(projected.state).not.toBe("classification-unavailable");
   });
 
+  it("leaves the base's own later commits out of a head cut before the base moved", async () => {
+    const { run, exec, write } = await repository();
+    await write("root.txt", "root\n");
+    const rootCommit = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "candidate"]);
+    await write("feature.txt", "feature\n");
+    const baselineHead = await run(["rev-parse", "HEAD"]);
+    await write("ci.txt", "heap\n");
+    const currentHead = await run(["rev-parse", "HEAD"]);
+    // The base moves on its own after the head was cut, and the head never takes it in.
+    await run(["checkout", "-b", "base-line", rootCommit]);
+    await write("base-only.txt", "base\n");
+    const currentBase = await run(["rev-parse", "HEAD"]);
+
+    const projected = await projectGitCandidateApplicability({
+      request: request(baselineHead, currentHead, currentBase),
+      exec,
+      observeEndpoints: async () => ({ candidateHead: currentHead, baseHead: currentBase }),
+    });
+
+    expect(projected).toMatchObject({
+      state: "decision-required",
+      verdict: "clean-divergence",
+      paths: ["ci.txt"],
+      projection: { after: { predecessor: { head: rootCommit }, member: { head: currentHead } } },
+    });
+  });
+
+  it("carries an unchanged head across base movement it never took in", async () => {
+    const { run, exec, write } = await repository();
+    await write("root.txt", "root\n");
+    const rootCommit = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "candidate"]);
+    await write("feature.txt", "feature\n");
+    const baselineHead = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "base-line", rootCommit]);
+    await write("base-only.txt", "base\n");
+    const currentBase = await run(["rev-parse", "HEAD"]);
+
+    const projected = await projectGitCandidateApplicability({
+      request: request(baselineHead, baselineHead, currentBase),
+      exec,
+      observeEndpoints: async () => ({ candidateHead: baselineHead, baseHead: currentBase }),
+    });
+
+    expect(projected).toMatchObject({ state: "applicable", nextAction: "recognize-current" });
+  });
+
+  it("compares against the observed base when the head and base share two best ancestors", async () => {
+    const { run, exec, write } = await repository();
+    await write("root.txt", "root\n");
+    const rootCommit = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "candidate"]);
+    await write("feature.txt", "feature\n");
+    const baselineHead = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "base-line", rootCommit]);
+    await write("base.txt", "base\n");
+    const baseSide = await run(["rev-parse", "HEAD"]);
+    // The head takes the base's commit in and the base takes the baseline in, so the head and the base keep
+    // both commits as equally good ancestors while the baseline stays a sole ancestor of the base.
+    await run(["checkout", "-b", "candidate-current", baselineHead]);
+    await run(["merge", "--no-ff", "--no-edit", baseSide]);
+    await write("ci.txt", "heap\n");
+    const currentHead = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "base-line"]);
+    await run(["merge", "--no-ff", "--no-edit", baselineHead]);
+    const currentBase = await run(["rev-parse", "HEAD"]);
+    expect((await run(["merge-base", "--all", currentHead, currentBase])).split("\n")).toHaveLength(2);
+
+    const projected = await projectGitCandidateApplicability({
+      request: request(baselineHead, currentHead, currentBase),
+      exec,
+      observeEndpoints: async () => ({ candidateHead: currentHead, baseHead: currentBase }),
+    });
+
+    expect(projected).toMatchObject({
+      state: "decision-required",
+      paths: ["ci.txt"],
+      projection: { after: { predecessor: { head: currentBase }, member: { head: currentHead } } },
+    });
+  });
+
   it("refuses a two-base history with its cardinality and the route that clears it", async () => {
     const { run, exec, write } = await repository();
     await write("root.txt", "root\n");

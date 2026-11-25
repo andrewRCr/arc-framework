@@ -50,6 +50,9 @@ declare the red-green-refactor cycle boundary. When several coupled behaviors sh
 put their tests in one batch before implementation so every test can genuinely fail first. See
 [process-task-loop][process-task-loop] for execution details.
 
+An exposing case that passes before its fix is a finding about the code or the case, never a go-ahead. Trace why it
+passed before writing the fix; correct the case or revise the diagnosis from that evidence.
+
 ---
 
 [generate-tasks]: ../workflows/arc/generate-tasks.md

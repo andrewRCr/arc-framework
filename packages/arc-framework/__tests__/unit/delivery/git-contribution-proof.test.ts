@@ -62,6 +62,36 @@ describe("Git delivery contribution proof", () => {
     });
   });
 
+  /** UTF-16 code units put the astral path first; UTF-8 bytes, Git's own path order, put it last. */
+  it("reports conflicted and diverged paths in UTF-8 byte order", async () => {
+    const bmpPath = "src/\uE000.ts";
+    const astralPath = "src/\u{10000}.ts";
+    const conflicted = proofExec([
+      { match: { predicate: (args) => args[0] === "merge-tree" && !args.includes("--name-only") },
+        responses: [result(`${oid("a")}\n`)] },
+      { match: { prefix: ["merge-tree"] }, responses: [{ failure: {
+        exitCode: 1, stdout: bytes(`${oid("b")}\0${astralPath}\0${bmpPath}\0`), stderr: "conflict",
+      } }] },
+    ]);
+    const diverged = proofExec([
+      { match: { predicate: (args) => args[0] === "merge-tree" && !args.includes("--name-only") },
+        responses: [result(`${oid("a")}\n`)] },
+      { match: { prefix: ["merge-tree"] }, responses: [result(`${oid("b")}\0`)] },
+      { match: { prefix: ["diff"] }, responses: [result(`${astralPath}\0${bmpPath}\0`)] },
+    ]);
+
+    await expect(proveGitDeliveryContribution({ exec: conflicted, ...coordinates })).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-conflicted",
+      paths: [bmpPath, astralPath],
+    });
+    await expect(proveGitDeliveryContribution({ exec: diverged, ...coordinates })).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-diverged",
+      paths: [bmpPath, astralPath],
+    });
+  });
+
   it("refuses an unparseable conflict without path evidence", async () => {
     const exec = proofExec([
       { match: { predicate: (args) => args[0] === "merge-tree" && !args.includes("--name-only") },

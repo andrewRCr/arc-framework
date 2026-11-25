@@ -173,10 +173,11 @@ export interface PostInitSetupOptions extends PersonalIdentitySetupOptions {
  * workspaces once a work unit is anchored — there is no anchored WU
  * at init time. Per-user files seed cross-PM-mode (R65b) — `pm.mode` no
  * longer gates user-directory seeding.
+ * @returns Whether personal setup selected off-branch state.
  */
 export async function runPostInitSetup(
   options: PostInitSetupOptions,
-): Promise<void> {
+): Promise<boolean> {
   const { arcDir, internalTemplateDir, io, identityResult } = options;
 
   if (identityResult) {
@@ -186,7 +187,7 @@ export async function runPostInitSetup(
 
     if (prepared !== null) {
       await seedPersonalIdentityRecords({ prepared, identity: identityResult, io, internalTemplateDir });
-      return;
+      return prepared.store.capabilities.stateOffBranch;
     }
     const userDir = join(arcDir, "user", identityResult);
     await ensureDir(userDir, io.mkdir);
@@ -196,4 +197,5 @@ export async function runPostInitSetup(
       await io.writeFile(join(userDir, filename), content);
     }
   }
+  return false;
 }

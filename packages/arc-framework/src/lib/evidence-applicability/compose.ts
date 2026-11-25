@@ -1,10 +1,10 @@
 /** Evidence-delta normalization from existing producer boundaries. */
 
 import type { GitMergeFeasibility } from "../git/merge-feasibility.js";
+import { compareByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
 import { assertNever } from "../kernel/index.js";
 import {
   BoundedEvidenceResidualSchema,
-  compareEvidencePaths,
   EvidenceDeltaProducerSchema,
   EvidenceDeltaSchema,
   integrationCoordinatesEqual,
@@ -31,7 +31,7 @@ const NOT_APPLICABLE_HOST = {
 } as const;
 
 function canonicalPaths(paths: readonly string[]): string[] {
-  return [...new Set(paths)].sort(compareEvidencePaths);
+  return [...new Set(paths)].sort(compareByCanonicalBytes);
 }
 
 function boundedResidual(paths: readonly string[]): string[] | null {

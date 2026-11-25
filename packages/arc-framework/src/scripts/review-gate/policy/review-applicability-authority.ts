@@ -1,6 +1,6 @@
 /** Shared authority-aware reduction consumed by review request and discharge paths. */
 
-import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
+import { canonicalize, compareByCanonicalBytes } from "../../../lib/kernel/canonical/canonical-json.js";
 import type { CandidateReviewApplicabilitySelectionV1 } from
   "../../../lib/work-unit/candidate-attestation.js";
 import type {
@@ -113,7 +113,7 @@ function carriedSegmentPreservesResidual(
       && canonicalize(selectedProjection.paths) === canonicalize(projection.paths);
   }
   // The selection's own record commit adds only the Candidate record to the residual.
-  const residual = [...new Set([...selectedProjection.paths, ownRecordPath])].sort();
+  const residual = [...new Set([...selectedProjection.paths, ownRecordPath])].sort(compareByCanonicalBytes);
   return mechanicalProjection.verdict === "clean-divergence"
     && canonicalize(mechanicalProjection.paths) === canonicalize([ownRecordPath])
     && (canonicalize(residual) === canonicalize(projection.paths)
