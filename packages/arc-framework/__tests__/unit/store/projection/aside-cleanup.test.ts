@@ -1,11 +1,11 @@
 /** Pruning spent aside scaffolding is cosmetic: a filesystem refusal stops it without failing its caller. */
-import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { lstatSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it, onTestFinished } from "vitest";
 import { ASIDE_FILES_ROOT, nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
-import { pruneAsideScaffold, removeProjectionAsideFile, type AsideScaffoldFs } from "../../../../src/lib/store/projection/aside-cleanup.js";
+import { pruneAsideScaffold, removeProjectionAsideFile, removeReturnedAsideFile, type AsideScaffoldFs } from "../../../../src/lib/store/projection/aside-cleanup.js";
 
 let checkout: string;
 beforeEach(async () => { checkout = await mkdtemp(join(tmpdir(), "arc-aside-cleanup-")); });
@@ -61,4 +61,58 @@ it("deletes the spent file even when pruning its folder is refused", async () =>
   await expect(removeProjectionAsideFile(checkout, location, undefined, true, fs)).resolves.toBeUndefined();
   expect(attempts).toBe(1);
   await expect(stat(join(checkout, location))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+/** A copy linked back to its path, both names holding one file. */
+async function returnedCopy() {
+  const path = ".arc/user/andrew/scratch/note.md";
+  const location = nameAsideFile({ path, base: "a".repeat(40), role: "aside",
+    writer: { pid: 1, processInstance: "cleanup-test", processScope: "cleanup-scope" } });
+  const at = { alias: join(checkout, location), path: join(checkout, path) };
+  await Promise.all([dirname(at.alias), dirname(at.path)].map(folder => mkdir(folder, { recursive: true })));
+  await writeFile(at.alias, "saved\n");
+  await link(at.alias, at.path);
+  return { path, location, at };
+}
+
+it("unlinks a returned alias and prunes its folder while both names hold one file", async () => {
+  const { path, location, at } = await returnedCopy();
+  expect(await removeReturnedAsideFile(checkout, location, path)).toBe("removed");
+  expect(await readFile(at.path, "utf8")).toBe("saved\n");
+  await expect(stat(dirname(at.alias))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it.each([
+  ["another file", async (file: string) => { await rm(file); await writeFile(file, "saved\n"); }],
+  ["nothing", async (file: string) => { await rm(file); }],
+  ["a directory", async (file: string) => { await rm(file); await mkdir(file); }],
+  ["nothing, a file standing where its folder was", async (file: string) => {
+    await rm(dirname(file), { recursive: true });
+    await writeFile(dirname(file), "not a folder\n");
+  }],
+])("keeps a returned alias whose path comes to hold %s before the unlink", async (_name, replace) => {
+  const { path, location, at } = await returnedCopy();
+  expect(await removeReturnedAsideFile(checkout, location, path, () => replace(at.path))).toBe("retained");
+  expect(await readFile(at.alias, "utf8")).toBe("saved\n");
+});
+
+it("keeps a returned alias whose path becomes a symbolic link to it", async () => {
+  const { path, location, at } = await returnedCopy();
+  await rm(at.path);
+  await symlink(at.alias, at.path, "file");
+  expect(await removeReturnedAsideFile(checkout, location, path)).toBe("retained");
+  expect(await readFile(at.path, "utf8")).toBe("saved\n");
+});
+
+it("reports a returned alias that is already gone, leaving its path alone", async () => {
+  const { path, location, at } = await returnedCopy();
+  expect(await removeReturnedAsideFile(checkout, location, path, () => rm(at.alias))).toBe("missing");
+  expect(await readFile(at.path, "utf8")).toBe("saved\n");
+});
+
+it("keeps a returned alias when the lease step before its unlink fails", async () => {
+  const { path, location, at } = await returnedCopy();
+  await expect(removeReturnedAsideFile(checkout, location, path, () => Promise.reject(new Error("The projection lock was lost"))))
+    .rejects.toThrow("The projection lock was lost");
+  expect(await readFile(at.alias, "utf8")).toBe("saved\n");
 });
