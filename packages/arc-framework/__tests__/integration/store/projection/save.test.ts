@@ -57,6 +57,8 @@ import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { flatWorkItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
+import { readStoreCompletedEvidence } from "../../../../src/lib/store/lifecycle-completed.js";
+import { writeMetaPrUrl } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
 import { lackingEndedHistory } from "../../../helpers/store/ended-history.js";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
@@ -157,6 +159,17 @@ async function archivedView(artifact: "meta" | "tasks" | "companion" = "meta", i
       await writeFile(join(view.checkout, path), renderStampedFile({ content, stamp }));
     } };
 }
+
+it("saves an archived meta's missing PR URL for completed-record readers", async () => {
+  const h = await archivedView();
+  const prUrl = "https://github.com/o/r/pull/12";
+  expect(h.record.fields).toMatchObject({ prUrl: null });
+  await h.edit(writeMetaPrUrl(h.record.content, prUrl));
+  expect(await save(h)).toMatchObject({ exitCode: 0, result: { status: "ok" } });
+  const completed = await readStoreCompletedEvidence(h.store);
+  expect(completed.status).toBe("available");
+  expect("records" in completed && completed.records.get("corrected")).toMatchObject({ prUrl, prNumber: 12 });
+});
 
 it("pulls an archived owner's named history under the save lease and keeps its assigned archive number", async () => {
   const h = await archivedView();

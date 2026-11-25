@@ -19,14 +19,19 @@ export interface ArchiveFinalizeFacts {
  * @param clock - The archive's clock.
  */
 export function resolveArchiveFinalizeFacts(params: { prUrl?: string; completed?: string }, clock: Clock): ArchiveFinalizeFacts {
+  const prUrl = params.prUrl ?? null;
   return {
-    prUrl: params.prUrl ?? null,
+    prUrl,
     completed: params.completed ?? today(clock),
-    warnings: params.prUrl === undefined
-      ? [`No \`--pr-url\` supplied — wrote a \`${PR_URL_PLACEHOLDER}\` placeholder; set the \`PR URL\` field in the archived `
-        + "meta once the PR exists (archive can't retarget a shipped WU)."]
-      : [],
+    warnings: archivePrUrlWarnings(prUrl),
   };
+}
+
+/** Explain how to fill the archived metadata's PR URL when the pull request becomes available. */
+export function archivePrUrlWarnings(prUrl: string | null): string[] {
+  return prUrl === null
+    ? ["The archived meta has no PR URL. Once the PR exists, set `PR URL` in the archived meta and run `arc save`."]
+    : [];
 }
 
 /** The clock's day as a `YYYY-MM-DD` stamp, in local components (matching the quarter label). */

@@ -5,6 +5,8 @@ import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { createWriteBackFixture } from "../helpers/store/projection/write-back-fixture.js";
 import { success, seed, fixtureRenameProvenance } from "../helpers/store/suite-tools.js";
 import { cohortDoc } from "../helpers/store/cohort-rule-input.js";
+import { fileDecomposeConflict, resolveDecomposeConflict } from "../fixtures/decompose-conflict.js";
+import { withCompetingBatch } from "../helpers/store/decompose-harness.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { dryRun, runFenceCase, type FenceOutcome, type FenceWriter } from "../helpers/store/fence-harness.js";
 import * as fenceHarness from "../helpers/store/fence-harness.js";
@@ -168,11 +170,49 @@ describe.each(["reference", "ref"] as const)("the fence over %s", backend => {
     return { f, subject, sibling, unrelated, writer };
   }
 
-  it("archives after reading its subject, the lifecycle and cohort inventories, each open cohort, and each holder", async () => {
-    const { f, writer } = await archiveFixture(true);
-    expect((await readsOf(f.store, writer)).sort()).toEqual([
+  it("archives after reading its subject and open cohorts and observing holders from the lifecycle inventory", async () => {
+    const { f, sibling, writer } = await archiveFixture(true);
+    const { reads, batch } = await dryRun(f.store, writer);
+    expect(reads.map(read => `${read.operation} ${read.target}`).sort()).toEqual([
       "list cohort/document", "list work-item/meta", "lookup subject", "read cohort/document:child", "read cohort/document:other",
-      "read cohort/document:parent", "read work-item/meta:sibling", "read work-item/meta:subject"]);
+      "read cohort/document:parent", "read work-item/meta:subject"]);
+    expect(batch?.observations).toContainEqual({ reference: sibling.reference, expected: { version: sibling.version, conflicts: [] } });
+  });
+
+  it.each(["subject", "other"])("keeps a standalone unit active when a conflict on %s arrives before archive admission", async name => {
+    const f = await fixtureFor(backend);
+    f.identity("test-user");
+    const subject = await seed(f, workUnit("subject"), makeMetaFixture("subject", { owner: "test-user" }));
+    const target = name === "subject" ? subject : await seed(f, workUnit(name), makeMetaFixture(name, { owner: "test-user" }));
+    const writer = archiveWriter({ kind: "archive", name: "subject", prUrl: "https://github.com/o/r/pull/1",
+      clock: new Date("2026-10-14T12:00:00Z") }, "/repo");
+    let freshWriteCount: number | undefined;
+    const racing = withCompetingBatch(f.store, async () => {
+      const filed = await fileDecomposeConflict(f.store, target);
+      expect(filed.subject).toMatchObject({ version: target.version, conflicts: [filed.conflict.reference] });
+      freshWriteCount = (await dryRun(f.store, writer)).batch?.writes.length ?? 0;
+    });
+    const result = await writer.run(racing);
+    expect(freshWriteCount).toBe(0);
+    expect(result).toMatchObject({ status: "rejected" });
+    expect.soft(result).not.toHaveProperty("persisted", true);
+    expect.soft(result).toMatchObject({ reason: expect.stringContaining("unresolved conflicts"),
+      refusal: { remedy: { text: expect.stringMatching(/resolve.*retry.*arc archive/i) } } });
+    expect(success(await f.store.read({ reference: subject.reference }))).toMatchObject({
+      fields: { state: "Active" }, placement: { kind: "active" }, version: subject.version,
+    });
+    await resolveDecomposeConflict(f.store, target);
+    expect(await writer.run(f.store)).toMatchObject({ status: "archived" });
+  });
+
+  it("admits a standalone archive after a valid edit to another unit", async () => {
+    const f = await fixtureFor(backend);
+    f.identity("test-user");
+    await seed(f, workUnit("subject"), makeMetaFixture("subject", { owner: "test-user" }));
+    const other = await seed(f, workUnit("other"), makeMetaFixture("other", { owner: "test-user" }));
+    const writer = archiveWriter({ kind: "archive", name: "subject", prUrl: "https://github.com/o/r/pull/1",
+      clock: new Date("2026-10-14T12:00:00Z") }, "/repo");
+    expect(await writer.run(withCompetingBatch(f.store, () => rewrite(f.store, other, note)))).toMatchObject({ status: "archived" });
   });
 
   it.each([
