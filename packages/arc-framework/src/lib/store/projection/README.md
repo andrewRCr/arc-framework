@@ -179,6 +179,12 @@ pending, reported with the refusal. Every deleter of an aside copy deletes throu
 copy's record, and the in-progress record where it names that copy and the file holds what the batch linked there, by the
 file identity the entry records.
 
+A file other than Markdown attached to a record that already exists, such as a creation retried after a stop, names no
+base of its own: its entry holds the version the record had at attachment. Until it is sent, `stampless-base.ts` takes
+the stored version whose content the file holds, reading no `history` where that is the entry's, and otherwise holds the
+file as a `bases-disagree` clash. Once that clash is drawn, only keeping the entry's side settles without its token. A
+file whose `history` refuses keeps its content and retries.
+
 `base-selection.ts` resolves a Markdown save's stamp, falling back to recovery when it was lost or names no stored
 version. `stampless-base.ts` compares a stampless save's carried base, the replaced version at its path, the last
 take-in's landed version, and its kept copy. Stored candidates count once by record version, while a kept copy counts
