@@ -76,7 +76,7 @@ tree by then. Use targeted edits from the start.
 
 ## Template Counterparts
 
-10 files in the package use a `.template.md` suffix, stripped at init time. One contains
+8 files in the package use a `.template.md` suffix, stripped at init time. One contains
 `<!-- arc:if -->` conditionals resolved during rendering:
 
 | Template file                   | Conditions          |
