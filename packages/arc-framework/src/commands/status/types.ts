@@ -500,15 +500,16 @@ export interface HandoffSyncInterlock {
 /**
  * Resolved handoff surface paths — write/read locations for SESSION-NOTES and
  * WORKING-MEMORY. Absolute when present; `null` when identity is absent or
- * (for `sessionNotes`) no single active work unit is resolved. The agent must
- * not re-derive these from identity + slug conventions: the two surfaces resolve
- * by opposite rules (checkout-local vs primary-worktree resolver-backed).
+ * (for `sessionNotes`) no single active work unit is resolved. Use the resolved
+ * working-memory checkout when checking and saving edits to that file.
  */
 export interface HandoffPathSet {
   /** Checkout-local SESSION-NOTES absolute path for the active WU, or `null`. */
   sessionNotes: string | null;
-  /** Resolver-backed WORKING-MEMORY absolute path (primary worktree), or `null`. */
+  /** Editable WORKING-MEMORY absolute path, or `null`. */
   workingMemory: string | null;
+  /** Checkout that owns the working-memory file, or `null`. */
+  workingMemoryCheckout: string | null;
 }
 
 /** Passive handoff worktree evidence with the physical checkout identity used by its header. */
@@ -857,8 +858,10 @@ export interface RunRecoverStatusOptions {
  * Resolved inside the composite under `safeProbe("pathSet", …)`.
  */
 export interface HandoffSurfacePaths {
-  /** Exact identity-global WORKING-MEMORY absolute path. */
+  /** Exact editable WORKING-MEMORY absolute path. */
   workingMemoryPath: string;
+  /** Checkout that owns the working-memory file. */
+  workingMemoryCheckout: string;
   /** Checkout-local SESSION-NOTES absolute path for a WU slug. */
   sessionNotesPath: (workUnitName: string) => string;
 }

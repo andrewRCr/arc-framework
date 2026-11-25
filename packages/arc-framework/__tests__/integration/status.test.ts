@@ -1467,6 +1467,7 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       role: "maintainer",
       probes,
       resolveHandoffSurfaces: async () => ({
+        workingMemoryCheckout: fixture.root,
         workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
         sessionNotesPath: (workUnitName) =>
           join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
@@ -1510,6 +1511,7 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       role: "maintainer",
       probes,
       resolveHandoffSurfaces: async () => ({
+        workingMemoryCheckout: fixture.root,
         workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
         sessionNotesPath: (workUnitName) =>
           join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
@@ -1583,6 +1585,7 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
     );
 
     const resolveHandoffSurfaces = async () => ({
+      workingMemoryCheckout: fixture.root,
       workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
       sessionNotesPath: (workUnitName: string) =>
         join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
@@ -1608,6 +1611,7 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
       role: "maintainer",
       probes: realHandoffInboxStateProbes(fixture),
       resolveHandoffSurfaces: async () => ({
+        workingMemoryCheckout: fixture.root,
         workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
         sessionNotesPath: (workUnitName) =>
           join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),

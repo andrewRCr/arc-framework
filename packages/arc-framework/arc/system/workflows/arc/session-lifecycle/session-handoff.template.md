@@ -77,9 +77,9 @@ default — if your project overrides session-state, follow the override instead
   completed work, decisions, blockers, debugging insights, things tried. The section is replaced each handoff, not
   appended. The verb records `State at Handoff` and `Commit at Handoff` itself. Between work units, or during
   planning cycles with no active WU, no meta exists to write.
-- **WORKING-MEMORY.md** — path from `pathSet.value.workingMemory` when `pathSet.ok`.
-  Cross-WU persistent context, persisted with `arc save`. Entries survive across handoffs, each carrying an explicit
-  `_Remove when:_` trigger reviewed at each handoff (see WORKING-MEMORY entries guidance below).
+- **WORKING-MEMORY.md** — edit the projection at `pathSet.value.workingMemory` when `pathSet.ok`.
+  Run the check and save steps for those edits from `pathSet.value.workingMemoryCheckout`. Review each entry's
+  `_Remove when:_` trigger at each handoff (see WORKING-MEMORY entries guidance below).
 
 > **Person-to-person handoff:** Write the session context for someone new to the work. After the normal handoff sync
 > and [Finalize Handoff State](#finalize-handoff-state), ensure the work branch is shared and run
@@ -209,8 +209,8 @@ Write the handoff before ending the session:
     workflow's bundled actions, including the save and the handoff write, but not a `WORKING-MEMORY` addition, which
     lands only on its own approval. No separate prompt fires under either push-interlock mode — push behavior is gated
     by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
-3. **Write the handoff** — compose `nextAction`, any `sessionType`, and the session context per the guidance below,
-   then pass the request on standard input (or as a file path in place of `-`):
+3. **Write the handoff** — compose `nextAction`, any `sessionType`, and the session context per the guidance below.
+   From `handoffLocus.value.checkoutPath`, pass the request on standard input or as a file path in place of `-`.
 
     ```bash
     arc handoff write -
