@@ -167,12 +167,13 @@ it.each([["Active", "is occupied"], ["Integrating", "is in review"]] as const)(
     const h = await fixture("active");
     const live = await h.seedMeta("live", { state, branch: "feat/live",
       currentWorkflow: state === "Active" ? "process-task-loop" : "integrate-work-unit" }, { kind: "active" });
-    const errors: string[] = [];
-    vi.spyOn(terminal.log, "error").mockImplementation(message => { errors.push(String(message)); });
-    await handleStoreStart(StartCommandInputSchema.parse({ name: "live" }), {
+    const result = await runHandlerAt(h.root, () => handleStoreStart(StartCommandInputSchema.parse({ name: "live" }), {
       cwd: h.root, identity: "starter", executor: h.executor, io: h.io, interaction: h.interaction,
-    });
-    expect(errors.join("\n")).toContain(`\`live\` ${reason}`);
+    }));
+    const output = result.stdout + result.stderr;
+    expect(output).toContain(`\`live\` ${reason}`);
+    expect(result.exitCode, output).toBe(1);
+    await expect(stat(h.path)).rejects.toMatchObject({ code: "ENOENT" });
     expect(lifecycleSuccess(await h.store.read({ reference: live.reference }))).toEqual(live);
   },
   START_TIMEOUT_MS,

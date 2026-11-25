@@ -35,6 +35,9 @@ import {
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { prepareCandidateRecordPut } from "../../../src/lib/store/kinds/review/candidate/access.js";
 import { prepareSubmissionBoundaryPut } from "../../../src/lib/store/kinds/review/integration-boundary/access.js";
+import { deriveReviewReadinessBinding } from "../../../src/lib/store/kinds/review/integration-boundary/readiness.js";
+import { CandidatePublishReadyBoundaryV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
+import type { AttestContext } from "../../../src/lib/work-unit/verbs/attest.js";
 
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
@@ -1566,12 +1569,19 @@ describe("handlePublish", () => {
   it("persists a moved publication resume point under the Candidate's version on the store", async () => {
     const bound = await bindWorkUnit({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
     const record = fooCandidate(), candidateId = record.attestation.candidateId;
-    const source = projectPublicationBoundary({ workUnit: "foo", branch: "feat/foo", candidateId,
-      candidateSubjectDigest: record.subject.subjectDigest, reservation: null, changeRequest: null, terminus: null,
-      readinessBinding: null }, 2);
+    const absent = { status: "absent" } as const;
+    const binding = deriveReviewReadinessBinding({ subjectOwner: { kind: "candidate", candidateId },
+      outcomes: absent, evidence: absent, decisions: absent, inFlight: [] });
+    if (binding.status !== "complete") throw new Error(binding.condition);
+    const subject = { workUnit: "foo", candidateId, candidateSubjectDigest: record.subject.subjectDigest,
+      reservation: null, terminus: null, readinessBinding: binding.digest };
+    const source = CandidatePublishReadyBoundaryV2Schema.parse({ ...subject, schemaVersion: 2, mode: "pre-publication-review",
+      locus: "candidate-publish-ready", nextAction: { kind: "publish-candidate", command: "arc publish foo",
+        interactionText: "Publish the Candidate." } });
     const held = await holdReview(bound, record, source);
-    const moved = { ...source, nextAction: { ...source.nextAction, command: "git push -u origin feat/foo",
-      interactionText: "Resume publication at the idempotent push, then resolve or open the change request." } };
+    const batch = vi.spyOn(bound.harness.store, "batch");
+    const moved = projectPublicationBoundary({ ...subject, branch: "feat/foo", changeRequest: null }, 2);
+    expect(moved).not.toEqual(source);
     mockRunPublish.mockResolvedValueOnce({ status: "unchanged", boundary: moved });
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
@@ -1579,6 +1589,15 @@ describe("handlePublish", () => {
 
     expect(stdoutWrite).toHaveBeenCalledWith(`${JSON.stringify({ status: "unchanged", boundary: moved })}\n`);
     expect(await held.readBoundary()).toEqual(moved);
+    expect(batch).toHaveBeenCalledWith(expect.objectContaining({
+      writes: expect.arrayContaining([expect.objectContaining({
+        action: "put", reference: recordReferences["review/integration-boundary"](bound.owner),
+      })]),
+      observations: expect.arrayContaining([{
+        reference: recordReferences["review/candidate"](bound.owner),
+        expected: { version: held.candidateVersion, conflicts: [] },
+      }]),
+    }));
   });
 
   it("forwards explicit advisory-retention authority", async () => {
@@ -2548,10 +2567,12 @@ describe("handleAttest", () => {
         memberEvidenceDigest: `sha256:${"3".repeat(64)}` };
       mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValue({ status: "ready", planId, stateRevision: 7,
         deliveryContinuation });
-      mockRunAttest.mockImplementationOnce(async (context) => {
+      mockRunAttest.mockImplementationOnce(async (context: AttestContext, params: unknown) => {
+        expect(params).toMatchObject({ lifecycle });
         const published = await context.publish({ name: "foo", record, candidateId,
-          candidateSubjectDigest: record.subject.subjectDigest, currentWorkflow: "integrate-work-unit",
-          nextAction: "Candidate review pending — resume integration review",
+          candidateSubjectDigest: record.subject.subjectDigest,
+          currentWorkflow: lifecycle === "Shipped" ? "[none]" : "integrate-work-unit",
+          nextAction: lifecycle === "Shipped" ? "[none]" : "Candidate review pending — resume integration review",
           expectedRecordVersion: held.candidateVersion, repairCurrent: false });
         return { status: "attested", operation: "re-root", ...published };
       });
@@ -2567,6 +2588,11 @@ describe("handleAttest", () => {
       expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
         status: "attested", locus: { locus: "delivery-status-required", candidateId },
       });
+      if (lifecycle === "Shipped") {
+        expect(await held.readMeta()).toMatchObject({
+          status: "ok", result: { fields: { currentWorkflow: null, nextAction: null } },
+        });
+      }
     });
 
   it("repairs forward when Candidate persistence succeeds before the boundary version write", async () => {
