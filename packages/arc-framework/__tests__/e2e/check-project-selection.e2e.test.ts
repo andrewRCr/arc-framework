@@ -103,8 +103,10 @@ Promise<void> {
   await mkdir(dirname(join(root, path)), { recursive: true });
   await writeFile(join(root, path), "base\n");
   await git("git", ["add", "-A"], { cwd: root });
+  await git("git", ["add", "-f", "--", path], { cwd: root });
   await git("git", ["commit", "-m", "content baseline"], { cwd: root });
   await writeFile(join(root, path), "changed\n");
+  expect((await git("git", ["diff", "--name-only", "HEAD"], { cwd: root })).stdout.trim()).toBe(path);
 
   const result = await runArc(["check", "run", "test:integration:content", "--changed", "--dry-run", "--json"], root);
   expect(result.exitCode, result.stdout + result.stderr).toBe(0);

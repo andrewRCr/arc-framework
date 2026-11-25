@@ -8,7 +8,6 @@ import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty, runArcWithStd
 interface Spawned { readonly stdout: string; readonly stderr: string; readonly exitCode: number }
 
 const spawners: readonly { readonly name: string; readonly status: (cwd: string) => Promise<Spawned> }[] = [
-  { name: "runArc", status: cwd => runArc(["status", "--json"], cwd) },
   { name: "runArcNoTty", status: cwd => runArcNoTty(["status", "--json"], cwd) },
   { name: "runArcWithStdin", status: cwd => runArcWithStdin(["status", "--json"], cwd, "") },
   ...(process.platform === "win32" ? [] : [
@@ -31,6 +30,12 @@ afterAll(async () => { if (root !== "") await cleanupTempDir(root); });
 
 it("leaves the in-repo store override unset in the end-to-end worker", () => {
   expect(process.env[IN_REPO_STORE_OVERRIDE]).toBeUndefined();
+});
+
+it("runArc spawns the built CLI on the ref backend by default", async () => {
+  const result = await runArc(["status"], root);
+  expect(result.exitCode, JSON.stringify(result)).toBe(0);
+  expect(result.stdout).toContain("Projection:");
 });
 
 it.each(spawners)("$name spawns the built CLI on the ref backend by default", async ({ status }) => {

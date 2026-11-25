@@ -13,6 +13,7 @@ import { NO_INPUT_MATRIX, type NoInputMatrixCase } from "../fixtures/command-inp
 import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty, runArcWithStdin } from "./helpers.js";
 
 const STUB_CLASS_CASE_TIMEOUT_MS = 30_000;
+const STORE_READ_TOKEN_REF = "refs/arc/tmp/version";
 const TERMINATES_TITLE = "terminates $commandPath [$promptSite; upstream: $upstreamRefusalFor]"
   + " for each distinct unavailable-interaction context";
 
@@ -34,10 +35,11 @@ async function initializeMatrixRepository(): Promise<string> {
   }
 }
 
-/** Every ref but the store's retained read token, which a read of the store writes beside the state it captures. */
-async function stateRefs(cwd: string): Promise<string> {
+/** Snapshot all refs unless this fixture allows one named ref to change. */
+async function stateRefs(cwd: string, ignoredRef?: string): Promise<string> {
   const refs = await git(cwd, ["show-ref"]);
-  return refs.split("\n").filter((line) => !line.includes(" refs/arc/tmp/")).join("\n");
+  if (ignoredRef === undefined) return refs;
+  return refs.split("\n").filter((line) => !line.endsWith(` ${ignoredRef}`)).join("\n");
 }
 
 describe("command-input no-input matrix", () => {
@@ -63,6 +65,20 @@ describe("command-input no-input matrix", () => {
       await git(repository, ["worktree", "remove", "--force", path]).catch(() => cleanupTempDir(path));
     }));
     await Promise.all(repositories.splice(0).map((path) => cleanupTempDir(path)));
+  });
+
+  it("detects other ref writes when a refusal snapshot allows the store read token", async () => {
+    const cwd = await createTempRepo("arc-command-input-refs-");
+    repositories.push(cwd);
+    await git(cwd, ["commit", "--allow-empty", "-m", "chore: seed fixture"]);
+    const before = await stateRefs(cwd);
+    await git(cwd, ["update-ref", STORE_READ_TOKEN_REF, "HEAD"]);
+    expect(await stateRefs(cwd)).toContain(` ${STORE_READ_TOKEN_REF}`);
+    expect(await stateRefs(cwd, STORE_READ_TOKEN_REF)).toBe(before);
+
+    const moveRef = "refs/arc/tmp/migrate/move";
+    await git(cwd, ["update-ref", moveRef, "HEAD"]);
+    expect(await stateRefs(cwd, STORE_READ_TOKEN_REF)).toContain(` ${moveRef}`);
   });
 
   it("reports every missing release setup input using its declared syntax", async () => {
@@ -177,7 +193,9 @@ describe("command-input no-input matrix", () => {
       const before = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
       const notesBefore = entry.setup === "local-notes"
         ? await git(cwd, ["rev-parse", "refs/notes/arc/user/matrix"]) : undefined;
-      const refsBefore = entry.preservesWorktree === true ? await stateRefs(cwd) : undefined;
+      // Reading the store can write its version token before the command refuses.
+      const ignoredRef = entry.setup === "store-pointer" ? STORE_READ_TOKEN_REF : undefined;
+      const refsBefore = entry.preservesWorktree === true ? await stateRefs(cwd, ignoredRef) : undefined;
       const result = await run(cwd);
       const listed = await git(cwd, ["worktree", "list", "--porcelain"]);
       const spawned = listed.split("\n").filter((line) => line.startsWith("worktree "))
@@ -211,7 +229,7 @@ describe("command-input no-input matrix", () => {
       if (notesBefore !== undefined) {
         expect(await git(cwd, ["rev-parse", "refs/notes/arc/user/matrix"])).toBe(notesBefore);
       }
-      if (refsBefore !== undefined) expect(await stateRefs(cwd)).toBe(refsBefore);
+      if (refsBefore !== undefined) expect(await stateRefs(cwd, ignoredRef)).toBe(refsBefore);
       const after = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
       return { result, mutationPreserved: before === after };
     };
