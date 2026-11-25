@@ -278,7 +278,7 @@ _ADR disposition:_ `none`; temporary.
 - **§ Errand Work Class** gives the full-protection Errand a lifecycle location and a description, by § 3.
 - **§ Auto-Merge Lane** retires with its subsections. The draft-state lock's model (`merge.lock: draft`,
   `arc merge lock`) moves to `strategy-integration.md`, beside § Terminal Integration Authority. The links to the
-  heading divide, each where its file still exists:
+  heading divide ‡, each where its file still exists:
     - the two for the lock in `01_verify-and-configure.md` move to the integration strategy by a reference of their own,
       so they resolve whether or not the recipe has been removed;
     - the lane's are dropped with their sentences, in both copies: one in `01_verify-and-configure.md`, one in
@@ -299,8 +299,8 @@ _ADR disposition:_ `none`; temporary.
   `strategy-team-coordination.md` § Person-to-Person Task Handoff is left as the cutover lands it ‡.
 - **Post-landing hand-back** in `strategy-integration.md` drops its first step, the retirement of the personal session
   workspace, and keeps delivery closeout and then teardown.
-- **Headings the cutover's text points at survive, or their pointers move with them:** `strategy-session-operations.md`
-  § Session State Portability, § Remote access boundary, and § USER-INBOX.
+- **Headings the cutover's text points at** survive ‡: `strategy-session-operations.md` § Session State Portability,
+  § Remote access boundary, and § USER-INBOX.
 
 _ADR disposition:_ covered by ADR-035, by ADR-031 (the lock), and by the new ADR of § 3.
 
@@ -362,9 +362,9 @@ corrected by amendment before the text is written:
 
 - § 1: the inventory itself, taken at that head, and the sentence of `template-contributing.md`.
 - § 2: the manifest's tracking, and whether the archive is laid read-only and opened with `arc edit`.
-- § 3: the six statements' code and the four behaviors, the `promoteOrdinaryErrand` refusal, and the two amendments to
-  ADR-035 that the cutover makes.
-- § 4: the clause list's answers, whose words are written from the landed code; the closing read covers the rest.
+- § 3: the six statements' code and the four behaviors, and the `promoteOrdinaryErrand` refusal.
+- § 4: the clause list's answers, whose words are written from the landed code, and the two amendments to ADR-035 that
+  the cutover makes; the closing read covers the rest.
 - § 5: the refusal the note at the head of the notes strategy states.
 - § 6: the isolation test and the flat layout, that the cutover rewrites § Person-to-Person Task Handoff, the lane's
   links and phrases, the headings, and the lock's two links.
@@ -406,8 +406,9 @@ final head.
 
 ### User-facing impact
 
-Projects that install ARC receive one new strategy and rewritten ones. Two user-visible texts change: `arc join`'s
-message and two configuration comments.
+Projects that install ARC receive one new strategy and rewritten ones. Other text they receive changes too: `arc join`'s
+message, two configuration comments, one sentence of `template-contributing.md`, and the links and phrases about the
+auto-merge lane that § 6 names.
 
 ### Security and privacy
 
