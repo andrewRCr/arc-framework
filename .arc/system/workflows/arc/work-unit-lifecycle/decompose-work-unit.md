@@ -16,12 +16,11 @@ its own command mode, and the core retirement transform remains unchanged.
 
 A cut runs as two store batches with authoring between them: the additive batch writes the members, the cohort
 documents the cut creates, and the stored cut map; the terminal batch lands the cut. Each batch writes all of its
-records or none. A session resuming a cut between the batches continues at step 4.
+records or none. To resume a stored cut between batches, follow the stored-cut path in step 1.
 
 Use only CLI-reported paths, packets, statuses, and remedies. Every selected mode emits one typed refusal envelope
-on stdout. On refusal, surface its status, reason, optional locus and evidence, remedy, and any optional report
-unchanged. Stop until the reported correction is complete. Never construct identifiers, record references, apply
-authorities, or continuation commands.
+on stdout. On refusal, surface the complete typed refusal envelope unchanged. Stop until the reported correction is
+complete. Never construct identifiers, record references, apply authorities, or continuation commands.
 
 The specification reviews below apply to every new specification set and every substantive edit to an existing
 specification, regardless of when it was authored. For revisions, include removals and affected surrounding
@@ -50,10 +49,13 @@ arc decompose <origin> --preflight > <scratch-starter-map>
 
 The read-only result binds the origin by its source units' digests and its dependency edges, and takes the planning
 profile from the origin's `Design`. Successful preflight writes the starter map alone; refusal follows the common
-envelope and never emits a partial starter map. An origin already holding a stored cut refuses, naming that cut's
-continuations; resume it at step 4 rather than starting another.
+envelope and never emits a partial starter map. On `cut-in-flight`, the refusal names the stored cut's continuations.
+To recover the allocations, run the reported `--revise` without a map. This read-only command returns either
+`carried` or `reauthor`. Use `carried.map` for destination authoring in step 4. For `reauthor`, use the fresh starter
+and `storedAuthoring` to prepare a revised map and follow step 5's revision preview and approval before applying it.
 
-On refusal, stop. Do not substitute working-tree bytes, select another source, or hand-author missing machine fields.
+For other preflight refusals, stop and follow the reported remedy. Do not substitute working-tree bytes, select
+another source, or hand-author missing machine fields.
 
 ## 2. Complete the operator-owned map
 
@@ -74,7 +76,10 @@ Edit only the starter map's authoring slots:
   existing origin prerequisite;
 - add an `externalEdges` entry only from a new member or live existing-home work unit to a work unit outside the cut;
 - select the already-settled authoring shape and placement, giving each cohort document the cut creates its Purpose.
-  A created cohort cannot take the origin's name, and its name is final.
+  A cohort created by the cut cannot take the origin's name.
+
+Rename an open cohort to an available slug with `arc rename <slug> <new-slug>`. If an in-flight cut names that cohort,
+use `--revise` to update the stored placement before finishing.
 
 Preserve every machine-owned field. Do not calculate paths or identifiers, create unreported destinations, or
 derive machine facts from prose.
@@ -99,15 +104,17 @@ The batch creates each member as a stub with its reported copies, each cohort do
 map, and removes nothing. It has no approval of its own: approving the map approves the layout. From here the cut
 reads its map from the store by the origin's slug, so no later mode takes the map file.
 
-Retain the report's `members` with their copies, its `cohorts`, its `authoring` requirements per destination, and its
-`nextStep`. Every checkout sees the members as ordinary stubs. Starting one before the terminal batch is deliberate:
-a later discard or revision then refuses to remove or move it.
+Retain the report's `members` with their copies, its `cohorts`, its `authoring` requirements per destination, its
+`records` (including any dependency settlements), and its `nextStep`. Every checkout sees the members as ordinary stubs.
+Starting one before the terminal batch is deliberate: a later discard or revision then refuses to remove or move it.
 
 On refusal, apply the common refusal rule above.
 
 ## 4. Author every reported destination
 
-Author through the projected files; nothing new is created by hand. Follow the report's `authoring` entries in order:
+Author through the projected files; nothing new is created by hand. Follow the report's `authoring` entries in order.
+On resume or after revision, use the current map's destinations and source allocations. Match each target allocation
+to its destination and its source unit by the map's IDs, and use their reported locators:
 
 - complete every new member's design copy and its authoring requirements;
 - treat each reported task-list or notes copy as a whole retitled copy of the origin's companion, then prune it to its
@@ -126,11 +133,17 @@ existing destinations; a member under a draft planning profile has no specificat
 reader checks before distributed-result approval, with the remaining coherence and grounding work at the applicable
 form and depth.
 
+Keep the reviewed destination specification content for comparison if terminal approval needs to be renewed.
+
 Run `arc check increment` over the authored destinations, then save them:
 
 ```bash
 arc save
 ```
+
+Confirm the store accepted each file edited in this step. Check the projection diagnostics and confirm each file is
+in `arc selection` and absent from `arc selection --changed`. For outstanding edits to these files, follow the
+reported remedy, recheck corrected edits, and save again before continuing. Pending edits to unrelated files can wait.
 
 ## 5. Preview and approve the distribution
 
@@ -138,10 +151,17 @@ arc save
 arc decompose <origin> --finish
 ```
 
-The preview writes nothing. It reports the terminal batch with its `applyAuthority`: for a retirement, the `lineage`
-record, the `removals`, and each record in `writes`; for an extraction, each thinned artifact's `retainedContent`,
-`null` where the file goes, and each record in `writes`. An origin whose lifecycle state or name changed since the
-additive batch refuses, naming the move or revision that restores it.
+Branch on the result's `kind`:
+
+- **`landed`** reports an already landed cut. Skip preview approval and terminal apply. Continue with any outstanding
+  extraction reconciliation and applicable cohort upkeep in step 6, then check readiness in step 7.
+- **`preview`** writes nothing. It reports the terminal batch with its `applyAuthority`, the `lineage` record and
+  `removals` for retirement or each thinned artifact's `retainedContent` for extraction (`null` where the file goes),
+  and each record in `writes`. Continue to the review and approval below.
+
+The origin's current state must be eligible for the selected shape. A move from `Planning` to `Active` remains eligible
+for extraction. Follow the CLI's reported remedy for an ineligible state. If scanned source units or dependency edges
+have changed, use `--revise` to rebind them. For a renamed origin, run the reported `--revise` under its current name.
 
 For extraction, run [spec-review][spec-review] over the exact reported retained specification content or absence,
 using the reported source units and operator allocation intent. Removed units supply change context, not definitions
@@ -160,8 +180,9 @@ verbatim and never re-derive them from records.
 A rejection runs the discard instead, and a revision the revision:
 
 - **Discard.** `arc decompose <origin> --discard` previews removing each member still a stub, the cohort documents the
-  cut created, and the stored map. Its `leftEdited` lists the existing homes and cohort coordination authoring
-  changed, which no discard undoes.
+  cut created, and the stored map. Its `leftEdited` lists existing homes and surviving cohort coordination targeted
+  by the current map, including untouched destinations. Also surface known authoring edits that would survive and
+  any dependency settlements identified from the additive report's `records`.
 - **Revision.** `arc decompose <origin> --revise > <scratch-revision-starter>` emits a `carried` result, the complete
   revised map, or a `reauthor` result, a fresh starter with the stored authoring beside it and the first place to
   reauthor as its `reason` and `locus`. Author the revised map as step 2 does; then
@@ -185,8 +206,13 @@ arc decompose <origin> --discard --apply <applyAuthority>
 arc decompose <origin> --revise <revised-map> --apply <applyAuthority>
 ```
 
-After a discard, report the homes and coordination left edited; the cut has ended. After a revision, authoring resumes
-at step 4 for what the revision added, carrying any changed unit into its destination by hand.
+After a discard, report `leftEdited` as the surviving destinations targeted by the current map. Separately report
+known surviving authoring edits, including edits to former targets, and dependency settlements identified from the
+additive report's `records`. The cut has ended.
+
+After a revision, resume step 4 from the approved revised map and compare it with the previous allocations. Carry
+added or changed units into their destinations and remove withdrawn obligations from retained destinations.
+For reassignments, update both destinations. Review, check, and save the affected documents in step 4.
 
 ## 6. Apply the terminal batch
 
@@ -196,14 +222,19 @@ Right after approval, in the same session, apply the exact preview:
 arc decompose <origin> --finish --apply <applyAuthority>
 ```
 
-The apply builds the batch again and runs it only when it matches the authority; otherwise it refuses, naming
-`--finish` for a fresh preview, which returns to step 5's approval. The terminal batch is the landing: no commit,
-push, pull request, or merge follows.
+The apply builds the batch again and runs it only when it matches the authority. A stale authority refusal names
+`--finish` for a fresh preview. Before renewed approval in step 5, compare the current destination specifications
+with the content reviewed in step 4. Repeat step 4's review for substantive edits and their affected obligations.
+Reuse completed reviews for unchanged content. If review leads to edits, check and save them in step 4 and preview again.
+
+The terminal batch is the landing: no commit, push, pull request, or merge follows.
 
 - **`applied`** reports the `members` and any `notices`. A retirement removes the checkout holding a started origin,
   or releases it where the origin was started in place; a `continuation` names a cleanup step that did not complete —
   run its `argv`.
-- **`landed`** reports a cut that had already landed, with its members; nothing further applies.
+- **`landed`** reports a cut that had already landed, with its members. Continue with any outstanding work below.
+
+### Reconcile the landed cut
 
 A retirement writes the origin's lineage record, naming its members as successors. Extraction writes no lineage
 record: its origin survives. It stores no launch advice, publication packet, or selected successor. Never tear down
@@ -233,6 +264,10 @@ Run `arc check increment` over these edits, then save them:
 ```bash
 arc save
 ```
+
+Confirm the store accepted each file edited in this step. Check the projection diagnostics and confirm each file is
+in `arc selection` and absent from `arc selection --changed`. For outstanding edits to these files, follow the
+reported remedy, recheck corrected edits, and save again before continuing. Pending edits to unrelated files can wait.
 
 ## 7. Confirm lifecycle readiness
 

@@ -1,7 +1,18 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { acquireDecomposeOrigin } from "../../../src/lib/decompose/acquire-origin.js";
+import { runStoreDecomposeFinish } from "../../../src/lib/decompose/finish.js";
+import { runStoreDecomposePreflight } from "../../../src/lib/decompose/preflight.js";
+import { runStoreDecomposeRevisionStarter } from "../../../src/lib/decompose/revision-starter.js";
+import { copyDecomposeArtifact } from "../../../src/lib/decompose/scaffold-copy.js";
+import { recordReferences } from "../../../src/lib/store/identity.js";
+import { decomposeContext } from "../../fixtures/decompose-context.js";
+import { createDecomposeExtractionFixture } from "../../fixtures/decompose-extraction.js";
+import { createDecomposeOriginFixture } from "../../fixtures/decompose-origin.js";
+import { createDecomposeTerminalFixture } from "../../fixtures/decompose-terminal.js";
 import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 
 const workflow = readFileSync(
   new URL("../../../arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md", import.meta.url),
@@ -14,6 +25,7 @@ const projectWorkflow = readFileSync(
 
 const PREVIEW = "arc decompose <origin> --finish";
 const APPLY = "arc decompose <origin> --finish --apply <applyAuthority>";
+const REVISION_PREVIEW = "`arc decompose <origin> --revise <revised-map>`";
 
 function section(start: string, end: string): string {
   return workflow.slice(workflow.indexOf(start), workflow.indexOf(end));
@@ -38,15 +50,63 @@ describe("decompose workflow contract", () => {
 
   it("defines one all-mode refusal envelope and preserves its actionable fields", () => {
     expect(workflow.match(softWrappedPattern(/Every\s+selected\s+mode\s+emits\s+one\s+typed\s+refusal\s+envelope\s+on\s+stdout\./gu))).toHaveLength(1);
-    expect(workflow).toMatch(
-      softWrappedPattern(/status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u),
-    );
+    expect(workflow).toMatch(softWrappedProse("On refusal, surface the complete typed refusal envelope unchanged"));
     expect(workflow).toMatch(
       softWrappedProse(
         "Successful preflight writes the starter map alone; refusal follows the common envelope and never emits a partial starter map.",
       ),
     );
     expect(workflow).toMatch(softWrappedProse("Never construct identifiers, record references, apply authorities"));
+  });
+
+  it("preserves the diagnostic a refused task-list copy needs for repair", async () => {
+    const h = await createDecomposeOriginFixture(true);
+    const member = await h.seedStub("member");
+    const tasks = "# Tasks origin\n\n## **Phase 1:** Work\n\n### `[ ]` **1.1 Work**\n";
+    await h.seed(recordReferences["work-item/task-list"](h.primary.reference.owner), tasks);
+    const acquired = await acquireDecomposeOrigin(h.ctx, "origin");
+    if (acquired.status === "refused") throw new Error(JSON.stringify(acquired));
+    const source = acquired.result.artifacts.find(artifact => artifact.basename === "tasks-origin.md")!;
+    source.record.content = tasks.replace("## **Phase 1:** Work", "## **Phase 1:** Work\n\n_Mode:_ `layer`");
+    const refusal = copyDecomposeArtifact(h.ctx, acquired.result, member.reference.owner, source.basename);
+    expect(refusal).toMatchObject({
+      status: "refused", reason: "scaffold-task-list", class: "recoverable",
+      remedy: { text: expect.stringContaining("Repair each named diagnostic") },
+      message: expect.stringContaining("task-list.segmentation"),
+    });
+    source.record.content = tasks;
+    expect(copyDecomposeArtifact(h.ctx, acquired.result, member.reference.owner, source.basename))
+      .toMatchObject({ status: "ok" });
+
+    const instruction = section("On refusal,", "Never construct");
+    expect(instruction).toMatch(softWrappedPattern(/(?:complete|full|entire)\s+(?:typed\s+)?refusal\s+envelope/u));
+    expect(instruction).toMatch(/\b(?:unchanged|verbatim)\b/u);
+  });
+
+  it("recovers current allocations before authoring without the additive report", async () => {
+    const { store, map } = await createDecomposeTerminalFixture({ withHome: true });
+    const ctx = decomposeContext(store);
+    expect(await runStoreDecomposePreflight(ctx, "origin")).toMatchObject({
+      status: "refused", reason: "cut-in-flight",
+      remedy: { text: expect.stringContaining("arc decompose origin --revise") },
+    });
+
+    const starter = await runStoreDecomposeRevisionStarter(ctx, "origin");
+    if (starter.status === "refused") throw new Error(JSON.stringify(starter));
+    expect(JSON.parse(starter.result)).toMatchObject({ status: "carried", map: { authoring: map.authoring } });
+
+    const resume = section("## 1. Emit the exact preflight", "## 2. Complete the operator-owned map");
+    expect(resume).toMatch(softWrappedPattern(/`--revise`\s+without\s+a\s+map/u));
+    expect(resume).toMatch(softWrappedPattern(/`carried\.map`[^.]*step\s+4/u));
+    expect(resume).toMatch(softWrappedPattern(/`reauthor`[^.]*`storedAuthoring`/u));
+    expect(resume).toMatch(softWrappedPattern(/revision\s+preview\s+and\s+approval/u));
+  });
+
+  it("keeps the origin's name reserved at cohort creation and routes a later rename to revision", () => {
+    const map = section("## 2. Complete the operator-owned map", "## 3. Write the additive batch");
+    expect(map).toMatch(softWrappedPattern(/cohort[^.]*cannot\s+take\s+the\s+origin's\s+name/u));
+    expect(map).toContain("`arc rename <slug> <new-slug>`");
+    expect(map).toMatch(softWrappedPattern(/in-flight\s+cut[^.]*`--revise`[^.]*placement/u));
   });
 
   it("makes the distribution approval the one stop before the terminal batch", () => {
@@ -61,12 +121,51 @@ describe("decompose workflow contract", () => {
     expect(apply).toBeGreaterThan(interlocks[1]!.index);
     expect(workflow).toMatch(softWrappedProse("This is the sole semantic distribution approval, and it authorizes the terminal batch."));
     expect(workflow).toMatch(softWrappedProse("Right after approval, in the same session, apply the exact preview"));
-    expect(workflow).toMatch(softWrappedProse("naming `--finish` for a fresh preview, which returns to step 5's approval"));
+    expect(workflow).toMatch(softWrappedProse("A stale authority refusal names `--finish` for a fresh preview"));
   });
 
-  it("previews a discard or revision at a stop of its own before applying it", () => {
-    const options = section("A rejection runs the discard instead", "## 6. Apply the terminal batch");
+  it("routes a landed bare finish to remaining work before the preview interlock", () => {
+    const beforeApproval = section(`${PREVIEW}\n`, "`workflow-interlock`");
+    const landed = beforeApproval.match(/- \*\*`landed`\*\*[\s\S]*?(?=\n- )/u)?.[0];
+    expect(landed).toMatch(softWrappedPattern(/skip\s+preview\s+approval[^.]*apply/iu));
+    expect(landed).toMatch(softWrappedPattern(/reconciliation[^.]*cohort\s+upkeep[^.]*readiness/u));
+  });
+
+  it("checks the current origin state for the selected shape and revises changed bindings", () => {
+    const beforeApproval = section(`${PREVIEW}\n`, "`workflow-interlock`");
+    expect(beforeApproval).toMatch(softWrappedPattern(/current\s+state[^.]*eligible[^.]*shape/u));
+    expect(beforeApproval).toMatch(softWrappedPattern(/`Planning`[^.]*`Active`[^.]*extraction/u));
+    expect(beforeApproval).toMatch(softWrappedPattern(/source\s+units[^.]*dependency\s+edges[^.]*`--revise`/u));
+    expect(beforeApproval).toMatch(softWrappedPattern(/renamed\s+origin[^.]*`--revise`[^.]*current\s+name/u));
+  });
+
+  it("requires a new destination review before approval when an allocated specification body changes", async () => {
+    const h = await createDecomposeExtractionFixture();
+    const preview = await runStoreDecomposeFinish(h.ctx, "origin");
+    if (preview.status === "refused" || preview.result.kind !== "preview") throw new Error(JSON.stringify(preview));
+    const reference = recordReferences["work-item/companion"](h.member.reference.owner, "spec-rfc");
+    const reviewed = lifecycleSuccess(await h.store.read({ reference }));
+    await h.handEdit(reviewed, `${reviewed.content}\nThe member must reject incomplete transfers.\n`);
+
+    expect(await runStoreDecomposeFinish(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority }))
+      .toMatchObject({ status: "refused", reason: "stale-apply-authority", remedy: { argv: ["arc", "decompose", "origin", "--finish"] } });
+    const fresh = await runStoreDecomposeFinish(h.ctx, "origin");
+    if (fresh.status === "refused" || fresh.result.kind !== "preview") throw new Error(JSON.stringify(fresh));
+    expect(fresh.result.applyAuthority).not.toBe(preview.result.applyAuthority);
+    expect(await runStoreDecomposeFinish(h.ctx, "origin", { applyAuthority: fresh.result.applyAuthority }))
+      .toMatchObject({ status: "ok", result: { kind: "applied" } });
+
+    const retry = section(APPLY, "- **`applied`**");
+    expect(retry).toMatch(softWrappedProse("`--finish` for a fresh preview"));
+    expect(retry).toMatch(softWrappedPattern(/compare[^.]*destination\s+specifications[^.]*reviewed/u));
+    expect(retry).toMatch(softWrappedPattern(/step\s+4[^.]*review[^.]*substantive\s+edits/u));
+    expect(retry).toMatch(softWrappedPattern(/before\s+renewed\s+approval[^.]*compare/iu));
+    expect(retry).toMatch(softWrappedProse("Reuse completed reviews for unchanged content"));
+  });
+
+  function assertDiscardAndRevisionContract(options: string): void {
     const stop = options.indexOf("`workflow-interlock`");
+    const revisionPreview = options.indexOf(REVISION_PREVIEW);
     const discardApply = options.indexOf("arc decompose <origin> --discard --apply <applyAuthority>");
     const revisionApply = options.indexOf("arc decompose <origin> --revise <revised-map> --apply <applyAuthority>");
 
@@ -76,10 +175,39 @@ describe("decompose workflow contract", () => {
     expect(options).toContain("`carried`");
     expect(options).toContain("`reauthor`");
     expect(stop).toBeGreaterThan(-1);
+    expect(revisionPreview).toBeGreaterThanOrEqual(0);
+    expect(revisionPreview).toBeLessThan(stop);
     expect(options.slice(stop, discardApply)).toMatch(softWrappedProse("explicit 'apply' direction"));
     expect(discardApply).toBeGreaterThan(stop);
     expect(revisionApply).toBeGreaterThan(stop);
-    expect(options).toMatch(softWrappedProse("authoring resumes at step 4 for what the revision added"));
+    expect(options.slice(revisionApply)).toMatch(softWrappedProse("resume step 4 from the approved revised map"));
+  }
+
+  it("previews a discard or revision at a stop of its own before applying it", () => {
+    assertDiscardAndRevisionContract(section("A rejection runs the discard instead", "## 6. Apply the terminal batch"));
+  });
+
+  it("detects a missing map-bearing revision preview even if the apply remains", () => {
+    const options = section("A rejection runs the discard instead", "## 6. Apply the terminal batch");
+    expect(options).toContain(REVISION_PREVIEW);
+    expect(() => assertDiscardAndRevisionContract(options.replace(REVISION_PREVIEW, ""))).toThrow();
+  });
+
+  it("reports current discard targets and surviving edits as separate evidence", () => {
+    const preview = section("- **Discard.**", "- **Revision.**");
+    const completion = section("After a discard,", "## 6. Apply the terminal batch");
+    for (const report of [preview, completion]) {
+      expect(report).toMatch(softWrappedPattern(/`leftEdited`[^.]*current\s+map/u));
+    }
+    expect(completion).toMatch(softWrappedPattern(/separately[^.]*authoring\s+edits[^.]*dependency\s+settlements[^.]*`records`/iu));
+  });
+
+  it("reconciles withdrawn and reassigned obligations after a revision", () => {
+    const resume = section("arc decompose <origin> --revise <revised-map> --apply <applyAuthority>",
+      "## 6. Apply the terminal batch");
+    expect(resume).toMatch(softWrappedPattern(/step\s+4[^.]*approved\s+revised\s+map/u));
+    expect(resume).toMatch(softWrappedPattern(/remove[^.]*withdrawn\s+obligations[^.]*retained\s+destinations/iu));
+    expect(resume).toMatch(softWrappedPattern(/reassignments?[^.]*both\s+destinations/iu));
   });
 
   it("reviews an extraction's retained content at the distribution gate", () => {
@@ -128,7 +256,7 @@ describe("decompose workflow contract", () => {
       const map = candidate.slice(mapStart, batchStart).replace(/\s+/gu, " ");
 
       expect(refusalStart).toBeGreaterThan(-1);
-      expect(refusal).toContain("surface its status, reason, optional locus and evidence, remedy");
+      expect(refusal).toContain("surface the complete typed refusal envelope unchanged");
       expect(refusal).toContain("Stop until the reported correction is complete");
       expect(map).toContain("`externalEdges`");
       expect(map).toContain("new member or live existing-home work unit");
@@ -183,6 +311,17 @@ describe("decompose workflow contract", () => {
     expect(checks[0]).toBeLessThan(saves[0]!);
     expect(checks[1]).toBeGreaterThan(saves[0]!);
     expect(checks[1]).toBeLessThan(saves[1]!);
+  });
+
+  it.each([
+    ["distribution preview", "Run `arc check increment` over the authored destinations", "## 5. Preview and approve the distribution"],
+    ["lifecycle readiness", "Run `arc check increment` over these edits", "## 7. Confirm lifecycle readiness"],
+  ])("requires the store to accept the edited files before %s", (_next, start, end) => {
+    const instructions = section(start, end).split("```bash\narc save\n```")[1];
+    expect(instructions).toContain("`arc selection`");
+    expect(instructions).toContain("`arc selection --changed`");
+    expect(instructions).toMatch(softWrappedPattern(/each\s+file\s+edited\s+in\s+this\s+step/u));
+    expect(instructions).toMatch(softWrappedPattern(/remed[^.]*recheck[^.]*save\s+again/u));
   });
 
   it("preserves extraction's no-lineage and surviving-origin boundary", () => {
