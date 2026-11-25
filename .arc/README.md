@@ -17,7 +17,7 @@ full installation and setup walkthrough.
 ├── active/                    # Active WUs' stored records, projected into this checkout
 │   ├── current/               # This checkout's WU: meta-*.md, draft-*.md, spec-*.md, tasks-*.md, companions
 │   │                          # (directly under active/ when layout.active is flat)
-│   └── in-flight/<wu>/        # Each other active WU's records
+│   └── in-flight/<wu>/        # Other active WUs selected by this checkout's in-flight view or pins
 ├── backlog/                   # Future work pipeline (arc-in-git pm.mode only)
 │   ├── provisional/<wu>/      # Captured WU stubs, not yet committed-to
 │   └── planned/[<cohort>/]<wu>/   # Committed-to WUs, optionally grouped by cohort

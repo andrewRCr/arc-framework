@@ -375,25 +375,24 @@ inbox.remind_after_days: 1
 
 # --- Inbound ---
 
-# Re-triage threshold for a work unit's inbound list: more than this many pending
-# entries. Past it, or past inbound.retriage_after_days, session-init recommends
-# the owner's re-triage of their current work unit, and the inbox drain offers to
-# re-triage a backlog stub it routes into. Applies only where operational state
-# is kept off the branch.
+# Session-init recommends that owners re-triage their current work unit when its
+# inbound list has more than this many pending entries or the age of its oldest
+# pending entry exceeds inbound.retriage_after_days. The inbox drain offers re-triage for a
+# backlog stub it routes into when that stub already holds inbound entries.
+# Applies only where operational state is kept off the branch.
 inbound.retriage_after_entries: 10
 
-# Re-triage threshold, in whole days, for the oldest pending entry in a work
-# unit's inbound list, measured from its capture date. See
-# inbound.retriage_after_entries.
+# Session-init age threshold, in whole days since the oldest pending inbound
+# entry's `Created` date. See inbound.retriage_after_entries.
 inbound.retriage_after_days: 30
 
 # --- Pause ---
 
-# Review threshold, in whole days, for a paused work unit that waits on no other
-# work unit. Once its pause is this old, it is due for review: session-init asks
-# its owner to resume it, hand it over, open it to takers, or abandon it, and the
-# status views flag it. Applies only where operational state is kept off the
-# branch.
+# A paused work unit that waits on no other work unit is due for review when
+# more than this many days have elapsed since the pause began. Session-init
+# asks its owner to resume it, hand it over, open it to takers, or abandon it,
+# and the status views flag it. Applies only where operational state is kept
+# off the branch.
 pause.review_after_days: 14
 
 # --- Integration ---

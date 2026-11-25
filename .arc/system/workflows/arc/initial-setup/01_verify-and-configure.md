@@ -36,7 +36,8 @@ Confirm that `.arc/` was created at the repo root with the expected structure:
 No work unit exists yet. ARC creates a work unit's records, its meta among them, with the work unit, not at
 init.
 
-Initial session state lives in the bootstrap entry `arc init` seeds into `.arc/user/{identity}/WORKING-MEMORY.md`:
+Run `arc status --json` to project your personal records, then confirm the bootstrap entry that `arc init` seeded
+in `.arc/user/{identity}/WORKING-MEMORY.md`:
 
 ```markdown
 ## Memories
@@ -48,8 +49,8 @@ _Remove when: initial-setup sequence complete._
   `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`. The workflow guides onward steps.
 ```
 
-Confirm the entry is present. Session-init loads WORKING-MEMORY in every session, so the next `arc-session` invocation
-surfaces the pointer to this workflow in its orientation output.
+Session-init loads working memory in every session, so the next `arc-session` invocation surfaces the pointer to
+this workflow in its orientation output.
 
 ### Verify Agent Configuration
 
@@ -59,9 +60,9 @@ settings for that agent platform.
 
 ### User Workspace
 
-`arc init` created `user/{identity}/` as a personal workspace directory (gitignored), seeded with WORKING-MEMORY.md
-(context that spans work units) and your personal inbox (concerns captured for later, read with
-`arc inbox personal`). A work unit's session context lives in its meta, written at session handoff.
+Setup seeds the working-memory and personal-inbox records. After the status command, confirm `WORKING-MEMORY.md`
+and `USER-INBOX.md` are projected into your gitignored `.arc/user/{identity}/` workspace. Read personal captures with
+`arc inbox personal`. A work unit's session context lives in its meta, written at session handoff.
 
 Confirm identity is set:
 
@@ -243,7 +244,8 @@ Confirm that `arc init` set up the local environment:
   hook manager's config for ARC entries.
 - **Identity** — `git config arc.identity` is set. This determines your personal
   workspace directory (`user/{identity}/`).
-- **User workspace** — `user/{identity}/` exists, seeded with your WORKING-MEMORY.md and personal inbox.
+- **User workspace** — setup seeds any missing personal records. Run `arc status --json` to project them, then
+  confirm `WORKING-MEMORY.md` and `USER-INBOX.md` in `.arc/user/{identity}/`.
 
 ### Configuration Review
 

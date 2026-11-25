@@ -23,7 +23,7 @@ user/
 ├── README.md                    # This file (tracked)
 ├── andrew/                      # Your personal workspace
 │   ├── WORKING-MEMORY.md        # Cross-work-unit context, reviewed at each handoff
-│   ├── <personal inbox>         # Personal task capture, read with `arc inbox`
+│   ├── USER-INBOX.md            # Personal task capture, read with `arc inbox personal`
 │   └── scratch/                 # Your own files
 └── alice/                       # Team member (same structure)
     └── ...
@@ -51,10 +51,10 @@ between developers. Project-level planning records stay in their shared location
 
 ARC manages these personal records during session lifecycle operations; everything you put in `scratch/` is freeform.
 
-| Record              | Read at            | Purpose                                                    |
-| ------------------- | ------------------ | ---------------------------------------------------------- |
-| `WORKING-MEMORY.md` | session-init       | Cross-work-unit constraints, each with its removal trigger |
-| Personal inbox      | `arc inbox`, drain | Deferred personal captures, drained by `arc-housekeep`     |
+| Record              | Read at                     | Purpose                                                    |
+| ------------------- | --------------------------- | ---------------------------------------------------------- |
+| `WORKING-MEMORY.md` | session-init                | Cross-work-unit constraints, each with its removal trigger |
+| Personal inbox      | `arc inbox personal`, drain | Deferred personal captures, drained by `arc-housekeep`     |
 
 That's the whole contract for most users. If you're running a personal planning pipeline as a
 contributor, `user/{identity}/active/meta-{name}.md` (personal work state) and
@@ -63,19 +63,16 @@ see § Advanced: Personal Planning Pipeline below.
 
 ## Personal Content
 
-Put your own files in `user/{identity}/scratch/`: scratch notes, investigation logs, research captures, reference
-links, personal reading lists, clippings. No structural requirements — organize them as makes sense to you. Outside
-`scratch/`, the identity directory holds only ARC's records, and a save refuses other files there.
-
-The framework does not load, validate, or manage personal content. You can reorganize it,
-delete it, or expand it without breaking anything.
+Use `user/{identity}/scratch/` for freeform text such as notes, investigation logs, research captures, and reference
+links. Keep each file to at most 1 MiB (1,048,576 UTF-8 bytes). The store rejects files with a NUL byte in the first
+8,000 bytes. Outside `scratch/`, the identity directory holds only ARC's records, and a save refuses other files there.
 
 ## Portability
 
-Your personal records, `scratch/` included, are stored under your identity beside the project's state. Edits
-persist with `arc save`, and `arc sync` publishes them with the project's state to its state remote, so they follow
-you to every checkout and machine. On a public repository the state remote is public too: keep secrets out of your
-personal workspace.
+Your personal records, including accepted `scratch/` files, are stored under your identity beside the project's state.
+A scratch edit becomes available to sync on another machine after the store accepts it through `arc save` and
+`arc sync` publishes it to the state remote. The state remote for a public repository is public too, so keep secrets
+out of your personal workspace.
 
 ## Adding Team Members
 

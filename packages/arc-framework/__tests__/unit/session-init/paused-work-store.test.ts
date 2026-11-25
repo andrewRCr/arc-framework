@@ -1,6 +1,7 @@
 import { boundHolderLookup } from "../../helpers/store/bound-checkout.js";
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 /** Shared marking uses lifecycle identity, terminal evidence and the pause's original date. */
+import { readFile } from "node:fs/promises";
 import { expect, it } from "vitest";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { MetaPauseSchema, ParsedMetaRecordSchema } from "../../../src/lib/active/meta-schema.js";
@@ -130,11 +131,22 @@ it("uses the pause's original since, has a strict review threshold, and omits op
   const exactlyFourteenDays = { ...pause(), since: "2026-10-02T12:00:00.000Z" };
   expect(await markPausedWorkItem({ slug: "demo", pause: exactlyFourteenDays }, { store: h.store, reviewAfterDays: 14, now }))
     .toEqual({ marks: [], actions: [] });
+  expect(await markPausedWorkItem({ slug: "demo", pause: exactlyFourteenDays },
+    { store: h.store, reviewAfterDays: 14, now: new Date(now.getTime() + 1) }))
+    .toMatchObject({ marks: ["review-due"], actions: expect.arrayContaining([{ text: "arc resume demo", argv: ["arc", "resume", "demo"] }]) });
   const result = await markPausedWorkItem({ slug: "demo", pause: pause(null, true) }, { store: h.store, reviewAfterDays: 14, now });
   expect(result.marks).toEqual(["review-due"]);
   expect(result.reviewPrompt).not.toContain("--open");
   expect(result.actions.some(action => action.argv?.includes("--open"))).toBe(false);
 });
+
+it.each(["../../../arc/system/arc-config.yml", "../../../../../.arc/system/arc-config.yml"])(
+  "%s documents review as due only past the configured pause age", async path => {
+    const config = await readFile(new URL(path, import.meta.url), "utf8");
+    const comment = config.split("# --- Pause ---")[1]?.split("pause.review_after_days:")[0]?.replace(/\r?\n#\s?/gu, " ");
+    expect(comment).toMatch(/(?:more than|older than|exceeds)[^.]*\bdays\b[^.]*(?:began|started|start)/iu);
+  },
+);
 
 async function renamedPrerequisite() {
   const h = createLifecycleHarness();

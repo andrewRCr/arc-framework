@@ -37,6 +37,34 @@ const REPO_ROOT_DIR = resolve(currentDir, "../../../..");
 const ARC_DIR = join(REPO_ROOT_DIR, ".arc");
 const PKG_ARC_DIR = join(REPO_ROOT_DIR, "packages/arc-framework/arc");
 
+describe.each([["shipped", PKG_ARC_DIR], ["project", ARC_DIR]])("%s setup reference", (_copy, root) => {
+  it("documents the session and drain triggers separately and dates inbound age from Created", async () => {
+    const config = await readFile(join(root, "system/arc-config.yml"), "utf8");
+    const section = config.split("# --- Inbound ---")[1]?.split("# --- Pause ---")[0]?.replace(/\r?\n#\s?/gu, " ");
+    const sentences = section?.split(/\.\s+/u) ?? [];
+    const threshold = sentences.find(sentence => /session-init.*pending entries/iu.test(sentence));
+    const drain = sentences.find(sentence => /inbox drain/iu.test(sentence));
+    expect.soft(threshold).toBeDefined();
+    expect.soft(drain).not.toBe(threshold);
+    expect.soft(drain).toMatch(/backlog.*(?:already|nonempty|at least one).*entries/iu);
+    expect.soft(section).toMatch(/whole days[^.]*oldest pending[^.]*\bCreated\b/iu);
+  });
+
+  it("describes in-flight records as selected by the checkout's view and pins", async () => {
+    const readme = await readFile(join(root, "README.md"), "utf8");
+    const membership = readme.split(/\r?\n/u).find(line => line.includes("in-flight/<wu>/"));
+    expect(membership).toMatch(/\bview\b.*\bpins\b/iu);
+  });
+
+  it("documents scratch admission limits and makes portability conditional on save and sync", async () => {
+    const readme = await readFile(join(root, "user/README.md"), "utf8");
+    const [content, portability] = (readme.split("## Personal Content")[1] ?? "").split(/^## /mu);
+    expect.soft(content).toMatch(/(?:at most|up to) (?:1 MiB|1,048,576)\b[\s\S]*UTF-8/iu);
+    expect.soft(content).toMatch(/\bNUL\b[\s\S]*first\s+8,000 bytes/iu);
+    expect.soft(portability).toMatch(/\b(?:accepts?|accepted)\b[\s\S]*\barc save\b[\s\S]*\barc sync\b[\s\S]*\bpublish/iu);
+  });
+});
+
 /**
  * Locate the package source for a `.arc/`-relative path.
  *
