@@ -2443,5 +2443,7 @@ None.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R2. _Revalidated:_ pending → 7.1.
 - **A30** — 2026-11-24 — task: `init-work-unit.md` states promotion, its replay and release as the store has them.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R3. _Revalidated:_ pending → 7.1.
+- **A31** — 2026-11-25 — task: store-backed cases 2 to 7 run on the end-to-end work unit, with stand-in review reports.
+  _Supersedes:_ none. _Trigger:_ 6.4.e must-stop. _Work:_ 6.R3. _Revalidated:_ pending → 6.8.
 
 ---

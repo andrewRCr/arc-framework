@@ -1672,6 +1672,7 @@ rewritten workflows (§ 9.2).
           its execute half's time recorded.
         - Case 6's reopen reads its pull request through the `gh` stub § 9.5 places, its evidence labeled stubbed host
           evidence.
+        - _Amended in:_ 6.R3 (A31).
 
 ### `[ ]` **6.5 The controlled perturbations — § 9.3**
 
@@ -1751,6 +1752,16 @@ rewritten workflows (§ 9.2).
         - The change reaches `main` as an Errand ahead of the window, and the pre-window list carries each live branch's
           merge of `main` after it, the three checkouts whose installs predate a dependency `main` added, and each
           checkout's own build; confirm both on the live repository before 6.8.
+
+### `[ ]` **6.R3 Store-backed cases 2 to 7 on the end-to-end work unit — § 9.10**
+
+- _Goal:_ Each of cases 2 to 7 runs as a real scenario on the flipped copy, on the work unit Task 6.6 carries to
+  pre-publication, since each needs a Candidate and local review passes that only that unit reaches (A31).
+
+    - `[ ]` **6.R3.a The six cases**
+        - Each case's scenario and its expected outcome are written in `notes-cutover-flip.md` § Stage 2 before it runs.
+          A review pass a case needs is attested from a report written for the rehearsal and labeled a stand-in, as case
+          6's reopen reads its pull request through the `gh` stub.
 
 ### `[ ]` **6.8 Stage 2 clean at the head that lands** — validate exit criterion at segment scope
 
