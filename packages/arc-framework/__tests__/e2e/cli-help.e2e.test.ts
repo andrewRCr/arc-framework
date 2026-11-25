@@ -56,6 +56,14 @@ describe("built CLI navigation", () => {
     }
   });
 
+  it("explains when materialize --here switches branches and when it preserves HEAD", async () => {
+    const help = await runCli(["materialize", "--help"]);
+    expect(help.exitCode).toBe(0);
+    const here = help.stdout.match(/^ +--here\b.*(?:\n {4,}\S.*)*/mu)?.[0].replace(/\s+/gu, " ");
+    expect.soft(here).toMatch(/(?:checks? out|switch(?:es)? to).*linked branch|linked branch.*checked out/iu);
+    expect.soft(here).toMatch(/(?:keep|preserv|leav)\w*.*HEAD|HEAD.*(?:unchanged|preserved)/iu);
+  });
+
   it("lists store commands and keeps import out of migration help", async () => {
     const help = await runCli(["store", "--help"]);
     expect(help.exitCode).toBe(0);
@@ -70,6 +78,16 @@ describe("built CLI navigation", () => {
     expect(migrate.stderr).toBe("");
     expect(migrate.stdout).toContain("--leave-source");
     expect(migrate.stdout).not.toContain("--import");
+  });
+
+  it("explains that partial close removes the originating inbox entry only if its version still matches", async () => {
+    const help = await runCli(["errand", "close", "--help"]);
+    expect(help.exitCode).toBe(0);
+    const purpose = help.stdout.split("\nOptions:")[0]?.replace(/\s+/gu, " ").trim();
+    expect(purpose).toMatch(/\binbox\b/iu);
+    expect(purpose).toMatch(/\bpartial\b/iu);
+    expect(purpose).toMatch(/remov|drop|delet/iu);
+    expect(purpose).toMatch(/unchanged|unmodified|unedited|same version|version.*match|match.*version/iu);
   });
 
   it("keeps deep command purposes, inherited flags, and structured-request discovery", async () => {

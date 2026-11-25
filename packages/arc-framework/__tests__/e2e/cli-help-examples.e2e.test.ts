@@ -18,6 +18,15 @@ const pages = [
 ];
 
 describe("workflow help examples", () => {
+  it("identifies the inbox-remove positional as a title and shows the ref-store invocation without it", async () => {
+    const result = await runCli(["user", "inbox-remove", "--help"]);
+    expect(result.exitCode).toBe(0);
+    const positional = (result.stdout.split("Arguments:\n")[1]?.split(/\n\S/u)[0] ?? "").replace(/\s+/gu, " ");
+    expect.soft(positional).toMatch(/\btitle\b.*\bin-repo\b.*\bonly\b/iu);
+    const help = result.stdout.replace(/\s+/gu, " ");
+    expect(help).toMatch(/arc user inbox-remove --id \S+ --expected-version \S+/u);
+  });
+
   it.each(pages)("documents $path examples and assumptions", async ({ path, examples, notes }) => {
     const result = await runCli([...path, "--help"]);
     expect(result.exitCode).toBe(0);

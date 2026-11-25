@@ -151,9 +151,17 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
       ["Defaults:", "Without a slug or mode flag, inspect identity, configuration, active work, and checkout projection.\n"
         + "Bare status, slug queries, and the user, project, and conflict views read local store state by default. "
         + "Use --fetch to pull remote state first.\n"
-        + "Session initialization follows session.remote_sync for store pulls. Add --json for JSON output."],
+        + "Bare status can still check your identity's notes ref on origin even with --local or --no-fetch.\n"
+        + "Session initialization follows session.remote_sync for store pulls even with --local or --no-fetch. "
+        + "Add --json for JSON output."],
       ["Choose one:", "A slug, --project, --user, --conflicts, --session-init, --session-handoff, or --recover. "
         + "These modes are mutually exclusive."],
+    ],
+  },
+  "user inbox-remove": {
+    summary: COMMAND_SUMMARIES["user inbox-remove"],
+    examples: [
+      ["arc user inbox-remove --id <id> --expected-version <version>", "Remove a ref-store entry using arc inbox personal's ID and version"],
     ],
   },
   "review resolve": {

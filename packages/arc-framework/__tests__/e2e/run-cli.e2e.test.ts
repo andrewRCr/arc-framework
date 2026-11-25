@@ -88,8 +88,8 @@ describe("runCli", () => {
     const help = result.stdout.replace(/\s+/gu, " ");
     expect(help).toContain("read local store state by default");
     expect(help).toContain("--fetch Pull remote store state before rendering bare status, a slug, --user, --project, or --conflicts");
-    expect(help).toContain("--local Read local store state even when --fetch is set");
-    expect(help).toContain("--no-fetch Read local store state (overrides an earlier --fetch)");
+    expect.soft(help).toMatch(/--local (?:Skip|Suppress) (?:the )?store pull[^.]*--fetch[^.]*regardless of (?:flag )?order/u);
+    expect.soft(help).toMatch(/--no-fetch (?:Cancel|Override) an earlier --fetch(?: store pull)?/u);
   });
 
   it("explains status modes, defaults, and write effects in ordered sections", async () => {

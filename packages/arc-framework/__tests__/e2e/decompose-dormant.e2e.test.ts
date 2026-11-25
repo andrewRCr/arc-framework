@@ -37,7 +37,10 @@ it("explains the stored cut modes and the base-advance refusal in help", async (
   expect(help).toContain("--preflight");
   expect(help).toContain("--execute <cut-map> Create members and store a cut");
   expect(help).toContain("--extract <cut-map> Create members and store an extraction");
-  expect(help).toContain("--finish [cut-map] Preview finishing the stored cut. Omit the map");
+  const finishOption = result.stdout.match(/^ {2}--finish\b.*(?:\n {4,}\S.*)*/mu)?.[0].replace(/\s+/gu, " ");
+  expect.soft(finishOption).toMatch(/\bpreview\b.*--finish(?=\.|\s+(?:without|on)\b)/iu);
+  expect.soft(finishOption).toMatch(/--finish --apply <authority>/u);
+  expect.soft(finishOption).toMatch(/\b(?:cut-map|map operand)\b[^.]*\bin-repo\b[^.]*\bonly\b/iu);
   expect(help).toContain("--revise [cut-map] Emit a fresh map without an operand");
   expect(help).toContain("--discard Preview discarding a stored cut");
   expect(help).toContain("--advance-base <cut-map> Unsupported for stored cuts");

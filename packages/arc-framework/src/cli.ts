@@ -458,7 +458,8 @@ program
   .option("--preflight", "Emit a canonical read-only starter map for the storage backend")
   .option("--execute <cut-map>", "Create members and store a cut for retirement with --finish")
   .option("--extract <cut-map>", "Create members and store an extraction that keeps the origin work unit")
-  .option("--finish [cut-map]", "Preview finishing the stored cut. Omit the map and use --apply to land the preview")
+  .option("--finish [cut-map]", "Preview finishing a stored cut with --finish. Apply it with --finish --apply <authority>. "
+    + "The cut-map operand is for the in-repo backend only")
   .option("--revise [cut-map]", "Emit a fresh map without an operand, or preview a revision from the supplied map")
   .option("--discard", "Preview discarding a stored cut. Use --apply to land the preview")
   .option("--apply <authority>", "Apply an approved finish, revision, or discard preview authority")
@@ -557,7 +558,7 @@ program
     "Give an owned in-flight work unit a local checkout. By default, create a worktree. "
     + "Use --here to bind the current worktree.",
   )
-  .option("--here", "Bind the current worktree to the work unit")
+  .option("--here", "Bind this worktree and check out the work unit’s linked branch, if any. Otherwise, keep the current HEAD")
   .action(withInteractionContext(
     {},
     async (context, slug: string | undefined, opts: MaterializeOptions) => {
@@ -944,7 +945,9 @@ errand
 
 errand
   .command("close <slug>")
-  .description("Complete an Errand by slug or UID and release its checkout occupancy")
+  .description("Complete an Errand by slug or UID and release its checkout occupancy. "
+    + "With the ref store and partial protection (the default), close removes the originating inbox entry only if its "
+    + "version still matches the one recorded at open. Under full protection, adoption already moved the entry into the Errand description.")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
@@ -1437,7 +1440,8 @@ userCmd
   ));
 
 userCmd
-  .command("inbox-remove [slug]")
+  .command("inbox-remove")
+  .argument("[title]", "Inbox entry title (in-repo backend only)")
   .option("--id <id>", "Entry ID from arc inbox personal")
   .option("--expected-version <version>", "Exact entry version observed when listing")
   .description("Remove a personal inbox entry by ID and exact version from arc inbox personal")
@@ -1759,8 +1763,8 @@ program
       .conflicts(["sessionInit", "sessionHandoff", "recover", "user", "project"]),
   )
   .option("--fetch", "Pull remote store state before rendering bare status, a slug, --user, --project, or --conflicts")
-  .option("--local", "Read local store state even when --fetch is set")
-  .option("--no-fetch", "Read local store state (overrides an earlier --fetch)")
+  .option("--local", "Skip the store pull requested by --fetch, regardless of flag order")
+  .option("--no-fetch", "Cancel an earlier --fetch store pull")
   .option("--staged", "Unsupported by the ref store. Use --project to render the store view")
   .option("--write", "Unsupported by the ref store. Use --project to render the store view")
   .addOption(

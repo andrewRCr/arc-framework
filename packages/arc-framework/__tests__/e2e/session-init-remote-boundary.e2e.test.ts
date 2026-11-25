@@ -88,6 +88,39 @@ async function objectInventory(repository: string): Promise<string[]> {
 }
 
 describe("session-init E2E — real remote-access boundaries", () => {
+  it("documents the remote reads that remain possible with the local status flags", async () => {
+    const { publisher, remote } = await initializePublishedProject();
+    const client = await mkdtemp(join(tmpdir(), "arc-local-status-"));
+    try {
+      await publishStore(publisher);
+      await git(client, ["clone", remote, "."]);
+      await configureClone(client);
+      await git(client, ["config", "remote.origin.arc-state", "push"]);
+      const ref = "refs/arc/project/registry";
+      const listRegistry = ["for-each-ref", "--format=%(objectname)", ref];
+      const published = await git(remote, listRegistry);
+      expect(published).toMatch(/^[0-9a-f]+$/u);
+
+      const trace = join(client, ".git", "bare-status.trace");
+      const bare = await runArc(["status", "--local", "--json"], client, { env: { GIT_TRACE: trace } });
+      expect(bare.exitCode, bare.stderr).toBe(0);
+      expect(await readFile(trace, "utf8")).toContain("ls-remote origin refs/notes/arc/user/test-user");
+      expect(await git(client, listRegistry)).toBe("");
+
+      const session = await runArc(["status", "--session-init", "--no-fetch", "--json"], client);
+      expect(session.exitCode, session.stderr).toBe(0);
+      expect(await git(client, listRegistry)).toBe(published);
+
+      const help = await runArc(["status", "--help"], client);
+      expect(help.exitCode).toBe(0);
+      const defaults = help.stdout.split("Defaults:")[1]?.split("Choose one:")[0]?.replace(/\s+/gu, " ");
+      expect.soft(defaults).toMatch(/session.remote_sync[^.]*even with --local or --no-fetch/u);
+      expect.soft(defaults).toMatch(/bare status[^.]*notes ref[^.]*origin/iu);
+    } finally {
+      await Promise.all([cleanupTempDir(client), cleanupTempDir(publisher), removeGitBackedDir(remote)]);
+    }
+  });
+
   it.skipIf(process.platform === "win32")(
     "returns the same code-repository facts when linked-worktree common metadata is read-only",
     async () => {
