@@ -35,6 +35,7 @@
 - [Amendment A18](#amendment-a18)
 - [Amendment A19](#amendment-a19)
 - [Amendment A20](#amendment-a20)
+- [Amendment A21](#amendment-a21)
 - [Delegated work from 11-24](#delegated-work-from-11-24)
 - [Model evidence](#model-evidence)
 
@@ -1013,8 +1014,9 @@ after A17:
 
 - **Historical,** recording the receipt, the path check with its holds, or the waiting rule as built: every amendment
   section from § Amendment A2 to § Amendment A16, § Save after a retirement refusal, and § Interrupted adoption and
-  retirement recovery. One rule in § Amendment A2 is still the build's in part: `arc save`'s re-lock does not report
-  again a path the command already reported. Two distinct conditions at one path are each still reported.
+  retirement recovery. One rule in § Amendment A2 is still the build's in part: write-back may report more than one
+  condition at a path, and `arc save`'s re-lock adds no report of its own at a path the command already reported,
+  whatever that report's reason.
 - **§ Archive boundary corrections, in part.** A1's opening requirement, the link validation before archive pickup, and
   the mode change through a handle that identifies the observed file are withdrawn. The check of which checkout owns the
   requested path, the same-byte replacement kept opened while writable, the retirement's refusal of a late forced edit,
@@ -1087,8 +1089,29 @@ A20 withdraws the exception, approved 2026-11-24. The re-lock closes a text file
 ones (`restsAsProjected`, `save-relock.ts`). It reads them itself, because write-back's `no-edit` answer records the
 file's stat (`stamplessVerdict`, `write-back.ts`) and a later check would trust that stat. A line-ending-only save
 keeps its opening, writable, with a remedy that names restoring the line endings; a save that also changes the text
-lands and its read-back lays the stored text. A line-ending change to a file nobody opened is a forced edit like any
-other. No entry is rewritten, so every later comparison is the one the designed build made.
+lands and its read-back lays the stored text. A line-ending change to a file nobody opened, whose entry is settled,
+is a forced edit like any other. No entry is rewritten, so every later comparison is the one the designed build made.
+
+## Amendment A21
+
+The fix check over A20's change found its sentence too wide. Write-back answers `no-edit` for a line-ending-only
+difference only where the projected bytes hold LF: it normalizes the file's text to LF and compares that with the
+entry's projected bytes (`captureWriteBackFile`, `write-back.ts`; `readStamplessFile`, `stampless.ts`). Where the
+store holds a text file with CRLF, a save that turns it to LF is an edit, lands as a new version and closes, as it
+does on `main`. A21 scopes § 6.2's bullet to LF-held text and names the byte comparison as made for every text file,
+approved 2026-11-25. The bullet as A20 wrote it:
+
+> **Only its line endings changed (A20).** Write-back answers `no-edit` for a file other than Markdown whose bytes
+> differ from the projected ones only in line endings, and records its stat (`stamplessVerdict`, `write-back.ts`), so a
+> stat match cannot show that the file holds the projected bytes. The re-lock compares such a file's bytes before it
+> clears the mark, and where they differ leaves the file opened and writable, its report naming the remedy: restore
+> the file's line endings, then `arc save`.
+
+The same check left five findings in the re-lock's close and its tests, one graded major: a closed entry can keep the
+stat of an earlier file, and the last look does not confirm it sees the file the byte comparison read. They were
+deferred on 2026-11-25 to one follow-up after this unit lands, held as an Errand capture. Review of this unit stopped
+there by decision: `main`'s archive holds no text file other than Markdown, and each of three repairs to this one case
+had opened another round.
 
 ## Delegated work from 11-24
 
