@@ -57,11 +57,12 @@ async function bindNamedMutation(context: RefBackendContext, mutation: Mutation,
 
 async function bindName(context: RefBackendContext, reference: RecordReference, tips: ReadonlyMap<string, string>,
   fresh: ReadonlySet<string>, reserved: ReadonlyMap<string, OwnerIdentity>): Promise<StoreResult<RecordReference>> {
-  const name = writeOwnerNameKey(reference);
+  if (reference.kind.startsWith("lineage/")) return { status: "ok", result: reference };
   if ("uid" in reference.owner && reference.owner.uid) return { status: "ok", result: reference };
+  const name = writeOwnerNameKey(reference);
   const planned = reserved.get(name);
   if (planned) return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: planned }) };
-  if (reference.kind.startsWith("lineage/") || fresh.has(name)) return { status: "ok", result: reference };
+  if (fresh.has(name)) return { status: "ok", result: reference };
   const found = await resolveRefName(context, reference, tips);
   if (found.status === "refused") return found.refusal.code === "not-found" ? { status: "ok", result: reference } : found;
   return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: found.result.owner }) };
