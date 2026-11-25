@@ -9,13 +9,15 @@ import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import type { KindId } from "../../../../src/lib/store/catalog.js";
 import { ENTRY_CONFIGS } from "../../../../src/lib/store/kinds/entry-configs.js";
 import { createHistoryMemo } from "../../../../src/lib/store/projection/base-recovery.js";
-import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
+import { gitBlobId, type ObjectFormat } from "../../../../src/lib/store/projection/blob-id.js";
 import { readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { commitProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
 import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
-import type { WriteBackDiagnostic } from "../../../../src/lib/store/projection/write-back.js";
+import type { WriteBackContext, WriteBackDiagnostic } from "../../../../src/lib/store/projection/write-back.js";
+import type { AsideWriterInput } from "../../../../src/lib/store/projection/aside.js";
+import type { TakeInBase } from "../../../../src/lib/store/projection/take-in-port.js";
 import { createWriteBackPort } from "../../../../src/lib/store/projection/write-back.js";
 import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
 import { stageRecordFile } from "../../../../src/lib/store/projection/staging.js";
@@ -78,9 +80,26 @@ export async function createWriteBackFixture(input: { kind?: KindId; path?: stri
   return { ...fixture, ...projected };
 }
 
+interface ProjectedWriteBackFixture {
+  checkout: string;
+  location: ProjectionLocation;
+  path: string;
+  entry: RecordEntry;
+  index: ProjectionIndex;
+  context: Required<Pick<WriteBackContext, "store" | "location" | "format" | "actor" | "memo" | "report">> & {
+    renderer: ReturnType<typeof createRecordRenderer>;
+    writer: AsideWriterInput;
+  };
+  request: { checkout: string; path: string; copy: null; entry: RecordEntry; base: TakeInBase };
+  reports: WriteBackDiagnostic[];
+  edit(content: string, stamp?: string): Promise<void>;
+  file(): Promise<string>;
+  dispose(): Promise<void>;
+}
+
 /** Project one stored record into a checkout's index, ready for an edit to it to be taken in. */
 export async function projectRecordForWriteBack(input: { store: Store; record: StoreRecord; identity: string; checkout?: string;
-  location?: ProjectionLocation; primary?: Pick<StoreRecord, "reference"> | null; path?: string }) {
+  location?: ProjectionLocation; primary?: Pick<StoreRecord, "reference"> | null; path?: string; format?: ObjectFormat }): Promise<ProjectedWriteBackFixture> {
   const checkout = input.checkout ?? await mkdtemp(join(tmpdir(), "arc-read-back-"));
   const gitDir = join(checkout, ".git");
   const location: ProjectionLocation = input.location ?? { gitDir, commonDir: gitDir, primary: true, stateDir: join(gitDir, "arc-projection") };
@@ -93,12 +112,13 @@ export async function projectRecordForWriteBack(input: { store: Store; record: S
   });
   const path = input.path ?? writeBackFixturePath(read.result.reference);
   const store = input.store;
-  const blob = gitBlobId(read.result.content, "sha1");
+  const format = input.format ?? "sha1";
+  const blob = gitBlobId(read.result.content, format);
   const rendered = (content: string, stamp = blob) => path.endsWith(".md") ? renderStampedFile({ content, stamp }) : content;
   await mkdir(dirname(join(checkout, path)), { recursive: true });
   await writeFile(join(checkout, path), rendered(read.result.content));
   const entry: RecordEntry = { kind: "record", reference: read.result.reference,
-    stat: await readStat(join(checkout, path)), written: gitBlobId(rendered(read.result.content), "sha1"),
+    stat: await readStat(join(checkout, path)), written: gitBlobId(rendered(read.result.content), format),
     base: { blob, version: read.result.version }, markers: null, notices: [], unshown: [], protected: false,
     changed: false, pending: false, withheld: false, refused: null, persisted: null, inProgress: null, copies: [] };
   const index: ProjectionIndex = await commitProjectionIndex({ location, checkout, index: {
@@ -107,7 +127,7 @@ export async function projectRecordForWriteBack(input: { store: Store; record: S
   } });
   const reports: WriteBackDiagnostic[] = [];
   const memo = createHistoryMemo(store);
-  const context = { renderer: createRecordRenderer({ store, memo }), store, location, format: "sha1" as const, memo, actor: `${identity}@fixture-machine`,
+  const context = { renderer: createRecordRenderer({ store, memo }), store, location, format, memo, actor: `${identity}@fixture-machine`,
     writer: { pid: process.pid, processInstance: "read-back-test", processScope: "unit" },
     report: (diagnostic: WriteBackDiagnostic) => { reports.push(diagnostic); } };
   const request = { checkout, path, copy: null, entry, base: path.endsWith(".md")

@@ -1,5 +1,5 @@
 /** A prepared store write lands only if preparing it against the store it lands on would write the same. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { createWriteBackFixture } from "../helpers/store/projection/write-back-fixture.js";
@@ -7,12 +7,15 @@ import { success, seed, fixtureRenameProvenance } from "../helpers/store/suite-t
 import { cohortDoc } from "../helpers/store/cohort-rule-input.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { dryRun, runFenceCase, type FenceOutcome, type FenceWriter } from "../helpers/store/fence-harness.js";
+import * as fenceHarness from "../helpers/store/fence-harness.js";
 import { archiveWriter, editWriter, runFenceOverRepository } from "../helpers/store/fence-repository.js";
 import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { ENTRY_CONFIGS } from "../../src/lib/store/kinds/entry-configs.js";
-import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema } from "../../src/lib/store/identity.js";
-import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema, sameReference } from "../../src/lib/store/identity.js";
+import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
+import { cohortDocumentParent } from "../../src/lib/store/kinds/cohort/check-support.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { prepareWriteBack } from "../../src/lib/store/projection/write-back.js";
 import { prepareIndexedProjectionSubmission } from "../../src/lib/store/projection/submission.js";
@@ -50,11 +53,27 @@ const readsOf = async (store: Store, writer: FenceWriter) => (await dryRun(store
 
 /** Admitted, or refused and then a fresh run that landed, refused, or stopped before its batch with the named result. */
 type Expected = "admitted" | "ok" | "refused" | "clashed" | "held";
-function expectOutcome(outcome: FenceOutcome, expected: Expected): void {
+function expectOutcome(outcome: FenceOutcome, expected: Expected, returnedStatus: "ok" | "archived" = "ok"): void {
   if (expected === "admitted") { expect(outcome).toEqual({ kind: "admitted" }); return; }
   if (outcome.kind !== "refused") throw new Error(`Expected a refusal, and the batch was admitted.`);
-  if (expected === "ok" || expected === "refused") expect(outcome.retried.status).toBe(expected);
-  else expect(outcome.retried).toMatchObject({ status: "unprepared", returned: { kind: expected } });
+  if (expected === "ok" || expected === "refused") {
+    expect(outcome.retried.batch?.status).toBe(expected);
+    if (expected === "ok") expect(outcome.retried.returned).toMatchObject({ status: returnedStatus });
+  } else {
+    expect(outcome.retried.batch).toBeUndefined();
+    expect(outcome.retried.returned).toMatchObject({ kind: expected });
+  }
+}
+
+async function expectArchivePlacements(store: Store, subject: StoreRecord,
+  cohorts: ReadonlyArray<readonly [name: string, closeout: "a" | "b" | null]>): Promise<void> {
+  const archived = success(await store.read({ reference: subject.reference })).placement;
+  expect(archived).toMatchObject({ kind: "completed", quarter: "2026-q4", sequence: expect.any(String) });
+  for (const [name, closeout] of cohorts) {
+    const placement = success(await store.read({ reference: cohort(name) })).placement;
+    if (closeout === null) expect(placement).toBeUndefined();
+    else expect(placement).toEqual({ ...archived, closeout });
+  }
 }
 
 describe.each(["reference", "ref"] as const)("the fence over %s", backend => {
@@ -162,7 +181,7 @@ describe.each(["reference", "ref"] as const)("the fence over %s", backend => {
     ["a member joining the parent cohort", "admitted"], ["an unrelated work unit", "admitted"],
   ] as const)("holds an archive to fresh preparation when %s changes", async (family, expected) => {
     const { f, subject, sibling, unrelated, writer } = await archiveFixture(family === "an open subcohort of the parent cohort");
-    expectOutcome(await runFenceCase(f.store, writer, async store => {
+    const outcome = await runFenceCase(f.store, writer, async store => {
       if (family === "the subject") await rewrite(store, subject, note);
       else if (family === "the closing cohort") await rewrite(store, success(await store.read({ reference: cohort("child") })), note);
       else if (family === "the parent cohort") await rewrite(store, success(await store.read({ reference: cohort("parent") })), note);
@@ -175,7 +194,51 @@ describe.each(["reference", "ref"] as const)("the fence over %s", backend => {
         success(await store.write({ action: "put", reference: workUnit("joiner"), expected: null, placement: { kind: "active" },
           content: makeMetaFixture("joiner", { owner: "test-user", cohort: path }), provenance: changeProvenance }));
       }
-    }), expected);
+    });
+    expectOutcome(outcome, expected, "archived");
+    if (expected === "ok") {
+      await expectArchivePlacements(f.store, subject, [
+        ["child", family === "a member joining the closing cohort" ? null : "a"],
+        ["parent", family === "a member leaving the parent cohort" ? "b" : null],
+      ]);
+    }
+  });
+
+  it("rejects an archive retry as unsuccessful when its batch lands but publication fails", async () => {
+    const { f, subject, writer } = await archiveFixture();
+    const condition = "The archive remote is unreachable.";
+    const publication = vi.spyOn(f.store, "push").mockResolvedValue({ status: "refused", refusal: { code: "unreachable",
+      class: "recoverable", cause: "network", condition, remedy: { text: "Restore the remote connection." } } });
+    try {
+      const outcome = await runFenceCase(f.store, writer, store => rewrite(store, subject, note));
+      expect(outcome).toMatchObject({ kind: "refused", retried: {
+        batch: { status: "ok" }, returned: { status: "rejected", persisted: true, refusal: { condition } },
+      } });
+      await expectArchivePlacements(f.store, subject, [["child", "a"], ["parent", null]]);
+      expect(() => expectOutcome(outcome, "ok", "archived")).toThrow();
+    } finally {
+      publication.mockRestore();
+    }
+  });
+});
+
+it("detects a stale close when fresh preparation keeps the same cohort open", async () => {
+  const f = createReferenceFixture(ENTRY_CONFIGS, registry);
+  const group = await seed(f, cohort("group"), cohortDoc("group").content);
+  const decision = await seed(f, f.reference("personal/document"), "close");
+  const quarter = ArchiveQuarterSchema.parse("2026-q4");
+  expect(group.placement).toBeUndefined();
+
+  const writer: FenceWriter = { name: "cohort closeout", run: async store => {
+    const current = success(await store.read({ reference: group.reference }));
+    const request = success(await store.read({ reference: decision.reference }));
+    const put = recordPut(current, request.content === "close" ? { placement: { kind: "completed", quarter } } : {});
+    return store.batch({ writes: [put], provenance: changeProvenance });
+  } };
+  await expect(runFenceCase(f.store, writer, store => rewrite(store, decision, () => "keep open")))
+    .rejects.toThrow(/fresh preparation.*placement differs/u);
+  expect(success(await f.store.read({ reference: group.reference }))).toMatchObject({
+    content: group.content, placement: { kind: "completed" },
   });
 });
 
@@ -188,9 +251,62 @@ it("runs over a copy of a repository's store, leaving the repository's store unc
     { kind: "archive", name: "subject", prUrl: "https://github.com/o/r/pull/1", clock: new Date("2026-10-14T12:00:00Z") },
     { kind: "edit", reference: group.reference, edit: content => `${content}\nThe register row closes.\n` },
   ], "test-user");
-  expect(reports.map(({ writer, change, outcome }) => `${writer} / ${change} / ${outcome.kind}`)).toEqual([
+  expect(reports.map(({ writer, change, outcome }) => `${writer} / ${change} / ${outcome.kind}`).sort()).toEqual([
     "archive subject / edit work-item/meta:subject / refused", "archive subject / edit cohort/document:group / refused",
+    "archive subject / add a member to group / refused", "archive subject / add an open subcohort to group / refused",
+    "archive subject / rename the work unit resolved by subject / refused",
     "archive subject / an unrelated write / admitted",
     "edit cohort/document:group / edit cohort/document:group / refused", "edit cohort/document:group / an unrelated write / admitted",
-  ]);
+  ].sort());
+}, 120_000);
+
+it("rehearses a member joining the closing cohort and a change to the archive subject's slug resolution", async () => {
+  const f = await createRefFixture(registry);
+  await seed(f, cohort("parent"), cohortDoc("parent").content);
+  await seed(f, cohort("child"), cohortDoc("child", "parent").content);
+  const subject = await seed(f, workUnit("subject"), makeMetaFixture("subject", { owner: "test-user", cohort: "parent/child" }));
+  const slug = subject.reference.owner.name;
+  const exercised = { memberJoinedClosingCohort: false, subcohortJoinedParent: false, slugResolutionChanged: false };
+
+  // Inspect each copied store after its real change lands, before the archive submits its stale batch.
+  const runCase = fenceHarness.runFenceCase;
+  const observer = vi.spyOn(fenceHarness, "runFenceCase").mockImplementation(async (store, writer, change) => {
+    let joined = false, subcohortJoined = false, resolutionChanged = false;
+    const outcome = await runCase(store, writer, async target => {
+      await change(target);
+      const listed = success(await target.list({ family: "work-item", kind: "work-item/meta" }));
+      if (listed.status !== "complete") throw new Error("Expected a complete work-item inventory.");
+      joined = listed.records.some(record => !sameReference(record.reference, subject.reference)
+        && record.placement?.kind !== "completed" && parseMetaRecord(record.content).cohort === "parent/child");
+      const cohorts = success(await target.list({ family: "cohort", kind: "cohort/document" }));
+      if (cohorts.status !== "complete") throw new Error("Expected a complete cohort inventory.");
+      subcohortJoined = cohorts.records.some(record => record.reference.owner.name !== "child"
+        && record.placement === undefined && cohortDocumentParent(record.content) === "parent");
+      const found = await target.lookup({ kind: "slug", slug });
+      resolutionChanged = found.status === "refused" ? ["not-found", "ambiguous-match"].includes(found.refusal.code)
+        : found.result.reference.owner.name !== slug || !sameReference(found.result.reference, subject.reference);
+    });
+    if (joined) {
+      expectOutcome(outcome, "ok", "archived");
+      await expectArchivePlacements(store, subject, [["child", null], ["parent", null]]);
+      exercised.memberJoinedClosingCohort = true;
+    }
+    if (subcohortJoined) {
+      expectOutcome(outcome, "ok", "archived");
+      await expectArchivePlacements(store, subject, [["child", "a"], ["parent", null]]);
+      exercised.subcohortJoinedParent = true;
+    }
+    if (resolutionChanged) {
+      expectOutcome(outcome, "ok", "archived");
+      await expectArchivePlacements(store, subject, [["child", "a"], ["parent", "b"]]);
+      exercised.slugResolutionChanged = true;
+    }
+    return outcome;
+  });
+  try {
+    await runFenceOverRepository(f.root, [{ kind: "archive", name: slug, prUrl: "https://github.com/o/r/pull/1",
+      clock: new Date("2026-10-14T12:00:00Z") }], "test-user");
+    expect(observer).toHaveBeenCalled();
+  } finally { observer.mockRestore(); }
+  expect(exercised).toEqual({ memberJoinedClosingCohort: true, subcohortJoinedParent: true, slugResolutionChanged: true });
 }, 120_000);

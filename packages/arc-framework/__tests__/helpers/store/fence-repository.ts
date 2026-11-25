@@ -1,5 +1,6 @@
 /** The fence harness over a copy of one repository's store, so a rehearsal can run it over the writes a window makes. */
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,13 +8,20 @@ import { promisify } from "node:util";
 import { createRefStore } from "../../../src/lib/store/create.js";
 import { createDefaultRefStorePorts } from "../../../src/lib/store/default-ports.js";
 import { KIND_REGISTRY } from "../../../src/lib/store/registry.js";
-import { OwnerIdentitySchema, recordReferences, type RecordReference } from "../../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, type RecordReference } from "../../../src/lib/store/identity.js";
+import { SlugSchema } from "../../../src/lib/kernel/index.js";
+import { cohortDocumentParent } from "../../../src/lib/store/kinds/cohort/check-support.js";
+import { writeMetaTitle } from "../../../src/lib/store/kinds/meta/writers.js";
 import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
 import { runArchive } from "../../../src/lib/work-unit/verbs/archive.js";
 import { prepareWriteBack } from "../../../src/lib/store/projection/write-back.js";
 import { prepareIndexedProjectionSubmission } from "../../../src/lib/store/projection/submission.js";
+import type { ObjectFormat } from "../../../src/lib/store/projection/blob-id.js";
 import type { Store } from "../../../src/lib/store/contract.js";
+import type { LookupInput } from "../../../src/lib/store/lookup.js";
+import type { BatchInput, Mutation } from "../../../src/lib/store/write.js";
 import type { ExecuteTransitionContext } from "../../../src/lib/work-unit/lifecycle-executor.js";
+import { makeMetaFixture } from "../meta-fixture.js";
 import { projectRecordForWriteBack } from "./projection/write-back-fixture.js";
 import { dryRun, runFenceCase, type FenceOutcome, type FenceWriter } from "./fence-harness.js";
 
@@ -27,6 +35,8 @@ export type FencePlan = { kind: "archive"; name: string; prUrl: string; clock: D
 
 /** One case's change and what the fence did with it. */
 export interface FenceCaseReport { readonly writer: string; readonly change: string; readonly outcome: FenceOutcome }
+
+interface FenceChange { name: string; apply: (store: Store) => Promise<void> }
 
 /** An archive's executor, which reaches the store alone: every tracked-artifact port refuses. */
 export function storeOnlyTransition(store: Store, cwd: string): ExecuteTransitionContext {
@@ -43,36 +53,110 @@ export function archiveWriter(plan: Extract<FencePlan, { kind: "archive" }>, cwd
 }
 
 /** Project one record, edit it, and return the writer that takes the edit in through write-back. */
-export async function editWriter(store: Store, plan: Extract<FencePlan, { kind: "edit" }>, identity: string): Promise<{ writer: FenceWriter; dispose: () => Promise<void> }> {
+export async function editWriter(store: Store, plan: Extract<FencePlan, { kind: "edit" }>, identity: string,
+  format: ObjectFormat = "sha1"): Promise<{ writer: FenceWriter; dispose: () => Promise<void> }> {
   const read = await store.read({ reference: plan.reference });
   if (read.status !== "ok") throw new Error(`The edited record is unreadable: ${read.refusal.condition}`);
   const record = read.result;
-  const projected = await projectRecordForWriteBack({ store, record, identity, primary: record.reference.kind === "work-item/meta" ? record : null });
-  await projected.edit(plan.edit(record.content));
-  return { dispose: projected.dispose, writer: { name: `edit ${record.reference.kind}:${record.reference.owner.name}`, run: async target => {
-    const context = { ...projected.context, store: target };
-    const ready = await prepareWriteBack(context, projected.request);
-    if (ready.kind !== "ready") return ready;
-    const prepared = await prepareIndexedProjectionSubmission(context, projected.request, ready);
-    return prepared.status === "ok" ? target.batch(prepared.result.batch) : prepared;
-  } } };
+  const checkout = await mkdtemp(join(tmpdir(), "arc-read-back-"));
+  const dispose = () => rm(checkout, { recursive: true, force: true });
+  try {
+    const projected = await projectRecordForWriteBack({ store, record, identity, format, checkout,
+      primary: record.reference.kind === "work-item/meta" ? record : null });
+    await projected.edit(plan.edit(record.content));
+    return { dispose, writer: { name: `edit ${record.reference.kind}:${record.reference.owner.name}`, run: async target => {
+      const context = { ...projected.context, store: target };
+      const ready = await prepareWriteBack(context, projected.request);
+      if (ready.kind !== "ready") return ready;
+      const prepared = await prepareIndexedProjectionSubmission(context, projected.request, ready);
+      return prepared.status === "ok" ? target.batch(prepared.result.batch) : prepared;
+    } } };
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
 }
 
-/** A change to each Markdown record the writer read before its batch, and one write it read nothing of. */
-export async function fenceChanges(store: Store, writer: FenceWriter, identity: string): Promise<{ name: string; apply: (store: Store) => Promise<void> }[]> {
-  const { reads } = await dryRun(store, writer);
-  const changes = reads.flatMap(read => read.operation !== "read" || read.reference === undefined
-    || KIND_REGISTRY[read.reference.kind].projection === "never" ? [] : [{ name: `edit ${read.target}`, apply: async (target: Store) => {
-    const current = await target.read({ reference: read.reference as RecordReference });
+function recordEdit(reference: RecordReference, label: string): FenceChange {
+  return { name: `edit ${label}`, apply: async target => {
+    const current = await target.read({ reference });
     if (current.status !== "ok") throw new Error(`The read record is unreadable: ${current.refusal.condition}`);
     const written = await target.write({ ...recordPut(current.result, { content: `${current.result.content}\nConcurrent note.\n` }), provenance: changeProvenance });
-    if (written.status !== "ok") throw new Error(`The change to ${read.target} was refused: ${written.refusal.condition}`);
-  } }]);
+    if (written.status !== "ok") throw new Error(`The change to ${label} was refused: ${written.refusal.condition}`);
+  } };
+}
+
+function memberArrival(identity: string, cohort: string | null): FenceChange {
+  return { name: cohort === null ? "add an active work unit" : `add a member to ${cohort}`, apply: async target => {
+    const name = SlugSchema.parse(`fence-member-${randomUUID()}`);
+    const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name }));
+    const written = await target.write({ action: "put", reference, expected: null, placement: { kind: "active" },
+      content: makeMetaFixture(name, { owner: identity, ...(cohort === null ? {} : { cohort }) }), provenance: changeProvenance });
+    if (written.status !== "ok") throw new Error(`Adding work unit ${name} was refused: ${written.refusal.condition}`);
+  } };
+}
+
+function cohortArrival(parent: string | null): FenceChange {
+  return { name: parent === null ? "add an open cohort" : `add an open subcohort to ${parent}`, apply: async target => {
+    const name = SlugSchema.parse(`fence-cohort-${randomUUID()}`);
+    const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
+    const parentField = parent === null ? "[none]" : `\`${parent}\``;
+    const content = `# Cohort: \`${name}\`\n\n**Parent:** ${parentField}\n\n**Purpose:** Coordinate the work.\n\n---\n`;
+    const written = await target.write({ action: "put", reference, expected: null, content, provenance: changeProvenance });
+    if (written.status !== "ok") throw new Error(`Adding cohort ${name} was refused: ${written.refusal.condition}`);
+  } };
+}
+
+async function slugRename(store: Store, input: Extract<LookupInput, { kind: "slug" }>): Promise<FenceChange | undefined> {
+  const found = await store.lookup(input);
+  if (found.status !== "ok" || found.result.reference.kind !== "work-item/meta") return undefined;
+  return { name: `rename the work unit resolved by ${input.slug}`, apply: async target => {
+    const current = await target.read({ reference: found.result.reference });
+    if (current.status !== "ok") throw new Error(`The lookup target is unreadable: ${current.refusal.condition}`);
+    const name = SlugSchema.parse(`fence-renamed-${randomUUID()}`);
+    const reference = RecordReferenceSchema.parse({ ...current.result.reference, owner: { ...current.result.reference.owner, name } });
+    const written = await target.write({ ...recordPut(current.result, { content: writeMetaTitle(current.result.content, name) }),
+      reference, provenance: { ...changeProvenance, lifecycleAction: "rename" } });
+    if (written.status !== "ok") throw new Error(`Renaming the work unit resolved by ${input.slug} was refused: ${written.refusal.condition}`);
+  } };
+}
+
+/** Perturb the observed Markdown, lifecycle inventories, and slug resolutions, then add an unrelated write. */
+export async function fenceChanges(store: Store, writer: FenceWriter, identity: string): Promise<FenceChange[]> {
+  const { reads, batch } = await dryRun(store, writer);
+  const cohorts = cohortPuts(batch);
+  const memberCohort = cohorts.find(write => write.placement?.kind === "completed") ?? cohorts[0];
+  const parent = cohorts.find(write => cohortDocumentParent(write.content) === null);
+  const changes: FenceChange[] = [];
+  for (const read of reads) {
+    if (read.operation === "read" && KIND_REGISTRY[read.reference.kind].projection !== "never") {
+      changes.push(recordEdit(read.reference, read.target));
+    } else if (read.operation === "list" && read.input.kind === "work-item/meta") {
+      changes.push(memberArrival(identity, memberCohort === undefined ? null : cohortPath(memberCohort)));
+    } else if (read.operation === "list" && read.input.kind === "cohort/document") {
+      changes.push(cohortArrival(parent?.reference.owner.name ?? null));
+    } else if (read.operation === "lookup" && read.input.kind === "slug") {
+      const rename = await slugRename(store, read.input);
+      if (rename !== undefined) changes.push(rename);
+    }
+  }
   const unrelated = recordReferences["personal/document"](OwnerIdentitySchema.parse({ type: "person", name: identity }), "scratch/fence-unrelated.md");
   return [...changes, { name: "an unrelated write", apply: async target => {
     const written = await target.write({ action: "put", reference: unrelated, expected: null, content: "Unrelated.\n", provenance: changeProvenance });
     if (written.status !== "ok") throw new Error(`The unrelated write was refused: ${written.refusal.condition}`);
   } }];
+}
+
+type Put = Extract<Mutation, { action: "put" }>;
+
+function cohortPuts(batch: BatchInput | undefined): Put[] {
+  return (batch?.writes ?? []).filter((write): write is Put =>
+    write.action === "put" && write.reference.kind === "cohort/document");
+}
+
+function cohortPath(write: Put): string {
+  const parent = cohortDocumentParent(write.content);
+  return parent == null ? write.reference.owner.name : `${parent}/${write.reference.owner.name}`;
 }
 
 async function storeGitDir(source: string): Promise<string> {
@@ -82,41 +166,58 @@ async function storeGitDir(source: string): Promise<string> {
 }
 
 /** Copy a repository's `refs/arc/*` into a scratch repository with no remote, so nothing a writer does reaches the source. */
-export async function copyRepositoryStore(source: string, identity: string): Promise<{ root: string; store: Store; dispose: () => Promise<void> }> {
-  const root = await mkdtemp(join(tmpdir(), "arc-fence-copy-"));
-  await git(root, "init", "--quiet", "-b", "main");
-  for (const [key, value] of [["user.name", identity], ["user.email", `${identity}@example.test`], ["arc.identity", identity]]) {
-    await git(root, "config", key as string, value as string);
+export async function copyRepositoryStore(source: string, identity: string): Promise<{ root: string; store: Store; format: ObjectFormat; dispose: () => Promise<void> }> {
+  const sourceStore = await storeGitDir(source);
+  const format = await git(sourceStore, "rev-parse", "--show-object-format");
+  if (format !== "sha1" && format !== "sha256") {
+    throw new Error(`The store uses Git object format ${format}. Select a SHA-1 or SHA-256 store and retry the rehearsal.`);
   }
-  await git(root, "commit", "--quiet", "--allow-empty", "-m", "Hold the copied store");
-  await git(root, "fetch", "--quiet", "--no-tags", await storeGitDir(source), "+refs/arc/*:refs/arc/*");
-  return { root, store: createRefStore(createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null })),
-    dispose: () => rm(root, { recursive: true, force: true }) };
+  const root = await mkdtemp(join(tmpdir(), "arc-fence-copy-"));
+  const dispose = () => rm(root, { recursive: true, force: true });
+  try {
+    await git(root, "init", "--quiet", "-b", "main", `--object-format=${format}`);
+    for (const [key, value] of [["user.name", identity], ["user.email", `${identity}@example.test`], ["arc.identity", identity]] as const) {
+      await git(root, "config", key, value);
+    }
+    await git(root, "commit", "--quiet", "--allow-empty", "-m", "Hold the copied store");
+    await git(root, "fetch", "--quiet", "--no-tags", sourceStore, "+refs/arc/*:refs/arc/*");
+    return { root, format, store: createRefStore(createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null })), dispose };
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
+}
+
+async function withCopiedWriter<T>(source: string, plan: FencePlan, identity: string,
+  run: (store: Store, writer: FenceWriter) => Promise<T>): Promise<T> {
+  const copy = await copyRepositoryStore(source, identity);
+  try {
+    if (plan.kind === "archive") return await run(copy.store, archiveWriter(plan, copy.root));
+    const edit = await editWriter(copy.store, plan, identity, copy.format);
+    try {
+      return await run(copy.store, edit.writer);
+    } finally {
+      await edit.dispose();
+    }
+  } finally {
+    await copy.dispose();
+  }
 }
 
 /**
  * Run the fence over each prepared write a window makes, on a fresh copy of the repository's store per change.
  *
- * Each record a writer reads gets a change, and one write it reads nothing of joins them; the source's refs are compared
- * before and after, since a copy must never write back to it.
+ * Compare the source refs before and after the cases to detect any write back to the source.
  */
 export async function runFenceOverRepository(source: string, plans: readonly FencePlan[], identity: string): Promise<FenceCaseReport[]> {
   const before = await git(await storeGitDir(source), "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/");
   const reports: FenceCaseReport[] = [];
   for (const plan of plans) {
-    const probe = await copyRepositoryStore(source, identity);
-    const probeWriter = plan.kind === "archive" ? { writer: archiveWriter(plan, probe.root), dispose: async () => {} }
-      : await editWriter(probe.store, plan, identity);
-    const changes = await fenceChanges(probe.store, probeWriter.writer, identity);
-    await probeWriter.dispose();
-    await probe.dispose();
+    const changes = await withCopiedWriter(source, plan, identity, (store, writer) => fenceChanges(store, writer, identity));
     for (const change of changes) {
-      const copy = await copyRepositoryStore(source, identity);
-      const subject = plan.kind === "archive" ? { writer: archiveWriter(plan, copy.root), dispose: async () => {} }
-        : await editWriter(copy.store, plan, identity);
-      try {
-        reports.push({ writer: subject.writer.name, change: change.name, outcome: await runFenceCase(copy.store, subject.writer, change.apply) });
-      } finally { await subject.dispose(); await copy.dispose(); }
+      reports.push(await withCopiedWriter(source, plan, identity, async (store, writer) => ({
+        writer: writer.name, change: change.name, outcome: await runFenceCase(store, writer, change.apply),
+      })));
     }
   }
   const after = await git(await storeGitDir(source), "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/");
