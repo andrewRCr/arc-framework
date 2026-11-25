@@ -90,6 +90,8 @@ it.each([true, false])("reports an exported replacement when the Candidate batch
   if (json) expect(retry).toMatchObject({ status: "attested" });
   else expect(retry).not.toContain(notice);
   expect(retry).not.toHaveProperty("designExport");
+  expect((await h.exec("git", ["diff", "--cached", "--name-status", "HEAD", "--", path], { cwd: h.cwd })).stdout)
+    .toBe(`A\t${path}`);
   expect(await store.read({ reference: recordReferences["review/candidate"](h.primary.reference.owner) })).toMatchObject({ status: "ok" });
 }, 30_000);
 
@@ -165,6 +167,19 @@ it("stages an already matching untracked copy at attestation", async () => {
   await writeFile(join(h.cwd, path), "# Stored specification\n");
   expect(await h.attest()).toMatchObject({ status: "attested" });
   expect((await h.exec("git", ["show", `:${path}`], { cwd: h.cwd })).stdout).toBe("# Stored specification");
+}, 30_000);
+
+it("recreates a committed deletion on unchanged attestation when review tracks the spec", async () => {
+  const h = await fixture(), path = ".arc/specs/example/spec-example.md";
+  const git = async (...args: string[]) => (await h.exec("git", args, { cwd: h.cwd })).stdout;
+  expect(await h.attest()).toMatchObject({ status: "attested", designExport: { path } });
+  await git("commit", "-m", "Export the review copy");
+  await git("rm", "--", path);
+  await git("commit", "-m", "Remove the review copy");
+  expect(await git("ls-tree", "--name-only", "HEAD", "--", path)).toBe("");
+
+  expect(await h.attest()).toMatchObject({ status: "unchanged", designExport: { path, overwritten: false } });
+  expect(await git("diff", "--cached", "--diff-filter=A", "--name-only")).toBe(path);
 }, 30_000);
 
 it.each(["review/integration-boundary", "review/candidate", "work-item/spec", "work-item/task-list"] as const)(

@@ -1,4 +1,5 @@
 /** Backend-assigned archive numbers and session/cohort closeout share one checked batch. */
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { recordReferences, sameReference, OwnerIdentitySchema, StateVersionSchema } from "../../../../src/lib/store/identity.js";
@@ -6,7 +7,7 @@ import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.j
 import { runArchive } from "../../../../src/lib/work-unit/verbs/archive.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
-import { writeMetaCohort, writeMetaPause, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaCohort, writeMetaPause, writeMetaPrUrl, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ConflictRecordSchema, RecordReferenceSchema } from "../../../../src/lib/store/index.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
@@ -122,6 +123,28 @@ describe("store archive finalize fields", () => {
     expect(result).toMatchObject({ status: "archived", warnings: [expect.stringContaining("No `--pr-url` supplied")] });
     expect(record.content).toContain("- **PR URL:** [none]");
     expect(fields).toMatchObject({ prUrl: null, completed: "2026-10-14" });
+  });
+
+  it("backfills a missing PR URL by editing the archived meta", async () => {
+    const { h, meta, result, record } = await archived({});
+    expect(result.status).toBe("archived");
+    expect(record.content).toContain("- **PR URL:** [none]");
+
+    const prUrl = "https://github.com/o/r/pull/12";
+    const replay = await runArchive({ executor: context(h.store), fs: { readdir: async () => [] }, clock: () => shipDay },
+      { name: "example", prUrl });
+    expect(replay.status).toBe("archived");
+    const saved = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    const workflow = await readFile(new URL("../../../../arc/system/workflows/arc/work-unit-lifecycle/archive-work-unit.md", import.meta.url), "utf8");
+    expect(ParsedMetaRecordSchema.parse(saved.fields).prUrl).toBeNull();
+    const backfill = workflow.slice(workflow.indexOf("Omit it when"), workflow.indexOf("`--completed` defaults"));
+    expect(backfill).toMatch(/Owner[\s\S]*`PR URL`[\s\S]*archived meta[\s\S]*`arc save`[\s\S]*`arc view meta --for \{name\}`/u);
+    expect(backfill).toMatch(/refuses[\s\S]*URL is still missing/u);
+
+    lifecycleSuccess(await h.store.write({ ...recordPut(saved, { content: writeMetaPrUrl(saved.content, prUrl) }),
+      provenance: { verb: "save", lifecycleAction: "edit" } }));
+    const corrected = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    expect(ParsedMetaRecordSchema.parse(corrected.fields).prUrl).toBe(prUrl);
   });
 
   it("lands both fields in the archive's one batch beside the cohort closeout", async () => {

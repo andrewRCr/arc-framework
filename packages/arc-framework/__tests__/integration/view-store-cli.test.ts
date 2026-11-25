@@ -1,14 +1,16 @@
 /** Registered view commands read one selected store and preserve file/content destinations. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
-import { mkdir, readFile, writeFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { writeMetaDesign } from "../../src/lib/store/kinds/meta/writers.js";
 import { formatConflictToken } from "../../src/lib/status/conflict-token.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
-import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { conflictViewRecord } from "../helpers/store/view-conflicts.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { runHandlerAt } from "../helpers/handler.js";
@@ -59,6 +61,50 @@ it("reads the explicitly named Planning unit at the pause gate from an Integrati
   const result = await f.run(command.replace("{name}", name).split(/\s+/u));
   expect(result.exitCode, result.stderr).toBe(0);
   expect(parseMetaRecord(result.stdout).state, `pause gate for ${name}`).toBe("Planning");
+}, 30_000);
+
+it("keeps integration's paired-design presence check sensitive to a missing declared RFC", async () => {
+  const f = await fixture();
+  await writeFile(join(f.cwd, ".gitignore"), ".arc/user/*/\n");
+  const meta = await f.seedMeta("layered", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  const companion = (key: string) => recordReferences["work-item/companion"](meta.reference.owner, key);
+  const prd = await f.seed(companion("spec-prd"), "# PRD\n\n**Purpose:** Product requirements.\n");
+  const rfc = await f.seed(companion("spec-rfc"), "# RFC\n\n**Purpose:** Technical design.\n");
+  const names = ["spec-layered-prd.md", "spec-layered-rfc.md"];
+  lifecycleSuccess(await f.store.write({ ...recordPut(meta, { content: writeMetaDesign(meta.content, names) }),
+    provenance: { verb: "repoint-design", lifecycleAction: "spec-finalized" } }));
+
+  const workflow = await readFile(join(import.meta.dirname,
+    "../../arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8");
+  const step = workflow.split("### 4) Spec-presence + alignment checks")[1]?.split("### 5)")[0];
+  expect(step).toMatch(/Design:[\s\S]*`arc view meta --for \{name\}`/u);
+  expect(step).toMatch(/every declared spec file[\s\S]*both[\s\S]*-prd\.md` and `spec-\{name\}-rfc\.md`/u);
+  expect(step).toMatch(/missing or unreadable[\s\S]*stop and name[\s\S]*repeat this check/u);
+
+  const metaPath = join(f.cwd, ".arc/active/in-flight/layered/meta-layered.md");
+  const folder = dirname(metaPath);
+  await mkdir(folder, { recursive: true });
+  await writeFile(metaPath, writeMetaDesign(meta.content, names));
+  await writeFile(join(folder, "spec-layered-prd.md"), prd.content);
+  await writeFile(join(folder, "spec-layered-rfc.md"), rfc.content);
+
+  expect(await f.run(["spec", "--for", "layered"])).toMatchObject({ exitCode: 0, stdout: "spec is not present.\n" });
+  const pathCommand = step?.match(/`arc view (meta --for \{name\} --path)`/u)?.[1];
+  if (pathCommand === undefined) throw new Error("Missing named projection lookup");
+  const projection = await f.run(pathCommand.replace("{name}", "layered").split(/\s+/u));
+  expect(projection.exitCode, projection.stderr).toBe(0);
+  expect(projection.stdout).toBe(`${metaPath}\n`);
+  const design = parseMetaRecord((await f.run(["meta", "--for", "layered"])).stdout).design;
+  expect(design).toEqual(names);
+  const readDesign = (name: string) => readFile(join(dirname(projection.stdout.trim()), name), "utf8");
+  await expect(readDesign("spec-layered-prd.md")).resolves.toBe(prd.content);
+  await expect(readDesign("spec-layered-rfc.md")).resolves.toBe(rfc.content);
+
+  lifecycleSuccess(await f.store.write({ action: "remove", reference: rfc.reference, expected: rfc.version,
+    provenance: { verb: "remove", lifecycleAction: "edit" } }));
+  await rm(join(folder, "spec-layered-rfc.md"));
+  await expect(readDesign("spec-layered-prd.md")).resolves.toBe(prd.content);
+  await expect(readDesign("spec-layered-rfc.md")).rejects.toMatchObject({ code: "ENOENT" });
 }, 30_000);
 
 it("keeps a projected conflict's path usable and emits its notice in text and path modes", async () => {

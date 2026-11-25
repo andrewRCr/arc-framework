@@ -105,7 +105,7 @@ describe("PR lifecycle and review contracts", () => {
         "utf8",
       );
       const publicationStep = prepare.indexOf("## 3) Schedule publication");
-      const submit = prepare.indexOf("arc publish {name}", publicationStep);
+      const submit = prepare.indexOf("\narc publish {name}", publicationStep);
       const handoff = prepare.indexOf("Then load [`integrate-work-unit.md`]", submit);
       const pushInterlock = integrate.indexOf("`push-interlock`");
       const push = integrate.indexOf("Push the WU branch upstream", pushInterlock);
@@ -113,6 +113,10 @@ describe("PR lifecycle and review contracts", () => {
       expect([publicationStep, submit, handoff, pushInterlock, push]
         .every((index) => index >= 0)).toBe(true);
       expect(publicationStep).toBeLessThan(submit);
+      expect(
+        prepare.slice(publicationStep, submit),
+        "Require Owner approval for the publication transition before invoking arc publish",
+      ).toMatch(/\b(?:approval|authorization) gate\b|\b(?:obtain|await|require|confirm)\b[^.!?]*\b(?:approval|authorization)\b|Approve[^?\n]*\?/iu);
       expect(submit).toBeLessThan(handoff);
       expect(prepare.slice(publicationStep)).not.toContain("`commit-interlock`");
       expect(pushInterlock).toBeLessThan(push);

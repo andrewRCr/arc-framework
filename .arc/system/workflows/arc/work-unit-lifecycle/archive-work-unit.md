@@ -12,14 +12,14 @@ with-integration` (default), or standalone post-merge under `manual` cadence per
 Strategy][work-org] § Archival.
 
 **When to use:** Composition is complete (Release Notes Entry + Completion Notes composed and saved into the meta per
-`integrate-work-unit.md` Steps 5–7) and `arc view meta` shows `**State:** Integrating`. Composition is upstream —
-this workflow does not handle it.
+`integrate-work-unit.md` Steps 5–7). Use this workflow for the initial archive or to finish publication and cohort
+closeout for the same work unit's persisted archive.
 
 ---
 
 ## Steps
 
-### 1) Pre-condition gate — lifecycle state `integrating`
+### 1) Pre-condition gate — initial archive or recovery
 
 Query the work unit's authoritative lifecycle state:
 
@@ -27,13 +27,15 @@ Query the work unit's authoritative lifecycle state:
 arc status {name} --json
 ```
 
-Continue only when the result reports `state: "integrating"`. Halt and surface a failed query or any other state —
-upstream composition in `integrate-work-unit.md` is the prerequisite. The `arc archive` write below is the transition
-archive owns; physical branch/worktree teardown is the integration tail's post-merge cleanup, not archive's.
+For a first archive, require `state: "integrating"` and saved upstream composition. For recovery, require
+`state: "shipped"` in `completed` for the same work unit. Halt on a failed query or any other state. Surface the
+observed condition, follow any reported remedy, and rerun `arc status {name} --json` before continuing.
 
 ### 2) Run the archive — `arc archive`
 
-`arc archive` performs the ship in one write through the executor: it computes the dated, numbered archive placement,
+For recovery, run `arc archive {name}` to settle the persisted archive and recover its cohort report.
+
+For an initial archive, use the command below. It computes the dated, numbered archive placement,
 moves the WU's records there, flips `**State:**` to `Shipped`, clears the meta `**Branch:**` field to `[none]`, resets
 the orientation soft fields, writes the `**PR URL:**` / `**Completed:**` finalize facts as managed fields, and — when
 this WU is its cohort's final member — closes the cohort, moving its document to a `{NN}a_cohort-<leaf>` closeout
@@ -45,14 +47,17 @@ arc archive {name} --pr-url "$(gh pr view {type}/{name} --json url --jq .url)"
 ```
 
 Source `--pr-url` from the integration PR (opened earlier this ceremony). Omit it when no PR exists yet (offline /
-pre-PR / standalone) — the command writes a `[none]` placeholder and warns; backfill later with
-`arc archive {name} --pr-url <url>`. `--completed` defaults to today (the ship day); pass it only to backfill a
-past date.
+pre-PR / standalone). The command writes a `[none]` placeholder and warns. Once the PR exists, have the Owner
+set `PR URL` in the archived meta, using `arc view meta --for {name} --path` to locate it. Run `arc save` and
+verify the saved value with `arc view meta --for {name}`. If the configured writer refuses the edit, surface its
+diagnostic and report that the URL is still missing. `--completed` defaults to today (the ship day). Pass it only
+on the initial archive when recording a past ship date.
 
 `{dated}` follows `YYYY-q*` (e.g., `2026-q2`); `{NN}` is the next completion-order index in that quarter,
 reset per quarter — both computed by the command. The write is published by the command itself, with nothing to commit
 or push. The command reports the archived meta's path and each cohort document it closed — the final-member signal
-Step 3 reacts to.
+Step 3 consumes. On refusal, surface the reason and follow the supplied remedy. If it names an archive retry,
+re-enter Step 1 for the same work unit after repair. Require a successful archive report before Step 3.
 
 **No teardown.** `arc archive` does **not** delete the working branch or tear down the worktree: that physical
 teardown stays the integration tail's post-merge cleanup ([`integrate-work-unit.md`][integrate-work-unit] Step 11).
@@ -60,9 +65,10 @@ The archive itself is protection-agnostic and runs the same under either cadence
 
 ### 3) Cohort closeout content — final member only
 
-Skip unless Step 2 reported a closed cohort (this WU was its cohort's final member; a standalone WU or one with
-members still in flight reports none). `arc archive` has already moved each cohort document it reports to its
-closeout placement — author its closeout content at the reported path, then save it with `arc save`:
+For each closed cohort in Step 2's successful report, open its document at the reported closeout path. Skip
+authoring if it already has a complete `## Closeout` section. Otherwise, complete the section as follows. Save
+any outstanding closeout edits with `arc save` and require success before continuing. On refusal, apply the reported
+remedy and retry the save.
 
 1. Lightly clean the doc for archive: remove transient open coordination, route unresolved follow-up to its
    authoritative home, and keep only historical coordination that helps future readers.
@@ -96,9 +102,10 @@ No mechanical enforcement; convention only.
 
 ## Next step
 
-- **Inline under `with-integration`:** Return to [`integrate-work-unit.md`][integrate-work-unit] Step 9 —
-  the final integration push covers the candidate tail.
-- **Standalone under `manual`:** Archival is the terminal step.
+- **Initial pre-merge archive under `with-integration`:** Return to [`integrate-work-unit.md`][integrate-work-unit]
+  Step 9 — the final integration push covers the candidate tail.
+- **Integration recovery:** Return to the integration resume point that invoked archival.
+- **Post-merge archive under `manual`:** Resume integration Step 11 at teardown when invoked from integration.
 
 ## Related workflows
 

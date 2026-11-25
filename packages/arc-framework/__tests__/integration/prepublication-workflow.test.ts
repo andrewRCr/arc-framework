@@ -340,6 +340,31 @@ describe("prepublication workflow boundary", () => {
     }
   });
 
+  it("requires both verification inbox reads to establish an empty gate", async () => {
+    for (const root of ROOTS) {
+      const workflow = await readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8");
+      const step = workflow.slice(workflow.indexOf("## Step 1"), workflow.indexOf("Before the Candidate exists"));
+      const gate = step.replace(/\s+/gu, " ");
+      expect(gate).toMatch(/personal[^.]*`clear`/u);
+      expect(gate).toMatch(/inbound[^.]*`listed`/u);
+      expect(gate).toContain("`pending.count` is zero");
+      expect(gate).toMatch(/(?:failed|refused)[^.]*remedy[^.]*re-?run both listings/iu);
+    }
+  });
+
+  it("checks for a staged review copy after successful attestation even without designExport", async () => {
+    for (const root of ROOTS) {
+      const workflow = await readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8");
+      const attest = workflow.indexOf("arc attest {name} --json");
+      const commit = workflow.indexOf("chore(arc): export the review copy", attest);
+      expect(commit).toBeGreaterThan(attest);
+      const instructions = workflow.slice(attest, commit).replace(/\s+/gu, " ");
+      expect(instructions).toMatch(/even (?:when|if)[^.]*`designExport`[^.]*absent/u);
+      expect(instructions).toContain("git diff --cached --name-only HEAD --");
+      expect(instructions).toMatch(/commit only that path/iu);
+    }
+  });
+
   it("closes verification before attestation and hands execution off to preparation", async () => {
     for (const root of ROOTS) {
       const [verification, preparation, integration, taskLoop] = await Promise.all([
@@ -374,9 +399,15 @@ describe("prepublication workflow boundary", () => {
       expect(verification).toMatch(
         softWrappedProse("verification record](#verification-record), closes the task, and attests the Candidate"),
       );
+      const increment = verification.indexOf("arc check increment");
       const close = verification.indexOf("arc task close <id>");
-      expect(close).toBeGreaterThan(mergeChecks);
-      expect(attest).toBeGreaterThan(close);
+      const closingCommit = verification.indexOf("arc release commit --close");
+      const firstClose = Math.min(close, closingCommit);
+      expect(increment).toBeGreaterThan(mergeChecks);
+      expect(firstClose).toBeGreaterThan(increment);
+      expect(verification.slice(increment, firstClose), "Verification must await task approval before either close route")
+        .toMatch(/task[-\s]interlock|(?:await|wait for)\s+(?:(?:owner|user|task)\s+)?approval/iu);
+      expect(attest).toBeGreaterThan(Math.max(close, closingCommit));
       expect(taskLoop).toMatch(softWrappedProse("to prepare-work-unit` (verification complete — execution end)"));
       expect(taskLoop).toMatch(softWrappedProse("prepare-work-unit are all valid retargets"));
       expect(taskLoop).not.toMatch(softWrappedProse("integrate are all valid retargets"));

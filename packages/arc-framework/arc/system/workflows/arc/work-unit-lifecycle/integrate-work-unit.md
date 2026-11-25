@@ -80,22 +80,26 @@ Follow its typed state:
 | `integrating`; `none`                          | publication transition       | Step 1, from the idempotent **push** action                    |
 | `integrating`; `open`                          | transition, PR open          | Step 2 (review iteration), then candidate tail                 |
 | `integrating`; `closed-unmerged`               | transition, former PR        | Reopen the request, then Step 2                                |
-| `shipped` in `completed`; `open`               | transition, PR open, archive | Step 10                                                        |
+| `shipped` in `completed`; `open`               | transition, PR open, archive | Step 8 recovery, then Step 10                                  |
 | `merged-at-head`                               | transition, PR open, merge   | Verify Phase 2 products; when complete, resume at Step 10 tail |
 | `merged-stale-head`, `ambiguous`, or `blocked` | unresolved                   | Stop; follow any emitted remedy text                           |
 
+For a `shipped` resume whose resolver returns `ambiguous` with `headAhead: true`, use Step 10's exact PR-head
+lookup before taking the `open` row.
+
 Resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`. Within the
-suspendable review cycle, resume the first incomplete candidate-tail step. Composition already written into the
-meta's archive-phase sections and an archive already written are observed, never redone. A resolver
-`state: shipped` with an open, not merged PR resumes at Step 10. Steps 10–11 are individually re-runnable and no-op
-when their target is already gone.
+suspendable review cycle, resume the first incomplete candidate-tail step. Preserve composition already written
+into the meta's archive-phase sections. For a persisted archive, use the recovery route in Step 8 to finish
+publication and any outstanding cohort Closeout. Steps 10–11 are individually re-runnable.
 
 Before selecting the merged-PR tail, verify the meta contains Completion Notes and any applicable Release Notes.
 Under `with-integration`, the resolver reports `shipped` in `completed`. A merged PR proves only that the merge ran,
 not that composition or archival ran. If a required product is absent, preserve the branch and worktree and do not
 invoke `arc teardown`. Write the missing composition into the meta and save it with `arc save`, running
 `arc check increment` first while the meta is not yet archived, and run [`archive-work-unit.md`][archive-work-unit]
-when the archive has not run; then re-enter this guard.
+under `with-integration` when the archive has not run. Under `manual`, finish archival in Step 11. Before a
+merged `with-integration` resume enters the Step 10 tail, use Step 8's archive recovery route if completion of
+archive publication or cohort Closeout is unconfirmed.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
@@ -334,8 +338,11 @@ failed quality gate, base conflict, or unexpected state.
 
 ### 4) Spec-presence + alignment checks
 
-First confirm the WU's `**Design:**` field resolves to a spec `arc view spec` finds — a `spec-{name}.md` or the
-layered `spec-{name}-prd.md` / `spec-{name}-rfc.md` pair; if absent, stop and surface.
+Read the named work unit's `**Design:**` field with `arc view meta --for {name}`. Locate its projection using
+`arc view meta --for {name} --path`, then confirm that every declared spec file is readable beside that meta.
+Require `spec-{name}.md` for a single spec or both `spec-{name}-prd.md` and `spec-{name}-rfc.md` for a layered
+design. If the declaration is incomplete or a file is missing or unreadable, stop and name the missing or
+unreadable part. Restore the declared design in the work unit's projection, then repeat this check.
 
 Bind alignment and composition to the canonical settled WU change set, completed task outcomes, spec intent and
 non-goals, success-criteria disposition, and verification evidence. The alignment checks below are soft; rarely
@@ -421,8 +428,12 @@ Read `archive.cadence` from [`arc-config.yml`][arc-config]:
   logical `Branch → [none]` and the `PR URL` / `Completed` finalize facts (sourcing the PR URL from this ceremony's
   open PR), and closes any cohort this work unit completes. Physical branch/worktree teardown is **not** archive's:
   it is Step 11's post-merge cleanup below. Returns; resume at Step 9.
-- **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`
-  invocation.
+- **`manual`**: Skip inline invocation and proceed to Step 9. Step 11 runs standalone archival after landing.
+
+**Persisted archive recovery:** When the same work unit is already Shipped in completed placement, enter the
+recovery route in [`archive-work-unit.md`][archive-work-unit]. Require a successful archive report and save any
+outstanding Closeout at each reported cohort path before resuming. An open PR returns to Step 10. A merged PR
+returns to the merged-at-head tail below.
 
 ### 9) Final push
 
@@ -450,6 +461,22 @@ rerun. After correcting authored text the checks read, run `arc check increment`
 
 `conflict` stops on its typed reason. `clean` continues to the checkpoint below, and so does `applied`, whose
 dependent-owned repairs the reconcile has already written.
+
+On every entry, inspect the index, local HEAD, and current PR head for the exact review copy
+`.arc/specs/{name}/spec-{name}.md`. Use the Step 1 resolver to confirm the open PR. If it reports `ambiguous` with
+`headAhead: true` and one open candidate, resolve again with that candidate's `headRefOid` and require `open`.
+If resolution remains blocked, follow its remedy before proceeding. Inspect the tree at the confirmed PR head.
+Complete any review that needs a renewed export before removing it again.
+
+- If the copy is staged as an addition and absent from local HEAD, clear it with
+  `git restore --source=HEAD --staged --worktree -- .arc/specs/{name}/spec-{name}.md`. Still check the PR head
+  for a removal that needs pushing.
+- If local HEAD tracks the copy, repeat Step 7's removal and commit, then follow Step 9 for the push and
+  applicability check. If removal is already staged, start at the removal commit.
+- If removal is already committed locally and the PR head still tracks the copy, follow Step 9 using the removal
+  commit. If the local head cannot safely update the PR head, reconcile to the current PR head and repeat this check.
+
+After a cleanup push, verify the resulting PR head excludes the copy and restart this step.
 
 Invoke the checkpoint:
 
@@ -499,12 +526,12 @@ for any carried reservation. When an attestation on this route names a `designEx
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
-Restart this step. Ordinary review and publication settlement remain authoritative; Candidate applicability
-supplies neither verdict.
+After the carried review finishes, restart this step at the review-copy check. Ordinary review and publication
+settlement remain authoritative; Candidate applicability supplies neither verdict.
 
 `candidate-publication-required / refresh-shipped-delivery` renders `payload.recommendedActionText` verbatim and
 invokes `payload.attestArgv` unchanged. Require its unchanged `delivery-status-required` locus, then restart this
-step. This shipped continuation does not enter private pre-publication review or invoke `arc publish`.
+step at the review-copy check. This shipped continuation does not enter private pre-publication review or invoke `arc publish`.
 
 `terminal-rebind-required / reconcile-delivery-state` invokes its supplied `remedy.argv` with `remedy.stdin`
 unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
@@ -582,30 +609,42 @@ the requested correction into the meta, in place once it is archived, and save i
 never amend or rewrite the pushed head — then reruns affected gates and routing and pushes through the configured
 release route. Rebuild the checkpoint over the resulting head.
 
-After approval, if the interlock surfaced required checks as not green, do not invoke merge this turn. Retain the
-authorized checkpoint and re-enter once they are green. If required checks were green at the interlock, invoke:
+Retain the authorized checkpoint until closeout and cleanup succeed. After approval, if the interlock surfaced
+required checks as not green, do not invoke merge this turn. Re-enter once they are green. If required checks were
+green at the interlock, invoke:
 
 ```bash
 arc integrate merge {name} --checkpoint {payload.checkpointHandle}
 ```
 
-`merged / complete` proceeds to the tail. `awaiting-checks / retry` keeps the checkpoint and draft lock; surface
-`payload.observationKind`, `payload.checks`, any `payload.diagnosticFailures`, and `payload.detail` when present, then
-end the foreground attempt. Do not re-invoke recursively. A later retry invokes `payload.retry.argv` unchanged; the verb
-revalidates the exact approved target and lifecycle, so the prior approval carries only while both remain unchanged.
-`invalidated / checkpoint` returns to the checkpoint. `invalidated / reconcile-base` invokes the supplied `remedy.argv`
-unchanged; the remedy carries the planner-observed `--expected-base` and approved `--expected-head`. When settlement
-reports `fix-not-performed`, complete the approved fix and submit its exact `verifiedFix` response at the approved
-verification scope before re-checkpointing the resulting head; the prior merge approval does not carry to a changed
-head. Dispatch the typed base-merge result through the same result arms above, including the new-head check, push,
-checkpoint, and approval after `merged / run-quality-gates`. `blocked / stop` stops. Render the merge result's supplied
-`nextAction` and remedy or terminal explanation on every non-success arm rather than deriving a continuation from its
-evidence fields. The integration interlock is the sole merge authority.
+On `merged / complete`, check `payload.landingLink.state` before closeout. For `not-written`, surface
+`payload.landingLink.detail` and keep the branch and checkout. After repairing the reported condition, invoke
+`payload.landingLink.remedy.argv` unchanged. Continue after the retry reports `merged / complete` with the link
+`written`. Under `with-integration`, if the result omits `landingLink`, report the missing evidence and enter the
+merged-at-head recovery below with the checkout intact. Retain a successful link-write result with the exact
+landed head for any resume.
 
-**Skip the merge when the PR is already merged** — the resume path's `merged-at-head` arm (Step 1) enters here with the
-merge already landed (attended elsewhere, or unattended on the auto-merge lane); enter the same cleanup tail below.
-For a delivery, the checkpoint's typed arm has already bound the exact terminal claim, landed heads, residual, top
-target, and member-review conjunction before the integration interlock.
+`awaiting-checks / retry` keeps the checkpoint and draft lock; surface `payload.observationKind`, `payload.checks`, any
+`payload.diagnosticFailures`, and `payload.detail` when present, then end the foreground attempt. Do not re-invoke
+recursively. A later retry invokes `payload.retry.argv` unchanged; the verb revalidates the exact approved target and
+lifecycle, so the prior approval carries only while both remain unchanged. `invalidated / checkpoint` returns to the
+checkpoint. `invalidated / reconcile-base` invokes the supplied `remedy.argv` unchanged; the remedy carries the
+planner-observed `--expected-base` and approved `--expected-head`. When settlement reports `fix-not-performed`, complete
+the approved fix and submit its exact `verifiedFix` response at the approved verification scope before re-checkpointing
+the resulting head; the prior merge approval does not carry to a changed head. Dispatch the typed base-merge result
+through the same result arms above, including the new-head check, push, checkpoint, and approval after
+`merged / run-quality-gates`. `blocked / stop` stops. Render the merge result's supplied `nextAction` and remedy or
+terminal explanation on every non-success arm rather than deriving a continuation from its evidence fields.
+The integration interlock is the sole merge authority.
+
+On a `merged-at-head` resume, verify the landing-commit link for the exact request and landed head before closeout. Use
+the retained `written` merge result for that target or replay the retained approved checkpoint with
+`arc integrate merge {name} --checkpoint {handle}` after confirming it binds this repository, PR number, and head. Apply
+the same landing-link result check to the replay. If the required link is unconfirmed and the checkpoint is unavailable,
+surface the missing evidence and keep the checkout. Recover the exact approved handle or successful link-write result
+from the integration that landed the request, then resume here. For a delivery, the checkpoint's typed arm has already
+bound the exact terminal claim, landed heads, residual, top target, and member-review conjunction before the integration
+interlock.
 
 Invoke delivery closeout with the exact current change-request repository bound as `repositoryRef` in Step 1:
 
@@ -623,8 +662,12 @@ non-delivery work unit.
 
 ### 11) Post-merge worktree cleanup
 
-After delivery closeout, run `arc teardown <wu-name>` under the pre-merge `integration-interlock` approval — no
-second prompt fires. This is the **physical** branch/worktree teardown the archive (Step 8) leaves: it
+After delivery closeout, under `manual` invoke [`archive-work-unit.md`][archive-work-unit] for this work unit.
+Keep the checkout until the standalone archive and any reported cohort Closeout are complete. On a retry, use the
+same workflow's persisted archive route. Under `with-integration`, archival completes before merge.
+
+After archival and delivery closeout succeed, run `arc teardown <wu-name>` under the pre-merge
+`integration-interlock` approval. This is the **physical** branch/worktree teardown the archive (Step 8) leaves: it
 runs post-merge, since a merged branch can only be reaped once its PR has landed. The verb resolves the shipped
 WU's branch and composes the cleanup deterministically, presence-guarded throughout — a resume that re-enters
 after a partial teardown skips what is already done:
@@ -659,15 +702,9 @@ or moved-`HEAD` husk is refused. The no-argument sweep refuses to run from insid
 
 Then run the [same-session finalize pass][session-handoff-finalize] as an opportunistic early catch — a no-op
 unless this session opened another PR that has merged outside an attended ceremony (a concurrent WU, or this one
-on the auto-merge lane). The workflow continues to `## Next step` normally.
+on the auto-merge lane).
 
 ---
-
-## Next step
-
-- **Under `with-integration` (default):** WU is fully shipped after merge — Step 8 already archived it.
-- **Under `manual`:** After merge, invoke [`archive-work-unit.md`][archive-work-unit] to complete archival
-  post-merge.
 
 ## Related workflows
 

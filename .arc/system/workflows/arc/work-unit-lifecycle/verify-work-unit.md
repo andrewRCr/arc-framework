@@ -24,10 +24,11 @@ task. Candidate attestation hands off to [prepare-work-unit][prepare-work-unit] 
 
 ## Step 1 — Clean, Self-Review, and Run the Merge Quality Gate
 
-First, run `arc inbox personal --target {name} --json` for the captures that still name this work unit, held or not,
-and `arc inbox {name} --json` for its inbound list. Halt verification while the personal listing reports `refused` or
-`named`, or the inbound list's pending count is nonzero: a refused listing clears by applying its remedy, and each
-listed capture or pending inbound entry by its disposition at the Owner's pass.
+Run `arc inbox personal --target {name} --json` for every capture that still names this work unit, including held
+captures, and `arc inbox {name} --json` for its inbound list. Proceed to cleanup only after both commands succeed,
+the personal listing reports `clear`, and the inbound listing reports `listed` and `pending.count` is zero.
+On a failed or refused listing, surface the diagnostic, apply its remedy, and rerun both listings at this gate.
+Route named captures and pending inbound entries through the Owner's pass below, then rerun the gate.
 
 **Method fire-point** · [`route-discovered-work`][route-discovered-work]:
 
@@ -150,18 +151,31 @@ Before closing the criteria pass, verify delivery integrity:
 ## Step 3 — Attest the Candidate
 
 Complete the verification task's success-criteria marks and its verification record, run `arc check increment`, and
-save them with `arc save`. Then close the verification task: `arc task close <id>` when verification left no tracked
-change, or, when it did, the commit that carries the change, made as the task loop's closing commit
-(`arc release commit --close`, `taskCommit`).
+save them with `arc save`.
 
-Then run `arc attest {name} --json`. It attests the staged subject as a Candidate, leaves lifecycle `State` unchanged,
-and returns the typed pre-publication locus. It requires the canonical task list to be readable, structurally valid,
-and closed with `no-open-task`; an open, missing, unbound, unreadable, or malformed task list refuses before Candidate
-authority is written. It also refuses while verified reviewable content is absent from the staged subject, naming what
-is missing. A repeated invocation over the same subject is a no-op.
+> [!IMPORTANT]
+> `task-interlock`: Stop after saving the checked verification record. Present the verification report and use
+> the [task loop's structured completion prompt][process-task-loop] with `to prepare-work-unit` as the target.
+> Await Owner approval before closing the task.
 
-Attest writes the Candidate's records itself. When its result names a `designExport`, it has also written the spec's
-review copy at that path and staged it; commit it:
+After approval, run `arc task close <id>` when verification left no tracked change. When verification changed
+tracked files, follow the task loop's configured closing-commit route (`arc release commit --close`, `taskCommit`).
+
+After task closure succeeds, run `arc attest {name} --json`. It attests the staged subject as a Candidate, leaves
+lifecycle `State` unchanged, and returns the typed pre-publication locus. It requires the canonical task list to
+be readable, structurally valid, and closed with `no-open-task`. An open, missing, unbound, unreadable, or malformed
+task list refuses before Candidate authority is written. It also refuses while verified reviewable content is absent
+from the staged subject, naming what is missing. A repeated invocation over the same subject is a no-op.
+
+After successful attestation, check for a staged change to the review copy when spec tracking is enabled, even when
+`designExport` is absent. Use its reported path when present or the exact spec export path shown below.
+
+```bash
+git diff --cached --name-only HEAD -- .arc/specs/{name}/spec-{name}.md
+```
+
+Require a successful diff. If it lists the copy, commit only that path. If the index matches HEAD for the copy,
+continue directly to Candidate preparation.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -172,11 +186,11 @@ chore(arc): export the review copy of spec-{name}
 Context: meta-{name}.md (prepublication)
 ```
 
-Dispatch only on the typed result. `attested` and `unchanged` continue to Candidate preparation. At this exact
-closeout point, `blocked / establish-new-root` follows freshly completed Steps 1 and 2 plus structural task-list
-closure: execute its exact `continuation.argv`, then require `attested / re-root` before continuing. A missing or
-malformed continuation, any other action or result, or a blocked result reached without fresh full verification
-stops; never infer or reconstruct a re-root command from prose.
+Dispatch only on the typed result. `attested` and `unchanged` complete the review-copy check above before Candidate
+preparation. At this closeout point, `blocked / establish-new-root` follows freshly completed Steps 1 and 2 plus
+structural task-list closure. For that result, execute its exact `continuation.argv`, then require
+`attested / re-root` and complete the same review-copy check. A missing or malformed continuation, any other action
+or result, or a blocked result reached without fresh full verification stops. Use only the supplied re-root command.
 
 This Step 3 invocation is the initial Candidate attestation or an explicitly requested new root. A later convergence
 attestation belongs to `prepare-work-unit`.

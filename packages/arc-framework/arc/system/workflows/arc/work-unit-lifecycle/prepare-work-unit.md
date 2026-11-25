@@ -200,6 +200,12 @@ Owner-accepted terminus into publication without classifying either as settled, 
 
 ## 3) Schedule publication
 
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before publication unless the Owner has already explicitly approved this Candidate's
+> transition. Present the work unit, its `candidate-publish-ready` Candidate ID and subject digest, and the
+> `Active → Integrating` transition. Close with `Approve publication?` and await approval before invoking the
+> verb. If the Candidate changes before invocation, return to this gate for the new Candidate.
+
 ```bash
 arc publish {name} --json
 ```

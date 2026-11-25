@@ -24,6 +24,23 @@ const WORKFLOWS = [
 ];
 
 describe("integration current-WU reconcile workflow", () => {
+  it.each(WORKFLOWS)("handles a pending landing-link write before delivery closeout in %s", async (path) => {
+    const workflow = await readFile(path, "utf8");
+    const merge = workflow.indexOf("arc integrate merge {name} --checkpoint");
+    const closeout = workflow.indexOf("arc delivery closeout -", merge);
+    expect(merge).toBeGreaterThan(-1);
+    expect(closeout).toBeGreaterThan(merge);
+
+    const dispatch = workflow.slice(merge, closeout);
+    const pending = dispatch.indexOf("not-written");
+    expect(pending, "Handle the not-written landing-link result before delivery closeout").toBeGreaterThan(-1);
+    const [recovery] = dispatch.slice(pending).split(/`[\w-]+ \/ [\w-]+`/u);
+    expect(recovery).toContain("payload.landingLink.remedy.argv");
+    const resume = dispatch.slice(dispatch.indexOf("`merged-at-head`"));
+    expect(resume).toMatch(/(?:verify|confirm)[\s\S]*landing[- ](?:commit )?link/iu);
+    expect(resume).toMatch(/retained[^.]*checkpoint/iu);
+  });
+
   it.each(WORKFLOWS)("routes Candidate applicability through typed checkpoint results in %s", async (path) => {
     const content = await readFile(path, "utf8");
     const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
@@ -75,6 +92,21 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toMatch(softWrappedPattern(/names\s+a\s+`designExport`,\s+commit\s+the\s+review\s+copy/iu));
     expect(step).toContain("arc publish {name} --json");
     expect(step).toMatch(softWrappedPattern(/already-open\s+Step\s+2\s+review[\s\S]*restart\s+this\s+step/iu));
+  });
+
+  it.each(WORKFLOWS)("checks the exact review copy before every merge checkpoint in %s", async (path) => {
+    const workflow = await readFile(path, "utf8");
+    const start = workflow.indexOf("### 10) Behind-base reconcile gate and merge");
+    const entry = workflow.slice(start, workflow.indexOf("arc integrate checkpoint {name}", start)).replace(/\s+/gu, " ");
+    expect(entry).toContain(".arc/specs/{name}/spec-{name}.md");
+    expect(entry).toMatch(/every entry[^.]*index[^.]*PR head/iu);
+    expect(entry).toMatch(/staged[^.]*`git restore --source=HEAD --staged --worktree --/iu);
+    expect(entry).toMatch(/Step 7[^.]*Step 9/iu);
+
+    const refresh = workflow.slice(workflow.indexOf("`candidate-publication-required / refresh-shipped-delivery`"));
+    expect(refresh.split("`terminal-rebind-required / reconcile-delivery-state`")[0]).toMatch(
+      /restart this\s+step/u,
+    );
   });
 
   it.each(WORKFLOWS)("renews a shipped delivery boundary without a commit or private review replay in %s", async (path) => {
