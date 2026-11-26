@@ -12,7 +12,7 @@ import type { StoreCreationDesignationResult } from "../lib/store/commands.js";
 import { createStore, runStoreCreationDesignation } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { projectPull } from "../lib/store/operational-sync-bindings.js";
-import { mintProjectIdentity } from "../lib/store/project-identity.js";
+import { createProjectIdentityReader, mintProjectIdentity, resolveProjectIdentity } from "../lib/store/project-identity.js";
 import type { Remedy } from "../lib/store/refusal.js";
 import { createStoreCommandPorts } from "./store-ports.js";
 import { join, dirname, relative, sep } from "node:path";
@@ -371,10 +371,12 @@ async function prepareStateRemote(store: Store, designate: () => Promise<StoreCr
   if (result.status === "designation-needed") throw stateRemoteError("ARC could not pull the designated state remote", {
     condition: `Remote ${result.remote} needs a store designation.`, remedy: result.remedy,
   });
-  // Read sources can supply the project identity only when there is no publisher.
   const publisher = pulled.result.pulls.find(({ role }) => role === "state");
   const notice = (publisher?.notices ?? result.notices)?.find(item => "ref" in item && item.ref === "refs/arc/project/registry");
-  if (notice) throw stateRemoteError("ARC could not pull the project registry", notice);
+  if (!notice) return;
+  // With only read sources, a valid local ID is enough to continue without minting.
+  if (publisher === undefined && (await resolveProjectIdentity(createProjectIdentityReader(store))).status === "ready") return;
+  throw stateRemoteError("ARC could not pull the project registry", notice);
 }
 
 function stateRemoteError(whatHappened: string, cause: { condition: string; remedy: Remedy }): UserFacingError {

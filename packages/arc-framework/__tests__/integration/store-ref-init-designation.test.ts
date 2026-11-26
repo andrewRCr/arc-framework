@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { runInit, type InitOptions } from "../../src/commands/init.js";
 import { runJoin } from "../../src/commands/join.js";
+import { UserFacingError } from "../../src/lib/errors.js";
 import { createRefStore, runStoreCreationDesignation, runStoreRemote } from "../../src/lib/store/create.js";
 import { createDefaultRefStorePorts, createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { readProjectIdentityBinding } from "../../src/lib/store/project-identity.js";
@@ -187,19 +188,29 @@ it.each(["preconfigured", "newly designated"])("refuses a divergent registry fro
   if (role === "preconfigured") await git(target.cwd, "config", "remote.origin.arc-state", "push");
   const registry = "refs/arc/project/registry", tracking = "refs/arc-remotes/origin/project/registry";
   const { tip } = await plantRef(target.cwd, tracking, []);
+  const publishedTip = await git(remote, "rev-parse", registry);
 
-  const attempt = init(target, null).then(async () => ({ sourceId: id, installedId: (await readProjectIdentityBinding(target.store)).id }));
-  await expect(attempt).rejects.toMatchObject({ code: "init.state-remote",
+  const refusal: unknown = await init(target, null).catch((error: unknown) => error);
+  expect(refusal).toMatchObject({ code: "init.state-remote",
     why: expect.stringContaining(`The fetched tip of ${registry} does not descend from the last head seen`),
-    whatToDo: expect.stringContaining("Take theirs"),
   });
+  if (!(refusal instanceof UserFacingError)) throw new Error("Expected a registry pull refusal");
   expect(await git(target.cwd, "rev-parse", tracking)).toBe(tip);
   await expect(readProjectIdentityBinding(target.store)).rejects.toThrow("Project identity record is missing.");
+  expect(await git(target.cwd, "for-each-ref", "--format=%(objectname)", registry)).toBe("");
 
-  const seen = "refs/arc/tmp/seen/origin/project/registry";
-  await git(target.cwd, "fetch", "--atomic", "--no-tags", "--refmap=", "origin", `+${registry}:${tracking}`, `+${registry}:${seen}`);
-  await git(target.cwd, "update-ref", registry, tracking, "0".repeat(tip.length));
-  await init(target, null);
+  const lines = refusal.whatToDo.split("\n");
+  expect(lines.filter(line => line.includes("'push'") && line.includes(`':${registry}'`))).toEqual([]);
+  const take = lines.findIndex(line => line.startsWith("Take theirs"));
+  expect(take).toBeGreaterThanOrEqual(0);
+  for (const line of lines.slice(take + 1)) {
+    if (!line.startsWith("'git'")) break;
+    const argv = [...line.matchAll(/'((?:[^']|'"'"')*)'/gu)].map(match => (match[1] ?? "").replaceAll("'\"'\"'", "'"));
+    await git(target.cwd, ...argv.slice(1));
+  }
+  expect(await git(target.cwd, "rev-parse", registry)).toBe(publishedTip);
+  expect(await git(remote, "rev-parse", registry)).toBe(publishedTip);
+  await expect(init(target, null)).resolves.not.toBeNull();
   expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
 }, 90_000);
 
@@ -241,6 +252,31 @@ it("installs with the publisher's ID while a secondary read source's registry tr
       notices: expect.arrayContaining([expect.objectContaining({ kind: "tracking-update-failed", ref: "refs/arc/project/registry" })]),
     }),
   ] } } });
+  expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
+}, 90_000);
+
+it("installs with the first read source's ID when a second read source has divergent registry history", async () => {
+  const { remote, id } = await publishedRegistry();
+  const { remote: reader } = await publishedRegistry();
+  const target = await repository(remote);
+  await git(target.cwd, "config", "remote.origin.arc-state", "read");
+  await git(target.cwd, "remote", "add", "reader", reader);
+  await git(target.cwd, "config", "remote.reader.arc-state", "read");
+  const gitDir = join(target.cwd, ".git", "arc", "store");
+  await git(target.cwd, "init", "--bare", gitDir);
+  const tracking = "refs/arc-remotes/reader/project/registry";
+  const { tip } = await plantRef(target.cwd, tracking, [], { gitDir });
+  const pull = vi.spyOn(target.store, "pull");
+
+  await expect(readProjectIdentityBinding(target.store)).rejects.toThrow("Project identity record is missing.");
+  await expect.soft(init(target, null)).resolves.not.toBeNull();
+  expect(pull.mock.settledResults[0]).toMatchObject({ type: "fulfilled", value: { status: "ok", result: { pulls: [
+    expect.objectContaining({ remote: "origin", role: "read", status: "pulled", notices: [] }),
+    expect.objectContaining({ remote: "reader", role: "read",
+      notices: expect.arrayContaining([expect.objectContaining({ kind: "history-diverged", ref: "refs/arc/project/registry" })]),
+    }),
+  ] } } });
+  expect(await git(target.cwd, `--git-dir=${gitDir}`, "rev-parse", tracking)).toBe(tip);
   expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
 }, 90_000);
 
