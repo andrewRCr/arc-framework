@@ -161,7 +161,9 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
 
 ## Between-WUs Handoff Path
 
-Use this path when `handoffLocus.value.kind === "between-work-units"`.
+Use this path when `handoffLocus.value.kind === "between-work-units"`, including for contributors with only local
+planning files. Keep their freeform planning notes in personal `scratch/` and leave maintainer-owned work-unit records
+untouched.
 
 1. **Review `WORKING-MEMORY.md`** — apply the criterion in the WORKING-MEMORY entries guidance below. Remove entries
    whose triggers are met and entries whose information is now carried in project state. Surface removals in the

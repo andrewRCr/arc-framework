@@ -24,6 +24,20 @@ async function fixture(layout: "default" | "separate") {
   return { cwd, captured, gitArgs, argv: captured.notice.remedy.argv.slice(1) };
 }
 
+it("discards a retained alternative using the quick reference's discard invocation", async () => {
+  const { cwd, captured } = await fixture("default");
+  const guide = await readFile(join(import.meta.dirname, "../../arc/reference/QUICK-REFERENCE.template.md"), "utf8");
+  const examples = guide.split("\n").filter((line) => line.startsWith("arc store conflict "));
+  const example = examples.find((line) => line.includes("--discard")) ?? examples[0];
+  if (!example) throw new Error("Missing store conflict invocation in the quick reference");
+  const argv = example.replace("<uid>", captured.reference.owner.uid).replace("<kind>", captured.reference.kind)
+    .replace("<id>", captured.reference.key).replace(/\[(--[\w-]+)\]/gu, "$1").split(/\s+/u).slice(1);
+
+  const result = await runArcNoTty([...argv, "--json"], cwd);
+  expect(result.exitCode, JSON.stringify(result)).toBe(0);
+  expect(JSON.parse(result.stdout).result.status).toBe("discarded");
+}, 60_000);
+
 it.each(["default", "separate"] as const)("executes the exact inspection and explicit discard remedy in the %s layout", async (layout) => {
   const { cwd, captured, gitArgs, argv } = await fixture(layout);
   const registry = await git(cwd, [...gitArgs, "rev-parse", "refs/arc/project/registry"]);

@@ -30,6 +30,16 @@ const REFERENCES = [
   { label: "package", path: resolve(root, "packages/arc-framework/arc/reference/QUICK-REFERENCE.template.md") },
 ] as const;
 
+function referenceSection(content: string, heading: string): string {
+  return content.split(/^#{2,3} /mu).find((part) => part.startsWith(`${heading}\n`)) ?? "";
+}
+
+function invocationComment(content: string, command: string): string {
+  const index = content.indexOf(`\n${command} `);
+  if (index === -1) return "";
+  return content.slice(0, index).match(/(?:^|\n)((?:# [^\n]*\n)*# [^\n]*)$/u)?.[1] ?? "";
+}
+
 /** One documented invocation and the command path its leading words name. */
 interface DocumentedInvocation {
   readonly line: string;
@@ -198,6 +208,50 @@ describe("documented command surface", () => {
       .map((invocation) => invocation.line);
 
     expect(unregistered).toEqual([]);
+  });
+
+  it.each(REFERENCES)("keeps the cutover importer out of the $label portability examples", async ({ path }) => {
+    const content = await readFile(path, "utf8");
+    const examples = documentedInvocations(referenceSection(content, "Session State Portability"));
+    expect(examples.map(({ line }) => line)).toContain("arc save");
+    const imports = examples
+      .filter(({ words, line }) => words.join(" ") === "store migrate" && line.split(/\s+/u).includes("--import"))
+      .map(({ line }) => line);
+    expect(imports).toEqual([]);
+  });
+
+  it.each(REFERENCES)("directs $label readers to the drafting workflow to route an unstarted idea", async ({ path }) => {
+    const content = await readFile(path, "utf8");
+    const guidance = invocationComment(content, "arc plan check");
+    expect(guidance).toMatch(/proceed[^\n]*planning|planning[^\n]*proceed/iu);
+    expect(guidance).toMatch(/arc status <slug>/u);
+    expect(guidance).toMatch(/draft-design\.md/u);
+    expect(guidance).toMatch(/start[^\n]*stub[^\n]*errand/iu);
+  });
+
+  it.each(REFERENCES)("keeps obsolete notes policy out of the $label store guidance", async ({ path }) => {
+    const content = await readFile(path, "utf8");
+    const portability = referenceSection(content, "Session State Portability");
+    expect(portability).toMatch(/`arc sync` publishes them/u);
+    const remoteAccess = referenceSection(content, "Command Prerequisites and Remote Access");
+    expect(remoteAccess).toContain("passive code-head evidence");
+    expect(`${remoteAccess}\n${portability}`).not.toMatch(/\[Session Operations\s+Strategy\]|\]\[session-ops\]/iu);
+  });
+
+  it.each(REFERENCES)("describes both release targets and checkout effects in the $label reference", async ({ path }) => {
+    const content = await readFile(path, "utf8");
+    const guidance = invocationComment(content, "arc locus release");
+    expect(guidance).toMatch(/current checkout[^\n]*without[^\n]*slug|without[^\n]*slug[^\n]*current checkout/iu);
+    expect(guidance).toMatch(/named[^\n]*holding checkout|slug[^\n]*holding checkout/iu);
+    expect(guidance).toMatch(/removes?[^\n]*spawned[^\n]*worktree/iu);
+    expect(guidance).toMatch(/clears?[^\n]*marker[^\n]*anchored/iu);
+  });
+
+  it.each(REFERENCES)("describes projection-first artifact rendering in the $label reference", async ({ path }) => {
+    const content = await readFile(path, "utf8");
+    const view = referenceSection(content, "Artifact Viewing").split("`--for <slug>`")[1];
+    expect(view).toMatch(/renders?[^.]*projected file[^.]*local edits/iu);
+    expect(view).toMatch(/render[^.]*stored content[^.]*omit[^.]*`--path`[^.]*`--editor`|omit[^.]*`--path`[^.]*`--editor`[^.]*render[^.]*stored content/iu);
   });
 
   it("registers emitted corrective commands", () => {

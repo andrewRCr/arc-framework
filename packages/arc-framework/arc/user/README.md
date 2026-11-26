@@ -8,10 +8,8 @@ the same whether you're working solo or on a team — each developer gets a `use
 **What belongs here:** working memory, personal task capture, freeform scratch notes, personal reference material —
 per-developer content that isn't the shared project's.
 
-**What does NOT belong here (for most users):** task lists, PRDs, work unit artifacts, or per-WU meta files, which
-carry each work unit's session context. Those are project-level records, projected into `.arc/active/` and shared with
-the whole team. There is one niche exception for contributors running a personal planning pipeline, described at the
-end of this doc.
+Work-unit task lists, PRDs, and meta files are project-level records. ARC projects active work-unit records into
+`.arc/active/` and shares them with the team.
 
 ## How It Works
 
@@ -52,10 +50,10 @@ ARC manages these personal records during session lifecycle operations; everythi
 | `WORKING-MEMORY.md` | session-init                | Cross-work-unit constraints, each with its removal trigger |
 | Personal inbox      | `arc inbox personal`, drain | Deferred personal captures, drained by `arc-housekeep`     |
 
-That's the whole contract for most users. If you're running a personal planning pipeline as a
-contributor, `user/{identity}/active/meta-{name}.md` (personal work state) and
-`user/{identity}/active/tasks-{name}.md` plus companion files are additional optional paths —
-see § Advanced: Personal Planning Pipeline below.
+Contributor session entry can also read a local `user/{identity}/active/meta-{name}.md`. Work-unit handoff
+requires a held store record, so a contributor with only local planning files follows the
+[between-work-units handoff][between-work-units]. Use the personal inbox for deferred work, working memory for
+approved cross-work-unit context, and `scratch/` for portable freeform planning notes.
 
 ## Personal Content
 
@@ -77,18 +75,6 @@ mode, ARC publishes no state. Keep secrets out of your personal workspace.
 Run `arc user add <identity>` to set up a new developer's personal records. It creates only records that do not
 exist yet, so it never overwrites anyone's content.
 
-## Advanced: Personal Planning Pipeline
+---
 
-> **Niche use case.** Most users can stop reading here.
-
-Contributors to an ARC-using upstream project can optionally run ARC's full planning pipeline —
-plan docs, PRDs, task lists, shift lifecycle, handoffs — scoped entirely to their
-`user/{identity}/` workspace, without touching upstream's tracked planning state. This is the
-exception to "task lists live in project `active/`": when running as a contributor, your
-personal task lists live in `user/{identity}/active/` and are loaded by session-init if your
-role is `contributor`.
-
-This is an opt-in advanced pattern documented in full by the contributor briefing
-(`reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`, loaded automatically during contributor-role
-sessions). Maintainers do not use this path — project planning state belongs in `.arc/active/`
-where the team can see it.
+[between-work-units]: ../system/workflows/arc/session-lifecycle/session-handoff.md#between-wus-handoff-path

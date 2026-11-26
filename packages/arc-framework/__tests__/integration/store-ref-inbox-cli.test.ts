@@ -1,5 +1,5 @@
 /** The capture gates' inbox reads answer through the registered command over real refs. */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
@@ -67,6 +67,23 @@ it.each(["project", "work-item-one"])("refuses a target filter on the %s list", 
   if (list !== "project") await seed(f, f.reference("work-item/meta"), makeMetaFixture(list, { owner: "test-user", state: "Active" }));
   expect(await inbox(f, [list, "--target", "example"])).toMatchObject({ exitCode: 1,
     result: { state: "refused", code: "invalid-input", list, remedy: { text: expect.stringContaining("arc inbox personal --target") } } });
+});
+
+it("accepts every selector the quick reference shows with --target", async () => {
+  const reference = await readFile(new URL("../../arc/reference/QUICK-REFERENCE.template.md", import.meta.url), "utf8");
+  const selectors = [...reference.matchAll(/^arc inbox (\S+) .*--target\b/gmu)]
+    .flatMap(match => match[1]!.replace(/[<>]/gu, "").split("|"));
+  expect(selectors).toContain("personal");
+  const f = await fixture();
+  await seed(f, f.reference("work-item/meta"), makeMetaFixture("work-item-one", { owner: "test-user", state: "Active" }));
+
+  const refusals: string[] = [];
+  for (const selector of selectors) {
+    const list = selector === "slug" ? "work-item-one" : selector;
+    const { exitCode, result } = await inbox(f, [list, "--target", "work-item-one"]);
+    if (exitCode !== 0) refusals.push(`arc inbox ${list} --target work-item-one: ${result.code}`);
+  }
+  expect(refusals).toEqual([]);
 });
 
 it("lists a work unit's inbound entries with their pending count and oldest age", async () => {

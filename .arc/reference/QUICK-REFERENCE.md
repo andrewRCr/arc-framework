@@ -234,8 +234,7 @@ npx arc base sync --json
 ```
 
 Materialization, pull, and sync verbs likewise own their documented Git writes. The store's refs are a separate channel
-with its own operational ref behavior, and they never count as passive code-head evidence. See [Session Operations
-Strategy][session-ops] § Remote access boundary.
+with its own operational ref behavior, and they never count as passive code-head evidence.
 
 ### Schema Discovery
 
@@ -251,8 +250,9 @@ the command existed.
 follows the meta's `Design` list: the first entry with a Purpose field, or the first readable entry when none has one.
 `--path` prints the selected file's absolute path; `--editor` or `-e` opens that same real file in the configured editor.
 
-`--for <slug>` selects the named work unit by its current or a former slug and reads its records from the store;
-`--path` and `--editor` use the record's projected file in this checkout. `session-notes` reads the work unit's
+`--for <slug>` resolves the work unit by its current or a former slug in the store. The command renders the
+projected file in this checkout when present, including local edits. `--path` and `--editor` require that file. If the
+projection is absent, omit `--path` and `--editor` to render the stored content. `session-notes` reads the work unit's
 session context from its meta. `inbox --project` selects the shared project inbox.
 
 Use a non-empty `ARC_EDITOR` to supply an editor command, including arguments and shell expansion. Otherwise ARC
@@ -364,9 +364,11 @@ arc pause [slug] --reason <text> [--waits-on <slug> | --waits-on-note <text>] [-
 arc resume [slug]
 # Hand a WU to another owner once its work is shared
 arc handover [slug] --to <identity>
-# Pick up a remote-only in-flight WU; --here uses the current checkout (resume-work-unit.md)
-arc materialize [slug] [--here]
-# Release the current checkout's work-item occupancy — no ceremony
+# Pick up an owned in-flight WU with no local holding checkout, including one released on this machine.
+# --here uses the current checkout (resume-work-unit.md).
+arc materialize <slug> [--here]
+# Release the current checkout without a slug, or the named unit's holding checkout with a slug.
+# Release removes a spawned worktree or clears the marker in an anchored checkout.
 arc locus release [slug]
 
 # Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
@@ -386,9 +388,11 @@ arc reopen [slug] [--keep-pr]
 arc decompose <origin> --preflight
 arc decompose <origin> --execute <cut-map>
 arc decompose <origin> --extract <cut-map>
+# Generate a revision starter
+arc decompose <origin> --revise
 # Preview finishing, revising, or discarding the stored cut; --apply takes the approved preview's authority
 arc decompose <origin> --finish [--apply <authority>]
-arc decompose <origin> --revise [<cut-map>] [--apply <authority>]
+arc decompose <origin> --revise <cut-map> [--apply <authority>]
 arc decompose <origin> --discard [--apply <authority>]
 
 # Abandon a pre-merge WU — artifacts, branch, worktree; prints the impact plan (deactivate-work-unit.md § Case A-delete)
@@ -402,11 +406,14 @@ arc teardown <name> [--force] [--husk <absolute-path>]
 # Safely fast-forward the configured local base from any worktree
 arc base sync [--json]
 
-# Classify the planning-entry route — proceed, or route an unstarted idea to start / stub / errand
+# On the store, proceed means planning is available in this checkout.
+# Follow draft-design.md and check arc status <slug>. If there is no work unit,
+# confirm start, stub, or Errand with the developer before acting.
 arc plan check [--name <slug>]
 
 # Inboxes — list a personal, project, or work-unit inbox; move a listed entry or insert one from stdin
-arc inbox <personal|project|slug> [--target <slug>] [--json]
+arc inbox <personal|project|slug> [--json]
+arc inbox personal --target <slug> [--json]
 arc route <id> --from <list> --expected-version <version> --to <destination> [--section <name>]
 arc route --to <destination> [--section <name>]
 
@@ -436,18 +443,15 @@ arc sync
 # Inspect or set the state remote's roles; --own-state publishes everything this clone's store holds
 arc store remote [remote] [role] [--own-state]
 
-# Move state to another remote or backing URL, or import the current operational state
+# Move state to another remote or backing URL
 arc store migrate --to <remote-or-url> [--trial]
-arc store migrate --import
 
-# Inspect, or explicitly discard, a stored conflict
-arc store conflict <uid> <kind> <id>
+# Inspect a conflict. --discard keeps the current state and removes the retained alternative at <uid> <kind> <id>.
+arc store conflict <uid> <kind> <id> [--discard]
 ```
 
 Your personal records, `scratch/` included, are stored under your identity beside the project's state: `arc save`
 persists edits, and `arc sync` publishes them with the project's state to its state remote.
-
-See [Session Operations Strategy][session-ops] § Session State Portability for the portability model.
 
 ### Release Wrappers
 
@@ -538,5 +542,4 @@ token. Write tokens expire at 90 days max — rotate before expiry.
 
 ---
 
-[session-ops]: strategies/arc/strategy-session-operations.md
 [dev-rules-arc]: ../system/rules/DEV-RULES.ARC.md

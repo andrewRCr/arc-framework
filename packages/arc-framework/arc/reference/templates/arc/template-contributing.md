@@ -67,7 +67,7 @@ workspace at `.arc/user/{identity}/`. Git ignores this workspace, so its records
 request. `arc sync` can publish saved working memory, personal inbox entries, and scratch files to the designated
 state remote. Anyone with read access to that remote can read the published records. The contributor briefing
 (`.arc/reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`, loaded automatically for contributor-role sessions) explains
-the layout, framework read contract, and lifecycle in detail. For casual contributions, personal planning is optional.
+the personal workspace and the session workflow. For casual contributions, personal planning is optional.
 
 ## Pull Request Guidelines
 

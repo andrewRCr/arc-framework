@@ -1,6 +1,6 @@
 /** Handoff writes use real checkout claims and one reference-backend mutation. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { lint } from "markdownlint/promise";
@@ -10,10 +10,11 @@ import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifec
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { createGitExec } from "../../src/lib/io-context.js";
 import { runHandoffWrite } from "../../src/lib/handoff/write.js";
+import { runActiveSessionInitStatus } from "../../src/commands/active/status.js";
 import { HandoffWriteRequestSchema } from "../../src/lib/handoff/write-schema.js";
 import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
-import { writeMetaNextAction } from "../../src/lib/store/kinds/meta/writers.js";
+import { renderMetaFile, writeMetaNextAction } from "../../src/lib/store/kinds/meta/writers.js";
 import { createMemoryRemote } from "../helpers/store/sync.js";
 import { ReferenceBackend } from "../helpers/store/reference-backend.js";
 import { handleHandoffWrite } from "../../src/handlers/handoff-write.js";
@@ -127,6 +128,35 @@ it("names the work-unit checkout when no current work unit is held, then succeed
   expect(await runHandoffWrite({ ...h, request })).toMatchObject({ status: "refused", refusal: { remedy: { text: expect.stringContaining("work unit's checkout") } } });
   await writeWorktreeMarker(h.cwd, { createdFor: boundWorkUnitSubject(h.meta), spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
   expect((await runHandoffWrite({ ...h, request })).status).toBe("written");
+});
+const workspaceCopies = ["../../arc", "../../../../.arc"];
+it("routes a contributor with a local-only contribution through between-work-units handoff", async () => {
+  const h = await fixture(false);
+  const active = ".arc/user/test-user/active";
+  await mkdir(join(h.cwd, active), { recursive: true });
+  await writeFile(join(h.cwd, active, "meta-demo.md"), renderMetaFile("demo", { state: "Planning", owner: "test-user" }));
+  const entry = await runActiveSessionInitStatus({ ...h, role: "contributor", identity: "test-user" });
+  expect(entry).toMatchObject({ resolution: "single", path: `${active}/meta-demo.md` });
+  expect(await runHandoffWrite({ ...h, request })).toMatchObject({
+    status: "refused", refusal: { code: "no-current-work-unit" },
+  });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).content).toBe(h.meta.content);
+
+  for (const root of workspaceCopies) {
+    const brief = await readFile(join(import.meta.dirname, root, "reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md"), "utf8");
+    expect(brief, root).toMatch(/without a (?:bound|held) work unit[\s\S]*between-work-units/iu);
+  }
+});
+it.each(workspaceCopies)("documents portable contributor handoff surfaces in %s", async (root) => {
+  const readme = await readFile(join(import.meta.dirname, root, "user/README.md"), "utf8");
+  expect(readme, "Personal planning guidance should lead to handoff without an owned work unit")
+    .toMatch(/contributor[\s\S]*between-work-units/iu);
+  expect(readme).toMatch(/`scratch\/`[^\n]*portable|portable[^\n]*`scratch\/`/iu);
+
+  const workflowFile = root === "../../arc" ? "session-handoff.template.md" : "session-handoff.md";
+  const workflow = await readFile(join(import.meta.dirname, root, "system/workflows/arc/session-lifecycle", workflowFile), "utf8");
+  const between = workflow.split("## Between-WUs Handoff Path")[1]?.split("## Active-WU Handoff Format")[0];
+  expect(between).toMatch(/contributor[\s\S]*maintainer-owned work-unit records/iu);
 });
 it("maintains once after the landed write and reports only excessive measurements", async () => {
   const h = await fixture();
