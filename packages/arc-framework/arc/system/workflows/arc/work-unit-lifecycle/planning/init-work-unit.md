@@ -165,10 +165,11 @@ Two paths depending on Step 3's outcome. `State`, `Owner`, `Class`, and `Current
 it up to the realized floor via [`classify-work-unit`][classify-work-unit]. Persist any ratchet with
 `arc set-class <Class> {name}` before reconciling the remaining fields:
 
-1. **Design** → preserve a declared PRD/RFC pair and its `generate-tasks` stage. If a finalized singleton spec still
-   needs its design pointer or stage reconciled, run `arc repoint-design spec-finalized` to point `Design` at the spec,
-   remove the draft record, and advance `Current Workflow` to `generate-tasks`. For a stub still at `draft-design`,
-   use the backticked `draft-{name}.md` filename when one exists, or leave `Design` as-is.
+1. **Design** → preserve a declared PRD/RFC pair and its `generate-tasks` stage. If the stub has a finalized
+   singleton spec and needs a pointer update, a stage update, or draft retirement, run `arc repoint-design spec-finalized`.
+   If the command refuses, surface the condition and apply the reported remedy. Continue once `Design` names the spec,
+   the draft is retired, and `Current Workflow` is `generate-tasks`. For a stub still at `draft-design`, use the
+   backticked `draft-{name}.md` filename when one exists, or leave `Design` as-is.
 2. **Current Workflow** → use the stage set by `arc start` or by item 1's repoint.
 3. **Next Action** → a within-stage planning note or the `[begin current workflow]` sentinel — never a
    workflow pointer. Leave the spec-readiness call to the consuming session (`arc-plan` → `draft-design`),

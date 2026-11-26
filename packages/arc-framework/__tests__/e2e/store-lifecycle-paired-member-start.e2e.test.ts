@@ -1,4 +1,4 @@
-/** A decomposed member enters task generation with the two specifications its cut declared. */
+/** Initialization reconciles the design artifacts of started backlog stubs. */
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -8,10 +8,12 @@ import { CutMapStarterSchema } from "../../src/lib/decompose/cut-map-schema.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { completeCutMapFixture } from "../fixtures/decompose-v4.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { seedStore } from "../helpers/store/seed-store.js";
+import { readStoreRecord, seedStore } from "../helpers/store/seed-store.js";
 import {
   lifecycleRepository, LIFECYCLE_IDENTITY, LIFECYCLE_TIMEOUT_MS, readLifecycleMeta,
 } from "../helpers/store-lifecycle-fixture.js";
+
+const workflow = "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md";
 
 it("starts a paired-spec member through init with both declared files ready for task generation", async () => {
   const h = await lifecycleRepository();
@@ -45,7 +47,6 @@ it("starts a paired-spec member through init with both declared files ready for 
   const taskInputs = { placement: { kind: "active" }, fields: { currentWorkflow: "generate-tasks", design } };
   expect(await readLifecycleMeta(checkout, name)).toMatchObject(taskInputs);
 
-  const workflow = "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md";
   const init = await readFile(join(checkout, ".arc", workflow), "utf8");
   const stubPath = init.split("**Path A — Started from a stub**")[1]?.split("**Path B")[0] ?? "";
   // Follow an unconditional repoint for specified stubs if the workflow calls for one.
@@ -61,4 +62,39 @@ it("starts a paired-spec member through init with both declared files ready for 
   for (const [index, filename] of design.entries()) {
     expect(await readFile(join(checkout, ".arc/active/current", filename), "utf8")).toContain(`# ${name} ${forms[index]}`);
   }
+}, LIFECYCLE_TIMEOUT_MS);
+
+it("retires a started stub's draft when its singleton spec is already selected for task generation", async () => {
+  const h = await lifecycleRepository();
+  const name = "specified";
+  const owner = OwnerIdentitySchema.parse({ type: "work-item", name });
+  const design = [`spec-${name}.md`];
+  const draft = recordReferences["work-item/draft"](owner);
+  const draftContent = "# Draft: Specified\n";
+  await seedStore(h.repo, LIFECYCLE_IDENTITY, [
+    { reference: recordReferences["work-item/meta"](owner), placement: { kind: "backlog", commitment: "planned" },
+      content: makeMetaFixture(name, { state: "Planning", workClass: "Light", currentWorkflow: null, design }) },
+    { reference: recordReferences["work-item/spec"](owner), content: "# Spec: Specified\n" },
+    { reference: draft, content: draftContent },
+  ]);
+
+  const checkout = h.checkoutPath(name);
+  const start = await h.run(["start", name, "--yes"]);
+  expect(start.exitCode, start.output).toBe(0);
+  const taskInputs = { placement: { kind: "active" }, fields: { currentWorkflow: "generate-tasks", design } };
+  const readDraft = () => readStoreRecord(checkout, LIFECYCLE_IDENTITY, draft);
+  expect(await readLifecycleMeta(checkout, name)).toMatchObject(taskInputs);
+  expect((await readDraft()).content).toBe(draftContent);
+
+  const init = await readFile(join(checkout, ".arc", workflow), "utf8");
+  const stubPath = init.split("**Path A — Started from a stub**")[1]?.split("**Path B")[0] ?? "";
+  // Only the draft can trigger reconciliation when the spec and stage are already set.
+  const repointCondition = stubPath.match(/\bIf\b[^.]*singleton spec([^.]*)run `arc repoint-design spec-finalized`/iu)?.[1];
+  if (/\bdraft\b/iu.test(repointCondition ?? "")) {
+    const repoint = await h.run(["repoint-design", "spec-finalized"], checkout);
+    expect(repoint.exitCode, repoint.output).toBe(0);
+  }
+
+  await expect(readDraft()).rejects.toThrow(/not-found/u);
+  expect(await readLifecycleMeta(checkout, name)).toMatchObject(taskInputs);
 }, LIFECYCLE_TIMEOUT_MS);
