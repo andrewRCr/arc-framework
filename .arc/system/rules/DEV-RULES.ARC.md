@@ -500,8 +500,9 @@ cannot reference movable records. Apply these rules to local references:
 
 - **To a movable record:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
   include the task ID + task-list filename: "Task X.Y - `tasks-name.md`".
-- **From projected Markdown:** Refer to a record under any projected root, including a fixed record, by backticked
-  filename. Local links from projected Markdown must resolve outside every projected root.
+- **From projected Markdown:** Refer to another record under any projected root, including a fixed record, by backticked
+  filename. Local links with paths must resolve outside every projected root. Use fragment-only links such as `#heading`
+  to link within the same document.
 - **From a movable record:** no relative-path links at all, even to stable docs — a movable source's path changes
   when it relocates, so any relative link would break. Link a tracked file from the repository root (`/path`) instead.
 

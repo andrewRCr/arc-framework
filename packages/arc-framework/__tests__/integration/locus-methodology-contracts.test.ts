@@ -289,6 +289,9 @@ describe("locus methodology contracts", () => {
       ]);
       const resume = await readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8");
 
+      for (const surface of surfaces) {
+        expect(surface, "Use lifecycle-specific exits").not.toMatch(/\barc\s+locus\s+release\b/u);
+      }
       for (const surface of [...surfaces, sessionInit + example]) {
         expect(surface).not.toMatch(
           /arc locus (?:attach|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,

@@ -28,10 +28,11 @@ describe.each([
     expect(definition).toMatch(/branch[^.]*activat|activat[^.]*branch/u);
   });
 
-  it("bars links from projected Markdown into fixed as well as movable projections", async () => {
+  it("allows fragment-only links and bars paths into fixed as well as movable projections", async () => {
     const section = (await rules()).split("### `.arc/` artifact references")[1]?.split("\n### ")[0] ?? "";
     expect.soft(section).toMatch(/projected Markdown[^.]*projected root[^.]*\bfixed\b[^.]*backticked\s+filename/iu);
-    expect.soft(section).toMatch(/local links?[^.]*outside (?:every|all) projected roots?/iu);
+    expect.soft(section).toMatch(/local links?[^.]*\bpaths?\b[^.]*outside (?:every|all) projected roots?/iu);
+    expect.soft(section).toMatch(/\b(?:use|allow|permit) fragment-only links?|fragment-only links?\s+(?:may|can|are allowed|are permitted)\b/iu);
     expect.soft(section).toMatch(/relative links?[^.]*fixed records?[^.]*outside (?:every|all) projected roots?/iu);
     expect(section).toMatch(/movable record:\*\* no relative-path links/iu);
   });
