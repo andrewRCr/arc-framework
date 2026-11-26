@@ -2054,6 +2054,13 @@ git add|git commit|git rm|git mv|git show|\[x\]|\[~\]|plan/|SESSION-NOTES|arc us
 - `user/{identity}/active/` in `user/README.md` and the contributor brief, with `meta-{name}.md` and `tasks-{name}.md`
   in `user/README.md`: a contributor's personal pipeline under the layout's contributor scope.
 
+**Found unrecorded at a verification walk on 11-26; both stay:**
+
+- `chore(arc): record {name} planning artifacts` and its commit in `activate-work-unit.md`: the work branch's first
+  commit, of tracked files only, an accepted ADR or research moved under `reference/supplemental/`.
+- "notes" in the `planning-review` method's pass record: the unit's notes companion, read with `arc view notes` and
+  saved with `arc save`, not Git notes.
+
 ## Stage 2
 
 Stage 2's runbook (Task 6.4.a) and each run's conclusions. A run's raw evidence stays in the work unit's evidence folder
@@ -2182,6 +2189,12 @@ on the importing machine, outside the repository and uncited; each conclusion na
           deletion commit passing its hooks with the projection off, then its first materialization. Its branch takes no
           step in 5.1. Only a branch whose merge of the flipped `main` meets no modify/delete conflict on a record can
           take this order, two of the twelve held branches on the copy.
+        - _Amended 2026-11-26:_ runs from this date take no checkout through this order. On the copy of 11-25, 10:24
+          pm, one held branch could still take it, `plan/cutover-tracked-state-removal`, which already carries the late
+          changes of the final perturbation; every other held branch has changed `.arc/backlog/ROADMAP.md` since its
+          merge base with `main`, so its merge of the flipped `main` conflicts. Run 11 showed the order at
+          `c9410c1318`; the refusal and its remedy are covered by the suite at later heads. On the day the order does
+          not arise where each branch takes its step in 5.1 before any merge.
         - Each spawned pre-flip checkout's marker is bound.
         - The primary's identity root ends holding only ARC's surfaces and `scratch/`, its inbox and working memory laid
           from the store.
@@ -2475,6 +2488,93 @@ in a unit with no plan section, so sessions that are not delivering are unaffect
 runs. The end-to-end suite states the same boundary: its authoring, entry, closeout and landing-readiness cases run only
 over the in-repo store. Native delivery therefore starts again with `delivery-rebuild-continuity`, as § 2.3 and § 4.3
 leave it, and no stacked delivery can be authored between the window and that unit's landing.
+
+#### Run 13 (Task 6.5), at `2faaba6c9a`: the six perturbations, a stop on the run's own expectation, and a resumed close
+
+Run unattended on the night of 11-25 from a fresh copy taken at 10:24 pm (46 s, no finding, 14 checkouts), with `main`
+at `1a7c596190`; CI run 45730208380 had passed at this head, Windows and macOS included. Every stage through the flip's
+landing in the final run matched the outcome written before it. The final run then stopped at 12:47 am in step 5.2 on
+an expectation of the run's own, and its remaining steps ran on the same copy from 7:48 am on 11-26, a departure from
+the Stops rule approved for this run alone. The run is recorded as stopped and resumed, not as clean.
+
+- **An Errand record arriving mid-window.** Planted with `arc errand open` on the copy. `check` refused with three
+  findings: the Errand's checkout without an upstream holding a fetched tip, and the Errand's record in the local and
+  the fetched identity refs. Abandoning the Errand from its own checkout removed the checkout and left the identity
+  trees as before the plant.
+- **A diverging copy.** `check` refused with one finding, the local `plan/rehearsal-diverging-copy` not an ancestor of
+  the selected read copy. Both sides were brought to one tip holding both commits, and the second trial matched (365
+  refs, 22 notices).
+- **A record changed between the import and the merge, three runs**, each from the check through the import, the
+  accounting and the chain comparison in 12 to 13 minutes:
+    - a branch commit before the deletion commit: `recompute` refused with four findings (the holding checkout's
+      `HEAD` and the branch's local and fetched tips); `restore`, `arc status` in the primary exit 0, the change dropped;
+    - the same change after the deletion commit (1,068 deletions, its hooks and push gate passing): `last-read` refused
+      with four findings; `restore`, then the deletion commit reverted on the flip's branch under the override through
+      its hooks, the tree as before it but for `.arc/backlog/ROADMAP.md`, and the flip build qualified again;
+    - a line appended to a personal file in a linked checkout: `recompute` refused with one finding, the checkout's
+      personal digest; `restore`, and the file back to its bytes.
+- **A pull request merged into `main` after the import, two runs.** Before the deletion commit `recompute` refused, and
+  after it `last-read` refused, each with one finding, the host's `main` tip. Each aborted by `restore` (the second
+  also reverting its deletion commit through the hooks), took the merge into the flip's branch, and qualified the flip
+  build at the new head before re-running from the check.
+- **The final run through the flip's landing (16 min).** As in run 11: the archive published `Shipped` with the PR URL
+  and Completed set, 26 register rows closed, the 72 workspace files copied out, the checkout released.
+- **A late change after the merge.** Planted after the landing: a commit on `plan/cutover-tracked-state-removal`
+  recording a blocker and closing a task, with a personal note in its checkout; a code-only commit pushed to the mirror
+  on the live branch no checkout holds; and two branches pushed to the mirror alone, one cut from `main`'s recorded tip
+  editing `stub-mint-to-launch`'s meta, one sharing no history with `main` and tracking a file under the state paths.
+  `compare` reported ranges on exactly the two late-changed live branches, one unrecorded range for the late branch,
+  and refused the unrelated branch for want of a base, leaving no mark.
+- **Each branch (30 min).** Twelve branches made the deletion commit, 1,066 to 1,070 files, through their own pre-flip
+  hooks and push gates; the unheld branch took the mirror's late commit by fast-forward first, from a temporary
+  checkout.
+- **The stop.** The driver named `plan/delivery-rebuild-continuity` as the checkout that merges the flipped `main`
+  before its deletion commit. That branch's own merge of `main` at 11:03 am on 11-25 had changed its
+  `.arc/backlog/ROADMAP.md`, so the merge met a modify/delete conflict there and the stage gated. No command behaved
+  other than as written; the expectation, written at 12:57 pm, was stale. The runbook's note on that order is amended
+  above.
+- **Resumed (10 min).** The conflicted merge was aborted, leaving the checkout clean at its tip; the branch took the
+  ordinary step (1,067 deletions, hooks and push gate passing); the eleven remaining checkouts merged the flipped
+  `main`, materialized and bound their markers. `projection-team-scale`'s merge conflicted in six paths, none under the
+  five roots, and was left to its session. `cutover-tracked-state-removal`'s checkout kept its 68 pre-flip personal
+  files, its first materialization reported each withheld, and `arc locus release` refused over them, exit 1.
+- **Close.** The notes ref moved under `refs/retired-notes/` and all six notes writers refused. `close` refused over
+  the five late changes. The blocker was re-applied by editing the projected meta and saving, the task closed through
+  `arc task close`, the personal files copied out and the note re-applied in the meta's session context, and the late
+  branch's edit re-applied in its unit's claiming checkout; `confirm` naming a side with no range refused, and the
+  three ranges were confirmed. `close` then refused over the unrelated branch alone, passed once the branch was deleted
+  from the mirror, and left no window ref; 411 review-gate records naming the live repository were cleared.
+- **A store change between preparation and admission.** The fence harness ran after the close over the snapshot taken
+  of the copy's store before the archive, from the copy's own source: 354 cases, one per Markdown record each prepared
+  write reads plus one unrelated write each. The archive refused 13 and admitted 14 (edits of other cohorts' records,
+  and a member and a subcohort arriving); the 26-row register closure, as an edit of the cohort record, refused all
+  323; the edit of `cutover-tracked-state-removal`'s meta refused its one. Every refusal published nothing and its
+  fresh preparation then landed; none threw; each writer's unrelated write was admitted; the snapshot's refs did not
+  move. It took 4 h 26 min in one process, a case taking 16 s at the start and 62 s by the 278th. The run's wrapper
+  reported the stage as differing on a pattern of its own that matched the summary's "0 threw"; the harness exited 0.
+
+Since run 11, at this head: the tracked-state refusal names the store's import and carries the removal as a command
+rooted at the repository's top level, and the archive's store commit carries an `Arc-Archive-Inventory: required`
+trailer, which scopes the complete-inventory rule to archive writes.
+
+#### CI over the post-deletion tree (Task 6.7), at `f4084a6c49`
+
+The deletion commit `71430fa370` removes the 1,068 files under the five state paths from the flip's head `f4084a6c49`
+and nothing else; its tree is `b49e8772b4`. It was built with a temporary index and `git commit-tree`, the checkout's
+`HEAD` unmoved, and pushed to `ci/cutover-flip-post-deletion`. CI run 45852145391, dispatched with no diagnostic input,
+passed on its second attempt, 24 jobs passing and 7 skipped. Its first attempt failed in one end-to-end shard on two
+60 s timeouts in `candidate-lineage-settlement.e2e.test.ts`, a file neither the change nor the deletion touches, whose
+six cases took 125 to 250 s across the branch's twelve runs before it and 275 s in that attempt; the failed job was
+rerun once, as decided on 11-26 for timeouts in that file. CI run 45851968466 passed at `f4084a6c49` itself, Windows
+and macOS included. A commit that changes only the work unit's own planning records leaves this tree as it is, since
+those records are among the deleted paths; a later change to tracked code re-runs it.
+
+#### The pre-window change on `main` (Task 6.R2.b), confirmed 11-26
+
+`main` holds the change since #1406 (`855b111238`, 11-24), and each of the twelve live branches a checkout holds has
+merged `main` at or after it. The pre-window list carries, for every live branch, the merge of `main` at or after that
+commit, the reinstall where a checkout's install predates the dependency `main` added (eight of the ten checkouts read
+on 11-25), and the checkout's own build before its window commit.
 
 ## The parallel run from 11-24
 

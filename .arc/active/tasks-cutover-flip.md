@@ -1718,16 +1718,15 @@ rewritten workflows (§ 9.2).
       request, open and unmerged, on the work unit's branch and fails every other call; its evidence is labeled stubbed
       host evidence.
 
-### `[ ]` **6.7 CI over the post-deletion tree on a branch of its own — § 10.1**
+### `[x]` **6.7 CI over the post-deletion tree on a branch of its own — § 10.1**
 
 - _Goal:_ CI passes over the flip branch's head with the deletion commit applied, on a branch of its own, so the tree
   the merge lands has passed CI before the window.
 
-    - The deletion commit is built in the flip's checkout under the override without moving its `HEAD`: a temporary
-      index with the state paths removed, `git commit-tree` over that index's tree with the flip's head as parent, and a
-      refspec push of the commit to the branch. The tree hash is recorded.
-    - The run is dispatched (`gh workflow run ci.yml --ref <branch>`) with no diagnostic inputs set and recorded by run
-      ID; it passes when every job succeeds or is skipped, since `ci-ok` runs only on a pull request.
+- _Outcome:_ Deletion commit `71430fa370` over flip head `f4084a6c49` (1,068 deletions, tree `b49e8772b4`), built
+  without moving `HEAD` and pushed to `ci/cutover-flip-post-deletion`; CI run 45852145391 passed on its second attempt,
+  the first failing on two timeouts in an end-to-end file the change does not touch. `notes-cutover-flip.md` § Stage 2
+  holds the record; a later change to tracked code re-runs it.
 
 ### `[x]` **6.R The in-place checkout's carry in a synthetic repository — § 9.6**
 
@@ -1741,7 +1740,7 @@ rewritten workflows (§ 9.2).
           imported UID with `HEAD` and the branch unmoved. `notes-cutover-flip.md` § Stage 2 holds the conclusion, at
           flip head `4738eea1e3`, and three observations made beside it.
 
-### `[ ]` **6.R2 `main` stops testing tracked state ahead of the window — § 10.1**
+### `[x]` **6.R2 `main` stops testing tracked state ahead of the window — § 10.1**
 
 - _Goal:_ Each live branch's deletion commit passes its hooks before the branch merges the flip, since `main`'s suite no
   longer reads the tracked state that commit deletes and every live branch holds that change (A28).
@@ -1751,10 +1750,11 @@ rewritten workflows (§ 9.2).
           the test-only part of the flip's own commit, and merges `main` into every live branch and the flip before the
           lock; step 5 states what a checkout needs before its hooks can run, a current install and its own build.
 
-    - `[ ]` **6.R2.b The change on `main` and the pre-window list**
-        - The change reaches `main` as an Errand ahead of the window, and the pre-window list carries each live branch's
-          merge of `main` after it, the three checkouts whose installs predate a dependency `main` added, and each
-          checkout's own build; confirm both on the live repository before 6.8.
+    - `[x]` **6.R2.b The change on `main` and the pre-window list**
+        - The change landed on `main` as an Errand (#1406, `855b111238`), and all twelve live branches a checkout holds
+          have merged `main` at or after it. The pre-window list carries each branch's merge, the reinstalls (eight
+          checkouts, not three, by the read of 11-25), and each checkout's own build. Confirmed on the live repository
+          on 11-26; `notes-cutover-flip.md` § Stage 2 holds the record.
 
 ### `[ ]` **6.R3 Store-backed cases 2 to 7 on the end-to-end work unit — § 9.10**
 
