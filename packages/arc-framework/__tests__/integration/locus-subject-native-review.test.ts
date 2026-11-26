@@ -16,6 +16,8 @@ import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-stat
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
 import { composeSessionInitStatus } from "../../src/handlers/status.js";
 import { createSessionStatusContext } from "../../src/handlers/status/session-context.js";
+import { compileSessionInitAgenda } from "../../src/commands/agenda/compile.js";
+import { createAgendaReadPort } from "../../src/commands/agenda/compile-input.js";
 import { assertSessionInitProbeResult } from "../../src/commands/status/schema.js";
 import { createRawGitExec } from "../../src/lib/io-context.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
@@ -88,7 +90,7 @@ it("projects a native Candidate review boundary when none is stored", async () =
 it.each([
   ["prepare-work-unit", "prepublication"],
   ["integrate-work-unit", "integration"],
-] as const)("keeps the active slot readable during %s when the boundary read is refused", async (workflow, sessionType) => {
+] as const)("keeps active status readable and stops the agenda during %s when the boundary read is refused", async (workflow, sessionType) => {
   const { h, cwd, exec, primary, branch, coordinates } = await nativeCandidateCheckout(workflow);
   const boundary = workflow === "integrate-work-unit"
     ? projectPublicationBoundary({ ...coordinates, branch, reservation: null, changeRequest: null,
@@ -109,7 +111,12 @@ it.each([
     const context = await createSessionStatusContext(cwd, exec, raw, raw, undefined, { store });
     const { result } = await composeSessionInitStatus(context);
     assertSessionInitProbeResult(result);
-    return result;
+    const compiled = await compileSessionInitAgenda({
+      envelope: result, signals: {}, answers: { answered: {}, done: [] },
+      read: createAgendaReadPort(cwd, exec), entry: context,
+    });
+    if (!compiled.ok) throw new Error(JSON.stringify(compiled.refusal));
+    return { active: result.active, agenda: compiled.agenda };
   };
 
   const refused = await run();
@@ -122,6 +129,11 @@ it.each([
     integrationBoundary: boundary, warnings: [] } });
   expect(refused.active, JSON.stringify(refused.active)).toMatchObject({ ok: true, value: { ...activeMeta, sessionType: null,
     integrationBoundary: null, warnings: expect.arrayContaining([expect.stringContaining(condition), expect.stringContaining(remedy)]) } });
+  expect(repaired.agenda.steps.at(-1)).toMatchObject({ type: "gate", kind: "proceed" });
+  expect(refused.agenda.steps.at(-1)).toMatchObject({ type: "gate", kind: "stop", autoProceed: false });
+  const rendered = refused.agenda.steps.flatMap(step => step.type === "render" || step.type === "note" ? [step.text] : []).join("\n");
+  expect(rendered).toContain(condition);
+  expect(rendered).toContain(remedy);
 });
 
 it("recovers a stored pending fix after execution pruning and keeps its source owner through slug reuse", async () => {
