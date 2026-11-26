@@ -73,8 +73,11 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
       && !owners.some(({ owner }) => owner.type === "work-item" && owner.name === reference.owner.name)) return { status: "refused" as const, refusal: skipped };
     const candidates = freshName ? owners.filter(({ primary }) => primary !== undefined).map(({ owner }) => owner) : lineageName
       ? lineageOwnerCandidates(reference, owners, lineage) : [...liveOwners, ...recordFreeOwners, ...endedOwners];
-    // Tier selection already authenticated a former name; its canonical current name need not match again.
     const uid = "uid" in reference.owner ? reference.owner.uid : undefined;
+    const plan = reference.kind === "lineage/transition" && !uid && candidates.length === 0
+      ? planned.find(([, record]) => writeOwnerNameKey(record) === writeOwnerNameKey(reference))?.[1] : undefined;
+    if (plan) return { status: "ok" as const, result: plan.owner };
+    // Tier selection already authenticated a former name; its canonical current name need not match again.
     return resolveOwner(reference, candidates, fresh, lineageName, uid ? proposed.get(uid) : undefined, uid ? held.get(uid) : undefined);
   };
 

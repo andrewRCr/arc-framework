@@ -29,6 +29,22 @@ describe.each(["unused", "completed"] as const)("planned Errand UID (%s slug)", 
   });
 });
 
+it.each(["transition first", "record first"])("creates a transition and an Errand under the planned UID (%s)", async (order) => {
+  const f = await createRefFixture();
+  const transition = f.reference("lineage/transition");
+  const errand = RecordReferenceSchema.parse({ kind: "work-item/record",
+    owner: { ...transition.owner, uid: "abcdef01-2345-4678-9abc-def012345678" } });
+  const recordPut = { action: "put" as const, expected: null, reference: errand, content: f.content(errand), placement: { kind: "active" as const } };
+  const transitionPut = { action: "put" as const, expected: null, reference: transition, content: f.content(transition) };
+  const writes = order === "transition first" ? [transitionPut, recordPut] : [recordPut, transitionPut];
+  const result = success(await f.store.batch({ provenance: testProvenance, writes }));
+
+  expect(result.writes.map(({ reference }) => reference)).toEqual(writes.map(({ reference }) => ({ ...reference, owner: errand.owner })));
+  expect(success(await f.store.read({ reference: errand })).content).toBe(recordPut.content);
+  const storedTransition = { ...transition, owner: errand.owner };
+  expect(success(await f.store.read({ reference: storedTransition })).reference).toEqual(storedTransition);
+});
+
 it("removes a retired work unit's transition by slug while creating an Errand with that slug", async () => {
   const f = await createRefFixture();
   const work = await seed(f, f.reference("work-item/meta"));
