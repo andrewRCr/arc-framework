@@ -352,6 +352,12 @@ function invalidatedResult(
   return result;
 }
 
+function canRetryLockRelease(diagnostics: LockReleaseResult["diagnostics"]): boolean {
+  const blockers = diagnostics.filter(({ code }) => code !== "readiness-failed");
+  return blockers.length > 0
+    && blockers.every(({ code }) => code === "errand-branch-mismatch" || code === "errand-record-conflict");
+}
+
 function operationFailedResult(
   request: ErrandMergeRequest,
   reason: Extract<ErrandMergeResult, { state: "operation-failed" }>["reason"],
@@ -786,7 +792,7 @@ export async function mergeErrand(
         "The exact Errand merge lock could not be released.",
         target,
         final.baseOid,
-        release.diagnostics.some(({ code }) => ["errand-branch-mismatch", "errand-record-conflict"].includes(code)) ? "retry" : "stop",
+        canRetryLockRelease(release.diagnostics) ? "retry" : "stop",
         release.diagnostics,
       ),
     );

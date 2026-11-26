@@ -84,8 +84,8 @@ export async function evaluateStoredErrandReadiness(request: ErrandRequest, auth
   const read = await store.read({ reference: found.result.reference });
   if (read.status === "refused") return [refusedFact(store, read.refusal, path)];
   const record = read.result;
-  const invalid = errandRecordFact(record, found.result.reference, slug, path, errand);
-  if (invalid !== null) return [invalid];
+  const recordFacts = errandRecordFacts(record, found.result.reference, slug, path, errand);
+  if (recordFacts.length > 0) return recordFacts;
   const linked = selectWorkBranchLink(record, { repository });
   if (errand !== undefined && workBranchName(errand.branch) !== branch) {
     return [fact("vehicle-branch-mismatch", "pullRequest.headBranch",
@@ -98,27 +98,27 @@ export async function evaluateStoredErrandReadiness(request: ErrandRequest, auth
   return [errandBranchMismatch(detail)];
 }
 
-function errandRecordFact(record: StoreRecord, selected: RecordReference, slug: string, path: string,
-  errand: StoredReadinessAuthority["errand"]): ReviewReadinessFact | null {
+function errandRecordFacts(record: StoreRecord, selected: RecordReference, slug: string, path: string,
+  errand: StoredReadinessAuthority["errand"]): ReviewReadinessFact[] {
   const { reference, placement } = record;
   if (reference.kind !== "work-item/record" || !sameReference(reference, selected)
     || reference.owner.name !== slug || placement?.kind !== "active") {
-    return fact("malformed-artifact", path, `The selected ${placement?.kind ?? "unplaced"} ${reference.kind} for \`${reference.owner.name}\` is not the active Errand \`${slug}\`. Run \`arc status --json\` and use the current vehicle for this branch.`);
+    return [fact("malformed-artifact", path, `The selected ${placement?.kind ?? "unplaced"} ${reference.kind} for \`${reference.owner.name}\` is not the active Errand \`${slug}\`. Run \`arc status --json\` and use the current vehicle for this branch.`)];
   }
+  const conflictFacts = record.conflicts.length === 0 ? [] : [
+    fact("errand-record-conflict", path, `The stored Errand has unresolved conflicts.${describeRecordConflicts(record.conflicts)}`),
+  ];
   const decoded = deserializeTransientIdentityRecord(record.content, slug);
   if (decoded.kind !== "valid" || decoded.record.kind !== "errand" || decoded.record.purpose !== "errand") {
-    return fact("malformed-artifact", path, `The active record does not encode an ordinary Errand named \`${slug}\`. Restore its valid identity from authoritative state, then retry.`);
+    return [fact("malformed-artifact", path, `The active record does not encode an ordinary Errand named \`${slug}\`. Restore its valid identity from authoritative state, then retry.`), ...conflictFacts];
   }
   if (decoded.record.owner === undefined) {
-    return fact("malformed-artifact", path, `The active Errand \`${slug}\` has no owner. Restore its owner from authoritative state, then retry.`);
+    return [fact("malformed-artifact", path, `The active Errand \`${slug}\` has no owner. Restore its owner from authoritative state, then retry.`), ...conflictFacts];
   }
   if (errand !== undefined && (decoded.record.claimId !== errand.claimId || decoded.record.branch !== errand.branch)) {
-    return fact("malformed-artifact", path, `The Errand records claim ${decoded.record.claimId} on \`${decoded.record.branch}\`, which differs from the approved claim or branch. Recompose the request for the current Errand and obtain approval.`);
+    return [fact("malformed-artifact", path, `The Errand records claim ${decoded.record.claimId} on \`${decoded.record.branch}\`, which differs from the approved claim or branch. Recompose the request for the current Errand and obtain approval.`), ...conflictFacts];
   }
-  if (record.conflicts.length > 0) {
-    return fact("errand-record-conflict", path, `The stored Errand has unresolved conflicts.${describeRecordConflicts(record.conflicts)}`);
-  }
-  return null;
+  return conflictFacts;
 }
 
 function errandBranchMismatch(detail: string): ReviewReadinessFact {

@@ -229,6 +229,52 @@ it("keeps the selected Errand merge ready after a second live Errand arrives on 
   }
 }, 60_000);
 
+it("reports both the missing owner and the open primary conflict at standalone lock release", async () => {
+  const f = await fixture(), slug = "shared";
+  const head = (await f.exec("git", ["rev-parse", "main"])).stdout.trim();
+  const { reference, record, branch } = await errand(f, uidA, "chore", false, slug, head, "chore/shared-abcdef01");
+  const primary = success(await f.store.read({ reference }));
+  success(await f.store.write({ ...recordPut(primary, { content: JSON.stringify({ ...record, owner: undefined }) }),
+    provenance: { verb: "seed", lifecycleAction: "update" } }));
+  const conflict = recordReferences["work-item/conflict-record"](reference.owner, "subject-conflict");
+  const { content, version, formatVersion, placement, links } = success(await f.store.read({ reference }));
+  const time = record.createdAt;
+  success(await f.store.write({ action: "put", reference: conflict, expected: null,
+    content: JSON.stringify({ record: reference, location: { kind: "record" }, base: null,
+      current: { value: { reference, content, version, formatVersion, placement, links }, label: { actor: "alice", time } },
+      incoming: { value: null, label: { actor: "bob", time } } }),
+    provenance: { verb: "merge", lifecycleAction: "capture" } }));
+
+  const repository = "owner/repo", pullRequest = 42;
+  const port = defaultMergeLockPort(f.root, f.exec, { run: async args => {
+    if (args[0] === "repo") return { stdout: JSON.stringify({ nameWithOwner: repository, defaultBranchRef: { name: "main" } }), stderr: "" };
+    if (args[0] === "api") return { stdout: JSON.stringify({ number: pullRequest, state: "open", draft: false,
+      head: { ref: branch, sha: head }, base: { repo: { full_name: repository } } }), stderr: "" };
+    throw new Error(`Unexpected host call: ${args.join(" ")}`);
+  } }, { store: f.store });
+  const release = () => releaseMergeLock({ schemaVersion: 1, treeRoot: f.root, target: { repository, pullRequest, headSha: head },
+    vehicle: { kind: "errand", slug } }, port);
+
+  const conflicted = success(await f.store.read({ reference }));
+  expect(conflicted.conflicts).toEqual([conflict]);
+  const refused = await release();
+  expect(refused).toMatchObject({ state: "blocked", payload: { reason: "readiness-failed" } });
+  const messages = refused.diagnostics.map(({ message }) => message).join("\n");
+  expect(messages).toContain(JSON.stringify(conflict));
+  expect(messages).toMatch(/\bresolve\b[^\n]*\bconflict\b/iu);
+  expect(messages).toMatch(/no owner.*restore.*owner/iu);
+
+  success(await f.store.write({ ...recordPut(conflicted, { content: primary.content }),
+    provenance: { verb: "restore", lifecycleAction: "update" } }));
+  expect(await release()).toMatchObject({ state: "blocked", diagnostics: expect.arrayContaining([
+    expect.objectContaining({ message: expect.stringContaining(JSON.stringify(conflict)) }),
+  ]) });
+  const restored = success(await f.store.read({ reference }));
+  success(await f.store.write({ ...recordPut(restored), resolves: [conflict],
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await release()).toMatchObject({ state: "no-lock", payload: { reason: "lock-disabled" }, diagnostics: [] });
+}, 60_000);
+
 it("refuses a clashed branch on the machine holding only the other Errand checkout", async () => {
   const f = await fixture(), selected = await errand(f, uidA, "chore", false), other = await errand(f, uidB);
   const before = success(await f.store.version());
