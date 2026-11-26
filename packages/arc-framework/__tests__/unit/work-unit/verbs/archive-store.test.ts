@@ -148,6 +148,34 @@ describe("store archive finalize fields", () => {
     expect(retry.warnings).toContainEqual(expect.stringMatching(prUrlNotice));
   });
 
+  const savedPrUrl = "https://github.com/o/r/pull/12";
+  it.each([
+    { change: "backfilled", before: null, after: savedPrUrl },
+    { change: "cleared", before: savedPrUrl, after: null },
+  ])("reports the saved PR URL state when retry imports a $change URL", async ({ before, after }) => {
+    const left = createLifecycleHarness(), right = createLifecycleHarness(), remote = createMemoryRemote();
+    left.store.context.publication.remote = remote;
+    right.store.context.publication.remote = remote;
+    const meta = await left.seedMeta("example");
+    const ctx = { executor: context(left.store), fs: { readdir: async () => [] }, clock: () => shipDay };
+    expect(await runArchive(ctx, { name: "example", prUrl: before ?? undefined })).toMatchObject({ status: "archived" });
+    lifecycleSuccess(await right.store.push());
+    const archivedMeta = lifecycleSuccess(await right.store.read({ reference: meta.reference }));
+    expect(archivedMeta.fields).toMatchObject({ prUrl: before });
+    lifecycleSuccess(await right.store.write({ ...recordPut(archivedMeta, { content: writeMetaPrUrl(archivedMeta.content, after) }),
+      provenance: { verb: "save", lifecycleAction: "edit" } }));
+    lifecycleSuccess(await right.store.push());
+
+    expect(lifecycleSuccess(await left.store.read({ reference: meta.reference })).fields).toMatchObject({ prUrl: before });
+    const retry = await runArchive(ctx, { name: "example" });
+    expect(lifecycleSuccess(await left.store.read({ reference: meta.reference })).fields).toMatchObject({ prUrl: after });
+    expect(retry).toMatchObject({ status: "archived" });
+    if (retry.status !== "archived") throw new Error(retry.reason);
+    const advisory = expect.stringMatching(/PR URL.*arc save/i);
+    if (after === null) expect(retry.warnings).toContainEqual(advisory);
+    else expect(retry.warnings).not.toContainEqual(advisory);
+  });
+
   it("uses the placement day for default completion when archive crosses a quarter boundary", async () => {
     const clock = vi.fn(() => new Date(2026, 9, 1)).mockReturnValueOnce(new Date(2026, 8, 30, 23, 59, 59, 999));
     const { result, fields } = await archived({}, clock);
@@ -169,7 +197,8 @@ describe("store archive finalize fields", () => {
     expect(ParsedMetaRecordSchema.parse(saved.fields).prUrl).toBeNull();
     const backfill = workflow.slice(workflow.indexOf("Omit it when"), workflow.indexOf("`--completed` defaults"));
     expect(backfill).toMatch(/Owner[\s\S]*`PR URL`[\s\S]*archived meta[\s\S]*`arc save`[\s\S]*`arc view meta --for \{name\}`/u);
-    expect(backfill).toMatch(/refuses[\s\S]*URL is still missing/u);
+    expect(backfill).toMatch(/refuses[\s\S]*surface[\s\S]*remedy[\s\S]*remedy\s+saves[\s\S]*verif(?:y|ication)/iu);
+    expect(backfill).toMatch(/report\s+if\s+the\s+URL\s+is\s+still\s+missing/u);
 
     lifecycleSuccess(await h.store.write({ ...recordPut(saved, { content: writeMetaPrUrl(saved.content, prUrl) }),
       provenance: { verb: "save", lifecycleAction: "edit" } }));

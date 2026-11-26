@@ -14,7 +14,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join, posix } from "node:path";
 import { promisify } from "node:util";
 
@@ -24,8 +24,11 @@ import { parseMetaProjectionRecord } from "../../src/lib/active/meta-reader.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { renderRoadmapFromIndex } from "../../src/lib/status/roadmap-regeneration-assert.js";
+import { writeMetaPrUrl } from "../../src/lib/store/kinds/meta/writers.js";
+import { projectionSaveResult } from "../../src/lib/store/projection/save.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { executeTransition } from "../../src/lib/work-unit/lifecycle-executor.js";
+import { runArchive } from "../../src/lib/work-unit/verbs/archive.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
@@ -127,5 +130,31 @@ describe("executor staging — relocate + content rewrite leaves the meta fully 
     });
     expect(stagedRoadmap).not.toContain("| `Integrating` | demo");
     expect(stagedRoadmap).toBe(await renderRoadmapFromIndex({ cwd: repo, exec: makeGitExec(repo), baseBranch: "main" }));
+  });
+
+  it("advises committing the archived PR URL and preserves the backfill through the save refusal's remedy", async () => {
+    await mkdir(join(repo, ".arc", "active"), { recursive: true });
+    const activeRel = ".arc/active/meta-demo.md";
+    await writeFile(join(repo, activeRel), integratingMeta());
+    await execFileAsync("git", ["add", "--", activeRel], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "Active demo"], { cwd: repo });
+    const executor = buildExecutorContext({ cwd: repo, io: { ...createUserIOContext(), exec: makeGitExec(repo) },
+      identity: null, teamMode: false, baseBranch: "main", internalTemplateDir: getInternalTemplatePath() });
+    if (executor.store === undefined) throw new Error("Archive executor is missing its store");
+    const result = await runArchive({ executor, fs: { readdir }, clock: () => new Date(2026, 5, 15) }, { name: "demo" });
+    if (result.status !== "archived") throw new Error(result.reason);
+
+    const metaPath = join(repo, result.metaPath), content = await readFile(metaPath, "utf8");
+    expect(content).toContain("- **PR URL:** [none]");
+    const prUrl = "https://github.com/o/r/pull/12";
+    await writeFile(metaPath, writeMetaPrUrl(content, prUrl));
+    expect(await projectionSaveResult(executor.store)).toMatchObject({ status: "refused", refusal: { code: "unsupported",
+      condition: expect.stringContaining("storage backend"), remedy: { text: expect.stringContaining("git commit") } } });
+    await execFileAsync("git", ["add", "--", result.metaPath], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "Record archived PR URL"], { cwd: repo });
+    const { stdout: committed } = await execFileAsync("git", ["show", `HEAD:${result.metaPath}`], { cwd: repo });
+    expect(parseMetaProjectionRecord(committed)["PR URL"]).toBe(prUrl);
+    expect.soft(result.warnings).toContainEqual(expect.stringMatching(/PR URL.*git commit/i));
+    expect(result.warnings).not.toContainEqual(expect.stringMatching(/PR URL.*arc save/i));
   });
 });

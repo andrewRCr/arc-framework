@@ -34,7 +34,7 @@
 
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import { runStoreArchive } from "./archive-store.js";
-import { PR_URL_PLACEHOLDER, resolveArchiveFinalizeFacts } from "./archive-finalize.js";
+import { archivePrUrlWarnings, PR_URL_PLACEHOLDER, resolveArchiveFinalizeFacts } from "./archive-finalize.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import type { SpineRemedy } from "../../../scripts/integration/spine-refusal.js";
 import { join, posix } from "node:path";
@@ -189,7 +189,7 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   // completion date defaults to the clock's day — archive runs pre-merge, so the
   // git merge timestamp isn't available and the ship day is the right default.
   const facts = resolveArchiveFinalizeFacts({ prUrl, completed }, clock);
-  const warnings = facts.warnings;
+  const warnings = archivePrUrlWarnings(facts.prUrl, "stage the edit with `git add` and commit it with `git commit`");
   // The finalize-write seams are core archive side effects — never silently skipped
   // (the `?.` no-op would lose the facts) and never escaping as an uncaught throw
   // (every other archive failure returns a rejection). The relocation already

@@ -30,6 +30,8 @@ import { consumePull, pullOutcomeNotices, renderExplained } from "../../store/pu
 import { memberCohortReadRefusal } from "../../store/cohort-membership-refusal.js";
 import type { ArchiveContext, ArchiveParams, ArchiveResult } from "./archive.js";
 
+const SAVE_PR_URL = "run `arc save`";
+
 /** Close session context and every newly completed cohort in the transition's single batch. */
 export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveContext["executor"] & { store: Store } }, params: ArchiveParams): Promise<ArchiveResult> {
   const { store } = ctx.executor;
@@ -75,9 +77,11 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
 // Settlement notices become archive warnings or accompany a rejection after the archive persisted.
 async function settleStoredArchive(checkoutRoot: string, store: Store, primary: StoreRecord,
   outcome: Extract<TransitionOutcome, { status: "ok" }>, prUrl: string | null): Promise<ArchiveResult> {
-  const notices = archivePrUrlWarnings(prUrl);
+  const notices: string[] = [];
   const result = await settleStoredArchiveSteps(checkoutRoot, store, primary, outcome, notices);
-  return result.status === "rejected" && notices.length ? { ...result, reason: `${result.reason} Also reported: ${notices.join(" ")}` } : result;
+  if (result.status !== "rejected") return result;
+  const reported = [...archivePrUrlWarnings(prUrl, SAVE_PR_URL), ...notices];
+  return reported.length ? { ...result, reason: `${result.reason} Also reported: ${reported.join(" ")}` } : result;
 }
 
 async function settleStoredArchiveSteps(checkoutRoot: string, store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>,
@@ -90,7 +94,7 @@ async function settleStoredArchiveSteps(checkoutRoot: string, store: Store, prim
       const plan = await prepareStoredCloseout(checkoutRoot, store, primary);
       if (plan.status === "rejected") return plan;
       if (plan.writes.length === 0) return await reportStoredArchive(checkoutRoot, store, plan.primary, outcome,
-        cohortReferencesFor(plan.cohort), [...notices, ...plan.notices]);
+        cohortReferencesFor(plan.cohort), [...archivePrUrlWarnings(plan.prUrl, SAVE_PR_URL), ...notices, ...plan.notices]);
       const closeout = await publishCohortCloseout(store, name, plan, notices);
       if (closeout !== undefined) return closeout;
     }
@@ -98,7 +102,7 @@ async function settleStoredArchiveSteps(checkoutRoot: string, store: Store, prim
 }
 
 async function prepareStoredCloseout(checkoutRoot: string, store: Store, primary: StoreRecord): Promise<
-  { status: "ready"; primary: StoreRecord; cohort: string | null } & PreparedArchiveCohorts | Extract<ArchiveResult, { status: "rejected" }>> {
+  { status: "ready"; primary: StoreRecord; cohort: string | null; prUrl: string | null } & PreparedArchiveCohorts | Extract<ArchiveResult, { status: "rejected" }>> {
   const name = primary.reference.owner.name;
   const current = await store.read({ reference: primary.reference });
   if (current.status === "refused") return reportFailure(name, current.refusal);
@@ -109,7 +113,7 @@ async function prepareStoredCloseout(checkoutRoot: string, store: Store, primary
   requireCompleteInventory(store, view.result.listing);
   const cohorts = await prepareArchiveCohorts(store, current.result, archiveMemberCandidates(view.result.entries), placement.quarter, false);
   return cohorts.status === "rejected" ? persistedFailure(name, cohorts.reason, cohorts.remedy, cohorts.refusal)
-    : { ...cohorts, primary: current.result, cohort: meta.cohort };
+    : { ...cohorts, primary: current.result, cohort: meta.cohort, prUrl: meta.prUrl };
 }
 
 type ArchiveMemberCandidate = CohortHoldingCandidate & Pick<LifecycleEntry, "version">;

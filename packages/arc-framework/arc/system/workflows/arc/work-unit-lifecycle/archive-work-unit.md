@@ -48,10 +48,11 @@ arc archive {name} --pr-url "$(gh pr view {type}/{name} --json url --jq .url)"
 
 Source `--pr-url` from the integration PR (opened earlier this ceremony). Omit it when no PR exists yet (offline /
 pre-PR / standalone). The command writes a `[none]` placeholder and warns. Once the PR exists, have the Owner
-set `PR URL` in the archived meta, using `arc view meta --for {name} --path` to locate it. Run `arc save` and
-verify the saved value with `arc view meta --for {name}`. If the configured writer refuses the edit, surface its
-diagnostic and report that the URL is still missing. `--completed` defaults to today (the ship day). Pass it only
-on the initial archive when recording a past ship date.
+set `PR URL` in the archived meta, using `arc view meta --for {name} --path` to locate it. Run `arc save`. If it refuses,
+surface the condition and apply the reported remedy. If the remedy saves the edit, continue to verification. Otherwise,
+retry the save after repair. Verify the saved value with `arc view meta --for {name}` and report if the URL is still
+missing. `--completed` defaults to today (the ship day). Pass it only on the initial archive when recording a past
+ship date.
 
 `{dated}` follows `YYYY-q*` (e.g., `2026-q2`); `{NN}` is the next completion-order index in that quarter,
 reset per quarter — both computed by the command. The write is published by the command itself, with nothing to commit
