@@ -944,8 +944,10 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
         - The eleven authoring cases (`from-tasks`, `from-branch`, compose, and abandon) keep it by subject. Authoring
           reads the meta and task list by path (§ 2.3), and resolves an existing plan through the rename source
           (§ 4.3); both move onto the store with the delivery rebuild. With no plan stored, resolution returns
-          `no-match` before reading transitions, so first authoring is not what refuses: the cases fail over an
-          untracked meta that is no store record, most with `active-work-unit-unresolved`.
+          `no-match` before reading transitions, and creating the plan then reads them
+          (`DeliveryAuthoringManager.create`), so a first authoring refuses there once its work unit resolves; the
+          cases fail earlier, over an untracked meta that is no store record, most with
+          `active-work-unit-unresolved`.
         - No expectation changed.
     - _Terminal recovery, as moved (Task 3.4.d.3):_ `delivery-terminal-recovery` spawns through
       `e2e/store-default.ts`; 20 of its 22 cases run on the store and 2 keep the override by subject. Its fixture
@@ -2461,17 +2463,18 @@ seen once and not reproduced.
 
 #### Delivery authoring on a flipped copy (a probe beside Stage 2, 11-25)
 
-Asked whether delivery has a real issue on the store or only edge cases: its first authoring step does not run there.
-On a flipped copy, in a work unit started for the probe with a spec, a task list holding a provisional `## Delivery
-Plan` section, and its meta pointing at both, `arc delivery plan from-tasks` refused `substrate-unreachable`, with and
-without `--task-list`, carrying no condition and no remedy. Authoring first resolves an existing plan through the
-rename transition source, which § 4.3 makes refuse on an off-branch store whose ref holds no transition folder; every
-flipped checkout is in that state, so the refusal meets every authoring, not only a plan stored under a former name.
-`arc delivery entry inspect` still answers `not-applicable` in a unit with no plan section, so sessions that are not
-delivering are unaffected, and the inventory schema command runs. The end-to-end suite states the same boundary: its
-authoring, entry, closeout and landing-readiness cases run only over the in-repo store. Native delivery therefore
-starts again with `delivery-rebuild-continuity`, as § 2.3 and § 4.3 leave it, and no stacked delivery can be authored
-between the window and that unit's landing.
+Asked whether delivery has a real issue on the store or only edge cases: its first authoring step does not run there. On
+a flipped copy, in a work unit started for the probe with a spec, a task list holding a provisional `## Delivery Plan`
+section, and its meta pointing at both, `arc delivery plan from-tasks` refused `substrate-unreachable`, with and without
+`--task-list`, carrying no condition and no remedy. With no plan stored, as in the probe, resolving an existing plan
+finds none without reading transitions, and creating the plan then reads the rename transition source
+(`DeliveryAuthoringManager.create`), which § 4.3 makes refuse on an off-branch store whose ref holds no transition
+folder; with a plan stored, the resolution refuses first. Every flipped checkout is in that state, so the refusal meets
+every authoring, not only a plan stored under a former name. `arc delivery entry inspect` still answers `not-applicable`
+in a unit with no plan section, so sessions that are not delivering are unaffected, and the inventory schema command
+runs. The end-to-end suite states the same boundary: its authoring, entry, closeout and landing-readiness cases run only
+over the in-repo store. Native delivery therefore starts again with `delivery-rebuild-continuity`, as § 2.3 and § 4.3
+leave it, and no stacked delivery can be authored between the window and that unit's landing.
 
 ## The parallel run from 11-24
 
