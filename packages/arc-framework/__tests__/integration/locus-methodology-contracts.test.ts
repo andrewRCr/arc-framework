@@ -11,6 +11,10 @@ const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
 
+function assertLifecycleSpecificExits(surface: string): void {
+  expect(surface, "Use lifecycle-specific exits").not.toMatch(/\barc\s+locus\s+release\b/u);
+}
+
 describe("locus methodology contracts", () => {
   it("checks the entering checkout and reads the target's lifecycle state after launch", async () => {
     for (const base of [packageArc, projectArc]) {
@@ -273,6 +277,11 @@ describe("locus methodology contracts", () => {
     }
   });
 
+  it("rejects guidance to release a full Errand checkout", () => {
+    const errandGuidance = "## Leave the Errand\n\nFrom the full Errand checkout, run `arc locus release`.\n";
+    expect(() => assertLifecycleSpecificExits(errandGuidance)).toThrow("Use lifecycle-specific exits");
+  });
+
   it.each([
     { guidance: "published session init", example: "" },
     {
@@ -290,7 +299,7 @@ describe("locus methodology contracts", () => {
       const resume = await readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8");
 
       for (const surface of surfaces) {
-        expect(surface, "Use lifecycle-specific exits").not.toMatch(/\barc\s+locus\s+release\b/u);
+        assertLifecycleSpecificExits(surface);
       }
       for (const surface of [...surfaces, sessionInit + example]) {
         expect(surface).not.toMatch(
