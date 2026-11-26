@@ -159,9 +159,8 @@ save them with `arc save`.
 > the [task loop's structured completion prompt][process-task-loop] with `to prepare-work-unit` as the target.
 > Await Owner approval before closing the task.
 
-After approval, run `arc task close <id> --state-only` when verification left no tracked change. When verification
-changed tracked files, follow the task loop's configured closing-commit route (`arc release commit --close`,
-`taskCommit`).
+After approval, run `arc task close <id>` when verification left no tracked change. When verification changed
+tracked files, follow the task loop's configured closing-commit route (`arc release commit --close`, `taskCommit`).
 
 After task closure succeeds, run `arc attest {name} --json`. It attests the staged subject as a Candidate, leaves
 lifecycle `State` unchanged, and returns the typed pre-publication locus. It requires the canonical task list to
