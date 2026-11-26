@@ -135,7 +135,7 @@ import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
-import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import { CanonicalDigestSchema, PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -410,6 +410,7 @@ export const RepointDesignCommandInputSchema = z.object({
 export const RenameCommandInputSchema = z.object({
   slug: z.union([SlugSchema, z.uuid()]),
   newSlug: SlugSchema,
+  settleMove: CanonicalDigestSchema.optional(),
   json: z.boolean().optional(),
 }).strict();
 const InRepoRenameCommandInputSchema = RenameCommandInputSchema.superRefine((value, refinement) => {
@@ -525,7 +526,7 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "rename",
     schema: RenameCommandInputSchema,
-    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug", "option.json": "json" },
+    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug", "option.json": "json", "option.settle-move": "settleMove" },
   },
 ] as const satisfies readonly CommandInputRegistration[];
 
@@ -675,12 +676,12 @@ export async function handleStub(
 export async function handleRename(
   sourceSlug: string,
   targetSlug: string,
-  opts: { json?: boolean } = {},
+  opts: { json?: boolean; settleMove?: string } = {},
   context?: InteractionContext,
 ): Promise<void> {
   if (opts.json !== true) p.intro("arc rename");
   const input = parseLifecycleCommand(RenameCommandInputSchema, {
-    slug: sourceSlug.trim(), newSlug: targetSlug.trim(), json: opts.json,
+    slug: sourceSlug.trim(), newSlug: targetSlug.trim(), json: opts.json, settleMove: opts.settleMove,
   }, ["rename"], opts.json === true);
   if (input === null) return;
   const { slug: renameSource, newSlug: renameTarget } = input;
@@ -691,7 +692,7 @@ export async function handleRename(
     reportRenameResult(renameSource, renameTarget, { status: "rejected", reason: "remote rename expansion requires stdin-capable Git I/O" }, input.json === true);
     return;
   }
-  if (!usesOffBranchState(executor.store)) {
+  if (input.settleMove === undefined && !usesOffBranchState(executor.store)) {
     if (parseLifecycleCommand(InRepoRenameCommandInputSchema, input, ["rename"], input.json === true) === null) return;
     if (parseLifecycleCommand(SlugSchema, renameSource, ["rename"], input.json === true) === null) return;
   }
@@ -710,7 +711,7 @@ export async function handleRename(
       if (input.json !== true) for (const advisory of advisories) p.log.warn(advisory);
       return Promise.resolve();
     },
-  }, { sourceSlug: renameSource, targetSlug: renameTarget });
+  }, { sourceSlug: renameSource, targetSlug: renameTarget, settleMove: input.settleMove });
   reportRenameResult(renameSource, renameTarget, result, input.json === true);
 }
 

@@ -118,7 +118,7 @@ describe("projectRenameMoveRemedy", () => {
     } });
     const result = projectRenameMoveRemedy(worktree, marker, [worktree]);
     const remedy = { argv: ["git", "worktree", "move", "-f", "-f", from, to],
-      text: `Run git worktree move -f -f '${from}' '${to}' from outside the checkout, then arc rename 'old-name' 'new-name' to settle the move.` };
+      text: `Run git worktree move -f -f '${from}' '${to}' from outside the checkout, then run arc rename 'old-name' 'new-name' in '${to}' to settle the move.` };
     expect(result).toEqual({ oldSlug: "old-name", newSlug: "new-name", branch, head: HEAD,
       from, to, remedy, actions: [
         { argv: remedy.argv, text: `git worktree move -f -f '${from}' '${to}'` },
@@ -137,7 +137,7 @@ describe("projectRenameMoveRemedy", () => {
     } });
     expect(projectRenameMoveRemedy(worktree, marker, [worktree])?.remedy).toEqual({
       argv: ["git", "worktree", "move", "-f", "-f", from, to],
-      text: `Run git worktree move -f -f '${from}' '/wt/project new$(touch-pwned)'"'"'suffix' from outside the checkout, then arc rename 'old-name' 'new-name' to settle the move.`,
+      text: `Run git worktree move -f -f '${from}' '/wt/project new$(touch-pwned)'"'"'suffix' from outside the checkout, then run arc rename 'old-name' 'new-name' in '/wt/project new$(touch-pwned)'"'"'suffix' to settle the move.`,
     });
   });
 

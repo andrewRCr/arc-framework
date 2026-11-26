@@ -476,10 +476,11 @@ program
 program
   .command("rename <slug> <new-slug>")
   .description("Rename a stored work unit or cohort by slug or UID. Update eligible work-unit branches and checkouts")
+  .option("--settle-move <generation>", "Settle only the deferred move with this marker generation from its destination")
   .option("--json", "Emit the rename result and follow-up report as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    async (context, slug: string, newSlug: string, opts: { json?: boolean }) => {
+    async (context, slug: string, newSlug: string, opts: { json?: boolean; settleMove?: string }) => {
       await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, opts, context);
     },
   ));

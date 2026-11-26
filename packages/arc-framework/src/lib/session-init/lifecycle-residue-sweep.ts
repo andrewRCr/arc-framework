@@ -5,6 +5,7 @@
  */
 
 import { quoteShellArgument } from "../release/commit-message-retry.js";
+import { digestBytes, type CanonicalDigest } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
 import { runStoreRetirementSweep } from "./store-retirement-sweep.js";
 import type { SessionAction } from "./actions.js";
@@ -43,7 +44,7 @@ export interface RenameMoveRemedy {
 }
 
 interface RenameMoveReplay {
-  argv: readonly ["arc", "rename", string, string];
+  argv: readonly ["arc", "rename", string, string] | readonly ["arc", "rename", string, string, "--settle-move", CanonicalDigest];
   text: string;
 }
 
@@ -120,7 +121,7 @@ export interface RunLandedRetirementSweepOptions {
  */
 export function projectRenameMoveRemedy(
   worktree: RegisteredWorktree,
-  marker: WorktreeMarkerReadResult,
+  marker: WorktreeMarkerReadResult & { bytes?: Buffer },
   topology: readonly RegisteredWorktree[],
   storeBacked = false,
 ): RenameMoveResidue | null {
@@ -146,17 +147,22 @@ export function projectRenameMoveRemedy(
     return null;
   }
   const operand = storeBacked ? marker.marker.createdFor.uid : pending.oldSlug;
-  if (operand === undefined) return null;
+  if (operand === undefined || (storeBacked && marker.bytes === undefined)) return null;
   const move: RenameMoveRemedy = {
     argv: ["git", "worktree", "move", "-f", "-f", pending.from, pending.to],
     text: `git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)}`,
   };
-  const replay: RenameMoveReplay = {
-    argv: ["arc", "rename", operand, pending.newSlug],
-    text: `arc rename ${quoteShellArgument(operand)} ${quoteShellArgument(pending.newSlug)}`,
-  };
-  const remedy = { argv: move.argv, text: `Run ${move.text} from outside the checkout, then ${replay.text} to settle the move.` };
+  const replay = renameMoveReplay(operand, pending.newSlug, storeBacked ? marker.bytes : undefined);
+  const remedy = { argv: move.argv, text: `Run ${move.text} from outside the checkout, then run ${replay.text} in ${quoteShellArgument(pending.to)} to settle the move.` };
   return { ...pending, remedy, actions: [move, replay] };
+}
+
+function renameMoveReplay(operand: string, target: string, bytes?: Buffer): RenameMoveReplay {
+  const text = `arc rename ${quoteShellArgument(operand)} ${quoteShellArgument(target)}`;
+  if (bytes === undefined) return { argv: ["arc", "rename", operand, target], text };
+  const generation = digestBytes(bytes);
+  return { argv: ["arc", "rename", operand, target, "--settle-move", generation],
+    text: `${text} --settle-move ${generation}` };
 }
 
 /**

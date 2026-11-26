@@ -119,9 +119,9 @@ it("settles the moved checkout with the replay offered after a UID-directed clas
   const { renameMoves } = (session.result as { sweep: { value: { renameMoves: { remedy: { text: string } }[] } } }).sweep.value;
   expect(renameMoves).toHaveLength(1);
   const replayArgs = (text: string) => {
-    const match = /\barc rename '?([\w-]+)'? '?([\w-]+)'?/u.exec(text);
-    if (!match) throw new Error("Missing rename replay in the move instructions");
-    return ["rename", ...match.slice(1)];
+    const [, uid, slug, generation] = /\barc rename '?([\w-]+)'? '?([\w-]+)'? --settle-move (sha256:[a-f0-9]{64})/u.exec(text) ?? [];
+    if (!uid || !slug || !generation) throw new Error("Missing rename replay in the move instructions");
+    return ["rename", uid, slug, "--settle-move", generation];
   };
   const args = replayArgs(notice);
   expect(replayArgs(renameMoves[0]?.remedy.text ?? "")).toEqual(args);

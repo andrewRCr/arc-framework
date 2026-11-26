@@ -81,10 +81,11 @@ For a selected offer choice:
   answer as one element. If it starts with `-`, insert one `--<signal>=<answer>` element instead. Recompile with that
   argv; make no other change.
 
-A failed action stops the sequence. Surface its command and output and ask for direction; run no remaining action.
-The person may retry it or explicitly continue past it. To continue past it, run the step's or choice's carried
-recompile argv, skipping every unrun action in that sequence. Do not edit its answer or done flags. A choice whose
-transition is a handoff has no carried recompile; a failed handoff leaves the session at its orientation.
+If an action refuses, surface the condition and apply the reported remedy within the current authorization. When the
+remedy completes the action, continue the sequence. For an unresolved failure, stop, surface the command and output, and
+ask for direction. The person may retry it or explicitly continue past it. To continue past it, run the step's or
+choice's carried recompile argv, skipping every unrun action in that sequence. Do not edit its answer or done flags. A
+choice whose transition is a handoff has no carried recompile; a failed handoff leaves the session at its orientation.
 
 ## 3. Transitions and carried context
 

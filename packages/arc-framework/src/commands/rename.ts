@@ -78,7 +78,7 @@ import { reconcileRoadmap } from "../lib/work-unit/side-effects/readiness-regen.
 import { readCandidateRecord } from "../lib/store/kinds/review/candidate/access.js";
 import { readSubmissionBoundary } from "../lib/store/kinds/review/integration-boundary/access.js";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
-import { storeRenameAdapters } from "./rename-store.js";
+import { settleStoreRenameMove, storeRenameAdapters } from "./rename-store.js";
 import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
 
 /** Production dependencies resolved by the CLI handler. */
@@ -99,8 +99,9 @@ export interface RenameCommandContext {
 /** Execute one explicit old-to-new work-unit rename. */
 export async function runRenameCommand(
   command: RenameCommandContext,
-  params: { sourceSlug: string; targetSlug: string },
+  params: { sourceSlug: string; targetSlug: string; settleMove?: string },
 ): Promise<RunRenameResult> {
+  if (params.settleMove !== undefined) return settleStoreRenameMove(command, params, params.settleMove);
   if (command.store !== undefined && usesOffBranchState(command.store)) return runRename({
     store: command.store, cwd: command.cwd, exec: command.io.exec, baseBranch: command.baseBranch,
     projectId: command.projectId, locusPorts: command.locusPorts, onPreparedAdvisories: (advisories) => command.onPreparedAdvisories?.(advisories) ?? Promise.resolve(),

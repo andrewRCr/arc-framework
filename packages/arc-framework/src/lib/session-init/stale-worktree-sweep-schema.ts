@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
-import { withRemoteEvidence } from "../kernel/index.js";
+import { CanonicalDigestSchema, withRemoteEvidence } from "../kernel/index.js";
 import { MissingWorktreeFolderSchema } from "./missing-worktree-folders.js";
 import { CurrentHuskAdvisorySchema } from "./current-husk-advisory.js";
 
@@ -80,7 +80,10 @@ const RenameMoveCommandSchema = z.strictObject({
   text: z.string().trim().min(1),
 });
 const RenameMoveReplaySchema = z.strictObject({
-  argv: z.tuple([z.literal("arc"), z.literal("rename"), z.string(), z.string()]).readonly(),
+  argv: z.union([
+    z.tuple([z.literal("arc"), z.literal("rename"), z.string(), z.string()]).readonly(),
+    z.tuple([z.literal("arc"), z.literal("rename"), z.string(), z.string(), z.literal("--settle-move"), CanonicalDigestSchema]).readonly(),
+  ]),
   text: z.string().trim().min(1),
 });
 const RenameMoveResidueSchema = z.strictObject({

@@ -100,7 +100,10 @@ function renameMovesSurface(input: AgendaCompileInput): OrientationSurface | nul
   for (const move of moves) {
     lines.push(`- \`${move.from}\` → \`${move.to}\`; ${move.remedy.text}`);
     if (checkout !== null && checkout !== move.from) {
-      choices.push(cleanupActionChoice(input, move.remedy.text, move.actions.map(action => ({ ...action, checkout }))));
+      const [gitMove, replay] = move.actions;
+      choices.push(cleanupActionChoice(input, move.remedy.text, [
+        { ...gitMove, checkout }, { ...replay, checkout: move.to },
+      ]));
     }
   }
   return cleanupSurface("rename-moves", lines.join("\n"), choices);

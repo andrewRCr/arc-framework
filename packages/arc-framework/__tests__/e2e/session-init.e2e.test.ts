@@ -23,7 +23,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../../src/lib/active/meta-reader.js";
-import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, digestBytes, SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
@@ -1449,7 +1449,7 @@ describe("session-init E2E — deferred rename move advisory", () => {
     const head = await git(from, ["rev-parse", "HEAD"]);
     const markerDir = join(from, ".arc", "system", ".internal");
     await mkdir(markerDir, { recursive: true });
-    await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
+    const markerBytes = Buffer.from(JSON.stringify({
       spawnedByArc: true,
       wuName: "new-name",
       createdFor: { kind: "work-unit", name: "new-name", uid },
@@ -1464,7 +1464,9 @@ describe("session-init E2E — deferred rename move advisory", () => {
         to,
       },
     }));
-
+    await writeFile(join(markerDir, "worktree-marker.json"), markerBytes);
+    const generation = digestBytes(markerBytes);
+    const replay = `arc rename '${uid}' 'new-name' --settle-move ${generation}`;
     const result = await runArc(["status", "--session-init", "--json"], from);
 
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
@@ -1477,14 +1479,14 @@ describe("session-init E2E — deferred rename move advisory", () => {
       to,
       remedy: {
         argv: ["git", "worktree", "move", "-f", "-f", canonicalFrom, to],
-        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout, then arc rename '${uid}' 'new-name' to settle the move.`,
+        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout, then run ${replay} in '${to}' to settle the move.`,
       },
       actions: [{
         argv: ["git", "worktree", "move", "-f", "-f", canonicalFrom, to],
         text: `git worktree move -f -f '${canonicalFrom}' '${to}'`,
       }, {
-        argv: ["arc", "rename", uid, "new-name"],
-        text: `arc rename '${uid}' 'new-name'`,
+        argv: ["arc", "rename", uid, "new-name", "--settle-move", generation],
+        text: replay,
       }],
     }]);
   });

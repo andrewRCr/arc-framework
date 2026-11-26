@@ -57,6 +57,29 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+async function renameMoveChoice(repo: string, args = ["agenda", "session-init", "--json"]) {
+  const result = await runArcNoTty(args, repo);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  const agenda: unknown = JSON.parse(result.stdout);
+  assertSessionInitAgenda(agenda);
+  const offer = agenda.steps.find(step => step.type === "offer" && step.id.startsWith("rename-moves:"));
+  const choice = offer?.type === "offer" ? offer.choices[0] : undefined;
+  if (choice?.kind !== "actions") throw new Error("Expected an executable rename cleanup choice");
+  return choice;
+}
+
+async function runRenameMoveChoice(repo: string, args?: string[]): Promise<void> {
+  for (const action of (await renameMoveChoice(repo, args)).actions) {
+    const [command, ...args] = action.argv;
+    const cwd = action.checkout ?? repo;
+    if (command === "git") await git(cwd, args);
+    else if (command === "arc") {
+      const replay = await runArcNoTty(args, cwd);
+      expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    } else throw new Error(`Unexpected cleanup command: ${command}`);
+  }
+}
+
 function cohortDoc(slug: string): string {
   return [
     `# Cohort: \`${COHORT}\``,
@@ -473,9 +496,7 @@ describe("arc rename", () => {
     expect(await hasUserWorkspace(oldWorktree, "old-name")).toBe(false);
     expect(await hasUserWorkspace(oldWorktree, "new-name")).toBe(true);
 
-    await execFileAsync("git", ["worktree", "move", "-f", "-f", oldWorktree, newWorktree], { cwd: fixture.repo });
-    const replay = await runArcNoTty(["rename", "old-name", "new-name"], newWorktree, { timeout: 20_000 });
-    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    await runRenameMoveChoice(fixture.repo);
     const movedMarker = JSON.parse(await readFile(
       join(newWorktree, ".arc", "system", ".internal", "worktree-marker.json"),
       "utf8",
@@ -691,7 +712,7 @@ describe("arc rename on the store", () => {
     // The boxed follow-up wraps at arbitrary columns; compare its words without their spacing.
     const { uid } = seededWorkUnitSubject(h.meta);
     expect(unwrapped.replace(/\s/gu, ""))
-      .toContain(`thenrunarcrename${uid}new-nametosettlethemove`);
+      .toMatch(new RegExp(`thenrunarcrename${uid}new-name--settle-movesha256:[a-f0-9]{64}in`, "u"));
     expect(await exists(h.checkout)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);
     const pending = JSON.parse(await readFile(markerPath(h.checkout), "utf8")) as {
@@ -745,6 +766,40 @@ describe("arc rename on the store", () => {
     const moved = await readWorktreeMarker(`${fixture.repo}.new-name`);
     if (moved.kind !== "present") throw new Error("Expected the ownership marker at the destination");
     expect(moved.marker.renameMovePending).toBeUndefined();
+  }, 45_000);
+
+  it("refuses a stale cleanup replay and lets the current move settle", async () => {
+    const fixture = await storeFixture();
+    const h = await startedWorkUnit(fixture, { spawned: true });
+    const moved = `${fixture.repo}.new-name`;
+    const later = `${fixture.repo}.later-name`;
+    cleanupPaths.push(later);
+    const first = await runArcNoTty(["rename", "old-name", "new-name"], h.checkout);
+    expect(first.exitCode, first.stdout + first.stderr).toBe(0);
+    const choice = await renameMoveChoice(fixture.repo);
+    const move = choice.actions.find(action => action.argv[0] === "git");
+    const replay = choice.actions.find(action => action.argv[0] === "arc");
+    if (!move || !replay) throw new Error("Expected a move and settlement command");
+    await git(move.checkout ?? fixture.repo, move.argv.slice(1));
+    const newer = await runArcNoTty(["rename", "new-name", "later-name"], moved);
+    expect(newer.exitCode, newer.stdout + newer.stderr).toBe(0);
+    const pending = await readWorktreeMarker(moved);
+    expect(pending).toMatchObject({ kind: "present", marker: { renameMovePending: { to: later } } });
+
+    const stale = await runArcNoTty([...replay.argv.slice(1), "--json"], replay.checkout ?? fixture.repo);
+    const state = await h.record();
+    const branch = await git(moved, ["branch", "--show-current"]);
+    const marker = await readWorktreeMarker(moved);
+    expect({ exitCode: stale.exitCode, name: state.reference.owner.name, branch, marker }, stale.stdout + stale.stderr)
+      .toEqual({ exitCode: 1, name: "later-name", branch: "feat/later-name", marker: pending });
+    const refusal = JSON.parse(stale.stdout) as { reason: string; remedy: { argv: string[] } };
+    expect(refusal).toMatchObject({ status: "rejected", reason: expect.stringContaining("marker generation changed"),
+      remedy: { argv: ["arc", "agenda", "session-init", "--json"] } });
+
+    await runRenameMoveChoice(fixture.repo, refusal.remedy.argv.slice(1));
+    const settled = await readWorktreeMarker(later);
+    expect(settled).toMatchObject({ kind: "present", marker: { wuName: "later-name" } });
+    expect(settled).not.toHaveProperty("marker.renameMovePending");
   }, 45_000);
 
   it("resumes after a stale remote lease and keeps the old remote branch a peer moved", async () => {

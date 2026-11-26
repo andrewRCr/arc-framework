@@ -122,13 +122,13 @@ function renameMove(from: string) {
 }
 
 describe("agenda deferred rename moves", () => {
-  it("offers the move and replay in order from outside the source checkout", async () => {
+  it("offers the move from outside and the replay from the destination", async () => {
     const move = renameMove("/repo/old path;literal");
     const steps = orderOrientationSurfaces(compileCleanupOrientation(await sweepInput({ renameMoves: [move] })));
     expect(steps[0]).toMatchObject({ type: "render", surface: "rename-moves", text: expect.stringContaining(move.remedy.text) });
     expect(offers(steps)[0]).toMatchObject({ ask: "orientation", choices: [{ kind: "actions", actions: [
       { argv: move.remedy.argv, checkout: "/repo" },
-      { argv: ["arc", "rename", "old-name", "new-name"], checkout: "/repo" },
+      { argv: ["arc", "rename", "old-name", "new-name"], checkout: move.to },
     ], then: { kind: "recompile" } }] });
   });
 
