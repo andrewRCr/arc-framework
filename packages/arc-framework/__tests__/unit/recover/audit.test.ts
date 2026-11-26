@@ -744,6 +744,21 @@ describe("auditRecoveryState", () => {
     }));
   });
 
+  it("keeps the current correction task when projection only moves its line hints", async () => {
+    const stored = resolveTaskListCursor(APPENDED_INTEGRATION_TASKS);
+    if (stored.status !== "found") throw new Error("Expected a stored correction cursor");
+    const options = integrationTaskProgressionOptions({
+      freshContent: APPENDED_INTEGRATION_TASKS,
+      workflow: "process-task-loop",
+      loadSet: INTEGRATION_TASK_LOAD_SET,
+    });
+    const result = await run({ ...options, seed: seed({ ...options.seed, taskCursor: stored.cursor }) });
+
+    expect(result.status).toBe("ready");
+    expect(result.stopReasons).toEqual([]);
+    expect(result.taskCursor?.match).toBe(true);
+  });
+
   it("admits corrective verification only after the seed leaf closes the task list", async () => {
     const result = await run(integrationTaskProgressionOptions({
       freshContent: CLOSED_CORRECTION_TASKS,

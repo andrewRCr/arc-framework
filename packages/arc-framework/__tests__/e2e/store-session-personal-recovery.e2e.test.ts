@@ -61,6 +61,21 @@ async function commitWork(root: string) {
   return git(root, ["rev-parse", "HEAD"]);
 }
 
+it("recovers the same task when its list is projected after writing the seed", async () => {
+  const { root } = await activeWork();
+  expect(await enter(root)).toMatchObject({ compactionSeedWrite: { status: "written" } });
+  const args = ["recover", "audit", "--json"];
+  const result = await runArc(args, root);
+  expectExit(args, result);
+  const { verdict } = RecoverAuditReportSchema.parse(JSON.parse(result.stdout));
+
+  expect(verdict.taskCursor).toMatchObject({
+    expected: { section: { id: "1.1", lineHint: 3 }, leaf: { id: "1.1.a", lineHint: 7 } },
+    actual: { status: "found", cursor: { section: { id: "1.1", lineHint: 4 }, leaf: { id: "1.1.a", lineHint: 8 } } },
+  });
+  expect(verdict).toMatchObject({ status: "ready", stopReasons: [], taskCursor: { match: true } });
+}, SESSION_COMMAND_TIMEOUT_MS);
+
 it("retains the saved task baseline and shows uncaptured Git work, then stops on a changed cursor until repaired", async () => {
   const f = await activeWork();
   const basis = stored(await f.store.version());

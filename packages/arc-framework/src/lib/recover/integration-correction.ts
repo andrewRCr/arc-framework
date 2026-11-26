@@ -174,7 +174,7 @@ function candidateTransition(input: IntegrationCorrectionInput): IntegrationCorr
     && input.seed.taskCursor === null && actual?.status === "found") return "public-to-task";
   if (before === "process-task-loop" && after === "process-task-loop"
     && input.seed.taskCursor !== null && actual?.status === "found"
-    && !cursorEqual(input.seed.taskCursor, actual.cursor)) return "task-to-task";
+    && !sameCursorItems(input.seed.taskCursor, actual.cursor)) return "task-to-task";
   if (before === "process-task-loop" && after === "verify-work-unit"
     && input.seed.taskCursor !== null && actual?.status === "no-open-task") return "task-to-verification";
   if (before === "process-task-loop" && after === "integrate-work-unit"
@@ -477,7 +477,7 @@ function cursorEqual(left: TaskListCursor, right: TaskListCursor): boolean {
 }
 
 /** Match cursor items across stored and projected task lists, where their line coordinates may differ. */
-function sameCursorItems(left: TaskListCursor, right: TaskListCursor): boolean {
+export function sameCursorItems(left: TaskListCursor, right: TaskListCursor): boolean {
   return itemEqual(left.section, right.section) && itemEqual(left.leaf, right.leaf);
 }
 

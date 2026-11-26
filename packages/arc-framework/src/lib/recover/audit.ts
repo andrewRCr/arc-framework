@@ -32,9 +32,6 @@ import {
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import { resolveRecoveryParentContext, type RecoveryLocusFrame } from "./locus-context.js";
-import type {
-  TaskListCursor,
-} from "../task-list/cursor.js";
 import { TaskListCursorSchema } from "../task-list/cursor.js";
 import {
   TaskListCursorFileResultSchema,
@@ -47,6 +44,7 @@ import {
 } from "./committed-progress.js";
 import {
   projectIntegrationCorrectionRecovery,
+  sameCursorItems,
   type IntegrationCorrectionProjection,
   type RecoveryTaskListEvidenceResolver,
 } from "./integration-correction.js";
@@ -721,7 +719,7 @@ function auditTaskCursor(
     return { expected, actual, match: false };
   }
 
-  const match = cursorEqual(expected, actualCursor);
+  const match = sameCursorItems(expected, actualCursor);
   if (!match) {
     stopReasons.push({
       kind: "task-cursor-mismatch",
@@ -780,17 +778,4 @@ function normalizePaths(paths: readonly string[]): string[] {
 
 function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((item, index) => item === right[index]);
-}
-
-function cursorEqual(left: TaskListCursor, right: TaskListCursor): boolean {
-  return cursorItemEqual(left.section, right.section) && cursorItemEqual(left.leaf, right.leaf);
-}
-
-function cursorItemEqual(
-  left: TaskListCursor["section"],
-  right: TaskListCursor["section"],
-): boolean {
-  return left.id === right.id
-    && left.title === right.title
-    && left.lineHint === right.lineHint;
 }
