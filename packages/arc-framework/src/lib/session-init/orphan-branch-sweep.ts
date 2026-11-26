@@ -88,6 +88,7 @@ export type OrphanBranchSweepResult = z.infer<typeof OrphanBranchSweepResultSche
 /** Supplied prerequisites for orphan classification against advertised base evidence. */
 export interface AnalyzeOrphanBranchesSnapshotOptions extends CleanupBaseEvidence, OrphanStoreOptions {
   exec: GitExec;
+  /** Literal local branch names without the leading Git namespace. */
   branches: readonly string[];
   baseBranch: string;
 }
@@ -241,13 +242,14 @@ export async function runOrphanBranchSweep(
 }
 
 async function orphanWorkLanded(exec: GitExec, branch: string, base: string, strict = false): Promise<boolean> {
-  const patchesLanded = strict ? await isLandedInBaseStrict(exec, branch, base) : await isLandedInBase(exec, branch, base);
+  const ref = `${LOCAL_BRANCH_REF_PREFIX}${branch}`;
+  const patchesLanded = strict ? await isLandedInBaseStrict(exec, ref, base) : await isLandedInBase(exec, ref, base);
   if (!patchesLanded) return false;
   try {
-    const { stdout } = await exec("git", ["rev-list", "--min-parents=2", branch, `^${base}`]);
+    const { stdout } = await exec("git", ["rev-list", "--min-parents=2", ref, `^${base}`]);
     return stdout.trim() === "";
   } catch (error) {
-    throw new Error(`Merge preservation for '${branch}' could not be inspected: ${error instanceof Error ? error.message : String(error)} Inspect git rev-list --min-parents=2 ${branch} ^${base}, repair the Git error, then retry arc status --session-init --json.`, { cause: error });
+    throw new Error(`Merge preservation for '${branch}' could not be inspected: ${error instanceof Error ? error.message : String(error)} Inspect git rev-list --min-parents=2 ${ref} ^${base}, repair the Git error, then retry arc status --session-init --json.`, { cause: error });
   }
 }
 

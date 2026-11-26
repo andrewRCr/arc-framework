@@ -23,7 +23,7 @@ interface BranchFixture {
 
 /**
  * git stub driving the sweep end-to-end: `for-each-ref` lists every fixture
- * branch with its track token and checkout path; `cherry origin/<base> <branch>`
+ * branch with its track token and checkout path; `cherry origin/<base> refs/heads/<branch>`
  * reflects each branch's landed-in-base verdict (`+`-prefixed line ⇒ unmerged);
  * `ls-tree` serves the `completed/` archive paths backing the shipped-WU index.
  */
@@ -46,8 +46,8 @@ function buildExec(
     {
       match: { prefix: ["cherry"] },
       responses: [({ args }) => {
-        const branch = args[2];
-        const fixture = branch !== undefined ? branches[branch] : undefined;
+        const ref = args[2];
+        const fixture = ref?.startsWith("refs/heads/") ? branches[ref.slice("refs/heads/".length)] : undefined;
         return { stdout: fixture?.merged ? "" : `+ ${"a".repeat(40)}\n`, stderr: "" };
       }],
     },
@@ -282,7 +282,7 @@ describe("analyzeOrphanBranchesSnapshot", () => {
     const surviving = scriptGitExec([{
       match: { prefix: ["cherry", baseOid] },
       responses: [({ args }) => ({
-        stdout: args[2] === "feat/shipped" ? "" : "+ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+        stdout: args[2] === "refs/heads/feat/shipped" ? "" : "+ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
         stderr: "",
       })],
     }]);
