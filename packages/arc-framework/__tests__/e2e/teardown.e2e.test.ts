@@ -470,20 +470,23 @@ describe("arc teardown (CLI surface)", () => {
     expect(await git(tmpDir, ["worktree", "list"])).not.toContain(worktree);
   });
 
-  it("does not let an old husk delete a restarted same-slug projection", async () => {
+  it.each(["primary", "linked"])("removes the old husk and keeps the restarted same-slug projection in a %s checkout", async placement => {
     tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const created = await runArc(["teardown", "demo"], worktree);
     expect(created.exitCode).toBe(0);
-    await git(tmpDir, ["checkout", "-b", "feat/demo"]);
+    const holder = placement === "primary" ? tmpDir : join(worktreeParent, "restarted");
+    if (placement === "primary") await git(tmpDir, ["checkout", "-b", "feat/demo"]);
+    else await git(tmpDir, ["worktree", "add", "-b", "feat/demo", holder, "main"]);
 
     const replay = await runArc(["teardown", "demo", "--husk", worktree], tmpDir);
 
     const output = unwrapPresentationOutput(replay.stdout + replay.stderr);
-    expect(replay.exitCode, output).toBe(0);
-    expect(output).toContain(`Kept feat/demo: another checkout holds it at ${normalize(tmpDir)}`);
-    expect(await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
+    expect(await git(holder, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
+    expect.soft(replay.exitCode, output).toBe(0);
+    await expect(stat(worktree)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(output).toContain(`Kept feat/demo: another checkout holds it at ${normalize(holder)}`);
     expect(await git(tmpDir, ["worktree", "list"])).not.toContain(worktree);
   });
 

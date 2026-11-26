@@ -26,6 +26,7 @@ import { unlockTerminalHusk } from "../terminal-husk-unlock.js";
 type RetirementLink = StoreRetirementEvidence["branches"][number];
 type RetiringGeneration = { localHead: string | null; trackingHead: string | null; container: { ref: string; oid: string } | null };
 type Bound = TeardownContext & { store: Store; evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string;
+  retiringBranch: string | null; releasedCheckout?: string;
   husk?: NonNullable<Extract<TeardownResult, { status: "torn-down" }>["husk"]> };
 /** Teardown reads the selected end's rule; force flags never grant discard authority. */
 export async function runStoreTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
@@ -33,18 +34,21 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
   let cleanupStarted = false;
   let bound: Bound | undefined;
   try {
-    const baseOid = await resolveLifecycleBase(ctx.exec, ctx.cwd, params.base);
-    if (baseOid === null) throw new Error(`No base ref resolves; run git branch ${params.base} <commit> or fetch the configured base, then retry teardown.`);
     const subject = await resolveTeardownSubject(ctx.store, params.subject);
-    const evidence = await readStoreRetirementEvidence(ctx.store, subject, baseOid);
+    const evidence = await readStoreRetirementEvidence(ctx.store, subject);
     const roster = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(ctx.exec);
     if (!roster.ok) throw new Error(roster.message);
     const primaryPath = roster.worktrees.find((item) => item.primary)?.path;
     if (primaryPath === undefined) throw new Error("The primary checkout could not be resolved for retirement.");
     const exec: TeardownContext["exec"] = (command, args, options) => ctx.exec(command, args, { cwd: primaryPath, ...options });
-    bound = { ...ctx, store: ctx.store, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
-    const { links, retiring, generation } = await selectRetiringLinks(bound);
-    await refuseUnmarkedHolder(bound, links, retiring);
+    const notices: string[] = [];
+    const { links, retiring } = selectRetiringLinks(evidence, await ctx.projectId?.(), notices);
+    await preflightRetiringHolder(ctx, params, roster.worktrees, links, retiring);
+    const baseOid = await resolveLifecycleBase(ctx.exec, ctx.cwd, params.base);
+    if (baseOid === null) throw new Error(`No base ref resolves; run git branch ${params.base} <commit> or fetch the configured base, then retry teardown.`);
+    bound = { ...ctx, store: ctx.store, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath,
+      notices, selectedHusk: params.huskPath, retiringBranch: retiring };
+    const generation = await readRetiringGeneration(bound, retiring);
     const selected = params.huskPath === undefined ? undefined : await selectStoreRetirementHusk({ ctx: bound, evidence, baseOid, path: params.huskPath }, bound.worktrees);
     cleanupStarted = true;
     if (selected !== undefined) await releaseSelectedHusk(bound, selected);
@@ -65,18 +69,19 @@ async function locked<T>(ctx: Bound, operation: () => Promise<T>): Promise<T> {
   const action = async () => { await ctx.evidence.revalidate(); return operation(); };
   return ctx.withWorkItemLock === undefined ? withWorktreeOperationLock({ exec: ctx.exec, cwd: ctx.cwd, operation: action }) : ctx.withWorkItemLock(action);
 }
-/** A linked checkout holding the retiring created branch without an ARC ownership marker is one ARC did not create, so
- * teardown refuses before any change, as the checkout selection does (`classifyTeardownSelection`), unless its folder is
- * gone and only its registration remains. An adopted branch's holder is kept anyway, and a further link's holder still
- * returns to base when its branch is reaped. */
-async function refuseUnmarkedHolder(ctx: Bound, links: readonly RetirementLink[], retiring: string | null): Promise<void> {
-  if (!links.some((link) => link.linkedAs === "created" && workBranchName(link.ref) === retiring)) return;
-  for (const holder of ctx.worktrees) {
-    if (holder.primary || holder.branch !== retiring || !holder.folderPresent) continue;
-    const marker = await (ctx.readMarker ?? readWorktreeMarker)(holder.path);
-    if (marker.kind === "absent") throw new Error(`The teardown target has no ARC ownership marker: ${holder.path} holds `
-      + `${holder.branch}, and ARC did not create it. Switch that checkout off ${holder.branch} or remove it yourself, then retry teardown.`);
+async function preflightRetiringHolder(ctx: TeardownContext, params: TeardownParams, worktrees: RegisteredWorktree[],
+  links: readonly RetirementLink[], retiring: string | null): Promise<void> {
+  if (params.huskPath !== undefined || !links.some((link) => link.linkedAs === "created" && workBranchName(link.ref) === retiring)) return;
+  for (const holder of worktrees.filter((item) => item.branch === retiring)) {
+    await refuseUnmarkedHolder(ctx, holder);
   }
+}
+/** A live linked holder needs an ARC ownership marker unless this teardown released it. */
+async function refuseUnmarkedHolder(ctx: Pick<TeardownContext, "readMarker">, holder: RegisteredWorktree, releasedCheckout?: string): Promise<void> {
+  if (holder.primary || !holder.folderPresent || (releasedCheckout !== undefined && resolve(holder.path) === resolve(releasedCheckout))) return;
+  const marker = await (ctx.readMarker ?? readWorktreeMarker)(holder.path);
+  if (marker.kind === "absent") throw new Error(`The teardown target has no ARC ownership marker: ${holder.path} holds `
+    + `${holder.branch}, and ARC did not create it. Run git switch --detach from that checkout or remove it yourself, then retry teardown.`);
 }
 async function holdingCheckout(ctx: Bound): Promise<string | null> {
   const request = ownerHolderRequest(ctx.evidence.record);
@@ -115,7 +120,7 @@ async function retainSelfHusk(ctx: Bound, path: string, invokingPath: string, ma
   if (!marker.spawnedByArc || resolve(path) === resolve(ctx.primaryPath)
     || !(ctx.selfTeardownMode === "husk" || windowsFallback) || !await isSelfTeardown(path, invokingPath)) return false;
   if (selected === undefined) {
-    const retained = await createStoreSelfTeardownHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence });
+    const retained = await createStoreSelfTeardownHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence, baseOid: ctx.baseOid });
     ctx.husk = retained.husk;
     await releaseStoreTerminalHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence, stamp: retained.stamp });
     const notice = await unlockTerminalHusk(ctx, path, retained.stamp);
@@ -153,6 +158,7 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
       const released = await releaseWorktreeCheckout({ exec: ctx.exec, checkoutPath: path, primaryWorktreePath: ctx.primaryPath, slots: ctx.projectionRemovalSlots });
       if (released.kind !== "released") throw new Error(describeRemovalRefusal(released.check));
       await removeWorktreeMarker(path, fs.removeFile?.bind(fs));
+      ctx.releasedCheckout = path;
       ctx.notices.push(`Released checkout ${path}; its files were retained.`);
       return null;
     }
@@ -195,6 +201,7 @@ async function prepareCreatedBranch(ctx: Bound, branch: string): Promise<boolean
   if (!scan.ok) throw new Error(scan.message);
   for (const holder of scan.worktrees.filter((item) => item.branch === branch)) {
     if (ctx.selectedHusk !== undefined) { ctx.notices.push(`Kept ${branch}: another checkout holds it at ${holder.path}; its registration was retained.`); return false; }
+    if (branch === ctx.retiringBranch) await refuseUnmarkedHolder(ctx, holder, ctx.releasedCheckout);
     const result = await returnRetiringCheckout({ exec: ctx.exec, checkoutPath: holder.path, branch, baseBranch: ctx.baseBranch,
       baseOid: ctx.baseOid, worktrees: scan.worktrees, folderExists: (path) => fs.directoryExists(path) });
     ctx.notices.push(result.notice);
@@ -246,19 +253,22 @@ async function advertisedTip(ctx: Bound, branch: string): Promise<string | null>
   return advertised.stdout.trim().split(/\s+/u)[0] || null;
 }
 
-async function selectRetiringLinks(ctx: Bound) {
-    const repository = await ctx.projectId?.();
-    const links = ctx.evidence.branches.filter((link) => repository === undefined || link.repository === repository);
-    if (repository === undefined && new Set(links.map((link) => link.repository)).size > 1) throw new Error("Teardown requires repository identity for a retirement spanning repositories.");
-    for (const link of ctx.evidence.branches.filter((item) => !links.includes(item))) ctx.notices.push(`Kept ${link.ref}: reap its link in repository ${link.repository}.`);
-    const selected = selectWorkBranchLink({ links: { branches: links } }, { repository });
-    if (selected.kind === "ambiguous") throw new Error(selected.reason);
-    const retiring = selected.kind === "none" ? null : workBranchName(selected.link.ref);
-    const localHead = retiring === null ? null : await localLifecycleTip(ctx.exec, ctx.primaryPath, `refs/heads/${retiring}`);
-    const trackingHead = retiring === null ? null : await localLifecycleTip(ctx.exec, ctx.primaryPath, `refs/remotes/origin/${retiring}`);
-    const container = localHead !== null ? { ref: `refs/heads/${retiring}`, oid: localHead }
-      : trackingHead !== null ? { ref: `refs/remotes/origin/${retiring}`, oid: trackingHead } : null;
-    return { links, retiring, generation: { localHead, trackingHead, container } };
+function selectRetiringLinks(evidence: StoreRetirementEvidence, repository: string | undefined, notices: string[]) {
+  const links = evidence.branches.filter((link) => repository === undefined || link.repository === repository);
+  if (repository === undefined && new Set(links.map((link) => link.repository)).size > 1) throw new Error("Teardown requires repository identity for a retirement spanning repositories.");
+  for (const link of evidence.branches.filter((item) => !links.includes(item))) notices.push(`Kept ${link.ref}: reap its link in repository ${link.repository}.`);
+  const selected = selectWorkBranchLink({ links: { branches: links } }, { repository });
+  if (selected.kind === "ambiguous") throw new Error(selected.reason);
+  return { links, retiring: selected.kind === "none" ? null : workBranchName(selected.link.ref) };
+}
+
+async function readRetiringGeneration(ctx: Bound, retiring: string | null): Promise<RetiringGeneration> {
+  if (retiring === null) return { localHead: null, trackingHead: null, container: null };
+  const localHead = await localLifecycleTip(ctx.exec, ctx.primaryPath, `refs/heads/${retiring}`);
+  const trackingHead = await localLifecycleTip(ctx.exec, ctx.primaryPath, `refs/remotes/origin/${retiring}`);
+  const container = localHead !== null ? { ref: `refs/heads/${retiring}`, oid: localHead }
+    : trackingHead !== null ? { ref: `refs/remotes/origin/${retiring}`, oid: trackingHead } : null;
+  return { localHead, trackingHead, container };
 }
 
 async function reapRetiringRemote(ctx: Bound, branch: string, landed: boolean, localHead: string | null): Promise<{ deleted: boolean; keepTracking: boolean }> {

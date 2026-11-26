@@ -51,7 +51,7 @@ async function candidateOwner(options: StoreSweepOptions, checkout: RegisteredWo
 async function inspectAbandonment(options: StoreSweepOptions, checkout: BranchedCheckout, owner: OwnerIdentity, exact: boolean): Promise<LandedRetirementResidue | null> {
   const name = owner.name, subject = recordReferences["work-item/meta"](owner);
   if (!await hasAbandonment(options.store, owner)) return null;
-  const evidence = await readStoreRetirementEvidence(options.store, subject, checkout.head);
+  const evidence = await readStoreRetirementEvidence(options.store, subject);
   if (evidence.rule !== "discard" || evidence.evidence.kind !== "lineage" || evidence.evidence.transition !== "abandon") return null;
   const project = await resolveProjectIdentity(options.projectId ?? createProjectIdentityReader(options.store));
   if (project.status !== "ready") throw new Error(`${project.reason} ${project.remedy.text}`);

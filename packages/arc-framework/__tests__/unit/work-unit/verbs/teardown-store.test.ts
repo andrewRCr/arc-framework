@@ -1,5 +1,5 @@
 /** Exact terminal snapshots govern ref-set cleanup and retained checkout coordinates. */
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -183,6 +183,29 @@ describe("store teardown and the checkouts it retires", () => {
     expect(h.state()).toMatchObject({ mutations: [], linkedBranch: "feat/demo", linkedPresent: true });
     expect(h.refs.has("refs/heads/feat/demo")).toBe(true);
     expect(h.refs.has("remote/feat/demo")).toBe(true);
+  });
+
+  it("preserves an unmarked checkout that takes the retiring branch after the initial roster scan", async () => {
+    const h = await fixture({ end: "archive", linked: { marked: false } });
+    const scan = h.ctx.scanWorktrees!;
+    const roster = await scan(h.ctx.exec);
+    if (!roster.ok) throw new Error(roster.message);
+    // Initially detached at the same commit, /linked holds feat/demo on subsequent scans.
+    h.ctx.scanWorktrees = vi.fn(scan).mockResolvedValueOnce({
+      ok: true,
+      worktrees: roster.worktrees.map(item => item.path === "/linked" ? { ...item, branch: null, detached: true } : item),
+    });
+    const refs = new Map(h.refs);
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+    expect({ status: result.status, holder: h.state().linkedBranch, refs: h.refs }).toEqual({
+      status: "rejected", holder: "feat/demo", refs,
+    });
+    expect(result).toMatchObject({ reason: expect.stringContaining("git switch --detach") });
+    expect(h.state().mutations).toEqual([]);
+
+    await h.ctx.exec("git", ["switch", "--detach"], { cwd: "/linked" });
+    await expect(runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" }))
+      .resolves.toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
   });
 
   it("keeps an adopted branch's linked holder without an ownership marker, as it keeps any adopted holder", async () => {

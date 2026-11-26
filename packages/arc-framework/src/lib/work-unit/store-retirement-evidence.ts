@@ -48,13 +48,13 @@ export async function resolveTeardownSubject(store: Store, subject: TeardownSubj
 /** A selected terminal version binds every subsequent physical mutation. */
 export interface StoreRetirementEvidence {
   record: StoreRecord; name: string; rule: "discard" | "landed"; branches: BranchLink[];
-  evidence: RetirementEvidenceRef;
+  evidence: Omit<Extract<RetirementEvidenceRef, { kind: "shipped" }>, "baseProofOid"> | Extract<RetirementEvidenceRef, { kind: "lineage" }>;
   revalidate: () => Promise<void>;
 }
 /** A readable primary that has not ended supplies no retirement authority. */
 export class NonTerminalRetirementError extends Error {}
 /** Read completed placement or terminal lineage, never guessing authority from a branch name. */
-export async function readStoreRetirementEvidence(store: Store, subject: RecordReference, baseOid: string): Promise<StoreRetirementEvidence> {
+export async function readStoreRetirementEvidence(store: Store, subject: RecordReference): Promise<StoreRetirementEvidence> {
   const owner = subject.owner;
   if (subject.kind !== "work-item/meta" || owner.type !== "work-item" || owner.uid === undefined)
     throw new Error("Retirement evidence requires a work-unit primary reference with an owner UID; resolve the exact owner, then retry teardown.");
@@ -63,7 +63,7 @@ export async function readStoreRetirementEvidence(store: Store, subject: RecordR
   if (primary.status === "ok") {
     if (primary.result.placement?.kind !== "completed") throw new NonTerminalRetirementError(`${name} has not ended; abandon or archive it before teardown.`);
     return bind(store, primary.result, "landed", primary.result.links?.branches ?? [], {
-      kind: "shipped", expectedLifecycle: "completed", resultDigest: canonicalDigest(primary.result.content), baseProofOid: baseOid,
+      kind: "shipped", expectedLifecycle: "completed", resultDigest: canonicalDigest(primary.result.content),
     });
   }
   if (primary.refusal.code !== "not-found") throw new StoreRefusalError(primary.refusal);
@@ -83,7 +83,7 @@ async function readRetiredOrigin(store: Store, name: string, uid: string): Promi
     kind: "lineage", transition: lineage.kind, reference: read.result.reference, version: read.result.version, resultDigest: canonicalDigest(read.result.content),
   });
 }
-function bind(store: Store, record: StoreRecord, rule: "discard" | "landed", branches: BranchLink[], evidence: RetirementEvidenceRef): StoreRetirementEvidence {
+function bind(store: Store, record: StoreRecord, rule: "discard" | "landed", branches: BranchLink[], evidence: StoreRetirementEvidence["evidence"]): StoreRetirementEvidence {
   return { record, name: record.reference.owner.name, rule, branches, evidence, revalidate: async () => {
     const fresh = await store.read({ reference: record.reference });
     if (fresh.status === "refused") throw new Error(`${fresh.refusal.condition} ${fresh.refusal.remedy.text}`);
