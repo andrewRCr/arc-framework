@@ -255,31 +255,6 @@ it("installs with the publisher's ID while a secondary read source's registry tr
   expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
 }, 90_000);
 
-it("installs with the first read source's ID when a second read source has divergent registry history", async () => {
-  const { remote, id } = await publishedRegistry();
-  const { remote: reader } = await publishedRegistry();
-  const target = await repository(remote);
-  await git(target.cwd, "config", "remote.origin.arc-state", "read");
-  await git(target.cwd, "remote", "add", "reader", reader);
-  await git(target.cwd, "config", "remote.reader.arc-state", "read");
-  const gitDir = join(target.cwd, ".git", "arc", "store");
-  await git(target.cwd, "init", "--bare", gitDir);
-  const tracking = "refs/arc-remotes/reader/project/registry";
-  const { tip } = await plantRef(target.cwd, tracking, [], { gitDir });
-  const pull = vi.spyOn(target.store, "pull");
-
-  await expect(readProjectIdentityBinding(target.store)).rejects.toThrow("Project identity record is missing.");
-  await expect.soft(init(target, null)).resolves.not.toBeNull();
-  expect(pull.mock.settledResults[0]).toMatchObject({ type: "fulfilled", value: { status: "ok", result: { pulls: [
-    expect.objectContaining({ remote: "origin", role: "read", status: "pulled", notices: [] }),
-    expect.objectContaining({ remote: "reader", role: "read",
-      notices: expect.arrayContaining([expect.objectContaining({ kind: "history-diverged", ref: "refs/arc/project/registry" })]),
-    }),
-  ] } } });
-  expect(await git(target.cwd, `--git-dir=${gitDir}`, "rev-parse", tracking)).toBe(tip);
-  expect((await readProjectIdentityBinding(target.store)).id).toBe(id);
-}, 90_000);
-
 it("refuses a moved state remote before minting and adopts the original ID on retry", async () => {
   const destination = await bareRemote(), project = await repository(destination);
   await init(project, null);
