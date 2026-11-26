@@ -1,7 +1,6 @@
 /** The ignore lines and personal npm policy an initialized checkout holds, for a fixture that installs ARC by hand. */
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { ensureGitExcludePatterns } from "../../src/lib/git/exclude.js";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { gitExec } from "../../src/lib/io-context.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { PERSONAL_NPM_IGNORE, PERSONAL_NPM_IGNORE_CONTENT } from "../../src/lib/personal-npm-ignore.js";
@@ -24,15 +23,12 @@ export async function writeProjectedIgnores(cwd: string, identity: string, optio
   await appendFile(join(cwd, ".gitignore"), roots.filter(root => root.file === ".gitignore")
     .map(root => `${root.line}\n`).join(""));
   if (options.tracksState !== true) {
-    const patterns = roots.filter(root => root.file === "info/exclude").map(root => root.line);
-    const excluded = await ensureGitExcludePatterns(cwd, patterns, gitExec, {
-      readFile: path => readFile(path, "utf8"),
-      writeFile,
-      mkdir: async (path, options) => { await mkdir(path, options); },
-      // The caller owns this temporary repository exclusively during setup.
-      withLock: (_path, operation) => operation(),
-    });
-    if (!excluded.ok) throw excluded.error;
+    const { stdout } = await gitExec("git", ["rev-parse", "--git-path", "info/exclude"], { cwd });
+    const exclude = resolve(cwd, stdout);
+    await mkdir(dirname(exclude), { recursive: true });
+    const lines = roots.filter(root => root.file === "info/exclude").map(root => `${root.line}\n`).join("");
+    // The leading newline separates an unterminated rule. The final rules take precedence over template negations.
+    await appendFile(exclude, `\n${lines}`);
   }
   await mkdir(join(cwd, ".arc/user"), { recursive: true });
   await writeFile(join(cwd, PERSONAL_NPM_IGNORE), PERSONAL_NPM_IGNORE_CONTENT);

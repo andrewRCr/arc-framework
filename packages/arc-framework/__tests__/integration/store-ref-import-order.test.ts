@@ -7,6 +7,7 @@ import { expect, it, onTestFinished, vi } from "vitest";
 import { importFixture } from "../helpers/store/import-fixture.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { makeTempRoot, removeGitBackedDir } from "../helpers/temp-repo.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { createRefStore } from "../../src/lib/store/index.js";
 import { KIND_REGISTRY } from "../../src/lib/store/registry.js";
@@ -71,6 +72,7 @@ async function prepare(h: Fixture): Promise<void> {
   await commit(h.root, "Park epsilon");
   await h.git("git", ["push", "--set-upstream", "origin", "main"]);
   const exclude = resolve(h.root, (await h.git("git", ["rev-parse", "--git-path", "info/exclude"])).stdout);
+  await mkdir(dirname(exclude), { recursive: true });
   await appendFile(exclude, "\n/.arc-fixture/\n");
   await ensureWorktreeMarkerIgnored(h.root, h.git, nodeWorktreeMarkerIgnoreFs);
   for (const slug of ["delta", "zeta"]) {
@@ -154,6 +156,10 @@ async function expectEligibleSources(h: Fixture): Promise<void> {
 }
 
 it("imports the same records whatever order branches, worktrees, and fetched refs are listed in, a parked unit among them", async () => {
+  const template = await makeTempRoot("arc-empty-git-template-");
+  onTestFinished(() => removeGitBackedDir(template));
+  vi.stubEnv("GIT_TEMPLATE_DIR", template);
+  onTestFinished(() => { vi.unstubAllEnvs(); });
   const [listed, reordered] = await Promise.all([importFixture("default"), importFixture("default")]);
   await prepare(listed);
   await prepare(reordered);

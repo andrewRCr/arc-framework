@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach, onTestFinished } from "vit
 import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
-import { expectPersonalFileSet } from "./personal-file-set.js";
+import { expectPersonalFileSet, expectStoredPersonalFileSet } from "./personal-file-set.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { LocalSyncStateSchema } from "../../src/lib/user-sync/sync-state.js";
@@ -63,6 +63,7 @@ describe("user add", () => {
       expect(await git(["config", "--get", "arc.identity"], tmpDir)).toBe("test-user");
       expect(await pathExists(join(tmpDir, ".arc", "user", "alice"))).toBe(false);
       if (attempt === "repeat") expect(output).toContain("already has personal records");
+      else await expectStoredPersonalFileSet(tmpDir, "alice");
       expect.soft(output, `${attempt} add`).not.toMatch(/creating user directory|user directory created/i);
       expect.soft(output, `${attempt} add`).toMatch(/(?:personal records|inbox and working memory).*alice/i);
     }
