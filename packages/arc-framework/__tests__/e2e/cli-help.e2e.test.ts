@@ -99,6 +99,14 @@ describe("built CLI navigation", () => {
     expect.soft(purpose).toMatch(/\bclose\b[^.]*\bremov\w*\b[^.]*\bopen\w*\b[^.]*\btitle\b/iu);
   });
 
+  it("scopes title-based inbox removal at close and explains when import moves the capture", async () => {
+    const help = await runCli(["errand", "close", "--help"]);
+    expect(help.exitCode).toBe(0);
+    const purpose = help.stdout.split("\nOptions:")[0]?.replace(/\s+/gu, " ").trim();
+    expect.soft(purpose).toMatch(/\bbranch-backed\b[^.]*\bclose\b[^.]*\bremov\w*\b[^.]*\btitle\b[^.]*\binbox\b/iu);
+    expect.soft(purpose).toMatch(/\bimport\b[^.]*\bmov\w*\b[^.]*\bunique\b[^.]*\btitle\b[^.]*\binbox\b[^.]*\bdescription\b/iu);
+  });
+
   it("keeps deep command purposes, inherited flags, and structured-request discovery", async () => {
     const help = await runCli(["review", "local", "prepare", "--help"]);
     expect(help.exitCode).toBe(0);

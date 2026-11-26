@@ -949,7 +949,8 @@ errand
   .command("close <slug>")
   .description("Complete an Errand by slug or UID and release its checkout occupancy. With the ref store and partial "
     + "protection (the default), close removes the originating inbox entry only if it matches the recorded version or content digest. "
-    + "Full protection moves the entry into the Errand description when opened by ID. Close removes entries opened by title from the inbox.")
+    + "Full protection moves the entry into the Errand description when opened by ID. With branch-backed state, "
+    + "close removes entries opened by title from the inbox. Import moves a unique title match from the inbox into the Errand description.")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
