@@ -228,6 +228,8 @@ arc save
 # For tracked changes, close tasks after committing and capture the increment's commits (process-task-loop.md)
 # With no tracked changes, close approved tasks directly.
 arc task close [ids...] [--commit <sha>]
+# Close tasks without capturing commits
+arc task close [ids...] --state-only
 # Defer a task and cascade its parent marker
 arc task defer <id>
 # Write the handoff's session context and state from a JSON request (session-handoff.md)

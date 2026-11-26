@@ -16,7 +16,7 @@ function facade(store: Store): Store {
     list: (input) => store.list(input), write: (input) => store.write(input), batch: (input) => store.batch(input),
     version: () => store.version(), history: (input) => store.history(input), changes: (input) => store.changes(input), pull: (input) => store.pull(input), push: (input) => store.push(input), maintain: () => store.maintain() };
 }
-async function harness(content = tasks(), links: Links = { branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }] }, objectType = "commit") {
+async function harness(content = tasks(), links: Links = { branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }] }, objectType = "commit", outstanding = "") {
   const { store, seedMeta, seed } = createLifecycleHarness();
   const meta = await seedMeta("demo", {}, { kind: "active" }, links);
   const taskRef = recordReferences["work-item/task-list"](meta.reference.owner);
@@ -25,7 +25,7 @@ async function harness(content = tasks(), links: Links = { branches: [{ reposito
     { match: ["symbolic-ref", "--quiet", "HEAD"], responses: [{ stdout: "refs/heads/feat/demo\n" }] },
     { match: ["remote"], responses: [{ stdout: "" }] },
     { match: { prefix: ["--no-replace-objects", "rev-parse"] }, responses: [{ stdout: base }] },
-    { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [{ stdout: "" }] },
+    { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [{ stdout: outstanding }] },
     { match: { prefix: ["--no-replace-objects", "cat-file", "-t"] }, responses: [{ stdout: `${objectType}\n` }] },
     { match: { prefix: ["--no-replace-objects", "merge-base"] }, responses: [{ stdout: "" }] },
   ]);
@@ -95,11 +95,22 @@ it.each([
   const afterApproval = workflow.slice(workflow.indexOf("**MANDATORY STOP**"));
   const command = /(?:no tracked (?:file|change)|state-only)[^`.]*`(arc task close\b[^`]*)`/iu.exec(afterApproval)?.[1];
   if (!command) throw new Error("Missing standalone close command in the state-only instruction");
-  const ids = command.replace(/<ids?>/u, approved.join(" ")).split(/\s+/u).slice(3);
+  const args = command.replace(/<ids?>/u, approved.join(" ")).split(/\s+/u).slice(3);
+  const params = { ids: args.filter(arg => !arg.startsWith("--")), stateOnly: args.includes("--state-only") };
 
-  const h = await harness();
-  expect(await runTaskClose(h.ctx, { ids })).toMatchObject({ status: "closed", captured: [] });
+  const h = await harness(undefined, undefined, undefined, first);
+  expect(await runTaskClose(h.ctx, params)).toMatchObject({ status: "closed", captured: [] });
   expect((await h.readTasks()).content).toBe(expected);
+});
+it("refuses conflicting capture options and closes after an explicit capture is chosen", async () => {
+  const h = await harness();
+  const beforeTasks = await h.readTasks(), beforeMeta = await h.readMeta();
+  const params = { ids: ["1.1.a"], commits: [first], stateOnly: true };
+  expect(await runTaskClose(h.ctx, params)).toMatchObject({ status: "refused", code: "capture-options-conflict",
+    reason: expect.stringContaining("--state-only and --commit"), remedy: { text: expect.stringContaining("arc task close") } });
+  expect(await h.readTasks()).toEqual(beforeTasks);
+  expect(await h.readMeta()).toEqual(beforeMeta);
+  expect(await runTaskClose(h.ctx, { ids: params.ids, commits: params.commits })).toMatchObject({ status: "closed", captured: [first] });
 });
 it("named set closes leaves and its cascade parent without capturing the parent", async () => {
   const h = await harness();
@@ -218,7 +229,7 @@ it.each(["detached", "unlinked"])("%s checkout refuses and names its work branch
     responses: [kind === "detached" ? { failure: { exitCode: 1 } } : { stdout: "other-branch" }] }]).exec;
   expect(await runTaskClose(h.ctx)).toMatchObject({ status: "refused", code: "branch-unlinked", remedy: { text: expect.stringContaining("git switch feat/demo") } });
 });
-it("a base refresh that empties the set refuses; its rerun closes with no capture", async () => {
+it("a base refresh that empties the set refuses and names a state-only retry", async () => {
   const h = await harness(); const before = await h.readTasks();
   h.ctx.exec = scriptGitExec([
     { match: ["symbolic-ref", "--quiet", "HEAD"], responses: [{ stdout: "refs/heads/feat/demo" }] },
@@ -227,9 +238,10 @@ it("a base refresh that empties the set refuses; its rerun closes with no captur
     { match: { prefix: ["--no-replace-objects", "rev-parse"] }, responses: [{ stdout: base }] },
     { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [{ stdout: first }, { stdout: "" }] },
   ]).exec;
-  expect(await runTaskClose(h.ctx)).toMatchObject({ status: "refused", code: "base-emptied-set", reason: expect.stringContaining(first), remedy: { text: expect.stringContaining("arc task close 1.1.a") } });
+  expect(await runTaskClose(h.ctx)).toMatchObject({ status: "refused", code: "base-emptied-set", reason: expect.stringContaining(first), remedy: { text: expect.stringContaining("arc task close 1.1.a --state-only") } });
   expect(await h.readTasks()).toEqual(before);
-  expect(await runTaskClose(h.ctx)).toMatchObject({ status: "closed", captured: [] });
+  const retry = { ids: ["1.1.a"], stateOnly: true };
+  expect(await runTaskClose(h.ctx, retry)).toMatchObject({ status: "closed", captured: [] });
 });
 it("release precheck accepts an emptied precommit set for the new commit to follow", async () => {
   const h = await harness(); const { prepareTaskClose } = await import("../../../../src/lib/work-unit/verbs/task-close.js");

@@ -197,7 +197,8 @@ Class tags name the fire-site type; routing follows § Workflow class-tag routin
 - **Task list accuracy:** Before committing, verify the task list's completion notes reflect the completed work.
   When an increment changes tracked files, commit before closing the task. Use `arc release commit --close` or
   run `arc task close` after the commit. With no tracked changes, close the approved task directly with
-  `arc task close`. The close verb also closes a parent whose subtasks are all closed. Save the task list to the store.
+  `arc task close --state-only`. The close verb also closes a parent whose subtasks are all closed. Save the task list
+  to the store.
 
 - **Meta-file timing:** Edit the meta's Markdown **only when the ceremony workflow explicitly instructs the edit**,
   at handoff or at a lifecycle or planning-stage ceremony. `arc task close` maintains capture links in the stored meta.
@@ -223,7 +224,7 @@ requirements.
 ### Atomicity
 
 One logical change per commit. Separate tracked changes by task and close each task after the commit that carries its
-work. Close approved tasks with no tracked changes directly with `arc task close`.
+work. Close approved tasks with no tracked changes directly with `arc task close --state-only`.
 
 ---
 

@@ -719,7 +719,8 @@ task
   .description("Close tasks and capture the increment's code commits")
   .option("--commit <sha>", "Capture an explicit commit (repeatable)",
     (value: string, previous: string[]) => [...previous, value], [])
-  .action(withInteractionContext({}, async (context, ids: string[], opts: { commit?: string[] }) => {
+  .option("--state-only", "Close without capturing commits")
+  .action(withInteractionContext({}, async (context, ids: string[], opts: { commit?: string[]; stateOnly?: boolean }) => {
     await (await import("./handlers/task.js")).handleTaskClose(ids, opts, context);
   }));
 task

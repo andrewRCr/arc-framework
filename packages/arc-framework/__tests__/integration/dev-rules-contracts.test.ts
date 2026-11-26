@@ -41,7 +41,7 @@ describe.each([
     const text = await rules();
     const accuracy = text.split("**Task list accuracy:**")[1]?.split("\n\n")[0] ?? "";
     expect.soft(accuracy).toMatch(/(?:if|when)[^.]*tracked files?[^.]*\bcommit\b/iu);
-    expect.soft(accuracy).toMatch(/no tracked (?:changes?|files?)[^.]*`arc task close`/iu);
+    expect.soft(accuracy).toMatch(/no tracked (?:changes?|files?)[^.]*`arc task close --state-only`/iu);
 
     const atomicity = text.split("### Atomicity")[1]?.split("\n---")[0] ?? "";
     expect.soft(atomicity).toMatch(/tracked (?:changes?|files?)[^.]*\bcommit\b/iu);

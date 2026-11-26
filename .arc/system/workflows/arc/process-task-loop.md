@@ -342,9 +342,9 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      calls for the batch. If the increment contains only deferrals or tasks already closed, go directly to the save
      below.
 
-     **Approved completions.** For an increment with no tracked file changes, run `arc task close <ids>` with the
-     approved completion IDs and go directly to the save below. When the increment needs a commit, follow the commit
-     interlock. Under `arc.commitInterlock: manual`, committing remains an explicit user-invoked action. Under
+     **Approved completions.** For an increment with no tracked file changes, run `arc task close <ids> --state-only`
+     with the approved completion IDs and go directly to the save below. When the increment needs a commit, follow the
+     commit interlock. Under `arc.commitInterlock: manual`, committing remains an explicit user-invoked action. Under
      `on-task-approval` (or `on-workflow`, which subsumes it), the commit-interlock releases on task approval per
      [Configurability Architecture Strategy][config-arch] § Session interlocks. Invoke the
      [arc-commit skill][arc-commit-skill] for its simple-vs-complex path decision and format methods.
@@ -360,6 +360,9 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      ```bash
      arc save
      ```
+
+     If close or save refuses, surface the condition and apply the reported remedy. Continue when the remedy completes
+     that step or the command succeeds on retry.
 
      A deferred delivery-member scale closeout is the bounded exception to ordinary advancement. In manual mode, stop
      for the explicit commit invocation. In an auto-fire mode, commit on approval. After that commit lands, return to
