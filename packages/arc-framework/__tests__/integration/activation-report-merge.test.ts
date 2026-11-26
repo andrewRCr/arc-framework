@@ -121,6 +121,7 @@ it("keeps original-graph merge and deletion advice when replacement refs fake co
   expect(replaced.status).toBe("ready"); if (replaced.status !== "ready") return;
   expect(replaced.report).toContain(`${remote}: first git merge --ff --no-edit ${remote}; then arc task close <ids> --commit ${remote}`);
   expect(replaced.remoteDelete).toEqual({
+    branch: "feat/demo", tip: remote,
     text: `After git merge --ff --no-edit ${remote}, and once fix/demo is pushed, git push --force-with-lease=refs/heads/feat/demo:${remote} origin --delete feat/demo`,
   });
   await exec("git", ["replace", "-d", local]);

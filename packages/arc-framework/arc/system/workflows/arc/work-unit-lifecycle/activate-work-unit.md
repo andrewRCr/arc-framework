@@ -116,8 +116,9 @@ Compose the activation inputs (judgment — never fabricated):
 
 - `<type>` — working-branch type per [`branch-format`][branch-format]. The selected branch is `{type}/{name}` when
   creating or renaming it. A linked work branch already checked out with the same type keeps its current name.
-- next action — the next executable step after activation. When an accepted ADR or moved research awaits its first
-  commit, use `activate-work-unit Step 3 — Commit the accepted ADR or research at <paths>` with the approved paths.
+- next action — `activate-work-unit Step 4 — Publish the work branch` unless an accepted ADR or moved research
+  awaits its first commit. In that case, use `activate-work-unit Step 3 — Commit the accepted ADR or research at <paths>`
+  with the approved paths.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before activation unless the operator has already approved this transition and its inputs.
@@ -132,10 +133,10 @@ the saved pointer with `arc view meta` before running activation, and pass that 
 arc activate {name} --type {type} --action "{next action}"
 ```
 
-The verb flips `**State:** Planning → Active`, links the selected work branch in this checkout, writes
-`**Next Action:**`, discharges satisfied `**Depends On:**` edges, and removes a draft that `Design` no longer
-names, in one write. `{name}` defaults to the current checkout's WU. Its report names any commits it excluded from the
-WU's task work and the old name's remote branch to delete (Step 4).
+The verb flips `**State:** Planning → Active`, links the selected work branch, and saves `**Next Action:**` with
+any old origin branch scheduled for deletion and its observed tip. The same write discharges satisfied
+`**Depends On:**` edges and removes a draft that `Design` no longer names. `{name}` defaults to the current
+checkout's WU. The report also names any commits excluded from the WU's task work.
 
 When Next Action points to the pending commit, stage the named files after activation succeeds. If a fresh session
 resumes at this pointer with the unit already Active, continue here on the linked work branch. If Git history shows
@@ -153,13 +154,15 @@ Context: spec-{name}.md (planning)
 
 ### 4) Push the work branch
 
-If the activation report requires a merge before deleting the old remote branch, complete that merge on the work branch
-before pushing. Use the `Branch` value reported by successful activation as `{branch}`.
+Use the work unit's `branch` from `arc active in-flight --json` as `{branch}` and work on that branch.
+Read Next Action with `arc view meta`. If it records an old origin branch and tip, complete the merge with
+`git merge --ff --no-edit <old-tip>` before pushing, unless the work branch already contains that tip.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {branch}`.
 
-Only after the push succeeds, run any leased remote branch deletion named in the activation report as raw `git`.
+Only after the push succeeds, run the recorded old branch's deletion as raw Git with
+`git push --force-with-lease=refs/heads/<old-branch>:<old-tip> origin --delete <old-branch>`.
 If Git refuses because the lease is stale, report that the old remote tip changed and surface Git's refusal. Fetch
 the old branch with `git fetch origin refs/heads/<old-branch>`, read the new tip with `git rev-parse FETCH_HEAD`, and
 merge that exact tip into the work branch with `git merge --ff --no-edit <new-tip>`. Repeat the routed push. When it
@@ -182,8 +185,9 @@ See [DEV-RULES.ARC § Discovered Work Routing][dev-rules-discovered-routing] for
 
 ## Next Step
 
-With activation complete, replace any pending commit pointer in Next Action with the next task action and save it.
-Proceed to task execution:
+With activation complete, replace the activation pointer and any old branch details in Next Action with the next
+task action. Run `arc save`. If it refuses, surface the condition, apply the reported remedy, and proceed when the
+next task action is saved.
 
 **→ [process-task-loop.md](../process-task-loop.md)** — Execute tasks with quality gates.
 

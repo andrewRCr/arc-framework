@@ -42,14 +42,17 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   const { metaPath, reconcile, transition, blockers, retired } = prepared;
   const links = mergeLifecycleLinks(transition.primary.links, { branches: [plan.link] },
     plan.priorRef === null ? {} : { branches: [{ repository: plan.link.repository, ref: plan.priorRef }] });
+  const { remoteDelete } = plan;
+  const nextAction = remoteDelete === undefined ? params.nextAction
+    : `${params.nextAction}\nComplete activate-work-unit Step 4 for origin branch ${remoteDelete.branch} at ${remoteDelete.tip}.`;
   const outcome = await executeTransition(ctx, { verb: "activate", slug: params.name, inputs: {
     storeTransition: { ...transition, links, gitSteps: [plan.step] },
-    softFields: { nextAction: params.nextAction },
+    softFields: { nextAction },
   } });
   if (outcome.status !== "ok") return rejectActivationTransition(outcome, params.name);
   return { status: "activated", outcome, metaPath, reconcile, branch: plan.link.ref,
     report: [...plan.report, ...activationBlockerReport(blockers, reconcile.prepared.plan.dependency.discharged)],
-    ...(plan.remoteDelete === undefined ? {} : { remoteDelete: plan.remoteDelete }), ...retired };
+    ...(remoteDelete === undefined ? {} : { remoteDelete }), ...retired };
 }
 
 function rejectActivationTransition(outcome: Exclude<TransitionOutcome, { status: "ok" }>, name: string): Rejected {
