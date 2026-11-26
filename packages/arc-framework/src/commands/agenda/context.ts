@@ -48,8 +48,7 @@ export function resolveAgendaSessionType(current: LoadSetSessionType | null, aut
 export async function compileResumeContext(input: AgendaCompileInput): Promise<AgendaResumeContext> {
   const context = selectedAgendaContext(input);
   if (context === null) return { steps: [], metaContent: null, projectedMetaContent: null };
-  const projectedMetaContent = input.signals.next || input.entry.store?.capabilities.stateOffBranch !== true
-    ? await optionalContent(input, context.metaPath) : null;
+  const projectedMetaContent = await readProjectedMeta(input, context.metaPath);
   const fields = await readHandoffFields(input, context, projectedMetaContent);
   const { metaContent, sessionType: authored } = fields;
   const override = resolveAgendaSessionType(context.sessionType, authored);
@@ -64,6 +63,13 @@ export async function compileResumeContext(input: AgendaCompileInput): Promise<A
   const freshness = await fields.freshness();
   if (freshness !== null) steps.push(freshness);
   return { steps, metaContent, projectedMetaContent };
+}
+
+async function readProjectedMeta(input: AgendaCompileInput, path: string): Promise<string | null> {
+  if (input.entry.store?.capabilities.stateOffBranch !== true) return optionalContent(input, path);
+  if (!input.signals.next || !await input.read.exists(path)) return null;
+  // Without readable projected meta, the saved meta still supplies context and automatic proceed stays disabled.
+  return input.read.read(path).catch(() => null);
 }
 
 async function readHandoffFields(input: AgendaCompileInput, context: ResolvedContext, projectedMetaContent: string | null): Promise<HandoffFields> {

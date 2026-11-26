@@ -61,7 +61,7 @@ describe("agenda work-unit resume", () => {
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
   });
 
-  it("withholds automatic proceed for a pending projected blocker in a clean checkout", async () => {
+  it.each(["blocker", "read failure"] as const)("withholds automatic proceed for a projected meta %s in a clean checkout", async cause => {
     const value = await input({}, { next: true }, true);
     const f = createReferenceFixture(ENTRY_CONFIGS, createKindRegistry(PRODUCTION_REGISTRATIONS));
     const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "work" }));
@@ -74,9 +74,15 @@ describe("agenda work-unit resume", () => {
     value.read.read = async () => anchored;
     expect((await compile(value)).steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
 
-    value.read.read = async path => path === ".arc/active/meta-work.md"
-      ? setMetaBulletFields(anchored, { Blockers: "Waiting for an answer" }) : anchored;
+    value.read.read = async path => {
+      if (path !== ".arc/active/meta-work.md") return anchored;
+      if (cause === "read failure") throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
+      return setMetaBulletFields(anchored, { Blockers: "Waiting for an answer" });
+    };
     expect((await compile(value)).steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
+
+    value.read.read = async () => anchored;
+    expect((await compile(value)).steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
   });
 
   it.each(["partialPushMarker", "compactionAdvisory", "retiredSubdirs"] as const)("auto-proceeds on a clean --next resume when %s fails", async slot => {
