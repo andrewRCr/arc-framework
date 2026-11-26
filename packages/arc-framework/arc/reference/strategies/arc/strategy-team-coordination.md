@@ -110,13 +110,13 @@ The outgoing developer runs a standard session handoff with these additions:
 
 2. **Transfer ownership and publish it.** Share the work branch and run `arc handover <slug> --to <identity>`.
    After it succeeds, publish the change with `arc sync --json` per the session-handoff workflow. If
-   `state.push.result` is `success` or `noop`, run `arc view meta --for <slug>` to read the work unit's stored
-   `Owner` after the pull. Confirm transfer only if `Owner` names the recipient and there is no conflict for this
-   work unit's meta in the sync report or the read's warnings. If the manual interlock skips sync or the state
-   push is `blocked`, `failed`, or `skipped`, report the transfer as pending. Also report it as pending if the
-   read fails, `Owner` differs from the recipient, or either command reports a conflict for that meta. Give the
-   observed reason and any reported remedy. Resolve the condition, retry handover if the Owner change needs to be
-   reapplied, then run or retry `arc sync --json` and repeat the check.
+   `state.push.result` is `success` or `noop`, run `arc status <slug> --json --skip-projection` to read the store after
+   the pull. Confirm transfer only if the JSON `owner` names the recipient and there is no conflict for this work
+   unit's meta. Status refuses a work unit whose meta has unresolved conflicts. If the manual interlock skips sync or
+   the state push is `blocked`, `failed`, or `skipped`, report the transfer as pending. Also report it as pending if
+   status fails, `owner` differs from the recipient, or sync reports a conflict for that meta. Give the observed reason
+   and any reported remedy. Resolve the condition, retry handover if the Owner change needs to be reapplied, then run
+   or retry `arc sync --json` and repeat the check.
 
 ### Incoming Bootstrap
 

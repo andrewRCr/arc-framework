@@ -85,17 +85,17 @@ describe("session authority documentation", () => {
       expect.soft(instructions, `Sync after handover in the ${label}`).toMatch(
         /`arc handover <slug> --to <identity>`[\s\S]*`arc sync --json`/u,
       );
-      expect.soft(instructions, `Read the synced work unit after either eligible push result in the ${label}`).toMatch(
-        /`arc sync --json`[\s\S]*`state\.push\.result`[^.]*`success`\s+or(?:\s|>)*`noop`[^.]*`arc view meta --for <slug>`/u,
+      expect.soft(instructions, `Read the stored work unit after either eligible push result in the ${label}`).toMatch(
+        /`arc sync --json`[\s\S]*`state\.push\.result`[^.]*`success`\s+or(?:\s|>)*`noop`[^.]*`arc status <slug> --json --skip-projection`/u,
       );
       expect.soft(instructions, `Require both the recipient and conflict-free meta in the ${label}`).toMatch(
-        /`arc view meta --for <slug>`[\s\S]*[Cc]onfirm(?: the)? transfer only (?:if|when)[^.]*(?:`Owner`|Owner)[^.]*recipient[^.]*\band\b[^.]*no[^.]*conflict[^.]*meta/u,
+        /`arc status <slug> --json --skip-projection`[\s\S]*[Cc]onfirm(?: the)? transfer only (?:if|when)[^.]*`owner`[^.]*recipient[^.]*\band\b[^.]*no[^.]*conflict[^.]*meta/u,
       );
       expect.soft(instructions, `Report pending publication with the observed reason in the ${label}`).toMatch(
         /`blocked`[^.]*`failed`[^.]*`skipped`[\s\S]*pending[\s\S]*observed reason[\s\S]*\barc sync\b/u,
       );
-      expect.soft(instructions, `Keep ownership mismatches or meta conflicts pending in the ${label}`).toMatch(
-        /pending[^.]*(?:`Owner`|Owner)[^.]*recipient[^.]*conflict/u,
+      expect.soft(instructions, `Keep failed reads, ownership mismatches, or meta conflicts pending in the ${label}`).toMatch(
+        /pending[^.]*status (?:refuses|fails)[^.]*`owner`[^.]*recipient[^.]*conflict/u,
       );
     }
     expect(transfer).toMatch(/confirm(?: the)? transfer[\s\S]*`arc locus release`/iu);

@@ -85,12 +85,12 @@ default — if your project overrides session-state, follow the override instead
 > and [Finalize Handoff State](#finalize-handoff-state), ensure the work branch is shared and run
 > `arc handover <slug> --to <identity>`. If handover refuses, show its remedy and retry after resolving the condition.
 > After `handed-over`, publish the change with `arc sync --json` under the sync interlock. If `state.push.result`
-> is `success` or `noop`, run `arc view meta --for <slug>` to read the work unit's stored `Owner` after the pull.
-> Confirm transfer only if `Owner` names the recipient and there is no conflict for this work unit's meta in the
-> sync report or the read's warnings. Then free this checkout with `arc locus release`.
-> If the manual interlock skips sync or the state push is `blocked`, `failed`, or `skipped`, report the transfer
-> as pending. Also report it as pending if the read fails, `Owner` differs from the recipient, or either command
-> reports a conflict for that meta. Give the observed reason and any reported remedy. Resolve the condition,
+> is `success` or `noop`, run `arc status <slug> --json --skip-projection` to read the store after the pull.
+> Confirm transfer only if the JSON `owner` names the recipient and there is no conflict for this work unit's meta.
+> Status refuses a work unit whose meta has unresolved conflicts. After confirming transfer, free this checkout
+> with `arc locus release`. If the manual interlock skips sync or the state push is `blocked`, `failed`, or `skipped`,
+> report the transfer as pending. Also report it as pending if status fails, `owner` differs from the recipient, or
+> sync reports a conflict for that meta. Give the observed reason and any reported remedy. Resolve the condition,
 > retry handover if the Owner change needs to be reapplied, then run or retry `arc sync --json` and repeat the check.
 > See the [Team Coordination Strategy][team-coordination] § Person-to-Person Task Handoff.
 
