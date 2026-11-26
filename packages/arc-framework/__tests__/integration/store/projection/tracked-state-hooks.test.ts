@@ -182,11 +182,19 @@ async function expectUntouched(root: string): Promise<void> {
 describe("a checkout whose HEAD tracks ARC state", () => {
   it.each(cases(HOOK_COMMANDS))("runs %s with its projection off, opening no store", async (name, invocation) => {
     const root = await repository(true);
+    const gate = name === "check pre-commit" || name === "check pre-push";
+    const previous = await git(root, "rev-parse", "HEAD");
+    if (gate) {
+      await writeFile(join(root, ".arc/system/arc-checks.yml"), JSON.stringify({ checks: {
+        content: { gate: "commit", cache: false, command: [process.execPath, "-e", "process.exit(0)"] },
+      } }));
+      await commitAll(root, "declare check");
+    }
     await git(root, "rm", "-r", "--", ".arc/active");
     let args = invocation.args;
     let stdin = "";
     let expectedOutput: string | undefined;
-    if (name === "check pre-commit") expectedOutput = "none declared";
+    if (gate) args = [...args, "--json"];
     if (name === "check commit-msg") {
       const message = join(root, ".git", "COMMIT_EDITMSG");
       await writeFile(message, "chore: remove tracked state\n\nContext: standalone (maintenance)\n");
@@ -196,8 +204,7 @@ describe("a checkout whose HEAD tracks ARC state", () => {
     if (name === "check pre-push") {
       const ref = await git(root, "symbolic-ref", "HEAD");
       const tip = await git(root, "rev-parse", "HEAD");
-      stdin = `${ref} ${tip} ${ref} ${"0".repeat(tip.length)}\n`;
-      expectedOutput = `${ref}: checked`;
+      stdin = `${ref} ${tip} ${ref} ${previous}\n`;
     }
     const result = await dispatchHook(root, { ...invocation, args }, stdin);
     expect(result.error).toBeUndefined();
@@ -205,6 +212,12 @@ describe("a checkout whose HEAD tracks ARC state", () => {
     expect(result.operations).toEqual([]);
     expect(result.exitCode, result.stdout).toBe(0);
     if (expectedOutput !== undefined) expect(result.stdout).toContain(expectedOutput);
+    if (gate) {
+      expect(JSON.parse(result.stdout)).toMatchObject({ result: { status: "completed",
+        checks: [{ id: "content", outcome: "passed" }],
+        ...(name === "check pre-push" ? { pushRefs: [{ ref: stdin.split(" ")[0], outcome: "checked" }] } : {}),
+      } });
+    }
     expect(projectionProcessState().skip).toMatchObject({ reason: "tracked-state", mark: {
       reason: expect.stringContaining(".arc/active/"), remedy: { text: expect.stringMatching(ACTIVE_REMOVAL) } } });
     await expectUntouched(root);

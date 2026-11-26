@@ -487,7 +487,7 @@ describe("arc teardown (CLI surface)", () => {
     expect(await git(tmpDir, ["worktree", "list"])).not.toContain(worktree);
   });
 
-  it.each(["arc-teardown-e2e-wt-", "arc-teardown-(retry)-"])("reports a surviving local ref and retry guidance after detach in %s", async prefix => {
+  it.each(["arc-teardown-e2e-wt-", "arc-teardown-(retry)-", "arc-teardown-O'Brien's-"])("reports a surviving local ref and retry guidance after detach in %s", async prefix => {
     tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), prefix));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
@@ -503,10 +503,10 @@ describe("arc teardown (CLI surface)", () => {
     expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
     expect(await git(tmpDir, ["branch", "--list", "feat/demo"])).toContain("feat/demo");
 
-    const operand = /arc teardown demo --husk (?:'([^'\r\n]+)'|([A-Za-z0-9_./:@+-]+))/u.exec(output);
-    const retryPath = operand?.[1] ?? operand?.[2];
+    const operand = /arc teardown demo --husk (?:'((?:[^'\r\n]|'"'"')*)'|([A-Za-z0-9_./:@+-]+))[ \t]*$/mu.exec(output);
+    const retryPath = operand?.[1]?.replaceAll(`'"'"'`, "'") ?? operand?.[2];
     if (!retryPath) throw new Error(`No husk retry operand in:\n${output}`);
-    if (process.platform === "win32" || prefix.includes("(")) expect(operand?.[1]).toBe(retryPath);
+    if (process.platform === "win32" || /[(']/u.test(prefix)) expect(operand?.[1]).toBeDefined();
     expect(await realpath(retryPath)).toBe(await realpath(worktree));
     await rm(lock);
     const retried = await runArc(["teardown", "demo", "--husk", retryPath], tmpDir);
