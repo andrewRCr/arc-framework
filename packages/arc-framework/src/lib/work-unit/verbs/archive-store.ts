@@ -65,7 +65,7 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   const content = writeMetaCompleted(writeMetaPrUrl(cleared, facts.prUrl), facts.completed);
   const outcome = await executeTransition(ctx.executor, { verb: "archive", slug: params.name, inputs: {
     suggestion: params.suggestion, storeTransition: { primary, content, placement: { kind: "completed", quarter }, additionalWrites: writes, preparedRecords: cohorts.records,
-      provenance: archiveProvenance(primary, cohorts.completed),
+      provenance: { ...archiveProvenance(primary, cohorts.completed), archiveInventory: true },
       observations: [...observeRecords(cohorts.completed), ...cohorts.holders] },
   } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,

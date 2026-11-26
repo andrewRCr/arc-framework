@@ -20,6 +20,7 @@ function renderMessage(provenance: CallerProvenance, subject: string, batchId: s
   return `${encodeValue(provenance.verb)} ${subject}\n\n${[
     `Arc-Lifecycle-Action: ${encodeValue(provenance.lifecycleAction)}`,
     ...(provenance.codeHead ? [`Arc-Code-Head: ${provenance.codeHead}`] : []),
+    ...(provenance.archiveInventory ? ["Arc-Archive-Inventory: required"] : []),
     ...(provenance.cohortCloseout ? [`Arc-Cohort-Closeout: ${JSON.stringify(provenance.cohortCloseout)}`] : []),
     ...(ownerUid ? [`Arc-Owner: ${ownerUid}`] : []),
     `Arc-Batch: ${batchId}`,
@@ -41,6 +42,7 @@ export function parseStoreCommitProvenance(message: string, reference: RecordRef
       verb: decodeValue(subject.slice(0, subject.lastIndexOf(" "))),
       lifecycleAction: decodeValue(trailers.get("Lifecycle-Action") ?? ""),
       ...(trailers.has("Code-Head") ? { codeHead: trailers.get("Code-Head") } : {}),
+      ...(trailers.get("Archive-Inventory") === "required" ? { archiveInventory: true } : {}),
       ...(trailers.has("Cohort-Closeout") ? { cohortCloseout: JSON.parse(trailers.get("Cohort-Closeout") ?? "") as unknown } : {}),
       reference, ...("uid" in owner && owner.uid ? { ownerUid: owner.uid } : {}),
       batchId: trailers.get("Batch") ?? "",

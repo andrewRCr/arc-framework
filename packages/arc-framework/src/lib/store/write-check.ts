@@ -14,7 +14,7 @@ export interface WriteCheckInput {
   reference: RecordReference;
   prior?: { content: string; fields?: unknown };
   next?: { content: string; fields: unknown };
-  writer: { kind: "verb"; verb: string; lifecycleAction?: string } | { kind: "hand-edit" };
+  writer: { kind: "verb"; verb: string; lifecycleAction?: string; archiveInventory?: true } | { kind: "hand-edit" };
   /** Set only by the backend's advisory sync observer; omission retains local admission rules. */
   purpose?: "sync-observation";
   before: StoreView & Pick<Store, "history">;
@@ -39,7 +39,7 @@ export type WriteCheck = (input: WriteCheckInput) => Promise<readonly BrokenRule
 export function deriveWriteCheckWriter(provenance: CallerProvenance): WriteCheckInput["writer"] {
   return HAND_EDIT_VERBS.some((verb) => verb === provenance.verb)
     ? { kind: "hand-edit" } : { kind: "verb", verb: provenance.verb,
-      lifecycleAction: provenance.lifecycleAction };
+      lifecycleAction: provenance.lifecycleAction, ...(provenance.archiveInventory ? { archiveInventory: true } : {}) };
 }
 
 /** Compose one deterministic refusal from the checks in a batch's write order.

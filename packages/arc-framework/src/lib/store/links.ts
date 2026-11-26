@@ -46,6 +46,8 @@ export const CallerProvenanceSchema = z.strictObject({
   verb: z.string().trim().min(1),
   lifecycleAction: z.string().trim().min(1),
   codeHead: CommitShaSchema.optional(),
+  /** The archive was prepared against complete lifecycle inventory. */
+  archiveInventory: z.literal(true).optional(),
   cohortCloseout: z.strictObject({
     member: RecordReferenceSchema.refine(reference => reference.kind === "work-item/meta"),
     cohorts: z.array(RecordReferenceSchema.refine(reference => reference.kind === "cohort/document")).min(1),

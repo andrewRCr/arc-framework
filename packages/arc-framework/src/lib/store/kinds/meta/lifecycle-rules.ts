@@ -13,7 +13,7 @@ import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
 /** Require the lifecycle inventory that authorized archive to be complete at write admission. */
 export async function checkMetaArchiveInventory(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
   if (input.writer.kind !== "verb" || input.writer.verb !== "archive" || input.next === undefined
-    || input.purpose === "sync-observation") return [];
+    || input.purpose === "sync-observation" || !input.writer.archiveInventory) return [];
   const fail = (condition: string): readonly BrokenRule[] => [brokenRule("meta.archive-inventory", condition,
     `Resolve the named conflicts or repair the reported inventory, then retry \`arc archive ${input.reference.owner.name}\`.`)];
   const listing = await listLifecycleIndex(input.before);
