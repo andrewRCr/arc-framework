@@ -66,9 +66,13 @@ includes:
 
 - both copies of each shipped strategy, the affected project strategies, and their `STRATEGY-INDEX.md` entries;
 - `TECHNICAL-OVERVIEW.md` § Cross-Machine User State and the root `README.md`, which describe Git notes;
-- `arc join`'s message (`buildPostJoinMessage`, `src/commands/join.ts`), which says personal context "travels with your
-  commits as user notes". It will say where personal context lives, that it is stored rather than carried by commits,
-  and that `arc sync` publishes and fetches it, and it stays true for a local-only store;
+- `arc join`'s message where state is kept off the branch (`buildPostJoinMessage`, `src/commands/join.ts`, when
+  `stateOffBranch` holds) ‡, which says that `arc sync` synchronizes personal records through the store and that
+  session-init reads a work unit's session context from its meta. It will also say where personal context lives, that
+  it is stored rather than carried by commits, and that `arc sync` publishes and fetches it only when a state remote is
+  designated, since with none the store's push publishes nothing (`lib/store/ref/push.ts`), so it stays true for a
+  local-only store. The message where state is kept on the branch describes the Git notes that backend uses, and stays
+  while that backend ships;
 - the `storage.backing_repository` comment in both copies of `arc-config.yml`. It will say that the key names a separate
   repository to keep ARC state in, that empty names none, and that it is read when a destination is chosen
   (`composeRefStorePorts`, `lib/store/selection.ts`), so setting or clearing it moves nothing. It names no command and
@@ -81,8 +85,8 @@ includes:
   state" ‡, which will say "ownership of project state", as the contributor brief does;
 - the tests that pin any of this text, changed with it: `evidence-applicability-doctrine.test.ts`,
   `review-fix-release.test.ts`, `locus-methodology-contracts.test.ts`, `pr-lifecycle.test.ts`,
-  `review-gate-workflows.test.ts`, `decompose-doctrine-contract.test.ts`, and `unit/join.test.ts`. An assertion moves
-  with the text it guards and is not dropped.
+  `review-gate-workflows.test.ts`, `decompose-doctrine-contract.test.ts`, `unit/join.test.ts`, and
+  `e2e/join-storage-guidance.e2e.test.ts`. An assertion moves with the text it guards and is not dropped.
 
 **The inventory is taken late,** at the landed head ‡, and again at this unit's final head. It has two parts, and the
 scope is complete when every remaining hit in either is explained:
@@ -360,7 +364,8 @@ _ADR disposition:_ `none`; planning records.
 A ‡ claim is checked against the landed head before the build relies on it, and a claim that no longer holds is
 corrected by amendment before the text is written:
 
-- § 1: the inventory itself, taken at that head, and the sentence of `template-contributing.md`.
+- § 1: the inventory itself, taken at that head, the sentence of `template-contributing.md`, and `arc join`'s two
+  messages.
 - § 2: the manifest's tracking, and whether the archive is laid read-only and opened with `arc edit`.
 - § 3: the six statements' code and the four behaviors, and the `promoteOrdinaryErrand` refusal.
 - § 4: the clause list's answers, whose words are written from the landed code, and the two amendments to ADR-035 that
@@ -393,8 +398,9 @@ _ADR disposition:_ `none`; a temporary check.
 
 ### Testing
 
-No behavior changes. The seven tests of § 1 move with the text they pin, and `framework-sync.test.ts` is updated for the
-new installed file. Both type checks run, as `join.ts` changes.
+No behavior changes. The tests § 1 names move with the text they pin, and the ref-backed join's case also asserts that
+publishing and fetching both depend on a designated state remote. `framework-sync.test.ts` is updated for the new
+installed file. Both type checks run, as `join.ts` changes.
 
 ### Migration and rollout
 
@@ -426,7 +432,8 @@ public repository's readers are not misled about personal state.
 6. No heading the cutover's shipped text points at is missing, and no in-scope text links to § Auto-Merge Lane. No
    workflow phrase § 6 names still names the lane, the lock's links resolve, `template-contributing.md` reads as § 1
    says, and the notes strategy opens with the note of § 5 while notes sync still ships.
-7. `arc join`'s message and both configuration comments read as § 1 says, and the seven tests pass on the new text.
+7. `arc join`'s message and both configuration comments read as § 1 says, and the tests § 1 names pass on the new
+   text.
 8. Both register rows closed by this unit are closed, the isolation row and the append-only row by its transfer, and the
    doctrine and ADR rows name only what is outstanding.
 9. The Framework total and the installed-files total match the recipe at the landing head.
