@@ -154,7 +154,7 @@ Context: spec-{name}.md (planning)
 
 ### 4) Push the work branch
 
-Use the work unit's `branch` from `arc active in-flight --json` as `{branch}` and work on that branch.
+In the activated checkout, use `git branch --show-current` to set `{branch}`.
 Read Next Action with `arc view meta`. If it records an old origin branch and tip, complete the merge with
 `git merge --ff --no-edit <old-tip>` before pushing, unless the work branch already contains that tip.
 

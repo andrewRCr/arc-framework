@@ -5,7 +5,6 @@ import { expect, it } from "vitest";
 
 import type { SessionInitProbeResult } from "../../src/commands/status/types.js";
 import { parseMetaRecord, setMetaBulletFields } from "../../src/lib/active/meta-reader.js";
-import type { StoreInFlightResult } from "../../src/lib/git/in-flight-store.js";
 import { selectStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { readProjectIdentityBinding } from "../../src/lib/store/project-identity.js";
@@ -81,14 +80,39 @@ it.each(["new", "renamed"])("resumes activation on a %s branch by committing its
   expect(await git(checkout, ["show", "--format=", "--name-only", "HEAD"])).toBe(adr);
   expect(await git(h.repo, ["rev-parse", "main"])).toBe(h.base);
   if (oldTip !== undefined) {
-    const { entries } = JSON.parse(await run("active", "in-flight", "--json")) as StoreInFlightResult;
-    const workBranch = entries.find(entry => entry.kind === "work-unit" && entry.name === slug)?.branch;
-    if (workBranch === undefined) throw new Error("Expected a linked work branch");
     const { nextAction: publication } = parseMetaRecord(await run("view", "meta"));
-    await publishAfterResume(checkout, activation, publication ?? "", workBranch);
+    await publishAfterResume(checkout, activation, publication ?? "");
     const preservedBy = await git(h.repo, ["--git-dir", h.origin, "for-each-ref", "--format=%(refname)", "--contains", oldTip, "refs/heads"]);
     expect(preservedBy, "The replacement on origin contains the old tip and the old branch is gone").toBe(`refs/heads/feat/${slug}`);
   }
+}, LIFECYCLE_TIMEOUT_MS);
+
+it("publishes the checked-out branch from the saved action when activation reuses a stored link", async () => {
+  const h = await lifecycleRepository({ protection: "full", remote: true });
+  const slug = "example";
+  const checkout = h.checkoutPath(slug);
+  const started = await h.run(["start", slug, "--new", "--yes"]);
+  expect(started.exitCode, started.output).toBe(0);
+
+  const target = `feat/${slug}`;
+  const retained = "feat/previous";
+  const planning = `plan/${slug}`;
+  await git(checkout, ["branch", retained]);
+  await git(checkout, ["switch", "-c", planning]);
+  await storeBranchLinks(checkout, slug, [target, retained, planning]);
+
+  const activation = await readFile(join(checkout, ".arc/system/workflows/arc/work-unit-lifecycle/activate-work-unit.md"), "utf8");
+  const action = "activate-work-unit Step 4 — Publish the work branch";
+  const activated = await h.run(["activate", slug, "--type", "feat", "--action", action], checkout);
+  expect(activated.exitCode, activated.output).toBe(0);
+  expect(activated.output).toMatch(/Branch:\s+feat\/example/u);
+  expect(await git(checkout, ["branch", "--show-current"])).toBe(target);
+
+  const { nextAction } = parseMetaRecord((await readLifecycleMeta(checkout, slug)).content);
+  expect(nextAction).toBe(action);
+  await publishAfterResume(checkout, activation, nextAction ?? "");
+  expect(await git(h.repo, ["--git-dir", h.origin, "for-each-ref", "--format=%(refname)", "refs/heads/feat/"]))
+    .toBe(`refs/heads/${target}`);
 }, LIFECYCLE_TIMEOUT_MS);
 
 async function linkOldBranch(h: Awaited<ReturnType<typeof lifecycleRepository>>, checkout: string, slug: string,
@@ -99,17 +123,24 @@ async function linkOldBranch(h: Awaited<ReturnType<typeof lifecycleRepository>>,
   const tip = await git(checkout, ["rev-parse", "HEAD"]);
   await git(checkout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
   await git(checkout, ["switch", "-c", branch, h.base]);
-  const meta = await readLifecycleMeta(checkout, slug);
-  const repository = (await readProjectIdentityBinding(selectStore(createDefaultStorePorts({ checkoutRoot: checkout }), {}))).id;
-  await seedStore(checkout, LIFECYCLE_IDENTITY, [{ reference: meta.reference, expected: meta.version,
-    content: meta.content, placement: { kind: "active" }, links: { branches: [{ repository, ref: branch, linkedAs: "created", excluded: [] }] } }]);
+  await storeBranchLinks(checkout, slug, [branch]);
   return tip;
 }
 
-async function publishAfterResume(checkout: string, workflow: string, action: string, branch: string): Promise<void> {
+async function storeBranchLinks(checkout: string, slug: string, refs: string[]): Promise<void> {
+  const meta = await readLifecycleMeta(checkout, slug);
+  const repository = (await readProjectIdentityBinding(selectStore(createDefaultStorePorts({ checkoutRoot: checkout }), {}))).id;
+  await seedStore(checkout, LIFECYCLE_IDENTITY, [{ reference: meta.reference, expected: meta.version,
+    content: meta.content, placement: { kind: "active" },
+    links: { branches: refs.map(ref => ({ repository, ref, linkedAs: "created", excluded: [] })) } }]);
+}
+
+async function publishAfterResume(checkout: string, workflow: string, action: string): Promise<void> {
   const pushStep = workflow.slice(workflow.indexOf("### 4)"), workflow.indexOf("### 5)"));
   const [, oldBranch, oldTip] = action.match(/\borigin branch (\S+) at ([0-9a-f]{40,64})\b/u) ?? [];
   const [beforePush = "", afterPush = ""] = pushStep.split("`workflowPush`");
+  expect(beforePush).toMatch(/`git branch --show-current`[^.]*`\{branch\}`/u);
+  const branch = await git(checkout, ["branch", "--show-current"]);
   if (oldTip !== undefined && beforePush.includes("git merge --ff --no-edit <old-tip>")) {
     await git(checkout, ["merge", "--ff", "--no-edit", oldTip]);
   }
