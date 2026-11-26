@@ -13,7 +13,7 @@ afterEach(async () => { if (root !== undefined) await cleanupTempDir(root); root
 const MERGE_REPORT_TIMEOUT_MS = 30_000;
 
 describe("activation report merge", () => {
-  it("publishes the merged tip before the reported deletion of the old remote branch", async () => {
+  it.each([false, true])("preserves the old remote tip when deleting its branch (concurrent push: %s)", async (advanced) => {
     root = await createTempRepo();
     const exec = makeGitExec(root);
     await makeCommit(root, "base");
@@ -30,17 +30,41 @@ describe("activation report merge", () => {
     if (plan.status !== "ready") throw new Error(plan.reason);
     await plan.step.run();
 
-    const commands = plan.remoteDelete?.text.match(/\bgit (?:merge|push) [^,;&`\n]+/gu) ?? [];
-    for (const command of commands) {
-      if (command.includes("--delete")) {
-        // The report leaves publication to the caller's own push step, which runs between the merge and the deletion.
-        await exec("git", ["push", "-u", "origin", plan.link.ref]);
-        const published = await exec("git", ["rev-parse", `refs/heads/${plan.link.ref}`], { cwd: origin });
-        expect(published.stdout.trim(), "replacement branch tip before deletion").toBe(oldTip);
-      }
-      await exec("git", command.trim().split(/\s+/u).slice(1));
+    const report = plan.remoteDelete?.text ?? "";
+    const merges = report.match(/\bgit merge [^,;&`\n]+/gu) ?? [];
+    const pushes = report.match(/\bgit push [^,;&`\n]+/gu) ?? [];
+    expect(merges).toHaveLength(1);
+    expect(pushes, "Only the deletion belongs in the report; the workflow publishes the replacement").toHaveLength(1);
+    const [merge] = merges;
+    const [deletion] = pushes;
+    if (merge === undefined || deletion === undefined) throw new Error(`Missing commands in ${report}`);
+    const deleteArgs = deletion.trim().split(/\s+/u).slice(1);
+    await exec("git", merge.trim().split(/\s+/u).slice(1));
+    await exec("git", ["push", "-u", "origin", plan.link.ref]);
+    const published = await exec("git", ["rev-parse", `refs/heads/${plan.link.ref}`], { cwd: origin });
+    expect(published.stdout.trim(), "replacement branch tip before deletion").toBe(oldTip);
+
+    let preservedTip = oldTip;
+    if (advanced) {
+      await exec("git", ["switch", "--detach", oldTip]);
+      preservedTip = await makeCommit(root, "work pushed after activation planned the deletion");
+      await exec("git", ["push", origin, "HEAD:refs/heads/plan/demo"]);
+      await exec("git", ["switch", plan.link.ref]);
+      await expect(exec("git", deleteArgs)).rejects.toThrow(/stale info/u);
+      const old = await exec("git", ["rev-parse", "refs/heads/plan/demo"], { cwd: origin });
+      expect(old.stdout.trim()).toBe(preservedTip);
+
+      await exec("git", ["fetch", "origin", "refs/heads/plan/demo"]);
+      const { stdout: fetchedTip } = await exec("git", ["rev-parse", "FETCH_HEAD"]);
+      const newTip = fetchedTip.trim();
+      expect(newTip).toBe(preservedTip);
+      await exec("git", ["merge", "--ff", "--no-edit", newTip]);
+      await exec("git", ["push", "-u", "origin", plan.link.ref]);
+      await exec("git", deleteArgs.map(arg => arg.replace(oldTip, newTip)));
+    } else {
+      await exec("git", deleteArgs);
     }
-    const branches = await exec("git", ["for-each-ref", "--format=%(refname)", "--contains", oldTip, "refs/heads"], { cwd: origin });
+    const branches = await exec("git", ["for-each-ref", "--format=%(refname)", "--contains", preservedTip, "refs/heads"], { cwd: origin });
     expect(branches.stdout.trim().split(/\s+/u).filter(Boolean), "origin branches containing the old tip").toEqual(["refs/heads/feat/demo"]);
   }, MERGE_REPORT_TIMEOUT_MS);
 
@@ -52,6 +76,7 @@ describe("activation report merge", () => {
     expect(push).toBeGreaterThan(-1);
     expect(pushStep.slice(0, push)).toMatch(/\b(?:complete|run)\b[^.]*\bmerge\b/iu);
     expect(pushStep.slice(push)).toMatch(/\b(?:after|once)\b[^.]*\bpush\b[^.]*\bsucceeds\b[^.]*\bdeletion\b/iu);
+    expect(pushStep).toMatch(/stale[\s\S]*git fetch[\s\S]*git merge[\s\S]*routed push[\s\S]*retry the deletion[^.]*lease/iu);
   });
 
   it("brings in the reported remote-only commit with merge.ff=only after its ref is gone", async () => {
@@ -96,7 +121,7 @@ it("keeps original-graph merge and deletion advice when replacement refs fake co
   expect(replaced.status).toBe("ready"); if (replaced.status !== "ready") return;
   expect(replaced.report).toContain(`${remote}: first git merge --ff --no-edit ${remote}; then arc task close <ids> --commit ${remote}`);
   expect(replaced.remoteDelete).toEqual({
-    text: `After git merge --ff --no-edit ${remote}, and once fix/demo is pushed, git push origin --delete feat/demo`,
+    text: `After git merge --ff --no-edit ${remote}, and once fix/demo is pushed, git push --force-with-lease=refs/heads/feat/demo:${remote} origin --delete feat/demo`,
   });
   await exec("git", ["replace", "-d", local]);
   const original = await planActivationBranch(input);

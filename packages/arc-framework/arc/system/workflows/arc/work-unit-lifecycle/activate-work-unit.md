@@ -37,8 +37,8 @@ Verify the activation context is well-formed:
 
 If any check fails, surface the mismatch and halt — do not proceed to the activation.
 
-A `refused` listing clears by applying its remedy, and a `named` capture or a pending inbound entry only by its
-disposition at the Owner's pass.
+If a listing refuses, surface the condition, apply its reported remedy, and check the gate using the resulting
+listing. A `named` capture or a pending inbound entry clears by its disposition at the Owner's pass.
 
 **Method fire-point** · [`route-discovered-work`][route-discovered-work]:
 
@@ -54,23 +54,26 @@ the task list and its success criteria. An outcome cannot hold a capture in this
 
 Record each rejection or dismissal and its reason in the `notes-{name}.md` companion, creating it on first need. Record
 the source list, entry ID, and version with each rejection, dismissal, or fold in the notes. Run `arc check increment`
-and `arc save` before removing any source whose disposition required these edits. If `arc save` refuses, apply its
-reported remedy and continue once the disposition and its edits are saved.
+and `arc save` before removing any source whose disposition required these edits. If `arc save` refuses, surface the
+condition, apply its reported remedy, and continue once the remedy has saved the disposition and its edits.
 
-For projected state, inspect `arc status --json` after a successful save. Require a ready projection with no `files`
+After a successful `arc save`, inspect `arc status --json`. Require a ready projection with no `files`
 or `copies` entries for the edited notes, spec, or task list and no unresolved ARC conflict blocks in those files.
 Report outstanding conditions, finish pending edits, and apply any reported remedies. Recover the intended
 edits from each aside copy before removing it. Resolve conflict blocks in place and remove their markers and any
 resolve-by-hand line. Then repeat the check, save, and status check before removal.
 
-On retry, check the saved disposition and its edits for that exact source list, ID, and version. Finish and save any
-missing edits. For projected state, confirm the projection and edited files meet the same conditions before removal.
+On retry, verify the saved disposition and its edits for that exact source list, ID, and version. Use the same
+acceptance checks before removing the source, and the same save steps for any missing edits.
 
 - For a personal capture, use `arc user inbox-remove --id <id> --expected-version <version>` with the listed values.
 - For an inbound entry, verify its listed ID and version still match, delete that row from the owner's list, and
   persist the edit with `arc save`.
 - A moved entry has already left its source list. When the outcome rewrites a capture in place, make that edit at
   the listed version and save it in place.
+
+If a removal or its save refuses, surface the condition, apply its reported remedy, and verify that removal of the
+same entry is saved before continuing.
 
 On a changed version or a save conflict, refresh the listing and settle the current entry. Re-run both listings
 and require the gate to pass before proceeding.
@@ -113,12 +116,17 @@ Compose the activation inputs (judgment — never fabricated):
 
 - `<type>` — working-branch type per [`branch-format`][branch-format]. The selected branch is `{type}/{name}` when
   creating or renaming it. A linked work branch already checked out with the same type keeps its current name.
-- next action — the post-activation pointer (the next executable step, not this workflow)
+- next action — the next executable step after activation. When an accepted ADR or moved research awaits its first
+  commit, use `activate-work-unit Step 3 — Commit the accepted ADR or research at <paths>` with the approved paths.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before activation unless the operator has already approved this transition and its inputs.
 > Present the unit, proposed branch and type, next action, and the move from Planning to Active, including the branch
 > creation, rename, or reattachment. Await approval to activate.
+
+When there are files to commit, set the meta's `**Next Action:**` to the commit pointer and persist it with
+`arc save` while still in Planning. If saving refuses, surface the condition and apply its reported remedy. Verify
+the saved pointer with `arc view meta` before running activation, and pass that same value as `--action`.
 
 ```bash
 arc activate {name} --type {type} --action "{next action}"
@@ -129,7 +137,9 @@ The verb flips `**State:** Planning → Active`, links the selected work branch 
 names, in one write. `{name}` defaults to the current checkout's WU. Its report names any commits it excluded from the
 WU's task work and the old name's remote branch to delete (Step 4).
 
-If planning left an accepted ADR or moved research, stage those files after activation succeeds.
+When Next Action points to the pending commit, stage the named files after activation succeeds. If a fresh session
+resumes at this pointer with the unit already Active, continue here on the linked work branch. If Git history shows
+the approved commit already landed, continue with Step 4. When there is no planning commit, proceed to Step 4.
 
 > [!CAUTION]
 > `commit-interlock` release — commit the ADR or moved research as `workflowCommit` before pushing or starting
@@ -149,8 +159,12 @@ before pushing. Use the `Branch` value reported by successful activation as `{br
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {branch}`.
 
-Only after the push succeeds, run any remote branch deletion named in the activation report as raw `git`. See
-[Work Organization Strategy § Branching][work-org-branching] for the work branch's role in the WU lifecycle.
+Only after the push succeeds, run any leased remote branch deletion named in the activation report as raw `git`.
+If Git refuses because the lease is stale, report that the old remote tip changed and surface Git's refusal. Fetch
+the old branch with `git fetch origin refs/heads/<old-branch>`, read the new tip with `git rev-parse FETCH_HEAD`, and
+merge that exact tip into the work branch with `git merge --ff --no-edit <new-tip>`. Repeat the routed push. When it
+succeeds, retry the deletion with the lease set to the merged tip. If the old branch is confirmed gone, deletion is
+complete. See [Work Organization Strategy § Branching][work-org-branching] for the work branch's lifecycle.
 
 ### 5) Absorption-source cleanup · `arc-in-git` only
 
@@ -168,7 +182,8 @@ See [DEV-RULES.ARC § Discovered Work Routing][dev-rules-discovered-routing] for
 
 ## Next Step
 
-With activation complete, proceed to task execution:
+With activation complete, replace any pending commit pointer in Next Action with the next task action and save it.
+Proceed to task execution:
 
 **→ [process-task-loop.md](../process-task-loop.md)** — Execute tasks with quality gates.
 

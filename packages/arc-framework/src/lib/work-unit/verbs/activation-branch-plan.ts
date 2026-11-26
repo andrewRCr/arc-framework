@@ -109,7 +109,7 @@ async function oldRemoteDeletion(exec: GitExec, cwd: string, branch: string, tar
   if (tip === null) return undefined;
   const held = await exec("git", ["--no-replace-objects", "merge-base", "--is-ancestor", tip, "HEAD"], { cwd, objectAccess: "local-only" })
     .then(() => true, (error: unknown) => { if (isMissingExit(error)) return false; throw error; });
-  const argv = ["git", "push", "origin", "--delete", branch];
+  const argv = ["git", "push", `--force-with-lease=refs/heads/${branch}:${tip}`, "origin", "--delete", branch];
   return held ? { text: argv.join(" "), argv }
     : { text: `After git merge --ff --no-edit ${tip}, and once ${target} is pushed, ${argv.join(" ")}` };
 }

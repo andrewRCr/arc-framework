@@ -1,7 +1,9 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { expect, it } from "vitest";
 import { InboxResultSchema } from "../../../src/lib/inbox/types.js";
+import { git } from "../../e2e/helpers.js";
+import { useInRepoStore } from "../../helpers/in-repo-store-override.js";
 import { readStoreRecord, seedStore } from "../../helpers/store/seed-store.js";
 import { seedWorkUnit } from "../../helpers/store/seed-work-unit.js";
 import { expectLifecycleResult, lifecycleRepository, LIFECYCLE_IDENTITY, LIFECYCLE_TIMEOUT_MS } from "../../helpers/store-lifecycle-fixture.js";
@@ -97,4 +99,47 @@ it.each(["retained aside edit", "rendered conflict"] as const)("retains the sour
   expect(await stored()).toMatchObject({ content: expect.stringContaining(disposition), conflicts: [] });
   await remove();
   expect(await list()).toMatchObject({ state: "clear", entries: [] });
+}, LIFECYCLE_TIMEOUT_MS);
+
+it("continues capture removal after the reported save remedy records the disposition", async () => {
+  useInRepoStore();
+  const h = await lifecycleRepository();
+  const notes = ".arc/active/notes-example.md";
+  const inbox = ".arc/user/test-user/USER-INBOX.md";
+  const title = "Survey concern";
+  const disposition = `Dismissed personal capture ${title}: the survey already covers this.`;
+  await mkdir(dirname(join(h.repo, notes)), { recursive: true });
+  await mkdir(dirname(join(h.repo, inbox)), { recursive: true });
+  await writeFile(join(h.repo, notes), "# Notes: Example\n");
+  await git(h.repo, ["add", "--", notes]);
+  await git(h.repo, ["commit", "-m", "Create work unit notes"]);
+  await writeFile(join(h.repo, notes), `# Notes: Example\n\n${disposition}\n`);
+  await writeFile(join(h.repo, inbox), `# User Inbox\n\n## Work Unit\n\n### \`[ ]\` **${title}**\n\n- WU_Target: example\n`);
+  const list = async () => {
+    const result = await h.run(["user", "inbox-list", "--target", "example", "--json"]);
+    expect(result.exitCode, result.output).toBe(0);
+    return JSON.parse(result.stdout);
+  };
+  expect(await list()).toMatchObject({ state: "named", entries: [expect.objectContaining({ title })] });
+
+  const saved = await h.run(["save", "--json"]);
+  expect(saved.exitCode, saved.output).toBe(1);
+  expect(JSON.parse(saved.stdout)).toMatchObject({ status: "refused", refusal: { code: "unsupported",
+    condition: expect.stringContaining("storage backend"), remedy: { text: expect.stringContaining("git commit") } } });
+  expect(await git(h.repo, ["show", `HEAD:${notes}`])).not.toContain(disposition);
+  expect(await list()).toMatchObject({ state: "named" });
+
+  const workflow = await readFile(join(h.repo, ".arc/system/workflows/arc/work-unit-lifecycle/activate-work-unit.md"), "utf8");
+  const gate = preconditions(workflow).split("arc user inbox-remove")[0] ?? "";
+  if (/`arc save` refuses,[^.]*\b(?:surface|report)\b[^.]*\bcondition\b[^.]*\bremedy\b[^.]*\bcontinue\b/iu.test(gate)) {
+    await git(h.repo, ["add", "--", notes]);
+    await git(h.repo, ["commit", "-m", "Record capture disposition"]);
+    expect(await git(h.repo, ["show", `HEAD:${notes}`])).toContain(disposition);
+
+    const operand = join(h.repo, "capture-title.txt");
+    await writeFile(operand, `${title}\n`);
+    const removed = await h.run(["user", "inbox-remove", "--inbox-title-file", operand]);
+    expect(removed.exitCode, removed.output).toBe(0);
+  }
+  expect(await list(), "The saved disposition lets the capture gate finish after the remedy").toMatchObject({ state: "clear" });
 }, LIFECYCLE_TIMEOUT_MS);

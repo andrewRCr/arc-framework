@@ -169,7 +169,9 @@ describe("store activation", () => {
   it("reports a typed created-link old remote deletion only after HEAD contains its tip", async () => {
     const h = await harness({ branch: "plan/demo", commits: [local, remote], remoteHead: remote,
       link: { repository: "repo", ref: "plan/demo", linkedAs: "created", excluded: [] } });
-    expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated", remoteDelete: { argv: ["git", "push", "origin", "--delete", "plan/demo"] } });
+    expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated", remoteDelete: {
+      argv: ["git", "push", `--force-with-lease=refs/heads/plan/demo:${remote}`, "origin", "--delete", "plan/demo"],
+    } });
   });
   it("rolls the branch rename back when the version-bound batch refuses", async () => {
     const h = await harness({ branch: "person" });
