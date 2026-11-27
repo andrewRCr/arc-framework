@@ -1677,35 +1677,36 @@ rewritten workflows (§ 9.2).
   matching the outcome written before it, in 53 minutes to the close; Tasks 6.4.b and 6.4.c had passed their parts at
   earlier heads. Store-backed cases 2 to 7 run in Task 6.R3 (A31).
 
-### `[ ]` **6.5 The controlled perturbations — § 9.3**
+### `[x]` **6.5 The controlled perturbations — § 9.3**
 
 - _Goal:_ Each of the six perturbations shows its refusal, a legitimate repair, and a continuation reaching the window's
   end; a normal-path pass discharges none.
 
-- _Approach:_ The perturbations chain on one copy, each repair's continuation taking the window to its next one, and a
-  final run reaching the window's end.
+    - `[x]` **6.5.a An Errand record arriving mid-window, and a diverging copy, at the check before the import**
+        - `check` refused with three findings for the planted Errand and one for the diverging copy; abandoning the
+          Errand and bringing both sides to one tip repaired them, and the second trial matched.
 
-    - `[ ]` **6.5.a An Errand record arriving mid-window, and a diverging copy, at the check before the import**
-        - Perturbations 3 and 4, each refusing at `check`, repaired, and the check passing.
+    - `[x]` **6.5.b A record changed between the import and the merge, in its three runs**
+        - `recompute` refused the branch commit and the personal-file edit, and `last-read` the commit made after the
+          deletion commit; each aborted by `restore`, the deletion commit reverted through its hooks, and the run
+          restarted from the check.
 
-    - `[ ]` **6.5.b A record changed between the import and the merge, in its three runs**
-        - Each run refuses and aborts by § 11's steps: `restore`, and where the run reached the deletion commit, that
-          commit reverted on the copy's flip branch under the override. It then undoes its change and re-runs from the
-          check.
+    - `[x]` **6.5.c A pull request merged into `main` after the import, in its two runs**
+        - `recompute` and then `last-read` refused on the host's `main` tip alone; each aborted, took the merge into
+          the flip's branch, qualified the flip build at the new head, and restarted from the check.
 
-    - `[ ]` **6.5.c A pull request merged into `main` after the import, in its two runs**
-        - The merge is pushed to the copy's mirror. Each run refuses and aborts by § 11's steps, as in Task 6.5.b, takes
-          the merge into the flip's branch with its head fixed again, and re-runs from the check.
+    - `[x]` **6.5.d A store change between preparation and admission**
+        - The fence harness ran 354 cases over a snapshot of the copy's store taken before the archive: 337 refused
+          with nothing published and landed on fresh preparation, 17 were admitted, none threw.
 
-    - `[ ]` **6.5.d A store change between preparation and admission**
-        - The fence harness (Task 2.13) runs over a copy of the flipped copy's store, through its entry that takes a
-          repository path, for each prepared write the window makes.
+    - `[x]` **6.5.e A late change after the merge, with the code-only commit on a branch no checkout holds**
+        - `close` refused over the five late changes, passed their re-application through the store and three
+          confirmed ranges, refused the unrelated branch until it was deleted, and then passed with no window ref.
 
-    - `[ ]` **6.5.e A late change after the merge, with the code-only commit on a branch no checkout holds**
-        - The final run, carried through the window's end, with two branches pushed to the mirror after the check: one
-          cut from `main`'s recorded tip that edits a live work unit's meta, its unrecorded range re-applied and
-          confirmed with the rest, and one that shares no history with `main` and tracks a file under the state paths,
-          its comparison refusing until the branch is deleted (A7).
+- _Outcome:_ Run 14, one copy at `6ce9ca565c`, took all six perturbations and the window to its close with every stage
+  matching the outcome written before it. Run 13, at `2faaba6c9a`, stopped on a stale expectation of the run's own and
+  was resumed, and is recorded as such. No run from 11-26 takes a checkout through the merge-first order, which run 11
+  showed. `notes-cutover-flip.md` § Stage 2 holds each run's record.
 
 ### `[ ]` **6.6 The end-to-end work unit — § 9.5**
 

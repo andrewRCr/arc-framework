@@ -2576,6 +2576,76 @@ merged `main` at or after it. The pre-window list carries, for every live branch
 commit, the reinstall where a checkout's install predates the dependency `main` added (eight of the ten checkouts read
 on 11-25), and the checkout's own build before its window commit.
 
+#### Run 14 (Task 6.5), at `6ce9ca565c`: the six perturbations, clean from the copy to the fence harness
+
+Run unattended on the night of 11-26 from a fresh copy taken at 9:59 pm (49 s, no finding, 14 checkouts), with `main`
+at `1a7c596190`. The head is `f4084a6c49`, at which CI run 45851968466 passed with Windows and macOS, plus one commit of
+planning records. Every stage matched the outcome written before it; nothing stopped and nothing was resumed. The copy
+to the close took 2 h 35 min with the five abort-and-rerun passes, and the fence harness 2 h 36 min after it.
+
+- **Perturbations 3 and 4, the three record changes, and the two merges into `main`:** as run 13, finding for finding:
+  `check` refused with three findings and then with one; `recompute` or `last-read` refused with four, four, one, one
+  and one; each abort restored, both deletion commits (1,068 files) were reverted through their hooks, and the flip
+  build qualified again at each new head.
+- **The flip's landing, the late change, and each branch:** as run 13. The driver's test found no branch able to merge
+  the flipped `main` first, so the twelve held branches and the unheld one all took the deletion step, 1,066 to
+  1,070 files, before any merge (the runbook's amendment of 11-26).
+- **The other checkouts and the close:** the primary and eleven linked checkouts merged, materialized and bound their
+  markers in one pass; `projection-team-scale`'s merge conflicted in six paths outside the five roots and was left to
+  its session; `cutover-tracked-state-removal`'s checkout kept its 68 personal files, reported withheld, until they
+  were copied out. `close` refused over the five late changes, then over the unrelated branch alone, then passed with
+  no window ref.
+- **A store change between preparation and admission:** the same 354 cases as run 13 with the same outcomes (337
+  refusals that published nothing and whose fresh preparation landed, 17 admissions, none thrown), run in six processes
+  of at most 60 cases, a register case taking about 30 s throughout.
+- **Step 7 on this copy, replayed with run 11's scripts:** every gate matched; against run 11's logs only timings, a
+  folder number and store ref counts one higher differ. Both cuts' previews equalled the distribution approved for run
+  11's copy and were applied; terminal batches 7.7 and 7.8 s, the execute halves 8.9 and 8.5 s. Command start again
+  read 42 ms against its 25 ms tripwire.
+
+#### The end-to-end work unit and cases 2 to 7 on run 14's copy (Tasks 6.6 and 6.R3): scenarios, written before they run
+
+Written on 11-27 before either runs, at `6ce9ca565c`, on the copy run 14 left after its close and step 7. One work unit
+with a fresh slug carries both; each command's exit and output are kept as raw evidence beside the run.
+
+**The end-to-end work unit (§ 9.5).** Expected: every step runs as its rewritten workflow's text states and takes no
+pre-flip arm. A refusal the text does not predict, or a command or file the text names that does not exist, is a
+difference.
+
+1. `arc start <slug> --new` from the primary gives a detached checkout at `main` with a bound marker; a draft is
+   captured and saved.
+2. Create-spec writes the spec with an ADR companion; task generation saves a task list; activation creates the branch
+   at base's tip and commits the ADR as the branch's first commit.
+3. A small tracked change is committed, its task closed through the close verb with the commit captured, the state
+   saved, and `arc handoff write` writes.
+4. The Candidate is attested with the review copy exported; pre-publication review runs on the local source, its pass
+   attested from a report written for the rehearsal and labeled a stand-in; `arc publish` publishes.
+5. The deliberate paths: a re-entry carrying the Owner's judgments after a scope refusal, a self-review retry among
+   them; a native re-entry from an imported saved replay grant, where the import carries one (none found on run 11's
+   copy; if none here, said so); a reopen through the `gh` stub and then session-init; a start under an archived unit's
+   slug; and an earlier member's readiness once the representative cut has closed its cohort.
+
+**Cases 2 to 7 (§ 9.10).** Each scenario is the one a scout took on run 11's copy at `c9410c1318`; the expected
+outcome is the one the case states.
+
+- **Case 2.** With a local pass prepared and not yet attested, re-entering pre-publication exits 1 with
+  `review-in-progress`, the operation's ID and its operation reference, and prints the exact request for
+  `arc review local resume -`. That request, submitted unchanged, exits 0 and answers the same pending operation.
+- **Case 3.** With the checkout's projected `active/` directory moved aside, `arc --skip-projection review
+  pre-publication` exits 0 with the same result as before the move; the directory is then put back.
+- **Case 4.** After two complete standard passes, a change to the reviewable head takes the Candidate to a successor
+  whose record supersedes the first. The lane read shows the two inherited producers as passes 1 and 2 and two
+  complete passes; the next pass asks for a ceiling override naming two exhausted passes and pass 3 next.
+- **Case 5.** A granted additional pass is prepared, attested from a stand-in report and reduced. Replaying the same
+  admission answers the same operation as complete, the lane still shows two complete passes, and after the target
+  moves the old grant buys no further pass: the ordinary ceiling stop answers.
+- **Case 6.** After the reopen, `arc publish` refuses while the Candidate's obligations are open; once review
+  rebuilds readiness, `arc publish` publishes carrying the renewed readiness binding, the Candidate's record unchanged
+  across the reads. The reopen's pull request state is stubbed host evidence.
+- **Case 7.** With the spec export's destination replaced by a link to a file outside the checkout, attestation exits
+  1 naming the entry and leaves the link's target untouched; with the link removed, the same attestation writes a
+  regular review copy.
+
 ## The parallel run from 11-24
 
 A draft for the Owner's approval on Tuesday 11-24. The Owner decided at 9:04 pm on 11-20 that the flip runs in parallel
