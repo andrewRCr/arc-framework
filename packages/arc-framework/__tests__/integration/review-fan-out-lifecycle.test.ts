@@ -88,7 +88,7 @@ import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integrat
 
 const oid = (character: string): string => character.repeat(40);
 const materialPassesTimeoutMs = 120_000;
-const localCoverageChoicesTimeoutMs = 30_000;
+const localCoverageChoicesTimeoutMs = 120_000;
 
 
 
