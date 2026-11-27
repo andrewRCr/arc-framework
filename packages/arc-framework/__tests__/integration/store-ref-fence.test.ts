@@ -282,6 +282,28 @@ it("detects a stale close when fresh preparation keeps the same cohort open", as
   });
 });
 
+it("detects a stale first batch even when a second batch closes the cohort", async () => {
+  const f = createReferenceFixture(ENTRY_CONFIGS, registry);
+  const group = await seed(f, cohort("group"), cohortDoc("group").content);
+  const decision = await seed(f, f.reference("personal/document"), "keep open");
+  const placement = { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } as const;
+  const writer: FenceWriter = { name: "cohort closeout", run: async store => {
+    const current = success(await store.read({ reference: group.reference }));
+    const request = success(await store.read({ reference: decision.reference }));
+    const put = recordPut(current, request.content === "close" ? { placement } : {});
+    const first = await store.batch({ writes: [put], provenance: changeProvenance });
+    if (first.status === "refused") return first;
+    const landed = success(await store.read({ reference: group.reference }));
+    if (landed.placement === undefined) {
+      return store.batch({ writes: [recordPut(landed, { placement })], provenance: changeProvenance });
+    }
+    return first;
+  } };
+  await expect(runFenceCase(f.store, writer, store => rewrite(store, decision, () => "close")))
+    .rejects.toThrow();
+  expect(success(await f.store.read({ reference: group.reference })).placement).toMatchObject(placement);
+});
+
 it("runs over a copy of a repository's store, leaving the repository's store unchanged", async () => {
   const f = await createRefFixture(registry);
   f.identity("test-user");
