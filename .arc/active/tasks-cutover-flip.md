@@ -1800,12 +1800,23 @@ rewritten workflows (§ 9.2).
           of the 41 lifecycle cases moved. Twelve lifecycle cases select the in-repo store themselves, six for what
           only the pre-flip build does and six that A36 names; one of the first six is a successor to a performed
           record-only response, which the ref store refuses.
+        - CI at `4029bbd182` then failed twice over: the in-repo conformance suite had relied on the fixture's
+          selection and now selects the in-repo store itself, and five review cases moved onto the ref store exceeded
+          their limits on hosted Linux, where they run two to five times longer, so the two suites' limits rose.
 
     - `[x]` **7.R.b The record and a comment**
         - Three `USER-INBOX` filename sites joined the kept sites in `notes-cutover-flip.md`, and the unit init test's
           comment on the ROADMAP merge driver says what its assertions check.
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ The forced merge gate passed at `982c5fadb4` (22 checks, the four CI-only checks not selected
+  locally). CI passed at that head with the Windows and macOS pair (run 46059886459) and over its post-deletion tree
+  (run 46059892131), each on its first attempt. Five earlier runs failed first; the quality-gates criterion names them.
+- _Success criteria:_ 33 criteria: 27 met, 15 of them with a deviation note, and 6 superseded, four deferred to the
+  window and two replaced by A32 and A33. The change measures 55,463 lines over 933 files, past the chunking marks, so
+  the independent pass ran as seven scoped verifiers and a whole-change pass for the seams, with a reproduction pass
+  over their findings and a fix check of each of Task 7.R's two builder commits.
 
 ---
 
@@ -1819,114 +1830,192 @@ the first below, is attested at the verified head; Stage 2 re-runs at the head �
 where the flip change, the import, or the rewritten workflows changed since (§ 9.2; `notes-cutover-flip.md` § The
 landing after verification).
 
-- `[ ]` Stage 2 passes every § 9.2 step at the flip branch's reviewed head, which the merged head differs from only by
+- `[x]` Stage 2 passes every § 9.2 step at the flip branch's reviewed head, which the merged head differs from only by
   the deletion commit, re-run after any later change to the flip change, the import, or the rewritten workflows; each
   § 9.3 perturbation shows its refusal, repair, and continuation; and the destructive CLI matrix and the
   partial-protection start pass beside it.
 
-- `[ ]` The window completes every § 10 step in order with none aborted, the accounting case placing every tracked file
+  **Deviation:** Run 14 took every § 9.2 step and each § 9.3 perturbation at `6ce9ca565c`, deleting tracked state on
+  each branch before its merge, the order the runbook has named since its 11-26 amendment; the merge-first refusal and
+  the first materialization after it are run 11's. § 9.5's cohort close was read as the representative cut landing, and
+  the forced merge gate was not observed on the copy (both accepted 11-27). The commits since are test changes, time
+  limits and the commit validator's task-list lookup. The matrix and the partial-protection start passed in CI over the
+  post-deletion tree (run 46059892131).
+
+- `[~]` The window completes every § 10 step in order with none aborted, the accounting case placing every tracked file
   under a projected root and the chain comparison agreeing for every Candidate record, as the window tooling's close
   shows (§ 10.7).
 
-- `[ ]` After the merge, a command run in any checkout without the override opens the ref backend, Stage 2's end-to-end
+  **Superseded:** Deferred to the window by the decision this section opens with; the window tooling's close proves it
+  (§ 10.7).
+
+- `[x]` After the merge, a command run in any checkout without the override opens the ref backend, Stage 2's end-to-end
   run takes no pre-flip arm, and the flip build refuses over a tree that still tracks ARC state, both before the import
   and after it.
 
-- `[ ]` The post-deletion tree tracks no file under `.arc/active/`, `.arc/backlog/`, `.arc/completed/`,
+  **Deviation:** Seen on Stage 2's copy after its merge, and in the factory's refusal before and after the import.
+  Session start still probes Git notes through the slots A19 leaves to `cutover-notes-removal`.
+
+- `[x]` The post-deletion tree tracks no file under `.arc/active/`, `.arc/backlog/`, `.arc/completed/`,
   `.arc/system/.internal/candidates/`, or `.arc/system/.internal/transitions/`, and neither `arc init` nor `arc update`
   writes a file into a projected root.
 
-- `[ ]` Each § 4 store path behaves as stated, each with a test: sync's state-first legs, the capture gates' `arc inbox`
+- `[x]` Each § 4 store path behaves as stated, each with a test: sync's state-first legs, the capture gates' `arc inbox`
   reads, the rename source's refusal, base drift from stored records, the archive's two fields, checkpoint records by
   UID, `arc init`'s designation and project ID, the Errand branch's suffix, `arc store` in help, and the cohort record's
   member-section refusal.
 
-- `[ ]` Every in-repo refusal of a verb the rewritten text names gives its pre-flip step concretely (§ 3.1).
+  **Deviation:** Each named path has its test. Left as captured: sync exits non-zero when the code worktree's inspection
+  fetch fails after its state legs landed; and, as named residuals (A35), merge's `invalidated` for a checkpoint after a
+  store-only rename, the rename source's two reads of its ref, and the capture gates' read for a work unit named
+  `personal` or `project`.
 
-- `[ ]` Every site in § 8's site list is rewritten in the package source and synced, and the closure search over the
+- `[x]` Every in-repo refusal of a verb the rewritten text names gives its pre-flip step concretely (§ 3.1).
+
+  **Deviation:** The remedies for a move and for `arc errand queue set` name their step incompletely. They run only
+  where the in-repo store does, this checkout until the merge, and `cutover-in-repo-removal` deletes them (accepted
+  11-27).
+
+- `[x]` Every site in § 8's site list is rewritten in the package source and synced, and the closure search over the
   shipped text finds only the sites recorded as kept.
 
-- `[ ]` Each § 7 entry is changed, and CI passes over the post-deletion tree.
+  **Deviation:** Three `USER-INBOX` filename sites were recorded as kept at verification (A34). The capture gates'
+  wording for a work unit named `personal` or `project`, and two gates' silence on an inbound entry's removal, are named
+  residuals (A35).
 
-- `[ ]` The fence harness passes on the ref and reference backends for the take-in, the archive, and the register
+- `[x]` Each § 7 entry is changed, and CI passes over the post-deletion tree.
+
+  **Deviation:** Task 7.R changed the test entries verification found unchanged (A34); six review lifecycle cases on
+  behavior both stores share stay on the in-repo store (A36). CI run 46059892131 passed over the post-deletion tree of
+  `982c5fadb4`.
+
+- `[x]` The fence harness passes on the ref and reference backends for the take-in, the archive, and the register
   closures.
 
-- `[ ]` Each § 17.1 row closes through the store after the merge with its witness named, and each § 17.2 row stays open
+  **Deviation:** The harness passes on both backends for the three. It has no case for an archive whose slug a second
+  live UID took between its preparation and its admission, a named residual (A35) and the first Errand after the window.
+
+- `[~]` Each § 17.1 row closes through the store after the merge with its witness named, and each § 17.2 row stays open
   naming its remaining share, through the register closures the flip's checkout writes (§ 10.5).
 
-- `[ ]` No notes ref remains on `origin`, the importing machine's old ref survives only outside `refs/tags/` and
+  **Superseded:** Deferred to the window by the decision this section opens with; the register closures the flip's
+  checkout writes after the merge prove it (§ 10.5).
+
+- `[~]` No notes ref remains on `origin`, the importing machine's old ref survives only outside `refs/tags/` and
   unpushed, and every `arc user` notes writer refuses (§ 12).
 
-- `[ ]` ADR-035 carries the dated amendments for items 2 and 8.
+  **Superseded:** Deferred to the window by the decision this section opens with; notes retirement proves it (§ 12). On
+  the flip build every `arc user` notes writer already refuses.
 
-- `[ ]` The first Errand and the first work unit after the window each land through the hosted steps it exists to test
+- `[x]` ADR-035 carries the dated amendments for items 2 and 8.
+
+- `[~]` The first Errand and the first work unit after the window each land through the hosted steps it exists to test
   (§ 9.11).
 
-- `[ ]` `activate-work-unit.md` records each capture its gate rejects or dismisses, with its reason, in the work unit's
+  **Superseded:** Deferred to the window by the decision this section opens with; the canaries' landings prove it (§
+  9.11).
+
+- `[x]` `activate-work-unit.md` records each capture its gate rejects or dismisses, with its reason, in the work unit's
   notes companion (A4).
 
-- `[ ]` `verify-work-unit.md` keeps the work unit's notes companion, consolidating it where it is not reference-ready,
+- `[x]` `verify-work-unit.md` keeps the work unit's notes companion, consolidating it where it is not reference-ready,
   and no shipped step deletes it (A5).
 
-- `[ ]` Stage 2 shows a state-bearing branch made after the check compared, its unrecorded range re-applied and
+- `[x]` Stage 2 shows a state-bearing branch made after the check compared, its unrecorded range re-applied and
   confirmed through the window tooling's `confirm` before the close passes, and one sharing no history with `main`
   refused until deleted (A7).
 
-- `[ ]` After the switch, a write a command lands through `createStore` reaches the other projected checkouts through
+- `[x]` After the switch, a write a command lands through `createStore` reaches the other projected checkouts through
   the projection's fan-out (A9).
 
-- `[ ]` No test setup or spawn helper sets the in-repo override by default, a test guarding it: in process and spawned,
+  **Deviation:** A write made after its writer's checkout is removed reaches the surviving checkouts at their next
+  command, a named residual (A35).
+
+- `[x]` No test setup or spawn helper sets the in-repo override by default, a test guarding it: in process and spawned,
   a test reaches the ref backend unless its subject is the in-repo arm or an operation that runs only on `main`'s
   pre-flip build, and it selects the in-repo implementation itself (A12).
 
-- `[ ]` On the flip build each `arc user` notes writer the sealing guard refuses states that Git notes are retired and
+  **Deviation:** The guard test holds, and no setup or spawn helper sets the override by default. Twelve review
+  lifecycle cases select the in-repo store themselves: six for what only the pre-flip build does, and six whose subject
+  both stores share, a named residual (A36). The override helper cannot isolate concurrent tests, which no file using it
+  runs (captured).
+
+- `[x]` On the flip build each `arc user` notes writer the sealing guard refuses states that Git notes are retired and
   names the store step that replaces it, never a rebuild (A14).
 
-- `[ ]` On the store, session-init for an identity with no claim records offers the orphan sweep's cleanup for a branch
+- `[x]` On the store, session-init for an identity with no claim records offers the orphan sweep's cleanup for a branch
   whose upstream is gone, while a failed claims read, a listing that missed entries, or one carrying diagnostics still
   declines the sweep (A15).
 
-- `[ ]` On the store, a gone-upstream branch no record links draws no orphan-sweep offer and leaves the sweep's other
+- `[x]` On the store, a gone-upstream branch no record links draws no orphan-sweep offer and leaves the sweep's other
   offers in place, while any other refused lookup or read, or a conflicting or ambiguous link, still declines the sweep
   (A16).
 
-- `[ ]` On the store, `arc status --session-init` in a linked worktree whose shared Git directory is read-only runs with
+  **Deviation:** The sweep offers a teardown by UID when the slug lookup refuses terminally, a named residual (A35).
+
+- `[x]` On the store, `arc status --session-init` in a linked worktree whose shared Git directory is read-only runs with
   projection disabled, reporting the skip, and returns the same code-repository values as an unrestricted run (A17).
 
-- `[ ]` On the store under full protection, `arc errand open` opens a fresh Errand, for a new slug and over a completed
+- `[~]` On the store under full protection, `arc errand open` opens a fresh Errand, for a new slug and over a completed
   generation, its description, record, and any adopted capture's receipt naming one UID, while a write naming a UID no
   owner holds without creating that owner's record is refused (A18).
 
-- `[ ]` On the store, `arc teardown` refuses a linked checkout holding the retiring branch ARC created without an ARC
+  **Superseded:** A32 replaces it with the criterion below that admits a `lineage/` write.
+
+- `[~]` On the store, `arc teardown` refuses a linked checkout holding the retiring branch ARC created without an ARC
   ownership marker, leaving it branched and unchanged, and a self-teardown under `arc.selfTeardownMode: remove` removes
   its checkout and reaps the branch (A20).
 
-- `[ ]` On the store, a command that removes the checkout it runs in completes its remaining store reads and writes:
+  **Superseded:** A33 replaces it with the criterion below that names the Windows husk.
+
+- `[x]` On the store, a command that removes the checkout it runs in completes its remaining store reads and writes:
   `arc abandon` and `arc errand abandon`, run from the checkout they remove, retire their record and reap the branch
   they created (A21).
 
-- `[ ]` On the store, a rename run from the checkout ARC spawned for the work unit defers moving that checkout and
+- `[x]` On the store, a rename run from the checkout ARC spawned for the work unit defers moving that checkout and
   names the move and the replay that settles it, and once the move has landed a replay of the rename clears the
   checkout's pending move (A22).
 
-- `[ ]` On the store, `arc active status` in the checkout bound to its work unit under the nested layout reports the
+- `[x]` On the store, `arc active status` in the checkout bound to its work unit under the nested layout reports the
   Candidate ID and integration boundary the store holds, and session-init resolves that work unit's session type (A23).
 
-- `[ ]` On the store, a command whose projection start cannot update Git's `info/exclude` runs with its projection
+  **Deviation:** `arc active status --json` reports both; the plain rendering prints neither, as before the flip
+  (accepted 11-27).
+
+- `[x]` On the store, a command whose projection start cannot update Git's `info/exclude` runs with its projection
   refused, naming the file and its repair, and projects once the file is repaired (A25).
 
-- `[ ]` In a synthetic repository whose work unit the pre-flip build started in place on a work branch and imported, the
+  **Deviation:** A start that times out on the exclude lock names the file's repair where the lock path is what is
+  obstructed, a named residual (A35).
+
+- `[x]` In a synthetic repository whose work unit the pre-flip build started in place on a work branch and imported, the
   flip build's session start offers `arc materialize <slug> --here`, and that command writes an anchored marker carrying
   the work unit's UID (A27).
 
-- `[ ]` On the store under full protection, `arc errand open` opens a fresh Errand, for a new slug and over a completed
+- `[x]` On the store under full protection, `arc errand open` opens a fresh Errand, for a new slug and over a completed
   generation, its description, record, and any adopted capture's receipt naming one UID, while a write of any kind but
   `lineage/` naming a UID no owner holds without creating that owner's record is refused (A32).
 
-- `[ ]` On the store, `arc teardown` refuses a linked checkout holding the retiring branch ARC created without an ARC
+  **Deviation:** `arc errand open` refuses a slug two completed Errands hold, or a completed work unit holds, a named
+  residual (A35).
+
+- `[x]` On the store, `arc teardown` refuses a linked checkout holding the retiring branch ARC created without an ARC
   ownership marker, leaving it branched and unchanged, and a self-teardown under `arc.selfTeardownMode: remove` reaps
   the branch and removes its checkout, or on Windows leaves it a detached, stamped husk with a notice (A33).
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+  **Deviation:** The forced merge gate passed at `982c5fadb4` (22 checks, the four CI-only checks not selected locally),
+  and CI passed there with the Windows and macOS pair (run 46059886459) and over its post-deletion tree (run
+  46059892131). Three earlier runs failed first: 46029530780 at `604b179f52` on Windows, in two cases of
+  `refresh-path-reuse.test.ts` the flip does not change, passing on its rerun; and 46050026989 and 46050034915 at
+  `4029bbd182`, where an in-repo conformance suite had lost its store selection and five review cases moved onto the ref
+  store exceeded their limits; and 46055399890 and 46055408125 at `18537d88fc`, where one of the five kept its own 30
+  second limit. Task 7.R's commits corrected each. Beside them failed one Linux end-to-end case and three Windows cases
+  in files Task 7.R left alone, each passing on its rerun (each accepted 11-27; those cases and the slow review cases
+  are captured).
+
+- `[x]` Ready for integration
+
+  **Deviation:** Four criteria wait on the window, as this section's opening note records; the head is fixed, and Stage
+  2 re-run where § 9.2 requires, by the landing after verification.

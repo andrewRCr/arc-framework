@@ -1,5 +1,51 @@
 # Notes: Cutover Flip
 
+## Contents
+
+- **Planning and landing:**
+    - [Task generation](#task-generation)
+    - [When the flip lands](#when-the-flip-lands)
+    - [The switch's increment](#the-switchs-increment)
+    - [The flip's checkout](#the-flips-checkout)
+    - [The landing after verification](#the-landing-after-verification)
+- **Inventories:**
+    - [Undesignated remotes in tests](#undesignated-remotes-in-tests)
+    - [Test callers](#test-callers)
+    - [Pre-flip steps](#pre-flip-steps)
+    - [Routing from the flip](#routing-from-the-flip)
+    - [Errand branch readers](#errand-branch-readers)
+    - [Fence read families](#fence-read-families)
+    - [Site inventory](#site-inventory)
+    - [Kept sites](#kept-sites)
+- **Amendments, by row:**
+    - [A2 — the task review's starting plan](#a2--the-task-reviews-starting-plan)
+    - [A4 — activation's capture record](#a4--activations-capture-record)
+    - [A5 — verification keeps the notes companion](#a5--verification-keeps-the-notes-companion)
+    - [A7 — branches made after the check, and `confirm`](#a7--branches-made-after-the-check-and-confirm)
+    - [A8 — the restore's auto-merge remedy](#a8--the-restores-auto-merge-remedy)
+    - [A9 — the switch keeps the fan-out decoration](#a9--the-switch-keeps-the-fan-out-decoration)
+    - [A10 — the npm policy file's untracked copy](#a10--the-npm-policy-files-untracked-copy)
+    - [A12 — the switch's ledger](#a12--the-switchs-ledger)
+    - [A13 — the retired-subdirectory slot](#a13--the-retired-subdirectory-slot)
+    - [A15 — the orphan sweep's absent claims](#a15--the-orphan-sweeps-absent-claims)
+    - [A16 — the orphan sweep's unlinked branches](#a16--the-orphan-sweeps-unlinked-branches)
+    - [A17 — projection over read-only Git metadata](#a17--projection-over-read-only-git-metadata)
+    - [A18 — a fresh Errand's UID under full protection](#a18--a-fresh-errands-uid-under-full-protection)
+    - [A19 — the notes-related session-init slots](#a19--the-notes-related-session-init-slots)
+    - [A20 — store teardown's markerless holder and removing self-teardown](#a20--store-teardowns-markerless-holder-and-removing-self-teardown)
+    - [A21 — the store outlives the checkout it opened in](#a21--the-store-outlives-the-checkout-it-opened-in)
+    - [A22 — a store rename's deferred move](#a22--a-store-renames-deferred-move)
+    - [A23 — active status and a bound checkout's Candidate](#a23--active-status-and-a-bound-checkouts-candidate)
+    - [A24 — the Markdown fix's fixture and its identity](#a24--the-markdown-fixs-fixture-and-its-identity)
+    - [A25 — a projection start that cannot update Git's exclude](#a25--a-projection-start-that-cannot-update-gits-exclude)
+    - [A27 — the in-place checkout's carry](#a27--the-in-place-checkouts-carry)
+    - [A32 — a lineage write for a UID no owner holds](#a32--a-lineage-write-for-a-uid-no-owner-holds)
+    - [A33 — a removing self-teardown on Windows](#a33--a-removing-self-teardown-on-windows)
+- **The rehearsal:**
+    - [Stage 2](#stage-2)
+- **How the work ran:**
+    - [The parallel run from 11-24](#the-parallel-run-from-11-24)
+
 ## Task generation
 
 - Generate the whole task list at once, starting when `projection-worktrees` reaches its verification phase, with no
@@ -81,7 +127,7 @@ tip and the store archives it only after the merge (§ 10.5). After Task 7.1, in
    method, and Stage 2 re-run there where the flip change, the import, or the rewritten workflows changed since
    Task 6.8 (§ 9.2).
 5. Every other § 10.1 precondition holds before the quiesce, the pre-import tidy worked from the import's trial among
-   them, since no tool enforces it and publication cannot be undone (§ Security and privacy).
+   them, since no tool enforces it and publication cannot be undone (the spec's § Security and privacy).
 6. The window, § 10.2 to § 10.7 and notes retirement (§ 12), its aborts by § 11.
 7. Each criterion verification deferred is marked when the step that proves it passes: the window's completion at the
    close (§ 10.7), the register rows at the closures (§ 10.5), the notes refs at notes retirement (§ 12), and the
@@ -104,7 +150,11 @@ that pushes or archives designates the remote (`arc store remote origin push`) o
 
 ## Test callers
 
-The search § 7.7 asks for, at `a7c65b4239`. Task 1.4 and Task 3.6 record each file's classification here as they run.
+The search § 7.7 asks for, at `a7c65b4239`, and each test file's classification as Task 1.4 to Task 3.6 recorded it. Four
+parts follow in the order the work took them: the callers by how they reach the store; the direct callers and handler
+entry points (Task 1.4); the spawned tests (Task 1.5); and the switch's ledger, moved by group (Task 3.R) and then by
+family of spawned tests (Task 3.4), each group naming the product defects it exposed and the amendment that settled
+them.
 
 - **Spawned outside the spawn helpers, composing the default store:** `integration/validate-cohort-consistency.test.ts`,
   which runs `validate-cohort-consistency.ts` through `tsx` over a fixture that is not a Git repository; of the four
@@ -594,7 +644,7 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       no claim records as in any fresh checkout, as incomplete, and `integration/orphan-store-branches.test.ts` asserts
       it. `spec-seam-locus.md` A20 makes absence an empty inventory for Errand terminal and merge admission alone, so
       the sweep keeps its "not complete declines" text; its remedy names no step a person can take, and it offers no
-      cleanup until a claim exists. The goldens lock today's behavior; the routing is the Owner's. Settled by A15.
+      cleanup until a claim exists. The goldens lock the current behavior; the routing is the Owner's. Settled by A15.
     - _Session initialization and recovery, as moved (Task 3.4.a.3):_ the file spawns through `e2e/store-default.ts`
       over two templates, one initialized on the store and one under the override for an in-repo block
       (`useInRepoStoreForEach`) holding the valid v3 Errand identity, the all-heads original, and the omitted-blob husk.
@@ -1290,7 +1340,7 @@ The inventory Task 1.6 took at `b8aa33d239`, which Task 5.12 re-runs over the ve
 verbs the rewritten text names (§ 3.1, § 8) were run through the built CLI over the in-repo implementation, except
 where the last two items below say otherwise. Each one that refuses `unsupported` names, in its remedy, the step below,
 from one source, `lib/store/pre-flip-steps.ts`, so every site refusing a verb names the same step. The step is the one
-today's text takes:
+the pre-flip text takes:
 
 - **`arc task close` and `arc task defer`:** mark the task `[x]` or `[~]` by hand and commit the mark, staged with the
   task's own commit when that is still to come. From `process-task-loop.md` § Completion protocol and `DEV-RULES.ARC`
@@ -2096,6 +2146,10 @@ on the importing machine, outside the repository and uncited; each conclusion na
 
 ### The runbook
 
+What holds for every run comes first (the places, the override, the tooling, memory, the builds, commits, hook checks,
+and stops), then the seven steps in order: the preparation on the copy, the quiesce, the designation and the import, the
+flip's own landing, each branch and checkout, notes retirement and the close, and the flipped copy's paths.
+
 - **Places.** `<copy>` is an absent directory in that evidence folder, outside every checkout. `copy` names the copied
   primary `<P>`, the copied flip checkout `<F>`, and the mirror `<copy>/mirror.git`. `<scratch>` is a clone of the
   mirror with no hooks.
@@ -2259,7 +2313,12 @@ records every step's time here, which sizes that day.
 
 ### Run conclusions
 
-#### The import side (Task 6.4.b), at `bb54d166ab`
+One entry for each run or check, oldest first, each naming the flip head it ran at. Runs 4 and 5 stopped, and run 13
+stopped and resumed; run 7 took steps 1 to 6 as written; run 11 added the live state's own quiesce steps and step 7; run
+14 is the clean run with all six perturbations, and the end-to-end work unit, cases 2 to 7, and the segment's exit
+criterion rest on its copy.
+
+#### The import side, at `bb54d166ab`
 
 Run on 11-24 over a copy of the live repository taken that morning: `main` at `cedb6f49e1`, 15 checkouts, 6.7 GB, copied
 in 44 seconds. Every step's outcome matched the one written before it.
@@ -2276,7 +2335,7 @@ in 44 seconds. Every step's outcome matched the one written before it.
   completed unit's task list cannot be scanned, which the import adds after deciding it is not blocked. `check` passed
   in 117 s and wrote the hold.
 - **Six broken Candidate chains.** The trial and the import both list six, in completed units: an entry `treatment`
-  outside today's enumeration in `decompose-extraction`, `delivery-native-stack-composition`,
+  outside the current enumeration in `decompose-extraction`, `delivery-native-stack-composition`,
   `integration-boundary-accuracy`, `plan-segmentation`, and `test-suite-right-sizing`, and a superseded Candidate absent
   from reachable history in `evidence-applicability`. Stage 1's report lists the same six. They do not block the import,
   and `chain` passed over them. The window's driver should expect them in the trial's report.
@@ -2298,7 +2357,7 @@ in 44 seconds. Every step's outcome matched the one written before it.
   `adoption-read-back-baseline` closes or is abandoned. The copied primary's review-gate folder held 379 records naming
   paths under the live repository, cleared at step 6.4.
 
-#### The in-place checkout's carry (Task 6.R), at `4738eea1e3`
+#### The in-place checkout's carry, at `4738eea1e3`
 
 Run on 11-24 in a synthetic repository with a bare remote, the pre-flip build being the Stage 2 copy's primary (`main`
 at `aeacd22686`) and the flip build the flip checkout's own. The carry holds (A27).
@@ -2319,7 +2378,7 @@ at `aeacd22686`) and the flip build the flip checkout's own. The carry holds (A2
   installed cannot run the installed pre-commit hook, and on a `--pm-mode none` install that hook's link check reports
   21 broken links among the installed strategies and workflows.
 
-#### Runs 4 and 5 (Tasks 6.4.c and 6.4.d), at `0fea09892a`: two stops, and what the stopped copies showed
+#### Runs 4 and 5, at `0fea09892a`: two stops, and what the stopped copies showed
 
 Runs 4 and 5 on 11-24 passed steps 1 to 3 as written, then stopped under the Stops rule. Neither is the stage's clean run;
 the next one takes a fresh copy at the head that holds the fixes below.
@@ -2371,7 +2430,7 @@ The status and view arms ran on the flipped primary with exit 0: `status`, `stat
 <slug>`, `status --json`, and `view` for the inbox, working memory, a cohort, a meta and an archived unit's task list.
 The copy holds no slug clash, so that arm needs one made.
 
-#### Run 7 (Tasks 6.4.c and 6.4.d), at `677549c2f8`: steps 1 to 6 as written
+#### Run 7, at `677549c2f8`: steps 1 to 6 as written
 
 Run on 11-24 from a fresh copy taken at 2:55 pm, with `main` at `270bcf15e8` and the stand-in for its pre-window change
 planted (A28). Every step from the copy to the close matched the outcome written before it, in 54 minutes; the window's
@@ -2397,13 +2456,14 @@ own part, from the lock to the close, took 46.
 
 One runbook item has no evidence in this run: a checkout that merges `main` and rebuilds while still tracking its
 records. The driver took every branch deletion-first and designated none, so the refusal, the remedy's deletion commit
-with the projection off, and that checkout's first materialization remain to be run. Step 7 runs on this run's copy.
+with the projection off, and that checkout's first materialization remained to be run; run 11 took them, and step 7 ran
+on run 11's copy.
 
 For the day: the primary's identity root keeps its pre-flip `STATUS.USER.md`, which no step removes; a session that
 makes a checkout with a plain `git worktree add` must run `npm run prepare` before committing there; and
 `projection-team-scale` will meet the same five conflicts when it merges the flipped `main`.
 
-#### Run 11 (Task 6.4.d), at `c9410c1318`: the live state's own quiesce steps, and a checkout that merged first
+#### Run 11, at `c9410c1318`: the live state's own quiesce steps, and a checkout that merged first
 
 Run on 11-25 from a fresh copy taken at 6:55 am, with `main` at `855b111238` carrying its own pre-window change, so
 nothing was planted. Every step from the copy to the close matched the outcome written before it, in 53 minutes; from
@@ -2444,7 +2504,7 @@ For the day: deletion-first stays the order every session takes, since ten of th
 record conflict merging the flipped `main` first; and an Errand under review at the cutoff leaves a detached checkout
 its session removes before `check`.
 
-#### Step 7 on run 11's copy (Task 6.4.e), at `c9410c1318`: the flipped copy's paths
+#### Step 7 on run 11's copy, at `c9410c1318`: the flipped copy's paths
 
 Run on 11-25 on run 11's copy after its close, each outcome written before its step and each matching.
 
@@ -2517,7 +2577,7 @@ runs. The end-to-end suite states the same boundary: its authoring, entry, close
 over the in-repo store. Native delivery therefore starts again with `delivery-rebuild-continuity`, as § 2.3 and § 4.3
 leave it, and no stacked delivery can be authored between the window and that unit's landing.
 
-#### Run 13 (Task 6.5), at `2faaba6c9a`: the six perturbations, a stop on the run's own expectation, and a resumed close
+#### Run 13, at `2faaba6c9a`: the six perturbations, a stop on the run's own expectation, and a resumed close
 
 Run unattended on the night of 11-25 from a fresh copy taken at 10:24 pm (46 s, no finding, 14 checkouts), with `main`
 at `1a7c596190`; CI run 45730208380 had passed at this head, Windows and macOS included. Every stage through the flip's
@@ -2585,7 +2645,7 @@ Since run 11, at this head: the tracked-state refusal names the store's import a
 rooted at the repository's top level, and the archive's store commit carries an `Arc-Archive-Inventory: required`
 trailer, which scopes the complete-inventory rule to archive writes.
 
-#### CI over the post-deletion tree (Task 6.7), at `f4084a6c49`
+#### CI over the post-deletion tree, at `f4084a6c49`
 
 The deletion commit `71430fa370` removes the 1,068 files under the five state paths from the flip's head `f4084a6c49`
 and nothing else; its tree is `b49e8772b4`. It was built with a temporary index and `git commit-tree`, the checkout's
@@ -2606,14 +2666,14 @@ runs beside heavier neighbours (255 to 275 s for its six cases, three timeouts i
 fourteen on the flip branch's layout). `main` takes that layout after the window, so the suite's limit for those cases
 is now 120 s (`26a5f0e27e`, decided 11-27); in the passing run the slowest case took 61 s.
 
-#### The pre-window change on `main` (Task 6.R2.b), confirmed 11-26
+#### The pre-window change on `main`, confirmed 11-26
 
 `main` holds the change since #1406 (`855b111238`, 11-24), and each of the twelve live branches a checkout holds has
 merged `main` at or after it. The pre-window list carries, for every live branch, the merge of `main` at or after that
 commit, the reinstall where a checkout's install predates the dependency `main` added (eight of the ten checkouts read
 on 11-25), and the checkout's own build before its window commit.
 
-#### Run 14 (Task 6.5), at `6ce9ca565c`: the six perturbations, clean from the copy to the fence harness
+#### Run 14, at `6ce9ca565c`: the six perturbations, clean from the copy to the fence harness
 
 Run unattended on the night of 11-26 from a fresh copy taken at 9:59 pm (49 s, no finding, 14 checkouts), with `main`
 at `1a7c596190`. The head is `f4084a6c49`, at which CI run 45851968466 passed with Windows and macOS, plus one commit of
@@ -2640,7 +2700,7 @@ to the close took 2 h 35 min with the five abort-and-rerun passes, and the fence
   11's copy and were applied; terminal batches 7.7 and 7.8 s, the execute halves 8.9 and 8.5 s. Command start again
   read 42 ms against its 25 ms tripwire.
 
-#### The end-to-end work unit and cases 2 to 7 on run 14's copy (Tasks 6.6 and 6.R3): scenarios, written before they run
+#### The end-to-end work unit and cases 2 to 7 on run 14's copy: scenarios, written before the run
 
 Written on 11-27 before either runs, at `6ce9ca565c`, on the copy run 14 left after its close and step 7. One work unit
 with a fresh slug carries both; each command's exit and output are kept as raw evidence beside the run.
@@ -2683,7 +2743,7 @@ outcome is the one the case states.
   1 naming the entry and leaves the link's target untouched; with the link removed, the same attestation writes a
   regular review copy.
 
-#### The end-to-end work unit and cases 2 to 7 on run 14's copy (Tasks 6.6 and 6.R3), at `3402739c54`: what ran
+#### The end-to-end work unit and cases 2 to 7 on run 14's copy, at `3402739c54`: what ran
 
 Run on 11-27 after the close and step 7, against the scenarios above. Three fresh work units carried it, driven by two
 delegated passes and one command run by hand; every command's output is kept beside the run.
@@ -2726,7 +2786,7 @@ delegated passes and one command run by hand; every command's output is kept bes
 - **Tripwires.** Command start read 42 to 47 ms against 25 ms in every checkout, and fan-out 1.7 s in a new checkout
   and 10.8 s in the primary against 750 ms, the copy by then holding 25 checkouts.
 
-#### The exit criterion at `26a5f0e27e` (Task 6.8)
+#### The exit criterion at `26a5f0e27e`
 
 Read on 11-27 against Phase 6's exit criterion, at the branch's code head `26a5f0e27e`.
 
@@ -2746,8 +2806,9 @@ Read on 11-27 against Phase 6's exit criterion, at the branch's code head `26a5f
 
 ## The parallel run from 11-24
 
-A draft for the Owner's approval on Tuesday 11-24. The Owner decided at 9:04 pm on 11-20 that the flip runs in parallel
-from that day, driven by the session that takes the work unit over, which keeps the review lane.
+How the flip ran in parallel from 11-24. The Owner decided at 9:04 pm on 11-20 that it would, driven by the session that
+took the work unit over, which kept the review lane; the approvals came as each part started, the builds on 11-24 and
+the review pilot and sweep on 11-25.
 
 - **Delegated builds, each run by the Owner's go-ahead by name:**
     - 4.2.a–c, the help text and the tests that pin it;
@@ -2771,12 +2832,11 @@ from that day, driven by the session that takes the work unit over, which keeps 
   `runs/cutover-flip/`: a clone, never a worktree, so the builder's Git writes stay in the clone. The registry's `build`
   recipe names no clone and sets no sandbox flag, and under the host's Codex profile a builder can write the Git data of
   the repository its `-C` names. So `-C` names the clone, never this checkout, and the recipe is read again at each
-  launch. The builder runs lint and its focused tests in the clone and returns one commit. The first run confirms
-  whether arc-offload places runs from a clone; otherwise those runs move to after the apply. I apply the commit here
-  uncommitted and review its diff against the task and spec. I run `arc check increment` and the related tests, write
-  the completion note, and commit at the task's own gate; the clone goes then. This session remains the only writer
-  here, applying one change at a time. The tasks touch disjoint files: `cli.ts` and the help modules, `commands/user/`,
-  and new end-to-end files.
+  launch. The builder runs lint and its focused tests in the clone and returns one commit; a run arc-offload does not
+  place from a clone moves to after the apply. I apply the commit here uncommitted and review its diff against the task
+  and spec. I run `arc check increment` and the related tests, write the completion note, and commit at the task's own
+  gate; the clone goes then. This session remains the only writer here, applying one change at a time. The tasks touch
+  disjoint files: `cli.ts` and the help modules, `commands/user/`, and new end-to-end files.
 - **Kept:**
     - the rehearsal chain: 6.4 on a fresh full copy, then 6.5's perturbation runs on one copy, each run through
       `memcap_gated` one capped run at a time, with the delegated tasks reviewed between runs;
@@ -2791,9 +2851,9 @@ from that day, driven by the session that takes the work unit over, which keeps 
       `--which fix-check` Sol at xhigh for fix checks.
     - Each run's `-C` names its clone and its `-o` the result file, a new path for every run: the wrapper refuses a
       report that already exists, and sets `--json` and `-o` itself. It adds `--ephemeral --output-schema <result
-      schema>`, untested with the wrapper until the pilot confirms it, and `--max` sized from the pilot's wall time,
-      since the wrapper stops a run after an hour by default. The schema is the `result` part of `arc review local
-      attest --schema`.
+      schema>` and `--max` sized from the pilot's wall time, since the wrapper stops a run after an hour by default.
+      The schema is the `result` part of `arc review local attest --schema` with every property required and each
+      optional one nullable: `--output-schema` runs in strict mode and refused the schema as printed.
     - The brief goes in as the prompt argument, since the wrapper closes stdin. It carries `standard-review/v1` and no
       other rubric, the chunk's exact scope, the target head, and raw results, as CI run IDs and logs. It carries no
       reading of those results and none of the author's conclusions, suspected weak spots, or fixes. The relevant checks
@@ -2813,31 +2873,15 @@ from that day, driven by the session that takes the work unit over, which keeps 
     - `evaluatorIdentity` names Codex CLI 0.171.0 and the exact model, as the run's events report it, checked against
       the registry's answer.
     - One chunk runs end to end as a pilot, prepared, reviewed, and attested, before the rest launch.
-- **The reviewer model.** The Owner treats this work unit as highly sensitive (11-21 11:50 am), and the registry carries
-  that as `--level high`: its chunk and seam reviewers and verification's companion run on Astra at xhigh, and its fix
-  checks on Sol at xhigh.
-    - The pilot chunk runs first. Its burn, projected across the chunks and seam reviewers, goes to the Owner before the
-      rest launch.
+- **The pilot.** One chunk ran first, on 11-25 at `d6065b2448` (389 s, seven findings), and its burn, projected across
+  the chunks, went to the Owner before the rest launched. The sweep that followed ran 37 chunk reviewers, unattested.
 - **The burn record:**
-    - Tokens per reviewer process come from the events file `codex-run` writes beside each report, if they carry token
-      counts, which the pilot confirms. They are kept with the flip's evidence.
-    - The Owner reads the weekly percentage from Codex's status line, which headless runs do not show, at four points:
-      before the pilot, after it, after the complete pass, and after its fix checks.
+    - Tokens per reviewer process come from the usage each completed turn reports in the events file `codex-run` writes
+      beside each report. They are kept with the flip's evidence. The events name no model, so a run's model is known
+      from its launch flag.
+    - The weekly percentage is read from the host's usage tool at four points: before the pilot, after it, after the
+      complete pass, and after its fix checks.
     - The totals go to the PM for a summary line.
-- **Approvals batched Tuesday morning:**
-    1. the go-ahead for each named build run: 4.2.a–c, 4.R.a, 6.3.b, and 6.3.a's four group runs;
-    2. the pilot, then its projected burn;
-    3. pushes of `feat/cutover-flip` with CI dispatched at task checkpoints, and 6.7's two deletion-branch pushes.
-
-  ARC's own gates stay per instance: each task gate, each review disposition, and the merge. The Owner is available over
-  Thanksgiving apart from meals, so gates keep moving on 11-26 and 11-27.
-- **Effect on 6.8, roughly:**
-    - The rehearsal chain is the critical path and does not shorten. Taking 4.2, 4.R, and 6.3 off it removes about one
-      and a half to two days, so 6.8 could start two to three days after 6.4.b does, rather than three to six.
-    - 6.4.b starts once this plan is approved, `main` is merged in, and the Owner releases 6.4.b, held since 11-21. The
-      branch last took `main` on 11-16, and the merge brings 121 commits with three files in conflict. That puts 6.4.b's
-      start late on 11-24 or on 11-25, and 6.8's at about 11-26 to 11-28; each further day before 6.4.b starts moves 6.8
-      by one.
-    - The reviewers shorten the tail after 6.8, verification and the complete pass, from about two days to one.
-    - The window stays Tuesday 12-01 (Owner, 11-20 9:40 pm). A 6.8 start on 11-28 with a one-day tail leaves about a day
-      before it.
+- **ARC's own gates stay per instance:** each task gate, each review disposition, and the merge. Pushes of
+  `feat/cutover-flip` with CI at task checkpoints, and the deletion-branch pushes, ran under the Owner's approvals as
+  each batch started.

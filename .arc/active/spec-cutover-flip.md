@@ -2420,13 +2420,13 @@ None.
 - **A10** — 2026-11-16 — design: no step deletes an untracked npm policy copy; Git's merge refusal names its removal.
   _Supersedes:_ § 1.3 (the npm policy file). _Trigger:_ 2.1 must-stop. _Work:_ none. _Revalidated:_ 2.1.
 - **A11** — 2026-11-17 — task: rewrite `arc sync`'s help, which describes the notes leg, for the store's arms.
-  _Supersedes:_ none. _Trigger:_ 2.3 must-stop. _Work:_ 4.2. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ none. _Trigger:_ 2.3 must-stop. _Work:_ 4.2. _Revalidated:_ 7.1.
 - **A12** — 2026-11-17 — design: a ledger keeps the tests the switch breaks in-repo through Phase 3; families empty it.
   _Supersedes:_ § 3.2 ¶4; § 7.2; § 7.3 ¶1–2; § 7.7. _Trigger:_ 3.3 must-stop. _Work:_ 3.R. _Revalidated:_ 3.7.
 - **A13** — 2026-11-17 — design: the retired-subdirectory slot leaves with notes removal, not with the in-repo arm.
-  _Supersedes:_ § 17.2 (the reconciliation slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ § 17.2 (the reconciliation slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ 7.1.
 - **A14** — 2026-11-18 — spec-depth: a sealed notes writer on the flip build names notes retirement and its replacement.
-  _Supersedes:_ none. _Trigger:_ 3.R.d must-stop. _Work:_ 4.R. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ none. _Trigger:_ 3.R.d must-stop. _Work:_ 4.R. _Revalidated:_ 7.1.
 - **A15** — 2026-11-19 — design: the orphan sweep, like the Errand gates, reads absent claims as an empty inventory.
   _Supersedes:_ `spec-seam-locus.md` § 12.4. _Trigger:_ 3.4.a.2 must-stop. _Work:_ 3.R2. _Revalidated:_ 3.7.
 - **A16** — 2026-11-19 — design: the orphan sweep leaves out a branch the store links to no record.
@@ -2450,26 +2450,26 @@ None.
 - **A25** — 2026-11-20 — spec-depth: a projection start that cannot update Git's exclude refuses rather than crashing.
   _Supersedes:_ none. _Trigger:_ 3.6.a must-stop. _Work:_ 3.R10. _Revalidated:_ 3.7.
 - **A26** — 2026-11-24 — spec-depth: removal's miss of a retyped object or a file-replaced root is a named residual.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ none. _Revalidated:_ 7.1.
 - **A27** — 2026-11-24 — design: the in-place checkout's carry runs in a synthetic repository, not on the copy.
   _Supersedes:_ § 9.6 ¶1. _Trigger:_ 6.4.b must-stop. _Work:_ 6.R. _Revalidated:_ 6.8.
 - **A28** — 2026-11-24 — spec-depth: ahead of the window, `main` stops testing tracked state and live branches merge it.
   _Supersedes:_ none. _Trigger:_ 6.4.d must-stop. _Work:_ 6.R2. _Revalidated:_ 6.4.
 - **A29** — 2026-11-24 — spec-depth: the brief's Cohort definition names a subcohort's `Parent` as its nesting's record.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R2. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R2. _Revalidated:_ 7.1.
 - **A30** — 2026-11-24 — task: `init-work-unit.md` states promotion, its replay and release as the store has them.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R3. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R3. _Revalidated:_ 7.1.
 - **A31** — 2026-11-25 — task: store-backed cases 2 to 7 run on the end-to-end work unit, with stand-in review reports.
   _Supersedes:_ none. _Trigger:_ 6.4.e must-stop. _Work:_ 6.R3. _Revalidated:_ 6.8.
 - **A32** — 2026-11-27 — design: a `lineage/` write naming a UID no owner holds stays admitted, as before the flip.
-  _Supersedes:_ § 4.8 ¶1; Success Criteria 23. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ § 4.8 ¶1; Success Criteria 23. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ 7.1.
 - **A33** — 2026-11-27 — design: on Windows a removing self-teardown leaves a stamped husk, with a notice.
-  _Supersedes:_ § 4.14 ¶3; Success Criteria 24. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ § 4.14 ¶3; Success Criteria 24. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ 7.1.
 - **A34** — 2026-11-27 — task: the last test cases the in-repo store's default still carried move to the ref store.
-  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ 7.R. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ 7.R. _Revalidated:_ 7.1.
 - **A35** — 2026-11-27 — spec-depth: nine store and workflow corner cases found at verification are named residuals.
-  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ 7.1.
 - **A36** — 2026-11-27 — spec-depth: six review lifecycle cases on behavior both stores share stay on the in-repo store.
-  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
+  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ 7.1.
 
 ---
