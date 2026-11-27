@@ -1772,13 +1772,17 @@ rewritten workflows (§ 9.2).
           destination. Review passes were attested from labeled stand-in reports, and case 6's reopen read its pull
           request through the `gh` stub.
 
-### `[ ]` **6.8 Stage 2 clean at the head that lands** — validate exit criterion at segment scope
+### `[x]` **6.8 Stage 2 clean at the head that lands** — validate exit criterion at segment scope
 
 - _Goal:_ The exit criterion holds at one head, the verified head, with every step's and perturbation's conclusion
   recorded against it.
 
-- _Note:_ Stage 2 re-runs at the head § 10.1 fixes after verification only where the flip change, the import, or the
-  rewritten workflows changed since (§ 9.2); see `notes-cutover-flip.md` § The landing after verification.
+- _Outcome:_ At `26a5f0e27e` the exit criterion holds: run 14 took every § 9.2 step and each perturbation at
+  `6ce9ca565c`, with step 7, the end-to-end work unit and cases 2 to 7 on its copy; the four commits since are test
+  fixes, a test's time limit and the commit validator's task-list lookup, none of them the flip change, the import or a
+  rewritten workflow; and CI run 46016996019 passed over the head with the deletion commit applied, the matrix and the
+  partial-protection start among its end-to-end jobs. Stage 2 re-runs at the head § 10.1 fixes after verification only
+  where one of those three changed since (§ 9.2). `notes-cutover-flip.md` § Stage 2 holds the record.
 
 ## **Phase 7:** Verification
 

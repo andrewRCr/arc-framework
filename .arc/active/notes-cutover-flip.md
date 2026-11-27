@@ -2698,6 +2698,24 @@ delegated passes and one command run by hand; every command's output is kept bes
 - **Tripwires.** Command start read 42 to 47 ms against 25 ms in every checkout, and fan-out 1.7 s in a new checkout
   and 10.8 s in the primary against 750 ms, the copy by then holding 25 checkouts.
 
+#### The exit criterion at `26a5f0e27e` (Task 6.8)
+
+Read on 11-27 against Phase 6's exit criterion, at the branch's code head `26a5f0e27e`.
+
+- **Every § 9.2 step, and the flipped copy's paths:** run 14, one copy at `6ce9ca565c`, from the copy to the close with
+  every step as written, then step 7, the end-to-end work unit and cases 2 to 7 on that copy. Since that head the
+  branch took four commits: the test that swept a set-aside record's folder (`a344d6af51`, `d5a6bac665`), the commit
+  validator's task-list lookup (`b97a804f33`), and a test suite's time limit (`26a5f0e27e`). None is the flip change,
+  the import, or a rewritten workflow, so Stage 2 was not re-run for them (§ 9.2). The validator's lookup was not
+  re-observed on a copy after its fix; its test covers it.
+- **Each § 9.3 perturbation:** run 14, each with its refusal, repair and continuation to the close.
+- **The destructive CLI matrix and the partial-protection start:** in the suite, passing in CI run 46016996019's
+  end-to-end jobs over the post-deletion tree and in run 46016987699 at the head.
+- **CI over the head with the deletion commit applied:** run 46016996019, first attempt, on a branch of its own.
+- **CI at the head itself:** run 46016987699, Windows and macOS included, passed on its second attempt. Its first
+  failed on one end-to-end case, `review-protocol.e2e.test.ts`'s settlement of local findings through public verbs,
+  at its 30 s limit; the case took 20 to 29 s in six earlier runs and 28.6 s in the passing attempt.
+
 ## The parallel run from 11-24
 
 A draft for the Owner's approval on Tuesday 11-24. The Owner decided at 9:04 pm on 11-20 that the flip runs in parallel
