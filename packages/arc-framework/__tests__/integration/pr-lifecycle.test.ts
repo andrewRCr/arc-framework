@@ -1,6 +1,7 @@
 import { codeReviewSection } from "../helpers/code-review-section.js";
-import { readFile, readdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, relative, resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -12,11 +13,14 @@ const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
 
+// A folder can carry a Markdown name, and a Markdown name can be a link: keep what reads as a file.
 async function markdownFiles(directory: string): Promise<string[]> {
-  const entries = await readdir(directory, { recursive: true, withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-    .map((entry) => resolve(entry.parentPath, entry.name));
+  const named = (await readdir(directory, { recursive: true }))
+    .filter((entry) => entry.endsWith(".md"))
+    .map((entry) => resolve(directory, entry));
+  const files: string[] = [];
+  for (const path of named) if ((await stat(path)).isFile()) files.push(path);
+  return files;
 }
 
 describe("PR lifecycle and review contracts", () => {
@@ -59,6 +63,30 @@ describe("PR lifecycle and review contracts", () => {
       if ((await readFile(file, "utf8")).includes("pre-pr-review")) matches.push(file);
     }
     expect(matches).toEqual([]);
+  });
+
+  it("sweeps regular Markdown files and no folder that carries a Markdown name", async () => {
+    const folder = await mkdtemp(join(tmpdir(), "arc-surface-sweep-"));
+    try {
+      await mkdir(join(folder, "kept", "record.md"), { recursive: true });
+      await writeFile(join(folder, "kept", "record.md", "copy"), "pre-merge-review");
+      await writeFile(join(folder, "kept", "plain.md"), "text");
+      const swept = (await markdownFiles(folder)).map((file) => relative(folder, file).split(sep).join("/"));
+      expect(swept).toEqual(["kept/plain.md"]);
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("sweeps a Markdown name that links to a file", async () => {
+    const folder = await mkdtemp(join(tmpdir(), "arc-surface-sweep-"));
+    try {
+      await writeFile(join(folder, "target.txt"), "pre-merge-review");
+      await symlink(join(folder, "target.txt"), join(folder, "linked.md"), "file");
+      expect((await markdownFiles(folder)).map((file) => relative(folder, file))).toEqual(["linked.md"]);
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   });
 
   it("removes the old final-hook name from live package and project system surfaces", async () => {
