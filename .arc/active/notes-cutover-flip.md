@@ -1914,6 +1914,27 @@ primary walks. The carry still gets a run, since it is the path a repository who
 when it flips, so it runs in a synthetic repository beside Stage 2 (Task 6.R), as the cold start does (§ 9.7). The copy
 keeps binding its spawned pre-flip checkouts.
 
+## A32 — a lineage write for a UID no owner holds
+
+§ 4.8 ¶1 ended its sentence on the store's admission: "and refuses any other write naming a UID no owner holds
+(`resolveOwner`, `lib/store/ref/write-resolution.ts`) (A18)." The criterion A18 appended closed the same way: "while a
+write naming a UID no owner holds without creating that owner's record is refused". Verification's companion wrote a
+`lineage/transition` record for such a UID through `createStore` and read it back. `resolveMissingUid` admits any
+`lineage/` record before the check A18 added, and `main` admitted it at the flip's merge base too. A18 changed which
+planned UID a write may create an owner for, and its sentence reached further than its change. The statement and the
+criterion now except `lineage/` records; no code changes, and the refusal test keeps its `work-item/description` case.
+
+## A33 — a removing self-teardown on Windows
+
+§ 4.14's third item read: "From the flip the store's Git calls follow that move, and the teardown reaps the branch from
+the primary checkout (A20)." The criterion A20 appended said a self-teardown under `arc.selfTeardownMode: remove`
+"removes its checkout and reaps the branch". On Windows a process cannot remove the directory its invoking shell
+occupies, so the store teardown takes the husk path there under `remove`: it detaches the checkout, stamps it as a
+terminal husk, prints "Windows cannot remove the invoking shell's occupied directory; left a stamped husk instead.", and
+reaps the branch (`lib/work-unit/verbs/teardown-store.ts`). `e2e/store-checkout-removal.e2e.test.ts` asserts the husk on
+Windows and the removal elsewhere, and `integrate-work-unit.md` says `remove` falls back to a husk with a notice. The
+statement and the criterion now name that arm; no code changes.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.

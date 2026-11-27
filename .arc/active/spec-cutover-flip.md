@@ -517,7 +517,8 @@ its branch link with that ref, keeping one write. That write names the new Erran
 capture can name the generation (`listCoordinate`, `lib/inbox/receipts.ts`). The store admits a requested UID that no
 live, record-free, or ended owner holds only for an owner whose `work-item/record` the same write creates with no
 expected version, recording that owner's birth as one it allocated, and refuses any other write naming a UID no owner
-holds (`resolveOwner`, `lib/store/ref/write-resolution.ts`) (A18). The record's schema cannot see the store's
+holds (`resolveOwner`, `lib/store/ref/write-resolution.ts`) (A18), apart from a `lineage/` record, which the store admits
+for such a UID as it did before the flip (A32). The record's schema cannot see the store's
 capability, so it admits both forms; the store arm writes only the suffixed one. Today `lib/errand/open.ts` and
 `lib/session-init/errand-branch-cut.ts` build `<type>/<slug>`.
 
@@ -637,7 +638,8 @@ departs from the in-repo teardown in two ways no spec covers.
   primary checkout, but the store the command opened keeps running its Git calls in the removed checkout
   (`createDefaultRefStorePorts`, `lib/store/default-ports.ts`), so its next read refuses `spawn-failure` before the
   branch is reaped. From the flip the store's Git calls follow that move, and the teardown reaps the branch from the
-  primary checkout (A20).
+  primary checkout (A20). On Windows, which cannot remove the invoking shell's directory, it leaves that checkout a
+  detached, stamped husk with a notice, and still reaps the branch (A33).
 
 Teardown is not the only command that removes the checkout it runs in. `arc abandon` and `arc decompose` retire their
 work unit's checkout through the same store arm, given the context their commands build (`createStoreTeardownContext`,
@@ -2394,9 +2396,9 @@ None.
 - **A5** — 2026-11-14 — spec-depth: verification keeps the notes companion, consolidating it, and never deletes it.
   _Supersedes:_ none. _Trigger:_ 5.6 must-stop. _Work:_ 5.R. _Revalidated:_ 5.12.
 - **A6** — 2026-11-14 — spec-depth: a unit holding an unpublished Candidate settles it before the quiesce check.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 6.4. _Revalidated:_ pending → 6.8.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 6.4. _Revalidated:_ 6.8.
 - **A7** — 2026-11-14 — design: a state-bearing branch made after the check is compared, and `confirm` records ranges.
-  _Supersedes:_ § 1.3; § 10.6 ¶1; § 10.7. _Trigger:_ 6.1 must-stop. _Work:_ 6.5. _Revalidated:_ pending → 6.8.
+  _Supersedes:_ § 1.3; § 10.6 ¶1; § 10.7. _Trigger:_ 6.1 must-stop. _Work:_ 6.5. _Revalidated:_ 6.8.
 - **A8** — 2026-11-14 — design: the restore's auto-merge remedy names disarming, not `gh pr merge --disable-auto`.
   _Supersedes:_ § 1.3 (the auto-merge refusal). _Trigger:_ 6.1 must-stop. _Work:_ none. _Revalidated:_ 6.1.
 - **A9** — 2026-11-16 — spec-depth: the switch keeps `createStore`'s fan-out decoration over the ref backend.
@@ -2436,7 +2438,7 @@ None.
 - **A26** — 2026-11-24 — spec-depth: removal's miss of a retyped object or a file-replaced root is a named residual.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 7.1.
 - **A27** — 2026-11-24 — design: the in-place checkout's carry runs in a synthetic repository, not on the copy.
-  _Supersedes:_ § 9.6 ¶1. _Trigger:_ 6.4.b must-stop. _Work:_ 6.R. _Revalidated:_ pending → 6.8.
+  _Supersedes:_ § 9.6 ¶1. _Trigger:_ 6.4.b must-stop. _Work:_ 6.R. _Revalidated:_ 6.8.
 - **A28** — 2026-11-24 — spec-depth: ahead of the window, `main` stops testing tracked state and live branches merge it.
   _Supersedes:_ none. _Trigger:_ 6.4.d must-stop. _Work:_ 6.R2. _Revalidated:_ 6.4.
 - **A29** — 2026-11-24 — spec-depth: the brief's Cohort definition names a subcohort's `Parent` as its nesting's record.
@@ -2444,6 +2446,10 @@ None.
 - **A30** — 2026-11-24 — task: `init-work-unit.md` states promotion, its replay and release as the store has them.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R3. _Revalidated:_ pending → 7.1.
 - **A31** — 2026-11-25 — task: store-backed cases 2 to 7 run on the end-to-end work unit, with stand-in review reports.
-  _Supersedes:_ none. _Trigger:_ 6.4.e must-stop. _Work:_ 6.R3. _Revalidated:_ pending → 6.8.
+  _Supersedes:_ none. _Trigger:_ 6.4.e must-stop. _Work:_ 6.R3. _Revalidated:_ 6.8.
+- **A32** — 2026-11-27 — design: a `lineage/` write naming a UID no owner holds stays admitted, as before the flip.
+  _Supersedes:_ § 4.8 ¶1; Success Criteria 23. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
+- **A33** — 2026-11-27 — design: on Windows a removing self-teardown leaves a stamped husk, with a notice.
+  _Supersedes:_ § 4.14 ¶3; Success Criteria 24. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
 
 ---

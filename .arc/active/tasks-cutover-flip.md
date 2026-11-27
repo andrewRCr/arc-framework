@@ -1900,6 +1900,14 @@ landing after verification).
   flip build's session start offers `arc materialize <slug> --here`, and that command writes an anchored marker carrying
   the work unit's UID (A27).
 
+- `[ ]` On the store under full protection, `arc errand open` opens a fresh Errand, for a new slug and over a completed
+  generation, its description, record, and any adopted capture's receipt naming one UID, while a write of any kind but
+  `lineage/` naming a UID no owner holds without creating that owner's record is refused (A32).
+
+- `[ ]` On the store, `arc teardown` refuses a linked checkout holding the retiring branch ARC created without an ARC
+  ownership marker, leaving it branched and unchanged, and a self-teardown under `arc.selfTeardownMode: remove` reaps
+  the branch and removes its checkout, or on Windows leaves it a detached, stamped husk with a notice (A33).
+
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
