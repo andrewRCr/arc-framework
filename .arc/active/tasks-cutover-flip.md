@@ -1786,6 +1786,25 @@ rewritten workflows (§ 9.2).
 
 ## **Phase 7:** Verification
 
+### `[x]` **7.R Tests the in-repo store's default still carried — § 7.2, § 7.3**
+
+- _Goal:_ No test reaches the in-repo store except one that selects it for its own subject, so the guard criterion
+  holds for the cases verification found outside it (A34).
+
+    - `[x]` **7.R.a Move the five cases and helpers**
+        - The default store's identity read, all six cases of `integration/local-review-delivery-binding`, and the
+          review fan-out harness's Candidate and boundary seeders reach the ref store. `syncFixture` opens the default
+          store, and the fourteen notes and retired identity-ref suites that need the in-repo store select it in their
+          own files. The override helper restores the environment in order when its scopes nest, with guard cases.
+        - The harness's base carries rename history, so the ref-backed reservation plans: the full-final suite and 29
+          of the 41 lifecycle cases moved. Twelve lifecycle cases select the in-repo store themselves, six for what
+          only the pre-flip build does and six that A36 names; one of the first six is a successor to a performed
+          record-only response, which the ref store refuses.
+
+    - `[x]` **7.R.b The record and a comment**
+        - Three `USER-INBOX` filename sites joined the kept sites in `notes-cutover-flip.md`, and the unit init test's
+          comment on the ROADMAP merge driver says what its assertions check.
+
 ### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
 ---

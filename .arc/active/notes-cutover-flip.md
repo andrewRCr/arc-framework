@@ -2082,6 +2082,13 @@ git add|git commit|git rm|git mv|git show|\[x\]|\[~\]|plan/|SESSION-NOTES|arc us
 - "notes" in the `planning-review` method's pass record: the unit's notes companion, read with `arc view notes` and
   saved with `arc save`, not Git notes.
 
+**Found unrecorded at verification on 11-27; all three stay:**
+
+- `USER-INBOX.md` in `arc/user/README.md`'s listing of the personal folder: the projected file's name, beside the
+  command that reads it, `arc inbox personal`.
+- `USER-INBOX.md` twice in `initial-setup/01_verify-and-configure.md`: the projected file a person confirms in their
+  workspace after setup, with `WORKING-MEMORY.md`.
+
 ## Stage 2
 
 Stage 2's runbook (Task 6.4.a) and each run's conclusions. A run's raw evidence stays in the work unit's evidence folder

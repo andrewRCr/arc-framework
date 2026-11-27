@@ -2215,6 +2215,20 @@ None closes by being listed here.
   whole projected root belongs is seen by no walk. Under ARC's required ignore rules Git's own check refuses the removal
   as dirty; where a project's rules also ignore that file's name the removal proceeds and the file is lost, as it was
   for each of four roots tried at `main`'s `cedb6f49e1`. The window does not wait on a fix (Owner, 2026-11-24).
+- **Corner cases found at verification** (A35), each captured for after the window and none fixed before it (Owner,
+  2026-11-27): an archive whose slug a second live UID took between its preparation and its admission archives the
+  prepared UID, and § 14.3's harness has no such case; `arc errand open` refuses a slug two completed Errands hold, or a
+  completed work unit holds (§ 4.8); merge returns `invalidated` for a checkpoint after a store-only rename, until the
+  checkpoint is run again (§ 4.6); delivery's rename source can read an advanced ref as holding no transitions (§ 4.3);
+  a write after its writer's checkout is removed reaches the surviving checkouts at their next command (§ 2.1); the
+  orphan sweep offers a teardown by UID when the slug lookup refuses terminally (§ 4.12); a projection start that times
+  out on the exclude lock names the wrong repair (§ 4.17); the capture gates read the inbox for a work unit named
+  `personal` or `project`; and two of those gates leave an inbound entry's removal to the method they fire (§ 8).
+- **Review lifecycle cases still on the in-repo store** (A36): in `integration/review-fan-out-lifecycle.test.ts`, six
+  cases whose subject both stores share select the in-repo store, because their fixtures or assertions read its
+  records: Owner-terminus precedence, status across a terminal below the current Candidate, sibling local receipts,
+  next-pass consent, a failed local rerun, and the production fallback-to-conjunction flow. `cutover-in-repo-removal`
+  moves or deletes each with the in-repo store (Owner, 2026-11-27).
 
 ## Alternatives & Rationale
 
@@ -2451,5 +2465,11 @@ None.
   _Supersedes:_ § 4.8 ¶1; Success Criteria 23. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
 - **A33** — 2026-11-27 — design: on Windows a removing self-teardown leaves a stamped husk, with a notice.
   _Supersedes:_ § 4.14 ¶3; Success Criteria 24. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
+- **A34** — 2026-11-27 — task: the last test cases the in-repo store's default still carried move to the ref store.
+  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ 7.R. _Revalidated:_ pending → 7.1.
+- **A35** — 2026-11-27 — spec-depth: nine store and workflow corner cases found at verification are named residuals.
+  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
+- **A36** — 2026-11-27 — spec-depth: six review lifecycle cases on behavior both stores share stay on the in-repo store.
+  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ pending → 7.1.
 
 ---
