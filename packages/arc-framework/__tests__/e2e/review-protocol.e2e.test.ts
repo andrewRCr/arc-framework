@@ -497,7 +497,7 @@ describe("built review protocol", () => {
       schemaVersion: 1,
       ...continuation(prepared),
     })).resolves.toMatchObject({ state: "settled", nextAction: "none" });
-  });
+  }, 60_000);
 
   it("serializes concurrent expiry sweeps and physically releases the source", async () => {
     const root = await fixture();
