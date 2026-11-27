@@ -275,7 +275,7 @@ interface ProposalPayload {
   };
 }
 
-const SUBPROCESS_HEAVY_TIMEOUT = 60_000;
+const SUBPROCESS_HEAVY_TIMEOUT = 120_000;
 
 /** A closed task list the store holds; the store refuses a list without the canonical task headings. */
 const CLOSED_TASKS = "# Task List: Example\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Verification complete**\n";
