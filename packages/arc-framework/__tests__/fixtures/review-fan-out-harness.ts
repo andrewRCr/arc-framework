@@ -4,7 +4,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
 import { approveDispositionState } from "../../src/scripts/review-gate/core/dispositions.js";
-import { LocalApprovedDispositionRecordStore } from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { responsePolicyRequest } from "./review-response-policy.js";
 import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidate.js";
 import { handleReviewStatus, handleReviewLocalAttest, handleReviewLocalPrepare, handleReviewLocalResume, handleReviewRespond } from "../../src/handlers/review.js";
@@ -29,10 +28,10 @@ import { writeCandidateRecord } from "../../src/lib/store/kinds/review/candidate
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from "../../src/lib/store/kinds/review/integration-boundary/access.js";
 import { createReviewRequirement, createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { ApprovedDispositionRecordReader, ReviewInFlightPort } from "../../src/scripts/review-gate/core/ports.js";
 import { LocalAttestEnvelopeSchema, LocalPrepareEnvelopeSchema, LocalResumeEnvelopeSchema, RespondEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import type { LocalReviewEvaluatorResult } from "../../src/scripts/review-gate/core/local-review-result.js";
 import { type HostedReviewCoverage } from "../../src/scripts/review-gate/hosted/request.js";
-import { LocalReviewOperationStateStore } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { RepositoryDeliveryMemberLookup } from "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { resolveLocalReviewAuthority, resolveLocalReviewVehicle } from "../../src/scripts/review-gate/hosts/local/review-authority.js";
 import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
@@ -44,6 +43,8 @@ import type { DeliveryLocalReviewAdmission } from "../../src/scripts/review-gate
 import { projectLocalReviewGuidance } from "../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { attestLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-attest-command.js";
+import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
+import type { ReviewInvocationOptions } from "../../src/scripts/review-gate/runtime/invocation.js";
 import { createLocalAttestDependencies } from "../../src/scripts/review-gate/runtime/local-attest-composition.js";
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
 import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
@@ -122,7 +123,7 @@ export function targetAndRequirement(input: {
 export async function respondThroughHandler(harness: FanOutHarness, request: unknown) {
   const output: string[] = [];
   const exitCodes: number[] = [];
-  const dependencies = createRespondDependencies({ cwd: harness.root, exec: harness.exec });
+  const dependencies = createRespondDependencies({ cwd: harness.root, exec: harness.exec, ...reviewInvocation(harness) });
   dependencies.resolveLocalActors = async () => ({
     approverIdentity: "andrew",
     proposerIdentity: "arc-cli/integration-test",
@@ -150,7 +151,7 @@ export async function resumeLocalThroughHandler(harness: FanOutHarness, request:
     readText: async () => JSON.stringify(request),
     write: (text) => output.push(text),
     setExitCode: (code) => exitCodes.push(code),
-  });
+  }, undefined, { exec: harness.exec, ...reviewInvocation(harness) });
   expect(exitCodes, output.join("")).toEqual([]);
   return LocalResumeEnvelopeSchema.parse(JSON.parse(output.join("")));
 }
@@ -163,7 +164,8 @@ export interface FanOutHarness {
   states: RepositoryDeliveryStateStore;
   state: DeliveryStateV1;
   stateRevision: number;
-  store: LocalReviewOperationStateStore;
+  store: ReviewInFlightPort;
+  dispositions: ApprovedDispositionRecordReader;
   reviewRecords: { store: Store; owner?: OwnerIdentity };
   repositoryId: string;
   standardSources: readonly ("coderabbit-pr" | "codex-pr" | "delegated-agent")[];
@@ -177,6 +179,23 @@ export interface FanOutHarness {
   movedFirstTree: string;
   currentSecond: string;
   currentSecondTree: string;
+}
+
+export function reviewInvocation({ reviewRecords }: Pick<FanOutHarness, "reviewRecords">): ReviewInvocationOptions {
+  return { store: reviewRecords.store, ...(reviewRecords.owner === undefined ? {} : { workItem: reviewRecords.owner }) };
+}
+
+/** Seed the checkout authority that binds native review operations and records. */
+export async function seedFanOutReviewRecords(root: string, exec: GitExec, workUnitId: string): Promise<FanOutHarness["reviewRecords"]> {
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: root, exec }));
+  if (!store.capabilities.stateOffBranch) return { store };
+  const identity = SlugSchema.parse("andrew");
+  await git(root, ["config", "arc.identity", identity]);
+  await seedProjectIdentity(root, identity);
+  const { meta } = await seedWorkUnit(root, workUnitId, {
+    identity, meta: { owner: identity, branch: "feat/delivery-plan-record" }, bind: root,
+  });
+  return { store, owner: meta.reference.owner };
 }
 
 export function deliveryHost(
@@ -309,7 +328,6 @@ export async function createHarness(
     "coderabbit-pr",
     "codex-pr",
   ],
-  { baseWithRenameHistory = false }: { baseWithRenameHistory?: boolean } = {},
 ): Promise<FanOutHarness> {
   const root = await createTempRepo("arc-review-fan-out-");
   roots.push(root);
@@ -348,7 +366,9 @@ export async function createHarness(
 
   await git(root, ["branch", "delivery/delivery-plan-record/first", oldFirst]);
   await git(root, ["branch", "delivery/delivery-plan-record/moved-first", movedFirst]);
-  if (baseWithRenameHistory) {
+  const plan = deliveryStackPlanFixture(planId);
+  const reviewRecords = await seedFanOutReviewRecords(root, exec, plan.workUnitId);
+  if (reviewRecords.store.capabilities.stateOffBranch) {
     // Keep the historical transition on the reservation's base ref and the active checkout free of tracked state.
     await git(root, ["switch", "main"]);
     await stageUnrelatedTransitionRecord(root);
@@ -358,18 +378,6 @@ export async function createHarness(
   const publisher = new RepositoryGitCommonStatePublisher(exec, root);
   const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const states = new RepositoryDeliveryStateStore(publisher);
-  const plan = deliveryStackPlanFixture(planId);
-  const reviewStore = createStore(createDefaultStorePorts({ checkoutRoot: root, exec }));
-  const reviewRecords: FanOutHarness["reviewRecords"] = { store: reviewStore };
-  if (reviewStore.capabilities.stateOffBranch) {
-    const identity = SlugSchema.parse("andrew");
-    await git(root, ["config", "arc.identity", identity]);
-    await seedProjectIdentity(root, identity);
-    const { meta } = await seedWorkUnit(root, plan.workUnitId, {
-      identity, meta: { owner: identity, branch: "feat/delivery-plan-record" }, bind: root,
-    });
-    reviewRecords.owner = meta.reference.owner;
-  }
   const fixture = deliveryStateFixture(plan);
   const state: DeliveryStateV1 = {
     ...fixture,
@@ -393,7 +401,8 @@ export async function createHarness(
     ],
   };
   expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
-  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, { store: reviewStore });
+  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, reviewRecords);
+  const { family } = createReviewCompositionContext({ cwd: root, exec, ...reviewInvocation({ reviewRecords }) });
   const harness: FanOutHarness = {
     root,
     exec,
@@ -402,7 +411,8 @@ export async function createHarness(
     states,
     state,
     stateRevision: 0,
-    store: new LocalReviewOperationStateStore(publisher),
+    store: family.ports.inFlight,
+    dispositions: family.ports.dispositions,
     reviewRecords,
     repositoryId,
     standardSources,
@@ -565,7 +575,8 @@ export async function completeLocalReviewThroughHandlers(
   productionHostBin?: string,
   findings?: LocalReviewEvaluatorResult["findings"],
 ) {
-  const basePrepare = createLocalPrepareDependencies({ exec: harness.exec, cwd: harness.root });
+  const invocation = { exec: harness.exec, cwd: harness.root, ...reviewInvocation(harness) };
+  const basePrepare = createLocalPrepareDependencies(invocation);
   const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
   const readLiveContext = async () => ({
     activeIdentity: "andrew",
@@ -661,7 +672,7 @@ export async function completeLocalReviewThroughHandlers(
     deliveryAdmission,
   });
 
-  const baseAttest = createLocalAttestDependencies({ exec: harness.exec, cwd: harness.root });
+  const baseAttest = createLocalAttestDependencies(invocation);
   const attestDependencies = {
     ...baseAttest,
     resolveAuthority: async (
@@ -811,9 +822,7 @@ export async function fixLocalMemberReview(
     })).resolves.toMatchObject({
       state: "delivery-correction-required", nextAction: "continue-delivery-correction",
     });
-    const record = await new LocalApprovedDispositionRecordStore(
-      new RepositoryGitCommonStatePublisher(harness.exec, harness.root),
-    ).readDispositionRecord(local.prepared.payload.operationId);
+    const record = await harness.dispositions.readDispositionRecord(local.prepared.payload.operationId);
     expect(record).toMatchObject({
       approvedDispositionLineage: [expect.objectContaining({
         deliveryMemberFixResponse: null, errandFixResponse: null,

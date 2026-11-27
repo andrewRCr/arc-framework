@@ -11,7 +11,7 @@ import { readStoreRecord } from "../helpers/store/seed-store.js";
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
 it("seeds the delivery Candidate and publication boundary under the work item's ref-store identity", async () => {
-  const harness = await createHarness(undefined, { baseWithRenameHistory: true });
+  const harness = await createHarness();
   const { store, owner } = harness.reviewRecords;
   expect(store.capabilities.stateOffBranch).toBe(true);
   if (owner?.type !== "work-item" || owner.uid === undefined) throw new Error("Expected a seeded work item's UID");

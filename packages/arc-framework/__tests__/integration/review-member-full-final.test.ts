@@ -1,28 +1,21 @@
 /** Full-final member review keeps repair checks separate from complete-pass closure. */
-import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { LocalApprovedDispositionRecordStore } from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { currentApprovedDispositionNode } from "../../src/scripts/review-gate/core/advisory-records.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { cleanupTempDir } from "../helpers/integration.js";
 import { inProcessReview } from "../helpers/in-process-review.js";
-import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import {
   createFixedLocalMemberReview, completeLocalReviewThroughHandlers, git, roots,
-  respondThroughHandler, resumeLocalThroughHandler, statusThroughHandler, type FanOutHarness,
+  respondThroughHandler, resumeLocalThroughHandler, reviewInvocation, statusThroughHandler, type FanOutHarness,
 } from "../fixtures/review-fan-out-harness.js";
-
-// Each member review reserves through its delivery plan, which only the in-repo store resolves: with state off the
-// branch, plan resolution refuses a base that holds no transition records.
-useInRepoStoreForEach();
 
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
 async function reduceCleanReview(harness: FanOutHarness, operationId: string) {
   expect(await resumeLocalThroughHandler(harness, { schemaVersion: 1, operationId }))
     .toMatchObject({ state: "review-complete", nextAction: "reduce" });
-  expect(await inProcessReview.reduce(harness.root, { schemaVersion: 1, operationId }))
+  expect(await inProcessReview.reduce(harness.root, { schemaVersion: 1, operationId }, reviewInvocation(harness)))
     .toMatchObject({ state: "advisory-complete", nextAction: "none" });
 }
 
@@ -112,7 +105,7 @@ async function bindPublishedMemberObservations(harness: FanOutHarness) {
 it("retains advisory fix tags through a performed member fix and its verified replay", async () => {
   const { harness, local } = await createFixedLocalMemberReview(4);
   await bindPublishedMemberObservations(harness);
-  const store = new LocalApprovedDispositionRecordStore(new RepositoryGitCommonStatePublisher(harness.exec, harness.root));
+  const store = harness.dispositions;
   const record = await store.readDispositionRecord(local.prepared.payload.operationId);
   if (record === null || record.source.kind !== "attested-local") throw new Error("expected the performed local response");
   const node = currentApprovedDispositionNode(record);
