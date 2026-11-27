@@ -25,6 +25,15 @@ it("starts a work unit under partial protection and saves its draft from the spa
   const checkout = `${repo}.${slug}`;
   try {
     await runSuccessfully(repo, "init", "--yes", "--name", "test-project");
+    await writeFile(join(repo, ".arc", "system", "arc-checks.yml"), JSON.stringify({
+      checks: {
+        draft: {
+          command: [process.execPath, "-e", "console.log(JSON.stringify(process.argv.slice(1)))", "--"],
+          mode: "selection",
+          inputs: [".arc/active/current/draft-*.md"],
+        },
+      },
+    }));
     await commitAll(repo, "chore: initialize ARC");
     const base = await git(repo, ["rev-parse", "refs/heads/main"]);
     const branchRefs = ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/"];
@@ -61,7 +70,16 @@ it("starts a work unit under partial protection and saves its draft from the spa
     const draft = "# Draft: Search filters\n\n## Problem / Motivation\n\nLimit results to the selected project.\n\n"
       + "## Alternatives\n\nReuse the existing project selector and apply its value to the search query.\n";
     await writeFile(join(current, draftName), draft, "utf8");
-    await runSuccessfully(checkout, "check", "increment");
+    const increment = await runSuccessfully(checkout, "check", "increment", "--json");
+    expect(JSON.parse(increment).result, `Check ${draftName} before save`).toMatchObject({
+      status: "completed",
+      checks: [{
+        id: "draft",
+        kind: "feedback",
+        outcome: "passed",
+        output: JSON.stringify([`.arc/active/current/${draftName}`]),
+      }],
+    });
     await runSuccessfully(checkout, "save");
     const savedDraft = await readStoreRecord(repo, identity, recordReferences["work-item/draft"](createdOwner));
     expect(savedDraft.content).toBe(draft);

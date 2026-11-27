@@ -587,7 +587,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     const integrated = await runArc(["attest", "foo", "--json"], tmpDir);
     expect(integrated.exitCode, integrated.stdout + integrated.stderr).toBe(0);
     // Integrating over its attested Candidate, with substantial work reopened as an open task.
-    await integrateAttestedWorkUnit(tmpDir, "foo", { identity: "test-user" });
+    const candidate = await integrateAttestedWorkUnit(tmpDir, "foo", { identity: "test-user", publicationPending: true });
     await replaceTaskList(tmpDir, "foo", openTasks);
 
     const ghBin = join(tmpDir, ".git", "arc-test-bin");
@@ -612,8 +612,12 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(await readFile(ghLog, "utf8")).toBe("pr view feat/foo --json state\n");
     await writeFile(ghLog, "");
 
+    const beforeReopen = await storedRecord(tmpDir, "foo", "review/integration-boundary");
+    expect(JSON.parse(beforeReopen.content)).toMatchObject({ locus: "publication-pending", ...candidate });
     const reopened = await runArc(["reopen", "foo", "--keep-pr", "--task", task], tmpDir, { env });
     expect(reopened.exitCode, reopened.stdout + reopened.stderr).toBe(0);
+    const afterReopen = await storedRecord(tmpDir, "foo", "review/integration-boundary");
+    expect(JSON.parse(afterReopen.content)).toMatchObject({ locus: "candidate-review-pending", ...candidate });
 
     const meta = (await storedRecord(tmpDir, "foo", "work-item/meta")).content;
     expect(meta).toContain("| `Active`");
@@ -739,7 +743,7 @@ describe("session-init E2E — sessionType across type variants", () => {
 
     const attested = await runArc(["attest", "foo", "--json"], tmpDir);
     expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
-    await integrateAttestedWorkUnit(tmpDir, "foo", { identity: "test-user" });
+    await integrateAttestedWorkUnit(tmpDir, "foo", { identity: "test-user", publicationPending: true });
 
     const seeded = await runArc(
       ["status", "--session-init", "--write-compaction-seed", "--json"],
@@ -754,6 +758,8 @@ describe("session-init E2E — sessionType across type variants", () => {
       compactionSeedWrite: { status: "written" },
     });
 
+    const beforeCorrection = await storedRecord(tmpDir, "foo", "review/integration-boundary");
+    expect(JSON.parse(beforeCorrection.content)).toHaveProperty("locus", "publication-pending");
     await replaceTaskList(tmpDir, "foo", `${closedTasks}\n### \`[ ]\` **1.2 Correct published behavior**\n`);
 
     const result = await runArc(["status", "--session-init", "--json"], tmpDir);
