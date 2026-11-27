@@ -20,9 +20,14 @@ import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-rend
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { createCandidateAttestation, type CandidateManagedRecordV1 } from "../../src/lib/work-unit/candidate-attestation.js";
-import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
+import type { Store } from "../../src/lib/store/contract.js";
+import { createStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
+import type { OwnerIdentity } from "../../src/lib/store/identity.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { writeCandidateRecord } from "../../src/lib/store/kinds/review/candidate/access.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
-import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
+import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from "../../src/lib/store/kinds/review/integration-boundary/access.js";
 import { createReviewRequirement, createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { LocalAttestEnvelopeSchema, LocalPrepareEnvelopeSchema, LocalResumeEnvelopeSchema, RespondEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import type { LocalReviewEvaluatorResult } from "../../src/scripts/review-gate/core/local-review-result.js";
@@ -49,6 +54,9 @@ import { readRoutedObligation } from "../../src/scripts/review-gate/status-compo
 import { deliveryStackPlanFixture } from "./delivery-plan.js";
 import { deliveryStateFixture } from "./delivery-state.js";
 import { createTempRepo, makeGitExec } from "../helpers/integration.js";
+import { stageUnrelatedTransitionRecord } from "../helpers/delivery-transition-record.js";
+import { seedProjectIdentity } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 
 export const repository = "owner/repository";
 
@@ -156,6 +164,7 @@ export interface FanOutHarness {
   state: DeliveryStateV1;
   stateRevision: number;
   store: LocalReviewOperationStateStore;
+  reviewRecords: { store: Store; owner?: OwnerIdentity };
   repositoryId: string;
   standardSources: readonly ("coderabbit-pr" | "codex-pr" | "delegated-agent")[];
   baseHead: string;
@@ -234,7 +243,7 @@ export async function installCandidate(
     transitions: [],
     lineageAttestations: [],
   };
-  await writeCandidateRecord(harness.root, harness.plan.workUnitId, record, expectedVersion);
+  await writeCandidateRecord(harness.root, harness.plan.workUnitId, record, expectedVersion, harness.reviewRecords);
   return record;
 }
 
@@ -245,13 +254,15 @@ export async function writeBoundary(
   expectedDeliveryStatus: "planned" | "bound",
   lifecycleOrder?: string[],
 ): Promise<void> {
-  const current = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
+  const current = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId, harness.reviewRecords);
   const lookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
   const records = await lookup.resolveReservationRecords(
     harness.plan.workUnitId,
     { status: "established", ref: "refs/heads/main" },
   );
-  expect(records).toMatchObject({ status: expectedDeliveryStatus, plan: harness.plan });
+  expect(records, "resolve the delivery reservation at refs/heads/main").toMatchObject({
+    status: expectedDeliveryStatus, plan: harness.plan,
+  });
   if (records.status !== "planned" && records.status !== "bound") {
     throw new Error("expected authoritative reservation records");
   }
@@ -279,14 +290,17 @@ export async function writeBoundary(
     }).projection,
     target: selected.target,
   });
-  await writeSubmissionBoundary(harness.root, projectPublicationBoundary({
+  const schemaVersion = harness.reviewRecords.store.capabilities.stateOffBranch ? 2 : 1;
+  const boundary = projectPublicationBoundary({
     workUnit: harness.plan.workUnitId,
     branch,
     candidateId: candidate.attestation.candidateId,
     candidateSubjectDigest: candidate.subject.subjectDigest,
     reservation,
     changeRequest: { repository, pullRequest: 42 },
-  }, 1), current.version);
+    ...(schemaVersion === 2 ? { readinessBinding: null } : {}),
+  }, schemaVersion);
+  await writeSubmissionBoundary(harness.root, boundary, current.version, harness.reviewRecords);
   lifecycleOrder?.push("publication-transition");
 }
 
@@ -295,6 +309,7 @@ export async function createHarness(
     "coderabbit-pr",
     "codex-pr",
   ],
+  { baseWithRenameHistory = false }: { baseWithRenameHistory?: boolean } = {},
 ): Promise<FanOutHarness> {
   const root = await createTempRepo("arc-review-fan-out-");
   roots.push(root);
@@ -333,10 +348,28 @@ export async function createHarness(
 
   await git(root, ["branch", "delivery/delivery-plan-record/first", oldFirst]);
   await git(root, ["branch", "delivery/delivery-plan-record/moved-first", movedFirst]);
+  if (baseWithRenameHistory) {
+    // Keep the historical transition on the reservation's base ref and the active checkout free of tracked state.
+    await git(root, ["switch", "main"]);
+    await stageUnrelatedTransitionRecord(root);
+    await git(root, ["commit", "-m", "Record a prior work-unit rename on main"]);
+    await git(root, ["switch", "feat/delivery-plan-record"]);
+  }
   const publisher = new RepositoryGitCommonStatePublisher(exec, root);
   const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const states = new RepositoryDeliveryStateStore(publisher);
   const plan = deliveryStackPlanFixture(planId);
+  const reviewStore = createStore(createDefaultStorePorts({ checkoutRoot: root, exec }));
+  const reviewRecords: FanOutHarness["reviewRecords"] = { store: reviewStore };
+  if (reviewStore.capabilities.stateOffBranch) {
+    const identity = SlugSchema.parse("andrew");
+    await git(root, ["config", "arc.identity", identity]);
+    await seedProjectIdentity(root, identity);
+    const { meta } = await seedWorkUnit(root, plan.workUnitId, {
+      identity, meta: { owner: identity, branch: "feat/delivery-plan-record" }, bind: root,
+    });
+    reviewRecords.owner = meta.reference.owner;
+  }
   const fixture = deliveryStateFixture(plan);
   const state: DeliveryStateV1 = {
     ...fixture,
@@ -360,7 +393,7 @@ export async function createHarness(
     ],
   };
   expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
-  const repositoryId = await resolveRepositoryIdentity(publisher);
+  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, { store: reviewStore });
   const harness: FanOutHarness = {
     root,
     exec,
@@ -370,6 +403,7 @@ export async function createHarness(
     state,
     stateRevision: 0,
     store: new LocalReviewOperationStateStore(publisher),
+    reviewRecords,
     repositoryId,
     standardSources,
     baseHead,

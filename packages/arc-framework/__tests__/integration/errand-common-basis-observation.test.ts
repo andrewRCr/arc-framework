@@ -6,6 +6,10 @@ import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { syncFixture, syncPut, syncErrand, syncErrandRef, syncRecord, syncIdentity } from "../helpers/store/sync-fixture.js";
 import { success, mutationOf } from "../helpers/store/suite-tools.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases reconcile the retired per-identity Errand ref.
+useInRepoStoreForEach();
 
 function namedRecord(name: string): TransientIdentityRecord {
   return TransientIdentityRecordSchema.parse({ ...syncRecord(), slug: name, branch: `chore/${name}`,

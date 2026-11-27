@@ -20,7 +20,8 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { deliveryStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
-import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
 const WORK_UNIT = SlugSchema.parse("review-surface-binding");
@@ -178,10 +179,9 @@ async function boundStack(): Promise<Stack> {
 }
 
 describe("local review delivery binding at its composition root", () => {
-  // Each case binds the member through the repository's own delivery stores, which only the in-repo implementation reads.
-  useInRepoStoreForEach();
-
+  // The selected-member cases exercise the in-repo plan and state adapters.
   it("carries a selector through preparation to the repository's own delivery state", async () => {
+    useInRepoStore();
     const stack = await boundStack();
     const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });
 
@@ -201,6 +201,7 @@ describe("local review delivery binding at its composition root", () => {
   });
 
   it("routes the resolved coordinates into a member target rather than the checkout's", async () => {
+    useInRepoStore();
     const stack = await boundStack();
     const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });
     const { member } = await prepare.resolveAuthority(EVALUATOR, stack.memberSha);
@@ -216,6 +217,7 @@ describe("local review delivery binding at its composition root", () => {
   });
 
   it("re-derives the same member vehicle at attestation from the head alone", async () => {
+    useInRepoStore();
     const stack = await boundStack();
     const attest = createLocalAttestDependencies({ exec, cwd: stack.root });
 
@@ -231,6 +233,7 @@ describe("local review delivery binding at its composition root", () => {
   });
 
   it("refuses the plan's final member and a member of no plan at this locus", async () => {
+    useInRepoStore();
     const stack = await boundStack();
     const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });
 
@@ -241,6 +244,7 @@ describe("local review delivery binding at its composition root", () => {
   });
 
   it("authenticates the final member only through its exact driver admission", async () => {
+    useInRepoStore();
     const stack = await boundStack();
     const vehicle = {
       kind: "delivery-member" as const,
@@ -279,7 +283,9 @@ describe("local review delivery binding at its composition root", () => {
 
   it("leaves the no-selector path reading the checkout, dirt and all", async () => {
     const stack = await boundStack();
-    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });
+    const { meta: seeded } = await seedWorkUnit(stack.root, WORK_UNIT, { identity: OWNER, meta: { owner: OWNER, branch: "feature" } });
+    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root, workItem: seeded.reference.owner });
+    expect(prepare.operationStore.stateOffBranch).toBe(true);
 
     await expect(prepare.resolveAuthority(EVALUATOR)).resolves.toEqual({
       authority: expect.objectContaining({

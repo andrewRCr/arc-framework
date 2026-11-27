@@ -7,6 +7,10 @@ import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases publish the retired per-identity Errand ref.
+useInRepoStoreForEach();
 
 describe("Store identity publication", () => {
   it("retains the legacy pushed outcome for repeated unchanged identity publication", async () => {

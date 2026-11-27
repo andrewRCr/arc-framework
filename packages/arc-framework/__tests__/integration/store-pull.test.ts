@@ -9,6 +9,10 @@ import { makeNotesTreeCommit, makeUserIO } from "../helpers/integration.js";
 import { runUserSave } from "../../src/commands/user/save-load.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases fetch the old notes ref and materialize its files.
+useInRepoStoreForEach();
 
 const inboxPath = (root: string) => join(root, ".arc/user/andrew/USER-INBOX.md");
 async function saveLocal(h: Awaited<ReturnType<typeof syncFixture>>, side: "a" | "b") {

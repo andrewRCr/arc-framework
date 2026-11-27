@@ -7,6 +7,10 @@ import { serializeTransientIdentityRecord } from "../../src/lib/errand/identity-
 import { syncFixture, syncErrandRef, syncPut, syncRecord } from "../helpers/store/sync-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeGitExecInput } from "../helpers/integration.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases reconcile the retired per-identity Errand ref.
+useInRepoStoreForEach();
 
 function namedPut(name: string) {
   const slug = SlugSchema.parse(name);

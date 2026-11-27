@@ -3,6 +3,10 @@ import { expect, it } from "vitest";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { syncFixture, syncNotesRef } from "../helpers/store/sync-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases exercise the pre-cutover notes merge.
+useInRepoStoreForEach();
 
 for (const effects of [false, true]) {
   it.each(["canceled", "output-limit", "unknown"] as const)(`retains %s merge uncertainty; effects: ${effects}`, async (kind) => {

@@ -3,6 +3,10 @@ import { expect, it } from "vitest";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { syncFixture, syncNotesRef } from "../helpers/store/sync-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases observe the pre-cutover notes ref during publication.
+useInRepoStoreForEach();
 
 for (const stage of ["pre", "post", "rollback"] as const) {
   it.each(["canceled", "output-limit", "unknown", "unexpected-exit"] as const)(`retains ${stage} tip %s failure with no publication and recovers after repair`, async (kind) => {

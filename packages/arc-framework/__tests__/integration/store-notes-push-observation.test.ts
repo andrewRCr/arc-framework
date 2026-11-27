@@ -3,6 +3,10 @@ import { expect, it } from "vitest";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { syncFixture, syncNotesRef } from "../helpers/store/sync-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases exercise the pre-cutover notes push.
+useInRepoStoreForEach();
 
 it.each(["canceled", "output-limit", "unknown"] as const)("preserves an incomplete %s notes push and retries after repair", async (kind) => {
   const h = await syncFixture();

@@ -6,6 +6,10 @@ import { syncFixture, syncInbox, syncErrand, syncPut, syncProvenance, syncNotesR
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases exercise the in-repo store's cross-substrate batch refusal.
+useInRepoStoreForEach();
 
 describe("Store cross-substrate batch", () => {
   it("refuses tracked, personal and identity writes whole, then admits their sequenced retries", async () => {

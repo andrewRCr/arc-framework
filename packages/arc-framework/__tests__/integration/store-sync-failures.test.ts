@@ -9,6 +9,10 @@ import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { ArcError } from "../../src/lib/kernel/errors.js";
 import { UserSaveVerificationError } from "../../src/commands/user/types.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock, AdvisoryLockTimeoutError } from "../../src/lib/advisory-lock.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases exercise the pre-cutover notes and Errand sync legs.
+useInRepoStoreForEach();
 
 async function preparedReconcile() {
   const h = await syncFixture();

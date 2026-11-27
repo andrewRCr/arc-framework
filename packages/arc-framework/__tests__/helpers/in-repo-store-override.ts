@@ -2,12 +2,24 @@
 import { afterEach, beforeEach, onTestFinished } from "vitest";
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 
-function setInRepoStoreOverride(): () => void {
-  const previous = process.env[IN_REPO_STORE_OVERRIDE];
-  process.env[IN_REPO_STORE_OVERRIDE] = "1";
+const overrides: { previous: string | undefined; finished: boolean }[] = [];
+
+function writeOverride(value: string | undefined): void {
+  if (value === undefined) Reflect.deleteProperty(process.env, IN_REPO_STORE_OVERRIDE);
+  else process.env[IN_REPO_STORE_OVERRIDE] = value;
+}
+
+function setOverride(value: string | undefined): () => void {
+  const scope = { previous: process.env[IN_REPO_STORE_OVERRIDE], finished: false };
+  overrides.push(scope);
+  writeOverride(value);
   return () => {
-    if (previous === undefined) Reflect.deleteProperty(process.env, IN_REPO_STORE_OVERRIDE);
-    else process.env[IN_REPO_STORE_OVERRIDE] = previous;
+    scope.finished = true;
+    // A scoped operation can finish while an override it started still belongs to the running test.
+    for (let latest = overrides.at(-1); latest?.finished; latest = overrides.at(-1)) {
+      overrides.pop();
+      writeOverride(latest.previous);
+    }
   };
 }
 
@@ -15,7 +27,7 @@ function setInRepoStoreOverride(): () => void {
  * the test's own `git` runs, builds the in-repo store; the environment is restored when the test finishes.
  */
 export function useInRepoStore(): void {
-  const restore = setInRepoStoreOverride();
+  const restore = setOverride("1");
   onTestFinished(() => { restore(); });
 }
 
@@ -25,7 +37,7 @@ export function useInRepoStore(): void {
  * @returns The operation's result.
  */
 export async function withInRepoStore<T>(operation: () => Promise<T>): Promise<T> {
-  const restore = setInRepoStoreOverride();
+  const restore = setOverride("1");
   try { return await operation(); }
   finally { restore(); }
 }
@@ -36,10 +48,9 @@ export async function withInRepoStore<T>(operation: () => Promise<T>): Promise<T
  * @returns The operation's result.
  */
 export async function withoutInRepoStore<T>(operation: () => Promise<T>): Promise<T> {
-  const previous = process.env[IN_REPO_STORE_OVERRIDE];
-  Reflect.deleteProperty(process.env, IN_REPO_STORE_OVERRIDE);
+  const restore = setOverride(undefined);
   try { return await operation(); }
-  finally { if (previous !== undefined) process.env[IN_REPO_STORE_OVERRIDE] = previous; }
+  finally { restore(); }
 }
 
 /** Set the in-repo store override around every test in the enclosing file or `describe` block, its own `beforeEach`
@@ -47,6 +58,6 @@ export async function withoutInRepoStore<T>(operation: () => Promise<T>): Promis
  */
 export function useInRepoStoreForEach(): void {
   let restore: (() => void) | undefined;
-  beforeEach(() => { restore = setInRepoStoreOverride(); });
+  beforeEach(() => { restore = setOverride("1"); });
   afterEach(() => { restore?.(); restore = undefined; });
 }

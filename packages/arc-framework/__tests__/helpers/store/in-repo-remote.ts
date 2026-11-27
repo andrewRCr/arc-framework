@@ -19,7 +19,7 @@ import { inRepoStore } from "./in-repo-ports.js";
  * @returns Checkouts, synchronous control hooks and a remote-facing public Store.
  */
 export async function inRepoRemote() {
-  const h = await syncFixture();
+  const h = await syncFixture(inRepoStore);
   let enabled = false;
   let identity: string | undefined = "andrew";
   let state: RemoteState = "available";
