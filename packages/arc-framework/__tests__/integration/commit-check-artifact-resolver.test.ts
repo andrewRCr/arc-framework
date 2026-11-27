@@ -22,6 +22,7 @@ describe("createFilesystemArtifactResolver", () => {
 
   it.each([
     ["tasks", "active", "tasks-example.md"],
+    ["tasks", "active/current", "tasks-example.md"],
     ["tasks", "completed/2026-q2/22_example", "tasks-example.md"],
     ["design", "active", "spec-example.md"],
     ["design", "backlog/nested", "draft-example.md"],
