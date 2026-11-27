@@ -938,7 +938,7 @@ describe("runInit", () => {
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/.internal/githooks");
 
-    // arc-in-git projects track ROADMAP through the conflict-surfacing driver.
+    // The install configures the ROADMAP merge attribute and its conflict-surfacing driver.
     const gitattributesWrite = writeCalls.find(
       (c) => c[0] === "/project/.gitattributes",
     );
