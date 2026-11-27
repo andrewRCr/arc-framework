@@ -13,8 +13,10 @@ const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
 
 async function markdownFiles(directory: string): Promise<string[]> {
-  const entries = await readdir(directory, { recursive: true });
-  return entries.filter((entry) => entry.endsWith(".md")).map((entry) => resolve(directory, entry));
+  const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => resolve(entry.parentPath, entry.name));
 }
 
 describe("PR lifecycle and review contracts", () => {
