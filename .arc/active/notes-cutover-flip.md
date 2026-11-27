@@ -2229,6 +2229,9 @@ flip's own landing, each branch and checkout, notes retirement and the close, an
        notices, then re-run it.
     6. `check`, passing.
     7. Every checkout's `arc user save` again.
+    8. Late personal edits (A37): § 10.1's tidy records a digest of each personal file it reviewed; here every personal
+       input the import reads is digested again, and the Owner reads each new or changed file before step 3 publishes
+       it. The copy has no tidy to compare with, so no Stage 2 run took this step.
 3. **The designation and the import (§ 10.3, § 10.4):**
     1. `arc store remote origin push` in `<P>`.
     2. `arc store migrate --import --json` in `<P>`. Keep its report for `chain`, and record its wall time and peak.
@@ -2238,15 +2241,22 @@ flip's own landing, each branch and checkout, notes retirement and the close, an
     6. Second refusal probe: in `<F>` with the override dropped, the flip build refuses, naming the imported route.
 4. **The flip's own landing (§ 10.5, Task 6.4.c):**
     1. In `<F>` under the override: the deletion commit, `git rm -r` of § 3.2's five paths, its hooks passing; pushed to
-       the mirror. The commit-msg hook warns that the footer's meta is not found, since this commit deletes it.
+       the mirror. The commit-msg hook warns that the footer's meta is not found, since this commit deletes it. Before
+       4.2, the commit's tree equals the post-deletion tree CI passed at the fixed head (§ 10.1), read with
+       `git rev-parse HEAD^{tree}`, and `git ls-tree` finds none of the five paths in it (A37).
     2. `last-read`, passing.
-    3. In `<scratch>`: merge the flip branch into `main` with `--no-ff` and push, standing in for the host merge.
+    3. In `<scratch>`: merge the flip branch into `main` with `--no-ff` and push, standing in for the host merge. On the
+       day the driver states `main`'s observed tip at the Owner's merge authorization and, after the host merge, checks
+       that the merge commit's two parents are that tip and the flip's head, before any checkout is retired (A37).
     4. `<F>` then drops the override and, from the flip build:
         - `arc archive cutover-flip --pr-url <url>`, naming the slug: the checkout's marker from before the flip is
           unbound, so no current work unit resolves there and the bare `arc archive` refuses, naming `arc materialize
           cutover-flip --here` and `arc locus release` as its exits;
         - the register closures, saved through write-back (`arc save`); the save writes the local store, and the next
           sync publishes it;
+        - its personal files compared with what the check recorded (`compare --checkout`), before the next bullet
+          removes them (A37); where the tooling refuses this checkout, the comparison is read by hand from the check's
+          record;
         - its pre-flip workspace folder removed, kept files copied out, since release refuses over a withheld file;
         - `arc locus release`, which removes the checkout itself, so anything else kept from it is copied out first and
           the steps after it run from another checkout.
@@ -2261,6 +2271,9 @@ flip's own landing, each branch and checkout, notes retirement and the close, an
           hooks passing on the branch's own pre-flip build; the message's footer is `Context: standalone (maintenance)`,
           since the commit deletes the meta a work-unit footer would name;
         - push, its push gate passing; a branch `origin` does not hold has no push to make.
+        - a branch no checkout holds then merges the flipped `main` in its temporary checkout and pushes, before that
+          checkout is removed, and the tip a later checkout would start from is read; a merge that conflicts is aborted
+          and the branch named open at the close (A37). Stage 2 did not run this merge.
     2. Each checkout, the primary first: `compare --checkout`, then its seven steps. The three removals run only where
        its digest is unchanged. A linked checkout merges the flipped `main`, rebuilds, removes its pre-flip workspace
        folder, takes its first materialization, and binds its marker with `arc materialize <slug> --here`. On the copy
@@ -2285,12 +2298,14 @@ flip's own landing, each branch and checkout, notes retirement and the close, an
        compared before its step reports no range and needs no confirmation, since `close` reads the marks, not later
        tips.
 6. **Notes retire, and the window closes (§ 10.7, § 12):**
-    1. Move the notes ref with `git update-ref` to `refs/retired-notes/arc/user/<id>`, which is neither a tag nor
-       matched by any push refspec, and delete the old ref.
+    1. First read `git ls-remote origin 'refs/notes/*'`: it must list nothing, and a failed lookup counts as unknown,
+       never as none (A37). Move the notes ref with `git update-ref` to `refs/retired-notes/arc/user/<id>`, which is
+       neither a tag nor matched by any push refspec, and delete the old ref.
     2. Each `arc user` notes writer refuses: `save`, `load`, `push`, `fetch`, `pull`, and `compact`.
     3. `close`, passing, with no checkout reporting a withheld file. It refuses a live branch side with no comparison
        mark and a reported range with no confirmation, and reads checkouts' heads for tracked state, so a live branch no
-       checkout holds must have taken its step by then on its own account.
+       checkout holds must have taken its step by then on its own account. Each checkout or branch a step left
+       unfinished is named here with who finishes it and how its state is then read (A37).
     4. Clear every record under `<P>`'s `<commonDir>/arc/review-gate/` that names a path outside the copy, before any
        review runs on the copy. The records stay until here because the import reads every file under that folder
        (`readImportReviewGate`, `lib/store/ref/import/review-gate.ts`), so the copy's import reads what the live one
@@ -2804,6 +2819,15 @@ Read on 11-27 against Phase 6's exit criterion, at the branch's code head `26a5f
   failed on one end-to-end case, `review-protocol.e2e.test.ts`'s settlement of local findings through public verbs,
   at its 30 s limit; the case took 20 to 29 s in six earlier runs and 28.6 s in the passing attempt.
 
+#### The validator's lookup on run 14's copy, at `fd089311b1`
+
+Run on 11-27, after the formal review found that `b97a804f33`, the commit validator's task-list lookup, is part of the
+flip change by § 1.1 and had no Stage 2 run. It took a targeted run in place of a re-run, a departure from § 9.2 (A39;
+Owner, 2026-11-27). In run 14's flipped copy, a checkout whose task list lies under `.arc/active/current/` validated a
+message whose footer names that list: the copy's own build, from before the fix, warned `footer.artifact-not-found`, and
+the head's build passed it with no warning. Neither run changed the copy. The exit-criterion entry above says none of
+the four commits is the flip change; for this one it is corrected here.
+
 ## The parallel run from 11-24
 
 How the flip ran in parallel from 11-24. The Owner decided at 9:04 pm on 11-20 that it would, driven by the session that
@@ -2873,6 +2897,8 @@ the review pilot and sweep on 11-25.
     - `evaluatorIdentity` names Codex CLI 0.171.0 and the exact model, as the run's events report it, checked against
       the registry's answer.
     - One chunk runs end to end as a pilot, prepared, reviewed, and attested, before the rest launch.
+        - _Corrected 2026-11-27 (review):_ the pilot chunk was reviewed and not attested. The review method attests only
+          a chunked pass's aggregate, and the one attestation made is the formal pass's aggregate of 11-27.
 - **The pilot.** One chunk ran first, on 11-25 at `d6065b2448` (389 s, seven findings), and its burn, projected across
   the chunks, went to the Owner before the rest launched. The sweep that followed ran 37 chunk reviewers, unattested.
 - **The burn record:**

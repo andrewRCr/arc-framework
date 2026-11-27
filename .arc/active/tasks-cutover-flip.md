@@ -1784,6 +1784,12 @@ rewritten workflows (§ 9.2).
   partial-protection start among its end-to-end jobs. Stage 2 re-runs at the head § 10.1 fixes after verification only
   where one of those three changed since (§ 9.2). `notes-cutover-flip.md` § Stage 2 holds the record.
 
+- _Corrected 2026-11-27 (review):_ the commit validator's task-list lookup (`b97a804f33`) is part of the flip change by
+  § 1.1, which counts a check that misleads after the flip; the outcome above classed it otherwise. It stands without a
+  Stage 2 re-run as a departure from § 9.2 (A39), on a targeted run in run 14's flipped copy: the copy's build warned
+  `footer.artifact-not-found` for a footer naming the checkout's task list, and the head's build passed it with no
+  warning (`notes-cutover-flip.md` § Stage 2).
+
 ## **Phase 7:** Verification
 
 ### `[x]` **7.R Tests the in-repo store's default still carried — § 7.2, § 7.3**
@@ -1817,6 +1823,10 @@ rewritten workflows (§ 9.2).
   window and two replaced by A32 and A33. The change measures 55,463 lines over 933 files, past the chunking marks, so
   the independent pass ran as seven scoped verifiers and a whole-change pass for the seams, with a reproduction pass
   over their findings and a fix check of each of Task 7.R's two builder commits.
+- _Corrected 2026-11-27 (review):_ the list lacked the spec's eighteenth criterion, a live branch's deletion commit
+  passing its hooks (A28). It is added below and walked against run 14's record, and A37 appends one for the window's
+  added checks. The section now holds 35 criteria: 28 met, 16 of them with a deviation note, and 7 superseded, five
+  deferred to the window and two replaced by A32 and A33.
 
 ---
 
@@ -1830,6 +1840,9 @@ the first below, is attested at the verified head; Stage 2 re-runs at the head �
 where the flip change, the import, or the rewritten workflows changed since (§ 9.2; `notes-cutover-flip.md` § The
 landing after verification).
 
+_Added 2026-11-27 (A37):_ a fifth, the window's added checks, is marked `[~]` the same way; the window's record proves
+it (§ 10.8).
+
 - `[x]` Stage 2 passes every § 9.2 step at the flip branch's reviewed head, which the merged head differs from only by
   the deletion commit, re-run after any later change to the flip change, the import, or the rewritten workflows; each
   § 9.3 perturbation shows its refusal, repair, and continuation; and the destructive CLI matrix and the
@@ -1841,6 +1854,12 @@ landing after verification).
   the forced merge gate was not observed on the copy (both accepted 11-27). The commits since are test changes, time
   limits and the commit validator's task-list lookup. The matrix and the partial-protection start passed in CI over the
   post-deletion tree (run 46059892131).
+
+  **Corrected 2026-11-27 (review):** run 14 did not finish every checkout. `projection-team-scale`'s merge of the
+  flipped `main` conflicted in six paths outside the five roots and was left to its session, and the close passed
+  because it reads each checkout's committed tree. On the day such a checkout is named at the close with who finishes it
+  (§ 10.8). Of the commits since, the validator's lookup is part of the flip change (§ 1.1) and rests on a targeted run
+  in place of a re-run (A39).
 
 - `[~]` The window completes every § 10 step in order with none aborted, the accounting case placing every tracked file
   under a projected root and the chain comparison agreeing for every Candidate record, as the window tooling's close
@@ -1869,6 +1888,10 @@ landing after verification).
   fetch fails after its state legs landed; and, as named residuals (A35), merge's `invalidated` for a checkpoint after a
   store-only rename, the rename source's two reads of its ref, and the capture gates' read for a work unit named
   `personal` or `project`.
+
+  **Corrected 2026-11-27 (review):** the order stated for sync is wrong. Its inspection fetch of the code worktree runs
+  first, and a failure there returns before any state leg, leaving pending state unpublished; the capture records it
+  that way.
 
 - `[x]` Every in-repo refusal of a verb the rewritten text names gives its pre-flip step concretely (§ 3.1).
 
@@ -2003,6 +2026,23 @@ landing after verification).
   ownership marker, leaving it branched and unchanged, and a self-teardown under `arc.selfTeardownMode: remove` reaps
   the branch and removes its checkout, or on Windows leaves it a detached, stamped husk with a notice (A33).
 
+- `[x]` On the Stage 2 copy, with the stand-in for `main`'s change planted ahead of the lock and merged into every live
+  branch, each live branch's deletion commit passes its pre-commit and commit-msg hooks on the branch's own pre-flip
+  build, and its push passes the push gate (A28).
+
+  _Added 2026-11-27 (review):_ the spec's eighteenth criterion, which this list lacked, so verification gave it no mark.
+  Walked against run 14's record.
+
+  **Deviation:** Run 14's copy was taken after `main` carried the change itself (#1406), so no stand-in was planted. All
+  thirteen live branches, the twelve a checkout held and the one none did, took their deletion commit through its hooks
+  (3 checks passed, 11 not selected) and pushed through the push gate (2 passed, 3 reused, 13 not selected).
+
+- `[~]` The window's record shows each § 10.8 check with its outcome, and each checkout or branch a step left unfinished
+  named at the close with who finishes it (A37).
+
+  **Superseded:** Deferred to the window by the decision this section opens with, as amended; the window's record proves
+  it (§ 10.8).
+
 - `[x]` All quality gates pass (tests, linting, type checking)
 
   **Deviation:** The forced merge gate passed at `982c5fadb4` (22 checks, the four CI-only checks not selected locally),
@@ -2014,6 +2054,9 @@ landing after verification).
   second limit. Task 7.R's commits corrected each. Beside them failed one Linux end-to-end case and three Windows cases
   in files Task 7.R left alone, each passing on its rerun (each accepted 11-27; those cases and the slow review cases
   are captured).
+
+  **Corrected 2026-11-27 (review):** five earlier runs failed first, not three. Task 7.R's commits corrected the four at
+  `4029bbd182` and `18537d88fc`; the first, 46029530780, passed on a rerun at its own commit with no fix.
 
 - `[x]` Ready for integration
 

@@ -1348,7 +1348,8 @@ first.
 Alongside it, the destructive CLI matrix (§ 9.8) and the partial-protection start (§ 9.7) run in synthetic scratch
 repositories through the spawned built CLI. The in-place checkout's carry runs in a synthetic repository of its own
 (§ 9.6; A27). The window opens only after a clean Stage 2, re-run at the new head after any later change to the flip
-change, the import, or the rewritten workflows.
+change, the import, or the rewritten workflows. One later change stands without a re-run (A39): `b97a804f33`, the commit
+validator's task-list lookup, made after the last run, rests on a targeted run in that run's flipped copy.
 
 #### 9.3 Controlled perturbations
 
@@ -1691,8 +1692,9 @@ the host refuses if the pull request's head has moved. No ARC checkpoint runs, s
 path, and once the import has run the sealing guard refuses the in-repo implementation's integration writes. Then the
 flip's checkout drops the override and, from the flip build:
 
-- writes its archive through the store (`arc archive`, § 4.5), with no landing-commit link, since no checkpoint bound
-  the merge (`spec-seam-delivery-review.md` A39);
+- writes its archive through the store (`arc archive cutover-flip --pr-url <url>`, § 4.5; A38: the checkout's marker
+  from before the flip is unbound, so the bare form refuses there), with no landing-commit link, since no checkpoint
+  bound the merge (`spec-seam-delivery-review.md` A39);
 - closes the register rows its landing realizes (§ 17), as edits to `cohort-state-storage.md` saved through
   write-back;
 - removes its pre-flip workspace folder, copying out what it keeps, since its first command without the override
@@ -1780,6 +1782,30 @@ recorded head is reachable from the host's `main`, while any registered checkout
 confirmed through the window tooling's `confirm`, which records the Owner's confirmation that the range was re-applied
 (A7). The Owner runs it once no checkout reports a withheld file (`spec-projection-worktrees.md` § 2.5); a withheld file
 is copied out where wanted and deleted, which releases it.
+
+#### 10.8 Checks added at review (A37)
+
+The formal review found places where the sequence above could pass while its outcome failed. The window's driver takes
+each of these at the point named, and the window's record keeps each result:
+
+1. **Late personal edits (§ 10.2, after its last save and before § 10.3).** § 10.1's tidy records a digest of each
+   personal file it reviewed. Every personal input the import reads is digested again, and the Owner reads each new or
+   changed file before the import publishes it.
+2. **The deletion commit's tree (§ 10.5, before the last read).** The commit's tree is the post-deletion tree CI passed
+   at the fixed head (§ 10.1), and none of § 3.2's five paths remains in it.
+3. **The merge's parents (§ 10.5).** The driver states `main`'s observed tip when the Owner authorizes the merge and,
+   after it, checks that the merge commit's parents are that tip and the flip's head, before any checkout is retired.
+4. **The flip checkout's personal files (§ 10.5).** The comparison § 10.6 makes for each remaining checkout is made for
+   the flip's checkout before its workspace folder is removed and the checkout released.
+5. **A live branch no checkout holds (§ 10.6).** After its deletion commit, its temporary checkout merges the flipped
+   `main` and pushes before it is removed, and the tip a later checkout would start from is read. A merge that conflicts
+   is aborted and the branch named at the close.
+6. **Notes on `origin` (§ 12).** `git ls-remote origin 'refs/notes/*'` is read before notes retire; a failed lookup
+   counts as unknown, never as none.
+7. **What a step leaves unfinished (§ 10.7).** Each checkout or branch a step left unfinished is named at the close with
+   who finishes it and how its state is then read.
+
+Stage 2 ran none of these. All but the fifth only read, and the fifth is the merge every held checkout makes in § 10.6.
 
 ### 11. Abort and recovery
 
@@ -2229,6 +2255,9 @@ None closes by being listed here.
   records: Owner-terminus precedence, status across a terminal below the current Candidate, sibling local receipts,
   next-pass consent, a failed local rerun, and the production fallback-to-conjunction flow. `cutover-in-repo-removal`
   moves or deletes each with the in-repo store (Owner, 2026-11-27).
+- **Closure of the decomposition cohorts** (A40): the draft gave this unit the closure of `decompose-core-hardening` and
+  `decompose-transform-integrity` on the rehearsal cut's evidence, and this design kept the evidence (§ 9.5) without the
+  closure. `cutover-decompose-removal` closes both, citing Stage 2's representative cut (Owner, 2026-11-27).
 
 ## Alternatives & Rationale
 
@@ -2392,6 +2421,8 @@ retirement (§ 12) for criterion 10, and the canaries' landings (§ 9.11) for cr
     the stand-in for `main`'s change planted ahead of the lock and merged into every live branch, each live branch's
     deletion commit passes its pre-commit and commit-msg hooks on the branch's own pre-flip build, and its push passes
     the push gate (A28).
+19. **The window's added checks each leave a result.** The window's record shows each § 10.8 check with its outcome, and
+    each checkout or branch a step left unfinished named at the close with who finishes it (A37).
 
 ## Open Questions
 
@@ -2471,5 +2502,13 @@ None.
   _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ 7.1.
 - **A36** — 2026-11-27 — spec-depth: six review lifecycle cases on behavior both stores share stay on the in-repo store.
   _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ none. _Revalidated:_ 7.1.
+- **A37** — 2026-11-27 — spec-depth: the window gains the checks the formal review found missing from it (§ 10.8).
+  _Supersedes:_ none. _Trigger:_ P/publication-tidy review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A38** — 2026-11-27 — design: the flip's archive step names its work unit and pull request, as Stage 2 ran it.
+  _Supersedes:_ § 10.5 ¶3. _Trigger:_ P/archive-operands review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A39** — 2026-11-27 — design: `b97a804f33`, the validator fix after run 14, takes a targeted run, not a re-run.
+  _Supersedes:_ § 9.2 ¶4. _Trigger:_ P/rehearsal-build-drift review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A40** — 2026-11-27 — spec-depth: `cutover-decompose-removal` owns the closure of the two decomposition cohorts.
+  _Supersedes:_ none. _Trigger:_ P/decomposition-cohort-closeout review. _Work:_ none. _Revalidated:_ review-fix.
 
 ---
