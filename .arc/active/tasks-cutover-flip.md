@@ -1708,16 +1708,19 @@ rewritten workflows (§ 9.2).
   was resumed, and is recorded as such. No run from 11-26 takes a checkout through the merge-first order, which run 11
   showed. `notes-cutover-flip.md` § Stage 2 holds each run's record.
 
-### `[ ]` **6.6 The end-to-end work unit — § 9.5**
+### `[x]` **6.6 The end-to-end work unit — § 9.5**
 
 - _Goal:_ One work unit runs end to end on the flipped copy through the rewritten workflows — started branchless, its
   branch created at activation, draft capture, create-spec with an ADR companion, a task closed through the close verb,
   handoff, and pre-publication with the review copy through `arc publish` — takes each deliberate path § 9.5 lists, and
   takes no pre-flip arm, which would read the deleted files and fail or contradict the store (§ 2.3).
 
-    - The reopen reads and withdraws its pull request through a `gh` stub on `PATH` that answers for one stand-in pull
-      request, open and unmerged, on the work unit's branch and fails every other call; its evidence is labeled stubbed
-      host evidence.
+- _Outcome:_ On run 14's copy every listed step ran as its workflow states, its commits and pushes through the copy's
+  hooks, and no command read a deleted record. The scope refusal needed a Candidate with a frontline pass recorded; the
+  import carried no saved replay grant; the reopen's pull request state is stubbed host evidence. Two differences were
+  fixed in the flip: a contracts test that read a set-aside record's folder as a file (`a344d6af51`, `d5a6bac665`), and
+  the commit validator's task-list lookup (`b97a804f33`). The forced merge gate was not observed on the copy.
+  `notes-cutover-flip.md` § Stage 2 holds the record.
 
 ### `[x]` **6.7 CI over the post-deletion tree on a branch of its own — § 10.1**
 
@@ -1757,15 +1760,17 @@ rewritten workflows (§ 9.2).
           checkouts, not three, by the read of 11-25), and each checkout's own build. Confirmed on the live repository
           on 11-26; `notes-cutover-flip.md` § Stage 2 holds the record.
 
-### `[ ]` **6.R3 Store-backed cases 2 to 7 on the end-to-end work unit — § 9.10**
+### `[x]` **6.R3 Store-backed cases 2 to 7 on the end-to-end work unit — § 9.10**
 
 - _Goal:_ Each of cases 2 to 7 runs as a real scenario on the flipped copy, on the work unit Task 6.6 carries to
   pre-publication, since each needs a Candidate and local review passes that only that unit reaches (A31).
 
-    - `[ ]` **6.R3.a The six cases**
-        - Each case's scenario and its expected outcome are written in `notes-cutover-flip.md` § Stage 2 before it runs.
-          A review pass a case needs is attested from a report written for the rehearsal and labeled a stand-in, as case
-          6's reopen reads its pull request through the `gh` stub.
+    - `[x]` **6.R3.a The six cases**
+        - Each case ran twice on run 14's copy against the scenario and outcome written in `notes-cutover-flip.md`
+          § Stage 2 before it, and matched: the pending pass's recovery, composition with no projected directory, the
+          inherited pass count, the consumed grant, publication with the renewed binding, and the linked export
+          destination. Review passes were attested from labeled stand-in reports, and case 6's reopen read its pull
+          request through the `gh` stub.
 
 ### `[ ]` **6.8 Stage 2 clean at the head that lands** — validate exit criterion at segment scope
 

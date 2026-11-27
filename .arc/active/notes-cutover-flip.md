@@ -2569,6 +2569,15 @@ rerun once, as decided on 11-26 for timeouts in that file. CI run 45851968466 pa
 and macOS included. A commit that changes only the work unit's own planning records leaves this tree as it is, since
 those records are among the deleted paths; a later change to tracked code re-runs it.
 
+Re-run on 11-27 at `26a5f0e27e`, after the four commits Task 6.6's findings took: deletion commit `922f9b407b`, tree
+`367c1935f7`, on `ci/cutover-flip-post-deletion-3`; CI run 46016996019 passed on its first attempt, 24 jobs passing and
+7 skipped. Before it, run 46004430259 at `b97a804f33` failed twice in the same end-to-end case of
+`candidate-lineage-settlement.e2e.test.ts` at its 60 s limit. The cause was the shard layout and not the tree: CI
+balances its shards from timing data cached for each branch, a new branch reads `main`'s, and on that layout the file
+runs beside heavier neighbours (255 to 275 s for its six cases, three timeouts in four attempts, against none in
+fourteen on the flip branch's layout). `main` takes that layout after the window, so the suite's limit for those cases
+is now 120 s (`26a5f0e27e`, decided 11-27); in the passing run the slowest case took 61 s.
+
 #### The pre-window change on `main` (Task 6.R2.b), confirmed 11-26
 
 `main` holds the change since #1406 (`855b111238`, 11-24), and each of the twelve live branches a checkout holds has
@@ -2645,6 +2654,49 @@ outcome is the one the case states.
 - **Case 7.** With the spec export's destination replaced by a link to a file outside the checkout, attestation exits
   1 naming the entry and leaves the link's target untouched; with the link removed, the same attestation writes a
   regular review copy.
+
+#### The end-to-end work unit and cases 2 to 7 on run 14's copy (Tasks 6.6 and 6.R3), at `3402739c54`: what ran
+
+Run on 11-27 after the close and step 7, against the scenarios above. Three fresh work units carried it, driven by two
+delegated passes and one command run by hand; every command's output is kept beside the run.
+
+- **As written.** `arc start --new` with its post-create install and build (19 s), detached at `main` with a bound
+  marker; draft capture; create-spec with an ADR; the task list; activation creating the branch at base's tip, the ADR
+  its first commit through the wrapped commit and its hooks, and the wrapped branch push through its gate; a task's
+  commit through `arc release commit --close`, closing the task and capturing its commits; `arc handoff write`, and
+  `arc sync` pushing state and the branch through the push gate (147 s, the unit tier passing); attestation with the
+  review copy and its commit; a local review pass attested from a labeled stand-in; `arc publish`; the reopen through
+  the `gh` stub and session-init answering pre-publication; the archive; and a start under the archived slug.
+- **The scope refusal.** With a frontline pass recorded on a Candidate, a differently scoped request refused
+  `scope-judgment-required`, naming the producer's scope. The remedy's re-entry carried the Owner's accepted terminus,
+  the self-review retry it emitted reached `candidate-publish-ready`, and publication passed. A Candidate whose first
+  standard pass skipped frontline never meets the refusal, which is why the first unit did not.
+- **Cases 2 to 7.** Each matched its written outcome, twice: the pending pass's recovery request ran unchanged and
+  answered the same operation; composition with no projected directory answered byte for byte as with one; the
+  successor Candidate counted its two inherited producers once each and asked for an override at pass 3; the consumed
+  grant replayed as complete and bought nothing after the target moved; publication refused while obligations were
+  open and then published with the renewed binding, the Candidate's bytes unchanged across four reads; and the linked
+  export destination refused with its target untouched, then exported a regular file once unlinked.
+- **No pre-flip arm.** No command read a deleted tracked record; every state read named the store or a projection.
+- **Conditional and read as met.** The import carried no saved replay grant (365 refs, 49 boundaries), so the native
+  re-entry from one had nothing to run. Both cuts landed and their earlier members read Ready; "once the representative
+  cut closes its cohort" is read as the cut landing, since closing the cohort record itself refuses while members are
+  open (decided 11-27).
+- **Two differences, both fixed in the flip (decided 11-27).** `arc check increment` failed in the contracts tier
+  three times while the projection held a record's copy aside: one test read every entry under `.arc/system` whose
+  name ends in `.md`, and the aside folder is named after the record. The test now reads only what reads as a file
+  (`a344d6af51`, `d5a6bac665`), reproduced failing and then passing on the copy. And every task-closing commit warned
+  `footer.artifact-not-found`, the validator's lookup reading `.arc/active/` but not `.arc/active/current/`
+  (`b97a804f33`). A fix check of the two found four minor points: two took the second test commit, and two stand
+  as they are, the other name-only sweeps reading no folder a projection writes to, and a linked `active/current`
+  taking a hand edit (decided 11-27).
+- **Not observed on the copy.** `arc check gate merge --force` was killed at the copy's 4 GiB cap within seconds,
+  seven lint checks passing first; its type checks do not run locally on this host. The copy showed the build, the
+  contracts tier, the unit tier and the Markdown lints passing through the hooks, and CI runs the whole gate's checks
+  over the post-deletion tree (accepted 11-27). A local review's origin coordinates and change-request authority came
+  from an alias and the `gh` stub, the copy having a file-path origin and no host.
+- **Tripwires.** Command start read 42 to 47 ms against 25 ms in every checkout, and fan-out 1.7 s in a new checkout
+  and 10.8 s in the primary against 750 ms, the copy by then holding 25 checkouts.
 
 ## The parallel run from 11-24
 
