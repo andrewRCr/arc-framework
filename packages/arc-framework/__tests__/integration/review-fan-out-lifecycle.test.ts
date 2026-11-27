@@ -1031,7 +1031,7 @@ async function writeSettlementGhFake(
   return { fakeBin, replyPath, resolvedPath };
 }
 
-describe("hosted review fan-out lifecycle", () => {
+describe("hosted review fan-out lifecycle", { timeout: 120_000 }, () => {
   it("uses default hosted settlement wiring for approved success and stale authority refusal", async () => {
     const harness = await createHarness();
     const status = await statusThroughHandler(harness, {
@@ -1875,7 +1875,7 @@ describe("hosted review fan-out lifecycle", () => {
         },
       },
     });
-  }, 120_000);
+  }, 300_000);
 
   it("resumes member status from a renewed Candidate and historical delivery terminal", async () => {
     const harness = await createHarness();

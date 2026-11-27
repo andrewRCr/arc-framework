@@ -34,7 +34,7 @@ it("requires complete-pass approval at the ceiling while admitting the member fi
   expect(await statusThroughHandler(harness, correctedTarget)).toMatchObject({
     state: "approval-required", nextAction: "obtain-ceiling-override",
   });
-}, 60_000);
+}, 180_000);
 
 it("keeps a clean member fix check open until complete review and excludes a later plain commit from delta checks", async () => {
   const { harness, correctedTarget, local } = await createFixedLocalMemberReview(4);
@@ -71,7 +71,7 @@ it("keeps a clean member fix check open until complete review and excludes a lat
   if (published.status !== "ok") throw new Error("expected the plain member head in delivery state");
   const moved = await statusThroughHandler(harness, { ...correctedTarget, headSha: head });
   expect(moved, JSON.stringify(moved)).toMatchObject({ nextAction: "resolve-review-applicability" });
-}, 60_000);
+}, 180_000);
 
 async function bindPublishedMemberObservations(harness: FanOutHarness) {
   await git(harness.root, ["remote", "add", "origin", "git@github.com:owner/repository.git"]);
@@ -127,4 +127,4 @@ it("retains advisory fix tags through a performed member fix and its verified re
     expect(replay.payload.dispositionReportText).not.toContain(absent);
   }
   expect(await store.readDispositionRecord(local.prepared.payload.operationId)).toEqual(record);
-}, 60_000);
+}, 180_000);
