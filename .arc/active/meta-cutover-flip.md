@@ -11,14 +11,14 @@
 - **Design:** `spec-cutover-flip.md`
 - **Task List:** `tasks-cutover-flip.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:9fbdbdc5d7fbdb1862781f58dbf9daeb8de94c86fe21500368401f11370d1a1f`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 6.4.a — The runbook
-- **Next Task:** Task 6.4.b — The import side
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 7.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Revise `notes-cutover-flip.md` § The parallel run from 11-24 (SESSION-NOTES step 1), then merge `main`
-  in (step 2); both before the Owner's approvals for the builds, the pilot, and pushes
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
