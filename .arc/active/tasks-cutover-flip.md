@@ -1861,6 +1861,13 @@ it (§ 10.8).
   (§ 10.8). Of the commits since, the validator's lookup is part of the flip change (§ 1.1) and rests on a targeted run
   in place of a re-run (A39).
 
+  **Authorized 2026-11-27 (fix check):** that checkout's unobserved steps are an authorized deferral. Not observed on
+  the copy for `projection-team-scale`: its merge of the flipped `main`, its rebuild, its workspace folder's removal,
+  its first materialization and its marker's binding; its deletion commit and its comparison ran. Its own session
+  resolves the six conflicts, then rebuilds, materializes and binds (`arc materialize projection-team-scale --here`),
+  and its roster row reading bound is the evidence. Notes retire and the window closes over it once it is accepted by
+  name (A42).
+
 - `[~]` The window completes every § 10 step in order with none aborted, the accounting case placing every tracked file
   under a projected root and the chain comparison agreeing for every Candidate record, as the window tooling's close
   shows (§ 10.7).

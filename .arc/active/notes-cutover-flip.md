@@ -2231,7 +2231,9 @@ flip's own landing, each branch and checkout, notes retirement and the close, an
     7. Every checkout's `arc user save` again.
     8. Late personal edits (A37): § 10.1's tidy records a digest of each personal file it reviewed; here every personal
        input the import reads is digested again, and the Owner reads each new or changed file before step 3 publishes
-       it. The copy has no tidy to compare with, so no Stage 2 run took this step.
+       it. The copy has no tidy to compare with, so no Stage 2 run took this step. This read is the last act before step
+       3, with no other command between, and is repeated before any retry of an import that refused before landing;
+       nothing in the tooling binds it to the import's own read, a residual accepted for this one import (A41).
 3. **The designation and the import (§ 10.3, § 10.4):**
     1. `arc store remote origin push` in `<P>`.
     2. `arc store migrate --import --json` in `<P>`. Keep its report for `chain`, and record its wall time and peak.
@@ -2247,19 +2249,20 @@ flip's own landing, each branch and checkout, notes retirement and the close, an
     2. `last-read`, passing.
     3. In `<scratch>`: merge the flip branch into `main` with `--no-ff` and push, standing in for the host merge. On the
        day the driver states `main`'s observed tip at the Owner's merge authorization and, after the host merge, checks
-       that the merge commit's two parents are that tip and the flip's head, before any checkout is retired (A37).
+       that the merge commit's two parents are that tip and the flip's head, before any checkout is retired (A37); a
+       mismatch stops every later step for the Owner (A41).
     4. `<F>` then drops the override and, from the flip build:
+        - first, its personal files compared with what the check recorded (`compare --checkout`), and its pre-flip
+          workspace folder copied out whole, whatever the comparison reads (A37, A41);
         - `arc archive cutover-flip --pr-url <url>`, naming the slug: the checkout's marker from before the flip is
           unbound, so no current work unit resolves there and the bare `arc archive` refuses, naming `arc materialize
           cutover-flip --here` and `arc locus release` as its exits;
         - the register closures, saved through write-back (`arc save`); the save writes the local store, and the next
           sync publishes it;
-        - its personal files compared with what the check recorded (`compare --checkout`), before the next bullet
-          removes them (A37); where the tooling refuses this checkout, the comparison is read by hand from the check's
-          record;
-        - its pre-flip workspace folder removed, kept files copied out, since release refuses over a withheld file;
-        - `arc locus release`, which removes the checkout itself, so anything else kept from it is copied out first and
-          the steps after it run from another checkout.
+        - its pre-flip workspace folder removed and `arc locus release`, both only where the comparison read unchanged;
+          on a changed or unavailable result the Owner first reads the copied folder against the imported files (A41).
+          Release refuses over a withheld file and removes the checkout itself, so anything else kept from it is copied
+          out first and the steps after it run from another checkout.
 5. **Each branch and checkout (§ 10.6, Task 6.4.d):**
     1. Each live branch other than `main` and the flip: `compare --branch` first, which marks its tips before its step
        moves one, then its branch step, the deletion ahead of any merge of the flipped `main` (§ 10.6):
@@ -2272,8 +2275,10 @@ flip's own landing, each branch and checkout, notes retirement and the close, an
           since the commit deletes the meta a work-unit footer would name;
         - push, its push gate passing; a branch `origin` does not hold has no push to make.
         - a branch no checkout holds then merges the flipped `main` in its temporary checkout and pushes, before that
-          checkout is removed, and the tip a later checkout would start from is read; a merge that conflicts is aborted
-          and the branch named open at the close (A37). Stage 2 did not run this merge.
+          checkout is removed, and the tip a later checkout would start from is read; a merge that conflicts leaves the
+          branch's step open: it is resolved there before the close, or the Owner accepts the branch open by name with
+          who merges the flipped `main` before its next checkout, and the close's record lists it with its tip, since no
+          tooling refuses a later checkout of it (A37, A41). Stage 2 did not run this merge.
     2. Each checkout, the primary first: `compare --checkout`, then its seven steps. The three removals run only where
        its digest is unchanged. A linked checkout merges the flipped `main`, rebuilds, removes its pre-flip workspace
        folder, takes its first materialization, and binds its marker with `arc materialize <slug> --here`. On the copy
@@ -2290,6 +2295,9 @@ flip's own landing, each branch and checkout, notes retirement and the close, an
           merge base with `main`, so its merge of the flipped `main` conflicts. Run 11 showed the order at
           `c9410c1318`; the refusal and its remedy are covered by the suite at later heads. On the day the order does
           not arise where each branch takes its step in 5.1 before any merge.
+        - A checkout whose merge of the flipped `main` conflicts outside the five roots is left to its session: the
+          merge is aborted, its workspace folder stays, and it takes no later step, as `projection-team-scale`'s did on
+          run 14 (A42).
         - Each spawned pre-flip checkout's marker is bound.
         - The primary's identity root ends holding only ARC's surfaces and `scratch/`, its inbox and working memory laid
           from the store.
@@ -2298,14 +2306,18 @@ flip's own landing, each branch and checkout, notes retirement and the close, an
        compared before its step reports no range and needs no confirmation, since `close` reads the marks, not later
        tips.
 6. **Notes retire, and the window closes (§ 10.7, § 12):**
-    1. First read `git ls-remote origin 'refs/notes/*'`: it must list nothing, and a failed lookup counts as unknown,
-       never as none (A37). Move the notes ref with `git update-ref` to `refs/retired-notes/arc/user/<id>`, which is
-       neither a tag nor matched by any push refspec, and delete the old ref.
+    1. Before anything retires, read the roster and name each checkout not yet materialized; notes do not retire and
+       `close` does not run until the Owner has accepted each by name (A42). Then read
+       `git ls-remote origin 'refs/notes/*'`: it must list nothing, and a failed lookup counts as unknown, never as
+       none; any result but an empty listing stops the retirement for the Owner (A37, A41). Move the notes ref with
+       `git update-ref` to `refs/retired-notes/arc/user/<id>`, which is neither a tag nor matched by any push refspec,
+       and delete the old ref.
     2. Each `arc user` notes writer refuses: `save`, `load`, `push`, `fetch`, `pull`, and `compact`.
     3. `close`, passing, with no checkout reporting a withheld file. It refuses a live branch side with no comparison
        mark and a reported range with no confirmation, and reads checkouts' heads for tracked state, so a live branch no
        checkout holds must have taken its step by then on its own account. Each checkout or branch a step left
-       unfinished is named here with who finishes it and how its state is then read (A37).
+       unfinished is named here with who finishes it and how its state is then read (A37). `close` reads only each
+       checkout's committed tree, so the roster read in 6.1 is what shows a checkout left unmaterialized (A42).
     4. Clear every record under `<P>`'s `<commonDir>/arc/review-gate/` that names a path outside the copy, before any
        review runs on the copy. The records stay until here because the import reads every file under that folder
        (`readImportReviewGate`, `lib/store/ref/import/review-gate.ts`), so the copy's import reads what the live one

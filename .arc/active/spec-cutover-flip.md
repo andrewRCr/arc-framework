@@ -1773,7 +1773,10 @@ and the late edit is re-applied as an ordinary one (`spec-projection-worktrees.m
 
 #### 10.7 Notes retire, and the window closes
 
-Notes retire last (§ 12), after the flip has merged and every checkout's first materialization has succeeded. The window
+Notes retire last (§ 12), after the flip has merged and every checkout's first materialization has succeeded, save a
+checkout left to its session (A42): one whose merge of the flipped `main` conflicts outside § 3.2's paths keeps its
+pre-flip workspace folder and takes no later step, and before notes retire and before the close the driver reads the
+roster and names each checkout not yet materialized, neither running until the Owner accepts each by name. The window
 closes through the window tooling's close (§ 1.3), which deletes the check's hold under `refs/arc-window/`, which
 nothing restores from once the flip has merged. The close lists each moved, gone, or unrecorded range a branch's
 comparison recorded (§ 10.6), and it refuses on the conditions its specification enumerates, among them until the flip's
@@ -1790,22 +1793,35 @@ each of these at the point named, and the window's record keeps each result:
 
 1. **Late personal edits (§ 10.2, after its last save and before § 10.3).** § 10.1's tidy records a digest of each
    personal file it reviewed. Every personal input the import reads is digested again, and the Owner reads each new or
-   changed file before the import publishes it.
+   changed file before the import publishes it. This read is the last act before the designation and the import, with no
+   other command between them, and is repeated before any retry of an import that refused before landing. The tooling
+   does not bind it to the import's own read of those files, a residual accepted for this one import (A41).
 2. **The deletion commit's tree (§ 10.5, before the last read).** The commit's tree is the post-deletion tree CI passed
    at the fixed head (§ 10.1), and none of § 3.2's five paths remains in it.
 3. **The merge's parents (§ 10.5).** The driver states `main`'s observed tip when the Owner authorizes the merge and,
-   after it, checks that the merge commit's parents are that tip and the flip's head, before any checkout is retired.
+   after it, checks that the merge commit's parents are that tip and the flip's head, before any checkout is retired. It
+   guards every step after the merge.
 4. **The flip checkout's personal files (§ 10.5).** The comparison § 10.6 makes for each remaining checkout is made for
-   the flip's checkout before its workspace folder is removed and the checkout released.
+   the flip's checkout first, ahead of its archive, and its workspace folder is copied out whole before its removal in
+   every case. It guards the folder's removal and the checkout's release, which run only where the digest reads
+   unchanged; on a changed or unavailable result the Owner first reads the copied folder against the imported files.
 5. **A live branch no checkout holds (§ 10.6).** After its deletion commit, its temporary checkout merges the flipped
    `main` and pushes before it is removed, and the tip a later checkout would start from is read. A merge that conflicts
-   is aborted and the branch named at the close.
+   leaves the branch's step open: it is resolved in the temporary checkout before the close, or the Owner accepts the
+   branch open by name with who merges the flipped `main` before its next checkout, and the close's record lists it with
+   its tip. No tooling refuses a later checkout of such a branch. It guards the close.
 6. **Notes on `origin` (§ 12).** `git ls-remote origin 'refs/notes/*'` is read before notes retire; a failed lookup
-   counts as unknown, never as none.
+   counts as unknown, never as none. It guards the notes' retirement.
 7. **What a step leaves unfinished (§ 10.7).** Each checkout or branch a step left unfinished is named at the close with
-   who finishes it and how its state is then read.
+   who finishes it and how its state is then read. It guards the notes' retirement and the close, as § 10.7 states for a
+   checkout left to its session.
 
-Stage 2 ran none of these. All but the fifth only read, and the fifth is the merge every held checkout makes in § 10.6.
+A result other than the expected one at any of these checks stops the step it guards (A41): nothing is published,
+removed, released, or retired past it until the Owner has read the result and said how the window goes on, and § 11's
+exception for § 10.6's comparisons does not reach them.
+
+Stage 2 ran none of these. All but the fourth and the fifth only read: the fourth also copies a folder out, and the
+fifth is the merge every held checkout makes in § 10.6.
 
 ### 11. Abort and recovery
 
@@ -2510,5 +2526,9 @@ None.
   _Supersedes:_ § 9.2 ¶4. _Trigger:_ P/rehearsal-build-drift review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A40** — 2026-11-27 — spec-depth: `cutover-decompose-removal` owns the closure of the two decomposition cohorts.
   _Supersedes:_ none. _Trigger:_ P/decomposition-cohort-closeout review. _Work:_ none. _Revalidated:_ review-fix.
+- **A41** — 2026-11-27 — spec-depth: each § 10.8 check states what a result other than its expected one does.
+  _Supersedes:_ none. _Trigger:_ P/unheld-branch-build review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A42** — 2026-11-27 — design: notes retire over a checkout left to its session once the Owner accepts it by name.
+  _Supersedes:_ § 10.7. _Trigger:_ P/rehearsal-skipped-checkout review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
