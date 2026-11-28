@@ -2840,6 +2840,17 @@ message whose footer names that list: the copy's own build, from before the fix,
 the head's build passed it with no warning. Neither run changed the copy. The exit-criterion entry above says none of
 the four commits is the flip change; for this one it is corrected here.
 
+#### The fence step again on the strengthened harness, at `b3280a2cb5`
+
+Run on 11-27, after the formal review's fixes made the fence harness read the store as soon as the first batch returns
+and compare open conflicts with what fresh preparation leaves. Stage 2's fence step ran again over run 14's own snapshot
+of the store, the same 354 cases, with the harness and its sources from the head: every case's outcome equals run 14's,
+337 refused and 17 admitted, none thrown, an unrelated write admitted for each writer, and the snapshot's refs
+unchanged. Cases 1 to 240 ran on the host in four processes of 60. Cases 241 to 354 ran on the runner pool, on two Linux
+runners (arc-offload runs `f532af681f22441eb2f76fef8b79112b` and `bb7c25c7117f4ccb8a454c1e38d8035b`), because a game
+held the host's capped runs; a runner read the snapshot with the host's refs digest first. No other Stage 2 step ran
+again.
+
 ## The parallel run from 11-24
 
 How the flip ran in parallel from 11-24. The Owner decided at 9:04 pm on 11-20 that it would, driven by the session that
