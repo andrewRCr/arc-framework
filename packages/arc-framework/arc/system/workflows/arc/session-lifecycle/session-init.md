@@ -81,10 +81,11 @@ For a selected offer choice:
   answer as one element. If it starts with `-`, insert one `--<signal>=<answer>` element instead. Recompile with that
   argv; make no other change.
 
-A failed action stops the sequence. Surface its command and output and ask for direction; run no remaining action.
-The person may retry it or explicitly continue past it. To continue past it, run the step's or choice's carried
-recompile argv, skipping every unrun action in that sequence. Do not edit its answer or done flags. A choice whose
-transition is a handoff has no carried recompile; a failed handoff leaves the session at its orientation.
+If an action refuses, surface the condition and apply the reported remedy within the current authorization. When the
+remedy completes the action, continue the sequence. For an unresolved failure, stop, surface the command and output, and
+ask for direction. The person may retry it or explicitly continue past it. To continue past it, run the step's or
+choice's carried recompile argv, skipping every unrun action in that sequence. Do not edit its answer or done flags. A
+choice whose transition is a handoff has no carried recompile; a failed handoff leaves the session at its orientation.
 
 ## 3. Transitions and carried context
 
@@ -93,9 +94,9 @@ ran elsewhere. Start the fresh agenda at its first step. The compiler carries an
 followed methods; never manufacture `--answered` or `--done` flags. Elicitation above is the only argv insertion.
 
 Carry reads already completed for the same checkout and path only when no intervening sync could have written them.
-Notes pull/load writes user documents, including SESSION-NOTES, WORKING-MEMORY, and USER-INBOX; user-reference apply
-can move personal context. Worktree pulls, resets, and materialization into the session's checkout can change tracked
-files. Re-read affected documents according to the fresh agenda. Carry followed methods' reports and questions.
+A store pull and the projection it refreshes can rewrite projected records, the work unit's meta and personal records
+among them. Worktree pulls and resets in the session's checkout can change tracked files. Re-read affected documents
+according to the fresh agenda. Carry followed methods' reports and questions.
 
 **Handoff:** For `then.kind: "handoff"`, relay the command's own result text naming the resulting checkout and stop.
 Ask the person to open a fresh session there with their harness of choice; emit no harness-specific launch command.
@@ -110,9 +111,10 @@ followed method's report and question, and report unoffered `exec` actions that 
 
 - **`work-state`:** Compose **Last completed** (one line: task ID, title, commit state), **Current task** (one line:
   task ID and title, or `none` between work units), **Blockers** (`none` or the relevant detail), and **Next action**
-  (one line on the task list, unbounded when off-task work has no tracked source). Use the loaded meta, task cursor,
-  and SESSION-NOTES within the authority rules below. Include a cohort-coordination line only when the loaded cohort
-  document bears on the current task.
+  (one line on the task list, unbounded when off-task work has no tracked source). Use the loaded meta, its session
+  context included, and the task cursor within the authority rules below. Include unresolved blockers from Session
+  Context in the composed Blockers line. Include a cohort-coordination line only when the loaded cohort document
+  bears on the current task.
 - **`subject`:** Frame the summary around `orientation.subject` and its kind/key, goal, and relevant working context,
   instead of composing work-unit state.
 - **`checkout`:** Emit the compiled header and checkout surfaces, with no thought-state lines or subject.
@@ -120,7 +122,7 @@ followed method's report and question, and report unoffered `exec` actions that 
 
 Do not restate a task's full description: its task-list pointer is enough. Reserve unbounded working-context prose
 for off-task-list work with no tracked source. Never include configuration overrides, defaults active, freshness
-clean, or environment checks passed. Live Git facts come from the compiled text, never SESSION-NOTES prose.
+clean, or environment checks passed. Live Git facts come from the compiled text, never session-context prose.
 
 After emitting the orientation, write each emitted step's `marker.value` to its exact `marker.path` when present,
 creating parent directories as needed. Never write a marker before its text is shown or for a suppressed surface.
@@ -135,23 +137,26 @@ At a `gate`:
 
 ## 5. State authority and mismatches
 
-SESSION-NOTES may supply roster/context anchors (`Working On`, `Session Type`, `Commit at Handoff`) and human working
-context. It never selects lifecycle phase, workflow, load set, or live Git facts. WORKING-MEMORY entries bind as active
-constraints until each entry's `_Remove when:_` trigger is met.
+The agenda compiler can apply the meta's stored `Session Type` as a discretionary planning/execution override when
+building the workflow and load set. Typed prepublication and integration phases retain authority. Follow the emitted
+agenda. Session Context, `State at Handoff`, and `Commit at Handoff` supply working context and freshness anchors.
+WORKING-MEMORY entries bind as active constraints until each entry's `_Remove when:_` trigger is met.
 
-Distinguish two mismatch axes:
+Resolve discrepancies using the authority for each fact.
 
-- **Truth of work state:** Git commits, actual file contents, and `git status` are authoritative. The task list,
-  active meta, and personal notes make claims about that state; verify them against Git, which wins on conflict.
-- **Which work is being picked up:** Identity-filtered metas and the worktree list are authoritative. Personal notes
-  describe working context, not which work unit, branch, or task this session resumes.
+- **Code and checkout:** Git history, the index, `git status`, and actual code contents settle code and checkout facts.
+- **Task and lifecycle:** Use the store-backed task cursor for task closure and typed status for lifecycle phase.
+  Consult store history to explain state changes. If a commit landed and the task remains open, report the pending
+  close and follow **Crash Recovery** in [process-task-loop][process-task-loop]. A state-only task can close without a
+  code commit.
+- **Resume subject:** Follow the compiled selection from the identity-filtered metas and worktree list.
 
-When an axis's authority resolves a discrepancy unambiguously, use ground truth and report the discrepancy in
-orientation: “Active meta said X. Git/task list show Y. Proceeding with Y.” If the compiled selection needs refreshing,
-rerun the last agenda invocation from the same checkout; never construct another session frame yourself.
-When explanations remain ambiguous or same-tier authorities disagree, report each view with specific details and
-wait for explicit direction before corrective action. Unexplained dirty files may be co-development or interrupted
-work; do not assume ownership. A mismatch withholds auto-proceed even when it can be recovered with notice.
+When the authority settles a discrepancy, report the conflicting accounts and the authoritative result in orientation.
+If the compiled selection needs refreshing, rerun the last agenda invocation from the same checkout; never construct
+another session frame yourself. When explanations remain ambiguous or same-tier authorities disagree, report each view
+with specific details and wait for explicit direction before corrective action. Unexplained dirty files may be
+co-development or interrupted work; do not assume ownership. A mismatch withholds auto-proceed even when it can be
+recovered with notice.
 
 If a freshness gap suggests an interrupted session, load [process-task-loop][process-task-loop] and follow its
 **Crash Recovery** procedure before proceeding.

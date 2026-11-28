@@ -20,6 +20,7 @@ import {
   setupWorktreeSiblings,
 } from "../helpers/multi-clone.js";
 import { reconcileNotesPush, runUserLoad, runUserSave, type UserIOContext } from "../../src/commands/user.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const IDENTITY = "test-user";
 const NOTES_REF = `refs/notes/arc/user/${IDENTITY}`;
@@ -100,6 +101,7 @@ function saveIoPausedAfterWorkingMemoryRead(cwd: string, barrier: ReturnType<typ
 }
 
 describe("same-machine user-notes interleavings", () => {
+  useInRepoStoreForEach();
   it("keeps a reconcile-merged entry across repeated saves before disk load", async () => {
     const harness = await setupWorktreeSiblings({
       primary: { config: { "arc.identity": IDENTITY } },

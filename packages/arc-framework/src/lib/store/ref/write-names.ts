@@ -1,5 +1,5 @@
 /** Resolve write operands by the captured name tiers while reserving new generations together. */
-import { RecordReferenceSchema, type RecordReference } from "../identity.js";
+import { RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import type { Mutation } from "../write.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
@@ -14,12 +14,13 @@ export function writeOwnerNameKey(reference: RecordReference): string { return J
 
 /** Bind updates to existing generations and keep every fresh primary's companion on its new UID. */
 export async function resolveNamedRefWrites(context: RefBackendContext, writes: readonly Mutation[],
-  tips: ReadonlyMap<string, string>): Promise<StoreResult<NamedRefWrites>> {
+  tips: ReadonlyMap<string, string>, planned: readonly RecordReference[]): Promise<StoreResult<NamedRefWrites>> {
   const fresh = await freshPrimaryNames(context, writes, tips);
   if (fresh.status === "refused") return fresh;
+  const reserved = new Map(planned.map(reference => [writeOwnerNameKey(reference), reference.owner]));
   const resolved: Mutation[] = [];
   for (const mutation of writes) {
-    const bound = await bindNamedMutation(context, mutation, tips, fresh.result);
+    const bound = await bindNamedMutation(context, mutation, tips, fresh.result, reserved);
     if (bound.status === "refused") return bound;
     resolved.push(bound.result);
   }
@@ -42,12 +43,12 @@ async function freshPrimaryNames(context: RefBackendContext, writes: readonly Mu
 }
 
 async function bindNamedMutation(context: RefBackendContext, mutation: Mutation, tips: ReadonlyMap<string, string>,
-  fresh: ReadonlySet<string>): Promise<StoreResult<Mutation>> {
-  const reference = await bindName(context, mutation.reference, tips, fresh);
+  fresh: ReadonlySet<string>, reserved: ReadonlyMap<string, OwnerIdentity>): Promise<StoreResult<Mutation>> {
+  const reference = await bindName(context, mutation.reference, tips, fresh, reserved);
   if (reference.status === "refused") return reference;
   const resolves: RecordReference[] = [];
   for (const conflict of mutation.resolves ?? []) {
-    const bound = await bindName(context, conflict, tips, fresh);
+    const bound = await bindName(context, conflict, tips, fresh, reserved);
     if (bound.status === "refused") return bound;
     resolves.push(bound.result);
   }
@@ -55,8 +56,13 @@ async function bindNamedMutation(context: RefBackendContext, mutation: Mutation,
 }
 
 async function bindName(context: RefBackendContext, reference: RecordReference, tips: ReadonlyMap<string, string>,
-  fresh: ReadonlySet<string>): Promise<StoreResult<RecordReference>> {
-  if (reference.kind.startsWith("lineage/") || fresh.has(writeOwnerNameKey(reference))) return { status: "ok", result: reference };
+  fresh: ReadonlySet<string>, reserved: ReadonlyMap<string, OwnerIdentity>): Promise<StoreResult<RecordReference>> {
+  if (reference.kind.startsWith("lineage/")) return { status: "ok", result: reference };
+  if ("uid" in reference.owner && reference.owner.uid) return { status: "ok", result: reference };
+  const name = writeOwnerNameKey(reference);
+  const planned = reserved.get(name);
+  if (planned) return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: planned }) };
+  if (fresh.has(name)) return { status: "ok", result: reference };
   const found = await resolveRefName(context, reference, tips);
   if (found.status === "refused") return found.refusal.code === "not-found" ? { status: "ok", result: reference } : found;
   return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: found.result.owner }) };

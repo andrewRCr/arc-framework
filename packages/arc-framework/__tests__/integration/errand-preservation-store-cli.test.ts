@@ -17,7 +17,6 @@ import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
-
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
@@ -62,7 +61,7 @@ async function saved(h: Awaited<ReturnType<typeof fixture>>, slug: string) {
 }
 
 it("refuses dirty removal, leaves after preservation repair, and rematerializes the same generation after its code ref is restored", async () => {
-  const h = await fixture(), slug = "preserve-cli", branch = `chore/${slug}`;
+  const h = await fixture(), slug = "preserve-cli";
   const opened = await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--intent", "Preserve this code", "--json"]);
   expect(opened, JSON.stringify(opened)).toMatchObject({ result: { outcome: "applied" } });
   const result = ErrandOperationResultSchema.parse(opened.result);
@@ -70,6 +69,9 @@ it("refuses dirty removal, leaves after preservation repair, and rematerializes 
   const allocation = result.allocation;
   const holder = allocation.checkoutPath, codePath = join(holder, "preserved-code.txt");
   const initial = await saved(h, slug), marker = await readWorktreeMarker(holder);
+  const owner = initial.record.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the Errand owner's UID");
+  const branch = `chore/${slug}-${owner.uid.slice(0, 8)}`;
   expect(marker).toMatchObject({ kind: "present", marker: { spawnedByArc: true, createdFor: { kind: "errand", slug, claimId: initial.identity.claimId } } });
   await h.exec("git", ["push", "-u", "origin", branch], { cwd: holder });
   await writeFile(codePath, "Personal code must survive leave and rematerialize.\n");

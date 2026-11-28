@@ -2,6 +2,9 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { handleDecompose } from "../../../src/handlers/decompose.js";
+import { decomposeDiscardStep, decomposeRevisionStep } from "../../../src/lib/store/pre-flip-steps.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 const { root } = vi.hoisted(() => ({ root: vi.fn() }));
 vi.mock("../../../src/lib/paths.js", async original => ({
@@ -18,17 +21,17 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = previousExitCode; });
 
 it.each([
-  { options: { revise: true as const }, reason: "unsupported", remedy: "explicit cleanup direction" },
-  { options: { revise: "cut.json" }, reason: "unsupported", remedy: "explicit cleanup direction" },
-  { options: { revise: "cut.json", apply: authority }, reason: "unsupported", remedy: "explicit cleanup direction" },
-  { options: { discard: true as const }, reason: "unsupported", remedy: "explicit cleanup direction" },
-  { options: { discard: true as const, apply: authority }, reason: "unsupported", remedy: "explicit cleanup direction" },
+  { options: { revise: true as const }, reason: "unsupported", remedy: decomposeRevisionStep("origin") },
+  { options: { revise: "cut.json" }, reason: "unsupported", remedy: decomposeRevisionStep("origin") },
+  { options: { revise: "cut.json", apply: authority }, reason: "unsupported", remedy: decomposeRevisionStep("origin") },
+  { options: { discard: true as const }, reason: "unsupported", remedy: decomposeDiscardStep() },
+  { options: { discard: true as const, apply: authority }, reason: "unsupported", remedy: decomposeDiscardStep() },
   { options: { finish: true as const }, reason: "finish-map-operand", remedy: "arc decompose origin --finish <cut-map>" },
   { options: { finish: true as const, apply: authority }, reason: "finish-map-operand", remedy: "arc decompose origin --finish <cut-map>" },
 ])("emits one canonical refusal for $options", async ({ options, reason, remedy }) => {
   const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
   const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-  await handleDecompose("origin", options);
+  await handleDecompose("origin", options, undefined, { store: inRepoStore(createDefaultStorePorts({ checkoutRoot: "/repo" })) });
   const output = stdout.mock.calls.map(call => String(call[0])).join("");
   expect(output.length).toBeGreaterThan(0);
   const result = JSON.parse(output);

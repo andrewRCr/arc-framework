@@ -7,6 +7,7 @@ import { z } from "zod";
 import { resolveNamedReviewWorkUnitInvocation } from "../review-gate/runtime/review-work-unit.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
 import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
+import { currentNamedWorkItem } from "../../lib/store/kinds/review/access-shared.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import {
   createCurrentBaseDriftAdapters,
@@ -22,7 +23,6 @@ import {
 } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import {
   ChangeRequestMergeObservationSchema,
   observeChangeRequestMergeAdmission,
@@ -57,7 +57,7 @@ import { MergeMethodSchema, resolveMergeMethod } from "../review-gate/merge-meth
 import { createRespondDependencies } from "../review-gate/runtime/respond-composition.js";
 import { respondToReviewCommand } from "../review-gate/runtime/respond-command.js";
 import { confirmCandidateResponseAction } from "./candidate-response-confirmation.js";
-import { readIntegrationCheckpointComposition } from "./checkpoint-store.js";
+import { integrationCheckpointLocation, readIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import {
   checkpointMovementCause,
   composeCheckpointMovementPlan,
@@ -181,6 +181,8 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
     runner,
     (request) => evaluateReviewReadiness(request, {
       store: input.store,
+      projectId: input.projectId,
+      workItem: input.workItem,
       deliveryMemberLookup,
       readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
       fs: createGitTreeReadFs({
@@ -289,13 +291,18 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
 
   return {
     ...(input.store.capabilities.stateOffBranch ? {
-      validateCheckpointOwnership: async checkpoint => {
+      validateCheckpointOwnership: async (checkpoint, landed) => {
         const owner = await nativeCheckpointOwner(checkpoint, input.projectId);
-        const selected = await resolveNamedReviewWorkUnitInvocation(input, checkpoint.workUnit);
-        if (selected.workItem?.type !== "work-item" || owner.type !== "work-item" || selected.workItem.uid !== owner.uid) {
-          throw new Error("The selected work-item generation differs from the checkpoint. Recompose its checkpoint, then retry.");
+        if (landed) {
+          if (await currentNamedWorkItem(input.store, owner, input.workUnit) !== null) return;
+        } else {
+          const selected = (await resolveNamedReviewWorkUnitInvocation(input, input.workUnit)).workItem;
+          if (selected?.type === "work-item" && owner.type === "work-item" && selected.uid === owner.uid) {
+            input.workItem = selected;
+            return;
+          }
         }
-        input.workItem = selected.workItem;
+        throw new Error("The selected work-item generation differs from the checkpoint. Recompose its checkpoint, then retry.");
       },
       writeLandingCommit: async (workUnit, sha, checkpoint) => writeWorkUnitLandingCommit({ store: input.store,
         projectId: input.projectId, workUnit, owner: await nativeCheckpointOwner(checkpoint, input.projectId), sha }),
@@ -303,10 +310,8 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
     readCheckpoint: async (workUnit, handle) => {
       const identity = await resolveIdentity({ exec: input.exec });
       if (identity === null) throw new Error("An ARC identity is required to read the integration checkpoint.");
-      const surfaces = createUserSurfaceResolver({ cwd: input.cwd, identity });
       return readIntegrationCheckpointComposition(
-        surfaces.workUnitRoot(SlugSchema.parse(workUnit)),
-        workUnit,
+        await integrationCheckpointLocation({ cwd: input.cwd, identity, workUnit, store: input.store, exec: input.exec }),
         handle,
       );
     },
@@ -416,6 +421,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
           mode: "authoritative",
           ...createCurrentBaseDriftAdapters(
             input.exec,
+            input.store,
             workUnitPathTreatmentContext(input.workUnit),
           ),
         }),
@@ -443,6 +449,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
         head: coordinates.head,
         classify: createCurrentBaseDriftAdapters(
           input.exec,
+          input.store,
           workUnitPathTreatmentContext(input.workUnit),
         ).classifyReconciliation,
       });
@@ -515,6 +522,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
             mode: "authoritative",
             ...createCurrentBaseDriftAdapters(
               input.exec,
+              input.store,
               workUnitPathTreatmentContext(input.workUnit),
             ),
           });

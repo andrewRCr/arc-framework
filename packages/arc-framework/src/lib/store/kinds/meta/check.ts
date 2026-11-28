@@ -4,7 +4,7 @@ import { checkFormerSlug, checkSlugEdges } from "../work-item/index.js";
 import { checkMetaVerbOwnedField } from "./authority-rules.js";
 import { checkMetaFieldBlock, checkMetaDurableFields } from "./shape-rules.js";
 import { checkMetaDependsOn, checkMetaDesignEntry, checkMetaCohort } from "./reference-rules.js";
-import { checkMetaStage, checkMetaPrepareTasks } from "./lifecycle-rules.js";
+import { checkMetaArchiveInventory, checkMetaStage, checkMetaPrepareTasks } from "./lifecycle-rules.js";
 import { checkMetaInboundHeld } from "./inbound-held-rule.js";
 import { checkMetaRemovalEdges } from "./removal-edges-rule.js";
 import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
@@ -17,7 +17,7 @@ import { checkPreparedRename } from "../../rename-admission.js";
 export async function checkMetaRecord(input: WriteCheckInput, inboundGrammar?: EntryListConfig): Promise<readonly BrokenRule[]> {
   const observed = await Promise.all([
     checkMetaDependsOn(input), checkMetaDesignEntry(input), checkMetaCohort(input),
-    checkMetaStage(input), checkMetaPrepareTasks(input), checkMetaInboundHeld(input, inboundGrammar),
+    checkMetaStage(input), checkMetaPrepareTasks(input), checkMetaInboundHeld(input, inboundGrammar), checkMetaArchiveInventory(input),
     checkFormerSlug(input), checkSlugEdges(input), checkMetaRemovalEdges(input),
     checkPreparedRename(input),
   ]);

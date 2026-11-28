@@ -12,7 +12,7 @@ override-active: false
 >
 > - **Contract:** Given an issue found in a file you are modifying, return a decision: fix inline or defer.
 >   Deferred issues route per the capture guidance in [DEV-RULES.ARC § Discovered Work Routing][dev-rules-arc] —
->   never to completion notes or session notes.
+>   never to completion notes or a meta's session context.
 
 ## issue-triage.override
 
@@ -37,7 +37,7 @@ time — surface it to the user rather than context-switching away from the curr
 **If fixing:** Note in commit message ("Also fixed X pre-existing issues").
 
 **If deferring:** Route per [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing — the routing table determines
-destination based on scope and PM mode. Never defer to completion notes or session notes.
+destination based on scope and PM mode. Never defer to completion notes or a meta's session context.
 
 ---
 

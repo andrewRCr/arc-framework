@@ -26,6 +26,11 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+/** The arc-in-git arm's installed strategy, which marks that arm's files as present. */
+function planningModulePath(cwd: string): string {
+  return join(cwd, ".arc", "reference", "strategies", "arc", "strategy-planning-module.md");
+}
+
 async function readInstallManifest(cwd: string): Promise<{
   files: Record<string, { classification: string }>;
 }> {
@@ -60,13 +65,13 @@ describe("arc init --reconfigure", () => {
     expect(refused.exitCode).toBe(1);
     expect(refused.stdout + refused.stderr).toContain("manifest.uncommitted-changes");
     expect(refused.stdout + refused.stderr).toContain(".arc/system/arc-config.yml");
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(false);
+    expect(await pathExists(planningModulePath(tmpDir))).toBe(false);
 
     await commitAll(tmpDir);
     const reconf = await runArc(["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"], tmpDir);
 
     expect(reconf.exitCode, reconf.stdout + reconf.stderr).toBe(0);
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
+    expect(await pathExists(planningModulePath(tmpDir))).toBe(true);
     expect(await readFile(configPath, "utf-8")).toContain("# Local note");
   });
 
@@ -78,11 +83,9 @@ describe("arc init --reconfigure", () => {
     );
     expect(reconf.exitCode).toBe(0);
 
-    // arc-in-git files should now exist
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
-    expect(await pathExists(
-      join(tmpDir, ".arc", "reference", "strategies", "arc", "strategy-planning-module.md"),
-    )).toBe(true);
+    // arc-in-git files should now exist, none of them in a projected root
+    expect(await pathExists(planningModulePath(tmpDir))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "backlog"))).toBe(false);
 
     // Manifest should reflect new config
     const manifestRaw = await readFile(
@@ -98,7 +101,7 @@ describe("arc init --reconfigure", () => {
     expect(update.exitCode).toBe(0);
 
     // Files still present after update
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
+    expect(await pathExists(planningModulePath(tmpDir))).toBe(true);
 
     // Manifest still has arc-in-git
     const postUpdateManifest = JSON.parse(
@@ -119,7 +122,7 @@ describe("arc init --reconfigure", () => {
     expect(dryOutput).toContain("Would add");
 
     // No files should have been created
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(false);
+    expect(await pathExists(planningModulePath(tmpDir))).toBe(false);
 
     // Manifest should still show pm.mode: none
     const manifestRaw = await readFile(
@@ -137,7 +140,7 @@ describe("arc init --reconfigure", () => {
     expect(actual.exitCode).toBe(0);
 
     // Files now exist
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
+    expect(await pathExists(planningModulePath(tmpDir))).toBe(true);
   });
 
   it("contributor gets clear error on init --reconfigure", async () => {
@@ -224,17 +227,14 @@ describe("arc init --reconfigure", () => {
     expect(output).toContain("Nothing to change");
   });
 
-  it("--yes mode applies correct removal defaults for classification", async () => {
+  it("--yes mode removes the arc-in-git Framework file", async () => {
     // Start with arc-in-git installed
     const setup = await runArc(
       ["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"],
       tmpDir,
     );
     expect(setup.exitCode).toBe(0);
-
-    // Verify scaffolded files exist
-    const roadmapPath = join(tmpDir, ".arc", "backlog", "ROADMAP.md");
-    expect(await pathExists(roadmapPath)).toBe(true);
+    expect(await pathExists(planningModulePath(tmpDir))).toBe(true);
 
     // Reconfigure back to none from the committed arc-in-git install — removals happen via --yes defaults
     await commitAll(tmpDir);
@@ -245,12 +245,7 @@ describe("arc init --reconfigure", () => {
     expect(reconf.exitCode).toBe(0);
 
     // Framework files (strategy-planning-module.md) should be auto-removed
-    expect(await pathExists(
-      join(tmpDir, ".arc", "reference", "strategies", "arc", "strategy-planning-module.md"),
-    )).toBe(false);
-
-    // Scaffolded files (ROADMAP.md) should be kept on disk (--yes keeps non-Framework)
-    expect(await pathExists(roadmapPath)).toBe(true);
+    expect(await pathExists(planningModulePath(tmpDir))).toBe(false);
   });
 });
 

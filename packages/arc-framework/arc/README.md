@@ -14,10 +14,11 @@ full installation and setup walkthrough.
 
 ```text
 .arc/
-├── active/                    # Current WU artifacts (flat — one WU per branch)
-│                              # carries meta-*.md, draft-*.md, spec-*.md, tasks-*.md, companions
+├── active/                    # Active WUs' stored records, projected into this checkout
+│   ├── current/               # This checkout's WU: meta-*.md, draft-*.md, spec-*.md, tasks-*.md, companions
+│   │                          # (directly under active/ when layout.active is flat)
+│   └── in-flight/<wu>/        # Other active WUs selected by this checkout's in-flight view or pins
 ├── backlog/                   # Future work pipeline (arc-in-git pm.mode only)
-│   ├── ROADMAP.md             # Sequencing strategy for upcoming work
 │   ├── provisional/<wu>/      # Captured WU stubs, not yet committed-to
 │   └── planned/[<cohort>/]<wu>/   # Committed-to WUs, optionally grouped by cohort
 ├── completed/                 # Completed work (arc-in-git pm.mode only)
@@ -32,7 +33,7 @@ full installation and setup walkthrough.
 │   │   ├── analysis/          # Internal investigation and synthesis
 │   │   └── research/          # External technical research
 │   └── templates/            # Document and configuration templates
-├── user/                      # Personal workspace: per-developer session state and task capture
+├── user/                      # Personal workspace: each developer's working memory, inbox, and scratch files
 └── system/                    # Agent-facing operational files
     ├── arc-config.yml         # Project settings (base branch, protection mode)
     ├── rules/                 # Development standards and domain rules

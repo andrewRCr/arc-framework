@@ -5,10 +5,10 @@ import { personalFixture, personalReference } from "../helpers/store/personal-fi
 import { makeGitExec } from "../helpers/integration.js";
 import { ReferenceBackend } from "../helpers/store/reference-backend.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
-import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { resolveRecoveryWorkingMemoryPath } from "../../src/lib/recover/working-memory-path.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 it.each([false, true])("preserves the primary memory address and selected Store content from a linked checkout (offBranch=%s)", async (offBranch) => {
   const h = await personalFixture();
@@ -21,7 +21,7 @@ it.each([false, true])("preserves the primary memory address and selected Store 
   memory.environment.identity = identity;
   lifecycleSuccess(await memory.write({ action: "put", reference, expected: null, content: "# WORKING-MEMORY\n\nStored memory.\n",
     provenance: { verb: "user", lifecycleAction: "create" } }));
-  const store = offBranch ? memory : createStore(createDefaultStorePorts({ checkoutRoot: linked, exec, identity }));
+  const store = offBranch ? memory : inRepoStore(createDefaultStorePorts({ checkoutRoot: linked, exec, identity }));
   const address = await resolveRecoveryWorkingMemoryPath({ cwd: linked, identity, exec });
   expect(address).toBe(join(h.root, ".arc/user/andrew/WORKING-MEMORY.md"));
   expect(lifecycleSuccess(await store.read({ reference })).content).toContain(offBranch ? "Stored memory." : "Primary memory.");

@@ -18,6 +18,26 @@ import {
 import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 import type { Store } from "../../../src/lib/store/contract.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { useInRepoStore, useInRepoStoreForEach } from "../../helpers/in-repo-store-override.js";
+import { projectIdentityRecord } from "../../../src/lib/store/project-identity.js";
+import { recordReferences } from "../../../src/lib/store/identity.js";
+import type { MetaRenderOverrides } from "../../../src/lib/store/kinds/meta/writers.js";
+import type { WritePlacement } from "../../../src/lib/store/index.js";
+import { readWorkUnit } from "../../../src/lib/store/lifecycle-write.js";
+import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
+import { ArchiveQuarterSchema, canonicalDigest } from "../../../src/lib/kernel/index.js";
+import {
+  CandidateManagedRecordV1Schema,
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  type CandidateManagedRecordV1,
+} from "../../../src/lib/work-unit/candidate-attestation.js";
+import { prepareCandidateRecordPut } from "../../../src/lib/store/kinds/review/candidate/access.js";
+import { prepareSubmissionBoundaryPut } from "../../../src/lib/store/kinds/review/integration-boundary/access.js";
+import { deriveReviewReadinessBinding } from "../../../src/lib/store/kinds/review/integration-boundary/readiness.js";
+import { CandidatePublishReadyBoundaryV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
+import type { AttestContext } from "../../../src/lib/work-unit/verbs/attest.js";
 
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
@@ -48,12 +68,21 @@ vi.mock("../../../src/handlers/shared.js", () => ({
   isHandledError: () => false,
 }));
 
+// The store arm reads the checkout's worktree topology ahead of the case's own Git calls, so its executors answer that
+// read before delegating to the case's mock; the in-repo arm gets the case's mock itself.
+const topology = vi.hoisted(() => {
+  const listing = `worktree /repo\0HEAD ${"a".repeat(40)}\0branch refs/heads/feat/foo\0\0`;
+  type Call = [string, readonly string[], ...unknown[]];
+  const exec = (delegate: (...call: Call) => unknown) => async (...call: Call) =>
+    call[1][0] === "worktree" && call[1][1] === "list" ? { stdout: listing, stderr: "" } : delegate(...call);
+  return { exec };
+});
 vi.mock("../../../src/lib/io-context.js", () => ({
-  createRawGitExec: () => vi.fn(),
+  createRawGitExec: () => storeBinding.store === undefined ? vi.fn() : topology.exec(mockIoExec),
   createUserIOContext: (...args: unknown[]) => {
     mockCreateUserIOContext(...args);
     return {
-      exec: mockIoExec,
+      exec: storeBinding.store === undefined ? mockIoExec : topology.exec(mockIoExec),
       execInput: mockIoExecInput,
       readFile: vi.fn(async () => "meta"),
       writeFile: (...args: unknown[]) => mockIoWriteFile(...args),
@@ -64,6 +93,14 @@ vi.mock("../../../src/lib/io-context.js", () => ({
   readGitBlobBytes: vi.fn(),
   readGitObjectBytes: vi.fn(),
 }));
+
+const storeBinding = vi.hoisted(() => ({ store: undefined as unknown }));
+vi.mock("../../../src/lib/store/create.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../src/lib/store/create.js")>();
+  type Created = ReturnType<typeof actual.createStore>;
+  return { ...actual, createStore: (...args: Parameters<typeof actual.createStore>): Created =>
+    (storeBinding.store as Created | undefined) ?? actual.createStore(...args) };
+});
 
 const mockReadConfigSettings = vi.fn();
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
@@ -85,7 +122,6 @@ function configResult(protection: "full" | "partial" = "partial") {
   };
 }
 
-vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({ buildExecutorContext: () => ({}) }));
 vi.mock("../../../src/lib/paths.js", () => ({
   getArcTemplatePath: () => "/arc",
   getInternalTemplatePath: () => "/tpl",
@@ -127,9 +163,13 @@ const mockReadActiveMetaCandidates = vi.fn<(cwd: string) => Promise<{ candidates
 vi.mock("../../../src/lib/store/current-work-unit.js", () => ({
   resolveCurrentWorkUnit: async ({ cwd }: { cwd: string }) => {
     const { candidates } = await mockReadActiveMetaCandidates(cwd);
-    const resolved = candidates.map((candidate) => ({ reference: {
-      kind: "work-item/meta", owner: { type: "work-item", name: candidate.filename.slice(5, -3) },
-    } }));
+    const { readWorkUnit } = await import("../../../src/lib/store/lifecycle-write.js");
+    const resolved = await Promise.all(candidates.map(async (candidate) => {
+      const name = candidate.filename.slice(5, -3), store = storeBinding.store as Store | undefined;
+      const read = store === undefined ? undefined : await readWorkUnit(store, name);
+      return { reference: read?.status === "ok" ? read.result.reference
+        : { kind: "work-item/meta", owner: { type: "work-item", name } } };
+    }));
     if (resolved.length === 0) return { status: "none", candidates: [], warnings: [] };
     if (resolved.length === 1) return { status: "resolved", candidate: resolved[0], candidates: resolved, warnings: [] };
     return { status: "ambiguous", candidates: resolved, warnings: [] };
@@ -139,20 +179,26 @@ const mockSetMetaBulletFields = vi.fn<(
   content: string,
   fields: Record<string, string>,
 ) => string>((content) => content);
-vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  formatValue: (value: string) => value,
-  parseMetaRecord: () => mockParseMetaRecord(),
-  readActiveMetaCandidates: (cwd: string) => mockReadActiveMetaCandidates(cwd),
-  setMetaBulletFields: (...args: [string, Record<string, string>]) => mockSetMetaBulletFields(...args),
-  setMetaCandidate: (content: string) => content,
-}));
+// The in-repo arm parses each case's mocked meta fields; the store arm parses the records the store holds.
+vi.mock("../../../src/lib/active/meta-reader.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../src/lib/active/meta-reader.js")>();
+  return {
+    ...actual,
+    formatValue: (value: string) => value,
+    parseMetaRecord: (content: string) => storeBinding.store === undefined ? mockParseMetaRecord() : actual.parseMetaRecord(content),
+    readActiveMetaCandidates: (cwd: string) => mockReadActiveMetaCandidates(cwd),
+    setMetaBulletFields: (...args: [string, Record<string, string>]) => mockSetMetaBulletFields(...args),
+    setMetaCandidate: (content: string) => content,
+  };
+});
 vi.mock("../../../src/lib/active/current-workflow-consistency.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../src/lib/active/current-workflow-consistency.js")>(),
   checkCurrentWorkflowConsistency: () => [],
 }));
 
 const mockBuildLifecycleIndex = vi.fn();
-vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
+vi.mock("../../../src/lib/work-unit/lifecycle-index.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/work-unit/lifecycle-index.js")>(),
   buildLifecycleIndex: (...a: unknown[]) => mockBuildLifecycleIndex(...a),
 }));
 
@@ -297,7 +343,9 @@ const mockReadCandidateRecord = vi.fn();
 const mockReadCandidateRecordVersioned = vi.fn();
 const mockReadRepositoryCandidateRecordRevision = vi.fn();
 const mockWriteCandidateRecord = vi.fn();
-vi.mock("../../../src/lib/store/kinds/review/candidate/access.js", () => ({
+// The store arm's batch prepares its writes through the real record access.
+vi.mock("../../../src/lib/store/kinds/review/candidate/access.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/lib/store/kinds/review/candidate/access.js")>()),
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
   readCandidateRecordVersioned: (...a: unknown[]) => mockReadCandidateRecordVersioned(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
@@ -336,7 +384,8 @@ vi.mock("../../../src/lib/work-unit/git-candidate-effective-target.js", () => ({
 }));
 const mockReadSubmissionBoundaryVersioned = vi.fn();
 const mockWriteSubmissionBoundary = vi.fn();
-vi.mock("../../../src/lib/store/kinds/review/integration-boundary/access.js", () => ({
+vi.mock("../../../src/lib/store/kinds/review/integration-boundary/access.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/lib/store/kinds/review/integration-boundary/access.js")>()),
   readSubmissionBoundaryVersioned: (...a: unknown[]) => mockReadSubmissionBoundaryVersioned(...a),
   writeSubmissionBoundary: (...a: unknown[]) => mockWriteSubmissionBoundary(...a),
 }));
@@ -420,8 +469,71 @@ const cleanReconcile = {
   },
 };
 
-beforeEach(() => {
+const PROJECT_UID = "5f0c2a1e-8d4b-4e6f-9a3c-1b2d3e4f5a6b";
+
+/** Run the current case on the in-repo implementation, which the handler opens by default under the override. */
+function selectInRepoArm(): void {
+  storeBinding.store = undefined;
+  useInRepoStore();
+}
+
+/** Bind a checked store holding the project identity and `foo`'s meta: in flight, linked to its branch beside its task
+ * list, or a backlog stub with neither.
+ * @param fields - The meta's fields over an Active `foo` on `feat/foo`, or over the stub's defaults.
+ * @param placement - Where the meta lives.
+ */
+async function bindWorkUnit(fields: MetaRenderOverrides = {}, placement: WritePlacement = { kind: "active" }):
+  Promise<{ harness: ReturnType<typeof createLifecycleHarness>; owner: OwnerIdentity }> {
+  const harness = createLifecycleHarness();
+  // Bound first: the store's write checks parse through the meta reader, which this file routes by arm.
+  storeBinding.store = harness.store;
+  const identity = projectIdentityRecord(PROJECT_UID);
+  await harness.seed(identity.reference, identity.content);
+  if (placement.kind === "backlog") return { harness, owner: (await harness.seedMeta("foo", fields, placement)).reference.owner };
+  const meta = await harness.seedMeta("foo", { branch: "feat/foo", taskList: "tasks-foo.md", ...fields }, placement,
+    { branches: [{ repository: PROJECT_UID, ref: "feat/foo", linkedAs: "created", excluded: [] }] });
+  await harness.seed(recordReferences["work-item/task-list"](meta.reference.owner),
+    "# Task List: Foo\n\n## **Phase 1:** Fixture\n\n### `[x]` **1.1 Exercise the handler**\n");
+  return { harness, owner: meta.reference.owner };
+}
+
+/** A Candidate record for `foo`, superseding another when named. */
+function fooCandidate(supersedes?: string): CandidateManagedRecordV1 {
+  const subject = createCandidateSubjectSnapshot([{ path: "src/foo.ts", mode: "100644",
+    digest: canonicalDigest({ source: supersedes ?? "root" }), treatment: "reviewable" }]);
+  const attestation = createCandidateAttestation({ workUnit: "foo", subject, baseRevision: "a".repeat(40), attestedBy: "andrew",
+    attestedAt: "2026-11-19T12:00:00Z", verificationEvidenceRef: "verification://root",
+    ...(supersedes === undefined ? {} : { supersedes }) });
+  return CandidateManagedRecordV1Schema.parse({ schemaVersion: 1, semanticsVersion: "candidate-attestation/v1", attestation,
+    subject, transitions: [], lineageAttestations: [] });
+}
+
+/** Hold `foo`'s Candidate and publication boundary in the bound store, answering the file's record reads with them.
+ * @returns The Candidate's version and a reader of the boundary the store holds.
+ */
+type HeldBoundary = Parameters<typeof prepareSubmissionBoundaryPut>[0];
+async function holdReview(bound: Awaited<ReturnType<typeof bindWorkUnit>>, record: CandidateManagedRecordV1,
+  boundary: HeldBoundary) {
+  const candidate = prepareCandidateRecordPut("foo", record, null, bound.owner);
+  const heldCandidate = await bound.harness.seed(candidate.reference, candidate.content);
+  const put = prepareSubmissionBoundaryPut(boundary, null, bound.owner);
+  const heldBoundary = await bound.harness.seed(put.reference, put.content);
+  mockReadCandidateRecordVersioned.mockResolvedValue({ record, version: heldCandidate.version });
+  mockReadSubmissionBoundaryVersioned.mockResolvedValue({ boundary, version: heldBoundary.version });
+  return { candidateVersion: heldCandidate.version,
+    readBoundary: async () => JSON.parse(lifecycleSuccess(await bound.harness.store.read({ reference: put.reference })).content) as unknown,
+    readMeta: async () => (await readWorkUnit(bound.harness.store, "foo")) };
+}
+
+/** Run every case of the enclosing `describe` on the in-repo implementation. */
+function selectInRepoArmForEach(): void {
+  useInRepoStoreForEach();
+  beforeEach(() => { storeBinding.store = undefined; });
+}
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await bindWorkUnit();
   process.exitCode = undefined;
   mockResolveUserIdentity.mockResolvedValue("andrew");
   mockRequireArcProjectRoot.mockReturnValue("/repo");
@@ -658,6 +770,9 @@ describe("handleStub", () => {
 });
 
 describe("handleDecompose", () => {
+  // The old decomposition machine runs only on the pre-flip build; the store's cut is `decompose-store`'s.
+  selectInRepoArmForEach();
+
   it("exposes only the complete read-only v3 preflight", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
@@ -1131,6 +1246,8 @@ describe("handleDecompose", () => {
 
 describe("handlePromote / handleDemote", () => {
   it("promote dispatches runPromote for the slug", async () => {
+    await bindWorkUnit({ state: "Planning", currentWorkflow: "draft-design", workClass: "TBD" },
+      { kind: "backlog", commitment: "provisional" });
     await handlePromote("foo", { class: "Novel" }, makeInteractionContext({ noInput: true }));
     expect(mockRunPromote).toHaveBeenCalledTimes(1);
     expect(mockRunPromote.mock.calls[0]?.[1]).toEqual({ name: "foo", class: "Novel" });
@@ -1145,12 +1262,15 @@ describe("handlePromote / handleDemote", () => {
   it("a bare slug-required verb surfaces the candidate list and never dispatches", async () => {
     await handlePromote(undefined, undefined, makeInteractionContext({ noInput: true }));
     expect(mockRunPromote).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringContaining("usage `arc promote <slug>`"));
     expect(process.exitCode).toBe(1);
   });
 });
 
 describe("handlePark", () => {
+  // Park and its `--land` arm run only on the pre-flip build; over the store `arc park` refuses for `arc pause`.
+  selectInRepoArmForEach();
+
   it("dispatches runPark with the reason, resolved worktree path, and current locus", async () => {
     await handlePark("foo", { reason: "shelving for a higher-priority pivot" });
     expect(mockRunPark).toHaveBeenCalledTimes(1);
@@ -1172,6 +1292,10 @@ describe("handlePark", () => {
 });
 
 describe("handleResume", () => {
+  // Over the store, resumption is the store handler's (`lifecycle-collaboration`, `pause-handover`); these cases
+  // dispatch the in-repo verb.
+  selectInRepoArmForEach();
+
   it("dispatches runResume with the spawn config", async () => {
     await handleResume("foo");
     expect(mockExpandActiveInFlight).toHaveBeenCalledWith(expect.objectContaining({
@@ -1204,7 +1328,10 @@ describe("handleResume", () => {
 });
 
 describe("handleMaterialize", () => {
+  // Over the store, materialization is the store handler's (`materialize-store`); the cases dispatching the in-repo
+  // verb run on that implementation, and the interaction context, bound before either arm, on the store.
   it("fetches the selected remote ref and dispatches runMaterialize with the spawn config", async () => {
+    selectInRepoArm();
     await handleMaterialize("foo");
 
     expect(mockRunActiveInFlightExpansion).toHaveBeenCalledWith(expect.objectContaining({
@@ -1236,6 +1363,7 @@ describe("handleMaterialize", () => {
   });
 
   it("dispatches an in-place materialize under `--here` after fetching the remote ref", async () => {
+    selectInRepoArm();
     mockRunMaterialize.mockResolvedValueOnce({
       status: "materialized",
       branch: "feat/foo",
@@ -1266,6 +1394,7 @@ describe("handleMaterialize", () => {
   });
 
   it("stops the spinner and reports a materialize rejection", async () => {
+    selectInRepoArm();
     mockRunMaterialize.mockResolvedValueOnce({
       status: "rejected",
       reason: "occupancy probe failed",
@@ -1299,6 +1428,7 @@ describe("handleMaterialize", () => {
   });
 
   it("refuses when the requested slug is not a remote-only materialize candidate", async () => {
+    selectInRepoArm();
     mockFindMaterializableWorkUnits.mockReturnValue({ candidates: [{ name: "bar", branch: "feat/bar" }] });
 
     await handleMaterialize("foo");
@@ -1335,20 +1465,23 @@ describe("handleDeactivate", () => {
   it("dispatches runDeactivate for the slug", async () => {
     await handleDeactivate("foo");
     expect(mockRunDeactivate).toHaveBeenCalledTimes(1);
-    expect(mockRunDeactivate.mock.calls[0]?.[1]).toEqual({ name: "foo" });
+    expect(mockRunDeactivate.mock.calls[0]?.[1]).toEqual({ name: "foo", baseBranch: "main" });
   });
 });
 
 describe("handleAbandon", () => {
+  // Over the store, abandonment past target resolution is the store handler's, which prints its own plan and refuses
+  // without --yes (`abandon-store`); the cases dispatching the in-repo cascade run on that implementation.
   it("prints the impact plan and refuses without --yes, never dispatching the cascade", async () => {
     await handleAbandon("foo", {});
     expect(mockNote).toHaveBeenCalledTimes(1);
-    expect(mockRunAbandon).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringContaining("without --yes"));
     expect(process.exitCode).toBe(1);
+    expect(await readWorkUnit(storeBinding.store as Store, "foo")).toMatchObject({ status: "ok" });
   });
 
   it("dispatches runAbandon with the confirmation flag when --yes is given", async () => {
+    selectInRepoArm();
     await handleAbandon("foo", { yes: true });
     expect(mockNote.mock.calls[0]?.[1]).toContain("impact plan");
     expect(mockRunAbandon).toHaveBeenCalledTimes(1);
@@ -1356,6 +1489,7 @@ describe("handleAbandon", () => {
   });
 
   it("does not advertise teardown for a branchless abandon", async () => {
+    selectInRepoArm();
     mockRunAbandon.mockResolvedValue({
       status: "abandoned",
       outcome: okOutcome,
@@ -1368,19 +1502,18 @@ describe("handleAbandon", () => {
   });
 
   it("refuses an illegal source state up front, printing no plan and never dispatching", async () => {
-    mockResolveSlugState.mockReturnValue("integrating");
-    mockPlanAbandon.mockReturnValue({ legal: false, lines: [] });
+    await bindWorkUnit({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
     await handleAbandon("foo", { yes: true });
     expect(mockNote).not.toHaveBeenCalled();
-    expect(mockRunAbandon).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringContaining("arc reopen foo"));
     expect(process.exitCode).toBe(1);
+    expect(await readWorkUnit(storeBinding.store as Store, "foo")).toMatchObject({ status: "ok" });
   });
 
   it("a bare invocation (no slug) surfaces the candidate list and never dispatches", async () => {
     await handleAbandon(undefined, {});
     expect(mockRunAbandon).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringContaining("usage `arc abandon <slug>`"));
     expect(process.exitCode).toBe(1);
   });
 });
@@ -1401,6 +1534,9 @@ describe("handlePublish", () => {
   });
 
   it("reports the unchanged durable publication resume point as JSON", async () => {
+    // Persisting the moved resume point stages the in-repo arm's schema-1 boundary; the store writes a version-two
+    // boundary under its Candidate's version instead.
+    selectInRepoArm();
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const boundary = (await mockReadSubmissionBoundaryVersioned()).boundary;
     const publicationBoundary = {
@@ -1428,6 +1564,40 @@ describe("handlePublish", () => {
       status: "unchanged",
       boundary: publicationBoundary,
     })}\n`);
+  });
+
+  it("persists a moved publication resume point under the Candidate's version on the store", async () => {
+    const bound = await bindWorkUnit({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
+    const record = fooCandidate(), candidateId = record.attestation.candidateId;
+    const absent = { status: "absent" } as const;
+    const binding = deriveReviewReadinessBinding({ subjectOwner: { kind: "candidate", candidateId },
+      outcomes: absent, evidence: absent, decisions: absent, inFlight: [] });
+    if (binding.status !== "complete") throw new Error(binding.condition);
+    const subject = { workUnit: "foo", candidateId, candidateSubjectDigest: record.subject.subjectDigest,
+      reservation: null, terminus: null, readinessBinding: binding.digest };
+    const source = CandidatePublishReadyBoundaryV2Schema.parse({ ...subject, schemaVersion: 2, mode: "pre-publication-review",
+      locus: "candidate-publish-ready", nextAction: { kind: "publish-candidate", command: "arc publish foo",
+        interactionText: "Publish the Candidate." } });
+    const held = await holdReview(bound, record, source);
+    const batch = vi.spyOn(bound.harness.store, "batch");
+    const moved = projectPublicationBoundary({ ...subject, branch: "feat/foo", changeRequest: null }, 2);
+    expect(moved).not.toEqual(source);
+    mockRunPublish.mockResolvedValueOnce({ status: "unchanged", boundary: moved });
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handlePublish("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR", json: true });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${JSON.stringify({ status: "unchanged", boundary: moved })}\n`);
+    expect(await held.readBoundary()).toEqual(moved);
+    expect(batch).toHaveBeenCalledWith(expect.objectContaining({
+      writes: expect.arrayContaining([expect.objectContaining({
+        action: "put", reference: recordReferences["review/integration-boundary"](bound.owner),
+      })]),
+      observations: expect.arrayContaining([{
+        reference: recordReferences["review/candidate"](bound.owner),
+        expected: { version: held.candidateVersion, conflicts: [] },
+      }]),
+    }));
   });
 
   it("forwards explicit advisory-retention authority", async () => {
@@ -1743,6 +1913,12 @@ describe("handleReopen", () => {
 });
 
 describe("handleAttest", () => {
+  // Attestation composes its boundary on either arm, then writes it beside the Candidate record and meta: the in-repo
+  // arm one file at a time over schema-1 boundaries, the store in one batch over version-two ones. Cases over an
+  // interrupted write sequence, or over a schema-1 boundary they supply, run on the in-repo implementation; the
+  // store's batch is `attest-design-export-native`'s, and its version-two compositions are
+  // `integration-boundary-locus-recovery-v2`'s.
+
   const convergencePendingBoundary = () => {
     const candidateId = `sha256:${"a".repeat(64)}`;
     const candidateSubjectDigest = `sha256:${"b".repeat(64)}`;
@@ -1845,6 +2021,7 @@ describe("handleAttest", () => {
   });
 
   it("repairs the exact post-attest continuation after the Candidate write outlives a boundary failure", async () => {
+    selectInRepoArm();
     const fixture = convergencePendingBoundary();
     mockReadSubmissionBoundaryVersioned.mockResolvedValue({
       boundary: fixture.boundary,
@@ -1913,6 +2090,7 @@ describe("handleAttest", () => {
   });
 
   it("preserves the post-attest continuation across metadata and staging retry", async () => {
+    selectInRepoArm();
     const fixture = convergencePendingBoundary();
     let currentBoundary = fixture.boundary;
     let boundaryVersion = "pending-boundary-version";
@@ -2122,12 +2300,8 @@ describe("handleAttest", () => {
   });
 
   it("refuses Integrating attestation before Candidate mutation when public delivery evidence is not exact", async () => {
+    await bindWorkUnit({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    mockParseMetaRecord.mockReturnValue({
-      branch: "feat/foo",
-      state: "Integrating",
-      taskList: "tasks-foo.md",
-    });
     mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValueOnce({
       status: "refused",
       reason: "public-boundary-mismatch",
@@ -2143,6 +2317,7 @@ describe("handleAttest", () => {
   });
 
   it("recovers an Owner-accepted public boundary across repair-current subject movement", async () => {
+    selectInRepoArm();
     const candidateId = `sha256:${"a".repeat(64)}`;
     const sourceSubjectDigest = `sha256:${"b".repeat(64)}`;
     const movedSubjectDigest = `sha256:${"c".repeat(64)}`;
@@ -2213,6 +2388,7 @@ describe("handleAttest", () => {
   });
 
   it.each(["Integrating", "Shipped"] as const)("preserves public delivery authority while %s", async (lifecycle) => {
+    selectInRepoArm();
     const sourceCandidateId = `sha256:${"a".repeat(64)}`;
     const candidateId = `sha256:${"b".repeat(64)}`;
     const subjectDigest = `sha256:${"c".repeat(64)}`;
@@ -2339,7 +2515,88 @@ describe("handleAttest", () => {
     });
   });
 
+  it("threads an Owner-accepted version-two boundary across repair-current subject movement through the store's batch", async () => {
+    // The publication moves the meta to Candidate preparation; the store holds a preparation meta only beside the task
+    // list it names, which it seeds after the meta.
+    const bound = await bindWorkUnit({ nextAction: "Candidate review pending — run pre-publication review" });
+    const record = fooCandidate(), candidateId = record.attestation.candidateId;
+    const source = projectPublicationBoundary({ workUnit: "foo", branch: "feat/foo", candidateId,
+      candidateSubjectDigest: record.subject.subjectDigest, reservation: null, changeRequest: null,
+      terminus: canonicalDigest({ decision: "owner-accepted" }), readinessBinding: canonicalDigest({ readiness: 1 }) }, 2);
+    const held = await holdReview(bound, record, source);
+    const movedSubjectDigest = `sha256:${"c".repeat(64)}`;
+    mockRunAttest.mockImplementationOnce(async (context) => {
+      const published = await context.publish({ name: "foo", record, candidateId, candidateSubjectDigest: movedSubjectDigest,
+        currentWorkflow: "prepare-work-unit", nextAction: "Candidate review pending — run pre-publication review",
+        expectedRecordVersion: held.candidateVersion, repairCurrent: true });
+      return { status: "unchanged", locus: published.locus };
+    });
+    vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleAttest("foo", { json: true });
+
+    expect(process.exitCode).toBeUndefined();
+    expect(await held.readBoundary()).toEqual({ ...source, candidateSubjectDigest: movedSubjectDigest });
+    expect(await held.readMeta()).toMatchObject({ status: "ok",
+      result: { fields: { currentWorkflow: "prepare-work-unit", nextAction: source.nextAction.interactionText } } });
+  });
+
+  it.each(["Integrating", "Shipped"] as const)(
+    "threads public delivery authority onto the renewed Candidate through the store's batch while %s", async (lifecycle) => {
+      const bound = await bindWorkUnit({ state: lifecycle,
+        currentWorkflow: lifecycle === "Integrating" ? "integrate-work-unit" : null,
+        nextAction: lifecycle === "Integrating" ? "resume integration review" : null },
+      lifecycle === "Integrating" ? { kind: "active" } : { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+      const sourceRecord = fooCandidate(), sourceCandidateId = sourceRecord.attestation.candidateId;
+      const record = fooCandidate(sourceCandidateId), candidateId = record.attestation.candidateId;
+      const planId = "11111111-1111-4111-8111-111111111111";
+      const memberTerminus = { vehicle: { kind: "delivery-member" as const, planId, deliverableId: `sha256:${"f".repeat(64)}`,
+        workUnitId: "foo", head: "a".repeat(40) }, terminus: canonicalDigest({ decision: "member" }) };
+      const reservation = createStandardReviewReservation({ candidateId: sourceCandidateId, sourceId: "codex-pr",
+        target: { kind: "delivery", repository: "arc-framework/example", workUnitId: "foo", planId },
+        obligation: { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"d".repeat(64)}`, retrigger: "full-final", count: 1 } });
+      const source = { ...projectPublicationBoundary({ workUnit: "foo", branch: "feat/foo", candidateId: sourceCandidateId,
+        candidateSubjectDigest: sourceRecord.subject.subjectDigest, reservation, changeRequest: null, terminus: null,
+        readinessBinding: null }, 2), deliveryReviewTermini: [memberTerminus] };
+      // Spreading the delivery termini onto the projected boundary widens it past the boundary union.
+      const held = await holdReview(bound, sourceRecord, source as HeldBoundary);
+      const deliveryContinuation = { schemaVersion: 1 as const,
+        semanticsVersion: "delivery-public-review-continuation/v1" as const, planId, planRevision: 1,
+        planDigest: `sha256:${"1".repeat(64)}`, stateRevision: 7, stateDigest: `sha256:${"2".repeat(64)}`,
+        memberEvidenceDigest: `sha256:${"3".repeat(64)}` };
+      mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValue({ status: "ready", planId, stateRevision: 7,
+        deliveryContinuation });
+      mockRunAttest.mockImplementationOnce(async (context: AttestContext, params: unknown) => {
+        expect(params).toMatchObject({ lifecycle });
+        const published = await context.publish({ name: "foo", record, candidateId,
+          candidateSubjectDigest: record.subject.subjectDigest,
+          currentWorkflow: lifecycle === "Shipped" ? "[none]" : "integrate-work-unit",
+          nextAction: lifecycle === "Shipped" ? "[none]" : "Candidate review pending — resume integration review",
+          expectedRecordVersion: held.candidateVersion, repairCurrent: false });
+        return { status: "attested", operation: "re-root", ...published };
+      });
+      const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+      await handleAttest("foo", { json: true, newRoot: true });
+
+      expect(await held.readBoundary()).toMatchObject({ schemaVersion: 2, mode: "integration-boundary",
+        locus: "delivery-status-required", workUnit: "foo", candidateId, candidateSubjectDigest: record.subject.subjectDigest,
+        reservation, deliveryContinuation, deliveryReviewTermini: [memberTerminus],
+        nextAction: expect.objectContaining({ kind: "resolve-delivery-status" }) });
+      expect(await held.readMeta()).toMatchObject({ status: "ok", result: { fields: { state: lifecycle } } });
+      expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+        status: "attested", locus: { locus: "delivery-status-required", candidateId },
+      });
+      if (lifecycle === "Shipped") {
+        expect(await held.readMeta()).toMatchObject({
+          status: "ok", result: { fields: { currentWorkflow: null, nextAction: null } },
+        });
+      }
+    });
+
   it("repairs forward when Candidate persistence succeeds before the boundary version write", async () => {
+    selectInRepoArm();
     const sourceCandidateId = `sha256:${"a".repeat(64)}`;
     const candidateId = `sha256:${"b".repeat(64)}`;
     const subjectDigest = `sha256:${"c".repeat(64)}`;
@@ -2463,6 +2720,7 @@ describe("handleAttest", () => {
   });
 
   it("refreshes delivery evidence across boundary, meta, and index interruption", async () => {
+    selectInRepoArm();
     const sourceCandidateId = `sha256:${"a".repeat(64)}`;
     const candidateId = `sha256:${"b".repeat(64)}`;
     const subjectDigest = `sha256:${"c".repeat(64)}`;

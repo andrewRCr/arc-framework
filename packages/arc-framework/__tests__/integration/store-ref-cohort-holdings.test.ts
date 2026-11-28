@@ -1,6 +1,7 @@
 /** Current and former cohort names identify the same holdings over both storage backends. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { createKindRegistry, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { runCohortRename } from "../../src/lib/store/cohort-rename.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { observeCohortHoldings, cohortHoldingRepairs, type CohortHoldingCandidate } from "../../src/lib/store/kinds/cohort/check-support.js";
 import { writeMetaCohort } from "../../src/lib/store/kinds/meta/writers.js";
@@ -11,6 +12,8 @@ import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { seed, success, update } from "../helpers/store/suite-tools.js";
 import { plantRefPrimary } from "../helpers/store/ref-primary-plant.js";
+import { projectRecordForWriteBack } from "../helpers/store/projection/write-back-fixture.js";
+import { prepareWriteBack } from "../../src/lib/store/projection/write-back.js";
 
 const production = createKindRegistry(PRODUCTION_REGISTRATIONS);
 const overrides = { "work-item/meta": production["work-item/meta"], "cohort/document": production["cohort/document"] };
@@ -93,6 +96,58 @@ it("counts an ambiguous cohort segment for each of its actual owner candidates",
   ], f.store, target)).toMatchObject({ status: "known", value: [{ resolution: "ambiguous",
     segments: [{ status: "ambiguous", candidates: expect.arrayContaining([first, second]) }] }] });
 });
+
+it("admits a proved member's section when a namesake has an ambiguous leaf elsewhere", async () => {
+  const f = await createRefFixture(overrides);
+  const groupRef = f.reference("cohort/document", "group"), elsewhere = f.reference("cohort/document", "elsewhere");
+  const group = await seed(f, groupRef, content(groupRef.owner.name));
+  await seed(f, elsewhere, content(elsewhere.owner.name));
+  await plantRefPrimary(f, { kind: "cohort/document", name: elsewhere.owner.name, uid: "00000000-0000-4000-8000-000000000001",
+    content: content(elsewhere.owner.name) });
+  const member = await plantRefPrimary(f, { kind: "work-item/meta", name: "member", uid: "00000000-0000-4000-8000-000000000002",
+    content: makeMetaFixture("member", { cohort: groupRef.owner.name }) });
+  const namesake = await plantRefPrimary(f, { kind: "work-item/meta", name: "member", uid: "00000000-0000-4000-8000-000000000003",
+    content: makeMetaFixture("member", { cohort: elsewhere.owner.name }) });
+  expect(await f.store.read({ reference: elsewhere })).toMatchObject({ status: "refused",
+    refusal: { code: "ambiguous-match" } });
+  expect(success(await f.store.read({ reference: member })).fields).toMatchObject({ cohort: groupRef.owner.name });
+  expect(success(await f.store.read({ reference: namesake })).fields).toMatchObject({ cohort: elsewhere.owner.name });
+
+  const edited = `${group.content}\n## Members\n\n### \`member\`\n`;
+  success(await f.store.write({ ...update(f, group, edited), provenance: { verb: "save", lifecycleAction: "edit" } }));
+  expect(success(await f.store.read({ reference: group.reference })).content).toBe(edited);
+});
+
+it.each([["parent", "ready"], ["child", "ambiguous-match"]] as const)(
+  "judges a member section by the leaf when the %s name is ambiguous", async (clash, expected) => {
+    const f = await createRefFixture(overrides);
+    const parent = f.reference("cohort/document", "parent"), child = f.reference("cohort/document", "child");
+    await seed(f, parent, content(parent.owner.name));
+    const group = await seed(f, child, content(child.owner.name, parent.owner.name));
+    const member = f.reference("work-item/meta", "member");
+    await seed(f, member, makeMetaFixture(member.owner.name, { cohort: `${parent.owner.name}/${child.owner.name}` }));
+    const duplicate = clash === "parent" ? parent : child;
+    const duplicateUid = "00000000-0000-4000-8000-000000000001";
+    const planted = await plantRefPrimary(f, { kind: "cohort/document", name: duplicate.owner.name,
+      uid: duplicateUid, content: content(duplicate.owner.name) });
+    expect(await f.store.read({ reference: duplicate })).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match" } });
+
+    const projected = await projectRecordForWriteBack({ store: f.store, record: group, identity: "test-user" });
+    onTestFinished(projected.dispose);
+    const edited = `${group.content}\n## Members\n\n### \`${member.owner.name}\`\n`;
+    await projected.edit(edited);
+    const prepared = await prepareWriteBack(projected.context, projected.request);
+    expect(prepared.kind === "held" ? prepared.refusal?.code ?? prepared.result.answer : prepared.kind).toBe(expected);
+    const write = () => f.store.write({ ...update(f, group, edited), provenance: { verb: "save", lifecycleAction: "edit" } });
+    if (clash === "child") {
+      expect(await write()).toMatchObject({ status: "refused", refusal: { rule: "cohort.member-sections",
+        condition: expect.stringContaining(child.owner.name), remedy: { text: expect.stringContaining("arc rename") } } });
+      const primary = success(await f.store.read({ reference: planted }));
+      expect(await runCohortRename(f.store, primary, { operand: duplicateUid, targetSlug: "cohort-moved" })).toMatchObject({ status: "renamed" });
+      expect(await prepareWriteBack(projected.context, projected.request)).toMatchObject({ kind: "ready" });
+    }
+    success(await write());
+  });
 
 it("withholds a sequential Parent repair that would erase an open straggler's completed-child holding proof", async () => {
   const f = await createRefFixture(overrides), parentRef = f.reference("cohort/document", "parent"), childRef = f.reference("cohort/document", "child");

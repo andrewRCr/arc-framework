@@ -44,7 +44,11 @@ function currentHuskSurface(input: AgendaCompileInput): OrientationSurface | nul
 type PublishedCommand = Omit<SessionAction, "argv"> & { argv: readonly string[] };
 
 function cleanupChoice(input: AgendaCompileInput, action: PublishedCommand, handoff = false): OfferChoice {
-  return { kind: "actions", label: action.text, accepts: [], actions: [{ ...action, argv: [...action.argv] }],
+  return cleanupActionChoice(input, action.text, [action], handoff);
+}
+
+function cleanupActionChoice(input: AgendaCompileInput, label: string, actions: readonly PublishedCommand[], handoff = false): OfferChoice {
+  return { kind: "actions", label, accepts: [], actions: actions.map(action => ({ ...action, argv: [...action.argv] })),
     then: handoff ? { kind: "handoff" } : { kind: "recompile", argv: buildAgendaArgv(input.signals, input.answers, { dropNext: true }) } };
 }
 
@@ -95,7 +99,12 @@ function renameMovesSurface(input: AgendaCompileInput): OrientationSurface | nul
   const choices: OfferChoice[] = [];
   for (const move of moves) {
     lines.push(`- \`${move.from}\` → \`${move.to}\`; ${move.remedy.text}`);
-    if (checkout !== null && checkout !== move.from) choices.push(cleanupChoice(input, { ...move.remedy, checkout }));
+    if (checkout !== null && checkout !== move.from) {
+      const [gitMove, replay] = move.actions;
+      choices.push(cleanupActionChoice(input, move.remedy.text, [
+        { ...gitMove, checkout }, { ...replay, checkout: move.to },
+      ]));
+    }
   }
   return cleanupSurface("rename-moves", lines.join("\n"), choices);
 }

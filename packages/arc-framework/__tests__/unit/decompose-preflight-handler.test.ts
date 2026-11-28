@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { v3DecomposeRemedy } from "../../src/lib/work-unit/decompose-v3-refusal.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The old decomposition machine runs only on the pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const mockIntro = vi.fn();
 const mockLogError = vi.fn();

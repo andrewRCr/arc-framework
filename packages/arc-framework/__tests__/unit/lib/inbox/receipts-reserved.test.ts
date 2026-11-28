@@ -1,4 +1,5 @@
 /** Reserved inbox names remain distinct from work-item generation coordinates. */
+import { readFile } from "node:fs/promises";
 import { expect, it } from "vitest";
 import { createInboxHarness, entry } from "../../../helpers/inbox-harness.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
@@ -29,6 +30,24 @@ async function first(h: ReturnType<typeof createInboxHarness>, list: string) {
   if (result.state === "refused" || result.entries[0] === undefined) throw new Error("Readable source entry required");
   return result.entries[0];
 }
+
+it("documents the UID needed to hold a personal capture for the work unit named project", async () => {
+  const h = createInboxHarness();
+  await h.inbox("personal", entry().replace("\n\n", "\n- _WU_Target:_ `project`\n- _Shapes:_ `Routing decision`\n\n"));
+  const slug = "project";
+  const uid = await reservedItem(h, slug);
+  const row = await first(h, "personal");
+  const result = await routeEntry({ entryId: row.id, from: "personal", expectedVersion: row.version, to: slug }, h.context);
+
+  expect(result).toMatchObject({ state: "routed", destination: { list: "project" } });
+  expect(await listInbox({ list: "personal" }, h.context)).toMatchObject({ entries: [] });
+  expect((await first(h, "project")).id).toBe(row.id);
+  expect(await listInbox({ list: uid }, h.context)).toMatchObject({ entries: [], pending: { count: 0 } });
+
+  const method = await readFile(new URL("../../../../arc/system/methods/route-discovered-work.md", import.meta.url), "utf8");
+  const binding = method.split("### Binding: carrying out outcomes")[1]?.split("\n---")[0] ?? "";
+  expect(/\b(?:uid|uuid)\b/iu.test(binding), "The routing binding must identify the UID selector for the namesake work item").toBe(true);
+});
 
 it.each(["personal", "project"] as const)("routes from the %s inbox to its namesake UID without conflating receipts", async name => {
   const h = createInboxHarness(); await h.inbox(name);

@@ -5,8 +5,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { cleanupTempDir, createTempRepo, runArc, runArcWithStdin } from "./helpers.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 describe("arc user inbox-mark-execute-bound", () => {
+  // The title-keyed queue write is the in-repo store's: the store refuses it and names its successor,
+  // `arc errand queue set`, which the store's inbox suites cover.
+  useInRepoStoreForEach();
   let tmpDir: string;
   let inboxPath: string;
 
@@ -41,7 +45,16 @@ describe("arc user inbox-mark-execute-bound", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("marks and orders an exact batch supplied through a versioned stdin request", async () => {
+  it("uses the reported queue remedies to read and mark an exact batch", async () => {
+    const listing = await runArc(["errand", "queue", "--json"], tmpDir);
+    expect(listing.exitCode).toBe(1);
+    expect(JSON.parse(listing.stdout)).toMatchObject({ state: "refused", reason: expect.stringContaining("queue"),
+      remedy: { text: expect.stringMatching(/execute-bound.*Errand.*USER-INBOX\.md.*file order/u) } });
+    const refused = await runArcWithStdin(["errand", "queue", "set", "-"], tmpDir, "{}");
+    expect(refused.exitCode).toBe(1);
+    expect(JSON.parse(refused.stdout)).toMatchObject({ state: "refused", reason: expect.stringContaining("queue"),
+      remedy: { text: expect.stringContaining("arc user inbox-mark-execute-bound") } });
+
     const result = await runArcWithStdin(
       ["user", "inbox-mark-execute-bound", "-"],
       tmpDir,
@@ -63,6 +76,9 @@ describe("arc user inbox-mark-execute-bound", () => {
     expect(content.indexOf("Second $(queued) errand")).toBeLessThan(content.indexOf("First `arc` errand"));
     expect(content.match(/- _Disposition:_ `execute-bound`/gu)).toHaveLength(2);
     expect(content).toContain("### `[ ]` **Leave this byte-stable**\n\n- WU_Target: later");
+    const next = await runArc(["errand", "next", "--json"], tmpDir);
+    expect(next.exitCode).toBe(0);
+    expect(JSON.parse(next.stdout)).toMatchObject({ state: "available", nextOffer: { key: "Second $(queued) errand" } });
   });
 
   it("refuses a missing title without applying the rest of the batch", async () => {

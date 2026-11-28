@@ -45,9 +45,11 @@ export async function leaveOrdinaryErrandAtRuntime(
     return leaveOrdinaryErrand({ ...options, dependencies: inertDependencies() });
   }
   const identityIO = { exec: options.exec, execInput: options.execInput, identity: options.identity };
-  const occupancyIO = createTerminalOccupancyIO(options.exec, { restorePrimaryTo: options.base });
+  let removalNotice: string | undefined;
+  const occupancyIO = createTerminalOccupancyIO(options.exec, { restorePrimaryTo: options.base,
+    onRemovalNotice: (text) => { removalNotice = text; } });
 
-  return leaveOrdinaryErrand({
+  const result = await leaveOrdinaryErrand({
     slug: options.slug,
     state: options.state,
     protection: options.protection,
@@ -78,6 +80,8 @@ export async function leaveOrdinaryErrandAtRuntime(
       },
     },
   });
+  return removalNotice === undefined ? result
+    : { ...result, recommendedPromptText: `${result.recommendedPromptText} ${removalNotice}` };
 }
 
 function inertDependencies(): Parameters<typeof leaveOrdinaryErrand>[0]["dependencies"] {

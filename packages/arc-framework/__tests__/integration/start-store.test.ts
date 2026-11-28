@@ -117,6 +117,27 @@ describe("store-backed start checkouts", () => {
     expect((await h.exec("git", ["branch", "--list", "plan/*"])).stdout).toBe("");
     expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).version).toEqual(h.meta.version);
   }, timeout);
+  it("spawns create-new's detached checkout at the configured base and runs its provisioning hook there", async () => {
+    const h = await fixture(); const system = join(h.root, ".arc", "system"); await mkdir(system, { recursive: true });
+    await h.exec("git", ["switch", "-c", "develop"]); await h.exec("git", ["commit", "--allow-empty", "-m", "develop"]);
+    const develop = (await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim(); await h.exec("git", ["switch", "main"]);
+    await writeFile(join(system, "arc-config.yml"),
+      `branch.base: develop\nworktree.location_template: ${h.path}\nworktree.post_create: 'git tag provisioned'\n`);
+    expect(await runCreateNew({ store: h.store, io: h.io, internalTemplateDir: "/templates" }, { name: "fresh", worktreePath: h.root, identity: "starter" }))
+      .toMatchObject({ ok: true, value: { branch: null, worktreePath: h.path, wuName: "fresh" } });
+    expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout.trim()).toBe(develop);
+    expect((await h.exec("git", ["rev-parse", "provisioned"])).stdout.trim()).toBe(develop);
+  }, timeout);
+  it("refuses create-new when the detached spawn fails, leaving the occupied location and the store unchanged", async () => {
+    const h = await fixture(); const system = join(h.root, ".arc", "system"); await mkdir(system, { recursive: true });
+    await writeFile(join(system, "arc-config.yml"), `branch.base: main\nworktree.location_template: ${h.path}\n`);
+    await mkdir(h.path, { recursive: true }); await writeFile(join(h.path, "occupant"), "kept\n");
+    const before = await h.store.version();
+    expect(await runCreateNew({ store: h.store, io: h.io, internalTemplateDir: "/templates" }, { name: "fresh", worktreePath: h.root, identity: "starter" }))
+      .toMatchObject({ ok: false, reason: expect.stringContaining("could not spawn the worktree") });
+    expect(await readFile(join(h.path, "occupant"), "utf8")).toBe("kept\n");
+    expect(await h.store.version()).toEqual(before);
+  }, timeout);
 });
 
 it.each(["start", "materialize", "materialize-without-base-refs"])("activates from a refreshed base after %s even when local main is older", async (placement) => {

@@ -12,6 +12,7 @@ import { runActiveRoster } from "../../../../src/commands/active/roster.js";
 import type { WorktreeRosterFs } from "../../../../src/lib/git/worktree-roster.js";
 import type { GitExec } from "../../../../src/lib/git/index.js";
 import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
+import { inRepoStoreAt } from "../../../helpers/store/in-repo-ports.js";
 
 /** A three-worktree layout: main (no meta) + two WU worktrees. */
 const THREE_WORKTREES = [
@@ -73,10 +74,16 @@ function buildFs(tree: Record<string, string>): WorktreeRosterFs {
   };
 }
 
+/** Roster inputs over a meta tree, the in-repo implementation's; a store roster's filter is `worktree-roster-store`'s. */
+function inRepoRoster(listing: string) {
+  const exec = execReturning(listing);
+  return { exec, store: inRepoStoreAt("/repo", exec) };
+}
+
 describe("runActiveRoster", () => {
   it("narrows to work units, dropping meta-less checkouts (main)", async () => {
     const result = await runActiveRoster({
-      exec: execReturning(THREE_WORKTREES),
+      ...inRepoRoster(THREE_WORKTREES),
       fs: buildFs(META_TREE),
       identity: "andrew",
       teamMode: false,
@@ -89,7 +96,7 @@ describe("runActiveRoster", () => {
 
   it("identity-filters in team mode (drops another developer's WU)", async () => {
     const result = await runActiveRoster({
-      exec: execReturning(THREE_WORKTREES),
+      ...inRepoRoster(THREE_WORKTREES),
       fs: buildFs(META_TREE),
       identity: "andrew",
       teamMode: true,

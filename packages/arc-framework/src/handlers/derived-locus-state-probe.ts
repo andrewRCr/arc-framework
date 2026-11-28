@@ -35,6 +35,7 @@ export interface DerivedLocusStateProbeOptions {
   readonly store?: Store;
   readonly projectId?: () => Promise<string>;
   readonly archiveCadence?: "manual" | "with-integration";
+  readonly allowUnavailableBoundary?: boolean;
   readonly identity: string;
   readonly baseBranch: string;
   readonly exec: GitExec;
@@ -125,6 +126,7 @@ export async function runDerivedLocusStateProbe(
     store,
     identityGlobalUserDir,
     enteringCheckoutPath: options.cwd,
+    allowUnavailableBoundary: options.allowUnavailableBoundary,
     topology: evidence.topology,
     checkouts: evidence.checkouts,
     completed: evidence.completed,

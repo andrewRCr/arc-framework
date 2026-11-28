@@ -81,16 +81,20 @@ it("requires own-state without a terminal and applies its explicit answer in JSO
   expect(await git(cwd, ["config", "remote.origin.arc-state"])).toBe("push");
 });
 
-it("keeps explicit store commands out of ordinary help while retaining their own help", async () => {
+it("lists the store command in ordinary help and its subcommands in its own, without the import option", async () => {
   const cwd = await createTempRepo("arc-store-help-");
   onTestFinished(() => cleanupTempDir(cwd));
   const help = await runArcNoTty(["--help"], cwd);
   expect(help.exitCode).toBe(0);
-  expect(help.stdout).not.toMatch(/^\s+store(?:\s|$)/mu);
+  expect(help.stdout).toMatch(/^\s+store(?:\s|$)/mu);
   const local = await runArcNoTty(["store", "--help"], cwd);
   expect(local.exitCode).toBe(0);
   expect(local.stdout).toContain("migrate");
   expect(local.stdout).toContain("remote");
+  const migrate = await runArcNoTty(["store", "migrate", "--help"], cwd);
+  expect(migrate.exitCode).toBe(0);
+  expect(migrate.stdout).toContain("--trial");
+  expect(migrate.stdout).not.toContain("--import");
 });
 
 it("reports a layout move as JSON and refuses --to without a state remote with the designation routes", async () => {

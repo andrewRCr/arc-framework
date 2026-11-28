@@ -39,6 +39,7 @@ import {
   META_FIELDS,
   type MetaProjectionOverrides,
 } from "../../../src/lib/active/meta-reader.js";
+import { inRepoStoreAt } from "../../helpers/store/in-repo-ports.js";
 
 interface Fixture {
   root: string;
@@ -567,6 +568,8 @@ describe("parseMetaFile — H1-bounded preamble", () => {
 });
 
 describe("readActiveMetaCandidates — layout detection", () => {
+  // The default root's flat scan of meta files is the in-repo implementation's; a custom root scans without a store.
+  const inRepoAt = (root: string) => ({ store: inRepoStoreAt(root) });
   let fixture: Fixture;
   beforeEach(async () => {
     fixture = await createFixture();
@@ -576,7 +579,7 @@ describe("readActiveMetaCandidates — layout detection", () => {
   });
 
   it("returns layout=full and empty candidates when .arc/active/ has no status files", async () => {
-    const result = await readActiveMetaCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root, inRepoAt(fixture.root));
     expect(result.layout).toBe("full");
     expect(result.candidates).toEqual([]);
     expect(result.warnings).toEqual([]);
@@ -585,7 +588,7 @@ describe("readActiveMetaCandidates — layout detection", () => {
   it("returns a warning and empty list when .arc/active/ does not exist", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-active-none-"));
     try {
-      const result = await readActiveMetaCandidates(root);
+      const result = await readActiveMetaCandidates(root, inRepoAt(root));
       expect(result.layout).toBe("full");
       expect(result.candidates).toEqual([]);
       expect(result.warnings.length).toBe(1);
@@ -604,7 +607,7 @@ describe("readActiveMetaCandidates — layout detection", () => {
       join(fixture.activeDir, "meta-beta.md"),
       metaFileBody({ state: "Integrating", branch: "technical/beta" }),
     );
-    const result = await readActiveMetaCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root, inRepoAt(fixture.root));
     expect(result.layout).toBe("full");
     expect(result.candidates).toHaveLength(2);
     const filenames = result.candidates.map((c) => c.filename).sort();
@@ -616,7 +619,7 @@ describe("readActiveMetaCandidates — layout detection", () => {
       join(fixture.activeDir, "meta-foo.md"),
       metaFileBody({ state: "Active", branch: "technical/foo" }),
     );
-    const result = await readActiveMetaCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root, inRepoAt(fixture.root));
     expect(result.candidates[0]!.path).toBe(".arc/active/meta-foo.md");
   });
 
@@ -634,7 +637,7 @@ describe("readActiveMetaCandidates — layout detection", () => {
       join(stray, "meta-decoy.md"),
       metaFileBody({ state: "Active", branch: "technical/decoy" }),
     );
-    const result = await readActiveMetaCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root, inRepoAt(fixture.root));
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]!.filename).toBe("meta-foo.md");
   });
@@ -666,7 +669,7 @@ describe("readActiveMetaCandidates — layout detection", () => {
       join(fixture.activeDir, "status.md"),
       metaFileBody({ state: "Active", branch: "main" }),
     );
-    const result = await readActiveMetaCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root, inRepoAt(fixture.root));
     expect(result).toEqual({ layout: "full", candidates: [], warnings: [] });
   });
 
@@ -693,7 +696,7 @@ describe("readActiveMetaCandidates — layout detection", () => {
       join(fixture.activeDir, "meta-foo.md"),
       metaFileBody({ state: "Active", branch: "technical/foo" }),
     );
-    const result = await readActiveMetaCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root, inRepoAt(fixture.root));
     expect(result.layout).toBe("full");
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]).toMatchObject({

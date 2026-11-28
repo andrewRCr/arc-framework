@@ -21,7 +21,7 @@ describe("prepublication workflow boundary", () => {
       );
 
       expect(integrate).not.toContain("arc review pre-publication <wu>");
-      expect(integrate).toContain("**When to use:** `active/meta-{name}.md` shows `**State:** Integrating`");
+      expect(integrate).toContain("**When to use:** `arc view meta` shows `**State:** Integrating`");
       expect(integrate).toContain("### 1) Push the branch and open the PR");
       const reviewIteration = integrate.indexOf("### 2) Review iteration");
       const memberLocalFallback = integrate.indexOf("arc review local prepare -");
@@ -110,6 +110,16 @@ describe("prepublication workflow boundary", () => {
         .toMatch(softWrappedProse("metrics when the resolver supplies them"));
       expect(taskLoop.slice(memberBoundary, reportAndStop))
         .toMatch(softWrappedProse("approval does not authorize delivery-member advancement"));
+
+      const resumeCloseout = indexOfSoftWrappedProse(taskLoop, "return to item 3", reportAndStop);
+      const recordResult = taskLoop.indexOf("record", resumeCloseout);
+      const saveResult = taskLoop.indexOf("arc save", recordResult);
+      expect(resumeCloseout).toBeGreaterThan(reportAndStop);
+      expect(recordResult).toBeGreaterThan(resumeCloseout);
+      expect(saveResult).toBeGreaterThan(recordResult);
+      const closeoutCheck = taskLoop.slice(recordResult, saveResult);
+      expect(closeoutCheck).toContain("arc check increment");
+      expect(closeoutCheck).toMatch(/feedback[^.]+enforcement/iu);
 
       const recordedAttention = indexOfSoftWrappedProse(verification, "member-close scale-attention result");
       const mergeChecks = verification.indexOf("arc check gate merge --force");
@@ -340,6 +350,34 @@ describe("prepublication workflow boundary", () => {
     }
   });
 
+  it("requires both verification inbox reads to establish an empty gate", async () => {
+    for (const root of ROOTS) {
+      const workflow = await readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8");
+      const step = workflow.slice(workflow.indexOf("## Step 1"), workflow.indexOf("Before the Candidate exists"));
+      const gate = step.replace(/\s+/gu, " ");
+      expect(gate).toMatch(/personal[^.]*`clear`/u);
+      expect(gate).toMatch(/inbound[^.]*`listed`/u);
+      expect(gate).toContain("`pending.count` is zero");
+      expect(gate).toMatch(/(?:failed|refused)[^.]*surface[^.]*remedy/iu);
+      expect(gate).toMatch(/remedy[^.]*completes?[^.]*listing[^.]*use[^.]*result/iu);
+      expect(gate).toMatch(/otherwise[^.]*re-?run[^.]*listing/iu);
+      expect(gate).not.toMatch(/ARC_IN_REPO_STORE|in-repo|pre-import/iu);
+    }
+  });
+
+  it("checks for a staged review copy after successful attestation even without designExport", async () => {
+    for (const root of ROOTS) {
+      const workflow = await readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8");
+      const attest = workflow.indexOf("arc attest {name} --json");
+      const commit = workflow.indexOf("chore(arc): export the review copy", attest);
+      expect(commit).toBeGreaterThan(attest);
+      const instructions = workflow.slice(attest, commit).replace(/\s+/gu, " ");
+      expect(instructions).toMatch(/even (?:when|if)[^.]*`designExport`[^.]*absent/u);
+      expect(instructions).toContain("git diff --cached --name-only HEAD --");
+      expect(instructions).toMatch(/commit only that path/iu);
+    }
+  });
+
   it("closes verification before attestation and hands execution off to preparation", async () => {
     for (const root of ROOTS) {
       const [verification, preparation, integration, taskLoop] = await Promise.all([
@@ -371,9 +409,18 @@ describe("prepublication workflow boundary", () => {
       expect(author).toContain("Do not invoke the producer-backed response command");
       expect(integration).not.toMatch(softWrappedProse("After settlement, clean the WU content"));
 
-      expect(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`")).toBeGreaterThan(-1);
-      expect(attest)
-        .toBeGreaterThan(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`"));
+      expect(verification).toMatch(
+        softWrappedProse("verification record](#verification-record), closes the task, and attests the Candidate"),
+      );
+      const increment = verification.indexOf("arc check increment");
+      const close = verification.indexOf("arc task close <id>");
+      const closingCommit = verification.indexOf("arc release commit --close");
+      const firstClose = Math.min(close, closingCommit);
+      expect(increment).toBeGreaterThan(mergeChecks);
+      expect(firstClose).toBeGreaterThan(increment);
+      expect(verification.slice(increment, firstClose), "Verification must await task approval before either close route")
+        .toMatch(/task[-\s]interlock|(?:await|wait for)\s+(?:(?:owner|user|task)\s+)?approval/iu);
+      expect(attest).toBeGreaterThan(Math.max(close, closingCommit));
       expect(taskLoop).toMatch(softWrappedProse("to prepare-work-unit` (verification complete — execution end)"));
       expect(taskLoop).toMatch(softWrappedProse("prepare-work-unit are all valid retargets"));
       expect(taskLoop).not.toMatch(softWrappedProse("integrate are all valid retargets"));
@@ -381,7 +428,7 @@ describe("prepublication workflow boundary", () => {
     }
   });
 
-  it("restarts checkpointing after reconcile and returns inline archival to the final push", async () => {
+  it("continues to the checkpoint after reconcile and returns inline archival to the final push", async () => {
     for (const root of ROOTS) {
       const [integrate, archive] = await Promise.all([
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
@@ -389,11 +436,11 @@ describe("prepublication workflow boundary", () => {
       ]);
 
       const cleanContinuation = indexOfSoftWrappedProse(integrate, "`clean` continues to the checkpoint below");
-      const appliedRestart = indexOfSoftWrappedProse(integrate, "Restart this step. The correction changed the head");
+      const appliedContinuation = indexOfSoftWrappedProse(integrate, "and so does `applied`");
       const readyCheckpoint = indexOfSoftWrappedProse(integrate, "On `ready / request-approval`");
       expect(cleanContinuation).toBeGreaterThan(-1);
-      expect(appliedRestart).toBeGreaterThan(cleanContinuation);
-      expect(readyCheckpoint).toBeGreaterThan(appliedRestart);
+      expect(appliedContinuation).toBeGreaterThan(cleanContinuation);
+      expect(readyCheckpoint).toBeGreaterThan(appliedContinuation);
       expect(integrate).toContain("Context: meta-{name}.md (integration)");
       expect(integrate).not.toContain("Context: meta-{name}.md (integration reconcile)");
       expect(archive).toMatch(softWrappedProse("per `integrate-work-unit.md` Steps 5–7"));
@@ -418,9 +465,9 @@ describe("prepublication workflow boundary", () => {
       expect(route).toContain("`applicability.resolutionSelector`");
       for (const key of ["selectedBy", "choice", "targetedEvidenceRef"]) expect(route).toContain(`\`${key}\``);
       expect(route).toContain("arc candidate applicability resolve {name} -");
-      expect(route).toMatch(softWrappedPattern(/commit-selection[\s\S]*`commit-interlock`\s+release/iu));
-      expect(route).toContain("chore(arc): record Candidate applicability for {name}");
-      expect(route).toContain("Context: meta-{name}.md (prepublication)");
+      expect(route).toMatch(softWrappedProse("mean the selection is recorded; re-enter pre-publication"));
+      expect(route).not.toContain("commit-selection");
+      expect(route).not.toContain("chore(arc): record Candidate applicability");
       expect(route).toMatch(softWrappedPattern(/explicit\s+`changed`\s+choice[\s\S]*--new-root/iu));
       expect(route).toMatch(softWrappedProse("Do not infer a selection from the recommendation."));
     }

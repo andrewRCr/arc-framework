@@ -2,8 +2,9 @@
 import { mkdir, writeFile, chmod } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { onTestFinished } from "vitest";
-import { createStore, KIND_REGISTRY, RecordReferenceSchema, StateVersionSchema, type RecordReference } from "../../../src/lib/store/index.js";
+import { KIND_REGISTRY, RecordReferenceSchema, StateVersionSchema, type RecordReference } from "../../../src/lib/store/index.js";
 import { withTrackedWriteLock, TRACKED_WRITE_LOCK_FILENAME } from "../../../src/lib/store/tracked-lock.js";
+import { inRepoStore } from "./in-repo-ports.js";
 import { resolveCheckoutGitDir } from "../../../src/lib/git/exec.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock, type AdvisoryLockHandle } from "../../../src/lib/advisory-lock.js";
 import { resolveArcPath } from "../../../src/lib/layout/index.js";
@@ -55,7 +56,7 @@ export async function createInRepoFixture(): Promise<ConformanceFixture> {
   const topology = await inRepoRemote();
   const h = topology.a;
   h.ports.locks.tracked = (operation) => withTrackedWriteLock({ exec: h.exec, checkoutRoot: h.root, options: { maxWaitMs: 100 } }, operation);
-  const store = createStore(h.ports);
+  const store = inRepoStore(h.ports);
   let held: AdvisoryLockHandle | undefined;
   const denied = new Set<string>();
   const repairs = new Map<string, () => Promise<void>>();
@@ -92,7 +93,7 @@ export async function createInRepoFixture(): Promise<ConformanceFixture> {
       await writeFile(path, inRepoContent(reference));
       return success(await store.read({ reference }));
     },
-    reopen: () => createStore(h.ports),
+    reopen: () => inRepoStore(h.ports),
     race: (left, right) => Promise.all([store.write(left), store.write(right)]),
     remote: topology.remote, identity: topology.identity, remoteState: topology.remoteState,
     async plant(reference, kind) {

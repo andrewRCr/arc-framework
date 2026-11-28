@@ -29,10 +29,13 @@ import { handleReviewPrePublication, handleReviewLocalPrepare, handleReviewLocal
 import type { GitExec } from "../../src/lib/git/exec.js";
 import type { ReviewLaneJudgment } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
 import type { ReviewResult } from "../../src/scripts/review-gate/core/review-result.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 async function subject(native: boolean) {
   const h = await createReviewRepositoryHarness(); onTestFinished(h.cleanup);
   const selected = native ? h.native : h.inRepo;
+  // The in-repo checkout's handlers compose their store by default, so its cases select the in-repo implementation.
+  if (!native) useInRepoStore();
   const { cwd } = selected;
   const realExec = selected.exec;
   const exec: GitExec = async (command, args, options) => {

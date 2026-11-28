@@ -334,6 +334,7 @@ describe("changed indexed Markdown under-wrap check", () => {
     expect(step?.run).toBeTypeOf("string");
     const expressions: Record<string, string> = {
       "${{ github.event_name }}": event, "${{ github.event.before }}": before,
+      "${{ github.event.pull_request.head.repo.full_name }}": event === "pull_request" ? "owner/repository" : "",
     };
     const stepEnv = Object.fromEntries(Object.entries(step?.env ?? {}).map(([key, expression]) => {
       if (!(expression in expressions)) throw new Error(`Unrecognized workflow expression: ${expression}`);

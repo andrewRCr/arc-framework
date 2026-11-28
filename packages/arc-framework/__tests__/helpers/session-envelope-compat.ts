@@ -5,8 +5,10 @@
  */
 
 import { makeHuskStamp } from "./worktree-husk-fixture.js";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import {
   cleanupTempDir,
@@ -16,8 +18,11 @@ import {
   runArcNoTty,
 } from "../e2e/helpers.js";
 import { makeMetaFixture } from "./meta-fixture.js";
-import { parseMetaRecord, setMetaState, setMetaCurrentWorkflow } from
-  "../../src/lib/active/meta-reader.js";
+import { seedStore } from "./store/seed-store.js";
+import { integrateAttestedWorkUnit } from "./store/integrating-work-unit.js";
+import { seedWorkUnit, seededWorkUnitSubject } from "./store/seed-work-unit.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 
 // Placeholders are path-shaped rather than angle-bracket tokens because normalized
 // envelopes are replayed through schema validation, and several normalized values land
@@ -67,53 +72,18 @@ const META = (name: string, fields: {
   cohort?: string;
   owner?: string;
   workClass?: "Light" | "Heavy" | "Novel";
-}): string => {
-  const canonical = makeMetaFixture(name, {
-    state: fields.state ?? "Active",
-    owner: fields.owner ?? "test-user",
-    branch: fields.branch,
-    workClass: fields.workClass ?? "Heavy",
-    cohort: fields.cohort ?? null,
-    taskList: fields.taskList ?? null,
-    currentWorkflow: fields.state === "Integrating" ? "integrate-work-unit" : null,
-    nextTask: fields.taskList === undefined ? null : "Task 1.1 — Exercise the envelope (line ~7)",
-    nextAction: fields.taskList === undefined
-      ? "Continue integration" : "Begin Task 1.1 — Exercise the envelope",
-  });
-  const record = parseMetaRecord(canonical);
-  return [
-  `# Metadata: ${name}`,
-  "",
-  "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-  "| --------- | --------- | ---------- | --------- | ------------ |",
-  `| ${record.state} | ${record.owner} | ${record.branch} | ${record.workClass} | — |`,
-  "",
-  `- **Cohort:** ${record.cohort ?? "[none]"}`,
-  "- **Depends On:** [none]",
-  "",
-  "- **Origin:** —",
-  "- **Design:** [none]",
-  "- **Review Rubric:** [none]",
-  `- **Task List:** ${record.taskList ?? "[none]"}`,
-  "- **Candidate:** [none]",
-  record.currentWorkflow === "integrate-work-unit"
-    ? "- **Current Workflow:** `integrate-work-unit`"
-    : "- **Current Workflow:** [none]",
-  "- **Last Completed:** [none]",
-  `- **Next Task:** ${record.nextTask ?? "[none]"}`,
-  "- **Blockers:** [none]",
-  `- **Next Action:** ${record.nextAction}`,
-  "",
-  "- **PR URL:** [none]",
-  "- **Completed:** [none]",
-  "",
-  "---",
-  "",
-  ].join("\n");
-};
-
-// Keep the captured envelope's semantic fields in an anchored metadata block.
-// Default-valued bullets prevent the legacy attestation reconcile from backfilling it.
+}): string => makeMetaFixture(name, {
+  state: fields.state ?? "Active",
+  owner: fields.owner ?? "test-user",
+  branch: fields.branch,
+  workClass: fields.workClass ?? "Heavy",
+  cohort: fields.cohort ?? null,
+  taskList: fields.taskList ?? null,
+  currentWorkflow: fields.state === "Integrating" ? "integrate-work-unit" : null,
+  nextTask: fields.taskList === undefined ? null : "Task 1.1 — Exercise the envelope (line ~7)",
+  nextAction: fields.taskList === undefined
+    ? "Continue integration" : "Begin Task 1.1 — Exercise the envelope",
+});
 
 const TASKS = [
   "# Task List: Envelope Fixture",
@@ -222,61 +192,25 @@ async function setupOrientFixture(state: MutableFixture): Promise<void> {
 
   await git(state.repo, ["branch", "feat/heavy-widget"]);
   await git(state.repo, ["worktree", "add", linked, "feat/heavy-widget"]);
-  await writeActiveFixture(linked, "heavy-widget", {
+  await seedActiveWorkUnit(state.repo, linked, "heavy-widget", {
     state: "Active",
     branch: "feat/heavy-widget",
     workClass: "Heavy",
     taskList: "tasks-heavy-widget.md",
-  });
-  await writeFile(
-    join(linked, ".arc", "active", "tasks-heavy-widget.md"),
-    TASKS.replace("`[ ]`", "`[x]`"),
-  );
-  await git(linked, ["add", ".arc/active"]);
+  }, TASKS.replace("`[ ]`", "`[x]`"));
+  await writeFile(join(linked, "heavy-widget.txt"), "In-flight fixture work\n");
+  await git(linked, ["add", "heavy-widget.txt"]);
   await git(linked, ["commit", "-m", "feat: add in-flight fixture"]);
 
   const attested = await runArcNoTty(["attest", "heavy-widget", "--json"], linked);
   if (attested.exitCode !== 0) {
     throw new Error(`arc attest failed: ${attested.stderr || attested.stdout}`);
   }
-  const metaPath = join(linked, ".arc", "active", "meta-heavy-widget.md");
-  const boundaryPath = join(
-    linked,
-    ".arc",
-    "system",
-    ".internal",
-    "candidates",
-    "heavy-widget.boundary.json",
-  );
-  const candidateBoundary = JSON.parse(await readFile(boundaryPath, "utf8")) as {
-    candidateId: string;
-    candidateSubjectDigest: string;
-  };
-  const attestedMeta = await readFile(metaPath, "utf8");
-  await writeFile(
-    metaPath,
-    setMetaCurrentWorkflow(
-      setMetaState(attestedMeta, "Integrating"),
-      "integrate-work-unit",
-    ),
-  );
-  await writeFile(boundaryPath, `${JSON.stringify({
-    schemaVersion: 1,
-    mode: "integration-boundary",
-    workUnit: "heavy-widget",
-    candidateId: candidateBoundary.candidateId,
-    candidateSubjectDigest: candidateBoundary.candidateSubjectDigest,
-    locus: "publication-pending",
-    nextAction: {
-      kind: "continue-publication",
-      command: "git push -u origin feat/heavy-widget",
-      interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
-    },
-    policy: null,
-    reservation: null,
-  })}\n`);
-  await git(linked, ["add", ".arc"]);
-  await git(linked, ["commit", "-m", "chore: publish fixture"]);
+  // Integrating, with the attested Candidate's publication pending at its idempotent push.
+  await integrateAttestedWorkUnit(linked, "heavy-widget", {
+    identity: "test-user",
+    publicationPending: true,
+  });
 }
 
 async function setupActiveResumeFixture(state: MutableFixture): Promise<string> {
@@ -287,16 +221,15 @@ async function setupActiveResumeFixture(state: MutableFixture): Promise<string> 
 
   await git(state.repo, ["branch", "feat/active-widget"]);
   await git(state.repo, ["worktree", "add", linked, "feat/active-widget"]);
-  await writeActiveFixture(linked, "active-widget", {
+  await seedStore(state.repo, SlugSchema.parse("test-user"), [{
+    reference: recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "fixture-cohort" })),
+    content: "# Cohort: fixture-cohort\n\n**Purpose:** Group the envelope fixture.\n\n**Parent:** [none]\n",
+  }]);
+  await seedActiveWorkUnit(state.repo, linked, "active-widget", {
     branch: "feat/active-widget",
     taskList: "tasks-active-widget.md",
     cohort: "fixture-cohort",
   });
-  const cohortDir = join(linked, ".arc", "backlog", "planned", "fixture-cohort");
-  await mkdir(cohortDir, { recursive: true });
-  await writeFile(join(cohortDir, "cohort-fixture-cohort.md"), "# Cohort: fixture-cohort\n");
-  await git(linked, ["add", ".arc/active", ".arc/backlog/planned/fixture-cohort"]);
-  await git(linked, ["commit", "-m", "feat: add active cohort fixture"]);
   return linked;
 }
 
@@ -310,18 +243,28 @@ async function setupCurrentHuskFixture(state: MutableFixture): Promise<string> {
   await git(state.repo, ["worktree", "add", linked, "feat/current-husk"]);
   await git(linked, ["switch", "--detach"]);
   const head = await git(linked, ["rev-parse", "HEAD"]);
+  // The husk of a shipped work unit, stamped with its identity as teardown stamps one, under an authorization this
+  // build does not know.
+  const { meta } = await seedWorkUnit(state.repo, "current-husk", {
+    identity: "test-user",
+    meta: { state: "Shipped", owner: "test-user", branch: "feat/current-husk", currentWorkflow: null,
+      completed: "2026-01-02", prUrl: "https://example.test/pull/1" },
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") },
+    branch: "feat/current-husk",
+  });
+  const subject = seededWorkUnitSubject(meta);
   const markerDir = join(linked, ".arc", "system", ".internal");
   await mkdir(markerDir, { recursive: true });
   await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
     spawnedByArc: true,
     wuName: "current-husk",
-    createdFor: { kind: "work-unit", name: "current-husk" },
+    createdFor: subject,
     spawningIdentity: "test-user",
     createdAt: "2026-01-02T03:04:05.000Z",
     husk: makeHuskStamp({
       sha: head,
       at: "2026-01-02T04:05:06.000Z",
-      subject: { kind: "work-unit", name: "current-husk" },
+      subject,
       branch: "feat/current-husk",
       authorization: "future-policy",
     }),
@@ -343,12 +286,14 @@ async function setupBranchGoneFixture(state: MutableFixture): Promise<string> {
 
   await git(state.repo, ["branch", "feat/gone-widget"]);
   await git(state.repo, ["worktree", "add", linked, "feat/gone-widget"]);
-  await writeActiveFixture(linked, "gone-widget", {
+  await seedActiveWorkUnit(state.repo, linked, "gone-widget", {
     branch: "feat/gone-widget",
     taskList: "tasks-gone-widget.md",
   });
-  await git(linked, ["add", ".arc/active"]);
-  await git(linked, ["commit", "-m", "feat: add branch-gone fixture"]);
+  // The branch carries one commit of work ahead of base, no task closed over it.
+  await writeFile(join(linked, "gone-widget.txt"), "Branch-gone fixture work\n");
+  await git(linked, ["add", "gone-widget.txt"]);
+  await commitAtFixedTime(linked, "feat: add branch-gone fixture");
   await git(linked, ["push", "-u", "origin", "feat/gone-widget"]);
   await git(state.repo, ["push", "origin", "--delete", "feat/gone-widget"]);
   // `git push --delete` removes the local tracking ref as a side effect. Put
@@ -358,17 +303,31 @@ async function setupBranchGoneFixture(state: MutableFixture): Promise<string> {
   return linked;
 }
 
-async function writeActiveFixture(
-  root: string,
+/**
+ * Commit at a fixed author and committer time, so the commit's times and the copy key its author line derives stay the
+ * same from run to run.
+ */
+async function commitAtFixedTime(cwd: string, message: string): Promise<void> {
+  const at = "2026-01-02T05:06:07Z";
+  await promisify(execFile)("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", message],
+    { cwd, env: { ...process.env, GIT_AUTHOR_DATE: at, GIT_COMMITTER_DATE: at } });
+}
+
+/** Hold an active work unit and its task list in the store, its branch linked and the checkout bound to it. */
+async function seedActiveWorkUnit(
+  primary: string,
+  checkout: string,
   name: string,
   fields: Parameters<typeof META>[1],
+  tasks = TASKS,
 ): Promise<void> {
-  const activeDir = join(root, ".arc", "active");
-  await mkdir(activeDir, { recursive: true });
-  await writeFile(join(activeDir, `meta-${name}.md`), META(name, fields));
-  if (fields.taskList !== undefined) {
-    await writeFile(join(activeDir, fields.taskList), TASKS);
-  }
+  await seedWorkUnit(primary, name, {
+    identity: "test-user",
+    content: META(name, fields),
+    ...(fields.taskList === undefined ? {} : { taskList: tasks }),
+    branch: fields.branch,
+    bind: checkout,
+  });
 }
 
 /**
@@ -391,6 +350,7 @@ export function normalizeSessionEnvelope(
     ]);
   const oids = new Map<string, string>();
   const digests = new Map<string, string>();
+  const uids = new Map<string, string>();
   const timestamps = new Map<string, string>();
   const dates = new Map<string, string>();
 
@@ -410,6 +370,15 @@ export function normalizeSessionEnvelope(
     return digest;
   };
 
+  // A stored record's minted UID stays a valid stored UID, so the replayed envelope still parses.
+  const uidFor = (value: string): string => {
+    const current = uids.get(value);
+    if (current !== undefined) return current;
+    const uid = `00000000-0000-4000-8000-${(uids.size + 1).toString(16).padStart(12, "0")}`;
+    uids.set(value, uid);
+    return uid;
+  };
+
   const degradedCommandWarningPrefixes = [
     "Mergeable-sharpening tier degraded to presence (PR source unavailable):",
     "Behind-base read degraded (base ref unresolved):",
@@ -424,6 +393,7 @@ export function normalizeSessionEnvelope(
       let next = value;
       for (const [root, token] of roots) next = next.replaceAll(root, token);
       next = next.replace(/sha256:[0-9a-f]{64}/gu, digestFor);
+      next = next.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gu, uidFor);
       next = next.replace(/\b[0-9a-f]{40}\b/gu, (oid) => tokenFor(oids, oid, "OID"));
       next = next.replace(
         /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z\b/gu,

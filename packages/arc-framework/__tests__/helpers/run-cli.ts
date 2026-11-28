@@ -26,8 +26,8 @@ export interface RunCliOptions {
   /** Working directory for the spawned subprocess. Defaults to the parent's cwd. */
   cwd?: string;
   /**
-   * Environment variables for the subprocess. Inherited `FORCE_COLOR` is cleared; overrides are merged on top,
-   * so callers only need to supply the keys they want to override.
+   * Environment variables for the subprocess. Inherited `FORCE_COLOR` is cleared; overrides are merged on top, so
+   * callers only need to supply the keys they want to override, and a key passed as `undefined` is dropped.
    */
   env?: NodeJS.ProcessEnv;
   /** Timeout in milliseconds. Default: {@link DEFAULT_TIMEOUT_MS}. */

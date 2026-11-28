@@ -4,7 +4,7 @@ import type { RefBackendContext } from "../context.js";
 import type { StoreMigrateInput, StoreMigrateResult, MigrateReport } from "../../commands.js";
 import { RepositoryGitCommonStatePublisher } from "../../../git-common-state.js";
 import { readRepositoryIdentity, resolveRepositoryIdentity } from "../../../../scripts/review-gate/hosts/local/git-common-state.js";
-import { RecordReferenceSchema } from "../../identity.js";
+import { projectIdentityRecord } from "../../project-identity.js";
 import { readImportSource, type ImportCandidateSource, type ImportRecord } from "./source.js";
 import { prepareImportRecords, prepareImportCandidateSources, buildImportCommits } from "./build.js";
 import { readRefRepository, writeRefRepository } from "../repository.js";
@@ -43,8 +43,7 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   const projectId = input.trial ? proposedId : await resolveRepositoryIdentity(publisher, () => proposedId);
   if (reviewIdentityChanged(context, report, proposedId, projectId)) return importRefused(report);
   qualifyImportCodeLinks(records, projectId);
-  const identity = prepareImportRecords(context, [{ reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project", uid: projectId } }),
-    content: JSON.stringify({ projectId }) }], report);
+  const identity = prepareImportRecords(context, [projectIdentityRecord(projectId)], report);
   if (!identity.length) return importRefused(report);
   records.push(...identity);
   if (!report.refs.some(({ ref }) => ref === "refs/arc/project/registry")) report.refs.push({ ref: "refs/arc/project/registry", scope: "project", action: "create" });

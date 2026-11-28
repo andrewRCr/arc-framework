@@ -17,17 +17,18 @@ import { workBranchName } from "../../store/lifecycle-branch.js";
 import { usesOffBranchState, readWorkUnit, recordPut, batchLifecycleWrites, mergeLifecycleLinks } from "../../store/lifecycle-write.js";
 import { prepareTaskTargets, refuseTask, type PreparedTaskTargets, type TaskRefusal } from "../task-targets.js";
 import { planTaskCaptures, type TaskAttribution } from "../task-attribution.js";
+import { taskMarkStep } from "../../store/pre-flip-steps.js";
 
 /** Store, clone identity, and bounded Git boundaries for the work unit holding this checkout. */
 export interface TaskVerbContext { store?: Store; projectId?: () => Promise<string>; cwd: string; slug: string; exec: GitExec; execRaw?: RawGitExec; baseBranch: string }
-/** Explicit tasks and optional repository-local committed SHAs. */
-export interface TaskCloseParams { ids?: readonly string[]; commits?: readonly string[]; refreshed?: Extract<DefaultCaptureSetResult, { status: "available" }> }
+/** Explicit tasks and optional choices for commit capture. */
+export interface TaskCloseParams { ids?: readonly string[]; commits?: readonly string[]; stateOnly?: boolean; refreshed?: Extract<DefaultCaptureSetResult, { status: "available" }> }
 /** Captured close outcome with attribution and refresh reporting. */
 export type TaskCloseResult = TaskRefusal | { status: "closed"; ids: string[]; changed: boolean; captured: string[]; attributions: TaskAttribution[]; uncapturedTasks: string[]; warnings: string[] };
 /** Exact preparation shared with the release wrapper before it commits. */
 export interface PreparedTaskClose { status: "prepared"; store: Store; meta: StoreRecord; tasks: StoreRecord; targets: PreparedTaskTargets; branch: BranchLink; repository: string; snapshot?: Extract<DefaultCaptureSetResult, { status: "available" }> }
 
-/** Read and validate the work-unit task record, pause, branch, and base before any commit or write.
+/** Read and validate the task record, pause, branch, and any base needed for capture.
  * @param ctx - Checkout-owned work unit and operational boundaries
  * @param params - Requested task IDs and commit choices
  * @returns Validated exact records and refresh facts, or refusal with no write
@@ -43,32 +44,38 @@ export async function prepareTaskClose(ctx: TaskVerbContext, params: TaskClosePa
   if (relation.kind !== "linked") {
     return unlinkedTaskRefusal(basis.meta, relation, ctx.slug, repository);
   }
-  if ((params.commits?.length ?? 0) > 0) return { ...basis, branch: relation.link, repository };
+  if (params.stateOnly === true || (params.commits?.length ?? 0) > 0) return { ...basis, branch: relation.link, repository };
   const snapshot = await computeDefaultCaptureSet({ exec: ctx.exec, execRaw: ctx.execRaw, cwd: ctx.cwd, baseBranch: ctx.baseBranch,
     repository, captures: Object.values(basis.meta.links?.taskCaptures ?? {}).flat(), exclusions: relation.link.excluded,
     refresh: params.refreshed === undefined });
   if (snapshot.status === "refused") return refuseTask(snapshot.reason, snapshot.remedy, "base-unavailable");
   if (options.precommit !== true && params.refreshed === undefined && snapshot.baseRefreshed === true && snapshot.beforeRefresh.length > 0 && snapshot.commits.length === 0) {
     return refuseTask(`Base refresh found these commits already on base: ${snapshot.beforeRefresh.map((commit) => commit.sha).join(", ")}.`,
-      `If the task produced no commit, rerun arc task close ${basis.targets.ids.join(" ")}.`, "base-emptied-set");
+      `If the task produced no commit, rerun arc task close ${basis.targets.ids.join(" ")} --state-only.`, "base-emptied-set");
   }
   return { ...basis, branch: relation.link, repository, snapshot: params.refreshed === undefined ? snapshot
     : { ...snapshot, baseRefreshed: params.refreshed.baseRefreshed, warnings: params.refreshed.warnings } };
 }
 
-/** Close tasks and capture commits without creating a commit itself.
+/** Close tasks with optional commit capture, without creating a commit itself.
  * @param ctx - Work-unit checkout and operational boundaries
- * @param params - Named tasks, explicit commits, or a reused base refresh
+ * @param params - Named tasks and capture options
  * @returns Atomic closure outcome or actionable refusal
  */
 export async function runTaskClose(ctx: TaskVerbContext, params: TaskCloseParams = {}): Promise<TaskCloseResult> {
+  if (params.stateOnly === true && (params.commits?.length ?? 0) > 0) {
+    return refuseTask("Options --state-only and --commit cannot be combined.",
+      "Rerun arc task close with just --state-only to skip capture or just --commit <sha> to capture specific commits.",
+      "capture-options-conflict");
+  }
   const prepared = await prepareTaskClose(ctx, params);
   if (prepared.status === "refused") return prepared;
   const commits = params.commits?.length ? await explicitCommits(ctx, params.commits) : prepared.snapshot?.commits ?? [];
   if (!Array.isArray(commits)) return commits;
   const plan = planTaskCaptures({ links: prepared.meta.links, branch: prepared.branch, ids: prepared.targets.ids,
     commits, explicit: (params.commits?.length ?? 0) > 0 });
-  const links = mergeLifecycleLinks(prepared.meta.links, { taskCaptures: plan.taskCaptures, branches: [plan.branch] });
+  const links = params.stateOnly === true ? prepared.meta.links
+    : mergeLifecycleLinks(prepared.meta.links, { taskCaptures: plan.taskCaptures, branches: [plan.branch] });
   const changed = prepared.targets.content !== prepared.tasks.content || JSON.stringify(links) !== JSON.stringify(prepared.meta.links);
   if (changed) {
     const result = await batchLifecycleWrites(prepared.store, [recordPut(prepared.tasks, { content: prepared.targets.content }), recordPut(prepared.meta, { links })],
@@ -97,7 +104,7 @@ async function readTaskBasis(ctx: TaskVerbContext, ids: readonly string[], opera
 } | TaskRefusal> {
   const store = ctx.store;
   if (store === undefined || !usesOffBranchState(store)) return refuseTask(`arc task ${operation} is unsupported before the storage flip.`,
-    `Mark tasks by hand ${operation === "close" ? "[x]" : "[~]"} until the flip.`, "unsupported");
+    taskMarkStep(operation), "unsupported");
   const meta = await readWorkUnit(store, ctx.slug);
   if (meta.status === "refused") return taskStoreRefusal(meta.refusal);
   const fields = ParsedMetaRecordSchema.safeParse(meta.result.fields);

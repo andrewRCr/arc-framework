@@ -98,7 +98,7 @@ special case is wrong, it is a finding against the code, not a correction to the
 found. An independent runner verifies from source, never from the author's account. Probe wherever a behavior claim can
 be cheaply executed; otherwise trace the named path.
 
-**Non-mutating probes.** Never write to the checkout, its refs or notes, a remote, or shared user state. Execute a
+**Non-mutating probes.** Never write to the checkout, its refs, a remote, or shared user state. Execute a
 mutating operation against a disposable copy or trace it instead. Suppressing interaction does not make an
 operation read-only: `arc --no-input start` can execute the complete start ceremony.
 
@@ -129,7 +129,7 @@ happened, never from its own estimate of how far it was influenced. The first ca
   folding. The runner is `author`.
 - **Separation failure.** The caller's inputs carried author conclusions, suspected weak spots, preferred fixes, or
   self-verification claims. The runner is `separation-failure`: the check ran with the author's reasoning in view.
-- **Incidental exposure.** The agent loaded author-side session files itself, such as the work unit's SESSION-NOTES
+- **Incidental exposure.** The agent loaded author-side session files itself, such as the work unit's session context
   or a personal WORKING-MEMORY during compaction recovery or session init. The runner is `independent`, and
   `verdict` names each file loaded. Nothing those files assert counts as verified; every claim is still checked at
   source.

@@ -6,6 +6,10 @@ import { handleReviewLaneRead } from "../../src/handlers/review.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Every case seeds a committed owner and its review records through the repository's own stores.
+useInRepoStoreForEach();
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
 async function snapshot(path: string): Promise<unknown> {

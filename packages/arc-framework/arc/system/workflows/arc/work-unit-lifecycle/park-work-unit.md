@@ -1,168 +1,79 @@
 ---
-purpose: Park a started work unit off the active set — shelve it for resumable later pickup, preserving an Active branch as the durable shelf.
+purpose: Pause a started work unit in place — record why and what it waits on, keeping its checkout and branch.
 audience: agent
 ---
 
-# Workflow: Park Work Unit
+# Workflow: Pause Work Unit
 
-Shelve a started work unit off the active set, freeing the worktree while leaving the unit resumable. `park` is the
-inverse of `start`. The [`arc park`](#3-run-arc-park-from-a-base-checkout) verb owns the in-verb mechanics (relocate
-/ branch-preserve / park@Active worktree teardown / pointer-record / side-effects); this workflow supplies the
-judgment, the run-context, the out-of-band park@Planning teardown, and the ship legs.
+Step a started work unit aside without abandoning it. `arc pause` writes a pause section into the work unit's meta —
+who paused it and since when, the reason, what it waits on, resume notes, and whether others may take it over — and
+changes neither its `State` nor its placement, so the unit stays in flight with its checkout and branch as they are.
+[`arc resume`][resume] clears the pause.
 
-`park` is **phase-polymorphic** over `**State:**`:
-
-- **park@Active** — code exists; the pushed branch is **preserved** as the durable shelf, only the worktree is torn
-  down, and a fresh **pointer-record** lands on the tracked branch (the authoritative artifacts ride the preserved
-  branch, never moved). Resolves to `parked`.
-- **park@Planning** — no code yet; the artifacts relocate `active/ → backlog/planned/` (in-verb), and the
-  `plan/<name>` branch + worktree are torn down **out-of-band** via a post-action `arc teardown --force` (re-cut on
-  resume). Resolves to `planned`.
-
-**When to use:** A started unit must step aside without being abandoned — a deliberate, resumable pause. Choosing
-`park` over [`abandon`][deactivate] _is_ the resume commitment. Never pause by leaving a unit idle in `active/`:
-`active/` holds one unit per worktree, and a stale second unit breaks the release wrapper and session-init.
-
-> [!NOTE]
-> **arc-in-git only.** `park` relocates into the `backlog/planned/` pipeline, which exists only under
-> `pm.mode: arc-in-git`.
+**When to use:** A started unit must step aside without being abandoned — a deliberate, resumable pause. Choosing a
+pause over [`abandon`][deactivate] _is_ the resume commitment. A paused unit shows with its reason in `arc status`'s
+Paused tier. Each advancing verb — activation, deactivation, publication, `arc set-stage`, or task close — refuses
+until the unit resumes. For a Planning unit, `arc repoint-design {name} spec-finalized` can advance the stage while
+preserving the pause.
 
 ---
 
 ## Steps
 
-### 1) Resolve the arm & gate
+### 1) Gate
 
-From the unit's `**State:**` in `active/meta-{name}.md`:
+Use the requested name, or resolve the current checkout's unit with `arc locus` if no name was supplied.
+Read the selected unit's `**State:**` with `arc view meta --for {name}`.
 
-- `Active` → **park@Active** · `Planning` → **park@Planning**.
-- `Integrating` → **stop.** Withdraw the open PR via `arc reopen` first, then park. `arc park` refuses an
-  Integrating unit directly.
+- `Planning` or `Active` → pause.
+- `Integrating` → **stop.** Verify with `arc locus` that the checkout holds the selected unit, then follow the
+  withdrawal steps in [`reopen-work-unit`][reopen] with `arc reopen {name}`. Pause only after withdrawal completes.
+- A stub is not in flight and never pauses: work it with `arc start {name}` instead.
 
-### 2) Judgment — the reason & commitment
+### 2) Judgment — the reason and what it waits on
 
-Compose the **`--reason`** — required, never fabricated — from the actual cause for stepping aside (blocked
-dependency, priority pivot, awaiting a decision). It is rendered into the park@Active pointer-record's callout and
-the park@Planning relocated meta. Confirm this is a resumable pause, not a teardown — if the unit will not be
-resumed, the transition is [`abandon`][deactivate].
+Compose the **`--reason`** — required on a first pause, never fabricated — from the actual cause for stepping aside
+(blocked dependency, priority pivot, awaiting a decision). Name what resumption waits on: a work unit by slug
+(`--waits-on <slug>`), or a note (`--waits-on-note <text>`). Add `--resume-notes <text>` for whoever picks the unit up,
+and `--open` when someone else may take it over. Confirm this is a resumable pause, not a teardown — if the unit will
+not be resumed, the transition is [`abandon`][deactivate].
 
-### 3) Run `arc park` from a base checkout
-
-Run from a **base-branch checkout**, never the unit's own worktree — `arc park` refuses a WU-branch context (the
-shared write-context guard) and offers a hop to the base worktree. park@Active renders the pointer-record on the
-tracked branch while the preserved branch keeps its authoritative `active/`; park@Planning relocates on the tracked
-branch, so basing the run there keeps the staged result committable after the worktree teardown.
-
-For **park@Active**, push the preserved branch first — it is the durable shelf and the worktree is about to be
-removed:
+### 3) Run `arc pause`
 
 ```bash
-git -C <wu-worktree-path> push   # raw — ensure the shelf survives teardown
+arc pause {name} --reason "<why this unit is pausing>" --waits-on <slug>
 ```
 
-Then, from the base checkout:
+`{name}` defaults to this checkout's unit. The verb writes the pause in one write; nothing is staged, committed, or
+pushed. It reports work no one else can reach — the work branch's unpushed commits and uncommitted changes in this
+checkout — without refusing: push the branch when another person or machine should be able to pick the unit up. On a
+paused unit the same verb updates the fields it is given and keeps the rest; `--no-waits-on` and `--no-resume-notes`
+clear those fields, and `--no-open` closes it to takers.
 
-```bash
-arc park {name} --reason "<why this unit is being shelved>"
-```
+### 4) Free the checkout (optional)
 
-`{name}` defaults to the current worktree's unit when omitted. `arc park` **stages but does not commit**: it
-relocates (Planning) or renders the pointer-record (Active), regenerates `STATUS.USER`, closes the user workspace,
-and emits a ROADMAP regen advisory. For **park@Active** it also preserves the branch and tears down the unit's
-worktree in-verb (refusing on uncommitted work). For **park@Planning** the `plan/<name>` branch + worktree teardown
-is **out-of-band** — a post-action `arc teardown --force` (Step 4 below), not an in-verb leg, since firing it on the
-verb's own staged relocate would trip the clean guard and, in-place, target the un-removable primary worktree. The
-park verb owns this relocate choreography.
-
-### 4) Ship per protection mode
-
-`arc park` left its result staged on the base tree. Commit and ship per [Work
-Organization Strategy § Branch Protection Modes][work-org-protection]:
-
-- **Partial** — a direct base commit.
-- **Full** — ship the staged `meta-*` / `draft-*` grooming change on a short-lived `chore/park-{name}` branch + PR
-  (the auto-merge lane), cut from the base checkout.
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`. Subject per [`commit-format`][commit-format]; meta-file
-> shape per [DEV-RULES.ARC § Atomicity][dev-rules-atomicity]:
-
-```text
-chore(arc): park {name}
-
-- Shelve {name} off the active set ({park@Active: preserve branch + pointer-record | park@Planning: relocate to backlog/planned/, drop plan branch})
-- Reason: {reason}
-
-Context: meta-{name}.md (maintenance)
-```
-
-**ROADMAP regen · `arc-in-git` only.** Parking is a location move: re-render `backlog/ROADMAP.md` per
-[§ ROADMAP][work-org-roadmap] — park@Active joins the **Parked** bucket; park@Planning re-tiers to **Blocked** /
-**Ready** by its dependencies. `arc park` regenerated `STATUS.USER` (gitignored; not committed) and emitted the
-ROADMAP advisory but mints no ROADMAP — the renderer is downstream. Default: a dedicated `chore(arc):` re-render
-commit, riding the park commit only when the delta is trivial.
-
-Under full protection, push the grooming branch and open the PR:
-
-> [!CAUTION]
-> `push-interlock` release — `workflowPush`: `-u origin chore/park-{name}`.
-
-The park PR intentionally opens plain even when `merge.lock: draft`: it lands the lifecycle transition and is not
-the work-unit integration PR the lock governs.
-
-```bash
-gh pr create --base {base-branch} --head chore/park-{name}
-```
-
-> [!IMPORTANT]
-> `integration-interlock`: Stop before merge. Surface PR status (open threads, required approvals, checks); await
-> explicit 'merge' direction before merging.
-
-```bash
-gh pr merge {pr-number} --merge   # or per merge.strategy
-```
-
-**park@Active** tore down its worktree in-verb (Step 3) and preserved the branch as the shelf — no separate
-teardown step.
-
-**park@Planning** reaps its `plan/<name>` branch + worktree **out-of-band**, after the park change has landed
-(committed under partial, merged under full) — never before, or the relocate would not yet be durable:
-
-```bash
-arc teardown {name} --force   # un-shipped / force mode: reaps the retired plan branch + worktree
-```
-
-`--force` selects the un-shipped teardown mode: the WU is parked (not in `completed/`) and its `plan/<name>` branch
-is unmerged, so the conservation safety is the durable relocate above, not git-containment. The in-place arm
-switches the primary worktree to the base branch; a linked arm removes the worktree and moves the process to the base
-checkout.
+The checkout stays held for the unit. To free it, run `arc locus release {name}`. It removes a spawned checkout once
+its removal check passes or releases an anchored one. `arc materialize {name}` gives the unit a checkout again later.
 
 ---
 
 ## Next step
 
-Resume later with `arc resume {name}` — driven by the [`resume-work-unit`][resume] ceremony (the inverse) — which
-re-attaches the preserved branch (spawn by default, or `--here`) and removes the pointer-record. `arc start {name}`
-on a parked unit routes to `resume`.
+Resume later with `arc resume {name}` — the [`resume-work-unit`][resume] workflow, the inverse — which clears the
+pause.
 
 ## Related workflows
 
-- [`resume-work-unit`][resume] — the inverse; re-attaches this park@Active shelf.
-- [`init-work-unit`][init-work-unit] — the `start`-family forward edge (`backlog/planned/ → active/`); park@Planning
-  reverses it.
-- [`decompose-work-unit`][decompose] — planning-source transform sibling; unlike park, it retires the supported
+- [`resume-work-unit`][resume] — the inverse; clears this pause.
+- [`deactivate-work-unit`][deactivate] — the destructive sibling (`abandon`); a pause is the resumable alternative.
+- [`decompose-work-unit`][decompose] — planning-source transform sibling; unlike a pause, it retires the supported
   origin into authored destinations.
-- [`deactivate-work-unit`][deactivate] — the destructive sibling (`abandon`); park is the resumable alternative.
 - [`integrate-work-unit`][integrate] — the code-shipping lifecycle exit; contrast with this resumable pause.
 
 ---
 
 [resume]: resume-work-unit.md
-[init-work-unit]: planning/init-work-unit.md
+[reopen]: reopen-work-unit.md
 [decompose]: decompose-work-unit.md
 [deactivate]: deactivate-work-unit.md
 [integrate]: integrate-work-unit.md
-[commit-format]: ../../../methods/commit-format.md
-[dev-rules-atomicity]: ../../../../system/rules/DEV-RULES.ARC.md#atomicity
-[work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
-[work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap

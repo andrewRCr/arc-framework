@@ -13,6 +13,10 @@ import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-stat
 import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import { resolveGitCommonDir } from "../../src/lib/git/exec.js";
 import { readWindowPersonalState, readWindowReviewDigest, type WindowPersonalState } from "../../src/scripts/cutover-window/digests.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 async function observePersonal(h: Awaited<ReturnType<typeof windowFixture>>) {
   let state: WindowPersonalState | undefined;

@@ -22,8 +22,9 @@ export async function refFetchRewriteRemedy(context: RefBackendContext, remote: 
   const fetch = command(fetchArgs);
   if (remote.role === "read") return { text: `Take theirs (replace the read source’s saved history):\n${fetch}`, argv: [...git, ...fetchArgs] };
   const local = (await readSyncRefs(context, ref)).get(ref);
-  const keep = command(["push", `--force-with-lease=${ref}:${observed}`, "--", await refPushTarget(context, remote, designation), `${local ?? ""}:${ref}`]);
   const take = command(["update-ref", ref, tracking, local ?? "0".repeat(observed.length)]);
+  if (local === undefined) return { text: `Take theirs (restore the missing local ref):\n${fetch}\n${take}` };
+  const keep = command(["push", `--force-with-lease=${ref}:${observed}`, "--", await refPushTarget(context, remote, designation), `${local}:${ref}`]);
   return { text: `Keep ours (discard the remote rewrite):\n${keep}\nTake theirs (discard this ref's local changes):\n${fetch}\n${take}`
     + `\nMerge both (retain both histories):\n${fetch}\nThen pull state again to merge the fetched history.` };
 }

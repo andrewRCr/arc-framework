@@ -48,6 +48,7 @@ const cases = [
   { name: "publish JSON", args: ["publish", "--json"], json: true },
   { name: "reopen", args: ["reopen"], json: false },
   { name: "set-class", args: ["set-class", "Heavy"], json: false },
+  { name: "repoint-design", args: ["repoint-design", "draft-created"], json: false },
 ];
 it.each(cases.flatMap(test => [false, true].map(second => ({ ...test, second }))))(
   "$name refuses its checkout's clashed name without an operand, second=$second", async test => {

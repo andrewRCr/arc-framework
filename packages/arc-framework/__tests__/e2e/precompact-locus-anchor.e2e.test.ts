@@ -1,7 +1,7 @@
 /** Real PreCompact seed emission beneath an attached Codex session locus. */
 
 import { execFile } from "node:child_process";
-import { chmod, copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -9,7 +9,8 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -29,11 +30,14 @@ async function setFullProtection(repository: string): Promise<void> {
   await writeFile(path, protectedConfig);
 }
 
+/** Add `origin` after `arc init` and designate it the state remote, as `arc init` designates one already present. */
 async function createBareRemote(repository: string): Promise<string> {
   const remote = await mkdtemp(join(tmpdir(), "arc-precompact-anchor-remote-"));
   await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
   await git(repository, ["remote", "add", "origin", remote]);
   await git(repository, ["push", "-u", "origin", "main"]);
+  const designated = await runArc(["store", "remote", "origin", "push", "--json"], repository);
+  expect(designated.exitCode, designated.stderr || designated.stdout).toBe(0);
   return remote;
 }
 
@@ -184,22 +188,14 @@ describe("PreCompact locus anchor", () => {
 
       try {
         await git(repository, ["switch", "-c", "feat/recovery-parent"]);
-        await mkdir(join(repository, ".arc", "active"), { recursive: true });
-        await writeFile(
-          join(repository, ".arc", "active", "meta-recovery-parent.md"),
-          renderMetaFile("recovery-parent", {
-            state: "Active",
-            owner: "test-user",
-            branch: "feat/recovery-parent",
-            workClass: "Light",
-          }),
-        );
+        await seedWorkUnit(repository, "recovery-parent", { identity: "test-user", branch: "feat/recovery-parent",
+          bind: repository, meta: { state: "Active", owner: "test-user", branch: "feat/recovery-parent", workClass: "Light" } });
         await writeFile(hookInputPath, `${JSON.stringify({
           hook_event_name: "PreCompact",
           session_id: sessionId,
           transcript_path: transcriptPath,
         })}\n`);
-        await git(repository, ["add", "-A"]);
+        await git(repository, ["add", "precompact-hook-input.json"]);
         await git(repository, ["commit", "--no-verify", "-m", "establish parent locus"]);
 
         const sequence = await runArcAnchoredSequence([
@@ -341,35 +337,15 @@ describe("PreCompact locus anchor", () => {
       ].join(" ");
 
       try {
-        await git(repository, ["switch", "-c", "plan/recovery-transfer"]);
-        await mkdir(join(repository, ".arc", "active"), { recursive: true });
-        await writeFile(
-          join(repository, ".arc", "active", "meta-recovery-transfer.md"),
-          renderMetaFile("recovery-transfer", {
-            state: "Planning",
-            owner: "test-user",
-            branch: "plan/recovery-transfer",
-            workClass: "Light",
-            currentWorkflow: "draft-design",
-          }),
-        );
-        await git(repository, ["add", "-A"]);
-        await git(repository, ["commit", "--no-verify", "-m", "establish work-unit locus"]);
-        await git(repository, ["switch", "main"]);
-        await git(repository, ["worktree", "add", original, "plan/recovery-transfer"]);
-
-        const markerDir = join(original, ".arc", "system", ".internal");
-        await mkdir(markerDir, { recursive: true });
-        await writeFile(join(markerDir, "worktree-marker.json"), `${JSON.stringify({
-          spawnedByArc: true,
-          wuName: "recovery-transfer",
-          createdFor: { kind: "work-unit", name: "recovery-transfer" },
-          spawningIdentity: "test-user",
-          createdAt: "2026-08-29T00:00:00.000Z",
-        })}\n`);
-
-        await git(original, ["switch", "--detach"]);
-        await git(repository, ["worktree", "add", replacement, "plan/recovery-transfer"]);
+        // A Planning work unit has no branch until activation, so both checkouts sit detached at the base.
+        const { meta } = await seedWorkUnit(repository, "recovery-transfer", { identity: "test-user", meta: {
+          state: "Planning", owner: "test-user", workClass: "Light", currentWorkflow: "draft-design" } });
+        await git(repository, ["worktree", "add", "--detach", original, "main"]);
+        await git(repository, ["worktree", "add", "--detach", replacement, "main"]);
+        for (const checkout of [original, replacement]) {
+          await writeWorktreeMarker(checkout, { spawnedByArc: true, wuName: "recovery-transfer",
+            createdFor: seededWorkUnitSubject(meta), spawningIdentity: "test-user", createdAt: "2026-08-29T00:00:00.000Z" });
+        }
         await writeFile(transcriptPath, `${JSON.stringify({
           type: "event_msg",
           payload: {

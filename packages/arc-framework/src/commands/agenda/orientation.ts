@@ -3,7 +3,6 @@
 import { compileAdvisoryOrientation } from "./advisories.js";
 import { compileCheckoutOrientation } from "./checkout.js";
 import { compileCleanupOrientation } from "./cleanup.js";
-import { compileNotesOrientation } from "./notes.js";
 import { quoteShellArgument } from "../../lib/release/commit-message-retry.js";
 import type { SessionAction } from "../../lib/session-init/actions.js";
 import { pullResultNotices } from "../../lib/store/operational-sync.js";
@@ -21,17 +20,16 @@ export interface OrientationSurface { id: string; steps: AgendaStep[] }
 export const ORIENTATION_SURFACE_ORDER = [
   "header", "delivery-position", "locus", "degraded-slot", "worktree-diverged", "superseded", "branch-gone",
   "local-ahead", "worktree-behind", "worktree-remote-unavailable", "base-drift", "stale-base", "current-wu-reconcile",
-  "user-references", "hooks-path", "notes-lag", "notes-compaction", "notes-reconciling", "notes-conflict",
-  "local-ahead-notes", "notes-behind", "notes-remote-unavailable", "notes-drift", "notes-load-pending", "store-sync",
-  "no-upstream", "husk", "detached-head", "no-remote", "dirty", "retirements", "rename-moves", "stale-worktrees",
-  "missing-folders", "branch-orphans", "cleanup-residues", "retired-subdirs", "reminder", "in-flight-work-units",
+  "user-references", "hooks-path", "store-sync", "no-upstream", "husk", "detached-head", "no-remote", "dirty",
+  "retirements", "rename-moves", "stale-worktrees", "missing-folders", "branch-orphans", "cleanup-residues", "reminder",
+  "in-flight-work-units",
   "materializable-work-units", "materializable-errands", "housekeep", "concurrent-workload",
 ] as const;
 const ORDER = new Map<string, number>(ORIENTATION_SURFACE_ORDER.map((id, index) => [id, index]));
 const UNIVERSAL_DIAGNOSTIC_SLOTS = ["config", "domainRules"] as const;
 const RESUME_SLOTS = ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", ...UNIVERSAL_DIAGNOSTIC_SLOTS, "hooksPath",
-  "currentWuReconcile", "userReferenceReconcile", "deliveryPosition", "currentHusk", "partialPushMarker", "compactionAdvisory",
-  "retiredSubdirs", "sweep", "orphanBranchSweep", "errandSweep", "errandState", "workUnitState"] as const;
+  "currentWuReconcile", "userReferenceReconcile", "deliveryPosition", "currentHusk",
+  "sweep", "orphanBranchSweep", "errandSweep", "errandState", "workUnitState"] as const;
 
 /** Order whole surfaces while preserving their internal narration/remedy sequence. */
 export function orderOrientationSurfaces(surfaces: OrientationSurface[]): AgendaStep[] {
@@ -42,7 +40,7 @@ export function orderOrientationSurfaces(surfaces: OrientationSurface[]): Agenda
 /** Compile the shared orientation surfaces without selecting synchronization or a terminal gate. */
 export function compileSessionOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[], sync: AgendaSyncState = compileSyncState(input), consumed: { seed?: boolean; next?: boolean; start?: boolean } = { next: true }): OrientationSurface[] {
   return [...compileCoreOrientation(input, findings, sync, consumed), ...compileCheckoutOrientation(input, sync),
-    ...compileNotesOrientation(input, sync), ...compileCleanupOrientation(input), ...compileAdvisoryOrientation(input)];
+    ...compileCleanupOrientation(input), ...compileAdvisoryOrientation(input)];
 }
 
 /** Frame an explicit entry on checkout-local facts without work-unit or discovery surfaces. */
@@ -56,13 +54,12 @@ export function compileCheckoutSessionOrientation(input: AgendaCompileInput, cha
   if (locus !== null) steps.push(locus);
   const answered = renderAnswered(input);
   if (answered !== null) steps.push(answered);
-  for (const name of ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", ...UNIVERSAL_DIAGNOSTIC_SLOTS, "hooksPath",
-    "partialPushMarker", "compactionAdvisory", "retiredSubdirs"] as const) {
+  for (const name of ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", ...UNIVERSAL_DIAGNOSTIC_SLOTS, "hooksPath"] as const) {
     const degraded = renderDegradedSlot(name, input.envelope[name]);
     if (degraded !== null) steps.push(degraded);
   }
   return [...steps.flatMap(step => step.type === "render" || step.type === "note" ? [{ id: step.surface, steps: [step] }] : []),
-    ...compileCheckoutOrientation(input, sync), ...compileNotesOrientation(input, sync)];
+    ...compileCheckoutOrientation(input, sync)];
 }
 
 /** Collect core resume surfaces and findings for the shared ordered assembly. */
@@ -129,10 +126,14 @@ export function compileUnconsumedSignals(input: Pick<AgendaCompileInput, "signal
 }
 
 /** Permit only a requested, bare-clean resume with no compiler-known blocker. */
-export function canAutoProceed(input: AgendaCompileInput, steps: AgendaStep[], metaContent: string | null): boolean {
-  if (!input.signals.next || !input.envelope.dirty.ok || input.envelope.dirty.value.state !== "clean" || metaContent === null) return false;
-  const meta = parseLifecycleMetaContent(metaContent);
-  if (!meta.success || meta.data.blockers !== null) return false;
+export function canAutoProceed(input: AgendaCompileInput, steps: AgendaStep[], metaContent: string | null,
+  projectedMetaContent: string | null): boolean {
+  if (!input.signals.next || !input.envelope.dirty.ok || input.envelope.dirty.value.state !== "clean") return false;
+  for (const content of new Set([metaContent, projectedMetaContent])) {
+    if (content === null) return false;
+    const meta = parseLifecycleMetaContent(content);
+    if (!meta.success || meta.data.blockers !== null) return false;
+  }
   return !steps.some(step => step.type === "offer"
     || ((step.type === "render" || step.type === "note") && step.surface !== "header" && step.surface !== "answered"));
 }

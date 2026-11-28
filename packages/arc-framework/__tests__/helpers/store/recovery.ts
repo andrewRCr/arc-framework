@@ -34,6 +34,8 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
   "checkout-not-writable": [{ id: "checkout-not-writable", class: "recoverable", produce: "Attempt a write in a checkout without authority.", repair: "Repeat the write in the authorized checkout named by its remedy." }],
   "store-imported": [{ id: "store-imported", class: "recoverable", produce: "Write from the interim backend once the repository's store has been imported.",
     repair: "Repeat the write where no import has run; the fixture removes the imported registry ref to stand in for a current build." }],
+  "tracked-state": [{ id: "tracked-state", class: "recoverable", produce: "Compose the default store over a HEAD tree that tracks ARC state.",
+    repair: "Delete the tracked state, commit the deletion, and compose the store again." }],
   "state-unresolvable": [{ id: "state-unresolvable", class: "recoverable", produce: "Read a saved state the backend holds no snapshot for.",
     repair: "Read the current version and rebuild the query from that saved state." }],
   unsupported: (Object.keys(UNSUPPORTED_CASES) as (keyof typeof UNSUPPORTED_CASES)[]).map((value) => ({

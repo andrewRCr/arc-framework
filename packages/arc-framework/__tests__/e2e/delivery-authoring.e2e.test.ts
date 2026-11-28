@@ -10,6 +10,7 @@ import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-rend
 import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
 interface AuthoringFixture {
@@ -33,6 +34,10 @@ interface AuthoringFixture {
 }
 
 describe("delivery authoring write verbs", () => {
+  // The authoring verbs revalidate their authority through the work unit's delivery entry, whose plan resolution only
+  // the in-repo store supports: with state off the branch, it refuses a base that holds no transition records.
+  useInRepoStoreForEach();
+
   let repository: string;
   let auxiliaryRoots: string[];
 

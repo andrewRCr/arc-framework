@@ -10,12 +10,8 @@ managing the upstream project's planning and tracking artifacts.
 
 ## Boundaries
 
-**Do not modify** files in `.arc/active/` or `.arc/backlog/` — these are maintainer-managed
-artifacts. The pre-commit hook warns if you stage files in these directories.
-
-**The boundary is ownership of tracked state**, not the presence of WU concepts. You can run
-ARC's planning pipeline scoped to your personal workspace at `.arc/user/{identity}/`. See
-[contributor boundaries][TODO-docs-site] for the read-vs-write split on upstream's `.arc/` tree.
+**Do not modify** the planning records ARC projects into `.arc/active/` and `.arc/backlog/` — these are
+maintainer-managed.
 
 **Quality gates apply in full** — see [DEV-RULES.PROJECT][dev-rules-project].
 
@@ -26,45 +22,19 @@ Subject line follows the same rules as maintainer commits ([arc-config.yml][arc-
 `commit.format`, conventional commits by default). See [contributor commit example][TODO-docs-site]
 for a worked example.
 
-Under `arc.commitInterlock: on-task-approval`, commit release stages code only — project-level meta
-files stay a maintainer responsibility. Your own meta files (gitignored, `user/{identity}/active/`)
-update at handoff regardless of the interlock setting.
+Under `arc.commitInterlock: on-task-approval`, commit release stages code only.
 
 ## Session Workflow
 
-Contributor sessions follow the ordinary [session-init agenda][session-init] and [session-handoff][session-handoff].
-This brief joins the universal reads; the emitted plan selects contribution artifacts and per-work-unit notes.
-Personal active state under `user/{identity}/active/` contains `meta-{name}.md` per in-flight contribution plus
-optional companions. Absent state is fine for ad-hoc contributions. See [contributor session lifecycle][TODO-docs-site]
-for workspace and handoff conventions.
+The [session-init agenda][session-init] can read an optional local `user/{identity}/active/meta-{name}.md` at entry.
+A work-unit handoff requires a held store record. If you are working without a bound work unit, follow the
+`between-work-units` path in [session handoff][session-handoff]. Keep deferred work in the personal inbox,
+approved cross-work-unit context in working memory, and freeform planning notes in `scratch/`.
 
-## Personal Workspace: The Framework Read Contract
+## Personal Workspace
 
-ARC reads from a defined set of paths inside `.arc/user/{identity}/`; everything else is freeform
-contributor-managed content. See [personal workspace][TODO-docs-site] for the full read contract,
-recommended directory layout, and rationale.
-
-**Framework-managed reads:**
-
-- `{work-unit}/SESSION-NOTES.md` — per-work-unit context, read at entry and written at handoff
-- `ATOMIC-INBOX.md` — personal capture queue (arc-in-git upstream projects only)
-- `active/meta-{name}.md` — personal active work state for an in-flight contribution (optional)
-- `active/tasks-{name}.md` + `notes-{name}.md` — task list and notes companion when
-  running a full planning pipeline
-
-**Guardrails:**
-
-- Don't shadow framework-managed paths with conflicting personal content
-- Don't expect ARC to load arbitrary files outside the paths above
-- Don't introduce hooks, workflows, or session-init-loaded content under `user/{identity}/` —
-  those live in framework-tracked `.arc/system/` and cannot be overridden personally
-
-## Running a Full Planning Pipeline Locally
-
-For substantial contributions you can run ARC's full planning pipeline scoped to
-`.arc/user/{identity}/`. Same workflows as maintainers; they resolve paths based on `arc.role`.
-See [contributor planning pipeline][TODO-docs-site] for the layout, ceremony, archival options,
-and role-transition guidance.
+ARC reads `WORKING-MEMORY.md` at session-init. Use `arc inbox personal` to read your personal inbox. Keep freeform
+files in `user/{identity}/scratch/` so `arc save` can persist them. Hooks and workflows belong in `.arc/system/`.
 
 ---
 

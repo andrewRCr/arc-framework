@@ -4,9 +4,25 @@ import { resolveArcPath } from "../../../layout/index.js";
 import { recordReferences } from "../../identity.js";
 import { resolveTaskListCursor } from "../../../task-list/cursor.js";
 import { checkCurrentWorkflowConsistency } from "../../../active/current-workflow-consistency.js";
+import { listLifecycleIndex } from "../../lifecycle-index.js";
+import { requireCompleteInventory } from "../../lifecycle-storage.js";
 import { brokenRule, observeRecord } from "../rule-support.js";
 import { metaFieldChanged, metaFieldVersions } from "./check-support.js";
 import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
+
+/** Require the lifecycle inventory that authorized archive to be complete at write admission. */
+export async function checkMetaArchiveInventory(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
+  if (input.writer.kind !== "verb" || input.writer.verb !== "archive" || input.next === undefined
+    || input.purpose === "sync-observation" || !input.writer.archiveInventory) return [];
+  const fail = (condition: string): readonly BrokenRule[] => [brokenRule("meta.archive-inventory", condition,
+    `Resolve the named conflicts or repair the reported inventory, then retry \`arc archive ${input.reference.owner.name}\`.`)];
+  const listing = await listLifecycleIndex(input.before);
+  if (listing.status === "refused") return fail(listing.refusal.condition);
+  try { requireCompleteInventory({ capabilities: { stateOffBranch: true } }, listing.result); }
+  catch (error) { return fail(error instanceof Error ? error.message : String(error)); }
+  return [];
+}
+
 /** Check a changed in-flight state/workflow/design tuple.
  * @param input - Proposed metadata write.
  * @returns Lifecycle consistency violations.

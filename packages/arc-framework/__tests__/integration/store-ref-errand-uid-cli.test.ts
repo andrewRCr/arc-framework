@@ -6,7 +6,7 @@ import type { Store } from "../../src/lib/store/contract.js";
 import { createRefStore } from "../../src/lib/store/create.js";
 import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
-import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { recordReferences, OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 import { writeRoutingReceipt } from "../../src/lib/store/kinds/routing-receipt.js";
 import { entry } from "../helpers/inbox-harness.js";
@@ -25,6 +25,10 @@ import { makeGitExec } from "../helpers/integration.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
 import { acquireErrandCloseHeadLock } from "../../src/lib/errand/close-head-lock.js";
+import { createErrandMergeDependencies } from "../../src/scripts/integration/errand-merge-composition.js";
+import { defaultMergeLockPort } from "../../src/handlers/review.js";
+import { releaseMergeLock } from "../../src/scripts/review-gate/merge-lock.js";
+import { IntegrationMergeTargetSchema } from "../../src/scripts/integration/merge.js";
 import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
@@ -60,8 +64,9 @@ async function invoke(f: Fixture, cwd: string, args: readonly string[]) {
     return { stdout, stderr, exitCode: process.exitCode, result: stdout.trim().startsWith("{") ? JSON.parse(stdout) as unknown : null };
   } finally { binding.store = null; out.mockRestore(); err.mockRestore(); process.chdir(previous); process.exitCode = exit; }
 }
-async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true, slug = "shared", awaitingHead?: string) {
-  const claimId = (uid === uidA ? "a" : "b").repeat(32), branch = `${prefix}/${slug}`;
+async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true, slug = "shared", awaitingHead?: string,
+  branch = `${prefix}/${slug}`) {
+  const claimId = (uid === uidA ? "a" : "b").repeat(32);
   const state = awaitingHead === undefined ? { state: "open", savedHead: null, changeRequest: null } : { state: "awaiting-merge", savedHead: null,
     changeRequest: { repositoryRef: "owner/repo", hostRef: "github.com", baseRef: "main", headRef: branch, headSha: awaitingHead } };
   const record = TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand", purpose: "errand", slug, claimId,
@@ -87,6 +92,48 @@ async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true
   return { reference, holder, record, claimId, branch };
 }
 
+it.each([["no record holds the slug", false], ["the slug's earlier generation has completed", true]] as const)(
+  "opens a fresh Errand under full protection when %s, its description and record under the UID its open planned",
+  async (_case, completed) => {
+    const f = await fixture(), slug = SlugSchema.parse("fresh");
+    const ended = completed ? success(await f.store.write({ action: "put", expected: null,
+      reference: recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug })),
+      content: serializeTransientIdentityRecord(TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand",
+        purpose: "errand", slug, claimId: "c".repeat(32), intent: "An earlier generation", owner: "test-user",
+        branch: `chore/${slug}`, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z", origin: "description",
+        originEntry: null, state: "open", savedHead: null, changeRequest: null })),
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+      provenance: { verb: "seed", lifecycleAction: "create" } })).reference : null;
+    // The fixture's remote sits untracked in the checkout; excluded, the primary is a clean launchpad on the base.
+    await writeFile(join(f.root, ".git", "info", "exclude"), ".arc-fixture/\n");
+    const opened = await invoke(f, f.root, ["errand", "open", slug, "--isolate", "--intent", "Open a fresh generation", "--json"]);
+    expect(opened, JSON.stringify(opened)).toMatchObject({ result: { outcome: "applied", subject: { kind: "errand", key: slug } } });
+    const record = success(await f.store.lookup({ kind: "slug", slug })).reference;
+    expect(record).toMatchObject({ kind: "work-item/record", owner: { name: slug, uid: expect.any(String) } });
+    if (ended !== null) expect(record.owner).not.toEqual(ended.owner);
+    const description = success(await f.store.read({ reference: recordReferences["work-item/description"](record.owner) }));
+    expect(description.content).toContain("Open a fresh generation");
+    const registry = f.ports.registry;
+    if (registry === undefined) throw new Error("Expected registry");
+    const receipts = (await f.exec("git", ["log", "--format=%B", expandStoredPath(record, { registry }).ref])).stdout.split("\n")
+      .filter(line => line.startsWith("Arc-Creation-Receipt: "))
+      .map(line => JSON.parse(line.slice("Arc-Creation-Receipt: ".length)) as { createdOwners: unknown[] });
+    expect(receipts.flatMap(receipt => receipt.createdOwners)).toContainEqual({ kind: "work-item/record", owner: record.owner });
+    if (record.owner.type !== "work-item" || record.owner.uid === undefined) throw new Error("Expected Errand owner UID");
+    const branch = success(await f.store.read({ reference: record })).links?.branches?.[0]?.ref;
+    await f.exec("git", ["show-ref", "--verify", `refs/heads/${branch}`]);
+    expect(branch).toBe(`chore/${slug}-${record.owner.uid.slice(0, 8)}`);
+  }, 60_000);
+
+it("refuses a write naming a UID no owner holds when the write creates no record for that owner", async () => {
+  const f = await fixture(), before = success(await f.store.version());
+  const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "unheld", uid: "abcdef03-2345-4678-9abc-def012345678" });
+  expect(await f.store.write({ action: "put", expected: null, reference: recordReferences["work-item/description"](owner),
+    content: "## Description\n\n", provenance: { verb: "seed", lifecycleAction: "create" } }))
+    .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(success(await f.store.version())).toBe(before);
+}, 60_000);
+
 it.each(["close", "abandon"])("refuses a partial Errand UID before runtime dispatch for %s", async verb => {
   const f = await fixture("partial"), before = success(await f.store.version());
   const result = await invoke(f, f.root, ["errand", verb, uidA, "--json"]);
@@ -109,6 +156,123 @@ it("closes only the UID-selected Errand and leaves the remaining slug resolvable
   expect(success(await f.store.read({ reference: selected.reference })).placement?.kind).toBe("completed");
   expect(success(await f.store.read({ reference: other.reference }))).toEqual(before);
   expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") })).reference).toEqual(other.reference);
+}, 60_000);
+
+it("keeps the selected Errand merge ready after a second live Errand arrives on its own branch", async () => {
+  const f = await fixture(), slug = "shared";
+  const head = (await f.exec("git", ["rev-parse", "main"])).stdout.trim();
+  const selected = await errand(f, uidA, "chore", true, slug, head, "chore/shared-abcdef01");
+  const target = IntegrationMergeTargetSchema.parse({ repository: "owner/repo", pullRequest: 42, baseRef: "main",
+    headRef: selected.branch, headSha: head });
+  const exec = makeGitExec(selected.holder);
+  const hostedRunner = { run: async (args: readonly string[]) => {
+    if (args[0] === "repo") return { stdout: JSON.stringify({ nameWithOwner: target.repository, defaultBranchRef: { name: "main" } }), stderr: "" };
+    if (args[0] === "api") return { stdout: JSON.stringify({ number: target.pullRequest, state: "open", draft: false,
+      head: { ref: selected.branch, sha: head }, base: { repo: { full_name: target.repository } } }), stderr: "" };
+    throw new Error(`Unexpected host call: ${args.join(" ")}`);
+  } };
+  const merge = createErrandMergeDependencies({ cwd: selected.holder, exec,
+    identity: "test-user", slug, store: f.store, hostedRunner });
+  const lock = defaultMergeLockPort(selected.holder, exec, hostedRunner, { store: f.store });
+  const releaseBySlug = () => releaseMergeLock({ schemaVersion: 1, treeRoot: selected.holder,
+    target: { repository: target.repository, pullRequest: target.pullRequest, headSha: head },
+    vehicle: { kind: "errand", slug } }, lock);
+  const identity = await merge.readCurrentIdentity();
+  expect(identity).toMatchObject({ slug, claimId: selected.claimId, branch: selected.branch });
+  const ready = { state: "no-lock", diagnostics: [], payload: { reason: "lock-disabled" } };
+  expect(await merge.releaseLock(target, identity)).toMatchObject(ready);
+
+  const other = await errand(f, uidB, "chore", false, slug, head, "chore/shared-abcdef02");
+  expect(await merge.readCurrentIdentity()).toEqual(identity);
+  for (const item of [selected, other]) {
+    const found = success(await f.store.lookup({ kind: "ref", repository: f.repository, ref: item.branch }));
+    expect(found.reference).toEqual(item.reference);
+  }
+  const standalone = await releaseBySlug();
+  const writeLink = async (ref: string) => {
+    const record = success(await f.store.read({ reference: other.reference }));
+    success(await f.store.write({
+      ...recordPut(record, { links: { branches: [{ repository: f.repository, ref, linkedAs: "created", excluded: [] }] } }),
+      provenance: { verb: "relink", lifecycleAction: "integrate" },
+    }));
+  };
+  await writeLink(selected.branch);
+  const blocked = await releaseBySlug();
+  await writeLink(`refs/heads/${selected.branch}`);
+  const normalizedTie = await releaseBySlug();
+  await writeLink(other.branch);
+  const repaired = await releaseBySlug();
+
+  expect(await merge.releaseLock(target, identity)).toMatchObject(ready);
+  expect(standalone).toMatchObject(ready);
+  expect(repaired).toMatchObject(ready);
+  for (const tie of [blocked, normalizedTie]) {
+    expect(tie).toMatchObject({ state: "blocked", diagnostics: expect.arrayContaining(
+      [uidA, uidB].map(uid => expect.objectContaining({
+        code: "unreadable-artifact", message: expect.stringContaining(`arc errand close ${uid}`),
+      })),
+    ) });
+  }
+
+  await writeLink(`refs/heads/${selected.branch}`);
+  const retiring = success(await f.store.read({ reference: other.reference }));
+  success(await f.store.write({
+    ...recordPut(retiring, { placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+    provenance: { verb: "errand", lifecycleAction: "retire" },
+  }));
+  const lookup = vi.spyOn(f.store, "lookup");
+  try {
+    expect(await releaseBySlug()).toMatchObject(ready);
+    expect(lookup.mock.calls.filter(([input]) => input.kind === "ref")).toHaveLength(1);
+  } finally {
+    lookup.mockRestore();
+  }
+}, 60_000);
+
+it("reports both the missing owner and the open primary conflict at standalone lock release", async () => {
+  const f = await fixture(), slug = "shared";
+  const head = (await f.exec("git", ["rev-parse", "main"])).stdout.trim();
+  const { reference, record, branch } = await errand(f, uidA, "chore", false, slug, head, "chore/shared-abcdef01");
+  const primary = success(await f.store.read({ reference }));
+  success(await f.store.write({ ...recordPut(primary, { content: JSON.stringify({ ...record, owner: undefined }) }),
+    provenance: { verb: "seed", lifecycleAction: "update" } }));
+  const conflict = recordReferences["work-item/conflict-record"](reference.owner, "subject-conflict");
+  const { content, version, formatVersion, placement, links } = success(await f.store.read({ reference }));
+  const time = record.createdAt;
+  success(await f.store.write({ action: "put", reference: conflict, expected: null,
+    content: JSON.stringify({ record: reference, location: { kind: "record" }, base: null,
+      current: { value: { reference, content, version, formatVersion, placement, links }, label: { actor: "alice", time } },
+      incoming: { value: null, label: { actor: "bob", time } } }),
+    provenance: { verb: "merge", lifecycleAction: "capture" } }));
+
+  const repository = "owner/repo", pullRequest = 42;
+  const port = defaultMergeLockPort(f.root, f.exec, { run: async args => {
+    if (args[0] === "repo") return { stdout: JSON.stringify({ nameWithOwner: repository, defaultBranchRef: { name: "main" } }), stderr: "" };
+    if (args[0] === "api") return { stdout: JSON.stringify({ number: pullRequest, state: "open", draft: false,
+      head: { ref: branch, sha: head }, base: { repo: { full_name: repository } } }), stderr: "" };
+    throw new Error(`Unexpected host call: ${args.join(" ")}`);
+  } }, { store: f.store });
+  const release = () => releaseMergeLock({ schemaVersion: 1, treeRoot: f.root, target: { repository, pullRequest, headSha: head },
+    vehicle: { kind: "errand", slug } }, port);
+
+  const conflicted = success(await f.store.read({ reference }));
+  expect(conflicted.conflicts).toEqual([conflict]);
+  const refused = await release();
+  expect(refused).toMatchObject({ state: "blocked", payload: { reason: "readiness-failed" } });
+  const messages = refused.diagnostics.map(({ message }) => message).join("\n");
+  expect(messages).toContain(JSON.stringify(conflict));
+  expect(messages).toMatch(/\bresolve\b[^\n]*\bconflict\b/iu);
+  expect(messages).toMatch(/no owner.*restore.*owner/iu);
+
+  success(await f.store.write({ ...recordPut(conflicted, { content: primary.content }),
+    provenance: { verb: "restore", lifecycleAction: "update" } }));
+  expect(await release()).toMatchObject({ state: "blocked", diagnostics: expect.arrayContaining([
+    expect.objectContaining({ message: expect.stringContaining(JSON.stringify(conflict)) }),
+  ]) });
+  const restored = success(await f.store.read({ reference }));
+  success(await f.store.write({ ...recordPut(restored), resolves: [conflict],
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await release()).toMatchObject({ state: "no-lock", payload: { reason: "lock-disabled" }, diagnostics: [] });
 }, 60_000);
 
 it("refuses a clashed branch on the machine holding only the other Errand checkout", async () => {

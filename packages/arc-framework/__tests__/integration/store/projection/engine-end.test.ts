@@ -15,8 +15,8 @@ import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-store-ports.js";
+import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { success } from "../../../helpers/store/suite-tools.js";
 
@@ -162,7 +162,7 @@ describe("projection command end", () => {
     await mkdir(folder);
     await writeFile(join(folder, "orphan"), "must remain");
     const started = counter.leases;
-    await endProjection({ store: createStore(createDefaultStorePorts({ checkoutRoot: h.checkout })), checkout: h.checkout });
+    await endProjection({ store: inRepoStore(createDefaultStorePorts({ checkoutRoot: h.checkout })), checkout: h.checkout });
     expect(counter.leases).toBe(started);
     expect(await readFile(join(folder, "orphan"), "utf8")).toBe("must remain");
   });

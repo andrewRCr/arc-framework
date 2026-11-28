@@ -4,7 +4,6 @@ import { StoreRefusalSchema } from "../../../src/lib/store/refusal.js";
 import { ReviewAdversarialRecordRequestSchema } from "../../../src/scripts/review-gate/core/adversarial-record-schema.js";
 import { expect, it } from "vitest";
 import { handleReviewAdversarialRecord } from "../../../src/handlers/review-adversarial.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { ReviewCommandErrorEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
@@ -16,6 +15,8 @@ import type { ReviewInvocationOptions } from "../../../src/scripts/review-gate/r
 import { adversarialPassFixture } from "../../fixtures/review-adversarial-pass.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
+import { adversarialRecordStep } from "../../../src/lib/store/pre-flip-steps.js";
 
 function request(activity: Parameters<typeof adversarialPassFixture>[0] = "draft-readiness") {
   const { artifacts, codeHead, ...header } = adversarialPassFixture(activity);
@@ -28,12 +29,12 @@ async function record(store: Store, input: unknown, invocation: ReviewInvocation
     write: text => { output += text; }, setExitCode: code => { exitCode = code; } }, undefined, { store, ...scriptGitExec([]), ...invocation });
   return { envelope: JSON.parse(output), exitCode };
 }
-it.each(["draft-readiness", "verification", "criteria"] as const)("refuses %s before the flip with its text-only remedy", async activity => {
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: "/test" }));
+it.each(["draft-readiness", "verification", "criteria"] as const)("refuses %s before the flip, naming its pre-flip record and entry", async activity => {
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/test" }));
   const result = await record(store, request(activity));
   expect(result.exitCode).toBe(1);
   expect(result.envelope).toMatchObject({ schemaVersion: 1, mode: "review-adversarial-record", diagnostics: [], error: { code: "unsupported" },
-    remedy: { text: expect.stringContaining(activity === "draft-readiness" ? "ADVERSARIAL-PASSES.md" : "criteria report") } });
+    remedy: { text: adversarialRecordStep(activity, "example") } });
   expect(Object.keys(result.envelope.remedy)).toEqual(["text"]);
   expect(ReviewCommandErrorEnvelopeSchema.safeParse(result.envelope).success).toBe(true);
   expect(ReviewCommandErrorEnvelopeSchema.safeParse({ ...result.envelope, mode: "review-resolve" }).success).toBe(false);

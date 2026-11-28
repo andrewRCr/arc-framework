@@ -6,6 +6,5 @@ disable-model-invocation: false
 
 # ARC Housekeep
 
-Apply `.arc/system/workflows/arc/supplemental/drain-inbox.md`. The workflow resolves the base-branch
-write-context precondition, then classifies each `USER-INBOX` entry by character and home and routes
-it to its authoritative home in one batched pass.
+Apply `.arc/system/workflows/arc/supplemental/drain-inbox.md` from the checkout in hand. The workflow classifies each
+personal inbox entry by character and home and routes it to its authoritative home in one batched pass.

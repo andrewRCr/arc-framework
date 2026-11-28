@@ -1,11 +1,12 @@
 /** Parsed cohort changes and complete proposed membership observations. */
 import { ParsedMetaRecordSchema } from "../../../active/meta-schema.js";
-import { describeRecordConflicts } from "../../conflict-diagnostics.js";
-import { observeRecord, observeRecords, type RuleObservation } from "../rule-support.js";
+import { describeRecordConflicts, listRecordConflicts } from "../../conflict-diagnostics.js";
+import { OwnerIdentitySchema, recordReferences, sameOwner, type RecordReference } from "../../identity.js";
+import { observeNamedRecord, observeRecord, observeRecords, type NamedRecordObservation, type RuleObservation } from "../rule-support.js";
 import { parseCohortDocument, type ParsedCohortDocument } from "./parser.js";
 import type { StoreRecord } from "../../read.js";
+import type { Remedy } from "../../refusal.js";
 import type { StoreView, WriteCheckInput } from "../../write-check.js";
-import type { RecordReference } from "../../identity.js";
 import { observeCohortHoldings, type CohortHolding, type CohortHoldingCandidate } from "./holdings.js";
 import { cohortHoldingRepairs } from "./holding-edits.js";
 export { observeCohortHoldings, type CohortHoldingCandidate, type CohortHoldingSegment,
@@ -92,14 +93,62 @@ export function observeAllHoldings(view: StoreView, cohort: RecordReference, res
   return observeHoldings(view, resolve, cohort, "all");
 }
 
+type UnresolvedMember = { status: "unresolved"; condition: string; remedy: Remedy };
+type DirectMemberObservation<T> = RuleObservation<T> | UnresolvedMember;
+
+/** Observe the meta inventory and prove direct membership for the requested current names, live or completed. */
+export async function observeDirectMemberNames(view: StoreView, cohort: RecordReference,
+  names: ReadonlySet<string>): Promise<DirectMemberObservation<ReadonlySet<string>>> {
+  const listed = await observeRecords(view, { family: "work-item", kind: "work-item/meta" });
+  if (listed.status !== "known") return listed;
+  const members = new Set<string>(), conflicts = new Map<string, StoreRecord>();
+  const leaves = new Map<string, NamedRecordObservation>();
+  const ambiguous: { name: string; leaf: UnresolvedMember }[] = [];
+  for (const entry of listed.value) {
+    const observed = await observeRecord(view, entry.reference);
+    if (observed.status !== "known") return observed;
+    const record = observed.value, name = record.reference.owner.name;
+    if (!names.has(name)) continue;
+    if (record.conflicts.length > 0) {
+      conflicts.set(name, record);
+      continue;
+    }
+    const leaf = await observeMemberLeaf(view, record, leaves);
+    if (leaf.status === "unavailable") return leaf;
+    if (leaf.status === "unresolved") ambiguous.push({ name, leaf });
+    else if (leaf.status === "known" && sameOwner(leaf.value.reference.owner, cohort.owner)) members.add(name);
+  }
+  const unresolved = ambiguous.find(({ name }) => !members.has(name));
+  const dispute = [...conflicts].find(([name]) => !members.has(name))?.[1];
+  return unresolved?.leaf ?? (dispute === undefined ? { status: "known", value: members } : { status: "unresolved",
+    condition: `The cohort membership of ${dispute.reference.owner.name} is disputed by open conflicts. ${listRecordConflicts(dispute.conflicts)}`,
+    remedy: { text: "Resolve the named conflict markers in the projected meta, run arc save, then retry the cohort edit." } });
+}
+
+async function observeMemberLeaf(view: StoreView, record: StoreRecord,
+  cache: Map<string, NamedRecordObservation>): Promise<DirectMemberObservation<StoreRecord>> {
+  const name = record.reference.owner.name;
+  const parsed = ParsedMetaRecordSchema.safeParse(record.fields);
+  if (!parsed.success) return { status: "unavailable", condition: `${name}: membership fields are unavailable.` };
+  const leaf = OwnerIdentitySchema.safeParse({ type: "cohort", name: parsed.data.cohort?.split("/").at(-1) });
+  if (!leaf.success) return { status: "absent" };
+  const slug = leaf.data.name;
+  const observed = cache.get(slug) ?? await observeNamedRecord(view, recordReferences["cohort/document"](leaf.data));
+  cache.set(slug, observed);
+  return observed.status === "ambiguous" ? { status: "unresolved", condition:
+    `The final Cohort segment \`${slug}\` for \`${name}\` is ambiguous. ${observed.condition}`, remedy: observed.remedy } : observed;
+}
+
+function memberCandidates(members: readonly CohortMemberEvidence[]): CohortHoldingCandidate[] {
+  return members.flatMap(({ record, cohort: path }) => path === null ? []
+    : [{ reference: record.reference, field: "cohort" as const, path, completed: record.placement?.kind === "completed" }]);
+}
+
 async function observeHoldings(view: StoreView, resolve: StoreView, cohort: RecordReference, scope: "open" | "all"): Promise<RuleObservation<readonly CohortHolding[]>> {
   const [cohorts, members] = await Promise.all([observeCohorts(view, scope), observeMembers(view, scope)]);
   if (cohorts.status !== "known") return cohorts;
   if (members.status !== "known") return members;
-  const candidates: CohortHoldingCandidate[] = [];
-  for (const { record, cohort: path } of members.value) {
-    if (path !== null) candidates.push({ reference: record.reference, field: "cohort", path, completed: record.placement?.kind === "completed" });
-  }
+  const candidates = memberCandidates(members.value);
   for (const { record, fields } of cohorts.value) {
     if (fields.parent !== null) candidates.push({ reference: record.reference, field: "parent", path: fields.parent, completed: record.placement?.kind === "completed" });
   }

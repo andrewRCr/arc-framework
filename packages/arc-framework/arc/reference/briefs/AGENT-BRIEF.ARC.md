@@ -7,8 +7,8 @@ git hooks, and a CLI package — all agent-platform agnostic.
 
 **Session lifecycle:** Sessions are bounded — init via `arc-session`; recover after compaction through
 `session-recover` (hook-injected when installed; `arc-recover` skill as manual fallback); handoff via
-`arc-handoff`. State files: active work unit's
-`meta-{name}.md` (tracked, `active/`) and `SESSION-NOTES.md` (gitignored, `user/{identity}/{work-unit}/`).
+`arc-handoff`. State: the active work unit's meta, a stored record projected into `active/`, which carries its
+session context.
 
 **Work pipeline:** Design → spec → task generation → task execution loop. One task = one review increment;
 see DEV-RULES.ARC § Task Execution.
@@ -33,7 +33,8 @@ See DEV-RULES.ARC § Commit Discipline.
 
 Precise meanings — assume the technical sense.
 
-- **Work unit (WU):** Wrapper noun — a bounded, _spec-worthy_ concern with one branch, a meta file, and one PR.
+- **Work unit (WU):** Wrapper noun — a bounded, _spec-worthy_ concern with a meta file and one PR. A newly started
+  work unit plans in its claimed checkout before activation creates its work branch.
   Artifact group: `meta-{name}.md` plus any present `spec-*`, `draft-*`, `tasks-*`, `notes-*` companions. Not
   "any piece of work".
 - **Class:** A work unit's recorded _weight_ — `Light` / `Heavy` / `Novel` (`[TBD]` until resolved). `Heavy`
@@ -45,9 +46,10 @@ Precise meanings — assume the technical sense.
   planning read to balance a worklist. Ceremony scales with `Class`; execution discipline does not. Distinct
   from quality gates.
 - **Cohort:** A deliberate grouping of sibling work units, recorded by a `cohort-{name}.md` that holds the
-  group's shared coordination. The work unit is the leaf. Nesting is path-valued via the `Cohort` field, capped at
-  one level — `<cohort>/<subcohort>/<wu>`. When an active WU names a `Cohort`, session-init
-  resolves and reads that `cohort-{name}.md`, so the group's shared coordination loads as session context.
+  group's shared coordination. The work unit is the leaf. Nesting is capped at one level —
+  `<cohort>/<subcohort>/<wu>`. A subcohort's `Parent` records it, and each open member's path-valued `Cohort` field
+  agrees with it. When an active WU names a `Cohort`, session-init resolves and reads that `cohort-{name}.md`, so the
+  group's shared coordination loads as session context.
 - **Chunk:** A bounded, contract-cohesive slice of one exact change set reviewed in one pass. It is a review
   boundary, not a Work Unit, review increment, task-plan phase, branch, PR, or merge unit; closure, complete union
   coverage, and a seam review preserve local and cross-chunk review. Delivery vocabulary is reserved compatibly:
@@ -63,12 +65,12 @@ Precise meanings — assume the technical sense.
 - **Errand:** Off-WU wrapper for a single _self-evident_ concern — below the spec-worthiness floor (no design
   worth recording, no durable plan a correct execution must navigate). Always **atomic** (below); no meta or
   WU lifecycle. A transient identity may preserve exact pause/review re-entry without becoming a durable plan.
-- **Locus:** One registered checkout plus the ARC role derived from its marker, tracked lifecycle, transient
-  identity, and Git topology. A WU-owned locus is exclusive from spawn, materialization, or explicit `--here` entry
-  through exact teardown. The physical primary is the launchpad only while its marker is absent, it is clean, and
-  it is on the configured base; transient allocation never displaces a WU role.
+- **Locus:** One registered checkout plus the ARC role derived from its marker and the store. A WU-owned locus is
+  exclusive from spawn, materialization, or explicit `--here` entry through exact teardown or release. The physical
+  primary is the launchpad only while its marker is absent, it is clean, and it is on the configured base; transient
+  allocation never displaces a WU role.
 - **Transient identity:** The exact logical claim for an Errand, grooming set, or housekeep sweep. It may outlive
-  local occupancy while paused or awaiting merge, but creates no WU meta, task list, or SESSION-NOTES.
+  local occupancy while paused or awaiting merge, but creates no WU meta or task list.
 - **atomic:** Work _character_ — one _indivisible_ concern in a single session, no stage needing _durable_
   (cross-session) decomposition. _Typically_ one review increment, but pass- and commit-count are incidental:
   a _determinate_ concern may run a bounded few _in-session_ passes (an _extended errand_) and stay atomic. A
@@ -114,7 +116,7 @@ Precise meanings — assume the technical sense.
 ├── backlog/     — Future work pipeline (arc-in-git PM only)
 ├── reference/   — Briefs, strategies, ADRs, templates
 ├── system/      — Rules, workflows, methods, settings
-└── user/        — Per-developer session state
+└── user/        — Per-developer working memory, inbox, and scratch
 ```
 
 ---

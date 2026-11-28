@@ -209,11 +209,16 @@ An existing ambiguity hold retains its original token across refused attempts; b
 from that durable hold, which a successful send clears.
 
 `command-hooks.ts` registers the root Commander's entry after the development guard and its completion after the
-development refresh registration, so Commander's reverse completion order settles copies before rebuilding. Root
-`save` uses save provenance and includes completed roots. Every start outcome remains in process state for the action
-to inspect. Native bindings check the backend capability before resolving a root; the in-repo backend returns without
-projection I/O. `report.ts` flushes new diagnostics and resolutions to stderr before the action and after completion,
-including corrective argv, unseen conflicts, pending saves, and retained aside copies with their original paths.
+development refresh registration, so Commander's reverse completion order settles copies before rebuilding. Root `save`
+uses save provenance and includes completed roots. Every start outcome remains in process state for the action to
+inspect. Native bindings check the backend capability before resolving a root; the in-repo backend returns without
+projection I/O. A native binding projects into the ARC root above the working directory. When no root is found, the
+command starts without projection or a projection diagnostic after it passes the tracked-state check. An ordinary
+command still refuses with `tracked-state` while `HEAD` tracks ARC state, even after the entire `.arc/` directory has
+been deleted locally and the deletion staged. An installed root with no Git directory still binds and reports that
+directory missing. `report.ts` flushes new diagnostics and resolutions to stderr before the action and after
+completion, including corrective argv, unseen conflicts, pending saves, and retained aside copies with their
+original paths.
 
 `status.ts` reads outstanding file marks, ownerless entries, unseen conflicts, recorded aside copies, and the timing
 notices `timings.ts` raises, without a lease or index write. Its JSON view omits filesystem stats, and its summary

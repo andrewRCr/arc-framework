@@ -49,7 +49,7 @@ function validRecipe(): Recipe {
     conditions: {
       "pm.mode == arc-in-git": {
         include_files: [
-          "backlog/ROADMAP.template.md",
+          "reference/strategies/arc/strategy-planning-module.md",
         ],
       },
     },

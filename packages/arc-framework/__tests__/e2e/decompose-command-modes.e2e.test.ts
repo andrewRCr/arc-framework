@@ -20,6 +20,7 @@ import {
 } from "./helpers.js";
 import { decodeV3DecomposeCutMap } from "../../src/lib/work-unit/decompose-v3-schema.js";
 import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 async function write(repo: string, path: string, content: string): Promise<void> {
   const absolute = join(repo, path);
@@ -522,6 +523,7 @@ function parseSingleDecomposeRefusal(result: RunResult): {
 }
 
 describe("arc decompose command modes", () => {
+  useInRepoStoreForEach();
   let repo: string | undefined;
 
   afterEach(async () => {

@@ -5,6 +5,10 @@ import { expect, it } from "vitest";
 import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 function compare(h: Awaited<ReturnType<typeof windowFixture>>, ...args: string[]) {
   return invokeWindow(h.root, "compare", args);

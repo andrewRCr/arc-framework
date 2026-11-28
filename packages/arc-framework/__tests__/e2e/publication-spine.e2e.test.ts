@@ -3,10 +3,10 @@ import { withReviewReport } from "../fixtures/review-report-input.js";
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
-import { beforeAll, afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 import {
   cleanupTempDir,
@@ -25,17 +25,19 @@ import {
   serializeCandidateManagedRecord,
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
-import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
-import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { gitExec } from "../../src/lib/io-context.js";
-import { LocalReviewOperationStateStore } from
-  "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import {
   projectCandidateDeltaVerification,
   recordCandidateVerifiedResponse,
 } from "../../src/scripts/review-gate/policy/pre-publication-procedure.js";
-import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { responsePolicyRequest, reviewInFlight } from "../fixtures/review-response-policy.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStoreForEach, withInRepoStore } from "../helpers/in-repo-store-override.js";
+import { readStoreRecord, seedStore } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { canonicalDigest, canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 
 import {
   copyPreparedRepository, prepareRepositoryTemplate, type PreparedRepositoryTemplate,
@@ -53,38 +55,101 @@ const execFileAsync = promisify(execFile);
 const OFFLINE_ORIGIN = "https://arc-fixture.invalid/arc-framework/example.git";
 const OFFLINE_ENV = { GIT_TERMINAL_PROMPT: "0" };
 
-const META = makeMetaFixture("example", {
+const META_FIELDS = {
   owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
   taskList: "tasks-example.md", lastCompleted: "verification", nextAction: "verification complete",
-});
+} as const;
+const META = makeMetaFixture("example", META_FIELDS);
+const TASKS = "# Task List: Example\n\n- [x] Verification complete\n";
 
-/** Stage one verified Active work unit on its own branch, ready to propose. */
-async function createAttestableRepo(): Promise<string> {
+/** The store a case runs on: the in-repo store keeps work-unit state as tracked files a case commits, the store as
+ * records its verbs write with no commit to make. */
+interface Arm { readonly arm: string; readonly store: boolean }
+const ARMS: readonly Arm[] = [{ arm: "the in-repo store", store: false }, { arm: "the store", store: true }];
+const IDENTITY = SlugSchema.parse("test-user");
+const EXAMPLE = OwnerIdentitySchema.parse({ type: "work-item", name: "example" });
+const BOUNDARY_PATH = join(".arc", "system", ".internal", "candidates", "example.boundary.json");
+
+async function expectStagedBoundary(repository: string): Promise<void> {
+  const staged = await git(repository, ["diff", "--cached", "--name-only"]);
+  expect(staged.split("\n")).toContain(BOUNDARY_PATH.replaceAll("\\", "/"));
+}
+
+/** Hold `example`'s meta on the checked-out branch: a file for the in-repo store, which takes the task list as a file
+ * of its own, and a record bound to this checkout, its task list beside it, on the store. */
+async function holdExample(repository: string, store: boolean): Promise<void> {
+  if (!store) {
+    await mkdir(join(repository, ".arc", "active"), { recursive: true });
+    await writeFile(join(repository, ".arc", "active", "meta-example.md"), META);
+    return;
+  }
+  await seedWorkUnit(repository, "example", { identity: "test-user", branch: "feat/example", bind: repository,
+    meta: META_FIELDS, taskList: TASKS });
+  await writeFile(join(repository, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+}
+
+/** Commit the state a verb staged, which only the in-repo store keeps as tracked files. */
+async function commitState(repository: string, store: boolean, message: string): Promise<void> {
+  if (!store) await git(repository, ["commit", "-m", message]);
+}
+
+/** Read `example`'s publication boundary where its store keeps it. */
+async function readBoundary(repository: string, store: boolean): Promise<Record<string, unknown>> {
+  return JSON.parse(store
+    ? (await readStoreRecord(repository, IDENTITY, recordReferences["review/integration-boundary"](EXAMPLE))).content
+    : await readFile(join(repository, BOUNDARY_PATH), "utf8")) as Record<string, unknown>;
+}
+
+/** Replace `example`'s publication boundary where its store keeps it, staging the in-repo store's file. */
+async function writeBoundary(repository: string, store: boolean, boundary: Record<string, unknown>): Promise<void> {
+  if (!store) {
+    await writeFile(join(repository, BOUNDARY_PATH), `${JSON.stringify(boundary, null, 2)}\n`);
+    await git(repository, ["add", BOUNDARY_PATH]);
+    return;
+  }
+  const reference = recordReferences["review/integration-boundary"](EXAMPLE);
+  const { version } = await readStoreRecord(repository, IDENTITY, reference);
+  await seedStore(repository, IDENTITY, [{ reference, content: canonicalize(boundary), expected: version }]);
+}
+
+/** Read `example`'s meta fields where its store keeps them. */
+async function readMetaFields(repository: string, store: boolean): Promise<unknown> {
+  return store
+    ? (await readStoreRecord(repository, IDENTITY, recordReferences["work-item/meta"](EXAMPLE))).fields
+    : { ...parseMetaRecord(await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8")) };
+}
+
+/** Stage one verified Active work unit on its own branch, ready to propose; the store needs the project `arc init`
+ * mints before it holds one. */
+async function createAttestableRepo(store = false): Promise<string> {
   const repository = await createTempRepo();
-  await mkdir(join(repository, ".arc", "system"), { recursive: true });
-  await writeFile(join(repository, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
-  await writeFile(join(repository, ".gitignore"), ".arc/user/\n");
+  if (store) {
+    const initialized = await runArc(["init", "--yes", "--name", "example"], repository);
+    expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
+  } else {
+    await mkdir(join(repository, ".arc", "system"), { recursive: true });
+    await writeFile(join(repository, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+    await writeFile(join(repository, ".gitignore"), ".arc/user/\n");
+  }
   await writeFile(join(repository, "README.md"), "# Fixture\n");
   await git(repository, ["add", "-A"]);
   await git(repository, ["commit", "-m", "base"]);
   await git(repository, ["remote", "add", "origin", OFFLINE_ORIGIN]);
   await git(repository, ["checkout", "-b", "feat/example"]);
-  await mkdir(join(repository, ".arc", "active"), { recursive: true });
+  await holdExample(repository, store);
   await mkdir(join(repository, "src"), { recursive: true });
-  await writeFile(join(repository, ".arc", "active", "meta-example.md"), META);
   await writeFile(join(repository, "src", "example.ts"), "export const example = true;\n");
   await git(repository, ["add", "-A"]);
   await git(repository, ["commit", "-m", "implementation"]);
-  await writeFile(
-    join(repository, ".arc", "active", "tasks-example.md"),
-    "# Task List: Example\n\n- [x] Verification complete\n",
-  );
-  await git(repository, ["add", ".arc/active/tasks-example.md"]);
+  if (!store) {
+    await writeFile(join(repository, ".arc", "active", "tasks-example.md"), TASKS);
+    await git(repository, ["add", ".arc/active/tasks-example.md"]);
+  }
   return repository;
 }
 
 /** Install the full project surface required by the public local-review carrier. */
-async function createAtCapPublicationRepo(): Promise<string> {
+async function createAtCapPublicationRepo(store = false): Promise<string> {
   const repository = await createTempRepo("arc-publication-cap-");
   const initialized = await runArc(["init", "--yes", "--name", "example"], repository);
   expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
@@ -97,13 +162,9 @@ async function createAtCapPublicationRepo(): Promise<string> {
   await git(repository, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(repository, ["commit", "-m", "install ARC"]);
   await git(repository, ["switch", "-c", "feat/example"]);
-  await mkdir(join(repository, ".arc", "active"), { recursive: true });
+  await holdExample(repository, store);
+  if (!store) await writeFile(join(repository, ".arc", "active", "tasks-example.md"), TASKS);
   await mkdir(join(repository, "src"), { recursive: true });
-  await writeFile(join(repository, ".arc", "active", "meta-example.md"), META);
-  await writeFile(
-    join(repository, ".arc", "active", "tasks-example.md"),
-    "# Task List: Example\n\n- [x] Verification complete\n",
-  );
   await writeFile(join(repository, "src", "example.ts"), "export const example = true;\n");
   await git(repository, ["add", "-A"]);
   await git(repository, ["commit", "-m", "implementation"]);
@@ -133,6 +194,8 @@ interface ReviewEnvelope {
 
 interface LocalReviewPayload {
   operationId: string;
+  /** The store's reference to the prepared operation, which its continuations resubmit; the in-repo store emits none. */
+  operationRef?: string;
   target: { targetId: string; headSha: string; headTree: string };
   request: { evaluatorIdentity: string };
   reviewerPayload: {
@@ -152,6 +215,12 @@ interface LocalReviewPayload {
 
 interface FindingsReductionPayload {
   responseSource: { kind: "attested-local"; receiptRef: string };
+}
+
+/** The prepared operation a local review's continuations name, with the store's reference when it emitted one. */
+function preparedOperation(prepared: LocalReviewPayload): { operationId: string; operationRef?: string } {
+  return { operationId: prepared.operationId,
+    ...(prepared.operationRef === undefined ? {} : { operationRef: prepared.operationRef }) };
 }
 
 async function invokeReview(
@@ -204,7 +273,7 @@ async function completeLocalReview(
   const prepared = await prepareLocalReview(root);
   await invokeReview(root, ["review", "local", "attest", "-"], {
     schemaVersion: 1,
-    operationId: prepared.operationId,
+    ...preparedOperation(prepared),
     result: {
       status: "complete",
       result,
@@ -228,10 +297,7 @@ async function completeLocalReview(
         : [],
     },
   });
-  return invokeReview(root, ["review", "reduce", "-"], {
-    schemaVersion: 1,
-    operationId: prepared.operationId,
-  });
+  return invokeReview(root, ["review", "reduce", "-"], { schemaVersion: 1, ...preparedOperation(prepared) });
 }
 
 async function approveFix(
@@ -277,14 +343,13 @@ async function approveFix(
   };
 }
 
-async function reviewAccounting(root: string): Promise<{
+async function reviewAccounting(root: string, store = false): Promise<{
   completedPasses: number;
   evaluatorInvocations: number;
 }> {
-  const store = new LocalReviewOperationStateStore(
-    new RepositoryGitCommonStatePublisher(gitExec, root),
-  );
-  const snapshot = await store.readOperationSnapshot();
+  const workItem = store
+    ? (await readStoreRecord(root, IDENTITY, recordReferences["work-item/meta"](EXAMPLE))).reference.owner : undefined;
+  const snapshot = await reviewInFlight(root, workItem).readOperationSnapshot();
   expect(snapshot.status).toBe("complete");
   if (snapshot.status !== "complete") throw new Error("review operation snapshot unavailable");
   const standardProgress = snapshot.records.filter(({ state }) => (
@@ -294,7 +359,11 @@ async function reviewAccounting(root: string): Promise<{
     completedPasses: standardProgress.reduce((total, { state }) => (
       state.kind === "lane-progress" ? total + state.completedPasses : total
     ), 0),
-    evaluatorInvocations: snapshot.records.filter(({ state }) => state.kind === "local-review").length,
+    // The store keeps a reduced local review as its lane's attempt rather than as an operation of its own.
+    evaluatorInvocations: store
+      ? standardProgress.flatMap(({ state }) => state.kind === "lane-progress"
+        ? state.attempts.filter((attempt) => attempt.local !== undefined) : []).length
+      : snapshot.records.filter(({ state }) => state.kind === "local-review").length,
   };
 }
 
@@ -319,7 +388,7 @@ async function writeNonDefaultPrePublicationJudgments(root: string): Promise<{
   return { changeSetPath, lanesPath };
 }
 
-async function reachAtCapConvergence(root: string): Promise<{
+async function reachAtCapConvergence(root: string, store: boolean): Promise<{
   candidateId: string;
   candidateSubjectDigest: string;
   reviewedHead: string;
@@ -327,7 +396,7 @@ async function reachAtCapConvergence(root: string): Promise<{
 }> {
   const proposed = await runArc(["attest", "example", "--json"], root);
   expect(proposed.exitCode, JSON.stringify(proposed)).toBe(0);
-  await git(root, ["commit", "-m", "verification"]);
+  await commitState(root, store, "verification");
 
   const findings = await completeLocalReview(root, "findings", "run-material-pass-1");
   expect(findings).toMatchObject({ state: "findings", nextAction: "respond" });
@@ -354,7 +423,7 @@ async function reachAtCapConvergence(root: string): Promise<{
       verificationEvidenceRefs: ["verification://focused-fix"],
     },
   }))).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
-  await git(root, ["commit", "-m", "record verified response"]);
+  await commitState(root, store, "record verified response");
 
   const clean = await completeLocalReview(root, "clean", "run-clean-pass-2");
   expect(clean).toMatchObject({ state: "advisory-complete", nextAction: "none" });
@@ -376,7 +445,7 @@ async function reachAtCapConvergence(root: string): Promise<{
       postAttestContinuation: {
         reviewedHead: string;
         nextAction: { command: string };
-        projectionDisposition: string;
+        projectionDisposition?: string;
       };
     };
   };
@@ -385,7 +454,8 @@ async function reachAtCapConvergence(root: string): Promise<{
     nextAction: {
       kind: "run-convergence-verification",
       postAttestContinuation: {
-        projectionDisposition: "keep-staged-until-publication",
+        // Only the in-repo store stages a projection that publication must keep.
+        ...(store ? {} : { projectionDisposition: "keep-staged-until-publication" }),
         nextAction: {
           command: expect.stringMatching(
             /^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u,
@@ -394,6 +464,7 @@ async function reachAtCapConvergence(root: string): Promise<{
       },
     },
   });
+  if (store) expect(envelope.nextAction.postAttestContinuation).not.toHaveProperty("projectionDisposition");
   const continuationArgv = envelope.nextAction.postAttestContinuation.nextAction.command.split(" ");
   expect(JSON.parse(Buffer.from(continuationArgv[5] ?? "", "base64url").toString("utf8"))).toEqual({
     candidateId: envelope.candidateId,
@@ -469,7 +540,45 @@ function submit(repository: string) {
   );
 }
 
-describe("the settle-to-submit window over a live base", () => {
+type Convergence = Awaited<ReturnType<typeof reachAtCapConvergence>>;
+const convergences = new Map<boolean, Promise<{ template: PreparedRepositoryTemplate; pending: Convergence }>>();
+const convergenceShape = (store: boolean) =>
+  ({ kind: "plain", key: `publication-at-cap-convergence-${store ? "store" : "in-repo"}` }) as const;
+
+/** Build each store's at-cap convergence once, on first use, and copy it for a case. */
+async function copyConvergenceRepository(store: boolean): Promise<{ repository: string; pending: Convergence }> {
+  let prepared = convergences.get(store);
+  if (prepared === undefined) {
+    let pending: Convergence | undefined;
+    const build = () => prepareRepositoryTemplate(convergenceShape(store), async () => {
+      const root = await createAtCapPublicationRepo(store);
+      try {
+        pending = await reachAtCapConvergence(root, store);
+        return root;
+      } catch (error) {
+        await cleanupTempDir(root);
+        throw error;
+      }
+    });
+    prepared = (store ? build() : withInRepoStore(build)).then((template) => {
+      if (pending === undefined) throw new Error("publication convergence payload not prepared");
+      return { template, pending };
+    });
+    convergences.set(store, prepared);
+  }
+  const { template, pending } = await prepared;
+  return { repository: await copyPreparedRepository(template, convergenceShape(store)), pending };
+}
+
+afterAll(async () => {
+  for (const prepared of convergences.values()) {
+    await prepared.then(({ template }) => cleanupTempDir(template.root), () => undefined);
+  }
+});
+
+
+describe.each(ARMS)("the settle-to-submit window over a live base on $arm", ({ store }) => {
+  if (!store) useInRepoStoreForEach();
   let repository: string | null = null;
 
   afterEach(async () => {
@@ -478,7 +587,7 @@ describe("the settle-to-submit window over a live base", () => {
   });
 
   it("submits the same settled Candidate after an advance sharing none of its paths", async () => {
-    repository = await createAttestableRepo();
+    repository = await createAttestableRepo(store);
     await attachLiveBase(repository);
     const candidateId = await settleForPublication(repository);
     await advanceBase({ cwd: repository, paths: movementPaths("disjoint", "example").base });
@@ -493,47 +602,27 @@ describe("the settle-to-submit window over a live base", () => {
   });
 });
 
-describe("attest → pre-publication → publish", () => {
+describe.each(ARMS)("attest → pre-publication → publish on $arm", ({ store }) => {
+  if (!store) useInRepoStoreForEach();
   let repository: string | null = null;
-  const convergenceShape = { kind: "plain", key: "publication-at-cap-convergence" } as const;
-  let convergenceTemplate: PreparedRepositoryTemplate | undefined;
-  let pendingConvergence: Awaited<ReturnType<typeof reachAtCapConvergence>> | undefined;
-  beforeAll(async () => {
-    convergenceTemplate = await prepareRepositoryTemplate(convergenceShape, async () => {
-      const root = await createAtCapPublicationRepo();
-      try {
-        pendingConvergence = await reachAtCapConvergence(root);
-        return root;
-      } catch (error) {
-        await cleanupTempDir(root);
-        throw error;
-      }
-    });
-  }, 120_000);
-  afterAll(async () => {
-    if (convergenceTemplate !== undefined) await cleanupTempDir(convergenceTemplate.root);
-  });
-  async function copyConvergenceRepository(): Promise<string> {
-    if (convergenceTemplate === undefined) throw new Error("publication convergence template not prepared");
-    return copyPreparedRepository(convergenceTemplate, convergenceShape);
-  }
 
   afterEach(async () => {
     if (repository !== null) await cleanupTempDir(repository);
+    repository = null;
   });
 
   it.each([
     ["without origin", false],
     ["with origin and no PR", true],
   ])("offers a private Candidate correction review %s", async (_label, originLinked) => {
-    repository = await createAtCapPublicationRepo();
+    repository = await createAtCapPublicationRepo(store);
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
-    await git(repository, ["commit", "-m", "verification"]);
+    await commitState(repository, store, "verification");
     const firstHead = await git(repository, ["rev-parse", "HEAD"]);
     const firstPrepared = await prepareLocalReview(repository);
     await invokeReview(repository, ["review", "local", "attest", "-"], {
       schemaVersion: 1,
-      operationId: firstPrepared.operationId,
+      ...preparedOperation(firstPrepared),
       result: {
         status: "complete",
         result: "findings",
@@ -556,8 +645,7 @@ describe("attest → pre-publication → publish", () => {
       },
     });
     const findings = await invokeReview(repository, ["review", "reduce", "-"], {
-      schemaVersion: 1,
-      operationId: firstPrepared.operationId,
+      schemaVersion: 1, ...preparedOperation(firstPrepared),
     });
     expect(findings).toMatchObject({ state: "findings", nextAction: "respond" });
     const source = (findings.payload as unknown as FindingsReductionPayload).responseSource;
@@ -579,7 +667,7 @@ describe("attest → pre-publication → publish", () => {
         verificationEvidenceRefs: ["verification://focused-fix"],
       },
     }))).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
-    await git(repository, ["commit", "-m", "record verified response"]);
+    await commitState(repository, store, "record verified response");
     const projectedHead = await git(repository, ["rev-parse", "HEAD"]);
     const reviewEnv = originLinked ? await attachOriginWithoutPr(repository) : undefined;
     if (reviewEnv !== undefined) {
@@ -629,7 +717,7 @@ describe("attest → pre-publication → publish", () => {
     expect(payload.reviewerPayload.reviewerInstructions).toContain("finding-1");
     await expect(invokeReview(repository, ["review", "local", "attest", "-"], {
       schemaVersion: 1,
-      operationId: payload.operationId,
+      ...preparedOperation(payload),
       result: {
         status: "complete", result: "clean", targetId: payload.target.targetId,
         headSha: payload.target.headSha, headTree: payload.target.headTree,
@@ -644,7 +732,7 @@ describe("attest → pre-publication → publish", () => {
       },
     })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
     await expect(invokeReview(repository, ["review", "reduce", "-"], {
-      schemaVersion: 1, operationId: payload.operationId,
+      schemaVersion: 1, ...preparedOperation(payload),
     })).resolves.toMatchObject({ state: "advisory-complete", nextAction: "none" });
     if (!originLinked) await git(repository, ["remote", "add", "origin", OFFLINE_ORIGIN]);
     const judgments = await writeNonDefaultPrePublicationJudgments(repository);
@@ -663,9 +751,9 @@ describe("attest → pre-publication → publish", () => {
 
   it.each(["defer", "reject"] as const)(
     "converges a settled material %s at the unchanged head without another pass", async (disposition) => {
-      repository = await createAtCapPublicationRepo();
+      repository = await createAtCapPublicationRepo(store);
       expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
-      await git(repository, ["commit", "-m", "verification"]);
+      await commitState(repository, store, "verification");
       const findings = await completeLocalReview(repository, "findings", "run-material-defer-pass-1");
       expect(findings).toMatchObject({ state: "findings", nextAction: "respond" });
       const source = (findings.payload as unknown as FindingsReductionPayload).responseSource;
@@ -738,13 +826,13 @@ describe("attest → pre-publication → publish", () => {
       const replay = await runArc(["review", "pre-publication", "example"], repository, { env: OFFLINE_ENV });
       expect(replay.exitCode, JSON.stringify(replay)).toBe(0);
       expect(JSON.parse(replay.stdout)).toMatchObject({ locus: "candidate-publish-ready", policy: null });
-      expect((await reviewAccounting(repository)).completedPasses).toBe(1);
+      expect((await reviewAccounting(repository, store)).completedPasses).toBe(1);
   }, 120_000);
 
   it("offers the findings response before approval and after the approved fix commit", async () => {
-    repository = await createAtCapPublicationRepo();
+    repository = await createAtCapPublicationRepo(store);
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
-    await git(repository, ["commit", "-m", "verification"]);
+    await commitState(repository, store, "verification");
     const findings = await completeLocalReview(repository, "findings", "run-prepublication-findings");
     expect(findings).toMatchObject({ state: "findings", nextAction: "respond" });
     const source = (findings.payload as unknown as FindingsReductionPayload).responseSource;
@@ -781,7 +869,7 @@ describe("attest → pre-publication → publish", () => {
   }, 120_000);
 
   it("settles the boundary at pre-publication and submits on the first call", async () => {
-    repository = await createAttestableRepo();
+    repository = await createAttestableRepo(store);
 
     const proposed = await runArc(["attest", "example", "--json"], repository);
     expect(proposed.exitCode, JSON.stringify(proposed)).toBe(0);
@@ -819,17 +907,12 @@ describe("attest → pre-publication → publish", () => {
       nextAction: { kind: "publish-candidate", command: "arc publish example --json" },
     });
 
-    const boundaryPath = join(
-      ".arc", "system", ".internal", "candidates", "example.boundary.json",
-    );
-    const boundary = JSON.parse(await readFile(join(repository, boundaryPath), "utf8")) as {
-      locus: string;
-      candidateId: string;
-    };
-    expect(boundary.locus).toBe("candidate-publish-ready");
-    expect(boundary.candidateId).toBe(envelope.candidateId);
-    expect((await git(repository, ["diff", "--cached", "--name-only"])).split("\n"))
-      .toContain(boundaryPath.split("\\").join("/"));
+    expect(await readBoundary(repository, store)).toMatchObject({
+      locus: "candidate-publish-ready", candidateId: envelope.candidateId,
+    });
+    // The in-repo store stages the boundary it wrote; the store's write leaves the index alone.
+    if (store) expect(await git(repository, ["diff", "--cached", "--name-only"])).toBe("");
+    else await expectStagedBoundary(repository);
 
     const submitted = await runArc(
       [
@@ -847,9 +930,9 @@ describe("attest → pre-publication → publish", () => {
       status: "published",
       boundary: { locus: "publication-pending", candidateId: envelope.candidateId },
     });
-    const publishedMeta = await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8");
-    expect(publishedMeta).toContain("| `Integrating` | `test-user`");
-    expect(publishedMeta).toContain("- **Current Workflow:** `integrate-work-unit`");
+    expect(await readMetaFields(repository, store)).toMatchObject({
+      state: "Integrating", owner: "test-user", currentWorkflow: "integrate-work-unit",
+    });
 
     // Submission advanced the boundary past its settle point; repeating reports the resume point
     // rather than re-firing the transition.
@@ -871,11 +954,11 @@ describe("attest → pre-publication → publish", () => {
     });
   });
 
-  it("publishes a clean result at the pass cap with one projection commit and no new review", async () => {
-    repository = await copyConvergenceRepository();
-    if (pendingConvergence === undefined) throw new Error("publication convergence payload not prepared");
-    const pending = pendingConvergence;
-    const accountingAtCap = await reviewAccounting(repository);
+  it("publishes a clean result at the pass cap with no new review", async () => {
+    const copied = await copyConvergenceRepository(store);
+    repository = copied.repository;
+    const pending = copied.pending;
+    const accountingAtCap = await reviewAccounting(repository, store);
     expect(accountingAtCap).toEqual({ completedPasses: 2, evaluatorInvocations: 2 });
 
     const attested = await runArc([
@@ -895,11 +978,12 @@ describe("attest → pre-publication → publish", () => {
         candidateSubjectDigest: pending.candidateSubjectDigest,
         postAttestContinuation: {
           reviewedHead: pending.reviewedHead,
-          projectionDisposition: "keep-staged-until-publication",
+          ...(store ? {} : { projectionDisposition: "keep-staged-until-publication" }),
         },
         nextAction: { command: pending.continuationCommand },
       },
     });
+    if (store) expect(attestedResult.locus).not.toHaveProperty("postAttestContinuation.projectionDisposition");
 
     // A plain same-head re-entry reads the saved nondefault self-review, routing, lane, and
     // ceiling judgments from the durable continuation; it has no caller-supplied resume token.
@@ -913,7 +997,7 @@ describe("attest → pre-publication → publish", () => {
       candidateSubjectDigest: pending.candidateSubjectDigest,
       nextAction: { kind: "publish-candidate", command: "arc publish example --json" },
     });
-    expect(await reviewAccounting(repository)).toEqual(accountingAtCap);
+    expect(await reviewAccounting(repository, store)).toEqual(accountingAtCap);
 
     const readyReplay = await runReturnedCommand(repository, pending.continuationCommand);
     expect(readyReplay.exitCode, JSON.stringify(readyReplay)).toBe(0);
@@ -934,17 +1018,9 @@ describe("attest → pre-publication → publish", () => {
       error: { code: "invalid-input" },
       remedy: { argv: ["arc", "review", "pre-publication", "example"] },
     });
-    const readyBoundaryPath = join(
-      repository,
-      ".arc", "system", ".internal", "candidates", "example.boundary.json",
-    );
-    expect(JSON.parse(await readFile(readyBoundaryPath, "utf8"))).toMatchObject({
-      locus: "candidate-publish-ready",
-      candidateId: pending.candidateId,
-    });
-    expect(JSON.parse(await readFile(readyBoundaryPath, "utf8"))).not.toHaveProperty(
-      "postAttestContinuation",
-    );
+    const readyBoundary = await readBoundary(repository, store);
+    expect(readyBoundary).toMatchObject({ locus: "candidate-publish-ready", candidateId: pending.candidateId });
+    expect(readyBoundary).not.toHaveProperty("postAttestContinuation");
 
     const beforeProjectionCommit = await git(repository, ["rev-parse", "HEAD"]);
     const published = await runArc([
@@ -970,20 +1046,224 @@ describe("attest → pre-publication → publish", () => {
     });
     expect(publicationPlainRetry.exitCode, JSON.stringify(publicationPlainRetry)).toBe(0);
     expect(JSON.parse(publicationPlainRetry.stdout)).toMatchObject({ locus: "publication-pending" });
-    await git(repository, ["add", "-A"]);
-    await git(repository, ["commit", "-m", "chore(arc): project publication readiness"]);
-    expect(await git(repository, ["rev-list", "--count", `${beforeProjectionCommit}..HEAD`])).toBe("1");
+    // The in-repo store's projection takes one commit; the store's records leave nothing to commit.
+    if (!store) {
+      await git(repository, ["add", "-A"]);
+      await git(repository, ["commit", "-m", "chore(arc): project publication readiness"]);
+    }
+    expect(await git(repository, ["rev-list", "--count", `${beforeProjectionCommit}..HEAD`])).toBe(store ? "0" : "1");
     expect(await git(repository, ["status", "--porcelain"])).toBe("");
     const committedReplay = await runReturnedCommand(repository, pending.continuationCommand);
     expect(committedReplay.exitCode, JSON.stringify(committedReplay)).toBe(0);
     expect(JSON.parse(committedReplay.stdout)).toMatchObject({ locus: "publication-pending" });
-    expect(await reviewAccounting(repository)).toEqual(accountingAtCap);
+    expect(await reviewAccounting(repository, store)).toEqual(accountingAtCap);
   }, 120_000);
 
+  it("reroutes changed reviewable content before spending another capped review", async () => {
+    const copied = await copyConvergenceRepository(store);
+    repository = copied.repository;
+    const pending = copied.pending;
+    const accountingAtCap = await reviewAccounting(repository, store);
+    const attested = await runArc([
+      "attest", "example", "--scope", "focused",
+      "--verification-evidence-ref", "verification://focused-pre-publication-convergence", "--json",
+    ], repository);
+    expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
+    const continuation = (JSON.parse(attested.stdout) as {
+      locus: { nextAction: { command: string } };
+    }).locus.nextAction.command;
+
+    await writeFile(join(repository, "src", "example.ts"), "export const example = 'changed again';\n");
+    await git(repository, ["add", "src/example.ts"]);
+    await git(repository, ["commit", "-m", "change reviewed content after attestation"]);
+
+    const rerouted = await runReturnedCommand(repository, continuation);
+    expect(rerouted.exitCode).toBe(1);
+    expect(JSON.parse(rerouted.stdout)).toMatchObject({
+      error: { code: "candidate-unexplained-delta" },
+      applicability: { state: "decision-required", resolutionSelector: { candidateId: pending.candidateId } },
+      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
+    });
+    expect(await reviewAccounting(repository, store)).toEqual(accountingAtCap);
+
+    expect(await readBoundary(repository, store)).toMatchObject({
+      locus: "candidate-review-pending",
+      candidateId: pending.candidateId,
+      postAttestContinuation: { reviewedHead: pending.reviewedHead },
+    });
+  }, 120_000);
+
+  it("preserves advanced review authority when an unchanged Candidate is re-attested", async () => {
+    repository = await createAttestableRepo(store);
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await commitState(repository, store, "verification");
+
+    const reviewed = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled"],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
+    const reviewedEnvelope = JSON.parse(reviewed.stdout) as {
+      candidateId: string;
+      candidateSubjectDigest: string;
+      target: { headSha: string };
+    };
+    const readyBoundary = await readBoundary(repository, store);
+    const reservation = createStandardReviewReservation({
+      candidateId: reviewedEnvelope.candidateId,
+      sourceId: "coderabbit-pr",
+      sources: ["coderabbit-pr", "codex-pr"],
+      repository: "arc-framework/example",
+      headSha: reviewedEnvelope.target.headSha,
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    await writeBoundary(repository, store, { ...readyBoundary, reservation });
+
+    const readyReplay = await runArc(["attest", "example", "--json"], repository);
+    expect(readyReplay.exitCode, JSON.stringify(readyReplay)).toBe(0);
+    expect(JSON.parse(readyReplay.stdout)).toMatchObject({
+      status: "unchanged",
+      locus: { locus: "candidate-publish-ready", reservation },
+    });
+
+    const submitted = await runArc(
+      [
+        "publish", "example",
+        "--last-completed", "verification",
+        "--action", "push and open the PR",
+        "--json",
+      ],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(submitted.exitCode, JSON.stringify(submitted)).toBe(0);
+    expect(JSON.parse(submitted.stdout)).toMatchObject({
+      status: "published",
+      boundary: { locus: "publication-pending", reservation },
+    });
+
+    const publishedReplay = await runArc(["attest", "example", "--json"], repository);
+    expect(publishedReplay.exitCode, JSON.stringify(publishedReplay)).toBe(0);
+    expect(JSON.parse(publishedReplay.stdout)).toMatchObject({
+      status: "unchanged",
+      locus: { locus: "publication-pending", reservation },
+    });
+    expect(await readMetaFields(repository, store)).toMatchObject({
+      currentWorkflow: "integrate-work-unit", nextAction: "push and open the PR",
+    });
+  });
+
+  it("composes a non-null exact target from a clean committed Candidate", async () => {
+    repository = await createAttestableRepo(store);
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await commitState(repository, store, "verification");
+    const headSha = await git(repository, ["rev-parse", "HEAD"]);
+
+    const reviewed = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled"],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+
+    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
+    expect(JSON.parse(reviewed.stdout)).toMatchObject({
+      locus: "candidate-publish-ready",
+      candidateId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      target: {
+        kind: "change-set",
+        headSha,
+        targetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      },
+    });
+  });
+
+  it("executes the advertised self-review resume command through the CLI", async () => {
+    repository = await createAttestableRepo(store);
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await commitState(repository, store, "verification");
+
+    const offered = await runArc(["review", "pre-publication", "example"], repository, { env: OFFLINE_ENV });
+    expect(offered.exitCode, JSON.stringify(offered)).toBe(0);
+    const envelope = JSON.parse(offered.stdout) as {
+      locus: string;
+      nextAction: { kind: string; command: string };
+    };
+    expect(envelope).toMatchObject({
+      locus: "candidate-review-pending",
+      nextAction: {
+        kind: "run-self-review",
+        command: expect.stringMatching(/^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u),
+      },
+    });
+
+    const resumed = await runReturnedCommand(repository, envelope.nextAction.command);
+    expect(resumed.exitCode, JSON.stringify(resumed)).toBe(0);
+    expect(JSON.parse(resumed.stdout)).toMatchObject({ locus: "candidate-publish-ready" });
+  });
+
+  it("refuses submission while a pre-publication obligation is still open", async () => {
+    repository = await createAttestableRepo(store);
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+
+    // Self-review is active by package default, so the bare procedure leaves the durable
+    // Candidate boundary open rather than authorizing publication.
+    const reviewed = await runArc(
+      ["review", "pre-publication", "example"],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
+    expect(JSON.parse(reviewed.stdout)).toMatchObject({
+      locus: "candidate-review-pending",
+      nextAction: { kind: "run-self-review" },
+    });
+
+    const submitted = await runArc(
+      [
+        "publish", "example",
+        "--last-completed", "verification",
+        "--action", "push and open the PR",
+      ],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+
+    expect(submitted.exitCode).not.toBe(0);
+    expect(`${submitted.stdout}${submitted.stderr}`).toContain("pre-publication obligations remain open");
+  });
+});
+
+// Each case here commits state the in-repo store staged, or writes one of its records apart from the others, which the
+// store writes in one batch with no commit to make.
+describe("attest → pre-publication → publish over committed state", () => {
+  useInRepoStoreForEach();
+  let repository: string | null = null;
+
+  afterEach(async () => {
+    if (repository !== null) await cleanupTempDir(repository);
+    repository = null;
+  });
+
+  it("recognizes the staged boundary in Git's index", async () => {
+    repository = await createTempRepo();
+    await mkdir(join(repository, dirname(BOUNDARY_PATH)), { recursive: true });
+    await writeBoundary(repository, false, { locus: "candidate-publish-ready" });
+
+    await expectStagedBoundary(repository);
+  });
+
   it("refuses a premature projection commit and admits only exact version-bound recovery", async () => {
-    repository = await copyConvergenceRepository();
-    if (pendingConvergence === undefined) throw new Error("publication convergence payload not prepared");
-    const pending = pendingConvergence;
+    const copied = await copyConvergenceRepository(false);
+    repository = copied.repository;
+    const pending = copied.pending;
     const accountingAtCap = await reviewAccounting(repository);
     const attested = await runArc([
       "attest", "example", "--scope", "focused",
@@ -1055,44 +1335,6 @@ describe("attest → pre-publication → publish", () => {
     expect(await reviewAccounting(repository)).toEqual(accountingAtCap);
   }, 120_000);
 
-  it("reroutes changed reviewable content before spending another capped review", async () => {
-    repository = await copyConvergenceRepository();
-    if (pendingConvergence === undefined) throw new Error("publication convergence payload not prepared");
-    const pending = pendingConvergence;
-    const accountingAtCap = await reviewAccounting(repository);
-    const attested = await runArc([
-      "attest", "example", "--scope", "focused",
-      "--verification-evidence-ref", "verification://focused-pre-publication-convergence", "--json",
-    ], repository);
-    expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
-    const continuation = (JSON.parse(attested.stdout) as {
-      locus: { nextAction: { command: string } };
-    }).locus.nextAction.command;
-
-    await writeFile(join(repository, "src", "example.ts"), "export const example = 'changed again';\n");
-    await git(repository, ["add", "src/example.ts"]);
-    await git(repository, ["commit", "-m", "change reviewed content after attestation"]);
-
-    const rerouted = await runReturnedCommand(repository, continuation);
-    expect(rerouted.exitCode).toBe(1);
-    expect(JSON.parse(rerouted.stdout)).toMatchObject({
-      error: { code: "candidate-unexplained-delta" },
-      applicability: { state: "decision-required", resolutionSelector: { candidateId: pending.candidateId } },
-      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
-    });
-    expect(await reviewAccounting(repository)).toEqual(accountingAtCap);
-
-    const boundaryPath = join(
-      repository,
-      ".arc", "system", ".internal", "candidates", "example.boundary.json",
-    );
-    expect(JSON.parse(await readFile(boundaryPath, "utf8"))).toMatchObject({
-      locus: "candidate-review-pending",
-      candidateId: pending.candidateId,
-      postAttestContinuation: { reviewedHead: pending.reviewedHead },
-    });
-  }, 120_000);
-
   it("submits over a boundary an operational-only commit advanced the head past", async () => {
     repository = await createAttestableRepo();
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
@@ -1129,79 +1371,6 @@ describe("attest → pre-publication → publish", () => {
       status: "published",
       boundary: { locus: "publication-pending" },
     });
-  });
-
-  it("preserves advanced review authority when an unchanged Candidate is re-attested", async () => {
-    repository = await createAttestableRepo();
-    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
-    await git(repository, ["commit", "-m", "verification"]);
-
-    const reviewed = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled"],
-      repository,
-      { env: OFFLINE_ENV },
-    );
-    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
-    const reviewedEnvelope = JSON.parse(reviewed.stdout) as {
-      candidateId: string;
-      candidateSubjectDigest: string;
-      target: { headSha: string };
-    };
-    const boundaryPath = join(
-      repository,
-      ".arc", "system", ".internal", "candidates", "example.boundary.json",
-    );
-    const readyBoundary = JSON.parse(await readFile(boundaryPath, "utf8")) as Record<string, unknown>;
-    const reservation = createStandardReviewReservation({
-      candidateId: reviewedEnvelope.candidateId,
-      sourceId: "coderabbit-pr",
-      sources: ["coderabbit-pr", "codex-pr"],
-      repository: "arc-framework/example",
-      headSha: reviewedEnvelope.target.headSha,
-      obligation: {
-        obligation: "required",
-        reasons: ["sensitive-change-set"],
-        rubricVersion: "standard-review/v1",
-        rubricDigest: `sha256:${"e".repeat(64)}`,
-        retrigger: "full-final",
-        count: 1,
-      },
-    });
-    await writeFile(boundaryPath, `${JSON.stringify({ ...readyBoundary, reservation }, null, 2)}\n`);
-    await git(repository, ["add", boundaryPath]);
-
-    const readyReplay = await runArc(["attest", "example", "--json"], repository);
-    expect(readyReplay.exitCode, JSON.stringify(readyReplay)).toBe(0);
-    expect(JSON.parse(readyReplay.stdout)).toMatchObject({
-      status: "unchanged",
-      locus: { locus: "candidate-publish-ready", reservation },
-    });
-
-    const submitted = await runArc(
-      [
-        "publish", "example",
-        "--last-completed", "verification",
-        "--action", "push and open the PR",
-        "--json",
-      ],
-      repository,
-      { env: OFFLINE_ENV },
-    );
-    expect(submitted.exitCode, JSON.stringify(submitted)).toBe(0);
-    expect(JSON.parse(submitted.stdout)).toMatchObject({
-      status: "published",
-      boundary: { locus: "publication-pending", reservation },
-    });
-
-    const publishedReplay = await runArc(["attest", "example", "--json"], repository);
-    expect(publishedReplay.exitCode, JSON.stringify(publishedReplay)).toBe(0);
-    expect(JSON.parse(publishedReplay.stdout)).toMatchObject({
-      status: "unchanged",
-      locus: { locus: "publication-pending", reservation },
-    });
-    const meta = await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8");
-    expect(meta).toContain("- **Current Workflow:** `integrate-work-unit`");
-    expect(meta).toContain("- **Next Action:** push and open the PR");
   });
 
   it("rebinds a carried reservation after an approved Candidate response advances the subject", async () => {
@@ -1436,84 +1605,5 @@ describe("attest → pre-publication → publish", () => {
         },
       },
     });
-  });
-
-  it("composes a non-null exact target from a clean committed Candidate", async () => {
-    repository = await createAttestableRepo();
-    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
-    await git(repository, ["commit", "-m", "verification"]);
-    const headSha = await git(repository, ["rev-parse", "HEAD"]);
-
-    const reviewed = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled"],
-      repository,
-      { env: OFFLINE_ENV },
-    );
-
-    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
-    expect(JSON.parse(reviewed.stdout)).toMatchObject({
-      locus: "candidate-publish-ready",
-      candidateId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
-      target: {
-        kind: "change-set",
-        headSha,
-        targetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
-      },
-    });
-  });
-
-  it("executes the advertised self-review resume command through the CLI", async () => {
-    repository = await createAttestableRepo();
-    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
-    await git(repository, ["commit", "-m", "verification"]);
-
-    const offered = await runArc(["review", "pre-publication", "example"], repository, { env: OFFLINE_ENV });
-    expect(offered.exitCode, JSON.stringify(offered)).toBe(0);
-    const envelope = JSON.parse(offered.stdout) as {
-      locus: string;
-      nextAction: { kind: string; command: string };
-    };
-    expect(envelope).toMatchObject({
-      locus: "candidate-review-pending",
-      nextAction: {
-        kind: "run-self-review",
-        command: expect.stringMatching(/^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u),
-      },
-    });
-
-    const resumed = await runReturnedCommand(repository, envelope.nextAction.command);
-    expect(resumed.exitCode, JSON.stringify(resumed)).toBe(0);
-    expect(JSON.parse(resumed.stdout)).toMatchObject({ locus: "candidate-publish-ready" });
-  });
-
-  it("refuses submission while a pre-publication obligation is still open", async () => {
-    repository = await createAttestableRepo();
-    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
-
-    // Self-review is active by package default, so the bare procedure leaves the durable
-    // Candidate boundary open rather than authorizing publication.
-    const reviewed = await runArc(
-      ["review", "pre-publication", "example"],
-      repository,
-      { env: OFFLINE_ENV },
-    );
-    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
-    expect(JSON.parse(reviewed.stdout)).toMatchObject({
-      locus: "candidate-review-pending",
-      nextAction: { kind: "run-self-review" },
-    });
-
-    const submitted = await runArc(
-      [
-        "publish", "example",
-        "--last-completed", "verification",
-        "--action", "push and open the PR",
-      ],
-      repository,
-      { env: OFFLINE_ENV },
-    );
-
-    expect(submitted.exitCode).not.toBe(0);
-    expect(`${submitted.stdout}${submitted.stderr}`).toContain("pre-publication obligations remain open");
   });
 });

@@ -185,10 +185,11 @@ export async function handleBaseMerge(
 }
 
 /** Run the authoritative shared base-drift analyzer. */
-export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: InteractionContext): Promise<void> {
+export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: InteractionContext, store?: Store): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
+  const operational = store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
 
   const config = await readConfigSettings(cwd);
   const configFailure = config.warnings.find(
@@ -227,6 +228,7 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
               identity,
               baseBranch: config.settings["branch.base"],
               exec,
+              store: operational,
             });
             const row = frame.entering.kind === "selected" ? frame.entering.row : null;
             const workUnit = row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
@@ -243,6 +245,7 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
           mode: "authoritative",
           ...createCurrentBaseDriftAdapters(
             exec,
+            operational,
             treatmentContext,
           ),
         });

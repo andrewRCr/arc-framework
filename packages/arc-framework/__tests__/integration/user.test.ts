@@ -73,6 +73,10 @@ import {
   getMaterializedBaselineStampPath,
   NO_COMPARABLE_SOURCE_COMMIT,
 } from "../../src/lib/user-sync/index.js";
+import { useInRepoStoreForEach, withInRepoStore } from "../helpers/in-repo-store-override.js";
+import { openPersonalIdentityStore } from "../../src/lib/personal-identity-setup.js";
+import { personalReference } from "../helpers/store/personal-fixture.js";
+import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 
 /** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
 const recoveryOutput = createSyncOutput(false);
@@ -100,6 +104,16 @@ let remoteTemplate: PreparedRepositoryTemplate;
 let firstUserTemplate: PreparedRepositoryTemplate;
 
 beforeAll(async () => {
+  // The notes and workspace commands' templates are initialized by the pre-flip build, which builds the in-repo store.
+  await withInRepoStore(async () => { await prepareNotesTemplates(); });
+  firstUserTemplate = await prepareRepositoryTemplate(firstUserShape, async () => {
+    const root = await initInTempRepo(DEFAULT_PROMPTS, "first-user");
+    templateRoots.add(root);
+    return root;
+  });
+});
+
+async function prepareNotesTemplates(): Promise<void> {
   initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
     const root = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
     templateRoots.add(root);
@@ -122,12 +136,7 @@ beforeAll(async () => {
     await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd: root });
     return root;
   });
-  firstUserTemplate = await prepareRepositoryTemplate(firstUserShape, async () => {
-    const root = await initInTempRepo(DEFAULT_PROMPTS, "first-user");
-    templateRoots.add(root);
-    return root;
-  });
-});
+}
 
 afterAll(async () => {
   await Promise.all([...templateRoots].map(async (root) => cleanupTempDir(root)));
@@ -268,6 +277,8 @@ async function writePartialPushMarker(
 }
 
 describe("user save and load", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
 
   beforeEach(async () => {
@@ -670,6 +681,8 @@ describe("user save and load", () => {
 });
 
 describe("user workspace rename", () => {
+  // The per-work-unit workspace is the pre-flip build's, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
 
   beforeEach(async () => {
@@ -709,6 +722,8 @@ describe("user workspace rename", () => {
 });
 
 describe("user load — backup and stale detection", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
 
   beforeEach(async () => {
@@ -936,6 +951,8 @@ describe("user load — backup and stale detection", () => {
 });
 
 describe("user load — retired-subdir reconciliation", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
 
   beforeEach(async () => {
@@ -1260,6 +1277,8 @@ describe("user load — retired-subdir reconciliation", () => {
 });
 
 describe("user save/load — subdirectory support", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
 
   beforeEach(async () => {
@@ -1488,6 +1507,8 @@ describe("user save/load — subdirectory support", () => {
 });
 
 describe("user save/load — split-source worktree surfaces", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
 
   beforeEach(async () => {
@@ -1706,9 +1727,11 @@ describe("user add", () => {
       internalTemplateDir: getInternalTemplatePath(),
     });
 
-    const userDir = join(tempDir, ".arc", "user", "new-dev");
-    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toContain("Working Memory");
-    expect(await readFile(join(userDir, "USER-INBOX.md"), "utf-8")).toContain("User Inbox");
+    const store = openPersonalIdentityStore(tempDir, io.exec, "new-dev");
+    const seeded = async (kind: "personal/working-memory" | "personal/inbox") =>
+      lifecycleSuccess(await store.read({ reference: personalReference(kind, undefined, "new-dev") })).content;
+    expect(await seeded("personal/working-memory")).toContain("Working Memory");
+    expect(await seeded("personal/inbox")).toContain("User Inbox");
   });
 
   it("seeds the per-user file set cross-PM-mode (no ATOMIC-INBOX.md at user root)", async () => {
@@ -1748,6 +1771,8 @@ describe("user add", () => {
 });
 
 describe("user push and pull", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
   let remoteDir: string;
   let cloneDir: string | undefined;
@@ -2271,6 +2296,8 @@ describe("user push and pull", () => {
 });
 
 describe("user status", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
   let remoteDir: string;
   let cloneDir: string | undefined;
@@ -2815,6 +2842,8 @@ describe("user status", () => {
 });
 
 describe("user open", () => {
+  // The per-work-unit workspace is the pre-flip build's, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
 
   beforeEach(async () => {
@@ -2955,6 +2984,8 @@ describe("user open", () => {
 });
 
 describe("user close", () => {
+  // The per-work-unit workspace is the pre-flip build's, which builds the in-repo store.
+  useInRepoStoreForEach();
   let tempDir: string;
 
   beforeEach(async () => {

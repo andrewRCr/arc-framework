@@ -48,6 +48,18 @@ async function hold(): Promise<{ release: () => void; done: Promise<unknown> }> 
 }
 
 describe("the projection lock", () => {
+  it.each(["EACCES", "EPERM", "EROFS"])("propagates %s from process scope resolution before creating the lock", async code => {
+    const error = Object.assign(new Error("Cannot resolve process scope"), { code });
+    const operation = vi.fn(async () => "ran");
+    const resolveProcessScope = vi.fn(async () => "available-scope").mockRejectedValueOnce(error);
+
+    await expect(withProjectionLock(location, operation, {}, { resolveProcessScope })).rejects.toBe(error);
+    expect(operation).not.toHaveBeenCalled();
+    expect(await exists(join(location.stateDir, PROJECTION_LOCK_FILE))).toBe(false);
+    await expect(withProjectionLock(location, operation, {}, { resolveProcessScope }))
+      .resolves.toEqual({ status: "done", value: "ran" });
+  });
+
   it("avoids lockfile reads until a step reaches its renewal window, then renews on disk", async () => {
     let now = Date.now(), observing = false, reads = 0;
     const lockPath = join(location.stateDir, PROJECTION_LOCK_FILE);

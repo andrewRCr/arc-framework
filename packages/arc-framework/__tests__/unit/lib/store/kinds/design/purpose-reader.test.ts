@@ -17,6 +17,13 @@ describe("design Purpose reader", () => {
     ["HTML and comment examples", "<!--\n**Purpose:** Comment\n-->\n\n<div>\n**Purpose:** HTML\n</div>\n\n**Purpose:** Real", "Real"],
     ["absent field in a brief design", "# Design\n\nA description with no fields.", null],
     ["field-like text within multiline code", "**Purpose:** Text `code\n**Origin:** still code` after.\n**Next:** Stop", "Text `code **Origin:** still code` after."],
+    ["field after a long body", `# Design\n\n${"Body paragraph.\n\n".repeat(400)}**Purpose:** Late thesis.\n\nMore.`, "Late thesis."],
+    ["field after one named mid-sentence", "The **Purpose:** field is described here.\n\n**Purpose:** Real", "Real"],
+    ["field after a fence that spans blank lines", "```md\n**Purpose:** Example\n\nstill code\n```\n\n**Purpose:** Real", "Real"],
+    ["only field-like text inside a fence", "```md\n**Purpose:** Example\n\nstill code\n```\n\nNo field.", null],
+    ["real field after a reference image", "![Screenshot\n**Purpose:** Example][shot]\n\n**Purpose:** Real\n\n[shot]: diagram.png", "Real"],
+    ["only field-like text in a reference image", "![Screenshot\n**Purpose:** Example][shot]\n\n[shot]: diagram.png", null],
+    ["CRLF line endings", "# Design\r\n\r\n**Purpose:** A thesis\r\ncontinued.\r\n\r\nLater", "A thesis continued."],
   ])("reads %s", (_name, content, purpose) => {
     expect(readDesignPurpose(content)).toBe(purpose);
   });

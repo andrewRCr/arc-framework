@@ -3,8 +3,6 @@
   "corpus": {
     "packageRoot": "packages/arc-framework",
     "installedDelta": [
-      ".arc/backlog/ATOMIC-INBOX.md",
-      ".arc/backlog/ROADMAP.md",
       ".arc/reference/PROJECT-PRD.md",
       ".arc/reference/QUICK-REFERENCE.md",
       ".arc/reference/TECHNICAL-OVERVIEW.md",

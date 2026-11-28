@@ -12,14 +12,16 @@ function program(): Command {
 }
 
 describe("ARC help", () => {
-  it("places explanations beneath long quoted examples while keeping the invocation intact", () => {
+  it("places explanations beneath examples too long to share a line while keeping the invocation intact", () => {
     const root = program();
+    // The longest example leaves room beside it at 80 columns; a narrower terminal moves its explanation beneath.
+    root.configureOutput({ getOutHelpWidth: () => 72 });
     const open = root.command("errand").command("open <slug>");
     applyArcHelp(root);
     const help = open.helpInformation();
-    expect(help).toContain('arc errand open my-fix --from-inbox "Fix the formatting issue"');
-    expect(help.replace(/\s+/gu, " ")).toContain("Adopt an existing inbox capture");
-    expect(help.split("\n").every((line) => line.length <= 80)).toBe(true);
+    expect(help).toContain("  arc errand open my-fix --from-inbox personal:1a2b3c4d\n");
+    expect(help.replace(/\s+/gu, " ")).toContain("Adopt an existing personal inbox entry");
+    expect(help.split("\n").every((line) => line.length <= 72)).toBe(true);
   });
 
   it("wraps qualifiers beside long registered command terms at 80 columns", () => {

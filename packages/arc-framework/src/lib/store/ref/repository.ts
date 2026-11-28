@@ -1,7 +1,7 @@
 /** Lazy repository selection and atomic installation of the separate bare store. */
 import { join, relative, isAbsolute, sep } from "node:path";
 import { randomUUID } from "node:crypto";
-import { readGitDirectories } from "../../git/directories.js";
+import { readStoreGitDirectories } from "../checkout-location.js";
 import { isGitProcessError } from "../../git/process-error.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefTips } from "./batch-read.js";
@@ -13,7 +13,7 @@ import { designatedStoreLayout } from "./layout-designation.js";
 /** Reads select an existing directory without commands and never create a repository. */
 export async function readRefRepository(context: RefBackendContext): Promise<RefBackendContext> {
   if (context.repository) return context;
-  const { commonDir } = await readGitDirectories(context.checkoutRoot, context.fs);
+  const { commonDir } = await readStoreGitDirectories(context);
   const directory = join(commonDir, "arc", "store");
   return bindRefRepository(context, commonDir, await directoryExists(context, directory) ? directory : null);
 }

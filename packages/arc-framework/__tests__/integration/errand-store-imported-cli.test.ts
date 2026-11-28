@@ -2,15 +2,15 @@
 import { expect, it } from "vitest";
 import { repairCli, repairCliFixture } from "../helpers/repair-cli.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
-import { createStore } from "../../src/lib/store/create.js";
 import { StoreImportedError } from "../../src/lib/store/store-imported.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 const REGISTRY = "refs/arc/project/registry";
 const TIMEOUT_MS = 60_000;
 
 it("refuses every Errand lifecycle command from a build keeping state in the checkout, and none past the cutover", async () => {
   const f = await repairCliFixture();
-  const inRepo = createStore(createDefaultStorePorts({ checkoutRoot: f.cwd }));
+  const inRepo = inRepoStore(createDefaultStorePorts({ checkoutRoot: f.cwd }));
   expect(inRepo.capabilities.stateOffBranch).toBe(false);
   const message = new StoreImportedError().message;
   await f.exec("git", ["update-ref", REGISTRY, "HEAD"]);

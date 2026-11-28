@@ -1,22 +1,41 @@
 import { codeReviewSection } from "../helpers/code-review-section.js";
-import { readFile, readdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, relative, resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { guidanceMarkdownFiles } from "../helpers/guidance-markdown.js";
 import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { ReviewAdversarialActivitySchema } from "../../src/lib/store/kinds/review/adversarial-pass/schema.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
 
+// A folder can carry a Markdown name, and a Markdown name can be a link: keep what reads as a file.
 async function markdownFiles(directory: string): Promise<string[]> {
-  const entries = await readdir(directory, { recursive: true });
-  return entries.filter((entry) => entry.endsWith(".md")).map((entry) => resolve(directory, entry));
+  const named = (await readdir(directory, { recursive: true }))
+    .filter((entry) => entry.endsWith(".md"))
+    .map((entry) => resolve(directory, entry));
+  const files: string[] = [];
+  for (const path of named) if ((await stat(path)).isFile()) files.push(path);
+  return files;
 }
 
 describe("PR lifecycle and review contracts", () => {
+  it("settles a pending PR withdrawal before resuming reopened work", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/reopen-work-unit.md"), "utf8",
+    );
+    const step = workflow.slice(workflow.indexOf("### 2)"), workflow.indexOf("### 3)")).replace(/\s+/gu, " ");
+    const retry = step.search(/\b(?:run|execute|follow)\b[^.]*?\b(?:continuation|(?:printed|emitted|reported|retry) command)\b/iu);
+    expect(retry, "Run the emitted withdrawal command before resuming reopened work").toBeGreaterThanOrEqual(0);
+    const afterRetry = step.slice(retry);
+    expect(afterRetry).toMatch(/\b(?:confirm|verify|check|observe)\b[^.]*\bclosed\b/iu);
+    expect(afterRetry).toMatch(/\b(?:confirm|verify|check|observe)\b[^.]*\bdraft\b/iu);
+  });
+
   it("omits retired dispatch from PR workflows while retaining resolver binding", async () => {
     for (const base of [packageArc, projectArc]) {
       for (const path of ["work-unit-lifecycle/integrate-work-unit.md", "supplemental/run-errand.md"]) {
@@ -33,7 +52,7 @@ describe("PR lifecycle and review contracts", () => {
         .replace(/\s+/gu, " ");
       expect(workflow).toContain("openedChangeRequest = { repositoryRef, hostRef, headSha }");
       expect(workflow).toContain("recompose `openedChangeRequest` from the canonical current head before re-entry");
-      expect(workflow).toContain("Continue only when `openedChangeRequest` and the adapter target name the same exact head");
+      expect(workflow).not.toContain("adapter target");
       expect(workflow).toContain("No review-authored commit or push may occur after this checkpoint");
     }
   });
@@ -44,6 +63,30 @@ describe("PR lifecycle and review contracts", () => {
       if ((await readFile(file, "utf8")).includes("pre-pr-review")) matches.push(file);
     }
     expect(matches).toEqual([]);
+  });
+
+  it("sweeps regular Markdown files and no folder that carries a Markdown name", async () => {
+    const folder = await mkdtemp(join(tmpdir(), "arc-surface-sweep-"));
+    try {
+      await mkdir(join(folder, "kept", "record.md"), { recursive: true });
+      await writeFile(join(folder, "kept", "record.md", "copy"), "pre-merge-review");
+      await writeFile(join(folder, "kept", "plain.md"), "text");
+      const swept = (await markdownFiles(folder)).map((file) => relative(folder, file).split(sep).join("/"));
+      expect(swept).toEqual(["kept/plain.md"]);
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("sweeps a Markdown name that links to a file", async () => {
+    const folder = await mkdtemp(join(tmpdir(), "arc-surface-sweep-"));
+    try {
+      await writeFile(join(folder, "target.txt"), "pre-merge-review");
+      await symlink(join(folder, "target.txt"), join(folder, "linked.md"), "file");
+      expect((await markdownFiles(folder)).map((file) => relative(folder, file))).toEqual(["linked.md"]);
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   });
 
   it("removes the old final-hook name from live package and project system surfaces", async () => {
@@ -93,15 +136,20 @@ describe("PR lifecycle and review contracts", () => {
         "utf8",
       );
       const publicationStep = prepare.indexOf("## 3) Schedule publication");
-      const submit = prepare.indexOf("arc publish {name}", publicationStep);
-      const commitInterlock = prepare.indexOf("`commit-interlock`", submit);
+      const submit = prepare.indexOf("\narc publish {name}", publicationStep);
+      const handoff = prepare.indexOf("Then load [`integrate-work-unit.md`]", submit);
       const pushInterlock = integrate.indexOf("`push-interlock`");
       const push = integrate.indexOf("Push the WU branch upstream", pushInterlock);
 
-      expect([publicationStep, submit, commitInterlock, pushInterlock, push]
+      expect([publicationStep, submit, handoff, pushInterlock, push]
         .every((index) => index >= 0)).toBe(true);
       expect(publicationStep).toBeLessThan(submit);
-      expect(submit).toBeLessThan(commitInterlock);
+      expect(
+        prepare.slice(publicationStep, submit),
+        "Require Owner approval for the publication transition before invoking arc publish",
+      ).toMatch(/\b(?:approval|authorization) gate\b|\b(?:obtain|await|require|confirm)\b[^.!?]*\b(?:approval|authorization)\b|Approve[^?\n]*\?/iu);
+      expect(submit).toBeLessThan(handoff);
+      expect(prepare.slice(publicationStep)).not.toContain("`commit-interlock`");
       expect(pushInterlock).toBeLessThan(push);
       expect(prepare).not.toContain("#pre-push-review");
       const reconcileStep = integrate.indexOf("### 10) Behind-base reconcile gate and merge");
@@ -416,6 +464,23 @@ describe("PR lifecycle and review contracts", () => {
     }
   });
 
+  it("limits work-unit scratch and pass records to supported advisory activities", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const [scratch, records] = method.split("**Kept prompts and reports.**")[1]?.split("### Pass record") ?? [];
+      const passRecord = records?.split("### ")[0]?.replace(/\s+/gu, " ") ?? "";
+      const recordingRule = passRecord.match(/[^.]*`arc review adversarial record`[^.]*/u)?.[0] ?? "";
+      for (const activity of ReviewAdversarialActivitySchema.options) {
+        expect(recordingRule).toContain(`\`${activity}\``);
+      }
+      expect(scratch?.replace(/\s+/gu, " ")).toMatch(/(?:for|on) (?:the|these) work-unit activities[^.]*scratch folder/iu);
+      expect(recordingRule).toMatch(/stub groomed before (?:it starts|its start)/iu);
+      expect(passRecord).toMatch(
+        /frontline and local standard code review[^.]*producer results[^.]*lane progress[^.]*\[review-model\]/iu,
+      );
+    }
+  });
+
   it("keeps withstood advisory and applies claim-type verification proportionally", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
@@ -477,7 +542,8 @@ describe("PR lifecycle and review contracts", () => {
       expect(normalized).toContain("disposition approval alone authorizes no additional pass");
 
       expect(normalized).toContain("the caller's advisory evidence");
-      expect(normalized).toContain("`adversarial-passes.md` in the work unit's personal workspace");
+      expect(normalized).toContain("record each approved pass with `arc review adversarial record`");
+      expect(normalized).not.toContain("adversarial-passes.md");
       expect(normalized).toContain("pending and unusable while any approved response remains incomplete");
       expect(normalized).toContain("withdrawal or supersession invalidates it");
       expect(normalized).toContain("consumes that permission");
@@ -491,6 +557,26 @@ describe("PR lifecycle and review contracts", () => {
     }
   });
 
+  it("settles review of a draftless determinacy confirmation without writing a pass record", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/planning-review.md"), "utf8");
+      const findings = method.split("### Findings and pass record")[1]?.split("### ")[0]?.replace(/\s+/gu, " ") ?? "";
+      expect(findings).toMatch(
+        /determinacy confirmation without a (?:stored )?draft[^.]*settle[^.]*without recording (?:an adversarial|a) pass/iu,
+      );
+    }
+  });
+
+  it("resumes planning from saved dispositions and fix checks using notes and available scratch reports", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/planning-review.md"), "utf8");
+      const findings = method.split("### Findings and pass record")[1]?.split("### ")[0]?.replace(/\s+/gu, " ") ?? "";
+      expect(findings).toMatch(/approved dispositions[^.]*fix.check[^.]*stop reason[^.]*notes/iu);
+      expect(findings).toContain("`arc save`");
+      expect(findings).toMatch(/(?:resume|resuming)[^.]*`arc view notes --for <slug>`[^.]*scratch reports/iu);
+    }
+  });
+
   it("keeps the advisory settlement protocol reachable at every direct planning and criteria caller", async () => {
     const callers = ["draft-design.md", "create-spec.md", "generate-tasks.template.md"];
     for (const base of [packageArc, projectArc]) {
@@ -499,9 +585,9 @@ describe("PR lifecycle and review contracts", () => {
       expect(method).toContain("    - adversarial-review");
       expect(method).toContain("adversarial-review:");
       expect(normalized).toContain("complete-disposition and continuation protocol");
-      expect(normalized).toContain("`adversarial-passes.md` in the work unit's personal workspace");
-      expect(normalized).toContain("later passes take their history from that record");
-      expect(normalized).toContain("a stub groomed before it starts has no workspace");
+      expect(normalized).toContain("record each pass with `arc review adversarial record`");
+      expect(normalized).toMatch(/(?:including (?:for )?a stub groomed before its start|a stub groomed before its start included)/u);
+      expect(normalized).not.toContain("adversarial-passes.md");
       expect(normalized).toContain("creates no lane-progress record");
       for (const packagedPath of callers) {
         const path = base === projectArc ? packagedPath.replace(".template.md", ".md") : packagedPath;

@@ -9,6 +9,10 @@ import { seedTransients, transientSourceRef } from "../helpers/store/import-tran
 import { listWindowRefs } from "../../src/scripts/cutover-window/git.js";
 import { WindowRefusal } from "../../src/scripts/cutover-window/result.js";
 import { readWindowHold, discardUnfinishedWindowHold } from "../../src/scripts/cutover-window/hold.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("records the flip, registered checkout, branch tips, and all three ref inventories", async () => {
   const h = await windowFixture();

@@ -1,7 +1,7 @@
 /** Schedule advisory fan-out at command boundaries while projection leases protect writes. */
 import type { Remedy } from "../refusal.js";
 import { sameReference, type RecordReference } from "../identity.js";
-import { projectionProcessState, type ProjectionSkip } from "./process-state.js";
+import { projectionProcessState, projectionSwitchedOff, type ProjectionSkip } from "./process-state.js";
 import { projectionTimingNow } from "./timings.js";
 
 /** Record a landed operation or sync attempt for the command's fan-out. */
@@ -93,7 +93,7 @@ export function reportProjectionFanOutFailure(checkout: string, cause: unknown,
 }
 
 function disabled(skip: ProjectionSkip | null): boolean {
-  return skip?.reason === "switch" || skip?.reason === "no-identity";
+  return projectionSwitchedOff(skip) || skip?.reason === "no-identity";
 }
 
 /** Hold scaffold publication until its marker stamp settles without changing write provenance. */

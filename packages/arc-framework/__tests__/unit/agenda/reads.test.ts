@@ -85,13 +85,8 @@ describe("agenda resume reads", () => {
     ]));
   });
 
-  it("leaves history out when a notes sync can restore the absent session notes", async () => {
-    const steps = await compileResumeReads(await input({ absent: ["SESSION-NOTES.md"], loadNeeded: true }));
-    expect(steps).not.toEqual(expect.arrayContaining([expect.objectContaining({ surface: "notes-history" })]));
-  });
-
-  it("renders checkout history when absent session notes cannot be restored", async () => {
-    const value = await input({ absent: ["SESSION-NOTES.md"] });
+  it("renders checkout history for absent session notes, whatever the notes probe recommends", async () => {
+    const value = await input({ absent: ["SESSION-NOTES.md"], loadNeeded: true });
     expect(await compileResumeReads(value)).toEqual(expect.arrayContaining([{ type: "render", surface: "notes-history", text: expect.stringContaining("abc123 Latest work") }]));
   });
 });

@@ -8,11 +8,13 @@ import { CutMapIssueCodeSchema } from "./cut-map-issues.js";
 export const DecomposeRevisionReasonSchema = z.union([z.enum([
   "source-identity", "planning-profile", "source-units", "source-unit-ambiguous", "incoming-edges", "outgoing-edges",
 ]), CutMapIssueCodeSchema]);
-/** Full authoring preserved either in a compatible map or beside fresh author slots. */
+const previousMaps = z.array(CutMapSchema);
+
+/** Full current authoring and earlier maps from the same cut for authoring reconciliation. */
 export const DecomposeRevisionStarterReportSchema = z.discriminatedUnion("status", [
-  z.strictObject({ status: z.literal("carried"), map: CutMapSchema }),
+  z.strictObject({ status: z.literal("carried"), map: CutMapSchema, previousMaps }),
   z.strictObject({ status: z.literal("reauthor"), reason: DecomposeRevisionReasonSchema, locus: z.string().min(1),
-    starter: CutMapStarterSchema, storedAuthoring: CutCompletedAuthoringSchema }),
+    starter: CutMapStarterSchema, storedAuthoring: CutCompletedAuthoringSchema, previousMaps }),
 ]);
 /** The complete read-only revision result. */
 export type DecomposeRevisionStarterReport = z.infer<typeof DecomposeRevisionStarterReportSchema>;

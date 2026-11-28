@@ -19,6 +19,8 @@ import {
   hostAdmissionRefusalCorrection,
   type ChangeRequestMergeObservation,
 } from "../review-gate/change-request.js";
+import { ReviewCommandDiagnosticSchema } from "../review-gate/core/review-command-envelope.js";
+import type { MergeLockReleaseEnvelope } from "../review-gate/merge-lock-command-envelope.js";
 import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
 import type { CheckpointMovementObservation, CheckpointMovementPlan } from "./checkpoint.js";
 import {
@@ -179,6 +181,7 @@ export const ErrandMergeResultSchema = z.discriminatedUnion("state", [
   z.strictObject({
     ...nonSuccess,
     state: z.literal("operation-failed"),
+    diagnostics: z.array(ReviewCommandDiagnosticSchema).optional(),
     nextAction: z.enum(["retry", "stop"]),
     reason: z.enum([
       "identity-observation-failed",
@@ -220,13 +223,15 @@ export interface ErrandMergeDependencies {
     target: IntegrationMergeTarget,
     admissionOverride?: { readonly state: "base-currentness-required" | "refused"; readonly detail: string },
   ): Promise<ErrandMergeFinalPlan>;
-  releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
+  releaseLock(target: IntegrationMergeTarget, identity: ErrandMergeRequest["identity"]): Promise<LockReleaseResult>;
   holdLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
   mergePinned(
     target: IntegrationMergeTarget,
     method: "merge" | "rebase" | "squash",
   ): Promise<PinnedMergeResult>;
 }
+
+type LockReleaseResult = Pick<MergeLockReleaseEnvelope, "state" | "diagnostics">;
 
 function exactRetry(
   request: ErrandMergeRequest,
@@ -347,6 +352,12 @@ function invalidatedResult(
   return result;
 }
 
+function canRetryLockRelease(diagnostics: LockReleaseResult["diagnostics"]): boolean {
+  const blockers = diagnostics.filter(({ code }) => code !== "readiness-failed");
+  return blockers.length > 0
+    && blockers.every(({ code }) => code === "errand-branch-mismatch" || code === "errand-record-conflict");
+}
+
 function operationFailedResult(
   request: ErrandMergeRequest,
   reason: Extract<ErrandMergeResult, { state: "operation-failed" }>["reason"],
@@ -354,7 +365,11 @@ function operationFailedResult(
   observedTarget: IntegrationMergeTarget | null,
   observedBaseOid: string | null,
   nextAction: "retry" | "stop" = "retry",
+  diagnostics?: LockReleaseResult["diagnostics"],
 ): Extract<ErrandMergeResult, { state: "operation-failed" }> {
+  const correction = diagnostics?.some(({ code }) => code === "errand-branch-mismatch")
+    ? "Correct the Errand's project branch link, then retry the exact approved request"
+    : "Resolve the reported failure, then retry the exact approved request";
   const result = ErrandMergeResultSchema.parse({
     schemaVersion: 1,
     mode: "errand-merge",
@@ -362,6 +377,7 @@ function operationFailedResult(
     nextAction,
     reason,
     detail,
+    ...(diagnostics === undefined ? {} : { diagnostics }),
     identity: request.identity,
     approvedTarget: request.approvedTarget,
     lane: request.lane,
@@ -370,7 +386,7 @@ function operationFailedResult(
       ? exactRetry(
           request,
           "The exact Errand merge attempt remains observable and retryable after an operational failure.",
-          "Resolve the reported failure, then retry the exact approved request",
+          correction,
         )
       : {
           kind: "terminal-explanation",
@@ -454,6 +470,7 @@ async function withReheldTarget(
       target,
       baseOid,
       "stop",
+      result.state === "operation-failed" ? result.diagnostics : undefined,
     );
   }
 }
@@ -744,9 +761,9 @@ export async function mergeErrand(
     baseOid: final.baseOid,
   });
   if (finalInvalidation !== null) return finalInvalidation;
-  let release: { state: string };
+  let release: LockReleaseResult;
   try {
-    release = await dependencies.releaseLock(target);
+    release = await dependencies.releaseLock(target, identity);
   } catch (error) {
     return withReheldTarget(
       request,
@@ -775,7 +792,8 @@ export async function mergeErrand(
         "The exact Errand merge lock could not be released.",
         target,
         final.baseOid,
-        "stop",
+        canRetryLockRelease(release.diagnostics) ? "retry" : "stop",
+        release.diagnostics,
       ),
     );
   }

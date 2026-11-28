@@ -41,13 +41,15 @@ Carry the readiness verdict and reasons into orientation. At the agenda's `launc
 
 On approval:
 
-1. Run `arc start <slug>`. Its commit and push interlocks and `Class` guard remain in force. A refusal or failed
-   command stops the launch; surface its result before continuing.
-2. Take the worktree path and branch from the successful result. Check the seeded mini-handoff at that checkout's
-   `.arc/user/<identity>/<slug>/SESSION-NOTES.md`, using the resolved ARC identity and exact launched slug. Verify it
-   names the target and carries its handoff commit and planning session context. If absent or incomplete, surface the
-   gap rather than reporting a clean launch.
-3. Hand off with the worktree path, slug and branch, and “open a fresh session there with your harness of choice.”
+1. Run `arc start <slug>`. Its `Class` guard remains in force. A refusal or failed command stops the launch; surface
+   its result before continuing.
+2. Run `arc locus --json` from the worktree path in the start result. Require `entering.kind` to be `selected` and
+   `entering.row` to be a `work-unit` whose `checkout.path` matches the canonical worktree path and whose `subject.key`
+   matches the launched slug. Run `arc status <slug> --json` there and confirm `position.phase` is `Planning` for that slug.
+   Inspect `entering.row.context` before handoff. If either probe fails or the evidence differs, report the observed
+   result and pause the handoff. Confirm the worktree path against the start result, address any reported diagnostics,
+   and rerun `arc locus --json` and `arc status <slug> --json` before handing off.
+3. Hand off with the worktree path and slug, and “open a fresh session there with your harness of choice.”
    Emit no harness-specific launch command.
 
 Keep this session in its current checkout. If asked to continue in the new one, explain that the person's terminal

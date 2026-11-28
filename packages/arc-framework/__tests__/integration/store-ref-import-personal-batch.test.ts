@@ -9,8 +9,10 @@ import { importFixture } from "../helpers/store/import-fixture.js";
 import { assertCliBuilt, CLI_PATH } from "../helpers/cli-spawn.js";
 import { CALL_LIMIT } from "../helpers/call-limit.js";
 import { recordCliInvocationForCurrentTest } from "../helpers/test-cost-timeout.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 it("checks 20,000 distinct personal paths before reporting a known admission refusal", async () => {
+  useInRepoStore();
   const h = await importFixture(), personal = join(h.root, ".arc/user/andrew");
   await mkdir(join(personal, "scratch"), { recursive: true });
   for (let offset = 0; offset < 20_000; offset += 100) {

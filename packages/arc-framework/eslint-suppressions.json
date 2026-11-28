@@ -106,7 +106,7 @@
   },
   "src/cli.ts": {
     "arc/surface-names": {
-      "count": 9
+      "count": 3
     },
     "max-lines": {
       "count": 1
@@ -125,9 +125,6 @@
       "count": 2
     },
     "jsdoc/require-jsdoc": {
-      "count": 1
-    },
-    "sonarjs/cognitive-complexity": {
       "count": 1
     }
   },
@@ -614,7 +611,7 @@
       "count": 4
     },
     "jsdoc/require-jsdoc": {
-      "count": 7
+      "count": 6
     },
     "max-lines": {
       "count": 1
@@ -690,11 +687,6 @@
   },
   "src/lib/checks/bootstrap-extraction.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 2
-    }
-  },
-  "src/lib/classification.ts": {
-    "arc/surface-names": {
       "count": 2
     }
   },

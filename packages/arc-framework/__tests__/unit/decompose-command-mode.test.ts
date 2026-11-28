@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-assertion.js";
 
@@ -13,6 +14,19 @@ const authority = `sha256:${"a".repeat(64)}`;
 describe("DecomposeCommandInputSchema", () => {
   it("accepts the complete read-only preflight mode", () => {
     assertSchemaAccepts(DecomposeCommandInputSchema, { origin, preflight: true });
+  });
+
+  it("accepts the revision apply form advertised in the quick reference", async () => {
+    const reference = await readFile(new URL("../../arc/reference/QUICK-REFERENCE.template.md", import.meta.url), "utf8");
+    const forms = reference.split("\n").filter(line =>
+      line.startsWith("arc decompose ") && line.includes("--revise") && line.includes("--apply"));
+    expect(forms.length).toBeGreaterThan(0);
+    for (const form of forms) {
+      // Keep --apply and omit any independently optional map operand.
+      const applying = form.replace(/\[<[^>]+>\]/gu, "");
+      const revise = /--revise\s+\[?</u.test(applying) ? "revised.json" : true;
+      assertSchemaAccepts(DecomposeCommandInputSchema, { origin, revise, apply: authority });
+    }
   });
 
   it.each([

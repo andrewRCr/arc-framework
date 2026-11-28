@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { AuditEntrySchema } from "../../../../src/lib/release/schema.js";
 import { NATIVE_LEASE_PROCESS } from "../../../../src/lib/lease-process.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 
@@ -25,7 +26,7 @@ import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
 import { createFanOutFixture } from "../../../helpers/store/projection/fan-out-fixture.js";
 import { createEngineFixture, overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
-import { success } from "../../../helpers/store/suite-tools.js";
+import { success, update } from "../../../helpers/store/suite-tools.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
 import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
@@ -96,6 +97,19 @@ it("restores a deleted file before a failed remote fetch", async () => {
   const result = await sync(h);
   expect(JSON.parse(result.output)).toMatchObject({ reason: "worktree-fetch-failed", exitCode: 1 });
   expect(await h.file()).toContain(h.record.content);
+});
+
+it("audits skipped state pull and push when the worktree fetch fails off the branch", async () => {
+  const h = await fixture();
+  expect(h.store.capabilities.stateOffBranch).toBe(true);
+  await failFetch(h);
+  const result = await sync(h);
+  expect(JSON.parse(result.output)).toMatchObject({ reason: "worktree-fetch-failed", exitCode: 1 });
+  const audit = await readFile(join(h.checkout, ".arc/user/andrew/.internal/.audit-log.jsonl"), "utf8");
+  expect(AuditEntrySchema.parse(JSON.parse(audit)).outcome).toEqual({
+    kind: "sync", cell: "worktree-fetch-failed", exitCode: 1, worktree: "fetch:failed:error",
+    state: "pull:skipped:worktree-fetch-failed | push:skipped:worktree-fetch-failed",
+  });
 });
 
 it("refuses a missing identity before restoring a deleted file", async () => {
@@ -215,18 +229,42 @@ it("fans out a materialization take-in once after releasing its native lease", a
   const h = await createFanOutFixture(directories); await endProjection(h.input);
   await writeFile(join(h.h.checkout, h.h.path), "");
   const old = new Date(Date.now() - 1_000); await utimes(join(h.h.checkout, h.h.path), old, old);
-  let edited = false, landed = false, batches = 0, rounds = 0;
+  let edited = false, landed = false;
+  // The take-in, each fan-out round after it, and the state pull and push sync runs after the take-in.
+  const events: string[] = [];
+  const leases: unknown[] = [];
+  const siblingAtEntry: string[] = [];
+  const takeIn = "An edit arriving during materialization.\n";
+  const pulled = "State received during pull.\n";
+  const pushed = "State reconciled during push.\n";
+  const updateStored = async (content: string) => {
+    success(await h.h.store.write(update(h.h, await h.h.stored(), content)));
+  };
   const observed = overrideEngineStore(h.h.store, {
     batch: async input => {
       const result = await h.h.store.batch(input);
-      if (result.status === "ok") { expect(projectionProcessState().lockHeld).toBe(true); landed = true; batches++; }
+      if (result.status === "ok") { expect(projectionProcessState().lockHeld).toBe(true); landed = true; events.push("take-in"); }
       return result;
-    }, version: async () => {
+    },
+    pull: async input => {
+      events.push("pull");
+      siblingAtEntry.push(await h.file());
+      const result = await h.h.store.pull(input);
+      await updateStored(pulled);
+      return result;
+    },
+    push: async input => {
+      events.push("push");
+      siblingAtEntry.push(await h.file());
+      const result = await h.h.store.push(input);
+      await updateStored(pushed);
+      return result;
+    },
+    version: async () => {
       if (landed) {
-        rounds++;
-        expect(projectionProcessState().lockHeld).toBe(false);
-        expect(await withProjectionLock(h.h.location, async () => "unlocked", { maxWaitMs: 100 }))
-          .toMatchObject({ status: "done", value: "unlocked" });
+        events.push("round");
+        leases.push({ held: projectionProcessState().lockHeld,
+          acquired: await withProjectionLock(h.h.location, async () => "unlocked", { maxWaitMs: 100 }) });
       }
       return h.h.store.version();
     },
@@ -234,11 +272,46 @@ it("fans out a materialization take-in once after releasing its native lease", a
   const store = withFanOut(observed, createProjectionFanOutDependencies(h.h.checkout));
   binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async path => {
     if (edited || path !== h.h.path) return;
-    edited = true; await h.h.edit("An edit arriving during materialization.\n");
+    edited = true; await h.h.edit(takeIn);
   } } });
-  await sync({ checkout: h.h.checkout, store });
-  expect(edited).toBe(true); expect(batches).toBe(1); expect(rounds).toBe(1);
-  expect(await h.h.file()).toContain("An edit arriving during materialization.");
-  expect(await h.file()).toBe(await h.h.file());
-  expect((await h.h.stored()).content).toBe("An edit arriving during materialization.\n");
+  const { errors } = await sync({ checkout: h.h.checkout, store });
+  expect(edited).toBe(true);
+  expect(events).toEqual(["take-in", "round", "pull", "round", "push", "round"]);
+  expect.soft(errors).not.toContain("Fan-out failed:");
+  expect.soft(leases).toMatchObject(Array.from({ length: 3 }, () => ({
+    held: false, acquired: { status: "done", value: "unlocked" },
+  })));
+  expect.soft(siblingAtEntry).toEqual([expect.stringContaining(takeIn), expect.stringContaining(pulled)]);
+  expect.soft(await h.file()).toContain(pushed);
+  expect((await h.h.stored()).content).toBe(pushed);
+});
+
+it("leaves a projected sibling untouched until its tracked-state deletion is committed", async () => {
+  const { h: writer, input, store, sibling, file: siblingFile } = await createFanOutFixture(directories);
+  await endProjection(input);
+  const before = await siblingFile();
+  const git = (...args: string[]) => writer.exec("git", args, { cwd: sibling.checkout });
+  const tracked = ".arc/active/meta-legacy.md";
+  await mkdir(join(sibling.checkout, ".arc/active"), { recursive: true });
+  await writeFile(join(sibling.checkout, tracked), "Legacy state\n");
+  await git("add", "-f", "--", tracked);
+  await git("commit", "-m", "Track legacy state");
+  await git("rm", "--", tracked);
+
+  const remote = writer.remote(true);
+  if (remote === undefined) throw new Error("Missing fixture remote");
+  success(await writer.store.push());
+  const content = "Updated on the remote.\n";
+  success(await remote.write(update(writer, writer.record, content)));
+  const command = { checkout: writer.checkout, store };
+  const pulled = await sync(command);
+  expect(JSON.parse(pulled.output)).toMatchObject({ state: { pull: { result: "success" } } });
+  expect(await writer.file()).toContain(content);
+  expect.soft(await siblingFile(), "sibling bytes while HEAD still tracks state").toBe(before);
+
+  await git("commit", "-m", "Remove legacy state");
+  const afterDeletion = "Updated after the deletion commit.\n";
+  success(await remote.write(update(writer, await writer.stored(), afterDeletion)));
+  await sync(command);
+  expect(await siblingFile()).toContain(afterDeletion);
 });

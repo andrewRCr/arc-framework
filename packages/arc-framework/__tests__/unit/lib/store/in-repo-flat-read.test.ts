@@ -3,11 +3,10 @@ import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { digestBytes } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
-import { testStorePorts } from "../../../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../../../helpers/store/in-repo-ports.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
@@ -18,7 +17,7 @@ describe("repository store flat reads", () => {
   it("constructs without consulting an I/O port", () => {
     const ports = testStorePorts("/unavailable", noGit, noGit);
     ports.clock = () => { throw new Error("The clock must remain unused during construction"); };
-    const store = createStore(ports);
+    const store = inRepoStore(ports);
     expect(store.capabilities).toEqual({ stateOffBranch: false });
   });
   it("reads exact flat-active bytes and digest without Git or identity", async () => {
@@ -26,7 +25,7 @@ describe("repository store flat reads", () => {
     await mkdir(join(root, ".arc/active"), { recursive: true });
     const content = makeMetaFixture("example");
     await writeFile(join(root, ".arc/active/meta-example.md"), content);
-    const result = await createStore(testStorePorts(root, noGit, noGit)).read({ reference });
+    const result = await inRepoStore(testStorePorts(root, noGit, noGit)).read({ reference });
     expect(result).toMatchObject({ status: "ok", result: {
       reference, content, version: digestBytes(Buffer.from(content)), formatVersion: 1,
       placement: { kind: "active" }, conflicts: [], fields: { state: "Active" },
@@ -40,7 +39,7 @@ describe("repository store flat reads", () => {
     await writeFile(join(root, ".arc/active/meta-example.md"), content);
     await writeFile(join(root, ".arc/active/nested/meta-nested.md"), makeMetaFixture("nested"));
     await symlink("meta-example.md", join(root, ".arc/active/meta-link.md"));
-    const store = createStore(testStorePorts(root, noGit, noGit));
+    const store = inRepoStore(testStorePorts(root, noGit, noGit));
     expect(await store.read({ reference })).toMatchObject({ status: "ok", result: { content, placement: { kind: "active" } } });
     const listed = await store.list({ family: "work-item", kind: "work-item/meta", filter: { heldHere: true, locations: ["active"] } });
     expect(listed).toMatchObject({ status: "ok", result: { status: "complete", records: [], missed: true,

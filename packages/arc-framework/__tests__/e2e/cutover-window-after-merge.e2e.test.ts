@@ -6,12 +6,19 @@ import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { importWindowFixture } from "../helpers/cutover-window/import.js";
 import { finishFixtureFlip } from "../helpers/cutover-window/after-merge.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
+import { EITHER_BUILD_OPERATIONS } from "../helpers/cutover-window/run.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const repository = resolve(import.meta.dirname, "../../../..");
 const entry = resolve(import.meta.dirname, "../../src/scripts/cutover-window/main.ts");
 function sourceWindow(root: string, operation: string, args: readonly string[] = []) {
   return execa(process.execPath, ["--import", "tsx", entry, operation, "--repo", root, "--json", ...args],
-    { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
+    { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1",
+      ...(EITHER_BUILD_OPERATIONS.has(operation) ? { [IN_REPO_STORE_OVERRIDE]: undefined } : {}) } });
 }
 
 it("confirms exactly the moved range listed by the source command", async () => {

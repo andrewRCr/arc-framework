@@ -1,6 +1,5 @@
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
@@ -13,6 +12,7 @@ import {
   locusOwnsBranch,
   locusWorkUnitAtPath,
 } from "../../../src/lib/session-init/locus-classification.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 const commonIdentity = {
   claimId: "c".repeat(32),
@@ -105,7 +105,7 @@ it.each(["default", "injected"] as const)("resolves an arbitrary linked work bra
 });
 
 it("the in-repo implementation retains branch-slug ownership", async () => {
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: "/unused-lazy-store" }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/unused-lazy-store" }));
   const roster = [workUnitRow("widget", "/wt/widget")];
   expect(await locusOwnsBranch(roster, "feat/widget", { store })).toBe(true);
   expect(await locusOwnsBranch(roster, "arbitrary-name", { store })).toBe(false);

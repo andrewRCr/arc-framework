@@ -3,7 +3,10 @@ import { cp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { execa } from "execa";
 import { afterEach, expect, it } from "vitest";
+import { readProjectedSelection } from "../../src/lib/checks/projected-selection.js";
 import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
+import { createStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
 
 const roots: string[] = [];
@@ -30,6 +33,10 @@ it("runs the actual fixer CLI over a literal subset after an all-or-nothing refu
   await writeFile(join(root, "package.json"), JSON.stringify({ type: "module", scripts: {
     "lint:md:fix": manifest.scripts["lint:md:fix"], "lint:md:fix:file": manifest.scripts["lint:md:fix:file"],
   } }));
+  // The fixer reads the store's selection; no ARC is installed here, so the command it runs starts unprojected and
+  // selects nothing, with no identity set.
+  expect(createStore(createDefaultStorePorts({ checkoutRoot: root })).capabilities.stateOffBranch).toBe(true);
+  expect(await readProjectedSelection(root, { changed: false })).toEqual({ status: "ok", paths: [] });
   const run = (args: string[]) => execa(process.execPath, ["--import", import.meta.resolve("tsx"), script, ...args], {
     cwd: root, reject: false, env: { FORCE_COLOR: undefined },
   });

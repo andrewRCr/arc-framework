@@ -6,6 +6,10 @@ import { serializeTransientIdentityRecord } from "../../src/lib/errand/identity-
 import { hashBlob } from "../../src/lib/errand/ref-tree.js";
 import { syncFixture, syncErrandRef, syncErrand, syncPut, syncRecord } from "../helpers/store/sync-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases preserve blobs and versions on the retired per-identity Errand ref.
+useInRepoStoreForEach();
 
 function namedPut(name: string) {
   const slug = SlugSchema.parse(name);

@@ -15,6 +15,7 @@ import type {
   ReviewRubricBindingPort,
   ReviewRubricBindingResolution,
 } from "../../../../../src/scripts/review-gate/policy/rubric-binding.js";
+import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
 
 const meta = (overrides: Partial<MetaRecord> = {}): MetaRecord => MetaRecordSchema.parse({
   state: "Active",
@@ -105,8 +106,12 @@ const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
 const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
 const workUnitVehicle = { kind: "work-unit", identity: "review-surface-binding" } as const;
 
+const harness = createReviewHarness();
+const bound = { store: harness.store, projectId: harness.projectId,
+  workItem: (await harness.seedMeta("review-surface-binding")).reference.owner };
+
 function compose() {
-  return createLocalPrepareDependencies({ exec: vi.fn() as never, cwd: "/repo" });
+  return createLocalPrepareDependencies({ exec: vi.fn() as never, cwd: "/repo", ...bound });
 }
 
 describe("local review assurance dispatch", () => {
@@ -168,7 +173,7 @@ describe("local review assurance dispatch", () => {
       binding: { identity: "project-review", augmentation: PROJECT_AUGMENTATION },
       diagnostics: [],
     };
-    const attest = createLocalAttestDependencies({ exec: vi.fn() as never, cwd: "/repo" });
+    const attest = createLocalAttestDependencies({ exec: vi.fn() as never, cwd: "/repo", ...bound });
     // Recomposition reads exactly one field out of the persisted operation record.
     const state = {
       policyBindingDigest: DEFAULT_LOCAL_REVIEW_POLICY_BINDING.bindingDigest,
@@ -190,7 +195,7 @@ describe("local review assurance dispatch", () => {
   it("resolves respond's actors from the originating locus without naming a member", async () => {
     // Respond consumes only the author and runtime identities, and the delivery
     // read is what a selector would reach — an exec fake proves neither ran.
-    const respond = createRespondDependencies({ exec: vi.fn() as never, cwd: "/repo" });
+    const respond = createRespondDependencies({ exec: vi.fn() as never, cwd: "/repo", ...bound });
 
     await expect(respond.resolveLocalActors("fresh-reviewer")).resolves.toEqual({
       approverIdentity: "andrew",

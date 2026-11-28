@@ -58,7 +58,7 @@ export type AwaitMergeConfiguredCoordinates = Pick<
 
 /** Closed ordinary-Errand transition vocabulary. */
 export type OrdinaryErrandTransition =
-  | { kind: "create"; record: OrdinaryErrandRecord }
+  | { kind: "create"; record: OrdinaryErrandRecord; ownerUid?: string }
   | {
       kind: "link";
       previous: OrdinaryErrandRecord;

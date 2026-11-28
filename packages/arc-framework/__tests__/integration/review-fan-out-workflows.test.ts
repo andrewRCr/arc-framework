@@ -123,21 +123,16 @@ describe("hosted review fan-out workflow", () => {
     expect(chunk).toContain("contract-closed chunks, the dedicated seam, and a fresh aggregate");
     expect(chunk).toContain("attest only the aggregate result, never partial chunks or seam reports");
     expect(section).toMatch(
-      softWrappedPattern(/terminusAction[\s\S]*arc review terminus accept -[\s\S]*recorded\s+\/\s+commit-boundary[\s\S]*exact-replay\s+\/\s+continue[\s\S]*refused\s+\/\s+rerun-status/iu),
+      softWrappedPattern(/terminusAction[\s\S]*arc review terminus accept -[\s\S]*recorded\s+\/\s+continue[\s\S]*exact-replay\s+\/\s+continue[\s\S]*refused\s+\/\s+rerun-status/iu),
     );
     const terminusSection = reviewSection(
       section,
       "When the Owner accepts any returned delivery-member terminus",
       "`review-hosted-request` enters",
     );
-    const recordedTerminus = terminusSection.indexOf("`recorded / commit-boundary`");
-    const correctionResume = terminusSection.indexOf("arc delivery review-fix continue -");
-    const exactReplay = terminusSection.indexOf("`exact-replay / continue`");
-    expect(recordedTerminus).toBeGreaterThanOrEqual(0);
-    expect(correctionResume).toBeGreaterThan(recordedTerminus);
-    expect(exactReplay).toBeGreaterThan(correctionResume);
+    expect(terminusSection).not.toContain("commit-boundary");
     expect(terminusSection).toMatch(
-      softWrappedPattern(/exact-replay\s+\/\s+continue[\s\S]*refused\s+\/\s+rerun-status[\s\S]*re-enter\s+status\s+directly/iu),
+      softWrappedPattern(/recorded\s+\/\s+continue[\s\S]*exact-replay\s+\/\s+continue[\s\S]*refused\s+\/\s+rerun-status[\s\S]*create\s+no\s+new\s+head\s+and\s+re-enter\s+status\s+directly/iu),
     );
     expect(section).toMatch(
       softWrappedPattern(/review-hosted-request[\s\S]*review-local-prepare[\s\S]*terminusAction[\s\S]*optional\s+Owner\s+alternative[\s\S]*absent\s+explicit\s+acceptance[\s\S]*review\s+action\s+unchanged/iu),

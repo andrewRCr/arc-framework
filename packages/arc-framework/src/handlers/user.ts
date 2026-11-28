@@ -13,6 +13,7 @@ import type { StoreRefusal } from "../lib/store/refusal.js";
 
 
 import { createStore, createDefaultStorePorts } from "../lib/store/index.js";
+import { refuseWriteIfStoreImported } from "../lib/store/store-imported.js";
 import { inboxOutput, type InboxHandlerPorts } from "./inbox-runtime.js";
 import { access, readFile } from "node:fs/promises";
 
@@ -181,12 +182,12 @@ function emitUserReferenceResult(
 /** Validated input for creating an identity workspace. */
 export const UserAddInputSchema = z.object({ identity: SlugSchema }).strict();
 
+/** Set up the named identity's inbox and working memory. */
 export async function handleUserAdd(
   rawIdentity: string,
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc user add");
-  const output = createSyncOutput(false);
 
   const normalizedIdentity = normalizeCommandIdentity(rawIdentity);
   const parsed = UserAddInputSchema.safeParse({ identity: normalizedIdentity });
@@ -204,15 +205,16 @@ export async function handleUserAdd(
   if (!cwd) return;
   const io = createUserIOContext(context?.subprocess);
 
+  // The handler holds the spinner so the identity question can clear it before asking.
+  const spinner = p.spinner();
+  const progress = { spinner, label: `Preparing personal records for ${identity}...` };
+  spinner.start(progress.label);
   try {
-    await runWithSpinner(
-      output,
-      `Creating user directory for ${identity}...`,
-      () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(),
-        confirmIdentityInUse: confirmPersonalIdentity(userAddIdentityInUsePromptSite, context) }),
-      `User directory created for ${identity}.`,
-    );
+    await runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(),
+      confirmIdentityInUse: confirmPersonalIdentity(userAddIdentityInUsePromptSite, context, undefined, progress) });
+    spinner.stop(`Inbox and working memory are ready for ${identity}.`);
   } catch (err) {
+    spinner.stop("Failed.");
     if (isHandledError(err)) return;
     throw err;
   }
@@ -858,7 +860,14 @@ export async function handleUserFetch(
   const spinner = output.spinner();
   spinner.start("Fetching user notes...");
 
-  const result = await runUserFetch({ cwd: resolveArcRoot(process.cwd()) ?? process.cwd(), io, identity });
+  let result;
+  try {
+    result = await runUserFetch({ cwd: resolveArcRoot(process.cwd()) ?? process.cwd(), io, identity });
+  } catch (err) {
+    // A running spinner holds the process open, so a refusal thrown beneath it stops it before it is reported.
+    spinner.stop("Fetch failed.");
+    throw err;
+  }
   if (!isUserFetchSuccess(result)) {
     spinner.stop(result.kind === "remote-unavailable" ? "Fetch failed." : "Fetch skipped.");
     reportUserFetchOutcome(result, identity, "fetch");
@@ -903,7 +912,7 @@ export const userCommandInputRegistrations = [
     commandPath: "user inbox-remove",
     schema: UserInboxRemoveInputSchema,
     schemaFields: {
-      "operand.slug": "literal",
+      "operand.title": "literal",
       "option.id": "id",
       "option.expected-version": "expectedVersion",
       "option.inbox-title-file": "inboxTitleFile",
@@ -1028,9 +1037,11 @@ export async function handleUserPull(
   }
 
   const io = createUserIOContext(context.subprocess);
-  const hasLocal = await hasLocalNotes(io, identity);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  // Retired notes refuse before the overwrite question, which would otherwise ask about a pull that cannot run.
+  await refuseWriteIfStoreImported(cwd, io.exec, "sync");
+  const hasLocal = await hasLocalNotes(io, identity);
 
   if (hasLocal) {
     const answer = await prompt(userPullOverwritePromptSite, context, {

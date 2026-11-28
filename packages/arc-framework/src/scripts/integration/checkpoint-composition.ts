@@ -22,9 +22,7 @@ import {
   type GitExec,
 } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
-import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import type { VersionedCandidateRecord } from "../../lib/store/kinds/review/candidate/schema.js";
-import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import {
   reduceCandidateDurableBaseline,
@@ -124,7 +122,8 @@ import {
   type DeliveryDriftClassificationEvidence,
 } from "./checkpoint.js";
 import { requireReviewWorkItem } from "../../lib/store/kinds/review/access-shared.js";
-import { persistIntegrationCheckpointComposition, type IntegrationCheckpointCompositionInput } from "./checkpoint-store.js";
+import { integrationCheckpointLocation, persistIntegrationCheckpointComposition,
+  type IntegrationCheckpointCompositionInput } from "./checkpoint-store.js";
 import { createLineageReviewComposer } from "./lineage-review-composition.js";
 import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
 import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
@@ -566,7 +565,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
         exec: input.exec,
         baseBranch: config.settings["branch.base"],
         mode: "authoritative",
-        ...createCurrentBaseDriftAdapters(input.exec, workUnitPathTreatmentContext(workUnit)),
+        ...createCurrentBaseDriftAdapters(input.exec, reviewRecordStore, workUnitPathTreatmentContext(workUnit)),
       });
     },
     classifyDeliveryDrift: async (workUnit, drift) => {
@@ -768,6 +767,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
         head: coordinates.head,
         classify: createCurrentBaseDriftAdapters(
           input.exec,
+          reviewRecordStore,
           workUnitPathTreatmentContext(workUnit),
         ).classifyReconciliation,
       });
@@ -1443,10 +1443,9 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
       if (resolvedIdentity === null) {
         throw new Error("An ARC identity is required to persist the integration checkpoint.");
       }
-      const surfaces = createUserSurfaceResolver({ cwd: input.cwd, identity: resolvedIdentity });
       const nativeOwnership = await checkpointNativeOwnership(input);
       const handle = await persistIntegrationCheckpointComposition(
-        surfaces.workUnitRoot(SlugSchema.parse(workUnit)),
+        await integrationCheckpointLocation({ cwd: input.cwd, identity: resolvedIdentity, workUnit, store: input.store, exec: input.exec }),
         {
           workUnit,
           approvedHead,

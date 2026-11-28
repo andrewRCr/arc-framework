@@ -8,10 +8,27 @@ import { promisify } from "node:util";
 
 import { expect, it } from "vitest";
 
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
-import { cleanupTempDir, git, runArcAnchoredSequence } from "./helpers.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
+import { cleanupTempDir, git, runArc, runArcAnchoredSequence } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
+
+/** The Errand the store holds under a slug, with the placement that says whether it is live. */
+async function readErrand(repository: string, slug: string): Promise<{ claimId: string; placement: string | undefined }> {
+  const record = await readStoreRecord(repository, SlugSchema.parse("test-user"), recordReferences["work-item/record"](
+    OwnerIdentitySchema.parse({ type: "work-item", name: slug })));
+  return { claimId: (JSON.parse(record.content) as { claimId: string }).claimId, placement: record.placement?.kind };
+}
+
+/** The branch an applied Errand open reports, which the store suffixes with the generation it mints. */
+function openedBranch(result: unknown): string {
+  const branch = (result as { identity?: { branch?: unknown } } | undefined)?.identity?.branch;
+  if (typeof branch !== "string") throw new Error("The open reported no branch");
+  return branch;
+}
 
 async function prepareRepository(repository: string, remote: string): Promise<void> {
   const configPath = join(repository, ".arc", "system", "arc-config.yml");
@@ -26,6 +43,8 @@ async function prepareRepository(repository: string, remote: string): Promise<vo
   await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
   await git(repository, ["remote", "add", "origin", remote]);
   await git(repository, ["push", "-u", "origin", "main"]);
+  const designated = await runArc(["store", "remote", "origin", "push"], repository);
+  expect(designated.exitCode, designated.stderr).toBe(0);
 }
 
 it.each(["close", "abandon"])("%s leaves unrelated missing detached and branched registrations intact", async (operation) => {
@@ -56,8 +75,8 @@ it.each(["close", "abandon"])("%s leaves unrelated missing detached and branched
       { outcome: "applied", operation: `errand-${operation}`, subject: { slug } },
     ]);
     expect(await git(repository, ["branch", "--show-current"])).toBe("main");
-    expect(await git(repository, ["show-ref", "--heads", `chore/${slug}`]).catch(() => "")).toBe("");
-    await expect(git(repository, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`])).rejects.toThrow();
+    expect(await git(repository, ["branch", "--list", openedBranch(result.results[0])])).toBe("");
+    expect((await readErrand(repository, slug)).placement).toBe("completed");
     expect(await git(repository, ["worktree", "list", "--porcelain", "-z"])).toBe(before);
     expect(await git(repository, ["rev-parse", "chore/unrelated"])).toBe(await git(repository, ["rev-parse", "main"]));
     const gitDir = await git(repository, ["rev-parse", "--absolute-git-dir"]);
@@ -75,12 +94,12 @@ it("refuses a locked missing branch holder, then closes after its registration i
   const remote = await mkdtemp(join(tmpdir(), "arc-close-locked-remote-"));
   const missing = `${repository}-locked-missing`;
   const slug = "locked-missing-close";
-  const branch = `chore/${slug}`;
   try {
     await prepareRepository(repository, remote);
     const result = await runArcAnchoredSequence([
       ["errand", "open", slug, "--json"],
-      { command: ["git", "worktree", "add", "--force", missing, branch] },
+      // The open checks its suffixed branch out in place, so the second holder takes it from the primary.
+      { command: ["sh", "-c", 'git worktree add --force "$1" "$(git branch --show-current)"', "sh", missing] },
       { command: ["git", "worktree", "lock", "--reason", "portable storage", missing] },
       { command: [process.execPath, "-e", "require('node:fs').rmSync(process.argv[1],{recursive:true})", missing] },
       ["errand", "close", slug, "--json"],
@@ -89,8 +108,9 @@ it("refuses a locked missing branch holder, then closes after its registration i
     expect(result.results.at(-1)).toMatchObject({ outcome: "refused", operation: "errand-close" });
     expect(result.stdout).toContain(missing);
     expect(result.stdout).toContain("unlock");
+    const branch = openedBranch(result.results[0]);
     expect(await git(repository, ["branch", "--list", branch])).toContain(branch);
-    const record = JSON.parse(await git(repository, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`])) as { claimId: string };
+    const record = await readErrand(repository, slug);
     await git(repository, ["worktree", "unlock", missing]);
     await git(repository, ["worktree", "prune"]);
     const retried = await runArcAnchoredSequence([
@@ -99,7 +119,7 @@ it("refuses a locked missing branch holder, then closes after its registration i
     expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
     expect(retried.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
     expect(await git(repository, ["branch", "--list", branch])).toBe("");
-    await expect(git(repository, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`])).rejects.toThrow();
+    expect((await readErrand(repository, slug)).placement).toBe("completed");
   } finally {
     await cleanupTempDir(repository);
     await cleanupTempDir(remote);

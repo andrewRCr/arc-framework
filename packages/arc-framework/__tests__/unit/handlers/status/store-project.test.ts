@@ -16,6 +16,8 @@ import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
 import { runHandlerAt } from "../../../helpers/handler.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
+import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../../../src/lib/errand/identity-record.js";
 
 const folders: string[] = [];
 afterEach(async () => { vi.useRealTimers(); await Promise.all(folders.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
@@ -136,6 +138,24 @@ it.each([false, true])("refuses an unreadable lifecycle listing with its repair 
   expect(repaired.exitCode).toBe(0);
   expect(repaired.stderr).toBe("");
   expect(repaired.stdout).toContain("No ready work units");
+});
+
+it("writes readiness warnings to stderr without contaminating stdout", async () => {
+  const h = createLifecycleHarness();
+  // An Errand's slug names no work unit, so the dependency dangles without a write the store refuses.
+  const errand = TransientIdentityRecordV3Schema.parse({ version: 3, slug: "fix-it", claimId: "a".repeat(32),
+    createdAt: "2026-10-14T00:00:00Z", updatedAt: "2026-10-14T00:00:00Z", kind: "errand", purpose: "errand",
+    owner: "andrew", intent: "Fix", branch: "chore/fix-it", state: "open", savedHead: null, changeRequest: null,
+    origin: "description", originEntry: null });
+  await h.seed(recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "fix-it" })),
+    serializeTransientIdentityRecord(errand), { kind: "active" });
+  await h.seedMeta("warning-source", { state: "Planning", currentWorkflow: "draft-design", dependsOn: ["fix-it"] },
+    { kind: "backlog", commitment: "planned" });
+  const output = await (await fixture(h.store)).run();
+  expect(output.exitCode).toBe(0);
+  expect(output.stdout).not.toContain("## Warnings");
+  expect(output.stdout).not.toContain("depends on missing work unit");
+  expect(output.stderr).toContain("warning: `warning-source` depends on missing work unit `fix-it`");
 });
 
 it.each([false, true])("refuses staged project status from an off-branch store (write=%s)", async write => {

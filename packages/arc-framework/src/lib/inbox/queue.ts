@@ -7,6 +7,7 @@ import { rowsInList } from "./listing.js";
 import { failure } from "./refusals.js";
 import type { InboxRefusal, InboxOutcome } from "./types.js";
 import type { InboxContext } from "./types.js";
+import { errandQueueStep } from "../store/pre-flip-steps.js";
 /** One queue reference; identity is unique throughout the queue regardless of inbox. */
 export const QueueReferenceSchema = z.strictObject({ inbox: z.enum(["personal", "project"]), id: z.string().regex(/^[0-9a-f]{8}$/u) });
 /** Versioned JSON input to the whole-queue setter. */
@@ -28,7 +29,7 @@ export type ErrandQueueResult = z.infer<typeof ErrandQueueResultSchema>;
  * @returns Set result or refusal without a partial queue write.
  */
 export async function setErrandQueue(request: unknown, context: InboxContext): Promise<ErrandQueueResult> {
-  if (!context.store.capabilities.stateOffBranch) return unavailable();
+  if (!context.store.capabilities.stateOffBranch) return unavailable("set");
   const parsed = ErrandQueueSetRequestSchema.safeParse(request);
   if (!parsed.success) return refused({ code: "invalid-input", condition: parsed.error.message, remedy: { text: "Supply schemaVersion: 1 and the whole members array, each with inbox and id." } });
   const duplicate = duplicateMember(parsed.data.members);
@@ -49,7 +50,7 @@ export async function setErrandQueue(request: unknown, context: InboxContext): P
  * @returns Complete queue or refusal.
  */
 export async function listErrandQueue(context: InboxContext): Promise<ErrandQueueResult> {
-  if (!context.store.capabilities.stateOffBranch) return unavailable();
+  if (!context.store.capabilities.stateOffBranch) return unavailable("read");
   const state = await readQueueState(context);
   return state.status === "refused" ? refused(state.refusal) : { schemaVersion: 1, mode: "errand-queue", state: "listed", members: state.result.members.map(publicMember) };
 }
@@ -75,7 +76,7 @@ function duplicateMember(members: readonly { inbox: string; id: string }[]): Inb
   }
   return null;
 }
-function unavailable(): ErrandQueueResult { return refused({ code: "unsupported", condition: "The queue requires stateOffBranch capability.", remedy: { text: "Use arc user inbox-mark-execute-bound until the capability flips." } }); }
+function unavailable(operation: "read" | "set"): ErrandQueueResult { return refused({ code: "unsupported", condition: "The queue requires stateOffBranch capability.", remedy: { text: errandQueueStep(operation) } }); }
 function refused(refusal: InboxRefusal): ErrandQueueResult { return { schemaVersion: 1, mode: "errand-queue", state: "refused", code: refusal.code, reason: refusal.condition, remedy: refusal.remedy }; }
 
 function publicMember(member: QueueMember): QueueMember { return { id: member.id, inbox: member.inbox, title: member.title, rank: member.rank }; }

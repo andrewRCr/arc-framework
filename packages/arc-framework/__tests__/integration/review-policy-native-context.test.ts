@@ -7,7 +7,6 @@ import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { handleReviewResolve } from "../../src/handlers/review.js";
-import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { projectStandardReviewObligation } from "../../src/scripts/review-gate/policy/standard-review-projection.js";
 import { resolveReviewRouting } from "../../src/scripts/review-gate/policy/routing.js";
@@ -27,6 +26,7 @@ import { projectReviewPolicyAttempt } from "../../src/scripts/review-gate/policy
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { createReviewDecisionPort } from "../../src/lib/store/kinds/review/decision/access.js";
 import { reviewDecisionKey } from "../../src/lib/store/kinds/review/decision/key.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 async function fixture(sources = "[delegated-agent]", project = true) {
@@ -47,7 +47,7 @@ async function fixture(sources = "[delegated-agent]", project = true) {
   await git("add", "example.ts");
   await git("commit", "-m", "Implement example");
   const headSha = await git("rev-parse", "HEAD");
-  const repositoryStore = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  const repositoryStore = inRepoStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
   const run = async (request: unknown, native = true, workItem?: OwnerIdentity) => {
     let output = "";
     const exits: number[] = [];

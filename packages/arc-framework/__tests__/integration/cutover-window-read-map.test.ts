@@ -13,6 +13,10 @@ import { parkedWindowFixture } from "../helpers/cutover-window/parked.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 async function inspectMap(h: Awaited<ReturnType<typeof windowFixture>>, revision: string, paths: readonly string[], bases: readonly string[] = []) {
   const stdout: string[] = [], stderr: string[] = [];

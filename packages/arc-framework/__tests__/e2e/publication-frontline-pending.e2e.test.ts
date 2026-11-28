@@ -1,16 +1,41 @@
 /** Singleton prepublication exposes a runnable continuation for an admitted, unstarted frontline review. */
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { FrontlineResolveEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
+import { parseNativeReviewOperationReference } from "../../src/scripts/review-gate/core/review-operation-reference.js";
+import { readLaneProgressOwner } from "../../src/scripts/review-gate/lane-progress.js";
 import { FrontlineResolveRequestSchema } from "../../src/scripts/review-gate/policy/frontline-command-schema.js";
+import { reviewInFlight } from "../fixtures/review-response-policy.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 
 const RECOVERY_TIMEOUT_MS = 120_000;
+const TASKS = "# Task List: Example\n\n- [x] Verification complete\n";
+const META = (slug: string) => ({ owner: "test-user", branch: `feat/${slug}`, workClass: "Light" as const,
+  taskList: `tasks-${slug}.md`, lastCompleted: "verification", nextAction: "verification complete" });
 
-it("directs same-head work units to the owning checkout and preserves the original admission through replay and skip", async ({ onTestFinished }) => {
-  const root = await createTempRepo("arc-frontline-pending-");
-  onTestFinished(() => cleanupTempDir(root));
+/** Two work units at a shared head, with access to each owning checkout. */
+interface SharedHead {
+  readonly root: string;
+  readonly candidateId: string;
+  readonly siblingCandidateId?: string;
+  enterOther(): Promise<string>;
+  leaveOther(): Promise<void>;
+}
+
+async function attest(root: string, workUnit: string): Promise<string> {
+  const result = await runArc(["attest", workUnit, "--json"], root);
+  expect(result.exitCode, JSON.stringify(result)).toBe(0);
+  const attested = JSON.parse(result.stdout) as { status: string; locus: { candidateId: string } };
+  expect(attested).toMatchObject({ status: "attested", locus: { candidateId: expect.any(String) } });
+  return attested.locus.candidateId;
+}
+
+async function installFrontline(root: string): Promise<void> {
   const initialized = await runArc(["init", "--yes", "--name", "example"], root);
   expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
   const configPath = join(root, ".arc", "system", "arc-config.yml");
@@ -21,27 +46,59 @@ it("directs same-head work units to the owning checkout and preserves the origin
   await git(root, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(root, ["commit", "-m", "install ARC"]);
   await git(root, ["switch", "-c", "feat/example"]);
-  await mkdir(join(root, ".arc", "active"), { recursive: true });
   await mkdir(join(root, "src"));
-  await writeFile(join(root, ".arc", "active", "meta-example.md"), makeMetaFixture("example", {
-    owner: "test-user", branch: "feat/example", workClass: "Light", taskList: "tasks-example.md",
-    lastCompleted: "verification", nextAction: "verification complete",
-  }));
-  await writeFile(join(root, ".arc", "active", "tasks-example.md"), "# Task List: Example\n\n- [x] Verification complete\n");
-  await writeFile(join(root, ".arc", "active", "meta-other.md"), makeMetaFixture("other", {
-    owner: "test-user", branch: "feat/other", workClass: "Light", taskList: "tasks-other.md",
-    lastCompleted: "verification", nextAction: "verification complete",
-  }));
-  await writeFile(join(root, ".arc", "active", "tasks-other.md"), "# Task List: Other\n\n- [x] Verification complete\n");
+}
+
+/** Both work units' metas and task lists are tracked files. Only `example` has an attested Candidate. */
+async function inRepoSharedHead(root: string): Promise<SharedHead> {
+  await installFrontline(root);
+  await mkdir(join(root, ".arc", "active"), { recursive: true });
+  await writeFile(join(root, ".arc", "active", "meta-example.md"), makeMetaFixture("example", META("example")));
+  await writeFile(join(root, ".arc", "active", "tasks-example.md"), TASKS);
+  await writeFile(join(root, ".arc", "active", "meta-other.md"), makeMetaFixture("other", META("other")));
+  await writeFile(join(root, ".arc", "active", "tasks-other.md"), TASKS.replace("Example", "Other"));
   await writeFile(join(root, "src", "example.ts"), "export const example = true;\n");
   await git(root, ["add", "-A"]);
   await git(root, ["commit", "-m", "implementation"]);
-  const attested = await runArc(["attest", "example", "--json"], root);
-  expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
+  const candidateId = await attest(root, "example");
   await git(root, ["commit", "-m", "verification"]);
-  const sharedHead = (await git(root, ["rev-parse", "HEAD"])).trim();
-  await git(root, ["branch", "feat/other", sharedHead]);
+  await git(root, ["branch", "feat/other", "HEAD"]);
+  return { root, candidateId,
+    enterOther: async () => { await git(root, ["switch", "feat/other"]); return root; },
+    leaveOther: async () => { await git(root, ["switch", "feat/example"]); } };
+}
 
+/** Both work units are held in the store, each bound to its own checkout on its branch. */
+async function storeSharedHead(root: string, onCleanup: (path: string) => void): Promise<SharedHead> {
+  await installFrontline(root);
+  await seedWorkUnit(root, "example", { identity: "test-user", branch: "feat/example", bind: root,
+    meta: META("example"), taskList: TASKS });
+  await writeFile(join(root, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+  await writeFile(join(root, "src", "example.ts"), "export const example = true;\n");
+  await git(root, ["add", "-A"]);
+  await git(root, ["commit", "-m", "implementation"]);
+  const candidateId = await attest(root, "example");
+  await git(root, ["branch", "feat/other", "HEAD"]);
+  const parent = await mkdtemp(join(tmpdir(), "arc-frontline-other-"));
+  onCleanup(parent);
+  const other = join(parent, "other");
+  await git(root, ["worktree", "add", other, "feat/other"]);
+  await seedWorkUnit(root, "other", { identity: "test-user", branch: "feat/other", bind: other,
+    meta: META("other"), taskList: TASKS.replace("Example", "Other") });
+  const siblingCandidateId = await attest(other, "other");
+  return { root, candidateId, siblingCandidateId, enterOther: async () => other, leaveOther: async () => undefined };
+}
+
+function readyPayload(result: Awaited<ReturnType<typeof runArcWithStdin>>) {
+  expect(result.exitCode, JSON.stringify(result)).toBe(0);
+  const envelope = FrontlineResolveEnvelopeSchema.parse(JSON.parse(result.stdout));
+  if (envelope.state !== "ready") throw new Error(`Expected a ready frontline replay, received ${result.stdout}`);
+  return envelope.payload;
+}
+
+async function directsSameHeadWorkUnits(fixture: SharedHead): Promise<void> {
+  const { root } = fixture;
+  const sharedHead = (await git(root, ["rev-parse", "HEAD"])).trim();
   const remote = join(root, ".git", "fixture-origin.git"), bin = join(root, ".git", "fixture-bin");
   await git(root, ["init", "--bare", remote]);
   const origin = "https://arc-fixture.example/arc-framework/example.git";
@@ -64,29 +121,48 @@ it("directs same-head work units to the owning checkout and preserves the origin
   const action = JSON.parse(offered.stdout).nextAction as { command: string; request: unknown; resumeCommand?: string };
   expect(action.command).toBe("arc review frontline resolve -");
   const request = FrontlineResolveRequestSchema.parse(action.request);
-  const invoke = (input: unknown) => runArcWithStdin(["review", "frontline", "resolve", "-"], root,
+  const invoke = (input: unknown, cwd = root) => runArcWithStdin(["review", "frontline", "resolve", "-"], cwd,
     JSON.stringify(input), { env });
-  const ready = await invoke(request);
-  expect(ready.exitCode, JSON.stringify(ready)).toBe(0);
-  const admission = JSON.parse(ready.stdout).payload.admission as { operationId: string; logicalPass: number };
-  expect(admission.logicalPass).toBe(1);
+  const original = readyPayload(await invoke(request));
+  const { admission, operationRef } = original;
+  expect(admission).toMatchObject({ logicalPass: 1, lineage: { kind: "candidate", candidateId: fixture.candidateId } });
+  const owner = operationRef === undefined ? undefined : parseNativeReviewOperationReference(operationRef).workItem;
+  const operations = reviewInFlight(root, owner);
+  const readOwnerProgress = () => readLaneProgressOwner(operations, { lane: "frontline", lineage: admission.lineage,
+    repositoryId: admission.target.repositoryId, headSha: sharedHead });
+  const pendingAdmission = { operationId: admission.operationId, logicalPass: admission.logicalPass };
+  const pendingAttempt = {
+    outcome: "pending", logicalPass: admission.logicalPass, frontline: { admission: pendingAdmission },
+  };
+  expect((await readOwnerProgress())?.attempts).toMatchObject([pendingAttempt]);
   await writeFile(lanes, JSON.stringify({ ...judgments, frontline: { scopeMode: "whole-target", invocation: { mode: "skip" } } }));
   const refused = await prepublish();
   expect(refused.exitCode, JSON.stringify(refused)).toBe(1);
   const refusal = JSON.parse(refused.stdout) as { error: { code: string }; remedy: { argv: string[]; stdin?: unknown; text: string } };
   expect(refusal, JSON.stringify(refusal)).toMatchObject({ error: { code: "review-in-progress" },
     remedy: { argv: ["arc", "review", "frontline", "resolve", "-"], stdin: request } });
-  const carried = FrontlineResolveRequestSchema.parse(refusal.remedy.stdin);
-  await git(root, ["switch", "feat/other"]);
-  expect((await git(root, ["rev-parse", "HEAD"])).trim()).toBe(sharedHead);
-  const wrongCheckout = await invoke(carried);
-  expect(wrongCheckout.exitCode, JSON.stringify(wrongCheckout)).toBe(1);
   expect(refusal.remedy.text).toContain("From work unit `example`'s owning checkout");
-  await git(root, ["switch", "feat/example"]);
+  const carried = FrontlineResolveRequestSchema.parse(refusal.remedy.stdin);
+  const otherCheckout = await fixture.enterOther();
+  expect((await git(otherCheckout, ["rev-parse", "HEAD"])).trim()).toBe(sharedHead);
+  const siblingReplay = await invoke(carried, otherCheckout);
+  if (fixture.siblingCandidateId === undefined) {
+    expect(siblingReplay.exitCode, JSON.stringify(siblingReplay)).toBe(1);
+    expect(JSON.parse(siblingReplay.stdout)).toMatchObject({ mode: "review-frontline-resolve", error: {
+      code: "unexpected-failure", message: expect.stringContaining("Candidate lineage authority is unavailable"),
+    } });
+  } else {
+    const sibling = readyPayload(siblingReplay);
+    expect(sibling.admission).toMatchObject({ logicalPass: 1, target: { headSha: sharedHead },
+      lineage: { kind: "candidate", candidateId: fixture.siblingCandidateId } });
+    expect(sibling.admission.operationId).not.toBe(admission.operationId);
+    expect(owner?.name).toBe("example");
+    expect(parseNativeReviewOperationReference(sibling.operationRef ?? "").workItem.name).toBe("other");
+  }
+  await fixture.leaveOther();
   expect((await git(root, ["rev-parse", "HEAD"])).trim()).toBe(sharedHead);
-  const resumed = await invoke(carried);
-  expect(resumed.exitCode, JSON.stringify(resumed)).toBe(0);
-  expect(JSON.parse(resumed.stdout)).toMatchObject({ state: "ready", payload: { admission } });
+  expect((await readOwnerProgress())?.attempts).toMatchObject([pendingAttempt]);
+  expect(readyPayload(await invoke(carried))).toEqual(original);
   const skipped = await invoke({ ...carried, invocation: { mode: "skip" } });
   expect(skipped.exitCode, JSON.stringify(skipped)).toBe(0);
   expect(JSON.parse(skipped.stdout)).toMatchObject({ state: "skipped", nextAction: "none" });
@@ -96,4 +172,29 @@ it("directs same-head work units to the owning checkout and preserves the origin
   const recovered = await runArc(resumeCommand.split(" ").slice(1), root, { env });
   expect(recovered.exitCode, JSON.stringify(recovered)).toBe(0);
   expect(JSON.parse(recovered.stdout)).toMatchObject({ locus: "candidate-publish-ready" });
-}, RECOVERY_TIMEOUT_MS);
+}
+
+// The in-repo store keeps both metas and the Candidate evidence as tracked files and selects a checkout's work unit by
+// its branch; the store holds them as records and selects by the checkout's marker.
+describe("frontline admission pending at a shared head", () => {
+  useInRepoStoreForEach();
+
+  it("reports the sibling's missing Candidate and preserves the original through replay and skip", async ({ onTestFinished }) => {
+    const root = await createTempRepo("arc-frontline-pending-");
+    onTestFinished(() => cleanupTempDir(root));
+    await directsSameHeadWorkUnits(await inRepoSharedHead(root));
+  }, RECOVERY_TIMEOUT_MS);
+});
+
+describe("frontline admission pending at a shared head on the store", () => {
+  it("opens a separate sibling admission and preserves the original through replay and skip", async ({ onTestFinished }) => {
+    const root = await createTempRepo("arc-frontline-pending-store-");
+    onTestFinished(() => cleanupTempDir(root));
+    await directsSameHeadWorkUnits(await storeSharedHead(root, (path) => {
+      onTestFinished(async () => {
+        await git(root, ["worktree", "prune"]).catch(() => undefined);
+        await cleanupTempDir(path);
+      });
+    }));
+  }, RECOVERY_TIMEOUT_MS);
+});

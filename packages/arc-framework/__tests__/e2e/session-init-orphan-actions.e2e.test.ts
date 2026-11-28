@@ -4,12 +4,31 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { SessionInitProbeResultSchema } from "../../src/commands/status/schema.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
+import { selectStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
+import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
+import { readProjectIdentityBinding } from "../../src/lib/store/project-identity.js";
+import { seedStore } from "../helpers/store/seed-store.js";
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 
 const roots: string[] = [];
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => cleanupTempDir(root)));
 });
+
+/** Link a branch through an Errand record that has ended, so the sweep resolves the branch to that record. */
+async function linkEndedErrand(root: string, slug: string, branch: string): Promise<void> {
+  const repository = (await readProjectIdentityBinding(selectStore(createDefaultStorePorts({ checkoutRoot: root }), {}))).id;
+  await seedStore(root, SlugSchema.parse("test-user"), [{
+    reference: RecordReferenceSchema.parse({ kind: "work-item/record", owner: { type: "work-item", name: slug } }),
+    content: JSON.stringify({ version: 3, slug, claimId: "a".repeat(32), createdAt: "2026-11-01T00:00:00Z",
+      updatedAt: "2026-11-01T00:00:00Z", kind: "errand", purpose: "errand", intent: "Fix", owner: "test-user", branch,
+      state: "open", savedHead: null, changeRequest: null, origin: "description", originEntry: null }),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    links: { branches: [{ repository, ref: branch, linkedAs: "created", excluded: [] }] },
+  }]);
+}
 
 describe("session orphan cleanup actions", () => {
   it("preserves merge-only work and offers deletion after the merge reaches base", async () => {
@@ -22,7 +41,8 @@ describe("session orphan cleanup actions", () => {
     await git(root, ["init", "--bare", origin]); await git(root, ["remote", "add", "origin", origin]);
     await git(root, ["push", "-u", "origin", "main"]);
     const branch = "feat/merge-work";
-    await git(root, ["branch", branch]); await git(root, ["checkout", "-b", "side"]);
+    await git(root, ["branch", branch]); await linkEndedErrand(root, "merge-work", branch);
+    await git(root, ["checkout", "-b", "side"]);
     await writeFile(join(root, "side.txt"), "Side work\n");
     await git(root, ["add", "side.txt"]); await git(root, ["commit", "-m", "feat: side work"]);
     await git(root, ["checkout", branch]); await git(root, ["merge", "--no-ff", "--no-commit", "side"]);
@@ -73,6 +93,7 @@ describe("session orphan cleanup actions", () => {
     await git(root, ["push", "-u", "origin", "main"]);
     const branch = "feat/rebased";
     await git(root, ["checkout", "-b", branch]);
+    await linkEndedErrand(root, "rebased", branch);
     const commits: string[] = [];
     for (const name of ["first", "second"]) {
       await writeFile(join(root, `${name}.txt`), `${name} patch\n`);

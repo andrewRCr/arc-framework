@@ -72,7 +72,7 @@ describe("listGoneUpstreamBranches", () => {
 
     expect(exec).toHaveBeenCalledWith("git", [
       "for-each-ref",
-      "--format=%(refname:short)%00%(upstream:track,nobracket)%00%(worktreepath)",
+      "--format=%(refname:lstrip=2)%00%(upstream:track,nobracket)%00%(worktreepath)",
       "refs/heads/plan/",
     ]);
   });

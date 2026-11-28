@@ -1,13 +1,12 @@
 /** Public Store behavior over the real transient identity ref. */
 import { describe, expect, it, onTestFinished } from "vitest";
-import { createStore } from "../../src/lib/store/create.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { readTransientIdentitySnapshot } from "../../src/lib/errand/identity-snapshot.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
-import { testStorePorts } from "../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { hashBlob, writeTreeCommit, readRefTip, errandsRef } from "../../src/lib/errand/ref-tree.js";
 import { groomClaimTransform, housekeepClaimTransform } from "../../src/lib/errand/identity-claims.js";
 import { MAX_LOCUS_JSON_BYTES } from "../../src/lib/locus/schema/index.js";
@@ -40,7 +39,7 @@ async function fixture() {
   const execInput = makeGitExecInput(root);
   const ports = testStorePorts(root, exec, execInput);
   ports.identity = async () => SlugSchema.parse("andrew");
-  return { root, ports, store: createStore(ports), io: { identity: "andrew", exec, execInput } };
+  return { root, ports, store: inRepoStore(ports), io: { identity: "andrew", exec, execInput } };
 }
 describe("transient Store", () => {
   it("keeps history within each logical role across deletion and physical key reuse", async () => {
@@ -200,7 +199,7 @@ describe("transient Store", () => {
   it("reconciles a remote-only change before stale refusal so reread and reapply work", async () => {
     const clones = await setupMultiClone();
     onTestFinished(clones.cleanup);
-    const at = (root: string) => { const ports = testStorePorts(root, makeGitExec(root), makeGitExecInput(root)); ports.identity = async () => SlugSchema.parse("andrew"); ports.remote = async () => "origin"; return createStore(ports); };
+    const at = (root: string) => { const ports = testStorePorts(root, makeGitExec(root), makeGitExecInput(root)); ports.identity = async () => SlugSchema.parse("andrew"); ports.remote = async () => "origin"; return inRepoStore(ports); };
     const a = at(clones.cloneA); const b = at(clones.cloneB);
     const first = ok(await a.write(put()));
     ok(await b.write(put(serializeTransientIdentityRecord(record("remote")), first.version!)));
@@ -258,7 +257,7 @@ describe("transient Store", () => {
       if (args[0] === "push") { pushes++; throw makeGitProcessError({ command, args: [...args], exitCode: 1, stderr: lastRejected && pushes % 3 === 0 ? "remote: policy denied this operation" : "! [rejected] non-fast-forward" }); }
       return original(command, args, options);
     };
-    const store = createStore(ports);
+    const store = inRepoStore(ports);
     expect(await store.write(put())).toMatchObject({ status: "refused", refusal: { code: "retries-exhausted", retryCount: 3, waitedMs: 19 } });
     expect(pushes).toBe(3);
     lastRejected = true;
@@ -270,7 +269,7 @@ describe("transient Store", () => {
     const clones = await setupMultiClone(); onTestFinished(clones.cleanup);
     const ports = testStorePorts(clones.cloneA, makeGitExec(clones.cloneA), makeGitExecInput(clones.cloneA));
     ports.identity = async () => SlugSchema.parse("andrew"); ports.remote = async () => "origin";
-    const store = createStore(ports);
+    const store = inRepoStore(ports);
     const moved = `${clones.origin}-temporarily-moved`;
     await rename(clones.origin, moved);
     try { expect(await store.write(put())).toMatchObject({ status: "refused", refusal: { code: "unreachable", cause: "error" } }); }
@@ -294,7 +293,7 @@ describe("transient Store", () => {
   });
   it("refuses every write after clone divergence and permits the documented manual repair", async () => {
     const clones = await setupMultiClone(); onTestFinished(clones.cleanup);
-    const at = (root: string) => { const ports = testStorePorts(root, makeGitExec(root), makeGitExecInput(root)); ports.identity = async () => SlugSchema.parse("andrew"); ports.remote = async () => "origin"; return { ports, store: createStore(ports) }; };
+    const at = (root: string) => { const ports = testStorePorts(root, makeGitExec(root), makeGitExecInput(root)); ports.identity = async () => SlugSchema.parse("andrew"); ports.remote = async () => "origin"; return { ports, store: inRepoStore(ports) }; };
     const a = at(clones.cloneA); const b = at(clones.cloneB);
     const first = ok(await a.store.write(put()));
     ok(await b.store.write(put(serializeTransientIdentityRecord(record()), first.version!)));
@@ -338,7 +337,7 @@ describe("transient Store", () => {
     await publish(a, null, "2026-07-18T00:00:01.000Z");
     await publish(b, "origin", "2026-07-18T00:00:02.000Z");
     const ports = testStorePorts(clones.cloneA, a.exec, a.execInput); ports.identity = async () => SlugSchema.parse("andrew"); ports.remote = async () => "origin";
-    const store = createStore(ports);
+    const store = inRepoStore(ports);
     const expected = recordReferences[role === "groom" ? "claims/groom" : "claims/housekeep"](OwnerIdentitySchema.parse({ type: "person", name: "andrew" }), base.slug);
     expect(await store.write(put())).toMatchObject({ status: "refused", refusal: { code: "version-conflict", records: [expected] } });
     await publish(a, null, "2026-07-18T00:00:02.000Z");

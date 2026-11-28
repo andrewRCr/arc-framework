@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { importComparisonFixture } from "../helpers/store/import-comparison.js";
 import { success } from "../helpers/store/suite-tools.js";
-import { createStore, createRefStore, RecordReferenceSchema, type Store } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema, type Store } from "../../src/lib/store/index.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -15,6 +15,7 @@ import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kin
 import { setMetaBranch, setMetaState } from "../../src/lib/active/meta-reader.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 async function projectId(store: Store): Promise<string> {
   const record = success(await store.read({ reference: RecordReferenceSchema.parse({
@@ -47,7 +48,7 @@ it("links every admitted Errand branch prefix as created with the same source lo
     }
     await writeTreeCommit(io, entries, "Seed transient identities", [], null);
   });
-  const source = createStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
+  const source = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
   expect(await h.target.migrate()).toMatchObject({ status: "ok" });
   const repository = await projectId(h.store);
   for (const prefix of prefixes) {
@@ -100,7 +101,7 @@ it.each(["merge", "missing-author", "unreadable-patch"] as const)("omits a %s fo
     const object = (await h.git("git", ["rev-parse", "--git-path", `objects/${blob.slice(0, 2)}/${blob.slice(2)}`])).stdout.trim();
     await unlink(resolve(h.root, object));
   }
-  const source = createStore(createDefaultStorePorts({ checkoutRoot: h.root }));
+  const source = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.root }));
   expect(success(await source.lookup({ kind: "commit", repository: h.root, sha })).taskIds).toEqual(["1.1"]);
   expect((await computeCopyKeys({ cwd: h.root, commits: [sha], execRaw: h.ports.rawExec })).get(sha)?.copyKey).toBeUndefined();
   expect(await h.migrate()).toMatchObject({ status: "ok" });
@@ -124,7 +125,7 @@ describe.each(["default", "separate"] as const)("imported links in %s", layout =
         kind: "work-item/meta", owner: { type: "work-item", name: "alpha" },
       }) }));
       expect(primary.links?.branches).toEqual([{ repository, ref: "feat/alpha", linkedAs: "created", excluded: [] }]);
-      const source = createStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
+      const source = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
       const before = success(await source.lookup({ kind: "ref", repository: h.source.root, ref: "feat/alpha" }));
       const after = success(await h.store.lookup({ kind: "ref", repository, ref: "feat/alpha" }));
       expect(after.reference.kind).toBe(before.reference.kind);
@@ -163,7 +164,7 @@ describe.each(["default", "separate"] as const)("imported links in %s", layout =
     const excluded = meta.links?.branches?.[0]?.excluded;
     expect(excluded?.map(commit => commit.sha).sort()).toEqual([facts.setup, facts.open, facts.empty].sort());
     expect(excluded).toContainEqual({ repository, sha: facts.empty });
-    const source = createStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
+    const source = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
     const before = success(await source.lookup({ kind: "commit", repository: h.source.root, sha: histories.get(h.source.root)!.closed }));
     const after = success(await h.store.lookup({ kind: "commit", repository, sha: facts.closed }));
     expect(after.reference.owner.name).toBe(before.reference.owner.name);

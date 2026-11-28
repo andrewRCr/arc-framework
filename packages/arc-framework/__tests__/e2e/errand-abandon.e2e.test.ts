@@ -1,18 +1,23 @@
 /** Abandonment completes after its invoking checkout has been removed. */
 
 import { execFile } from "node:child_process";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { expect, it } from "vitest";
 
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { readStoreRecord, seedStore } from "../helpers/store/seed-store.js";
 import { cleanupTempDir, createTempRepo, runArc, runArcAnchoredSequence } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 const ABANDON_TIMEOUT_MS = 60_000;
+const IDENTITY = SlugSchema.parse("test-user");
+const INBOX = recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" }));
 
-it("abandons from its own checkout, retains the capture, and retires the local and remote identity", async () => {
+it("abandons from its own checkout, retains the capture, and retires the identity", async () => {
   const primary = await createTempRepo("arc-abandon-own-");
   const remote = `${primary}-remote.git`;
   let spawned: string | null = null;
@@ -32,14 +37,15 @@ it("abandons from its own checkout, retains the capture, and retires the local a
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
     await git(["remote", "add", "origin", remote]);
     await git(["push", "-u", "origin", "main"]);
-    const inboxPath = join(primary, ".arc", "user", "test-user", "USER-INBOX.md");
-    await mkdir(join(primary, ".arc", "user", "test-user"), { recursive: true });
+    const designated = await runArc(["store", "remote", "origin", "push"], primary);
+    expect(designated.exitCode, designated.stderr).toBe(0);
     const capture = "# User Inbox\n\n## Errand\n\n### `[ ]` **Discard capture**\n\n"
-      + "- _Disposition:_ `execute-bound`\n\n- _Observation:_ retain this capture.\n\n---\n";
-    await writeFile(inboxPath, capture, "utf8");
+      + "- _Id:_ `0a1b2c3d`\n- _Created:_ `2026-11-01`\n\n- _Observation:_ retain this capture.\n";
+    await seedStore(primary, IDENTITY, [{ reference: INBOX, content: capture,
+      expected: (await readStoreRecord(primary, IDENTITY, INBOX)).version }]);
 
     const result = await runArcAnchoredSequence([
-      ["errand", "open", "discard-own", "--isolate", "--from-inbox", "Discard capture", "--json"],
+      ["errand", "open", "discard-own", "--isolate", "--from-inbox", "personal:0a1b2c3d", "--json"],
       { args: ["errand", "abandon", "discard-own", "--json"], cwdFromPreviousJson: "allocation.checkoutPath" },
       { args: ["status", "--session-init", "--json"], cwd: primary },
     ], primary, { timeout: ABANDON_TIMEOUT_MS });
@@ -50,15 +56,21 @@ it("abandons from its own checkout, retains the capture, and retires the local a
     expect(result.results[1]).toMatchObject({
       outcome: "applied", operation: "errand-abandon", checkoutPath: spawned,
       subject: { kind: "errand", slug: "discard-own" },
-      settlement: { kind: "capture", disposition: "retained", originEntry: "Discard capture" },
+      settlement: { kind: "capture", disposition: "retained", originEntry: "personal:0a1b2c3d" },
     });
     if (spawned === null) throw new Error("Missing allocated checkout");
     await expect(access(spawned)).rejects.toMatchObject({ code: "ENOENT" });
-    expect(await readFile(inboxPath, "utf8")).toBe(capture.replace('- _Disposition:_ `execute-bound`\n\n', ""));
-    expect(await git(["branch", "--list", "chore/discard-own"])).toBe("");
-    await expect(git(["cat-file", "-p", "refs/arc/user/test-user/errands:discard-own"])).rejects.toThrow();
-    const remoteTip = (await git(["ls-remote", "origin", "refs/arc/user/test-user/errands"])).split(/\s/u)[0];
-    expect(remoteTip).toBe(await git(["rev-parse", "refs/arc/user/test-user/errands"]));
+    // On the store, opening from the inbox moved the capture into the Errand's description; abandoning returns it.
+    const inbox = (await readStoreRecord(primary, IDENTITY, INBOX)).content;
+    expect(inbox).toContain("### `[ ]` **Discard capture**");
+    expect(inbox).toContain("- _Id:_ `0a1b2c3d`");
+    expect(inbox).toContain("- _Observation:_ retain this capture.");
+    expect(await git(["branch", "--list", "chore/discard-own-*"])).toBe("");
+    const errand = await readStoreRecord(primary, IDENTITY, recordReferences["work-item/record"](
+      OwnerIdentitySchema.parse({ type: "work-item", name: "discard-own" })));
+    expect(errand.placement?.kind).toBe("completed");
+    // The store publishes state only through `arc sync`, so the verb leaves nothing on the remote to retire.
+    expect(await git(["ls-remote", "origin", "refs/arc/*"])).toBe("");
     expect(result.results[2]).toMatchObject({
       derivedLocusState: { value: { entering: { row: { kind: "free-primary" } } } },
       orphanBranchSweep: { value: { orphans: [] } },

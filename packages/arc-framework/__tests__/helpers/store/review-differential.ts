@@ -3,7 +3,7 @@ import { canonicalize } from "../../../src/lib/kernel/index.js";
 import { setupMultiClone } from "../multi-clone.js";
 import { makeGitExec, makeGitExecInput } from "../integration.js";
 import { createReviewHarness } from "./review-harness.js";
-import { createStore } from "../../../src/lib/store/create.js";
+import { inRepoStore } from "./in-repo-ports.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import type { ReviewInvocationInput } from "../../../src/scripts/review-gate/runtime/invocation.js";
 import type { ReviewOutcomePassCounts } from "../../../src/lib/store/kinds/review/outcome/counts.js";
@@ -16,7 +16,7 @@ export async function createReviewRepositoryHarness() {
     store: reference.store, projectId: reference.projectId });
   const native = clone(clones.cloneB), secondNative = clone(clones.cloneA);
   const inRepo: ReviewInvocationInput = { cwd: clones.cloneA, exec: makeGitExec(clones.cloneA) };
-  inRepo.store = createStore(createDefaultStorePorts({ checkoutRoot: inRepo.cwd, exec: inRepo.exec }));
+  inRepo.store = inRepoStore(createDefaultStorePorts({ checkoutRoot: inRepo.cwd, exec: inRepo.exec }));
   return { ...clones, reference, inRepo, native, secondNative,
     seedErrandRef: async (record: Parameters<typeof reference.seedErrand>[0], identity: string, cwd = clones.cloneB) => {
       const { hashBlob, writeTreeCommit } = await import("../../../src/lib/errand/ref-tree.js");

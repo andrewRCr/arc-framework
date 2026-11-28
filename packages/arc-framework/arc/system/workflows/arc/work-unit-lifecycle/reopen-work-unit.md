@@ -1,10 +1,6 @@
 ---
 purpose: Withdraw an Integrating work unit back to Active task execution or Candidate preparation.
 audience: agent
-arc:
-  methods:
-    - branch-format
-    - commit-footer
 ---
 
 # Workflow: Reopen Work Unit
@@ -26,8 +22,8 @@ that needs private convergence. Withdrawing returns it to Candidate-bearing `Act
 
 ## Prerequisites
 
-- Currently on the WU's `<type>/<name>` branch (per [`branch-format`][branch-format])
-- `.arc/active/meta-{name}.md` exists and shows `**State:** Integrating`
+- In the checkout `arc locus` resolves to the WU, on its linked work branch
+- `arc view meta` shows `**State:** Integrating`
 - The WU's PR is open and **not merged** (a draft PR still qualifies; a merged PR does not)
 - The canonical task list has exactly the intended shape: a found executable cursor for `--task`, or
   `no-open-task` when reopening directly to Candidate preparation
@@ -51,7 +47,7 @@ Then choose how the PR is withdrawn:
 
 A withdrawal driven by a finding that changes the design record enters through [`amend-design`][amend-design]
 first: its [entry gate][amend-design-gate] settles what changes, and the corrective parent is authored and
-committed before the reopen runs, so `--task` has an executable leaf to anchor on. A coherently bound delivery
+saved before the reopen runs, so `--task` has an executable leaf to anchor on. A coherently bound delivery
 refuses here (Step 2) — that correction runs through [`deliver-stack`][deliver-stack]'s review-fix continuation
 instead.
 
@@ -75,44 +71,25 @@ with the exact corrective boundary.
 
 The executor then fires the `reopen` edge: flips `**State:** Integrating → Active`, clears the now-stale integration
 `**Next Action:**` pointer, and fires the `withdraw-pr` side-effect — `gh pr close` (default) or
-`gh pr ready --undo` (`--keep-pr`). Without `--task`, `**Next Task:**` stays `[none]` and `Current Workflow`
-returns to `prepare-work-unit`. With an exact `--task`, the transition writes that orientation and sets
-`Current Workflow` to `process-task-loop`, returning the Active work unit to task execution. `{name}` defaults to the
-current worktree's WU. Candidate currentness remains mandatory before prepublication resumes; reopened task
-execution carries no review or publication authority from the stale Candidate.
+`gh pr ready --undo` (`--keep-pr`). Without `--task`, `Current Workflow` returns to `prepare-work-unit`. With an
+exact `--task`, the transition sets `Current Workflow` to `process-task-loop`, returning the Active work unit to task
+execution. `{name}` defaults to the current checkout's WU. Candidate currentness remains mandatory before
+prepublication resumes; reopened task execution carries no review or publication authority from the stale Candidate.
 
 The PR's merge fact is resolved live against `gh` (never fabricated); the guard clears only a positively-unmerged
 PR. A merged PR is refused, and so is an unverifiable merge state — when `gh` or the remote is unavailable the reopen
 refuses rather than reopen on an unconfirmable PR (the withdraw leg needs `gh` anyway, so degrading open would only
 flip the meta and strand a half-done reopen). A non-`Integrating` source falls to the table's illegal-edge rejection.
 
-Stage the meta edit.
+The reopen writes only the record and the PR's state: nothing is staged, committed, or pushed.
 
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per [DEV-RULES.ARC][dev-rules-arc]
-> § Commit Discipline, meta-file commit shape):
+If reopen refuses before saving the transition, stop, surface the reason, and apply the reported remedy before retrying
+`arc reopen`. If it reports records saved with `withdraw-pr` remaining, the unit is already Active. Run the printed
+continuation command. Use its PR selector with `gh pr view <pr> --json state,isDraft` to confirm the PR is closed in
+default mode or open and draft with `--keep-pr`. If the intended state cannot be confirmed, stop, report the observed
+condition and retain the continuation command for retry. Proceed only after the withdrawal is settled.
 
-```text
-chore(arc): reopen {name}
-
-- Flip State: Integrating → Active
-- Withdraw PR ({close | draft})
-
-Context: meta-{name}.md (maintenance)
-```
-
-`(maintenance)` is the accepted footer for a lifecycle move with no category marker of its own — see the
-[`commit-footer`][commit-footer] method § Meta-file references.
-
-### 3) Push to sync the withdrawal
-
-The branch is already upstream (the PR was open). Push the state-flip commit so the remote reflects `Active` — and,
-under `--keep-pr`, so the draft PR carries it.
-
-> [!CAUTION]
-> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
-
-### 4) Resume execution or Candidate preparation
+### 3) Resume execution or Candidate preparation
 
 With `--task`, resume [`process-task-loop.md`](../process-task-loop.md) at the exact canonical cursor. When the final
 task closes, session init and recovery project `verify-work-unit` until Candidate attestation. Without `--task`, the
@@ -140,11 +117,8 @@ back to [`integrate-work-unit.md`][integrate].
 
 ---
 
-[branch-format]: ../../../methods/branch-format.md
-[commit-footer]: ../../../methods/commit-footer.md
 [integrate]: integrate-work-unit.md
 [prepare]: prepare-work-unit.md
 [deliver-stack]: ../supplemental/deliver-stack.md
 [amend-design]: ../supplemental/amend-design.md
 [amend-design-gate]: ../supplemental/amend-design.md#entry-gate
-[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md

@@ -9,6 +9,10 @@ import { makeInteractionContext } from "../helpers/interaction-context.js";
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { StoreImportedError, storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();

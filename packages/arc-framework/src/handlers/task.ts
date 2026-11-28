@@ -8,13 +8,15 @@ import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
 import { resolveVerbBase, buildExecutor, parseLifecycleCommand, refuse, type VerbBase } from "./lifecycle-shared.js";
 import { runTaskClose, runTaskDefer, type TaskVerbContext, type TaskCloseResult } from "../lib/work-unit/verbs/task-close.js";
 
-/** Registered task close input; commit is repeatable independently of task IDs. */
-export const TaskCloseCommandInputSchema = z.strictObject({ ids: z.array(ParentTaskIdSchema).default([]), commit: z.array(z.string().min(1)).default([]) });
+/** Registered task close input with repeatable commit choices or a state-only close. */
+export const TaskCloseCommandInputSchema = z.strictObject({
+  ids: z.array(ParentTaskIdSchema).default([]), commit: z.array(z.string().min(1)).default([]), stateOnly: z.boolean().default(false),
+});
 /** Registered deferral input takes one task identifier. */
 export const TaskDeferCommandInputSchema = z.strictObject({ id: ParentTaskIdSchema });
 /** Input registrations collected by the lifecycle group. */
 export const taskCommandInputRegistrations = [
-  { commandPath: "task close", schema: TaskCloseCommandInputSchema, schemaFields: { "operand.ids": "ids", "option.commit": "commit" } },
+  { commandPath: "task close", schema: TaskCloseCommandInputSchema, schemaFields: { "operand.ids": "ids", "option.commit": "commit", "option.state-only": "stateOnly" } },
   { commandPath: "task defer", schema: TaskDeferCommandInputSchema, schemaFields: { "operand.id": "id" } },
 ] as const;
 
@@ -34,16 +36,16 @@ export async function createTaskCommandContext(base: VerbBase): Promise<TaskVerb
 
 /** Close the current checkout's tasks and render their capture outcome.
  * @param ids - Named tasks, or the cursor leaf
- * @param opts - Repeatable commit choices
+ * @param opts - Repeatable commit choices or a state-only close
  * @param interaction - Invocation-owned interaction policy
  * @returns Nothing
  */
-export async function handleTaskClose(ids: string[], opts: { commit?: string[] }, interaction?: InteractionContext): Promise<void> {
+export async function handleTaskClose(ids: string[], opts: { commit?: string[]; stateOnly?: boolean }, interaction?: InteractionContext): Promise<void> {
   const input = parseLifecycleCommand(TaskCloseCommandInputSchema, { ids, ...opts }, ["task", "close"]);
   if (input === null) return;
   const base = await resolveVerbBase(interaction); if (base === null) return;
   const ctx = await createTaskCommandContext(base); if (ctx === null) return;
-  renderTaskClose(await runTaskClose(ctx, { ids: input.ids, commits: input.commit }));
+  renderTaskClose(await runTaskClose(ctx, { ids: input.ids, commits: input.commit, stateOnly: input.stateOnly }));
 }
 
 /** Defer one open task in the current checkout.

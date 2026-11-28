@@ -51,9 +51,9 @@ addresses (issue reference, feature name, bug description).
 
 ## What to Know
 
-**Maintainer-managed files:** Files in `.arc/active/` and `.arc/backlog/` are managed by
-project maintainers (task lists, work status, planning artifacts). The pre-commit hook warns
-if you stage changes in these directories. This is a soft warning, not a hard block.
+**Maintainer-managed records:** task lists, work status, and planning artifacts are ARC records managed by
+project maintainers. ARC projects them into `.arc/active/` and `.arc/backlog/`, which Git ignores, so a contribution
+never carries them.
 
 **Quality standards are the same** for contributors and maintainers — linting, type checking,
 tests, and build verification all apply equally. CI enforces these on every PR.
@@ -61,14 +61,13 @@ tests, and build verification all apply equally. CI enforces these on every PR.
 **Branch from the base branch** (typically `main`) for your work. Check `.arc/system/arc-config.yml` → `branch.base` for
 the project's integration branch.
 
-**Personal planning is supported, optionally.** The boundary is ownership of tracked state, not
-the presence of planning concepts. If your contribution is substantial enough to benefit from
-ARC's full planning pipeline — plan docs, PRDs, task lists, shift lifecycle, handoffs — you can
-run it entirely in your personal workspace at `.arc/user/{identity}/`, which is gitignored and
-invisible to upstream. The contributor briefing (`.arc/reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`,
-loaded automatically for contributor-role sessions) explains the layout, framework read
-contract, and lifecycle in detail. For casual contributions, personal planning is optional —
-most contributors never need it.
+**Personal planning is supported, optionally.** If your contribution is substantial enough to benefit from ARC's full
+planning pipeline — plan docs, PRDs, task lists, shift lifecycle, handoffs — you can run it entirely in your personal
+workspace at `.arc/user/{identity}/`. Git ignores this workspace, so its records stay out of your code branch and pull
+request. `arc sync` can publish saved working memory, personal inbox entries, and scratch files to the designated
+state remote. Anyone with read access to that remote can read the published records. The contributor briefing
+(`.arc/reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`, loaded automatically for contributor-role sessions) explains
+the personal workspace and the session workflow. For casual contributions, personal planning is optional.
 
 ## Pull Request Guidelines
 

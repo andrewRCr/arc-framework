@@ -17,8 +17,8 @@ type Husk = NonNullable<Extract<TeardownResult, { status: "torn-down" }>["husk"]
 interface Input { ctx: TeardownContext; path: string; primaryPath: string; evidence: StoreRetirementEvidence }
 
 /** Persist with the claim intact, then stamp and detach its exact marker and checkout generation. */
-export async function createStoreSelfTeardownHusk(input: Input): Promise<{ husk: Husk; stamp: WorktreeHuskStamp }> {
-  const { ctx, path, evidence } = input;
+export async function createStoreSelfTeardownHusk(input: Input & { baseOid: string }): Promise<{ husk: Husk; stamp: WorktreeHuskStamp }> {
+  const { ctx, path, evidence, baseOid } = input;
   if (ctx.readTeardownSelection === undefined || ctx.teardownWorktree?.husk === undefined) {
     throw new Error("Self-teardown requires its exact marker/topology transaction; repair that boundary and retry teardown.");
   }
@@ -37,7 +37,8 @@ export async function createStoreSelfTeardownHusk(input: Input): Promise<{ husk:
   const stamp: WorktreeHuskStamp = {
     sha: selected.checkout.head, at: new Date((ctx.now ?? Date.now)()).toISOString(), subject, branch,
     authorization: evidence.rule === "discard" ? "discard-confirmed" : "merged-preserved",
-    evidence: evidence.evidence, remoteRef: await observedRemoteProof(ctx, branch),
+    evidence: evidence.evidence.kind === "shipped" ? { ...evidence.evidence, baseProofOid: baseOid } : evidence.evidence,
+    remoteRef: await observedRemoteProof(ctx, branch),
   };
   await reconcileUserSurfacesForRemoval({ exec: ctx.exec, chdir: ctx.chdir, fs }, path);
   const persisted = await ctx.projectionRemovalSlots?.persist(path);

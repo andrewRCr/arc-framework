@@ -220,6 +220,7 @@ export function derivedFrameFromActive(
   taskCursor: TaskListCursorFileResult | null,
   workingMemoryPath: string | null = null,
   stateOffBranch = false,
+  workUnitUid?: string,
 ): DerivedLocusFrame {
   if (active.resolution !== "single" || active.path === null) {
     const row = {
@@ -250,7 +251,7 @@ export function derivedFrameFromActive(
     };
   }
   const key = /meta-(.+)\.md$/u.exec(active.path)?.[1] ?? "x";
-  const subject = { kind: "work-unit" as const, key };
+  const subject = { kind: "work-unit" as const, key, ...(workUnitUid === undefined ? {} : { uid: workUnitUid }) };
   const executionClosed = active.sessionType === "execution" && taskCursor?.status === "no-open-task";
   const context = {
     kind: "resolved" as const,

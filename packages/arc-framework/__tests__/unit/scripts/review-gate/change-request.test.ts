@@ -183,14 +183,23 @@ describe("exact-head change-request resolution", () => {
   it("marks the request when the host has not caught up with an already pushed head", async () => {
     const movedHead = "b".repeat(40);
     const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
-    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+    let hostHead = headSha;
+    const ports = port({
       readHeadRef: async () => ({ local: movedHead, remote: movedHead }),
-      listByHead: async () => [candidate()],
+      listByHead: async () => [candidate({ headRefOid: hostHead })],
       isAncestor,
-    }));
+    });
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, ports);
 
-    expect(result).toMatchObject({ state: "ambiguous", headAhead: true });
+    expect(await resolveChangeRequest(request, ports)).toMatchObject({ state: "blocked", reason: "head-mismatch" });
+    expect(result).toMatchObject({ state: "ambiguous", headAhead: true,
+      remedy: { text: expect.stringMatching(/wait.*host/iu),
+        argv: ["arc", "review", "change-request", "resolve", "--head-ref", headRef, "--head-sha", movedHead] } });
     expect(isAncestor.mock.calls).toEqual([[headSha, movedHead], [movedHead, movedHead]]);
+    if (result.state !== "ambiguous" || result.remedy === undefined) throw new Error("Missing retry");
+    hostHead = movedHead;
+    expect(await resolveChangeRequest({ ...request, headSha: result.remedy.argv.at(-1) ?? "" }, ports))
+      .toMatchObject({ state: "open", candidate: { headRefOid: movedHead } });
   });
 
   it("leaves the mark off when the remote tip has diverged from the requested head", async () => {

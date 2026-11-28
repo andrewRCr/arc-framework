@@ -8,6 +8,7 @@ import { resolveEntryList, failure, type ResolvedEntryList } from "./lists.js";
 import { markSurvivors } from "./survivors.js";
 import { inboundPendingFigures } from "./pending.js";
 import type { InboxContext, InboxResult, InboxRow, InboxRefusal, InboxOutcome } from "./types.js";
+import { inboxListStep } from "../store/pre-flip-steps.js";
 
 /** List a semantic inbox or work item's entry list.
  * @param input - List selector and optional personal capture target.
@@ -15,7 +16,7 @@ import type { InboxContext, InboxResult, InboxRow, InboxRefusal, InboxOutcome } 
  * @returns Versioned rows or a repairable refusal.
  */
 export async function listInbox(input: { list: string; target?: string }, context: InboxContext): Promise<InboxResult> {
-  if (!context.store.capabilities.stateOffBranch) return refused(input.list, failure("unsupported", "arc inbox requires stateOffBranch capability.", "Use arc user inbox-list --target <slug> until the capability flips.").refusal);
+  if (!context.store.capabilities.stateOffBranch) return refused(input.list, failure("unsupported", "arc inbox requires stateOffBranch capability.", inboxListStep(input.list, input.target)).refusal);
   if (!SlugSchema.safeParse(context.identity).success) return refused(input.list, failure("identity-missing", "A valid ARC identity is required to read inbox receipts.", "Configure your ARC identity, then retry.").refusal);
   if (input.target !== undefined && !SlugSchema.safeParse(input.target).success) return refused(input.list, failure("invalid-input", "The target must be a work-unit slug.", "Use arc inbox personal --target <slug>.").refusal);
   if (input.target !== undefined && input.list !== "personal") return refused(input.list, failure("invalid-input", "Only the personal inbox carries work-unit capture targets.", "Use arc inbox personal --target <slug>.").refusal);

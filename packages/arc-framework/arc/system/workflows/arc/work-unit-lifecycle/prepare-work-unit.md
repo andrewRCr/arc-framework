@@ -13,8 +13,8 @@ arc:
 Prepare a verified Candidate for public integration. Verification remains the final execution task; this workflow
 starts from its durable Candidate attestation, settles private review and convergence, then schedules publication.
 
-**When to use:** All tasks in `tasks-{name}.md` are marked `[x]`, `active/meta-{name}.md` shows
-`**State:** Active`, and the typed integration boundary projects a Candidate locus.
+**When to use:** All tasks in `tasks-{name}.md` are closed, `arc view meta` shows `**State:** Active`, and the
+typed integration boundary projects a Candidate locus.
 
 > [!NOTE]
 > **No Candidate?** Finish [`verify-work-unit.md`](verify-work-unit.md), including `arc attest`. **Already
@@ -26,7 +26,7 @@ starts from its durable Candidate attestation, settles private review and conver
 
 Invoke `arc status {name} --json` and require the Candidate-bearing Active boundary. Session initialization and
 recovery project this state as `sessionType: prepublication` with `workflow: prepare-work-unit`; never infer it from
-`Current Workflow`, `Next Action`, or SESSION-NOTES.
+`Current Workflow`, `Next Action`, or the meta's session context.
 
 Before composing review, inspect whether the Candidate has plan-owned private member targets:
 
@@ -104,24 +104,12 @@ authority's explicit `covered`, `targeted-check`, or `changed` choice. Do not in
 recommendation. Compose the strict input from `applicability.resolutionSelector`, adding `selectedBy` (the selecting
 actor) and `choice`; for `targeted-check`, also add `targetedEvidenceRef`, the completed check's evidence reference.
 Then invoke `arc candidate applicability resolve {name} -` with that input. For `covered` or `targeted-check`,
-`resolved / commit-selection` and `exact-replay / commit-selection` leave the Candidate selection staged. Request
-`arc check gate commit` over that selection, then commit:
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): record Candidate applicability for {name}
-
-Context: meta-{name}.md (prepublication)
-```
-
-Re-enter pre-publication. `resolved / continue` and `exact-replay / continue` mean the selection is already durable;
-re-enter without a commit. Only `resolved / establish-new-root` or `exact-replay / establish-new-root`, produced by an
-explicit `changed` choice, follows ordinary scope selection, completed verification, and
-`arc attest {name} --new-root --json` before re-entry. Every stale, conflicting, invalid, or unavailable resolution
-follows its typed next action without substituting a selection in prose. A refusal without `applicability` renders
-`remedy.text` and invokes `remedy.argv` unchanged once the condition it names is met.
+`resolved / continue` and `exact-replay / continue` mean the selection is recorded; re-enter pre-publication. Only
+`resolved / establish-new-root` or `exact-replay / establish-new-root`, produced by an explicit `changed` choice,
+follows ordinary scope selection, completed verification, and `arc attest {name} --new-root --json` before
+re-entry. Every stale, conflicting, invalid, or unavailable resolution follows its typed next action without
+substituting a selection in prose. A refusal without `applicability` renders `remedy.text` and invokes `remedy.argv`
+unchanged once the condition it names is met.
 
 The envelope's `target` is the exact target every exact-target operation below binds against. A null `target`
 means the checkout could not compose one; resolve the returned advisory before invoking any operation. The lane
@@ -155,8 +143,7 @@ For `run-convergence-verification`, use only the typed action's `nextAction.requ
 `nextAction.verificationKind`, obtain a fresh verification evidence reference, replace only the
 `{verificationEvidenceRef}` operand in `nextAction.attestArgv`, and invoke that exact argv. Never select a
 verification scope in prose or substitute the Candidate root task-list reference. Complete the final forced merge
-check without an intervening commit. Keep every projection staged while the returned action re-enters prepublication,
-through `candidate-publish-ready`; the publication transition in Step 3 is the single lifecycle projection commit.
+check without an intervening commit.
 
 - `skipped | no-op | pass-complete / none` — lane complete.
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
@@ -199,9 +186,9 @@ contract, materially interacting, or uncertain changes. The approved scope does 
 A `ready-to-fix / apply-fix` response carrying `payload.authoring` binds a Candidate private-member fix. Author only in
 its exact `authoring.checkoutPath`, `authoring.ref`, and `authoring.head`; a missing or different locus stops before
 mutation. Never author it in the disposable member checkout. The shared committed `verifiedFix` replay must return
-`candidate-advanced / continue-review` or idempotent `candidate-current / continue-review`. Commit its staged Candidate
-response as `taskCommit` under the same approved increment before any Candidate-currentness or delivery-preparation
-read.
+`candidate-advanced / continue-review` or idempotent `candidate-current / continue-review`. When it reports
+`design-exported`, commit the re-exported review copy as `taskCommit` under the same approved increment before any
+Candidate-currentness or delivery-preparation read.
 
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
 § Prepare private delivery candidates when directed before re-invoking pre-publication review. For a response
@@ -213,31 +200,26 @@ Owner-accepted terminus into publication without classifying either as settled, 
 
 ## 3) Schedule publication
 
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before publication unless the Owner has already explicitly approved this Candidate's
+> transition. Present the work unit, its `candidate-publish-ready` Candidate ID and subject digest, and the
+> `Active → Integrating` transition. Close with `Approve publication?` and await approval before invoking the
+> verb. If the Candidate changes before invocation, return to this gate for the new Candidate.
+
 ```bash
 arc publish {name} --json
 ```
 
-The verb reads `Next Action` from the boundary it writes and `Last Completed` from the last `[x]` task. Supply
+The verb reads `Next Action` from the boundary it writes and `Last Completed` from the last closed task. Supply
 `--last-completed "{work}"` or `--action "{pointer}"` only when that read refuses or is wrong.
 
-The executor fires `Active → Integrating`, writes the composed orientation, regenerates ROADMAP, and stages the
-publication boundary with any reservation. An advisory-only reconcile stops before transition; edit, run
-`arc check increment`, and rerun `arc publish`, or obtain explicit direction to retain all advisories and use
-`--allow-advisories`. Confirm ROADMAP changed only for the state flip.
+The executor fires `Active → Integrating` in one write, with the composed orientation and the publication boundary
+and any reservation. An advisory-only reconcile stops before transition; edit, run `arc check increment`, save with
+`arc save`, and rerun `arc publish`, or obtain explicit direction to retain all advisories and use
+`--allow-advisories`.
 
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): publish {name}
-
-- Flip State: Active → Integrating
-
-Context: meta-{name}.md (prepublication)
-```
-
-After the transition commit, load [`integrate-work-unit.md`](integrate-work-unit.md). Its Step 1 owns the first
-push and change-request creation; do not push from this workflow.
+Then load [`integrate-work-unit.md`](integrate-work-unit.md). Its Step 1 owns the first push and change-request
+creation; do not push from this workflow.
 
 ---
 

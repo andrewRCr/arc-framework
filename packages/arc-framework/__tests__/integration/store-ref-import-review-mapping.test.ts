@@ -8,7 +8,7 @@ import { resolveGitCommonDir } from "../../src/lib/git/exec.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { ArchiveQuarterSchema, ArchiveSequenceSchema } from "../../src/lib/kernel/index.js";
-import { createStore, createDefaultStorePorts, createRefStore, RecordReferenceSchema, type RecordReference } from "../../src/lib/store/index.js";
+import { createDefaultStorePorts, createRefStore, RecordReferenceSchema, type RecordReference } from "../../src/lib/store/index.js";
 import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { resolveCandidateRecordRelativePath } from "../../src/lib/work-unit/candidate-record-store.js";
@@ -27,6 +27,7 @@ import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, createCandidateSubjectSnapshot,
   serializeCandidateManagedRecord } from "../../src/lib/work-unit/candidate-attestation.js";
 import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 // The stub mappings echo their input as record content, so the review family's codecs stay out of the import.
 async function opaqueReviewImport(...args: Parameters<typeof importFixture>): ReturnType<typeof importFixture> {
@@ -405,7 +406,7 @@ it("preserves a newer uncommitted Candidate separately from its committed histor
   const path = resolveCandidateRecordRelativePath("alpha");
   const current = inRepoContent(reference, "changed");
   await writeFile(join(h.root, path), current);
-  const native = createStore(createDefaultStorePorts({ checkoutRoot: h.root }));
+  const native = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.root }));
   expect(success(await native.read({ reference })).content).toBe(current);
   const notes = "# Notes: Alpha\n\nUncommitted continuity marker.\n";
   await writeFile(join(h.root, ".arc/active/notes-alpha.md"), notes);

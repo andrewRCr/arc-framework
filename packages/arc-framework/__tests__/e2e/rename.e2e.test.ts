@@ -17,12 +17,18 @@ import {
   unwrapPresentationOutput,
 } from "./helpers.js";
 import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import {
   resolveSubmissionBoundaryPath,
   writeSubmissionBoundary,
 } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
+import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -48,6 +54,29 @@ async function exists(path: string): Promise<boolean> {
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
     throw error;
+  }
+}
+
+async function renameMoveChoice(repo: string, args = ["agenda", "session-init", "--json"]) {
+  const result = await runArcNoTty(args, repo);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  const agenda: unknown = JSON.parse(result.stdout);
+  assertSessionInitAgenda(agenda);
+  const offer = agenda.steps.find(step => step.type === "offer" && step.id.startsWith("rename-moves:"));
+  const choice = offer?.type === "offer" ? offer.choices[0] : undefined;
+  if (choice?.kind !== "actions") throw new Error("Expected an executable rename cleanup choice");
+  return choice;
+}
+
+async function runRenameMoveChoice(repo: string, args?: string[]): Promise<void> {
+  for (const action of (await renameMoveChoice(repo, args)).actions) {
+    const [command, ...args] = action.argv;
+    const cwd = action.checkout ?? repo;
+    if (command === "git") await git(cwd, args);
+    else if (command === "arc") {
+      const replay = await runArcNoTty(args, cwd);
+      expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    } else throw new Error(`Unexpected cleanup command: ${command}`);
   }
 }
 
@@ -179,6 +208,9 @@ async function createFixture(): Promise<RenameFixture> {
     "init", "--yes", "--name", "rename-test", "--pm-mode", "arc-in-git", "--tools", "codex",
   ], repo);
   expect(initialized.exitCode).toBe(0);
+  // The in-repo rename rewrites a ROADMAP the install no longer writes.
+  await mkdir(join(repo, ".arc", "backlog"), { recursive: true });
+  await writeFile(join(repo, ".arc", "backlog", "ROADMAP.md"), "# Roadmap\n");
   await git(repo, ["config", "core.hooksPath", "/dev/null"]);
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "chore(test): initialize fixture"]);
@@ -227,7 +259,12 @@ async function installRenameGateHook(
   return { ranMarker: marker, refusalMarker };
 }
 
+// Every case here works over state the in-repo store keeps in tracked files: it renames tracked artifacts, transition
+// records, a notes workspace, or a `chore/rename` branch, reads a tracked Candidate record, or meets a refusal only that
+// store makes (the same-name check before reading any state, slug-matched checkout roles, remote candidate expansion).
+// The store renames records in one write; its cases follow.
 describe("arc rename", () => {
+  useInRepoStoreForEach();
   const cleanupPaths: string[] = [];
 
   afterEach(async () => {
@@ -300,7 +337,7 @@ describe("arc rename", () => {
 
     const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
 
-    expect(renamed.exitCode).toBe(0);
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
     expect(renamed.stdout).toContain("in-place");
     expect(renamed.stdout).toContain("Checkout:  unmanaged");
     expect(renamed.stdout).toContain("Worktree:  unchanged");
@@ -459,9 +496,7 @@ describe("arc rename", () => {
     expect(await hasUserWorkspace(oldWorktree, "old-name")).toBe(false);
     expect(await hasUserWorkspace(oldWorktree, "new-name")).toBe(true);
 
-    await execFileAsync("git", ["worktree", "move", "-f", "-f", oldWorktree, newWorktree], { cwd: fixture.repo });
-    const replay = await runArcNoTty(["rename", "old-name", "new-name"], newWorktree, { timeout: 20_000 });
-    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    await runRenameMoveChoice(fixture.repo);
     const movedMarker = JSON.parse(await readFile(
       join(newWorktree, ".arc", "system", ".internal", "worktree-marker.json"),
       "utf8",
@@ -532,5 +567,262 @@ describe("arc rename", () => {
     expect(await exists(oldWorktree)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);
     expect(await git(oldWorktree, ["ls-remote", "--heads", "origin", "plan/old-name"])).toBe("");
+  }, 45_000);
+});
+
+describe("arc rename on the store", () => {
+  const cleanupPaths: string[] = [];
+
+  afterEach(async () => {
+    for (const path of cleanupPaths.splice(0).reverse()) await removeGitBackedDir(path);
+  });
+
+  async function storeFixture(): Promise<RenameFixture> {
+    const repo = await createTempRepo("arc-rename-store-");
+    const remote = await mkdtemp(join(tmpdir(), "arc-rename-store-origin-"));
+    cleanupPaths.push(remote, repo);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await git(repo, ["remote", "add", "origin", remote]);
+    const initialized = await runArcNoTty(["init", "--yes", "--name", "rename-test"], repo);
+    expect(initialized.exitCode, initialized.stdout + initialized.stderr).toBe(0);
+    await git(repo, ["config", "core.hooksPath", "/dev/null"]);
+    await git(repo, ["add", "."]);
+    await git(repo, ["commit", "-m", "chore(test): initialize fixture"]);
+    await git(repo, ["push", "-u", "origin", "main"]);
+    const designated = await runArcNoTty(["store", "remote", "origin", "push"], repo);
+    expect(designated.exitCode, designated.stdout + designated.stderr).toBe(0);
+    return { repo, remote };
+  }
+
+  /** An Active work unit held in the store on its created branch, with unlanded work published to origin, in the
+   * primary checkout or in a linked checkout ARC spawned for it and projected there, as starting it leaves one. */
+  async function startedWorkUnit(fixture: RenameFixture, options: { spawned: boolean; taskList?: string }) {
+    const checkout = options.spawned ? `${fixture.repo}.old-name` : fixture.repo;
+    if (options.spawned) cleanupPaths.push(`${fixture.repo}.new-name`, checkout);
+    const { meta } = await seedWorkUnit(fixture.repo, "old-name", { identity: "test-user", branch: "feat/old-name",
+      meta: { state: "Active", owner: "test-user", branch: "feat/old-name",
+        ...(options.taskList === undefined ? {} : { taskList: "tasks-old-name.md" }) },
+      ...(options.taskList === undefined ? {} : { taskList: options.taskList }) });
+    await writeFile(join(fixture.repo, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+    if (options.spawned) await git(fixture.repo, ["worktree", "add", "-b", "feat/old-name", checkout, "main"]);
+    else await git(fixture.repo, ["switch", "-c", "feat/old-name"]);
+    await writeWorktreeMarker(checkout, { spawnedByArc: options.spawned, wuName: "old-name", createdFor: seededWorkUnitSubject(meta),
+      spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00.000Z" });
+    const saved = await runArcNoTty(["save"], checkout);
+    expect(saved.exitCode, saved.stdout + saved.stderr).toBe(0);
+    await writeFile(join(checkout, "work.txt"), "unlanded\n");
+    await git(checkout, ["add", "work.txt"]);
+    await git(checkout, ["commit", "-m", "feat: unlanded work"]);
+    await git(checkout, ["push", "-u", "origin", "feat/old-name"]);
+    return { checkout, meta, record: () => readStoreRecord(fixture.repo, SlugSchema.parse("test-user"), meta.reference) };
+  }
+
+  async function expectStoredName(h: Awaited<ReturnType<typeof startedWorkUnit>>, name: "old-name" | "new-name"): Promise<void> {
+    expect((await h.record()).reference.owner).toEqual({ ...h.meta.reference.owner, name });
+  }
+
+  it("renames a backlog stub in one store write, committing nothing and leaving main checked out", async () => {
+    const fixture = await storeFixture();
+    const stubbed = await runArcNoTty(["stub", "old-name", "--commitment", "planned", "--priority", "P2", "--class", "Light"],
+      fixture.repo);
+    expect(stubbed.exitCode, stubbed.stdout + stubbed.stderr).toBe(0);
+    const head = await git(fixture.repo, ["rev-parse", "HEAD"]);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name", "--json"], fixture.repo);
+
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+    expect(renamed.stdout.trim().split("\n")).toHaveLength(1);
+    expect(JSON.parse(renamed.stdout)).toMatchObject({ status: "renamed", shape: "stub", recordBatch: "applied",
+      pendingIntegration: false, reference: { owner: { name: "new-name" }, kind: "work-item/meta" } });
+    const status = await runArcNoTty(["status", "new-name", "--json"], fixture.repo);
+    expect(JSON.parse(status.stdout)).toMatchObject({ slug: "new-name", state: "planned" });
+    expect(await git(fixture.repo, ["rev-parse", "HEAD"])).toBe(head);
+    expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("main");
+    expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
+  }, 30_000);
+
+  it("renames an in-place work unit, its checkout's ownership, and its published branch", async () => {
+    const fixture = await storeFixture();
+    const h = await startedWorkUnit(fixture, { spawned: false });
+    await expect(expectStoredName(h, "new-name")).rejects.toMatchObject({ name: "AssertionError" });
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+    expect(renamed.stdout).toContain("in-place");
+    // The checkout's path precedes the note, so where the report wraps it depends on the temporary directory's length.
+    expect(unwrapPresentationOutput(renamed.stdout).replace(/\s/gu, "")).toContain("(ownershiprenamed;pathunchanged)");
+    expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/new-name");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).toBe("");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).not.toBe("");
+    await expectStoredName(h, "new-name");
+    await expect(expectStoredName(h, "old-name")).rejects.toMatchObject({ name: "AssertionError" });
+    const marker = JSON.parse(await readFile(join(fixture.repo, ".arc", "system", ".internal", "worktree-marker.json"), "utf8")) as {
+      wuName: string; createdFor: { name: string } };
+    expect(marker).toMatchObject({ wuName: "new-name", createdFor: { name: "new-name" } });
+  }, 30_000);
+
+  it.each([false, true])("refuses a rename to the work unit's own name, changing nothing, json=%s", async json => {
+    const fixture = await storeFixture();
+    const h = await startedWorkUnit(fixture, { spawned: false });
+    const before = await h.record();
+    const remote = await git(fixture.repo, ["ls-remote", "--heads", "origin"]);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "old-name", ...(json ? ["--json"] : [])], fixture.repo);
+
+    expect(renamed.exitCode).toBe(1);
+    if (json) expect(JSON.parse(renamed.stdout)).toMatchObject({ status: "rejected", reason: "Rename needs distinct source and target names." });
+    else expect(renamed.stdout + renamed.stderr).toContain("Rename needs distinct source and target names.");
+    expect(await h.record()).toEqual(before);
+    expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/old-name");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin"])).toBe(remote);
+  }, 30_000);
+
+  it("refuses a work unit whose Candidate the store holds before renaming its branch", async () => {
+    const fixture = await storeFixture();
+    const h = await startedWorkUnit(fixture, { spawned: false,
+      taskList: "# Task List: old-name\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Verification complete**\n" });
+    const attested = await runArcNoTty(["attest", "old-name", "--json"], h.checkout);
+    expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("Candidate publication state cannot be renamed");
+    expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/old-name");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).not.toBe("");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).toBe("");
+    await expectStoredName(h, "old-name");
+  }, 30_000);
+
+  it("self-renames from its spawned checkout, deferring the checkout's move until it runs from outside", async () => {
+    const fixture = await storeFixture();
+    const h = await startedWorkUnit(fixture, { spawned: true });
+    const newWorktree = `${fixture.repo}.new-name`;
+    const markerPath = (checkout: string) => join(checkout, ".arc", "system", ".internal", "worktree-marker.json");
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], h.checkout, { timeout: 20_000 });
+
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+    expect(renamed.stdout).toContain("spawned");
+    expect(renamed.stdout).toContain("Follow-up:");
+    const unwrapped = unwrapPresentationOutput(renamed.stdout);
+    expect(unwrapped).toContain(h.checkout);
+    expect(unwrapped).toContain(newWorktree);
+    // The boxed follow-up wraps at arbitrary columns; compare its words without their spacing.
+    const { uid } = seededWorkUnitSubject(h.meta);
+    expect(unwrapped.replace(/\s/gu, ""))
+      .toMatch(new RegExp(`thenrunarcrename${uid}new-name--settle-movesha256:[a-f0-9]{64}in`, "u"));
+    expect(await exists(h.checkout)).toBe(true);
+    expect(await exists(newWorktree)).toBe(false);
+    const pending = JSON.parse(await readFile(markerPath(h.checkout), "utf8")) as {
+      wuName: string; createdFor: { name: string }; renameMovePending: Record<string, string> };
+    expect(pending).toMatchObject({ wuName: "new-name", createdFor: { name: "new-name" } });
+    expect(pending.renameMovePending).toEqual({ oldSlug: "old-name", newSlug: "new-name", branch: "feat/new-name",
+      head: await git(h.checkout, ["rev-parse", "HEAD"]), from: h.checkout, to: newWorktree });
+    expect(await git(h.checkout, ["branch", "--show-current"])).toBe("feat/new-name");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).toBe("");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).not.toBe("");
+
+    await execFileAsync("git", ["worktree", "move", "-f", "-f", h.checkout, newWorktree], { cwd: fixture.repo });
+    const replay = await runArcNoTty(["rename", "old-name", "new-name"], newWorktree, { timeout: 20_000 });
+
+    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    const moved = JSON.parse(await readFile(markerPath(newWorktree), "utf8")) as { renameMovePending?: unknown };
+    expect(moved.renameMovePending).toBeUndefined();
+  }, 45_000);
+
+  it("settles a deferred self-rename by following the session-init cleanup choice", async () => {
+    const fixture = await storeFixture();
+    const { checkout } = await startedWorkUnit(fixture, { spawned: true });
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], checkout);
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+
+    let argv = ["arc", "agenda", "session-init", "--json"];
+    // The replay may be part of the move choice or a follow-up on recompilation.
+    for (let pass = 0; pass < 2; pass++) {
+      const result = await runArcNoTty(argv.slice(1), fixture.repo);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      const agenda: unknown = JSON.parse(result.stdout);
+      assertSessionInitAgenda(agenda);
+      const offer = agenda.steps.find(step => step.type === "offer" && step.id.startsWith("rename-moves:"));
+      if (pass === 0) expect(offer, "Expected a deferred rename cleanup choice").toBeDefined();
+      if (offer?.type !== "offer") break;
+      const choice = offer.choices[0];
+      if (choice?.kind !== "actions") throw new Error("Expected an executable rename cleanup choice");
+      for (const action of choice.actions) {
+        const [command, ...args] = action.argv;
+        const cwd = action.checkout ?? fixture.repo;
+        if (command === "git") await git(cwd, args);
+        else if (command === "arc") {
+          const replay = await runArcNoTty(args, cwd);
+          expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+        } else throw new Error(`Unexpected cleanup command: ${command}`);
+      }
+      if (choice.then.kind !== "recompile") break;
+      argv = choice.then.argv;
+    }
+
+    const moved = await readWorktreeMarker(`${fixture.repo}.new-name`);
+    if (moved.kind !== "present") throw new Error("Expected the ownership marker at the destination");
+    expect(moved.marker.renameMovePending).toBeUndefined();
+  }, 45_000);
+
+  it("refuses a stale cleanup replay and lets the current move settle", async () => {
+    const fixture = await storeFixture();
+    const h = await startedWorkUnit(fixture, { spawned: true });
+    const moved = `${fixture.repo}.new-name`;
+    const later = `${fixture.repo}.later-name`;
+    cleanupPaths.push(later);
+    const first = await runArcNoTty(["rename", "old-name", "new-name"], h.checkout);
+    expect(first.exitCode, first.stdout + first.stderr).toBe(0);
+    const choice = await renameMoveChoice(fixture.repo);
+    const move = choice.actions.find(action => action.argv[0] === "git");
+    const replay = choice.actions.find(action => action.argv[0] === "arc");
+    if (!move || !replay) throw new Error("Expected a move and settlement command");
+    await git(move.checkout ?? fixture.repo, move.argv.slice(1));
+    const newer = await runArcNoTty(["rename", "new-name", "later-name"], moved);
+    expect(newer.exitCode, newer.stdout + newer.stderr).toBe(0);
+    const pending = await readWorktreeMarker(moved);
+    expect(pending).toMatchObject({ kind: "present", marker: { renameMovePending: { to: later } } });
+
+    const stale = await runArcNoTty([...replay.argv.slice(1), "--json"], replay.checkout ?? fixture.repo);
+    const state = await h.record();
+    const branch = await git(moved, ["branch", "--show-current"]);
+    const marker = await readWorktreeMarker(moved);
+    expect({ exitCode: stale.exitCode, name: state.reference.owner.name, branch, marker }, stale.stdout + stale.stderr)
+      .toEqual({ exitCode: 1, name: "later-name", branch: "feat/later-name", marker: pending });
+    const refusal = JSON.parse(stale.stdout) as { reason: string; remedy: { argv: string[] } };
+    expect(refusal).toMatchObject({ status: "rejected", reason: expect.stringContaining("marker generation changed"),
+      remedy: { argv: ["arc", "agenda", "session-init", "--json"] } });
+
+    await runRenameMoveChoice(fixture.repo, refusal.remedy.argv.slice(1));
+    const settled = await readWorktreeMarker(later);
+    expect(settled).toMatchObject({ kind: "present", marker: { wuName: "later-name" } });
+    expect(settled).not.toHaveProperty("marker.renameMovePending");
+  }, 45_000);
+
+  it("resumes after a stale remote lease and keeps the old remote branch a peer moved", async () => {
+    const fixture = await storeFixture();
+    const h = await startedWorkUnit(fixture, { spawned: true });
+    const hook = join(fixture.remote, "hooks", "post-receive");
+    await writeFile(hook, ["#!/bin/sh", "while read old new ref; do",
+      "  if [ \"$ref\" = \"refs/heads/feat/new-name\" ] && [ ! -f arc-rename-fired ]; then",
+      "    touch arc-rename-fired", "    git update-ref refs/heads/feat/old-name refs/heads/main", "  fi", "done", ""].join("\n"), "utf8");
+    await chmod(hook, 0o755);
+
+    const interrupted = await runArcNoTty(["rename", "old-name", "new-name"], h.checkout, { timeout: 20_000 });
+
+    expect(interrupted.exitCode).toBe(1);
+    expect(interrupted.stdout + interrupted.stderr).toContain("Old remote head moved");
+    expect(await git(h.checkout, ["branch", "--show-current"])).toBe("feat/new-name");
+
+    const resumed = await runArcNoTty(["rename", "old-name", "new-name"], h.checkout, { timeout: 20_000 });
+
+    expect(resumed.exitCode, resumed.stdout + resumed.stderr).toBe(0);
+    expect(unwrapPresentationOutput(resumed.stdout)).toContain("kept feat/old-name");
+    const main = await git(fixture.repo, ["rev-parse", "main"]);
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).toBe(`${main}\trefs/heads/feat/old-name`);
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).not.toBe("");
   }, 45_000);
 });

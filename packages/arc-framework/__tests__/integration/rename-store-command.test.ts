@@ -1,8 +1,8 @@
 import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
 /** Record rename composes the production marker, worktree and command adapters. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
-import { afterEach, expect, it } from "vitest";
-import { readFileSync, writeFileSync } from "node:fs";
+import { afterEach, expect, it, vi } from "vitest";
+import { promises as nativeFs, readFileSync, writeFileSync } from "node:fs";
 import { runStoreRename } from "../../src/lib/work-unit/verbs/rename-store.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -16,10 +16,17 @@ import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { storeRenameAdapters } from "../../src/commands/rename-store.js";
 import { createInRepoRenameRetirementContext } from "../../src/lib/work-unit/direct-retirement-driver.js";
 import { readWorktreeMarker, writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
+import { resolveWorktreePathsByBranch } from "../../src/lib/git/worktree-roster.js";
+
+const mockReadFile = vi.hoisted(() => vi.fn<typeof import("node:fs/promises").readFile>());
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...fs, readFile: mockReadFile.mockImplementation(fs.readFile) };
+});
 const roots: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(roots.splice(0)); });
-async function fixture(spawned: boolean) {
-  const root = await createTempRepoCore({ prefix: "arc-rename-store-", identity: "test-user" }); roots.push(root);
+async function fixture(spawned: boolean, prefix = "arc-rename-store-") {
+  const root = await createTempRepoCore({ prefix, identity: "test-user" }); roots.push(root);
   const exec = makeGitExec(root); await exec("git", ["branch", "-M", "main"]); await exec("git", ["commit", "--allow-empty", "-m", "base"]);
   const checkout = spawned ? `${root}.source` : root, target = spawned ? `${root}.target` : root;
   if (spawned) await exec("git", ["worktree", "add", "-b", "feat/source", checkout]);
@@ -120,8 +127,13 @@ it("completes a retry while retaining a peer's advanced old remote head", async 
   expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
 }, 30_000);
 
-it.each([false, true])("defers the holder's own folder move while completing the logical rename, detached=%s", async (detached) => {
-  const f = await fixture(true);
+it.each([
+  { detached: false, prefix: "arc-rename-store-" },
+  { detached: true, prefix: "arc-rename-store-" },
+  { detached: false, prefix: "arc rename-store-" },
+])("defers the holder's own folder move while completing the logical rename, detached=$detached, prefix=$prefix", async ({ detached, prefix }) => {
+  const f = await fixture(true, prefix);
+  roots.push(f.checkout, f.target);
   if (detached) {
     await f.exec("git", ["switch", "--detach"], { cwd: f.checkout });
     lifecycleSuccess(await f.store.write({ action: "put", reference: f.primary.reference, expected: f.primary.version,
@@ -135,15 +147,86 @@ it.each([false, true])("defers the holder's own folder move while completing the
     return f.exec(cmd, args, { cwd: boundCwd, ...options });
   };
   const result = await runRenameCommand(command, { sourceSlug: "source", targetSlug: "target" });
-  expect(result).toMatchObject({ status: "renamed", checkout: { checkoutPath: f.checkout },
-    worktree: { followUpNotice: expect.stringContaining("git worktree move -f -f") } });
+  expect(result).toMatchObject({ status: "renamed", checkout: { checkoutPath: f.checkout } });
+  const notice = result.status === "renamed" && result.worktree && "followUpNotice" in result.worktree
+    ? result.worktree.followUpNotice : undefined;
+  const moveCommand = notice?.match(/(git worktree move -f -f [^\n]+), then run arc rename /u)?.[1];
+  if (!moveCommand) throw new Error(`Missing move and replay in follow-up: ${notice}`);
   expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).reference.owner.name).toBe("target");
-  expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { wuName: "target", renameMovePending: {
-    from: f.checkout, to: f.target, branch: detached ? null : "feat/target",
-  } } });
-  await f.exec("git", ["worktree", "move", "-f", "-f", f.checkout, f.target]);
-  expect(await readWorktreeMarker(f.target)).toMatchObject({ kind: "present", marker: { wuName: "target" } });
+  const pending = { from: f.checkout, to: f.target, branch: detached ? null : "feat/target" };
+  expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { wuName: "target", renameMovePending: pending } });
+
+  // A replay before the move lands leaves the move pending for the follow-up to finish.
+  expect(await runRenameCommand(command, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { renameMovePending: pending } });
+
+  // A Git shell alias executes the displayed command through Git's shell on every platform.
+  await f.exec("git", ["-c", `alias.finish-rename=!${moveCommand}`, "finish-rename"]);
+  const moved = { ...f.command, cwd: f.target, io: { ...f.command.io, exec: makeGitExec(f.target) } };
+  expect(await runRenameCommand(moved, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  const settled = await readWorktreeMarker(f.target);
+  expect(settled).toMatchObject({ kind: "present", marker: { wuName: "target", createdFor: { name: "target" } } });
+  expect(settled.kind === "present" ? settled.marker.renameMovePending : "absent").toBeUndefined();
 });
+
+it.each(["inside", "outside"])("settles a landed move from %s when the repo name contains the former slug", async (replayFrom) => {
+  const f = await fixture(true);
+  const checkout = join(f.root, "source-framework.source");
+  const destination = join(f.root, "source-framework.target");
+  await f.exec("git", ["worktree", "move", f.checkout, checkout]);
+  const commandAt = (cwd: string) => ({ ...f.command, cwd, io: { ...f.command.io, exec: makeGitExec(cwd) } });
+  const params = { sourceSlug: "source", targetSlug: "target" };
+  expect(await runRenameCommand(commandAt(checkout), params)).toMatchObject({ status: "renamed" });
+  expect(await readWorktreeMarker(checkout)).toMatchObject({ kind: "present",
+    marker: { renameMovePending: { from: checkout, to: destination } } });
+  await f.exec("git", ["worktree", "move", "-f", "-f", checkout, destination]);
+
+  expect(await runRenameCommand(commandAt(replayFrom === "inside" ? destination : f.root), params))
+    .toMatchObject({ status: "renamed" });
+  expect((await resolveWorktreePathsByBranch(f.exec)).get("feat/target")).toBe(destination);
+  const settled = await readWorktreeMarker(destination);
+  expect(settled).toMatchObject({ kind: "present", marker: { wuName: "target" } });
+  expect(settled).not.toHaveProperty("marker.renameMovePending");
+});
+
+it("preserves a reverse rename's pending move when it replaces the marker observed by a replay", async () => {
+  const f = await fixture(true);
+  roots.push(f.checkout, f.target);
+  const commandAt = (cwd: string) => ({ ...f.command, cwd, io: { ...f.command.io, exec: makeGitExec(cwd) } });
+  const forward = { sourceSlug: "source", targetSlug: "target" };
+  const reverse = { sourceSlug: "target", targetSlug: "source" };
+  expect(await runRenameCommand(commandAt(f.checkout), forward)).toMatchObject({ status: "renamed" });
+  await f.exec("git", ["worktree", "move", "-f", "-f", f.checkout, f.target]);
+  const moved = commandAt(f.target);
+  const path = resolveWorktreeMarkerPath(f.target);
+  expect(await readWorktreeMarker(f.target))
+    .toMatchObject({ marker: { renameMovePending: { to: f.target, newSlug: "target" } } });
+
+  const settle = storeRenameAdapters(moved).settleCheckoutMove!;
+  let reverseBytes: string | undefined;
+  const replay = await runStoreRename({ ...moved, exec: moved.io.exec, settleCheckoutMove: (request) => {
+    // Complete the reverse rename after the replay reads the landed marker's bytes.
+    mockReadFile.mockImplementationOnce(async (...args) => {
+      const observed = await nativeFs.readFile(...args);
+      expect(args[0]).toBe(path);
+      expect(await runRenameCommand(moved, reverse)).toMatchObject({ status: "renamed" });
+      reverseBytes = await nativeFs.readFile(path, "utf8");
+      return observed;
+    });
+    return settle(request);
+  } }, { operand: forward.sourceSlug, targetSlug: forward.targetSlug });
+
+  expect(JSON.parse(reverseBytes ?? "null")).toMatchObject({ wuName: "source",
+    renameMovePending: { oldSlug: "target", newSlug: "source", from: f.target, to: f.checkout } });
+  expect(await readFile(path, "utf8")).toBe(reverseBytes);
+  expect(replay).toMatchObject({ status: "rejected",
+    reason: expect.stringMatching(/generation-changed.*arc agenda session-init --json/u) });
+  await f.exec("git", ["worktree", "move", "-f", "-f", f.target, f.checkout]);
+  expect(await runRenameCommand(commandAt(f.checkout), reverse)).toMatchObject({ status: "renamed" });
+  const settled = await readWorktreeMarker(f.checkout);
+  expect(settled).toMatchObject({ kind: "present", marker: { wuName: "source" } });
+  expect(settled).not.toHaveProperty("marker.renameMovePending");
+}, 30_000);
 
 it.each([false, true])("rolls back only its tracking changes after record conflict, concurrent tracking=%s", async (concurrent) => {
   const f = await fixture(false);

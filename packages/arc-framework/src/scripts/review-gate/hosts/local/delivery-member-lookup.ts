@@ -6,7 +6,7 @@ import {
 } from "../../../../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../../../../lib/delivery/plan.js";
 import {
-  GitDeliveryRenameTransitionSource,
+  createCheckoutDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
   type DeliveryRenameEvidenceAuthority,
   type DeliveryRenameTransitionSource,
@@ -15,7 +15,6 @@ import type { DeliveryPlanV1, DeliveryStateV1 } from "../../../../lib/delivery/s
 import { validateDeliveryStateAgainstPlan } from "../../../../lib/delivery/state.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../lib/git-common-state.js";
-import { createRawGitExec } from "../../../../lib/io-context.js";
 import type {
   DeliveryDischargeTargetLookup,
   DeliveryDischargeTargetLookupResult,
@@ -120,7 +119,7 @@ DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminal
     this.plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
     this.store = new RepositoryDeliveryStateStore(publisher);
     this.transitionSource = input.transitionSource
-      ?? new GitDeliveryRenameTransitionSource(createRawGitExec(input.cwd));
+      ?? createCheckoutDeliveryRenameTransitionSource(input.cwd);
   }
 
   /**

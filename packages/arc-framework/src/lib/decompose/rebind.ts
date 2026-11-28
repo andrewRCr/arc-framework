@@ -8,16 +8,17 @@ import { decodeCutMap } from "./cut-map-decode.js";
 import { decomposeRebindMachineMismatch } from "./rebind-machine.js";
 
 /** Replace the complete machine half, or retain the old authoring beside fresh author slots. */
-export function rebindDecomposeMap(map: CutMap, machine: CutMapMachine): DecomposeResult<DecomposeRevisionStarterReport> {
+export function rebindDecomposeMap(map: CutMap, machine: CutMapMachine,
+  previousMaps: readonly CutMap[]): DecomposeResult<DecomposeRevisionStarterReport> {
   const starter = createCutMapStarter(machine);
   if (starter === null) return { status: "refused", reason: "machine-envelope", class: "recoverable", locus: "machine",
     remedy: { text: "Repair the current source and dependency facts, then generate the revision starter again." } };
   const mismatch = decomposeRebindMachineMismatch(map, machine);
   if (mismatch !== undefined) return { status: "ok", result: DecomposeRevisionStarterReportSchema.parse({
-    status: "reauthor", ...mismatch, starter, storedAuthoring: map.authoring }) };
+    status: "reauthor", ...mismatch, starter, storedAuthoring: map.authoring, previousMaps }) };
   const decoded = decodeCutMap({ schemaVersion: 4, machine, authoring: map.authoring });
   const report = decoded.status === "rejected"
     ? { status: "reauthor", reason: decoded.issue.code, locus: decoded.issue.path, starter, storedAuthoring: map.authoring }
     : { status: "carried", map: decoded.value };
-  return { status: "ok", result: DecomposeRevisionStarterReportSchema.parse(report) };
+  return { status: "ok", result: DecomposeRevisionStarterReportSchema.parse({ ...report, previousMaps }) };
 }

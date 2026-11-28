@@ -112,11 +112,8 @@ check_file "$ARC_DIR/system/workflows/arc/process-task-loop.md" "Process task lo
 check_file "$ARC_DIR/system/.internal/scripts/arc-lib.sh" "Shared library"
 check_file "$ARC_DIR/system/.internal/scripts/validate-config.sh" "Config validator"
 
-# PM-mode-dependent files
+# PM mode, which decides the strategies expected below
 pm_mode=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" arc_config_get "pm.mode" "none")
-if [ "$pm_mode" = "arc-in-git" ]; then
-    check_file "$ARC_DIR/backlog/ROADMAP.md" "Roadmap (arc-in-git)"
-fi
 
 echo ""
 

@@ -14,19 +14,21 @@ interface SearchRoot {
   path: string;
   /**
    * When true, match `filename` at any depth under the root (completed archives,
-   * backlog cohorts). When false, only the root directory itself (flat `active/`
-   * task lists).
+   * backlog cohorts). When false, only the root directory itself (the checkout's
+   * own task list).
    */
   recursive: boolean;
 }
 
 /**
- * Family → search roots. Task lists stay flat under `active/` but must resolve
- * after archive under nested `completed/` quarter/order/cohort layouts.
+ * Family → search roots. The checkout's own task list sits directly under `active/`
+ * or under `active/current/`, never deeper, and must resolve after archive under
+ * nested `completed/` quarter/order/cohort layouts.
  */
 const SEARCH_ROOTS: Readonly<Record<CommitCheckArtifactFamily, readonly SearchRoot[]>> = {
   tasks: [
     { path: "active", recursive: false },
+    { path: "active/current", recursive: false },
     { path: "completed", recursive: true },
   ],
   design: [

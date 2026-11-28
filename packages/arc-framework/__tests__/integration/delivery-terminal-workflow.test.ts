@@ -23,26 +23,41 @@ describe("delivery terminal integration handoff", () => {
     const checkpoint = packaged.indexOf("arc integrate checkpoint {name}");
     const interlock = indexOfSoftWrappedProse(packaged, "`integration-interlock`: Stop after the ready evidence", checkpoint);
     const merge = packaged.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
-    const resume = packaged.indexOf("**Skip the merge when the PR is already merged**");
-    const close = packaged.indexOf("arc user close {name}", merge);
-    const deliveryCloseout = packaged.indexOf("arc delivery closeout -", close);
+    const resume = packaged.indexOf("On a `merged-at-head` resume", merge);
+    const deliveryCloseout = packaged.indexOf("arc delivery closeout -", resume);
     const teardown = packaged.indexOf("arc teardown <wu-name>", deliveryCloseout);
-    for (const position of [checkpoint, interlock, merge, resume, close, deliveryCloseout, teardown]) {
+    for (const position of [checkpoint, interlock, merge, resume, deliveryCloseout, teardown]) {
       expect(position).toBeGreaterThan(-1);
     }
     expect(checkpoint).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(merge);
     expect(merge).toBeLessThan(resume);
-    expect(merge).toBeLessThan(close);
-    expect(resume).toBeLessThan(close);
-    expect(close).toBeLessThan(deliveryCloseout);
-    expect(packaged.slice(close, teardown)).toContain(
+    expect(resume).toBeLessThan(deliveryCloseout);
+    expect(packaged).not.toContain("arc user close");
+    expect(packaged.slice(resume, teardown)).toContain(
       '{"workUnitId":"{name}","repository":"{repositoryRef}","remote":"origin"}',
     );
     expect(packaged.slice(deliveryCloseout, teardown)).toMatch(
       /closed-out[\s\S]*recommendedActionText[\s\S]*blocked[\s\S]*recommendedActionText/iu,
     );
     expect(deliveryCloseout).toBeLessThan(teardown);
+
+    const dispatch = packaged.indexOf("### 8) Cadence dispatch");
+    const inline = packaged.indexOf("`with-integration`", dispatch);
+    const deferred = packaged.indexOf("`manual`", inline);
+    expect(dispatch).toBeGreaterThan(-1);
+    expect(inline).toBeGreaterThan(dispatch);
+    expect(deferred).toBeGreaterThan(inline);
+    expect(deferred).toBeLessThan(merge);
+    expect(packaged.slice(inline, deferred)).toContain("archive-work-unit.md");
+
+    const postMerge = packaged.indexOf("### 11) Post-merge worktree cleanup");
+    const standaloneArchive = packaged.indexOf("archive-work-unit.md", postMerge);
+    expect(postMerge).toBeGreaterThan(deliveryCloseout);
+    expect(standaloneArchive).toBeGreaterThan(postMerge);
+    expect(standaloneArchive, "Manual cadence must invoke standalone archival before physical teardown")
+      .toBeLessThan(teardown);
+
     const terminalRemedy = packaged.indexOf("`retarget` or `reopen-and-retarget`");
     const remedyInvocation = packaged.indexOf("remedy.argv", terminalRemedy);
     expect(packaged).not.toContain("`verify-terminal-member`");
@@ -72,7 +87,7 @@ describe("delivery terminal integration handoff", () => {
     const prePublication = preparation.indexOf("arc review pre-publication <wu>");
     const reservation = indexOfSoftWrappedProse(preparation, "hosted-first reservation", prePublication);
     const publication = preparation.indexOf("arc publish {name} --json", reservation);
-    const integrationHandoff = indexOfSoftWrappedProse(preparation, "After the transition commit", publication);
+    const integrationHandoff = indexOfSoftWrappedProse(preparation, "Then load [`integrate-work-unit.md`]", publication);
     const status = packaged.indexOf("arc status {name} --json");
     const inspect = packaged.indexOf("arc delivery entry inspect -");
     const singletonResolution = packaged.indexOf("arc review change-request resolve --head-ref");

@@ -5,7 +5,7 @@ import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { FanOutDependencies } from "./with-fan-out.js";
 import { readGitDirectories } from "../../git/directories.js";
 import { canonicalCheckout } from "./checkout-identity.js";
-import { projectionProcessState, type FanOutScope } from "./process-state.js";
+import { projectionProcessState, projectionSwitchedOff, type FanOutScope } from "./process-state.js";
 import { requestProjectionFanOut, reportProjectionFanOutFailure } from "./fan-out-scheduler.js";
 
 /** The source checkout and native metadata established by command entry. */
@@ -52,7 +52,7 @@ export async function bindProjectionFanOut(input: ProjectionFanOutBindingInput):
 export function createProjectionFanOutDependencies(checkout: string): FanOutDependencies {
   return { capture: () => {
     const state = projectionProcessState(), binding = state.fanOutBinding;
-    if (binding === undefined || !binding.active || state.skip?.reason === "switch" || state.skip?.reason === "no-identity") return null;
+    if (binding === undefined || !binding.active || projectionSwitchedOff(state.skip) || state.skip?.reason === "no-identity") return null;
     const current = (): boolean => binding.active && state === projectionProcessState() && state.fanOutBinding === binding;
     return async references => {
       if (!current()) return;

@@ -6,11 +6,14 @@ import { GitProcessError } from "../../src/lib/git/process-error.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import type { ReconcileNotesLock } from "../../src/commands/user/push-fetch.js";
 import type { GitExec } from "../../src/lib/git/index.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import {
   NOTES_COMPACTION_MANIFEST_PATH,
   serializeNotesCompactionManifest,
   type NotesCompactionManifest,
 } from "../../src/lib/user-sync/compaction-manifest.js";
+
+useInRepoStoreForEach();
 
 const mockClearPartialPushMarker = vi.fn();
 

@@ -2,7 +2,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { onTestFinished, describe, expect, it } from "vitest";
-import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, StateVersionSchema } from "../../src/lib/store/identity.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
@@ -16,6 +15,7 @@ import { transactTransientIdentities } from "../../src/lib/errand/identity-trans
 import { readTransientInFlightIndexes, projectTransientInFlightRead } from "../../src/lib/errand/record.js";
 import { deriveInFlight } from "../../src/lib/git/in-flight-derivation.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 async function fixture() {
   const root = await createTempRepo("arc-store-reads-");
@@ -27,7 +27,7 @@ async function fixture() {
     return actual(command, args, options);
   };
   const ports = createDefaultStorePorts({ checkoutRoot: root, exec, execInput: makeGitExecInput(root) });
-  const store = createStore(ports);
+  const store = inRepoStore(ports);
   const reference = (name: string, kind = "work-item/meta") => RecordReferenceSchema.parse({ kind,
     owner: OwnerIdentitySchema.parse({ type: "work-item", name }) });
   const put = async (path: string, content: string) => {

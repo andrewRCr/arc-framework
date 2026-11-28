@@ -100,19 +100,18 @@ No → `docs`"
 - **Subject scope** — LOCUS of change, optional. Lowercase functional-area or codified-surface name in
   parentheses, used when one area dominates the change; omit it when none does rather than reaching for a broad
   one. Prefer narrow scopes when the work is bounded to one surface: `(workflow)`, `(method)`, `(strategy)`,
-  `(hook)`, `(skill)`, `(template)`, `(rules)`, `(meta)`. Reserve `(arc)` for cross-cutting framework
+  `(hook)`, `(skill)`, `(template)`, `(rules)`. Reserve `(arc)` for cross-cutting framework
   concerns AND ARC lifecycle ceremony invocations — it is not a default-when-uncertain catch-all.
   Project-defined scopes (`auth`, `api`, `deps`, etc.) follow the same locus principle.
 
 - **Subject body** — SPECIFIC work. Describe the change itself, not the task that motivated it — task
   references, phase numbers, and other traceability metadata route through the `Context:` footer (see
-  [commit-footer](commit-footer.md)). For ceremony commits, lead with the action verb:
-  `handoff — <position>` / `activate <wu-name>` / `integrate <wu-name>` / `archive <wu-name>` /
-  `deactivate <wu-name>`. Start it lowercase; acronyms and names such as `ARC` or `GitHub` keep their case.
+  [commit-footer](commit-footer.md)). A ceremony commits only the tracked files it changes and saves its state;
+  for such a commit, lead with the action verb, as in `integrate <wu-name>`. Start it lowercase; acronyms and names
+  such as `ARC` or `GitHub` keep their case.
 
-- **Footer parenthetical** — LIFECYCLE ACTION. `(handoff)`, `(activation)`, `(integration)`,
-  `(archival)`, `(deactivation)`, `(maintenance)`, `(incidental during ...)`. Machine-parse SoT; see
-  [commit-footer](commit-footer.md) for the full set and chain semantics.
+- **Footer parenthetical** — LIFECYCLE ACTION. `(prepublication)`, `(integration)`, `(incidental during ...)`.
+  Machine-parse SoT; see [commit-footer](commit-footer.md) for the full set and chain semantics.
 
 **Body:** Focus on WHY and IMPACT, not what changed. The release wrapper deterministically wraps `-m` bodies to
 the configured `hooks.body_max_line_length` (default 100), so those bodies need no manual reflow. For

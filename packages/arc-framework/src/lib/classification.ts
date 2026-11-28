@@ -42,8 +42,6 @@ export function needsRendering(templatePath: string): boolean {
 const SCAFFOLDED_FILES: ReadonlySet<string> = new Set([
   "reference/PROJECT-PRD.template.md",
   "reference/TECHNICAL-OVERVIEW.template.md",
-  "backlog/ROADMAP.template.md",
-  "backlog/ATOMIC-INBOX.template.md",
 ]);
 
 /**
@@ -58,7 +56,6 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   // Copied as-is (customized in place by adopters)
   "system/rules/DEV-RULES.PROJECT.md",
   "reference/strategies/STRATEGY-INDEX.md",
-  "completed/README.md",
   // Per-file methods — adopters toggle `override-active` and populate `.override` bodies
   "system/methods/assess-boundary-fit.md",
   "system/methods/assess-design-proportionality.md",

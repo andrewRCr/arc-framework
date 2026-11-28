@@ -7,6 +7,10 @@ import { promisify } from "node:util";
 
 import { expect, it } from "vitest";
 
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { cleanupTempDir, createTempRepo, runArc, runArcAnchored } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -48,14 +52,15 @@ it.runIf(process.platform !== "win32")("recovers the same clean claim after its 
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
     await git(["remote", "add", "origin", remote]);
     await git(["push", "-u", "origin", "main"]);
+    const designated = await runArc(["store", "remote", "origin", "push"], primary);
+    expect(designated.exitCode, designated.stderr).toBe(0);
 
     const args = ["errand", "open", "recover-setup", "--type", "fix", "--isolate", "--json"];
     const interrupted = await runArcAnchored(args, primary);
     expect(interrupted.exitCode, interrupted.stdout + interrupted.stderr).not.toBe(0);
     await access(interruptedPath);
-    const claim = JSON.parse(await git(["cat-file", "-p", "refs/arc/user/test-user/errands:recover-setup"])) as {
-      claimId: string;
-    };
+    const claim = JSON.parse((await readStoreRecord(primary, SlugSchema.parse("test-user"), recordReferences["work-item/record"](
+      OwnerIdentitySchema.parse({ type: "work-item", name: "recover-setup" })))).content) as { claimId: string };
     const status = await runArc(["status", "--session-init", "--json"], primary);
     const before = JSON.parse(status.stdout) as {
       locusGuidance: unknown;
@@ -63,7 +68,8 @@ it.runIf(process.platform !== "win32")("recovers the same clean claim after its 
         kind: string; checkout: { path: string; branch: string }; diagnostics: Array<{ message: string }>;
       }> } };
     };
-    const stranded = before.derivedLocusState.value.roster.find((row) => row.checkout.branch === "fix/recover-setup");
+    // The store suffixes the branch with the generation it mints.
+    const stranded = before.derivedLocusState.value.roster.find((row) => row.checkout.branch.startsWith("fix/recover-setup-"));
     expect(stranded).toMatchObject({ kind: "unresolved-checkout" });
     if (stranded === undefined) throw new Error("Missing interrupted checkout");
     spawned = stranded.checkout.path;
@@ -111,6 +117,8 @@ it.runIf(process.platform !== "win32")("recovers the same clean claim after its 
 }, RECOVERY_TIMEOUT_MS);
 
 it("cleans up capability-off failed setup and opens after setup repair", async () => {
+  // With the capability on, the store retains the personal bytes a failed setup saved, and the claim with them.
+  useInRepoStore();
   const primary = await createTempRepo("arc-open-personal-recovery-");
   const remote = `${primary}-remote.git`;
   let spawned: string | null = null;

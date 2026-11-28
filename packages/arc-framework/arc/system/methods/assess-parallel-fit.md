@@ -42,7 +42,7 @@ turns on one question: **is the candidate's own design still open?**
   adds no design load — stop before § Design-load read.
 - **Planning→Active flip** (`activate-work-unit`) — **overlap read only**, the same prefix. The activating WU's
   design is settled at the flip, so the design-load read self-quiets; the value is re-checking overlap, which may
-  have drifted since the WU was first scoped — a flag here can warrant parking it until the colliding WU integrates.
+  have drifted since the WU was first scoped — a flag here can warrant pausing it until the colliding WU integrates.
 - **New-WU start** (cold-start / spawn, via the in-flight scope check) and **pick-time / next-work discovery** —
   **both reads.** The candidate's design is still ahead of it, so the design-load read applies; pick-time continues
   through § Multi-candidate selection (the subset-selection form).
@@ -111,7 +111,7 @@ Two cheap inputs — the meta `**State:**` and whether a complete spec/tasks exi
 - **Design-settled gate.** A WU draws on the budget only while its design is still **open**. A candidate counts at
   full magnitude — its planning is almost always ahead of it, done in-flight before activation — while an
   already-in-flight WU discounts to quiet once its design is **settled**: its spec is finalized, whether it is
-  parked there or advancing through task generation, execution, or `Integrating`. Pre-spec planning and bare-stub
+  paused there or advancing through task generation, execution, or `Integrating`. Pre-spec planning and bare-stub
   work are open. The gate is binary but the load is not: design effort front-loads into the early planning stages
   (drafting heaviest, spec formalization lighter), so weigh a WU late in an open planning arc below one just
   opening its draft (the decay informs that weighing only; the salience count below stays binary).

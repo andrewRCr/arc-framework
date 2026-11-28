@@ -34,6 +34,17 @@ import type { InitResult } from "../../src/commands/init.js";
 import type { Recipe } from "../../src/lib/types.js";
 import { UserFacingError } from "../../src/lib/errors.js";
 import { getFrameworkVersion } from "../../src/lib/version.js";
+import { openPersonalIdentityStore } from "../../src/lib/personal-identity-setup.js";
+import { personalReference } from "../helpers/store/personal-fixture.js";
+import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+
+// Init and join seed each identity's working memory and inbox as store records.
+const PERSONAL_SEEDS = [["personal/working-memory", "WORKING-MEMORY.md"], ["personal/inbox", "USER-INBOX.md"]] as const;
+async function seededPersonal(cwd: string, io: ReturnType<typeof makeIOContext>, identity: string,
+  kind: (typeof PERSONAL_SEEDS)[number][0]): Promise<string> {
+  const store = openPersonalIdentityStore(cwd, io.exec, identity);
+  return lifecycleSuccess(await store.read({ reference: personalReference(kind, undefined, identity) })).content;
+}
 
 // --- Test Setup ---
 
@@ -208,11 +219,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   // --- User Directory ---
 
   it("seeds WORKING-MEMORY.md and USER-INBOX.md in user directory (cross-PM-mode)", async () => {
-    const workingMemory = await stat(join(arcDir, "user/test-user/WORKING-MEMORY.md"));
-    expect(workingMemory.isFile()).toBe(true);
-
-    const userInbox = await stat(join(arcDir, "user/test-user/USER-INBOX.md"));
-    expect(userInbox.isFile()).toBe(true);
+    for (const [kind] of PERSONAL_SEEDS) {
+      expect(await seededPersonal(tempDir, makeIOContext(tempDir), "test-user", kind)).toContain("#");
+    }
   });
 
   it("does not install user/ATOMIC-INBOX.md at user root (seed path retired)", async () => {
@@ -529,8 +538,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("excludes arc-in-git files when pm.mode=none", async () => {
     try {
-      await stat(join(arcDir, "backlog/ROADMAP.md"));
-      expect.fail("ROADMAP should not exist for pm.mode=none");
+      await stat(join(arcDir, "reference/strategies/arc/strategy-planning-module.md"));
+      expect.fail("The planning-module strategy should not exist for pm.mode=none");
     } catch (err: unknown) {
       expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
     }
@@ -566,7 +575,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("includes arc-in-git conditional files", async () => {
+  it("includes arc-in-git conditional files and writes none into the projected roots", async () => {
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
@@ -580,8 +589,10 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       identityResult: "test-user",
     });
 
-    const roadmap = await stat(join(tempDir, ".arc/backlog/ROADMAP.md"));
-    expect(roadmap.isFile()).toBe(true);
+    const planningModule = await stat(join(tempDir, ".arc/reference/strategies/arc/strategy-planning-module.md"));
+    expect(planningModule.isFile()).toBe(true);
+    const installed = await listFiles(join(tempDir, ".arc"), { skipInternal: false });
+    expect(installed.filter((path) => /^(active|backlog|completed)\//.test(path.replaceAll("\\", "/")))).toEqual([]);
 
     const config = await readFile(
       join(tempDir, ".arc/system/arc-config.yml"),
@@ -605,13 +616,11 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
     });
 
     const userDir = join(tempDir, ".arc/user/test-user");
-    for (const filename of ["WORKING-MEMORY.md", "USER-INBOX.md"]) {
-      const stats = await stat(join(userDir, filename));
-      expect(stats.isFile()).toBe(true);
-      // Each seeded file matches the internal template byte-for-byte
-      const installed = await readFile(join(userDir, filename), "utf-8");
+    for (const [kind, filename] of PERSONAL_SEEDS) {
+      // Each seeded record matches the internal template byte-for-byte, beside the identifier the store stamps per entry
       const template = await readFile(join(internalTemplateDir, "user", filename), "utf-8");
-      expect(installed).toBe(template);
+      const seeded = await seededPersonal(tempDir, io, "test-user", kind);
+      expect(seeded.replace(/^_Id:_ `[0-9a-f]+`\n/gmu, "")).toBe(template);
     }
 
     // Legacy user/ATOMIC-INBOX seed path retired — no longer seeded under any pm.mode.
@@ -871,22 +880,13 @@ describe("join integration", () => {
     const manifestAfter = await readFile(manifestPath(tempDir), "utf-8");
     expect(manifestAfter).toBe(manifestBefore);
 
-    // Second developer's user directory created with the per-user file set
-    const workingMemory = await stat(
-      join(tempDir, ".arc/user/second-dev/WORKING-MEMORY.md"),
-    );
-    expect(workingMemory.isFile()).toBe(true);
+    // Second developer's personal records seeded in the store
+    for (const [kind] of PERSONAL_SEEDS) {
+      expect(await seededPersonal(tempDir, io, "second-dev", kind)).toContain("#");
+    }
 
-    const userInbox = await stat(
-      join(tempDir, ".arc/user/second-dev/USER-INBOX.md"),
-    );
-    expect(userInbox.isFile()).toBe(true);
-
-    // First developer's user directory still intact
-    const firstDevMemory = await stat(
-      join(tempDir, ".arc/user/first-dev/WORKING-MEMORY.md"),
-    );
-    expect(firstDevMemory.isFile()).toBe(true);
+    // First developer's working memory still intact
+    expect(await seededPersonal(tempDir, io, "first-dev", "personal/working-memory")).toContain("#");
 
     // Identity stored for second developer
     const { stdout } = await execFileAsync(

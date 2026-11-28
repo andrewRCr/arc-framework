@@ -1,4 +1,5 @@
 /** Production authority, reader, and provisioning composition for ordinary Errand open. */
+import { randomUUID } from "node:crypto";
 import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOptions } from "../store/errand-runtime-transactions.js";
 
 import type { GitExecInput } from "../git/exec.js";
@@ -10,7 +11,7 @@ import { createNodeProvisioningDependencies } from "../locus/provisioning-runtim
 import { runDerivedLocusStateProbe } from "../../handlers/derived-locus-state-probe.js";
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
-import { transformStoreErrand } from "./store-runtime.js";
+import { plannedErrandOwnerUid, transformStoreErrand } from "./store-runtime.js";
 import { rollbackIdentityClaim } from "./identity-claims.js";
 import {
   provePauseHead,
@@ -81,8 +82,10 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
   options: OpenOrdinaryErrandRuntimeOptions,
 ): Promise<OpenOrdinaryErrandExecution> {
   let spawnLock: OpenOrdinaryErrandExecution["spawnLock"];
+  const ownerUid = planOpenOwnerUid(options);
   const execution = await openOrdinaryErrandWithDisposition({
     slug: options.slug,
+    ownerUid,
     type: options.type,
     intent: options.intent,
     inbox: options.inbox,
@@ -124,7 +127,7 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
       ),
       recoverOpen: (record) => recoverOpenIdentityBranch(options.exec, options.base, record),
       claim: async (record) => {
-        const claimed = await transitionRuntimeErrand(options, options, { kind: "create", record }, `arc: open errand ${record.slug}`);
+        const claimed = await transitionRuntimeErrand(options, options, { kind: "create", record, ownerUid }, `arc: open errand ${record.slug}`);
         if (claimed.kind === "applied" || claimed.kind === "idempotent") {
           if (claimed.value === null) return { kind: "error", message: "Identity claim returned no record" };
           return { kind: claimed.kind, record: claimed.value };
@@ -207,6 +210,11 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
     },
   });
   return spawnLock === undefined ? execution : { ...execution, spawnLock };
+}
+
+function planOpenOwnerUid(options: OpenOrdinaryErrandRuntimeOptions): string | undefined {
+  if (options.protection !== "full" || !options.store?.capabilities.stateOffBranch) return undefined;
+  return plannedErrandOwnerUid(options.slug.trim(), options.companionWrites) ?? randomUUID();
 }
 
 function matchesExpectedResumeGeneration(

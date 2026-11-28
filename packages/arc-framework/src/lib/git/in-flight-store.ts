@@ -6,6 +6,7 @@ import { createProjectIdentityReader, resolveProjectIdentity } from "../store/pr
 import { selectWorkBranchLink, workBranchName } from "../store/lifecycle-branch.js";
 import type { StoreRecord } from "../store/read.js";
 import { acquireStoreErrands, acquireStoreClaims, type StoreIdentityAcquisition } from "../errand/store-discovery.js";
+import { suffixedErrandBranchSlug } from "../errand/branch-type.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import type { GitExec } from "./exec.js";
 import { readLocalInFlightRefSnapshot } from "./remote-ref-reader.js";
@@ -135,8 +136,10 @@ class InFlightProjection {
   }
   addResidue(): void {
     for (const branch of new Set([...Object.keys(this.refs.refs.localHeads), ...Object.keys(this.refs.refs.remoteTracking)])) {
-      if (!/^(?:feat|fix|chore|plan|refactor|docs|test|perf|build|ci)\//u.test(branch) || this.linked.has(branch)) continue;
-      this.residue.push({ branch, slug: branch.slice(branch.indexOf("/") + 1), reason: "no-record-or-meta" });
+      if (this.linked.has(branch)) continue;
+      const errandSlug = suffixedErrandBranchSlug(branch);
+      if (errandSlug === null && !/^(?:feat|fix|chore|plan|refactor|docs|test|perf|build|ci)\//u.test(branch)) continue;
+      this.residue.push({ branch, slug: errandSlug ?? branch.slice(branch.indexOf("/") + 1), reason: "no-record-or-meta" });
       this.warnings.push({ code: "branch-residue", branch, rendered: `Branch ${branch} has no active work item or claim; inspect it before cleanup.` });
     }
   }

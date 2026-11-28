@@ -1,20 +1,40 @@
 /** The sole composition point for operational state backends. */
 
 import type { Store, ReadOnlyStore } from "./contract.js";
-import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "./commands.js";
+import type { StoreConflictInput, StoreConflictResult, StoreCreationDesignationResult, StoreMigrateInput, StoreMigrateResult,
+  StoreRemoteInput, StoreRemoteResult } from "./commands.js";
 import type { StorePorts, RefStorePorts } from "./ports.js";
 import { withFanOut } from "./projection/with-fan-out.js";
 import { createProjectionFanOutDependencies } from "./projection/fan-out-binding.js";
 import { recordComposedStoreCapability } from "./projection/process-state.js";
+import { composeRefStorePorts, findTrackedStateRefusal, IN_REPO_STORE_OVERRIDE, refusingStore } from "./selection.js";
 
-/** Construct a lazy store without reading configuration, files, or Git topology.
- * @param ports - Explicit file, Git, policy, clock, and write-lock dependencies.
- * @returns The operational state contract over the checkout's current substrates.
+/** Compose a checkout's default store through the backend selection, beneath the projection's fan-out.
+ * @param ports - The caller's ports, which the selection uses as they are or composes into the ref backend's.
+ * @returns A lazy store that reads no configuration, files, or Git topology until its first operation.
  */
 export function createStore(ports: StorePorts): Store {
-  const store = lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
-    .then(({ createInRepoBackend }) => createInRepoBackend(ports)));
-  return withFanOut(store, createProjectionFanOutDependencies(ports.checkoutRoot));
+  return withFanOut(selectStore(ports), createProjectionFanOutDependencies(ports.checkoutRoot));
+}
+
+/** Compose a checkout's operational store, choosing its implementation without reading the repository.
+ * @param ports - The caller's ports, used as they are by the in-repo implementation and composed for the ref backend.
+ * @param environment - Where the in-repo override is read, once per composition.
+ * @returns A lazy store whose capability is fixed at composition and whose backend is built at its first use. Over a
+ *   `HEAD` that tracks ARC state, the ref backend is never built: every operation returns the tracked-state refusal.
+ */
+export function selectStore(ports: StorePorts, environment: Readonly<Record<string, string | undefined>> = process.env): Store {
+  if ((environment[IN_REPO_STORE_OVERRIDE] ?? "") !== "") {
+    return lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
+      .then(({ createInRepoBackend }) => createInRepoBackend(ports)));
+  }
+  return lazyStore(ports.checkoutRoot, true, async () => {
+    const refusal = await findTrackedStateRefusal((cmd, args, options) =>
+      ports.exec(cmd, args, { ...options, cwd: ports.checkoutRoot }));
+    if (refusal !== null) return refusingStore(refusal);
+    const { createRefBackend } = await import("./ref/backend.js");
+    return createRefBackend(await composeRefStorePorts(ports));
+  });
 }
 
 /** Construct the dark ref backend without consulting any dependency. */
@@ -72,6 +92,12 @@ export async function runStoreMigrate(ports: RefStorePorts, input: StoreMigrateI
 export async function runStoreRemote(ports: RefStorePorts, input: StoreRemoteInput = {}): Promise<StoreRemoteResult> {
   const { runRefBackendRemote } = await import("./ref/backend.js");
   return runRefBackendRemote(ports, input);
+}
+
+/** At a project's creation, designate its code remote as the state remote unless a remote already carries a role. */
+export async function runStoreCreationDesignation(ports: RefStorePorts): Promise<StoreCreationDesignationResult> {
+  const { runRefBackendCreationDesignation } = await import("./ref/backend.js");
+  return runRefBackendCreationDesignation(ports);
 }
 
 /** Inspect or explicitly discard one conflict through the ref backend's exact history. */

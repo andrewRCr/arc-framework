@@ -13,6 +13,7 @@ import {
   git,
   runArc,
 } from "./helpers.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 interface SessionEnvelope {
   compactionSeedWrite?: { status: string; reason?: string; message?: string };
@@ -48,7 +49,10 @@ function closedTaskList(): string {
   ].join("\n");
 }
 
+// Archival stages the meta's move to `.arc/completed/` only in the in-repo store; the store archives with one record write
+// that stages nothing, and the flip build refuses a checkout whose head tracks the meta.
 describe("staged archive recovery", () => {
+  useInRepoStoreForEach();
   let repository: string;
   let worktreeRoot: string;
   let worktree: string;

@@ -1,6 +1,12 @@
-/** Active status reads an Integrating work unit's work branch from its links, refusing an unusable link set by type. */
-import { expect, it } from "vitest";
+/**
+ * Active status reads an Integrating work unit's work branch from its links, refusing an unusable link set by type, and
+ * finds a bound checkout's work unit by its scanned owner or its checkout's layout.
+ */
+import { describe, expect, it, onTestFinished } from "vitest";
 import { createActiveReviewAccess } from "../../../../src/lib/store/active-review-access.js";
+import { beginProjectionCommand, projectionProcessState, recordEngineStoreCapability }
+  from "../../../../src/lib/store/projection/process-state.js";
+import { SlugSchema } from "../../../../src/lib/kernel/schema/slug.js";
 import { ReviewOwnerSelectionError } from "../../../../src/lib/store/kinds/review/errors.js";
 import type { MetaFileCandidate } from "../../../../src/commands/active/types.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -36,3 +42,30 @@ it.each([
     broken = false;
     expect((await access.readSubject(candidate)).candidate).toMatchObject({ branch: "feat/example" });
   });
+
+describe("a meta held in its bound checkout's nested folder", () => {
+  const nested: MetaFileCandidate = { ...candidate, path: ".arc/active/current/meta-example.md" };
+  const cwd = "/bound";
+  const seeded = async () => {
+    const h = createLifecycleHarness();
+    const meta = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit" },
+      { kind: "active" }, { branches: [link] });
+    const access = createActiveReviewAccess({ cwd, exec: scriptGitExec([]).exec, store: h.store,
+      projectId: async () => "project" });
+    return { access, owner: meta.reference.owner };
+  };
+
+  it("reads the work unit by the owner the active scan selected", async () => {
+    const { access, owner } = await seeded();
+    expect(await access.readSubject(nested, owner)).toMatchObject({ candidate: { branch: "feat/example" }, owner });
+  });
+
+  it("identifies the path through the checkout's layout when no owner is given", async () => {
+    const { access, owner } = await seeded();
+    onTestFinished(() => { beginProjectionCommand(); });
+    recordEngineStoreCapability(cwd, true);
+    projectionProcessState().layoutContexts.set(cwd, Promise.resolve({ claim: SlugSchema.parse("example"),
+      layoutActive: "nested" }));
+    expect(await access.readSubject(nested)).toMatchObject({ candidate: { branch: "feat/example" }, owner });
+  });
+});

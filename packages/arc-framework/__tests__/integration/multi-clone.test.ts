@@ -14,6 +14,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { setupMultiClone } from "../helpers/multi-clone.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const {
   mockLog, mockNote, mockSelect, mockConfirm, mockIsCancel, mockSpinner,
@@ -95,6 +96,8 @@ describe("setupMultiClone", () => {
 });
 
 describe("user-notes cross-clone sync regression", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   it("clone A sync --json verifies HEAD note, advances origin notes ref, and clone B pull reflects current freshness", async () => {
     const harness = await setupMultiClone();
     const originalCwd = process.cwd();
@@ -199,6 +202,8 @@ describe("user-notes cross-clone sync regression", () => {
 });
 
 describe("user-notes paired-push cross-clone regression", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   it(
     "clone A sync --json executes paired push, advances main and notes ref on origin, "
     + "and clone B fetch + pull observes the new HEAD with current freshness",
@@ -326,6 +331,8 @@ describe("user-notes paired-push cross-clone regression", () => {
 });
 
 describe("errand-ref cross-clone sync regression", () => {
+  // The Errand identity ref and its sync are the pre-flip build's, which builds the in-repo store.
+  useInRepoStoreForEach();
   function errandRecord(slug: string): TransientIdentityRecord {
     return TransientIdentityRecordV3Schema.parse({
       version: 3,

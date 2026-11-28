@@ -81,7 +81,7 @@ function createRepositoryDeliveryInspectionDependencies(
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
   const authoringStore = new RepositoryDeliveryAuthoringStore(publisher);
-  const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(input.cwd));
+  const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(input.cwd), reviewRecordStore.capabilities);
   const base = input.baseBranch.trim();
   const authority = base === ""
     ? { status: "unestablished" as const }

@@ -43,6 +43,18 @@ async function compile(entry: Entry, probes: SessionInitProbeOverrides) {
   return result.agenda;
 }
 
+it("reports a failed store pull but omits retired notes diagnostics on checkout entry", async () => {
+  const failRetiredProbe = async (): Promise<never> => { throw new Error("Retired notes probe failed"); };
+  const agenda = await compile("context", {
+    user: async () => { throw new Error("Store pull failed"); },
+    partialPushMarker: failRetiredProbe,
+    compactionAdvisory: failRetiredProbe,
+    retiredSubdirs: failRetiredProbe,
+  });
+  expect(agenda.steps.filter(step => step.type === "render" && step.surface === "degraded-slot"))
+    .toEqual([{ type: "render", surface: "degraded-slot", text: expect.stringContaining("Store pull failed") }]);
+});
+
 describe.each(entries)("universal diagnostics for %s", entry => {
   it("emits each domain-rule warning once", async () => {
     const warnings = ["Malformed domain-rule declaration", "Unreadable domain-rule file"];

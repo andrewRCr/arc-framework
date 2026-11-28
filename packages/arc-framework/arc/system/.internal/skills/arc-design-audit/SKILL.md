@@ -13,7 +13,7 @@ decides when an audit is worth its cost; never invoke this proactively.
 
 **When this door earns its use** — the between-ceremony moments no workflow fire-point covers:
 
-- **A design whose world may have moved.** A parked or backlog design authored a while ago — sibling work has
+- **A design whose world may have moved.** A paused or backlog design authored a while ago — sibling work has
   shipped, dependencies have shifted, and the question is whether its efficacy and fit still hold.
 - **A groomed draft before promotion.** An ad-hoc "is this design actually right?" check during grooming, ahead
   of any formalization gate.

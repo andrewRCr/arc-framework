@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
 import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
+import { expectPersonalFileSet } from "./personal-file-set.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -145,22 +146,26 @@ describe("init", () => {
     const authoringIndex = decomposeWorkflow.indexOf("## 4. Author every reported destination");
     const interlockIndexes = [...decomposeWorkflow.matchAll(/`workflow-interlock`/g)]
       .map((match) => match.index);
-    const releaseIndex = decomposeWorkflow.indexOf("## 6. Release through the reported protection arm");
-    const advancementIndex = decomposeWorkflow.indexOf("--advance-base");
-    const finishPreviewIndex = decomposeWorkflow.indexOf(
-      "arc decompose <origin> --finish <completed-map>\n",
-    );
-    const finishApplyIndex = decomposeWorkflow.indexOf(
-      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
-    );
-    expect(interlockIndexes).toHaveLength(3);
+    const finishPreviewIndex = decomposeWorkflow.indexOf("arc decompose <origin> --finish\n");
+    const discardPreviewIndex = decomposeWorkflow.indexOf("arc decompose <origin> --discard` previews");
+    const revisionPreviewIndex = decomposeWorkflow.indexOf("`arc decompose <origin> --revise <revised-map>`");
+    const discardApplyIndex = decomposeWorkflow.indexOf("arc decompose <origin> --discard --apply <applyAuthority>");
+    const revisionApplyIndex = decomposeWorkflow.indexOf("arc decompose <origin> --revise <revised-map> --apply <applyAuthority>");
+    const finishApplyIndex = decomposeWorkflow.indexOf("arc decompose <origin> --finish --apply <applyAuthority>");
+    expect(interlockIndexes).toHaveLength(2);
     expect(authoringIndex).toBeGreaterThanOrEqual(0);
-    expect(interlockIndexes[0]).toBeGreaterThan(authoringIndex);
-    expect(releaseIndex).toBeGreaterThan(interlockIndexes[0]!);
-    expect(interlockIndexes[1]).toBeGreaterThan(advancementIndex);
-    expect(finishPreviewIndex).toBeGreaterThanOrEqual(0);
-    expect(interlockIndexes[2]).toBeGreaterThan(finishPreviewIndex);
-    expect(finishApplyIndex).toBeGreaterThan(interlockIndexes[2]!);
+    expect(finishPreviewIndex).toBeGreaterThan(authoringIndex);
+    expect(interlockIndexes[0]).toBeGreaterThan(finishPreviewIndex);
+    expect(discardPreviewIndex).toBeGreaterThan(interlockIndexes[0]!);
+    expect(revisionPreviewIndex).toBeGreaterThan(interlockIndexes[0]!);
+    expect(interlockIndexes[1]).toBeGreaterThan(discardPreviewIndex);
+    expect(interlockIndexes[1]).toBeGreaterThan(revisionPreviewIndex);
+    expect(discardApplyIndex).toBeGreaterThan(interlockIndexes[1]!);
+    expect(revisionApplyIndex).toBeGreaterThan(interlockIndexes[1]!);
+    expect(finishApplyIndex).toBeGreaterThan(discardApplyIndex);
+    expect(finishApplyIndex).toBeGreaterThan(revisionApplyIndex);
+    expect(decomposeWorkflow).not.toContain("--advance-base");
+    expect(decomposeWorkflow).not.toMatch(/## \d+\. Release through/u);
     expect(decomposeWorkflow).not.toMatch(/\b(?:planning-lane|arc-cleared)\b/);
   });
 
@@ -198,13 +203,14 @@ describe("init", () => {
 
     expect(result.exitCode).toBe(0);
 
-    // arc-in-git specific files
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ATOMIC-INBOX.md"))).toBe(true);
+    // arc-in-git specific files, none of them in a projected root
+    expect(await pathExists(join(tmpDir, ".arc", "reference", "strategies", "arc", "strategy-planning-module.md"))).toBe(true);
+    for (const root of ["active", "backlog", "completed"]) {
+      expect(await pathExists(join(tmpDir, ".arc", root)), root).toBe(false);
+    }
 
     // Per-user file set seeded (cross-PM-mode); legacy user/ATOMIC-INBOX retired.
-    expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "WORKING-MEMORY.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "USER-INBOX.md"))).toBe(true);
+    await expectPersonalFileSet(tmpDir, "test-user");
     expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "ATOMIC-INBOX.md"))).toBe(false);
 
     // Config reflects pm.mode
@@ -375,8 +381,11 @@ describe("arc join", () => {
     const clone = `${tmpDir}-join-clone`;
     try {
       await git(tmpDir, ["clone", "--local", tmpDir, clone]);
+      // Joining writes the person's records to the store as commits, which take the clone's author identity.
+      await git(clone, ["config", "user.name", "Test User"]);
+      await git(clone, ["config", "user.email", "test@test.com"]);
       const result = await runArc(["join", "--yes", "--identity", "test-user"], clone);
-      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
       await assertEditorDocumentsProvisioned(clone);
     } finally { await cleanupTempDir(clone); }
   });

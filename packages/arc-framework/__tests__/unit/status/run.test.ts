@@ -59,6 +59,7 @@ import {
   cleanCurrentWuReconcile,
   sessionInitProbes,
 } from "../../helpers/session-init-fixtures.js";
+import { useInRepoStore } from "../../helpers/in-repo-store-override.js";
 
 // --- Fixtures ---
 
@@ -344,6 +345,7 @@ function stubHandoffSurfaces(overrides: {
   sessionNotesPath?: (workUnitName: string) => string;
 } = {}) {
   return {
+    workingMemoryCheckout: "/primary",
     workingMemoryPath: overrides.workingMemoryPath ?? "/primary/.arc/user/andrew/WORKING-MEMORY.md",
     sessionNotesPath: overrides.sessionNotesPath
       ?? ((workUnitName: string) => `/repo/.arc/user/andrew/${workUnitName}/SESSION-NOTES.md`),
@@ -2955,6 +2957,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       ok: true,
       value: {
         sessionNotes: null,
+        workingMemoryCheckout: "/primary",
         workingMemory: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
       },
     });
@@ -2984,6 +2987,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       ok: true,
       value: {
         sessionNotes: "/repo/.arc/user/andrew/example-wu/SESSION-NOTES.md",
+        workingMemoryCheckout: "/primary",
         workingMemory: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
       },
     });
@@ -3000,7 +3004,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     });
     expect(result.pathSet).toEqual({
       ok: true,
-      value: { sessionNotes: null, workingMemory: null },
+      value: { sessionNotes: null, workingMemory: null, workingMemoryCheckout: null },
     });
   });
 
@@ -3054,6 +3058,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const repaired = await runSessionHandoffStatus(options);
     expect(repaired.pathSet).toEqual({ ok: true, value: {
       sessionNotes: "/repo/.arc/user/andrew/example-wu/SESSION-NOTES.md",
+      workingMemoryCheckout: "/primary",
       workingMemory: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
     } });
   });
@@ -3409,6 +3414,8 @@ describe("runSessionHandoffStatus — orchestration", () => {
   });
 
   it("carries stale local-note freshness through the handoff user slot", async () => {
+    // Git-notes freshness runs only on the pre-flip build, which opens the in-repo store.
+    useInRepoStore();
     const io = staleLocalNoteIO();
     const probes = sessionHandoffProbes({
       user: vi.fn((identity) =>

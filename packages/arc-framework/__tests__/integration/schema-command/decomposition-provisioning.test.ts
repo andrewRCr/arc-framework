@@ -11,6 +11,7 @@ import type { V3DecomposeCutMap } from "../../../src/lib/work-unit/decompose-v3-
 import { resolveArcPath } from "../../../src/lib/layout/index.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../../helpers/integration.js";
 import { runCli } from "../../helpers/run-cli.js";
+import { useInRepoStoreForEach } from "../../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 const directory = resolveArcPath({ kind: "editor-document-root" });
@@ -22,6 +23,7 @@ const meta = (active: boolean) => renderMetaFile("origin", { state: "Planning", 
 describe("decomposition editor-document provisioning", () => {
   let root: string;
   let dependencies: GitV3DecomposeOperationDependencies;
+  useInRepoStoreForEach();
   beforeEach(async () => {
     root = await createTempRepo("arc-decomposition-documents-");
     const exec = makeGitExec(root);

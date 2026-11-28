@@ -14,9 +14,13 @@ import { runArc } from "../e2e/helpers.js";
 import { dispatchRegisteredCli } from "./registered-cli.js";
 import { seedImportedUserProjection } from "./store/projection/imported-user.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
+// Dispatch reaches only the store a test binds; an unbound composition fails rather than opening the checkout's default.
 vi.mock("../../src/lib/store/create.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
-  return { ...original, createStore: (...args: Parameters<typeof original.createStore>) => binding.store ?? original.createStore(...args) };
+  return { ...original, createStore: (): Store => {
+    if (binding.store === null) throw new Error("repair-cli composed a store with none bound; pass one to repairCli or withRepairStore");
+    return binding.store;
+  } };
 });
 export async function repairCliFixture(protection: "full" | "partial" = "full") {
   const cwd = await createTempRepo(); onTestFinished(() => cleanupTempDir(cwd));

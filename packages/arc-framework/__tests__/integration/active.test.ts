@@ -37,6 +37,9 @@ import {
   projectCandidateApplicabilityDecision,
   projectDurableCandidateTarget,
 } from "../helpers/candidate.js";
+import { inRepoStoreAt } from "../helpers/store/in-repo-ports.js";
+import type { Store } from "../../src/lib/store/contract.js";
+import { holdMeta } from "../helpers/store/held-meta.js";
 
 function stubGitExec(branch: string | null): GitExec {
   const stdout = branch ?? "HEAD";
@@ -46,6 +49,11 @@ function stubGitExec(branch: string | null): GitExec {
 /** Shared default — non-planning branch keeps existing assertions stable. */
 const defaultExec = stubGitExec("main");
 
+// A case whose subject survives holds its work unit's meta in a checked store, the checkout's marker bound to it. Cases
+// over what only tracked files hold pass the in-repo store: several metas at once, Candidate files, a free-form or
+// empty State, a `[none associated]` Task List, a meta with no Current Workflow bullet or a Planning one with no
+// planning stage, a non-slug filename, or a missing root. The store's Candidate projection is
+// `unit/active/status-store`'s subject.
 interface Fixture {
   root: string;
   activeDir: string;
@@ -159,17 +167,14 @@ describe("runActiveStatus — Full layout", () => {
   });
 
   it("enumerates a single Full-layout candidate with all fields populated", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({
+    const store = await holdMeta(fixture.root, "foo", {
         state: "Active",
         branch: "technical/foo",
         nextTask: "Task 3.R.k.d — probe (line ~1828)",
-        taskList: "`.arc/active/tasks-foo.md`",
-      }),
-    );
+        taskList: ".arc/active/tasks-foo.md",
+      });
 
-    const result = await runActiveStatus({ cwd: fixture.root });
+    const result = await runActiveStatus({ cwd: fixture.root, store });
     expect(result.layout).toBe("full");
     expect(result.candidates).toHaveLength(1);
     const c = result.candidates[0]!;
@@ -194,7 +199,7 @@ describe("runActiveStatus — Full layout", () => {
       }),
     );
 
-    const result = await runActiveStatus({ cwd: fixture.root });
+    const result = await runActiveStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root) });
     expect(result.candidates).toHaveLength(2);
     const beta = result.candidates.find((c) => c.filename === "meta-beta.md");
     expect(beta?.state).toBe("Paused (2026-04-12) — waiting for restructure");
@@ -239,12 +244,9 @@ describe("runActiveSessionInitStatus — resolution states", () => {
   });
 
   it("returns resolution=single with the resolved path for exactly one candidate", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({ state: "Active", branch: "technical/foo" }),
-    );
+    const store = await holdMeta(fixture.root, "foo", { state: "Active", branch: "technical/foo" });
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.path).toBe(".arc/active/meta-foo.md");
     expect(result.candidates).toEqual([]);
@@ -252,10 +254,10 @@ describe("runActiveSessionInitStatus — resolution states", () => {
   });
 
   it("retains semantic project placement without changing the serialized envelope", async () => {
-    await writeFile(join(fixture.activeDir, "meta-foo.md"), statusBody({ state: "Active", branch: "technical/foo" }));
+    const store = await holdMeta(fixture.root, "foo", { state: "Active", branch: "technical/foo" });
 
-    const internal = await runActiveSessionInitStatusInternal({ cwd: fixture.root, exec: defaultExec });
-    const envelope = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const internal = await runActiveSessionInitStatusInternal({ cwd: fixture.root, store, exec: defaultExec });
+    const envelope = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
 
     expect(internal.resolved).toMatchObject({ slug: "foo", placement: { kind: "active", scope: { kind: "project" } } });
     expect(JSON.stringify(internal.result)).toBe(JSON.stringify(envelope));
@@ -264,7 +266,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
   it("ignores a recognized meta filename whose stem is not a canonical slug", async () => {
     await writeFile(join(fixture.activeDir, "meta-Not-A-Slug.md"), statusBody({ state: "Active", branch: "main" }));
 
-    const result = await runActiveSessionInitStatusInternal({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatusInternal({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
 
     expect(result.result.resolution).toBe("none");
     expect(result.result.warnings).toContainEqual(expect.stringContaining("invalid work-unit slug"));
@@ -280,7 +282,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
       statusBody({ state: "Integrating", branch: "technical/beta" }),
     );
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
     expect(result.resolution).toBe("multiple");
     expect(result.path).toBeNull();
     expect(result.candidates).toHaveLength(2);
@@ -315,7 +317,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     );
 
     const full = await runActiveStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       projectCandidateTarget: projectDurableCandidateTarget,
     });
     expect(full.candidates).toHaveLength(2);
@@ -330,7 +332,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     expect(full.warnings).toContainEqual(expect.stringContaining(".arc/active/meta-beta.md"));
 
     const session = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectDurableCandidateTarget,
     });
@@ -365,7 +367,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
   it("propagates warnings when .arc/active/ is missing entirely", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-active-missing-"));
     try {
-      const result = await runActiveSessionInitStatus({ cwd: root, exec: defaultExec });
+      const result = await runActiveSessionInitStatus({ cwd: root, store: inRepoStoreAt(root), exec: defaultExec });
       expect(result.resolution).toBe("none");
       expect(result.warnings.length).toBe(1);
       expect(result.warnings[0]).toContain(".arc/active/");
@@ -397,13 +399,18 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     return fixture.activeDir;
   }
 
+  async function holdFullStatus(category: string, stem: string): Promise<{ sub: string; store: Store }> {
+    const store = await holdMeta(fixture.root, stem, { branch: `${category}/${stem}`, taskList: `.arc/active/tasks-${stem}.md` });
+    return { sub: fixture.activeDir, store };
+  }
+
   it("populates both companion paths when notes-{stem}.md and atomic-{stem}.md exist", async () => {
-    const sub = await writeFullStatus("technical", "foo");
+    const { sub, store } = await holdFullStatus("technical", "foo");
     await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
     await writeFile(join(sub, "notes-foo.md"), "# notes\n");
     await writeFile(join(sub, "atomic-foo.md"), "# atomic\n");
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
     expect(result.companions).toEqual({
@@ -413,11 +420,11 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
   });
 
   it("populates notes only when atomic companion is absent", async () => {
-    const sub = await writeFullStatus("technical", "foo");
+    const { sub, store } = await holdFullStatus("technical", "foo");
     await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
     await writeFile(join(sub, "notes-foo.md"), "# notes\n");
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.companions).toEqual({
       notes: ".arc/active/notes-foo.md",
       atomic: null,
@@ -425,11 +432,11 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
   });
 
   it("populates atomic only when notes companion is absent", async () => {
-    const sub = await writeFullStatus("technical", "foo");
+    const { sub, store } = await holdFullStatus("technical", "foo");
     await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
     await writeFile(join(sub, "atomic-foo.md"), "# atomic\n");
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.companions).toEqual({
       notes: null,
       atomic: ".arc/active/atomic-foo.md",
@@ -437,25 +444,22 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
   });
 
   it("emits companions with both null when neither file exists", async () => {
-    await writeFullStatus("technical", "foo");
+    const { store } = await holdFullStatus("technical", "foo");
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.companions).toEqual({ notes: null, atomic: null });
   });
 
   it("omits companions for a task-list filename without a companion stem", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({
+    const store = await holdMeta(fixture.root, "foo", {
         state: "Active",
         branch: "main",
-        taskList: "`.arc/active/tasks.md`",
-      }),
-    );
+        taskList: ".arc/active/tasks.md",
+      });
     await writeFile(join(fixture.activeDir, "tasks.md"), "# tasks\n");
     await writeFile(join(fixture.activeDir, "notes.md"), "# notes\n");
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.layout).toBe("full");
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBe(".arc/active/tasks.md");
@@ -468,7 +472,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     await writeFile(join(sub1, "notes-alpha.md"), "# notes\n");
     await writeFile(join(sub2, "atomic-beta.md"), "# atomic\n");
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
     expect(result.resolution).toBe("multiple");
     expect(result.companions).toBeUndefined();
   });
@@ -480,19 +484,16 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
   });
 
   it("derives companions from meta-file directory when Task List value is a bare filename", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({
+    const store = await holdMeta(fixture.root, "foo", {
         state: "Active",
         branch: "technical/foo",
-        taskList: "`tasks-foo.md`",
-      }),
-    );
+        taskList: "tasks-foo.md",
+      });
     await writeFile(join(fixture.activeDir, "tasks-foo.md"), "# tasks\n");
     await writeFile(join(fixture.activeDir, "notes-foo.md"), "# notes\n");
     await writeFile(join(fixture.activeDir, "atomic-foo.md"), "# atomic\n");
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
     expect(result.companions).toEqual({
@@ -504,16 +505,13 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
   it("derives companions from meta-file directory when Task List value is explicitly relative", async () => {
     await writeFile(join(fixture.activeDir, "notes-foo.md"), "# Notes\n");
     await writeFile(join(fixture.activeDir, "atomic-foo.md"), "# Atomic\n");
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({
+    let store = await holdMeta(fixture.root, "foo", {
         state: "Active",
         branch: "technical/foo",
-        taskList: "`./tasks-foo.md`",
-      }),
-    );
+        taskList: "./tasks-foo.md",
+      });
 
-    let result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    let result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
     expect(result.companions).toEqual({
@@ -521,16 +519,13 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
       atomic: ".arc/active/atomic-foo.md",
     });
 
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({
+    store = await holdMeta(fixture.root, "foo", {
         state: "Active",
         branch: "technical/foo",
-        taskList: "`.\\tasks-foo.md`",
-      }),
-    );
+        taskList: ".\\tasks-foo.md",
+      });
 
-    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
     expect(result.companions).toEqual({
@@ -540,122 +535,85 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
   });
 
   it("omits companions when Task List value is `[none]`", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({
+    const store = await holdMeta(fixture.root, "foo", {
         state: "Active",
         branch: "technical/foo",
-        taskList: "[none]",
-      }),
-    );
+        });
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
   });
 
   it("rejects absolute, parent-traversing, and bare dot Task List values", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-absolute.md"),
-      statusBody({
+    let store = await holdMeta(fixture.root, "absolute", {
         state: "Active",
         branch: "technical/absolute",
-        taskList: "`/tmp/tasks-absolute.md`",
-      }),
-    );
+        taskList: "/tmp/tasks-absolute.md",
+      });
 
-    let result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    let result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
-
-    await rm(join(fixture.activeDir, "meta-absolute.md"));
-    await writeFile(
-      join(fixture.activeDir, "meta-parent.md"),
-      statusBody({
+    store = await holdMeta(fixture.root, "parent", {
         state: "Active",
         branch: "technical/parent",
-        taskList: "`../tasks-parent.md`",
-      }),
-    );
+        taskList: "../tasks-parent.md",
+      });
 
-    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
-
-    await rm(join(fixture.activeDir, "meta-parent.md"));
-    await writeFile(
-      join(fixture.activeDir, "meta-embedded-parent.md"),
-      statusBody({
+    store = await holdMeta(fixture.root, "embedded-parent", {
         state: "Active",
         branch: "technical/embedded-parent",
-        taskList: "`subdir/../tasks-parent.md`",
-      }),
-    );
+        taskList: "subdir/../tasks-parent.md",
+      });
 
-    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
-
-    await rm(join(fixture.activeDir, "meta-embedded-parent.md"));
-    await writeFile(
-      join(fixture.activeDir, "meta-drive.md"),
-      statusBody({
+    store = await holdMeta(fixture.root, "drive", {
         state: "Active",
         branch: "technical/drive",
-        taskList: "`C:\\tasks-drive.md`",
-      }),
-    );
+        taskList: "C:\\tasks-drive.md",
+      });
 
-    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
-
-    await rm(join(fixture.activeDir, "meta-drive.md"));
-    await writeFile(
-      join(fixture.activeDir, "meta-drive-relative.md"),
-      statusBody({
+    store = await holdMeta(fixture.root, "drive-relative", {
         state: "Active",
         branch: "technical/drive-relative",
-        taskList: "`C:tasks-drive.md`",
-      }),
-    );
+        taskList: "C:tasks-drive.md",
+      });
 
-    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
-
-    await rm(join(fixture.activeDir, "meta-drive-relative.md"));
-    await writeFile(
-      join(fixture.activeDir, "meta-dot.md"),
-      statusBody({
+    store = await holdMeta(fixture.root, "dot", {
         state: "Active",
         branch: "technical/dot",
-        taskList: "`.`",
-      }),
-    );
+        taskList: ".",
+      });
 
-    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
-
-    await rm(join(fixture.activeDir, "meta-dot.md"));
-    await writeFile(
-      join(fixture.activeDir, "meta-dotdot.md"),
-      statusBody({
+    store = await holdMeta(fixture.root, "dotdot", {
         state: "Active",
         branch: "technical/dotdot",
-        taskList: "`..`",
-      }),
-    );
+        taskList: "..",
+      });
 
-    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
@@ -829,10 +787,7 @@ describe("runActiveSessionInitStatus — contributor role-aware resolution", () 
   });
 
   it("preserves maintainer-default resolution when role is null/maintainer (behavior i)", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({ state: "Active", branch: "technical/foo" }),
-    );
+    const store = await holdMeta(fixture.root, "foo", { state: "Active", branch: "technical/foo" });
     // Also place a contributor-shape file that should NOT be picked up
     await writeFile(
       join(userActiveDir, "meta-other.md"),
@@ -840,7 +795,7 @@ describe("runActiveSessionInitStatus — contributor role-aware resolution", () 
     );
 
     const result = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store,
       identity: "alice",
       role: "maintainer",
       exec: defaultExec,
@@ -873,6 +828,13 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       }),
     );
   }
+  async function holdStatus(category: string, stem: string, fields: { taskList?: string; nextAction?: string }): Promise<Store> {
+    const taskList = fields.taskList?.replaceAll("`", "");
+    return holdMeta(fixture.root, stem, { branch: `${category}/${stem}`,
+      ...(taskList === undefined || taskList === "[none]" ? {} : { taskList }),
+      ...(fields.nextAction === undefined ? {} : { nextAction: fields.nextAction }) });
+  }
+
 
   it("emits sessionType=planning when resolution=none + branch matches plan-pattern", async () => {
     const result = await runActiveSessionInitStatus({
@@ -898,17 +860,17 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       taskList: "`.arc/active/tasks-beta.md`",
       nextAction: "Start Task 2.3 — refactor",
     });
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
     expect(result.resolution).toBe("multiple");
     expect(result.sessionType).toBeNull();
   });
 
   it("emits sessionType=planning when resolution=single + Task List: [none]", async () => {
-    await writeStatus("technical", "foo", {
+    const store = await holdStatus("technical", "foo", {
       taskList: "[none]",
       nextAction: "Plan next phase",
     });
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("planning");
   });
@@ -918,37 +880,37 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       taskList: "[none associated]",
       nextAction: "Draft PRD",
     });
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("planning");
   });
 
   it("keeps sessionType=execution when Active narration begins with integrate-work-unit", async () => {
-    await writeStatus("technical", "foo", {
+    const store = await holdStatus("technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 3 — push and create PR",
     });
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("execution");
   });
 
   it("keeps sessionType=execution when Active narration begins with archive-work-unit", async () => {
-    await writeStatus("technical", "foo", {
+    const store = await holdStatus("technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "archive-work-unit Step 1 — archive artifacts and retire the status file",
     });
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("execution");
   });
 
   it("emits sessionType=execution for a regular Start-Task Next Action", async () => {
-    await writeStatus("technical", "foo", {
+    const store = await holdStatus("technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "Start Task 4.2 — write unit tests",
     });
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("execution");
   });
@@ -968,13 +930,13 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     );
 
     const full = await runActiveStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       projectCandidateTarget: projectDurableCandidateTarget,
     });
     expect(full.candidates[0]?.integrationBoundary?.locus).toBe("candidate-review-pending");
 
     const result = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectDurableCandidateTarget,
     });
@@ -1010,13 +972,13 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     );
 
     const full = await runActiveStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       projectCandidateTarget: projectDurableCandidateTarget,
     });
     expect(full.candidates[0]?.integrationBoundary).toEqual(boundary);
 
     const session = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectDurableCandidateTarget,
     });
@@ -1047,7 +1009,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     );
 
     const result = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectDurableCandidateTarget,
     });
@@ -1074,7 +1036,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       }),
     );
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
 
     expect(result).toMatchObject({
       resolution: "single",
@@ -1140,13 +1102,13 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(storedBoundary));
 
     const full = await runActiveStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       projectCandidateTarget: projectDurableCandidateTarget,
     });
     expect(full.candidates[0]?.integrationBoundary).toEqual(recoveredBoundary);
 
     const result = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectDurableCandidateTarget,
     });
@@ -1176,7 +1138,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(boundary));
 
     const result = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectDurableCandidateTarget,
     });
@@ -1211,14 +1173,14 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(boundary));
 
     const full = await runActiveStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       projectCandidateTarget: projectCandidateApplicabilityDecision,
     });
     expect(full.candidates[0]?.integrationBoundary).toEqual(boundary);
     expect(full.warnings).not.toContainEqual(expect.stringMatching(/request-authority/u));
 
     const session = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectCandidateApplicabilityDecision,
     });
@@ -1246,7 +1208,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     );
 
     const result = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectCandidateApplicabilityDecision,
     });
@@ -1292,7 +1254,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     });
 
     const full = await runActiveStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       projectCandidateTarget: projectCandidateApplicabilityDecision,
       readPendingCandidateReviewFixAuthority,
     });
@@ -1304,7 +1266,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     });
 
     const session = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectCandidateApplicabilityDecision,
       readPendingCandidateReviewFixAuthority,
@@ -1336,7 +1298,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     );
 
     const full = await runActiveStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       projectCandidateTarget: async () => {
         throw new Error("Candidate projection must not run outside prepublication.");
       },
@@ -1371,14 +1333,14 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(mismatched));
 
     const full = await runActiveStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       projectCandidateTarget: projectCandidateApplicabilityDecision,
     });
     expect(full.candidates[0]?.integrationBoundary).toBeNull();
     expect(full.warnings).toContainEqual(expect.stringMatching(/does not match.*durable Candidate subject/u));
 
     const session = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: defaultExec,
       projectCandidateTarget: projectCandidateApplicabilityDecision,
     });
@@ -1391,22 +1353,22 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
   });
 
   it("emits sessionType=execution for non-integration lifecycle workflows (e.g., clean-work-unit)", async () => {
-    await writeStatus("technical", "foo", {
+    const store = await holdStatus("technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "clean-work-unit Step 3 — Mode 1 mid-work cleanup",
     });
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("execution");
   });
 
   it("infers sessionType under maintainer root when identity is null", async () => {
-    await writeStatus("technical", "foo", {
+    const store = await holdStatus("technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "Start Task 1.1 — kick off",
     });
     const result = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store,
       identity: null,
       role: null,
       exec: defaultExec,
@@ -1472,7 +1434,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
         nextAction: "Run `create-spec.md`",
       }),
     );
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("planning");
   });
@@ -1483,7 +1445,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       statusBody({ state: "", branch: "plan/foo" }),
     );
     const result = await runActiveSessionInitStatus({
-      cwd: fixture.root,
+      cwd: fixture.root, store: inRepoStoreAt(fixture.root),
       exec: stubGitExec("plan/foo"),
     });
     expect(result.resolution).toBe("single");
@@ -1501,17 +1463,13 @@ describe("runActiveSessionInitStatus — planning sub-stage resolution", () => {
   });
 
   it("surfaces the sub-stage directly from the `Current Workflow` field", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({
+    const store = await holdMeta(fixture.root, "foo", {
         state: "Planning",
         branch: "plan/foo",
         currentWorkflow: "create-spec",
-        taskList: "[none]",
-      }),
-    );
+        });
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.sessionType).toBe("planning");
     expect(result.currentWorkflow).toBe("create-spec");
     expect(result.planningStage).toBe("create-spec");
@@ -1523,7 +1481,7 @@ describe("runActiveSessionInitStatus — planning sub-stage resolution", () => {
       statusBody({ state: "Planning", branch: "plan/foo", taskList: "[none]" }),
     );
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
     expect(result.currentWorkflow).toBeNull();
     expect(result.planningStage).toBe("draft-design");
   });
@@ -1539,7 +1497,7 @@ describe("runActiveSessionInitStatus — planning sub-stage resolution", () => {
     await writeFile(join(fixture.activeDir, "draft-foo.md"), "# draft\n");
     await writeFile(join(fixture.activeDir, "spec-foo.md"), "# spec\n");
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
     expect(result.planningStage).toBe("draft-design");
   });
 
@@ -1554,22 +1512,19 @@ describe("runActiveSessionInitStatus — planning sub-stage resolution", () => {
       }),
     );
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store: inRepoStoreAt(fixture.root), exec: defaultExec });
     expect(result.planningStage).toBe("draft-design");
   });
 
   it("emits planningStage=null for a non-planning (execution) session", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusBody({
+    const store = await holdMeta(fixture.root, "foo", {
         state: "Active",
         branch: "feature/foo",
-        taskList: "`.arc/active/tasks-foo.md`",
+        taskList: ".arc/active/tasks-foo.md",
         nextAction: "Start Task 4.2 — write unit tests",
-      }),
-    );
+      });
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, store, exec: defaultExec });
     expect(result.sessionType).toBe("execution");
     expect(result.planningStage).toBeNull();
   });

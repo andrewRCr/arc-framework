@@ -8,6 +8,7 @@ import { readUnsharedWork } from "./unshared-work.js";
 import type { Store } from "../../store/contract.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import type { UnsharedWorkContext, UnsharedWorkResult } from "./unshared-work.js";
+import { handoverStep, resumeParkedStep } from "../../store/pre-flip-steps.js";
 /** Pause and handover invocation boundaries. */
 export interface PauseHandoverContext extends UnsharedWorkContext { store?: Store; now?: () => Date; projectId?: () => Promise<string> }
 /** Only explicitly supplied fields change on a repeated pause. */
@@ -76,7 +77,7 @@ function requestedWait(params: PauseParams, previous: MetaPause["waitsOn"]): Met
  * @returns Resumption or the materialize continuation.
  */
 export async function runResumePaused(ctx: PauseHandoverContext, params: { name: string; here?: boolean }): Promise<ResumePausedResult> {
-  if (ctx.store === undefined || !usesOffBranchState(ctx.store)) return { status: "rejected", code: "unsupported", reason: "Use the existing parked-work-unit arc resume path before the storage flip." };
+  if (ctx.store === undefined || !usesOffBranchState(ctx.store)) return { status: "rejected", code: "unsupported", reason: `arc resume of a paused work unit is unsupported before the storage flip. ${resumeParkedStep(params.name)}` };
   if (params.here) return { status: "rejected", reason: `arc resume --here is unsupported; use arc materialize ${params.name} --here.`,
     remedy: { text: "Materialize the work unit into this checkout.", argv: ["arc", "materialize", params.name, "--here"] } };
   const read = await readWorkUnit(ctx.store, params.name);
@@ -94,7 +95,7 @@ export async function runResumePaused(ctx: PauseHandoverContext, params: { name:
  * @returns Ownership change or exact missing sharing evidence.
  */
 export async function runHandover(ctx: PauseHandoverContext & { identity: string }, params: { name: string; to: string }): Promise<HandoverResult> {
-  if (ctx.store === undefined || !usesOffBranchState(ctx.store)) return { status: "rejected", code: "unsupported", reason: "arc handover is unsupported before the storage flip; edit Owner in the work unit's meta." };
+  if (ctx.store === undefined || !usesOffBranchState(ctx.store)) return { status: "rejected", code: "unsupported", reason: `arc handover is unsupported before the storage flip. ${handoverStep()}` };
   const identity = SlugSchema.safeParse(ctx.identity);
   if (!identity.success) return { status: "rejected", reason: "Handover requires a configured ARC identity; configure your identity and retry." };
   const owner = SlugSchema.safeParse(params.to);

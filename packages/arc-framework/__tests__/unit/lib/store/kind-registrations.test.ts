@@ -1,6 +1,7 @@
-/** Production registrations preserve the meta codec's observable parse outcomes. */
+/** Production registrations: the meta codec's parse outcomes, and each projected kind's parser and entry grammar. */
 import { describe, expect, it } from "vitest";
-import { createKindRegistry, FAMILY_REGISTRY, KIND_MECHANISMS } from "../../../../src/lib/store/registry.js";
+import { createKindRegistry, FAMILY_REGISTRY, KIND_MECHANISMS, type EntryConfig, type KindMechanism, type RegisteredKind }
+  from "../../../../src/lib/store/registry.js";
 import { familyOf, type KindId } from "../../../../src/lib/store/catalog.js";
 import { PRODUCTION_REGISTRATIONS, RECORD_LINK_KINDS } from "../../../../src/lib/store/kinds/registrations.js";
 import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
@@ -9,6 +10,12 @@ import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store
 import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
 import type { WriteCheckInput } from "../../../../src/lib/store/write-check.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { ENTRY_CONFIGS } from "../../../../src/lib/store/kinds/entry-configs.js";
+import { COHORT_REGISTRATION } from "../../../../src/lib/store/kinds/cohort/registration.js";
+import { classifyStoreAddress } from "../../../../src/lib/store/target-classification.js";
+import { isExcludedProjectionPath } from "../../../../src/lib/store/projection/discovery-exclusions.js";
+import { ArcLayoutAddressSchema, WorkUnitArtifactKindSchema, identifyArcFileAddress, isProjectedPath, resolveArcPath,
+  type ArcLayoutAddress } from "../../../../src/lib/layout/index.js";
 
 describe("production kind registrations", () => {
   it.each(["review/outcome", "review/decision", "review/evidence", "review/evidence-root-selection", "review/adversarial-pass",
@@ -77,5 +84,121 @@ describe("production kind registrations", () => {
     const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
     const malformed = makeMetaFixture("example", { owner: "andrew" }).replace(/\| `Active`.*\n/u, "| `Active` |\n");
     expect(registry["work-item/meta"].parser?.(malformed)).toMatchObject({ success: false, error: expect.stringContaining("column-count mismatch") });
+  });
+});
+
+/** Projected kinds holding free prose, whose records carry no parsed fields. */
+const PARSERLESS_KINDS: readonly KindId[] = ["work-item/notes", "personal/document", "personal/session-context"];
+const active = { kind: "active", scope: { kind: "project" } } as const;
+/** Every layout address form, with each variant that classifies to a different stored kind. */
+const ADDRESS_SAMPLES: Readonly<Record<ArcLayoutAddress["kind"], readonly unknown[]>> = {
+  "arc-root": [{ kind: "arc-root" }],
+  "work-unit-export": [{ kind: "work-unit-export", slug: "demo" }],
+  "candidate-record": [{ kind: "candidate-record", slug: "demo" }],
+  "integration-boundary-record": [{ kind: "integration-boundary-record", slug: "demo" }],
+  "transition-record": [{ kind: "transition-record", origin: "former" }],
+  "editor-document-root": [{ kind: "editor-document-root" }],
+  "editor-document": [{ kind: "editor-document", schema: "tasks" }],
+  inbox: [{ kind: "inbox", scope: { kind: "project" } }, { kind: "inbox", scope: { kind: "identity", identity: "alice" } }],
+  "placement-root": [{ kind: "placement-root", tier: "active" }],
+  "work-unit-container": [{ kind: "work-unit-container", placement: active, slug: "demo" }],
+  "work-unit-artifact": WorkUnitArtifactKindSchema.options.map(artifact =>
+    ({ kind: "work-unit-artifact", placement: active, slug: "demo", artifact })),
+  "work-unit-companion": [{ kind: "work-unit-companion", placement: active, slug: "demo", key: "correction.txt" }],
+  "work-unit-spec-part": (["prd", "rfc"] as const).map(part => ({ kind: "work-unit-spec-part", placement: active, slug: "demo", part })),
+  "work-unit-inbound": [{ kind: "work-unit-inbound", placement: active, slug: "demo" }],
+  "errand-description": [{ kind: "errand-description", placement: active, slug: "demo" }],
+  "cohort-copy": [{ kind: "cohort-copy", cohort: "core", location: { kind: "own", claim: "demo", layoutActive: "nested" } }],
+  "cohort-document": [{ kind: "cohort-document", cohort: ["core"], placement: { kind: "planned" } }],
+  "procedure-root": [{ kind: "procedure-root", family: "workflows" }],
+  "project-document": [{ kind: "project-document", document: "roadmap" }],
+  "user-root": [{ kind: "user-root", identity: "alice" }],
+  "scratch-document": [{ kind: "scratch-document", identity: "alice", key: "scratch/note.md" }],
+  "user-document": [{ kind: "user-document", identity: "alice", document: { kind: "working-memory" } },
+    { kind: "user-document", identity: "alice", document: { kind: "session-notes", workUnit: "demo" } }],
+};
+
+/** The projecting kinds a registration set leaves without a parser, the free-prose kinds aside. */
+function kindsMissingParsers(registrations: readonly RegisteredKind[]): KindId[] {
+  const registry = createKindRegistry(registrations);
+  return RECORD_LINK_KINDS.filter(kind => registry[kind].parser === null && !PARSERLESS_KINDS.includes(kind));
+}
+
+/** The entry-merged kinds whose mechanism does not carry their declared entry grammar. */
+function kindsMissingEntryGrammars(mechanisms: Readonly<Record<KindId, KindMechanism>>): KindId[] {
+  const declared: Readonly<Partial<Record<KindId, EntryConfig>>> = ENTRY_CONFIGS;
+  return entryKinds(mechanisms).filter(kind => declared[kind] === undefined || mechanisms[kind].entry !== declared[kind]);
+}
+
+function entryKinds(mechanisms: Readonly<Record<KindId, KindMechanism>>): KindId[] {
+  return (Object.keys(mechanisms) as KindId[]).filter(kind => mechanisms[kind].merge === "entry");
+}
+
+/** The stored kinds a hand-edited projected file addresses, split by whether merge takes them as entry lists. */
+function handEditableKinds(): { all: KindId[]; entryLists: KindId[] } {
+  const targets = Object.entries(ADDRESS_SAMPLES).flatMap(([form, samples]) => samples.flatMap(sample => {
+    const address = ArcLayoutAddressSchema.parse(sample);
+    expect(address.kind).toBe(form);
+    const path = resolveArcPath(address);
+    if (!isProjectedPath(path) || isExcludedProjectionPath(path)) return [];
+    const target = classifyStoreAddress(address);
+    return target === null ? [] : [target];
+  }));
+  return { all: [...new Set(targets.map(target => target.kind))],
+    entryLists: [...new Set(targets.filter(target => target.entryList).map(target => target.kind))] };
+}
+
+/** The hand-editable kinds the derived projecting and entry sets leave out. */
+function inventoryGaps(projecting: readonly KindId[], entries: readonly KindId[]): KindId[] {
+  const inventory = handEditableKinds();
+  return [...inventory.all.filter(kind => !projecting.includes(kind)),
+    ...inventory.entryLists.filter(kind => !entries.includes(kind))];
+}
+
+describe("projected kinds' parsers and entry grammars", () => {
+  it("gives every projecting kind a parser, save the free-prose kinds", () => {
+    expect(kindsMissingParsers(PRODUCTION_REGISTRATIONS)).toEqual([]);
+    expect(RECORD_LINK_KINDS).toEqual(expect.arrayContaining([...PARSERLESS_KINDS]));
+  });
+  it("names a projecting kind registered without a parser", () => {
+    expect(kindsMissingParsers(PRODUCTION_REGISTRATIONS.filter(item => item.kind !== COHORT_REGISTRATION.kind)))
+      .toEqual(["cohort/document"]);
+  });
+  it("carries every entry kind's declared grammar on its mechanism", () => {
+    expect(kindsMissingEntryGrammars(KIND_MECHANISMS)).toEqual([]);
+    expect(entryKinds(KIND_MECHANISMS)).toContain("personal/errand-queue");
+    expect(RECORD_LINK_KINDS).not.toContain("personal/errand-queue");
+  });
+  it("names an entry kind whose mechanism drops its grammar", () => {
+    const inbound: KindMechanism = { ...KIND_MECHANISMS["work-item/inbound"] };
+    delete inbound.entry;
+    expect(kindsMissingEntryGrammars({ ...KIND_MECHANISMS, "work-item/inbound": inbound })).toEqual(["work-item/inbound"]);
+  });
+  it("covers every hand-editable projected kind in the derived sets", () => {
+    const inventory = handEditableKinds();
+    expect(inventory.all).not.toHaveLength(0);
+    expect(inventory.entryLists).not.toHaveLength(0);
+    expect(inventoryGaps(RECORD_LINK_KINDS, entryKinds(KIND_MECHANISMS))).toEqual([]);
+  });
+  it("names a hand-editable kind the derived sets leave out", () => {
+    expect(inventoryGaps(RECORD_LINK_KINDS.filter(kind => kind !== "work-item/inbound"), entryKinds(KIND_MECHANISMS)))
+      .toEqual(["work-item/inbound"]);
+    expect(inventoryGaps(RECORD_LINK_KINDS, entryKinds(KIND_MECHANISMS).filter(kind => kind !== "personal/inbox")))
+      .toEqual(["personal/inbox"]);
+  });
+  it("names the writable project inbox when its mechanism excludes it from the parser inventory", () => {
+    const kind = "project-inbox/inbox";
+    const mechanism = KIND_MECHANISMS[kind];
+    const projection = mechanism.projection;
+    try {
+      mechanism.projection = "never";
+      const address = identifyArcFileAddress(".arc/backlog/ATOMIC-INBOX.md");
+      expect(address && classifyStoreAddress(address)?.kind).toBe(kind);
+      // RECORD_LINK_KINDS was selected at import time. Reapply its projection filter after the flag change.
+      const projecting = RECORD_LINK_KINDS.filter(candidate => KIND_MECHANISMS[candidate].projection !== "never");
+      expect(inventoryGaps(projecting, entryKinds(KIND_MECHANISMS))).toEqual([kind]);
+    } finally {
+      mechanism.projection = projection;
+    }
   });
 });

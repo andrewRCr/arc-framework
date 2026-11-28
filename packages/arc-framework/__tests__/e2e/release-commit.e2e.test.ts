@@ -8,9 +8,10 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
-import { runCli } from "../helpers/run-cli.js";
 import { assembleCommitMessageParagraphs } from "../../src/lib/release/commit-message-assembly.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { cleanupTempDir, createTempRepo } from "./helpers.js";
+import { runCli } from "../helpers/run-cli.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -644,6 +645,9 @@ describe("release commit body wrapping", () => {
 });
 
 describe("release commit amend", () => {
+  // The store's wrapper refuses every amend, naming a new commit instead, so amending an unpushed HEAD and refusing a
+  // pushed one are the in-repo wrapper's.
+  useInRepoStoreForEach();
   it.each(["--am", "--ame", "--amen", "--amend"])("refuses %s on a pushed HEAD after an ordinary unpushed amend", async (flag) => {
     const commit = await runCli(["release", "commit", "-m", "feat(release): add the tracked change"], {
       cwd: repository,

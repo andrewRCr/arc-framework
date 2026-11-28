@@ -8,11 +8,12 @@ import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifec
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
   return { ...original, createStore: (ports: StorePorts) => {
-    if (binding.store === null) return original.createStore(ports);
+    if (binding.store === null) return inRepoStore(ports);
     return binding.store;
   } };
 });

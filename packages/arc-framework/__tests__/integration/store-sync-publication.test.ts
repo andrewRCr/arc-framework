@@ -6,6 +6,10 @@ import { syncFixture, syncNotesRef, syncErrandRef, seedAheadErrand } from "../he
 import { success } from "../helpers/store/suite-tools.js";
 import { makeCommit, makeNotesTreeCommit } from "../helpers/integration.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases publish the pre-cutover notes ref.
+useInRepoStoreForEach();
 
 describe("Store notes publication", () => {
   it("reports no identity with a configured remote, preserves notes and refs, and recovers after configuration", async () => {

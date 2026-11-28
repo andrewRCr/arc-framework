@@ -14,8 +14,7 @@ import { createTestStatusContext } from "../../helpers/status-context.js";
 import { handleLifecycleStatus } from "../../../src/handlers/status/lifecycle.js";
 import type { StoreLifecycleStatusPorts } from "../../../src/handlers/status/store-locus.js";
 import type { Store } from "../../../src/lib/store/contract.js";
-import { createStore } from "../../../src/lib/store/create.js";
-import { testStorePorts } from "../../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../../helpers/store/in-repo-ports.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import { OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
@@ -89,7 +88,7 @@ it("legacy reads use the bound store and preserve foreign occupancy", async () =
   await mkdir(join(cwd, ".arc/active"), { recursive: true });
   await writeFile(join(cwd, ".arc/active/meta-demo.md"), makeMetaFixture("demo"));
   const forbiddenGit = async () => { throw new Error("Read must not invoke Git"); };
-  const store = createStore(testStorePorts(cwd, forbiddenGit, forbiddenGit));
+  const store = inRepoStore(testStorePorts(cwd, forbiddenGit, forbiddenGit));
   expect(await resolveVerbTargetOrReport("park", undefined, cwd, false, store)).toBe("demo");
   const reader = vi.fn(async () => ({ layout: "full" as const, candidates: [], warnings: [] }));
   const guard = makeWorktreeOccupancyGuard({ cwd, store, readActiveMetaCandidates: reader });

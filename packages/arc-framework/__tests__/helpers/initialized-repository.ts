@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 
 import { afterAll, expect } from "vitest";
 
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { cleanupTempDir, createTempRepo, runArc } from "../e2e/helpers.js";
 import {
   copyPreparedRepository,
@@ -24,10 +25,10 @@ async function git(cwd: string, args: string[]): Promise<string> {
 /** Init-only default or Claude starts, plus committed default or arc-in-git starts. */
 type InitializedStart = "initialized" | "claude-initialized" | "initialized-and-committed" | "arc-in-git-and-committed";
 
-const initializedTemplates = new Map<InitializedStart, Promise<PreparedRepositoryTemplate>>();
+const initializedTemplates = new Map<string, Promise<PreparedRepositoryTemplate>>();
 
-function initializedShape(start: InitializedStart): PreparedRepositoryShape {
-  return { kind: "plain", key: `errand-e2e-${start}-v1` };
+function initializedShape(start: InitializedStart, selection: string): PreparedRepositoryShape {
+  return { kind: "plain", key: `errand-e2e-${start}-${selection}-v1` };
 }
 
 /** Run `arc init` once for one start, so each test copies the result instead of initializing its own. */
@@ -48,14 +49,20 @@ async function buildInitializedStart(start: InitializedStart): Promise<string> {
   }
 }
 
-/** An independent copy of one initialized start, built on first use. */
+/** An independent copy of one initialized start, built on first use for each store the test process selects, so the
+ * template matches the store the test's commands open.
+ * @param start - The start to initialize.
+ * @returns The copy's root.
+ */
 export async function initializedRepository(start: InitializedStart): Promise<string> {
-  let template = initializedTemplates.get(start);
+  const selection = process.env[IN_REPO_STORE_OVERRIDE] ? "in-repo" : "ref";
+  const shape = initializedShape(start, selection), key = `${start}:${selection}`;
+  let template = initializedTemplates.get(key);
   if (template === undefined) {
-    template = prepareRepositoryTemplate(initializedShape(start), () => buildInitializedStart(start));
-    initializedTemplates.set(start, template);
+    template = prepareRepositoryTemplate(shape, () => buildInitializedStart(start));
+    initializedTemplates.set(key, template);
   }
-  return copyPreparedRepository(await template, initializedShape(start));
+  return copyPreparedRepository(await template, shape);
 }
 
 afterAll(async () => {

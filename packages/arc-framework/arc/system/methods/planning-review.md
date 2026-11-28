@@ -24,7 +24,7 @@ override-active: false
 > - **When:** Reviewing a planning artifact at its stage gate, including a bounded amendment footprint.
 >
 > - **Contract:** Run the artifact's author checks, offer an independent pass at the resolved posture, settle its
->   findings and fix checks, and reread the settled artifact immediately before the caller's commit. Return review
+>   findings and fix checks, and reread the settled artifact immediately before the caller's save. Return review
 >   evidence and unresolved decisions; lifecycle changes and approval gates remain with the caller.
 
 ## planning-review.override
@@ -60,7 +60,7 @@ primary-checks:    # checks performed and their evidence
 independent:       # declined | omitted | completed, with pass-record reference when available
 stop-reason:       # adversarial-review's returned reason, or not-run
 unresolved:        # findings or decisions still requiring the caller
-post-settle:       # reread result, returned when the caller reaches its pre-commit fire-point
+post-settle:       # reread result, returned when the caller reaches its pre-save fire-point
 ```
 
 This is advisory evidence. It creates no lane-progress record, Candidate, or approval authority.
@@ -130,14 +130,19 @@ After each returned look, apply [adversarial-review's complete-disposition and c
 Beside every disposition set carrying a fix, offer its [fix check][fold-verification] after author grounding, before
 a successor pass or the final reread. Decide each round on the fixes alone under review-model.
 
-Append each pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace, beside SESSION-NOTES, following
-[Pass record][pass-record]. Later passes take their history from that record. The caller's commit summarizes each
-pass in one body line; a stub groomed before it starts has no workspace, so that summary is its only record.
+For a determinacy confirmation without a stored draft, settle and return the findings without recording an adversarial
+pass. For other planning passes, record each pass with `arc review adversarial record` following
+[Pass record][pass-record], including for a stub groomed before its start.
+
+Keep each pass's number, approved dispositions and their accounts, fix-check findings and decisions, stop reason,
+and scratch report paths in the unit's notes. Persist the notes and reports with `arc save` at the caller's save
+point. To resume, read the unit's notes with `arc view notes --for <slug>` and consult the scratch reports when available.
+
 An accepted return to shaping ends the loop as `re-entered`; the caller owns authoring, readiness, and the fresh loop.
 
 ### Post-settle reread
 
-At the caller's last step before its commit, reread after all folds and iteration amendments have settled:
+At the caller's last step before its save, reread after all folds and iteration amendments have settled:
 
 - draft: when folds followed readiness, reread the settled draft against the readiness bar's coherence check;
 - spec: when folds followed the author check, rerun spec-review's coherence slice over the settled specification;
@@ -146,7 +151,7 @@ At the caller's last step before its commit, reread after all folds and iteratio
 - amendment: when a pass folded anything, rerun spec-review's coherence slice over the amended footprint on every
   arm, retaining both common reader checks and the affected surrounding contract without widening the footprint.
 
-Return corrections and unresolved decisions to the caller's existing iteration and approval flow before commit.
+Return corrections and unresolved decisions to the caller's existing iteration and approval flow before the save.
 
 ---
 

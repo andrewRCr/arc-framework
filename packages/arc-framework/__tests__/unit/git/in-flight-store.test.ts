@@ -36,3 +36,36 @@ it("filters foreign owners, retains active Errands with missing branch residue, 
   expect(result.entries).toHaveLength(1); expect(result.entries[0]).toMatchObject({ kind: "errand", slug: "fix-it", owner: "alice" });
   expect(result.residue).toContainEqual({ branch: "chore/fix-it", slug: "fix-it", reason: "errand-record-without-branch" });
 });
+it("names an unlinked suffixed Errand branch's residue by the slug before its suffix", async () => {
+  const h = createLifecycleHarness();
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: [
+    `refs/heads/chore/fix-it-0a1b2c3d\t${"a".repeat(40)}`, `refs/heads/feat/fix-it-0a1b2c3d\t${"b".repeat(40)}`,
+    `refs/heads/fix/plain\t${"c".repeat(40)}`, ""].join("\n") }] }]);
+  const result = await deriveStoreInFlight({ store: h.store, exec: fake.exec, identity: "test-user", teamMode: false, projectId: async () => "project" });
+  expect(result.residue).toEqual(expect.arrayContaining([
+    { branch: "chore/fix-it-0a1b2c3d", slug: "fix-it", reason: "no-record-or-meta" },
+    { branch: "feat/fix-it-0a1b2c3d", slug: "fix-it-0a1b2c3d", reason: "no-record-or-meta" },
+    { branch: "fix/plain", slug: "plain", reason: "no-record-or-meta" },
+  ]));
+});
+it("reports an unlinked suffixed hotfix branch as residue with an inspection warning", async () => {
+  const { store } = createLifecycleHarness();
+  const branch = "hotfix/fix-it-0a1b2c3d";
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [
+    { stdout: `refs/heads/${branch}\t${"a".repeat(40)}\n` },
+  ] }]);
+  const result = await deriveStoreInFlight({ store, exec: fake.exec, identity: "test-user", teamMode: false, projectId: async () => "project" });
+  expect(result).toMatchObject({
+    residue: [{ branch, slug: "fix-it", reason: "no-record-or-meta" }],
+    warnings: [{ branch, code: "branch-residue" }],
+  });
+});
+it("keeps the full post-prefix name of nested branch residue", async () => {
+  const { store } = createLifecycleHarness();
+  const branch = "fix/team/widget-deadbeef";
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [
+    { stdout: `refs/heads/${branch}\t${"a".repeat(40)}\n` },
+  ] }]);
+  const result = await deriveStoreInFlight({ store, exec: fake.exec, identity: "test-user", teamMode: false, projectId: async () => "project" });
+  expect(result.residue).toEqual([{ branch, slug: "team/widget-deadbeef", reason: "no-record-or-meta" }]);
+});

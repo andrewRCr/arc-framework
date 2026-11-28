@@ -7,7 +7,7 @@ import { readRefTips } from "../batch-read.js";
 import { isStateRef } from "../manifest.js";
 import { RecordReferenceSchema, type RecordReference } from "../../identity.js";
 
-/** True identifies only this repository's own earlier import landing. */
+/** True identifies an earlier landing that the in-repo importer can resume publishing. */
 export async function inspectImportDestination(context: RefBackendContext, store: Store, repositoryId: string | null): Promise<StoreCommandResult<boolean>> {
   const physical = await readRefRepository(context);
   const tips = await readRefTips(physical, { includeHistory: true });
@@ -20,7 +20,7 @@ export async function inspectImportDestination(context: RefBackendContext, store
     const value: unknown = JSON.parse(identity.result.content);
     const projectId = typeof value === "object" && value !== null && "projectId" in value ? value.projectId : undefined;
     if (typeof projectId === "string") {
-      if (projectId === repositoryId) return { status: "ok", result: true };
+      if (projectId === repositoryId) return inspectMatchingLanding(context, identity.result.reference, projectId);
       return { status: "refused", refusal: { code: "store", refusal: { code: "identity-mismatch", class: "recoverable",
         expected: projectReference(repositoryId ?? undefined), actual: projectReference(projectId),
         condition: `The store holds project ${projectId}; the repository identity is ${repositoryId ?? "not yet minted"}.`, remedy } } };
@@ -33,6 +33,13 @@ export async function inspectImportDestination(context: RefBackendContext, store
   if (records.length === 0) records.push(projectReference());
   return { status: "refused", refusal: { code: "store", refusal: { code: "version-conflict", class: "recoverable", records,
     condition: "The store already holds state that cannot be identified as this import's landing.", remedy } } };
+}
+
+function inspectMatchingLanding(context: RefBackendContext, reference: RecordReference, projectId: string): StoreCommandResult<boolean> {
+  if (context.importSource?.store.capabilities.stateOffBranch === false) return { status: "ok", result: true };
+  return { status: "refused", refusal: { code: "store", refusal: { code: "version-conflict", class: "recoverable",
+    records: [reference], condition: `The store already holds imported state for project ${projectId}.`,
+    remedy: { text: "Run arc sync to publish pending store changes.", argv: ["arc", "sync"] } } } };
 }
 
 async function heldRecords(context: RefBackendContext, store: Store): Promise<StoreCommandResult<RecordReference[]>> {

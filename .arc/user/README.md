@@ -2,112 +2,79 @@
 
 **Audience:** Human-facing — read when setting up or understanding per-developer workspace structure.
 
-This directory provides each developer with a personal workspace for session state and
-lightweight personal content. The structure is the same whether you're working solo or on a
-team — each developer gets a `user/{identity}/` subdirectory.
+This directory provides each developer with a personal workspace for lightweight personal content. The structure is
+the same whether you're working solo or on a team — each developer gets a `user/{identity}/` subdirectory.
 
-**What belongs here:** session notes, personal task capture, freeform scratch notes, personal
-reference material — per-developer content that doesn't belong in the shared repo.
+**What belongs here:** working memory, personal task capture, freeform scratch notes, personal reference material —
+per-developer content that isn't the shared project's.
 
-**What does NOT belong here (for most users):** task lists, PRDs, work unit artifacts, per-WU
-meta files. Those are project-level and live in `.arc/active/` — shared, tracked,
-visible to the whole team. There is one niche exception for contributors running a personal
-planning pipeline, described at the end of this doc.
+Work-unit task lists, PRDs, and meta files are project-level records. ARC projects active work-unit records into
+`.arc/active/` and shares them with the team.
 
 ## How It Works
 
-CLI init creates a personal subdirectory using your identity (from `git config arc.identity`,
-configured during initial setup):
+ARC stores each developer's personal records under their identity (from `git config arc.identity`, configured during
+initial setup). ARC projects only the current identity's personal records into `user/{identity}/` in each checkout:
 
 ```text
 user/
 ├── README.md                    # This file (tracked)
-├── andrew/                      # Your personal workspace (gitignored)
-│   ├── SESSION-NOTES.md         # Session context across sessions
-│   └── ATOMIC-INBOX.md          # Personal task capture (arc-in-git only)
-└── alice/                       # Team member (same structure)
-    └── ...
+└── andrew/                      # Your personal workspace
+    ├── WORKING-MEMORY.md        # Cross-work-unit context, reviewed at each handoff
+    ├── USER-INBOX.md            # Personal task capture, read with `arc inbox personal`
+    └── scratch/                 # Your own files
 ```
 
-**Solo projects** have one identity directory. **Team projects** have one per developer. The
-structure is identical — team scaling requires no migration. Add team members with
-`arc user add <identity>`.
+The checkout layout is the same for solo and team projects. Add team members with `arc user add <identity>`.
 
 ## What Lives Where
 
-| Location           | Contains                                          | Ownership                            |
-| ------------------ | ------------------------------------------------- | ------------------------------------ |
-| `active/`          | Task lists, PRDs, meta files, work unit artifacts | Project-level — shared, tracked      |
-| `backlog/`         | ROADMAP, backlogs                                 | Project-level — shared, tracked      |
-| `user/{identity}/` | Session notes, personal captures, freeform notes  | Personal — one developer, gitignored |
+| Location           | Contains                                            | Ownership                         |
+| ------------------ | --------------------------------------------------- | --------------------------------- |
+| `active/`          | Task lists, PRDs, meta files, work unit artifacts   | Project-level — shared, projected |
+| `backlog/`         | Backlog stubs and drafts                            | Project-level — shared, projected |
+| `user/{identity}/` | Working memory, personal captures, `scratch/` files | Personal — one developer          |
 
-**Why the separation:** personal content is gitignored so it doesn't create merge conflicts
-between developers. Project-level planning artifacts stay in their natural shared locations
-where the whole team can see them.
+**Why the separation:** each developer writes only their own personal records, so personal content never conflicts
+between developers. Project-level planning records stay in their shared locations where the whole team can see them.
 
 **Common point of confusion:** task lists and work unit files are _project-level_. They live in
-`.arc/active/`, not in `user/{identity}/`. The user directory is for personal content that
-shouldn't leave your machine by default.
+`.arc/active/`, not in `user/{identity}/`.
 
 ## Framework Read Contract
 
-ARC loads from specific files in your workspace during session lifecycle operations. These are
-the only paths the framework actively manages; everything else you put here is freeform.
+ARC manages these personal records during session lifecycle operations; everything you put in `scratch/` is freeform.
 
-| Path               | Loaded at    | Purpose                                                         |
-| ------------------ | ------------ | --------------------------------------------------------------- |
-| `SESSION-NOTES.md` | session-init | Session context from prior sessions; written at session-handoff |
-| `ATOMIC-INBOX.md`  | session-init | Personal task capture queue (arc-in-git only)                   |
+| Record              | Read at                     | Purpose                                                    |
+| ------------------- | --------------------------- | ---------------------------------------------------------- |
+| `WORKING-MEMORY.md` | session-init                | Cross-work-unit constraints, each with its removal trigger |
+| Personal inbox      | `arc inbox personal`, drain | Deferred personal captures, drained by `arc-housekeep`     |
 
-That's the whole contract for most users. If you're running a personal planning pipeline as a
-contributor, `user/{identity}/active/meta-{name}.md` (personal work state) and
-`user/{identity}/active/tasks-{name}.md` plus companion files are additional optional paths —
-see § Advanced: Personal Planning Pipeline below.
+Contributor session entry can also read a local `user/{identity}/active/meta-{name}.md`. Work-unit handoff
+requires a held store record, so a contributor with only local planning files follows the
+[between-work-units handoff][between-work-units]. Use the personal inbox for deferred work, working memory for
+approved cross-work-unit context, and `scratch/` for portable freeform planning notes.
 
 ## Personal Content
 
-Everything else under `user/{identity}/` is yours to organize. Typical examples: scratch notes,
-investigation logs, research captures, reference links, personal reading lists, clippings. No
-structural requirements — put things where they make sense to you.
-
-The framework does not load, validate, or manage personal content. You can reorganize it,
-delete it, or expand it without breaking anything.
-
-**Light recommendation:** when your workspace grows past a few files, consider mirroring ARC's
-tracked directory layout (`active/`, `backlog/`, `completed/`, `reference/`, etc.) as a personal
-organizing convention. It keeps your mental model consistent and is strictly optional — ARC doesn't enforce
-or validate the structure of this gitignored directory.
+Use `user/{identity}/scratch/` for freeform text such as notes, investigation logs, research captures, and reference
+links. Keep each file to at most 1 MiB (1,048,576 UTF-8 bytes). The store rejects files with a NUL byte in the first
+8,000 bytes. Outside `scratch/`, the identity directory holds only ARC's records, and a save refuses other files there.
 
 ## Portability
 
-Personal workspace files are gitignored — they don't leave your machine by default. For
-cross-machine or team handoff, ARC uses git notes to attach the entire `user/{identity}/`
-directory to commits without creating merge conflicts. See `arc-config.yml` for
-`user.sync_push` behavior (always / prompt / manual).
-
-CLI commands: `arc user save`, `arc user load`, `arc user fetch`, `arc user push`,
-`arc user pull`, `arc sync`. Use `arc user fetch --identity <name>` for person-to-person
-bootstrap, `arc user load --max-walk <n>` when the saved note is far back on reachable history,
-and `--yes` on load/pull/sync to skip overwrite prompts when needed.
+Your personal records, including accepted `scratch/` files, are stored under your identity beside the project's state.
+A scratch edit becomes available to sync on another machine after the store accepts it through `arc save` and
+`arc sync` publishes it to the state remote. Anyone with read access to the designated state remote can read published
+personal records. In the default setup, state uses the code repository's remote, so a public code repository makes
+those records public. A separate state repository can be private even when the code repository is public. In local-only
+mode, ARC publishes no state. Keep secrets out of your personal workspace.
 
 ## Adding Team Members
 
-Run `arc user add <identity>` to create a new `user/{identity}/` directory with the standard
-workspace files. The CLI populates the directory from its internal templates — no manual file
-copying needed.
+Run `arc user add <identity>` to set up a new developer's personal records. It creates only records that do not
+exist yet, so it never overwrites anyone's content.
 
-## Advanced: Personal Planning Pipeline
+---
 
-> **Niche use case.** Most users can stop reading here.
-
-Contributors to an ARC-using upstream project can optionally run ARC's full planning pipeline —
-plan docs, PRDs, task lists, shift lifecycle, handoffs — scoped entirely to their
-`user/{identity}/` workspace, without touching upstream's tracked planning state. This is the
-exception to "task lists live in project `active/`": when running as a contributor, your
-personal task lists live in `user/{identity}/active/` and are loaded by session-init if your
-role is `contributor`.
-
-This is an opt-in advanced pattern documented in full by the contributor briefing
-(`reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`, loaded automatically during contributor-role
-sessions). Maintainers do not use this path — project planning state belongs in `.arc/active/`
-where the team can see it.
+[between-work-units]: ../system/workflows/arc/session-lifecycle/session-handoff.md#between-wus-handoff-path

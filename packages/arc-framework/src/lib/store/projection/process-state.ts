@@ -24,7 +24,17 @@ import type { ProjectionFanOutBinding } from "./fan-out-binding.js";
 export type FanOutScope = "all" | "own";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
-export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch" | "mismatch"; readonly mark: RefusedMark }
+export interface ProjectionSkip {
+  readonly reason: "no-identity" | "held" | "lost" | "gone" | "unwritable" | "switch" | "mismatch" | "tracked-state";
+  readonly mark: RefusedMark;
+}
+
+/** Whether a skip switches the command's projection off whole, before any lock or store read: the skip switch, or a
+ * Git hook command over a checkout whose `HEAD` still tracks ARC state. Such a command lands, settles, fans out, and
+ * materializes nothing. */
+export function projectionSwitchedOff(skip: ProjectionSkip | null): boolean {
+  return skip?.reason === "switch" || skip?.reason === "tracked-state";
+}
 
 /** Bound edit policy; an absent policy grants the edit. */
 export type ProjectionRights = (request: TakeInRequest) => Promise<RefusedMark | null>;

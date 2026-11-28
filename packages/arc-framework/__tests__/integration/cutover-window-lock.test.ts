@@ -10,6 +10,10 @@ import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses an unlocked marked checkout and passes after its worktree lock is applied", async () => {
   const h = await windowFixture();

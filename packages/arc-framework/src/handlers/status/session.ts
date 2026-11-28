@@ -19,6 +19,7 @@ import { resolveWorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import { deriveRestateCandidates } from "../../lib/handoff/restate-candidates.js";
 import { resolveWorkUnitSessionNotesPath, resolveSessionNotesPath } from "../../lib/handoff/session-notes-path.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
 import { runInboxState } from "../../lib/session-init/inbox-state.js";
 import { runDerivedLocusStateProbe } from "../derived-locus-state-probe.js";
 import { createRecoverStatusProbes } from "../recover-probes.js";
@@ -29,6 +30,8 @@ import { releaseRoutingFromSettings } from "./session-evidence.js";
 import { pullStoreStatus } from "./store-locus.js";
 import { readProjectionStatus } from "../../lib/store/projection/status.js";
 import { createProjectionEnginePorts } from "../../lib/store/projection/engine-ports.js";
+import { locateProjection } from "../../lib/store/projection/location.js";
+import { projectionStartEligible } from "../../lib/store/projection/start-observations.js";
 import { readProjectionViewStatus } from "../../lib/store/projection/view-status.js";
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
@@ -169,8 +172,15 @@ export async function handleSessionHandoffStatus(context: SessionStatusContext, 
         const surfaces = await userSurfacesFor(identity);
         const selected = probes.stateOffBranch
           ? await probes.sessionNotesPath() : null;
+        const localProjection = probes.stateOffBranch && await projectionStartEligible(cwd,
+          await locateProjection(cwd, { fs: createProjectionEnginePorts(cwd).fs, exec }));
         return {
-          workingMemoryPath: surfaces.workingMemoryPath,
+          workingMemoryCheckout: localProjection ? cwd : surfaces.primaryCheckoutPath,
+          workingMemoryPath: localProjection
+            ? materializeArcPath(cwd, resolveArcPath({
+              kind: "user-document", identity: SlugSchema.parse(identity), document: { kind: "working-memory" },
+            }))
+            : surfaces.workingMemoryPath,
           sessionNotesPath: (workUnitName: string) => {
             if (selected !== null) return selected;
             if (probes.stateOffBranch) throw new Error("The active work unit has no resolved session context.");

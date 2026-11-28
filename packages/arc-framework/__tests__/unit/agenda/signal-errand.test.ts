@@ -5,7 +5,7 @@ import { assertSessionInitAgenda } from "../../../src/commands/agenda/schema.js"
 import type { AgendaCompileInput } from "../../../src/commands/agenda/compile-input.js";
 import { describeStorePull } from "../../../src/lib/session-init/store-user-pull.js";
 import { setErrandQueue } from "../../../src/lib/inbox/queue.js";
-import { configSessionInit, dirtyState, userSessionInit } from "../../helpers/session-init-fixtures.js";
+import { dirtyState } from "../../helpers/session-init-fixtures.js";
 import { entry } from "../../helpers/inbox-harness.js";
 import { createSignalAgendaFixture } from "../../helpers/agenda-signal-fixtures.js";
 
@@ -64,19 +64,6 @@ describe("Errand signal entry", () => {
       expect.objectContaining({ type: "render", surface: "header" }),
       { type: "render", surface: "dirty", text: "**Uncommitted changes:** 3 file(s) dirty in working tree." },
     ]));
-  });
-
-  it("ends at an automatic notes pull before reading captures or entering the workflow", async () => {
-    const config = configSessionInit(); config.settings["session.init_pull.notes"] = "always";
-    const { input } = await createSignalAgendaFixture(undefined, { config: async () => config,
-      user: async () => userSessionInit({ identity: "test-user", state: "remote-ahead", shouldPromptToPull: true }),
-    }, false);
-    input.signals = { errand: "Concern" };
-    input.entry.readUserInbox = async () => { throw new Error("A pending sync must precede inbox reads"); };
-    const agenda = await compile(input);
-    expect(agenda.steps).toEqual([{ type: "exec", id: "notes:pull", actions: [
-      { argv: ["arc", "user", "pull"], text: "arc user pull" },
-    ], then: { kind: "recompile", argv: ["arc", "agenda", "session-init", "--json", "--errand", "Concern", "--done", "notes:pull"] } }]);
   });
 
   it("resolves the queue head and hands its exact key to launch", async () => {

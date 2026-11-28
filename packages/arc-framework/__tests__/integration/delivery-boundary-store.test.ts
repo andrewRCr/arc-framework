@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
+import { stageUnrelatedTransitionRecord } from "../helpers/delivery-transition-record.js";
 import { candidateFixture } from "../helpers/store/tracked-write-fixture.js";
 import { deliveryStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
@@ -28,6 +29,8 @@ it("continues a native delivery publication through its stored boundary without 
   await h.seed(recordReferences["work-item/task-list"](primary.reference.owner),
     `# Tasks\n\n${renderDeliveryPlanSection(plan)}\n## **Phase 1:** Build\n\n### \`[x]\` **1.1 Build**\n`);
   const checkout = repositories.native;
+  await stageUnrelatedTransitionRecord(checkout.cwd);
+  await checkout.exec("git", ["commit", "-m", "Record a rename"], { cwd: checkout.cwd });
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const states = new RepositoryDeliveryStateStore(publisher);

@@ -7,6 +7,7 @@ import { afterEach, expect, it } from "vitest";
 import { restrictedGitPath } from "../helpers/restricted-git-path.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const exec = promisify(execFile);
 const repositories: string[] = [];
@@ -113,11 +114,14 @@ it("prefers the repository-local CLI over a failing global executable", async ()
 });
 
 
+// A task list staged in a commit is tracked state, whose hook checks only the pre-flip build runs; it opens
+// the in-repo store in the hook the commit starts.
 it.each([
   ".arc/active/tasks-example.md",
   ".arc/active/nested/tasks-example.md",
   ".arc/backlog/planned/cohort/example/tasks-example.md",
 ])("checks staged task numbering and commits after repair in %s", async path => {
+  useInRepoStore();
   const cwd = await fixture();
   await exec("git", ["config", "arc.role", "maintainer"], { cwd });
   await mkdir(dirname(join(cwd, path)), { recursive: true });
@@ -146,6 +150,7 @@ it.each([
 
 it.each([".arc/active/tasks-example.md", ".arc/active/nested/tasks-example.md"])(
   "warns for an unstaged active task list and clears after staging it: %s", async path => {
+    useInRepoStore();
     const cwd = await fixture();
     await exec("git", ["config", "arc.role", "maintainer"], { cwd });
     await mkdir(dirname(join(cwd, path)), { recursive: true });
@@ -179,6 +184,7 @@ it.each([
   [".arc/active/tasks-flat.md", ".arc/active/nested/tasks-nested.md"],
   [".arc/active/nested/tasks-nested.md", ".arc/active/tasks-flat.md"],
 ])("warns about %s's unstaged peer %s", async (stagedPath, unstagedPath) => {
+  useInRepoStore();
   const cwd = await fixture();
   await exec("git", ["config", "arc.role", "maintainer"], { cwd });
   const original = "# Tasks\n\n- [ ] **1.1.a First subtask**\n";
@@ -213,6 +219,7 @@ it.each([
 
 it.each([".arc/active/tasks-example.md", ".arc/active/nested/tasks-example.md"])(
   "warns for partially staged task-list updates and clears after staging the remainder: %s", async path => {
+    useInRepoStore();
     const cwd = await fixture();
     await exec("git", ["config", "arc.role", "maintainer"], { cwd });
     await mkdir(dirname(join(cwd, path)), { recursive: true });

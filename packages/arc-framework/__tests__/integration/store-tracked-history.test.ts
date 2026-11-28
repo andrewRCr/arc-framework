@@ -2,13 +2,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createStore } from "../../src/lib/store/create.js";
 import { OwnerIdentitySchema, recordReferences, StateVersionSchema } from "../../src/lib/store/identity.js";
 import { digestBytes } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { testStorePorts } from "../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { success } from "../helpers/store/suite-tools.js";
 
 const roots: string[] = [];
@@ -19,7 +18,7 @@ const version = (content: string) => digestBytes(Buffer.from(content));
 async function repository() {
   const root = await createTempRepo("arc-store-history-"); roots.push(root);
   const exec = makeGitExec(root);
-  const store = createStore(testStorePorts(root, exec, makeGitExecInput(root)));
+  const store = inRepoStore(testStorePorts(root, exec, makeGitExecInput(root)));
   async function put(path: string, content: string) {
     await mkdir(dirname(join(root, path)), { recursive: true });
     await writeFile(join(root, path), content);

@@ -110,7 +110,7 @@ function authorizedDecision() {
 }
 
 describe("projectRenameMoveRemedy", () => {
-  it.each(["feat/new-name", null])("projects doubled-force argv and a typed action for branch %s", (branch) => {
+  it.each(["feat/new-name", null])("projects a move followed by a replay for branch %s", (branch) => {
     const worktree = registered({ branch, detached: branch === null });
     const from = worktree.path, to = "/wt/project.new-name";
     const marker = pendingMarker({ renameMovePending: {
@@ -118,9 +118,12 @@ describe("projectRenameMoveRemedy", () => {
     } });
     const result = projectRenameMoveRemedy(worktree, marker, [worktree]);
     const remedy = { argv: ["git", "worktree", "move", "-f", "-f", from, to],
-      text: `Run git worktree move -f -f '${from}' '${to}' from outside the checkout.` };
+      text: `Run git worktree move -f -f '${from}' '${to}' from outside the checkout, then run arc rename 'old-name' 'new-name' in '${to}' to settle the move.` };
     expect(result).toEqual({ oldSlug: "old-name", newSlug: "new-name", branch, head: HEAD,
-      from, to, remedy, actions: [remedy] });
+      from, to, remedy, actions: [
+        { argv: remedy.argv, text: `git worktree move -f -f '${from}' '${to}'` },
+        { argv: ["arc", "rename", "old-name", "new-name"], text: "arc rename 'old-name' 'new-name'" },
+      ] });
     expect(StaleWorktreeSweepResultSchema.parse({ remoteEvidence: "not-applicable", worktrees: [],
       missingFolders: [], renameMoves: [result], retirements: [], warnings: [] }).renameMoves).toEqual([result]);
   });
@@ -134,7 +137,7 @@ describe("projectRenameMoveRemedy", () => {
     } });
     expect(projectRenameMoveRemedy(worktree, marker, [worktree])?.remedy).toEqual({
       argv: ["git", "worktree", "move", "-f", "-f", from, to],
-      text: `Run git worktree move -f -f '${from}' '/wt/project new$(touch-pwned)'"'"'suffix' from outside the checkout.`,
+      text: `Run git worktree move -f -f '${from}' '/wt/project new$(touch-pwned)'"'"'suffix' from outside the checkout, then run arc rename 'old-name' 'new-name' in '/wt/project new$(touch-pwned)'"'"'suffix' to settle the move.`,
     });
   });
 

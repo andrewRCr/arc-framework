@@ -72,6 +72,9 @@ import {
   createCandidateSubjectSnapshot,
   serializeCandidateManagedRecord,
 } from "../../src/lib/work-unit/candidate-attestation.js";
+import { inRepoStoreAt } from "../helpers/store/in-repo-ports.js";
+import type { Store } from "../../src/lib/store/contract.js";
+import { holdMeta } from "../helpers/store/held-meta.js";
 
 interface Fixture {
   root: string;
@@ -329,11 +332,18 @@ function derivedFrameFromActive(
   return freePrimaryDerivedFrame();
 }
 
-function makeProbes(fixture: Fixture): StatusProbes {
+// A case whose subject survives holds its work unit's meta in a checked store, the checkout's marker bound to it; cases
+// over several metas at once or Candidate files, which only tracked files hold, pass the in-repo store. The store's
+// Candidate projection is `unit/active/status-store`'s subject.
+function storeOption(store?: Store): { store?: Store } {
+  return store === undefined ? {} : { store };
+}
+
+function makeProbes(fixture: Fixture, store?: Store): StatusProbes {
   return {
     user: async (identity) => stubUserResult(identity),
     config: () => runConfigStatus({ cwd: fixture.root }),
-    active: () => runActiveStatus({ cwd: fixture.root }),
+    active: () => runActiveStatus({ cwd: fixture.root, ...storeOption(store) }),
     projection: async () => ({ kind: "disabled" }),
   };
 }
@@ -366,10 +376,10 @@ const cleanUserReferenceReconcile: SessionInitProbes["userReferenceReconcile"] =
   recommendedPromptText: "",
 });
 
-function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
+function makeSessionInitProbes(fixture: Fixture, store?: Store): SessionInitProbes {
   return {
     derivedLocusState: async (identity) => derivedFrameFromActive(
-      await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+      await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root), ...storeOption(store) }),
       identity,
     ),
     remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
@@ -564,20 +574,18 @@ function makeResolvedReleaseModeSessionHandoffProbes(
 
 describe("runStatus — clean state", () => {
   let fixture: Fixture;
+  let store: Store;
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
-      branch: "technical/alpha",
-      state: "Active",
-    });
+    store = await holdMeta(fixture.root, "alpha", { branch: "technical/alpha" });
   });
   afterEach(async () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
   it("returns ok=true for every slot with identity pointers carried through", async () => {
-    const probes = makeProbes(fixture);
+    const probes = makeProbes(fixture, store);
     const result = await runStatus({
       identity: "andrew",
       role: "maintainer",
@@ -620,7 +628,7 @@ describe("runSessionInitStatus — multi-WU state", () => {
   });
 
   it("fails the entering checkout closed instead of exposing repository-wide candidates", async () => {
-    const probes = makeSessionInitProbes(fixture);
+    const probes = makeSessionInitProbes(fixture, inRepoStoreAt(fixture.root));
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -643,13 +651,11 @@ describe("runSessionInitStatus — multi-WU state", () => {
 
 describe("runSessionInitStatus — companion-file resolution carry-through", () => {
   let fixture: Fixture;
+  let store: Store;
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      makeMetaFixture("fixture", { branch: "technical/foo", taskList: ".arc/active/tasks-foo.md" }),
-    );
+    store = await holdMeta(fixture.root, "foo", { branch: "technical/foo", taskList: ".arc/active/tasks-foo.md" });
     await writeFile(
       join(fixture.activeDir, "tasks-foo.md"),
       [
@@ -677,7 +683,7 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
   });
 
   it("derives the active WU without a second companion-file projection", async () => {
-    const probes = makeSessionInitProbes(fixture);
+    const probes = makeSessionInitProbes(fixture, store);
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -695,13 +701,13 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     const baseline = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
-      probes: makeSessionInitProbes(fixture),
+      probes: makeSessionInitProbes(fixture, store),
     });
     const coherent = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
       probes: {
-        ...makeSessionInitProbes(fixture),
+        ...makeSessionInitProbes(fixture, store),
         deliveryPosition: async () => DeliveryPositionViewSchema.parse({
           planId: "123e4567-e89b-42d3-a456-426614174000",
           workUnitId: "foo",
@@ -716,7 +722,7 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
       identity: "andrew",
       role: "maintainer",
       probes: {
-        ...makeSessionInitProbes(fixture),
+        ...makeSessionInitProbes(fixture, store),
         deliveryPosition: async () => {
           throw new Error("delivery observation unavailable");
         },
@@ -1170,14 +1176,13 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries sessionType=execution through the composite for a single-WU + Start-Task fixture", async () => {
-    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
+    const store = await holdMeta(fixture.root, "foo", {
       branch: "technical/foo",
-      state: "Active",
-      taskList: "`.arc/active/tasks-foo.md`",
+      taskList: ".arc/active/tasks-foo.md",
       nextAction: "Start Task 4.2 — write unit tests",
     });
 
-    const probes = makeSessionInitProbes(fixture);
+    const probes = makeSessionInitProbes(fixture, store);
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -1192,14 +1197,13 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("does not infer prepublication from Candidate-shaped narration alone", async () => {
-    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
+    const store = await holdMeta(fixture.root, "foo", {
       branch: "technical/foo",
-      state: "Active",
-      taskList: "`.arc/active/tasks-foo.md`",
+      taskList: ".arc/active/tasks-foo.md",
       nextAction: "Candidate review pending — run pre-publication review",
     });
 
-    const probes = makeSessionInitProbes(fixture);
+    const probes = makeSessionInitProbes(fixture, store);
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -1241,7 +1245,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
-      probes: makeSessionInitProbes(fixture),
+      probes: makeSessionInitProbes(fixture, inRepoStoreAt(fixture.root)),
     });
 
     expect(result.active).toMatchObject({
@@ -1289,7 +1293,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
       nextAction: "Candidate review pending — run pre-publication review",
     });
 
-    const probes = makeSessionInitProbes(fixture);
+    const probes = makeSessionInitProbes(fixture, inRepoStoreAt(fixture.root));
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -1301,6 +1305,10 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
       expect(result.active.value.resolution).toBe("none");
       expect(result.active.value.sessionType).toBeNull();
     }
+    expect(result.derivedLocusState).toMatchObject({
+      ok: true,
+      value: { entering: { kind: "selected", row: { kind: "unresolved-checkout" } } },
+    });
   });
 });
 
@@ -1459,6 +1467,7 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       role: "maintainer",
       probes,
       resolveHandoffSurfaces: async () => ({
+        workingMemoryCheckout: fixture.root,
         workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
         sessionNotesPath: (workUnitName) =>
           join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
@@ -1502,6 +1511,7 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       role: "maintainer",
       probes,
       resolveHandoffSurfaces: async () => ({
+        workingMemoryCheckout: fixture.root,
         workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
         sessionNotesPath: (workUnitName) =>
           join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
@@ -1575,6 +1585,7 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
     );
 
     const resolveHandoffSurfaces = async () => ({
+      workingMemoryCheckout: fixture.root,
       workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
       sessionNotesPath: (workUnitName: string) =>
         join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),
@@ -1600,6 +1611,7 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
       role: "maintainer",
       probes: realHandoffInboxStateProbes(fixture),
       resolveHandoffSurfaces: async () => ({
+        workingMemoryCheckout: fixture.root,
         workingMemoryPath: join(fixture.root, ".arc", "user", "andrew", "WORKING-MEMORY.md"),
         sessionNotesPath: (workUnitName) =>
           join(fixture.root, ".arc", "user", "andrew", workUnitName, "SESSION-NOTES.md"),

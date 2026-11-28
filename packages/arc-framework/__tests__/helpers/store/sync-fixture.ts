@@ -12,6 +12,7 @@ import { errandsRef } from "../../../src/lib/errand/ref-tree.js";
 import { withAdvisoryLock } from "../../../src/lib/advisory-lock.js";
 import { getNotesLockPath } from "../../../src/lib/user-sync/notes-lock.js";
 import { success } from "./suite-tools.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 
 export const syncIdentity = "andrew";
 export const syncNotesRef = "refs/notes/arc/user/andrew";
@@ -27,15 +28,15 @@ export function syncRecord(intent = "original") {
   if (record.kind !== "errand" || record.purpose !== "errand" || record.state !== "open") throw new Error("Expected an ordinary open Errand fixture");
   return record;
 }
-export function syncPut(intent = "original", expected: Parameters<ReturnType<typeof createStore>["write"]>[0]["expected"] = null) {
+export function syncPut(intent = "original", expected: Parameters<Store["write"]>[0]["expected"] = null) {
   return { action: "put" as const, reference: syncErrand, expected, content: serializeTransientIdentityRecord(syncRecord(intent)),
     placement: { kind: "active" as const }, provenance: syncProvenance };
 }
-export async function syncFixture() {
+export async function syncFixture(openStore = createStore) {
   const topology = await setupMultiClone({ cloneA: { config: { "arc.identity": syncIdentity } }, cloneB: { config: { "arc.identity": syncIdentity } } });
   onTestFinished(topology.cleanup);
-  const a = await syncCheckout(topology.cloneA);
-  const b = await syncCheckout(topology.cloneB);
+  const a = await syncCheckout(topology.cloneA, openStore);
+  const b = await syncCheckout(topology.cloneB, openStore);
   return { ...topology, a, b, remote: makeGitExec(topology.origin),
     async rejectIdentity() {
       const path = join(topology.origin, "hooks/pre-receive");
@@ -43,18 +44,19 @@ export async function syncFixture() {
       return async () => unlink(path);
     } };
 }
-async function syncCheckout(root: string) {
+async function syncCheckout(root: string, openStore: typeof createStore) {
   const exec = makeGitExec(root);
   const execInput = makeGitExecInput(root);
   const ports = createDefaultStorePorts({ checkoutRoot: root, exec, execInput });
   const lockPath = await getNotesLockPath(exec, root, syncIdentity);
   ports.locks.notes = (operation) => withAdvisoryLock(lockPath, operation, { maxWaitMs: 100 });
-  return { root, exec, execInput, ports, store: createStore(ports), lockPath,
+  const store = openStore(ports);
+  return { root, exec, execInput, ports, store, lockPath,
     async file(key: string, content: string) { const path = join(root, ".arc/user/andrew", key); await mkdir(dirname(path), { recursive: true }); await writeFile(path, content); },
     async inbox(content = "# User Inbox\n\nPersonal content.\n") {
-      const existing = await ports.fs.readFile(join(root, ".arc/user/andrew/USER-INBOX.md")).catch(() => null);
-      const expected = existing === null ? null : success(await createStore(ports).read({ reference: syncInbox })).version;
-      success(await createStore(ports).write({ action: "put", reference: syncInbox, expected, content, provenance: syncProvenance }));
+      const existing = await store.read({ reference: syncInbox });
+      const expected = existing.status === "refused" && existing.refusal.code === "not-found" ? null : success(existing).version;
+      success(await store.write({ action: "put", reference: syncInbox, expected, content, provenance: syncProvenance }));
     } };
 }
 export async function seedAheadErrand(h: Awaited<ReturnType<typeof syncFixture>>) {

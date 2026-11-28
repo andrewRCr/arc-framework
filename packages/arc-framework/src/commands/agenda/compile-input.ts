@@ -8,7 +8,7 @@ import type { SessionStatusContext } from "../../handlers/status/session-context
 import type { AgendaAnswers, AgendaSignals } from "./schema.js";
 
 /** Synchronization channels available to the selected entering row. */
-export type SyncChannels = "all" | "notes";
+export type SyncChannels = "all" | "none";
 
 /** Read-only operations bound to the session's checkout, replaceable by unit fixtures. */
 export interface AgendaReadPort {

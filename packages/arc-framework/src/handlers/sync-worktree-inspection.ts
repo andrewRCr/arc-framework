@@ -1,14 +1,46 @@
-/** Sync's materializing preflight and recoverable fetch-failure presentation. */
+/** Sync's worktree evidence and recoverable fetch-failure presentation. */
 import type { GitExec } from "../lib/git/exec.js";
+import { localLifecycleTip } from "../lib/git/lifecycle-ref-refresh.js";
 import {
   runMaterializingWorktreeInspection,
   WorktreeFetchFailedError,
   WorktreeFetchTimeoutError,
   type WorktreeMaterializingInspectionResult,
 } from "../lib/git/worktree-sync.js";
+import type { Store } from "../lib/store/contract.js";
+import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
 import type { SyncOutput } from "../lib/sync-output.js";
-import type { InterlockState, SyncOptions } from "./sync.js";
+import type { InterlockState, LegOutcomeRecord, SyncOptions } from "./sync.js";
 import { writeSyncAuditEntry } from "./sync-audit.js";
+
+/** Verify a clean detached checkout held by a Planning work unit at a known base tip. */
+export async function isDetachedPlanningAtBase(input: {
+  exec: GitExec;
+  cwd: string;
+  store: Store;
+  baseBranch: string;
+}): Promise<boolean> {
+  const { exec, cwd, store, baseBranch } = input;
+  try {
+    const current = await resolveCurrentWorkUnit({ cwd, store });
+    if (current.status !== "resolved" || current.warnings.length !== 0
+      || current.candidate.record?.state !== "Planning") return false;
+
+    const [local, tracking] = await Promise.all([
+      localLifecycleTip(exec, cwd, `refs/heads/${baseBranch}`),
+      localLifecycleTip(exec, cwd, `refs/remotes/origin/${baseBranch}`),
+    ]);
+    const { stdout } = await exec("git",
+      ["--no-optional-locks", "status", "--porcelain=v2", "--branch", "--no-show-stash",
+        "--untracked-files=normal", "--ignore-submodules=none"],
+      { cwd, objectAccess: "local-only" });
+    const lines = stdout.trimEnd().split(/\r?\n/u);
+    return lines.length === 2 && lines[1] === "# branch.head (detached)"
+      && [local, tracking].some((tip) => tip !== null && lines[0] === `# branch.oid ${tip}`);
+  } catch {
+    return false;
+  }
+}
 
 interface FetchFailurePresentation {
   error: WorktreeFetchTimeoutError | WorktreeFetchFailedError;
@@ -30,6 +62,7 @@ export async function inspectSyncWorktree(input: {
   output: SyncOutput;
   identity: string;
   interlockState: InterlockState;
+  stateOffBranch: boolean;
 }): Promise<WorktreeMaterializingInspectionResult | null> {
   const { exec, cwd, opts, output } = input;
   try {
@@ -38,13 +71,17 @@ export async function inspectSyncWorktree(input: {
     const failure = presentFetchFailure(caught);
     if (failure === null) throw caught;
     const { error, reason } = failure;
+    const skipped = (action: string): LegOutcomeRecord => ({ action, result: "skipped", detail: reason });
+    const storeLeg = input.stateOffBranch
+      ? { state: { pull: skipped("pull"), push: skipped("push") } }
+      : { notes: skipped("skip") };
     if (!opts.dryRun) {
       await writeSyncAuditEntry({
         cwd, identity: input.identity, interlockState: input.interlockState,
         outcome: {
           cell: reason, exitCode: 1,
           worktree: { action: "fetch", result: "failed", detail: failure.legDetail },
-          notes: { action: "skip", result: "skipped", detail: reason },
+          ...storeLeg,
         },
       });
     }

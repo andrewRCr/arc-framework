@@ -23,6 +23,10 @@ import {
   execFileAsync,
 } from "../helpers/integration.js";
 import { initInTempRepo } from "../helpers/init-temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// A merge landing a tracked active record on the base is the pre-flip build's, which opens the in-repo store.
+useInRepoStoreForEach();
 
 const WORK_UNIT = "example";
 const HEAD_REF = `feat/${WORK_UNIT}`;

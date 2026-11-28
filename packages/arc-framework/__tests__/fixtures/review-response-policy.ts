@@ -6,6 +6,9 @@ import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { parseReviewSourceReference } from
   "../../src/scripts/review-gate/core/review-source-reference.js";
+import type { ReviewInFlightPort } from "../../src/scripts/review-gate/core/ports.js";
+import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
+import type { OwnerIdentity } from "../../src/lib/store/identity.js";
 import {
   ReviewPolicyCommandRequestSchema,
   type ReviewPolicyCommandRequest,
@@ -61,17 +64,30 @@ export function responsePolicyRequestFixture(
   });
 }
 
+/** The review operations a checkout records: the store's for a work item it holds, otherwise the in-repo store's
+ * machine-local operations.
+ * @param root - The checkout the review ran in.
+ * @param workItem - The work item the store's operations belong to, absent for the in-repo store.
+ * @returns The operation port.
+ */
+export function reviewInFlight(root: string, workItem?: OwnerIdentity): ReviewInFlightPort {
+  return workItem === undefined
+    ? new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(gitExec, root))
+    : createReviewCompositionContext({ cwd: root, exec: gitExec, workItem }).family.ports.inFlight;
+}
+
 /** Derive the exact policy request a public response replay carries from its immutable producer. */
 export async function responsePolicyRequest(
   root: string,
   source: ResponsePolicySource,
   repository = "owner/repo",
-) {
+): Promise<ReviewPolicyCommandRequest> {
+  // A store's reference names the work item whose records hold its producer.
   const bound = source.kind === "attested-local"
-    ? parseReviewSourceReference(source.receiptRef, source.kind)
-    : parseReviewSourceReference(source.attemptRef, source.kind);
-  const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
-  const { state } = await new LocalReviewOperationStateStore(publisher).readOperation(bound.operationId);
+    ? parseReviewSourceReference(source.receiptRef, source.kind, true)
+    : parseReviewSourceReference(source.attemptRef, source.kind, true);
+  if ("workItem" in bound) return storedResponsePolicyRequest(root, bound.workItem, bound.durableRef, repository);
+  const { state } = await reviewInFlight(root).readOperation(bound.operationId);
   if (state === null) throw new Error("response policy source operation is unavailable");
   const producer = state.kind === "local-review"
     ? {
@@ -115,6 +131,39 @@ export async function responsePolicyRequest(
       rubricDigest: producer.requirement.rubricDigest,
       retrigger: producer.requirement.retrigger,
       count: producer.requirement.count,
+    },
+  });
+}
+
+/** The stored outcome carries the producer's target, scope and review requirement. */
+async function storedResponsePolicyRequest(
+  root: string, workItem: OwnerIdentity, attemptId: string, repository: string,
+): Promise<ReviewPolicyCommandRequest> {
+  const family = createReviewCompositionContext({ cwd: root, exec: gitExec, workItem }).family;
+  if (family.mode !== "stored") throw new Error("a store's response source needs the store");
+  const response = await family.ports.responses.read(attemptId, "producer-result");
+  if (response.status === "missing-producer") throw new Error("response policy source outcome is unavailable");
+  const outcome = response.outcome.value;
+  const requirement = outcome.hosted?.requirement ?? outcome.requirement;
+  if (outcome.source.kind === "frontline" || requirement === undefined) {
+    throw new Error(`the store's ${outcome.source.kind} response producer is not composed here`);
+  }
+  const target = outcome.local?.deliveryAdmission?.target ?? outcome.hosted?.target ?? {
+    repository, pullRequest: null, headSha: outcome.target.headSha,
+  };
+  return responsePolicyRequestFixture({
+    ...target,
+    scopeSelection: outcome.local === undefined ? undefined : { mode: outcome.local.scopeMode, target },
+    sourceId: outcome.source.sourceId,
+    reviewOperationId: outcome.attemptId,
+    completedPasses: outcome.logicalPass,
+    standardReview: {
+      obligation: requirement.obligation,
+      reasons: requirement.reasons,
+      rubricVersion: requirement.rubricVersion,
+      rubricDigest: requirement.rubricDigest,
+      retrigger: requirement.retrigger,
+      count: requirement.count,
     },
   });
 }

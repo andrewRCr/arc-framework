@@ -80,7 +80,7 @@ const RETENTION_ENTRY_READ_CONCURRENCY = 16;
 /** Run user-notes compaction under the per-identity notes lock. */
 export async function runUserCompact(options: UserCompactOptions): Promise<UserCompactResult> {
   const { cwd, io, identity } = options;
-  await refuseWriteIfStoreImported(cwd, io.exec);
+  await refuseWriteIfStoreImported(cwd, io.exec, "compact");
   if (io.execInput === undefined) {
     return { kind: "failed", identity, error: new Error("arc user compact requires stdin-capable git I/O.") };
   }

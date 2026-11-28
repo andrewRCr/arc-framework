@@ -38,7 +38,7 @@ import {
   RepositoryDeliveryStateStore,
 } from "../lib/delivery/local-stores.js";
 import {
-  GitDeliveryRenameTransitionSource,
+  createCheckoutDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
 } from "../lib/delivery/plan-resolution.js";
 import {
@@ -684,7 +684,6 @@ async function resolveDeliveryContext(interaction?: InteractionContext) {
     return { status: "refused", reason: "active-work-unit-unresolved" } as const;
   }
   const exec = createGitExec(interaction?.subprocess);
-  const transitionExec = createRawGitExec(cwd);
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const { settings } = await readConfigSettings(cwd);
   const base = settings["branch.base"];
@@ -701,7 +700,7 @@ async function resolveDeliveryContext(interaction?: InteractionContext) {
     authoringStore: new RepositoryDeliveryAuthoringStore(publisher),
     planStore: new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec),
     stateStore: new RepositoryDeliveryStateStore(publisher),
-    transitionSource: new GitDeliveryRenameTransitionSource(transitionExec),
+    transitionSource: createCheckoutDeliveryRenameTransitionSource(cwd),
   };
 }
 

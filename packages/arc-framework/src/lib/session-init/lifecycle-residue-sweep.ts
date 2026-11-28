@@ -5,6 +5,7 @@
  */
 
 import { quoteShellArgument } from "../release/commit-message-retry.js";
+import { digestBytes, type CanonicalDigest } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
 import { runStoreRetirementSweep } from "./store-retirement-sweep.js";
 import type { SessionAction } from "./actions.js";
@@ -42,6 +43,11 @@ export interface RenameMoveRemedy {
   text: string;
 }
 
+interface RenameMoveReplay {
+  argv: readonly ["arc", "rename", string, string] | readonly ["arc", "rename", string, string, "--settle-move", CanonicalDigest];
+  text: string;
+}
+
 /** Validated path-lag projection surfaced by the session-entry sweep. */
 export interface RenameMoveResidue {
   oldSlug: string;
@@ -51,7 +57,7 @@ export interface RenameMoveResidue {
   from: string;
   to: string;
   remedy: RenameMoveRemedy;
-  actions: SessionAction[];
+  actions: [RenameMoveRemedy, RenameMoveReplay];
 }
 
 /** Ordinary CLI action offered for one structurally proven landed retirement. */
@@ -110,12 +116,14 @@ export interface RunLandedRetirementSweepOptions {
  * @param worktree - Registered worktree whose marker was read
  * @param marker - Validated marker read result
  * @param topology - Complete registered topology used to reject ambiguity and occupied targets
+ * @param storeBacked - Whether rename selects work units by their store identity
  * @returns An exact outside-worktree remedy, or `null` when any stamped fact is stale
  */
 export function projectRenameMoveRemedy(
   worktree: RegisteredWorktree,
-  marker: WorktreeMarkerReadResult,
+  marker: WorktreeMarkerReadResult & { bytes?: Buffer },
   topology: readonly RegisteredWorktree[],
+  storeBacked = false,
 ): RenameMoveResidue | null {
   if (marker.kind !== "present") return null;
   const pending = marker.marker.renameMovePending;
@@ -138,11 +146,23 @@ export function projectRenameMoveRemedy(
   ) {
     return null;
   }
-  const remedy: RenameMoveRemedy = {
+  const operand = storeBacked ? marker.marker.createdFor.uid : pending.oldSlug;
+  if (operand === undefined || (storeBacked && marker.bytes === undefined)) return null;
+  const move: RenameMoveRemedy = {
     argv: ["git", "worktree", "move", "-f", "-f", pending.from, pending.to],
-    text: `Run git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)} from outside the checkout.`,
+    text: `git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)}`,
   };
-  return { ...pending, remedy, actions: [{ ...remedy, argv: [...remedy.argv] }] };
+  const replay = renameMoveReplay(operand, pending.newSlug, storeBacked ? marker.bytes : undefined);
+  const remedy = { argv: move.argv, text: `Run ${move.text} from outside the checkout, then run ${replay.text} in ${quoteShellArgument(pending.to)} to settle the move.` };
+  return { ...pending, remedy, actions: [move, replay] };
+}
+
+function renameMoveReplay(operand: string, target: string, bytes?: Buffer): RenameMoveReplay {
+  const text = `arc rename ${quoteShellArgument(operand)} ${quoteShellArgument(target)}`;
+  if (bytes === undefined) return { argv: ["arc", "rename", operand, target], text };
+  const generation = digestBytes(bytes);
+  return { argv: ["arc", "rename", operand, target, "--settle-move", generation],
+    text: `${text} --settle-move ${generation}` };
 }
 
 /**

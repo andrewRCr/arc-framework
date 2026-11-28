@@ -1,10 +1,11 @@
 /**
- * Post-landing cleanup observed across a base that moves after the work unit's own archival reaches it.
+ * Post-landing cleanup observed across a base that moves after the work unit's own archival.
  *
- * Under full branch protection `arc teardown` resolves lifecycle authority from a freshly fetched base rather
- * than from the invoking checkout, so the base is read once more after the merge that retired the work unit.
- * That read is the boundary these probes move a base across; the fixture exists to reach it, which takes a
- * landed merge, a committed archival, and a remote that actually holds both.
+ * `arc teardown` proves the retiring branch landed against a freshly fetched base rather than the invoking
+ * checkout's, so the base is read once more after the merge that retired the work unit; under full branch
+ * protection the in-repo store reads the work unit's lifecycle from that base too. That read is the boundary these
+ * probes move a base across; the fixture exists to reach it, which takes a landed merge, an archival, and a remote
+ * that actually holds the merge.
  */
 
 import { execFile } from "node:child_process";
@@ -15,8 +16,13 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { cleanupTempDir, createTempRepo, git, runArc, type RunResult } from "./helpers.js";
 import { advanceBase, movementPaths, writeUnavailableBaseReadShim } from "../helpers/base-advance.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { seedProjectIdentity } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -45,11 +51,12 @@ const ARCHIVED_META = [
 ].join("\n");
 
 /**
- * A work unit whose merge and archival have both landed on a live base, standing at its cleanup boundary.
+ * A work unit whose merge and archival have both landed, standing at its cleanup boundary.
  *
- * Full protection is what puts a base read here at all, and it decides the order the fixture has to build in:
- * membership is read from the fetched base, so the archival must reach the remote before the boundary can see
- * it. A plain path remote is enough — cleanup talks to Git and to nothing else.
+ * The store holds the archival as the work unit's completed record. The in-repo store reads membership from the
+ * fetched base under full protection, which decides the order the fixture builds in there: the archival commit
+ * must reach the remote before the boundary can see it. A plain path remote is enough — cleanup talks to Git and
+ * to nothing else.
  *
  * @returns The checkout standing at the boundary, on its base branch with the retired branch still present.
  */
@@ -83,6 +90,18 @@ async function shippedWithLiveBase(): Promise<string> {
   await git(repository, ["merge", "--no-ff", HEAD_REF, "-m", `merge: ${WORK_UNIT}`]);
   await git(repository, ["push", "origin", "main"]);
 
+  if (!process.env[IN_REPO_STORE_OVERRIDE]) {
+    // The store holds the shipped work unit completed, linked to its branch, as archival leaves it, where `arc init`
+    // never ran; no archival commit reaches the base.
+    await seedProjectIdentity(repository, SlugSchema.parse("test-user"));
+    await seedWorkUnit(repository, WORK_UNIT, {
+      identity: "test-user",
+      meta: { state: "Shipped", owner: "test-user", branch: HEAD_REF, currentWorkflow: null, completed: "2026-07-14" },
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q3") },
+      branch: HEAD_REF,
+    });
+    return repository;
+  }
   await mkdir(join(repository, ".arc", "completed", "2026-q3", `01_${WORK_UNIT}`), { recursive: true });
   await writeFile(join(repository, ARCHIVE_PATH), ARCHIVED_META);
   await git(repository, ["add", "-A"]);
@@ -108,8 +127,8 @@ async function remoteHeadPresent(repository: string): Promise<boolean> {
 describe("cleanup over a base advanced after the archival landed", () => {
   it("reaps the branch after an advance sharing no path with it", async () => {
     const repository = await shippedWithLiveBase();
-    // What the advance touched never reaches a decision here: the gate reads this work unit's membership in
-    // the fetched tree and the branch's containment in it, so only the base's identity changes under it.
+    // What the advance touched never reaches a decision here: the gate reads this work unit's retirement from its
+    // record and the branch's containment in the fetched base, so only the base's identity changes under it.
     await advanceBase({ cwd: repository, paths: movementPaths("disjoint", WORK_UNIT).base });
 
     const result = await runTeardown(repository);
@@ -121,7 +140,12 @@ describe("cleanup over a base advanced after the archival landed", () => {
   });
 });
 
-describe("cleanup when the base read goes unavailable under it", () => {
+describe("cleanup over the in-repo store when the base read goes unavailable under it", () => {
+  // Refusing teardown when lifecycle authority cannot be read from the fetched base is the in-repo store's: the store
+  // reads the work unit's retirement from its record, and proves landing against the base the clone already holds
+  // when the refresh fails.
+  useInRepoStoreForEach();
+
   it("refuses with the branch untouched, and reaps once the read is restored", async () => {
     const repository = await shippedWithLiveBase();
     const shimDir = await mkdtemp(join(tmpdir(), "arc-teardown-shim-"));

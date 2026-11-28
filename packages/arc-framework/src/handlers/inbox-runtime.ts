@@ -11,7 +11,7 @@ import { RouteResultSchema } from "../lib/inbox/route.js";
 import { ErrandQueueResultSchema } from "../lib/inbox/queue.js";
 import { requireArcProjectRoot } from "./shared.js";
 
-type InboxRuntimeCommand = { name: "inbox"; list: string } | { name: "route" | "errand queue" | "errand queue set" };
+type InboxRuntimeCommand = { name: "inbox"; list: string; target?: string } | { name: "route" | "errand queue" | "errand queue set" };
 
 /** Output is injectable without changing the command's runtime result. */
 export interface InboxOutput { stdout(text: string): void; stderr(text: string): void; exit(code: number): void }
@@ -41,7 +41,7 @@ export async function openInboxRuntime(command: InboxRuntimeCommand, json: boole
   const exec: typeof baseExec = (program, args, options) => baseExec(program, args, { cwd, ...options });
   const store = ports.store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
   if (!store.capabilities.stateOffBranch) {
-    const { refusal } = runDormantStoreCommand(command.name, store), output = inboxOutput(ports);
+    const { refusal } = runDormantStoreCommand(command.name, store, command.name === "inbox" ? command : undefined), output = inboxOutput(ports);
     const fields = { schemaVersion: 1, state: "refused", code: refusal.code, reason: refusal.condition, remedy: refusal.remedy };
     const result = command.name === "inbox" ? InboxResultSchema.parse({ ...fields, mode: "inbox", list: command.list })
       : command.name === "route" ? RouteResultSchema.parse({ ...fields, mode: "route" })

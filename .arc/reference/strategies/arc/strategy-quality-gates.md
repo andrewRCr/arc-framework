@@ -101,15 +101,18 @@ deployments gain no implied qualification or speedup.
 
 Git and index enumeration omit ignored projected state. Disk globs can still read those files: a per-clone
 `.git/info/exclude` entry affects Git, but a tool's glob or ignore-file reader may never consult it. A disk glob can
-therefore include protected files or files holding conflict markers that the editable selection excludes.
+therefore include protected files or files holding conflict markers that the editable selection excludes, and a fixer
+that globs from disk rewrites projected files, which write-back keeps as hand edits.
 
 Give each Markdown tool exactly the paths it should read: Git's list for repository content, and the editable
 selection for projected state. Disable the tool's own glob expansion and ignore-file filtering for supplied operands;
 use its literal-path syntax so brackets, spaces, and other filename characters cannot widen the request. Verify the
 recipe by running the real tool over admitted and excluded fixtures, including ignored files.
 
-Declare read-only state checks with `mode: selection` and omit `gate`. For example, the shipped link validator accepts
-explicit filenames and checks a record's links to tracked files for existence:
+Declare read-only state checks with `mode: selection` and omit `gate`. The commit hook checks links only in the Markdown
+a commit stages, which never includes projected state, so link targets in state are checked only where the shipped link
+validator is declared as a selection check. It accepts explicit filenames and checks a record's links to tracked files
+for existence:
 
 ```yaml
 checks:

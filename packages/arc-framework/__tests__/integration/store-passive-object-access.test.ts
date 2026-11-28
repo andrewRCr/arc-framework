@@ -2,13 +2,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import type { GitExecOptions } from "../../src/lib/git/exec.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { trackedWriteFixture } from "../helpers/store/tracked-write-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 it("leaves a missing promised meta local during passive listing and reads after explicit object repair", async () => {
   const h = await trackedWriteFixture();
@@ -32,7 +32,7 @@ it("leaves a missing promised meta local during passive listing and reads after 
     calls.push({ args, options });
     return actual(command, args, options);
   };
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: partial, exec, execInput: makeGitExecInput(partial) }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: partial, exec, execInput: makeGitExecInput(partial) }));
   const tracePath = join(h.root, "passive-git-trace.log");
   await writeFile(tracePath, "");
   const previousTrace = process.env.GIT_TRACE;

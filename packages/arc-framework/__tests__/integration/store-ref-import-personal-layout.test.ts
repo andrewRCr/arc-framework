@@ -10,8 +10,10 @@ import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { runUserSave, runUserLoad } from "../../src/commands/user.js";
 import { makeUserIO } from "../helpers/integration.js";
-import { createRefStore, createStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
+import { withInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } });
 const handoff = "a".repeat(40);
@@ -99,15 +101,17 @@ describe("personal layout in the default layout", () => {
         await put(fixture.root, ".internal/checkpoint.json", "Machine-local\0", person);
         await put(fixture.root, "alpha/.internal/checkpoint.json", "Machine-local\0", person);
         const options = { cwd: fixture.root, io: makeUserIO(fixture.root), identity: person, currentWuName: "alpha" };
-        await runUserSave(options);
-        await runUserLoad(options);
-        await runUserSave({ ...options, currentWuName: "beta" });
-        await runUserLoad({ ...options, currentWuName: "beta" });
+        await withInRepoStore(async () => {
+          await runUserSave(options);
+          await runUserLoad(options);
+          await runUserSave({ ...options, currentWuName: "beta" });
+          await runUserLoad({ ...options, currentWuName: "beta" });
+        });
       }
     }, { completed: true });
     expect(await h.target.migrate()).toMatchObject({ status: "ok" });
     for (const person of ["andrew", "alex"]) {
-      const source = createStore({ ...createDefaultStorePorts({ checkoutRoot: h.source.root }), identity: async () => SlugSchema.parse(person) });
+      const source = inRepoStore({ ...createDefaultStorePorts({ checkoutRoot: h.source.root }), identity: async () => SlugSchema.parse(person) });
       // A clone reads only its configured identity's refs, so each person's records read under that identity.
       const personStore = createRefStore({ ...h.target.ports, identity: async () => SlugSchema.parse(person) });
       const before = success(await source.list({ family: "personal" }));
@@ -149,8 +153,10 @@ it("transfers recognized session types, drops unknown values, and preserves meta
     await meta(h, name, original);
     await put(h.root, `${name}/SESSION-NOTES.md`, notes.replace("Execution", sessionType).replace("meta-alpha", `meta-${name}`).replaceAll("\n", "\r\n"));
     const options = { cwd: h.root, io: makeUserIO(h.root), identity: "andrew", currentWuName: name };
-    await runUserSave(options);
-    await runUserLoad(options);
+    await withInRepoStore(async () => {
+      await runUserSave(options);
+      await runUserLoad(options);
+    });
   }
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   const store = createRefStore(h.ports);

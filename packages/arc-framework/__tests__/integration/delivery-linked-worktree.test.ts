@@ -211,12 +211,12 @@ describe("delivery records from an artifact-free linked worktree", () => {
       .resolves.toEqual({ status: "ok", value: null });
   });
 
-  it("adopts a plan through reachable rename evidence and refuses unestablished reachability", async () => {
+  it.each([false, true])("adopts a plan through reachable rename evidence and refuses unestablished reachability, state off the branch: %s", async (stateOffBranch) => {
     const stored = plan(FIRST_PLAN_ID, "old-unit");
     await publishPlan(stored);
     await publishTransitions([renameTransition("old-unit", "current-unit")], "record rename");
     const store = planStore(member);
-    const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(member));
+    const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(member), { stateOffBranch });
 
     await expect(resolveExistingDeliveryPlan({
       planStore: store,
@@ -241,7 +241,7 @@ describe("delivery records from an artifact-free linked worktree", () => {
       renameTransition("unit-b", "unit-a"),
     ], "record cycle");
     const store = planStore(member);
-    const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(member));
+    const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(member), { stateOffBranch: false });
     const input = {
       planStore: store,
       currentWorkUnitId: "current-unit",
@@ -259,5 +259,31 @@ describe("delivery records from an artifact-free linked worktree", () => {
     ], "record ambiguity");
     await expect(resolveExistingDeliveryPlan(input))
       .resolves.toEqual({ status: "indeterminate", reason: "ambiguous-subject" });
+  });
+
+  it("refuses a ref with no transition folder once state is off the branch, naming the folder", async () => {
+    const source = new GitDeliveryRenameTransitionSource(createRawGitExec(member), { stateOffBranch: true });
+
+    await expect(source.enumerate("refs/heads/main")).resolves.toEqual({
+      status: "refused",
+      reason: "substrate-unreachable",
+      condition: expect.stringContaining(`${TRANSITION_RECORD_NAMESPACE} is absent at refs/heads/main`),
+    });
+  });
+
+  it("resolves a plan at a ref with no transition ever recorded while state stays on the branch", async () => {
+    const stored = plan(FIRST_PLAN_ID, "current-unit");
+    await publishPlan(stored);
+    const input = {
+      planStore: planStore(member),
+      planWorkUnitId: (value: LinkedPlan) => value.workUnitId,
+      authority: { status: "established", ref: "refs/heads/main" } as const,
+      transitionSource: new GitDeliveryRenameTransitionSource(createRawGitExec(member), { stateOffBranch: false }),
+    };
+
+    await expect(resolveExistingDeliveryPlan({ ...input, currentWorkUnitId: "current-unit" }))
+      .resolves.toEqual({ status: "match", plan: stored });
+    await expect(resolveExistingDeliveryPlan({ ...input, currentWorkUnitId: "other-unit" }))
+      .resolves.toEqual({ status: "no-match" });
   });
 });

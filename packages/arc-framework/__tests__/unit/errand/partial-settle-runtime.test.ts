@@ -8,10 +8,15 @@ import { writeWorktreeMarker, readWorktreeMarker, readWorktreeMarkerGeneration }
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { settleStorePartialCapture } from "../../../src/handlers/errand-entry-storage.js";
 import { settlePartialErrandAtRuntime } from "../../../src/lib/errand/partial-settle-runtime.js";
 import { passingProjectionRemovalSlots } from "../../../src/lib/git/worktree-removal.js";
+import { listInbox } from "../../../src/lib/inbox/listing.js";
+import { setErrandQueue } from "../../../src/lib/inbox/queue.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
+import { createInboxHarness, entry } from "../../helpers/inbox-harness.js";
+import { success, update } from "../../helpers/store/suite-tools.js";
 
 function primaryRow(kind: "free-primary" | "unresolved-checkout" = "free-primary"): DerivedCheckoutRow {
   return {
@@ -91,10 +96,10 @@ describe("partial Errand settlement", () => {
   });
 });
 
-async function versionBoundPartial() {
+async function versionBoundPartial(version = "v1:0123456789abcdef") {
   const cwd = await mkdtemp(join(tmpdir(), "arc-partial-origin-"));
   onTestFinished(() => rm(cwd, { recursive: true, force: true }));
-  const entry = "personal:abcd1234", version = "v1:0123456789abcdef", head = "a".repeat(40);
+  const entry = "personal:abcd1234", head = "a".repeat(40);
   await writeWorktreeMarker(cwd, { spawnedByArc: false,
     createdFor: { kind: "partial-errand", slug: "direct-fix", claimId: null }, provisioning: "ready",
     originEntry: entry, originEntryVersion: version, spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00.000Z" });
@@ -126,6 +131,40 @@ it("settles a version-bound capture before releasing the partial marker", async 
   expect(result).toMatchObject({ outcome: "applied" });
   expect(h.entries.has(h.entry)).toBe(false);
   expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
+});
+
+it("closes with the next remaining capture when the queue becomes malformed as inbox removal lands", async () => {
+  const h = createInboxHarness();
+  const ids = ["abcd1234", "22222222"];
+  await h.inbox("personal", [entry("abcd1234", "Closing"), entry("22222222", "Next")].join("\n\n"));
+  const before = await listInbox({ list: "personal" }, h.context);
+  if (before.state === "refused" || !before.entries[0]) throw new Error("Missing origin capture");
+  const partial = await versionBoundPartial(before.entries[0].version);
+  expect((await setErrandQueue({ schemaVersion: 1, members: ids.map(id => ({ inbox: "personal", id })) }, h.context)).state).toBe("set");
+
+  const queue = success(await h.context.store.read({ reference: h.fixture.reference("personal/errand-queue") }));
+  const malformed = queue.content.replace(/- _Rank:_ `[^`]+`/u, "- _Rank:_ `bad rank`");
+  expect(malformed).not.toBe(queue.content);
+  const write = h.context.store.write.bind(h.context.store);
+  vi.spyOn(h.context.store, "write").mockImplementationOnce(async input => {
+    expect(input.reference.kind).toBe("personal/inbox");
+    const removed = await write(input);
+    success(removed);
+    success(await write(update(h.fixture, queue, malformed)));
+    return removed;
+  });
+
+  const result = await settlePartialErrandAtRuntime({
+    ...partial.settle,
+    settleInbox: async binding => (await settleStorePartialCapture(binding, h.context)).outcome,
+  });
+  const after = await listInbox({ list: "personal" }, h.context);
+  expect({
+    outcome: result.outcome,
+    captures: after.state === "refused" ? after.reason : after.entries.map(row => row.id),
+    marker: (await readWorktreeMarker(partial.cwd)).kind,
+  }, result.recommendedPromptText).toEqual({ outcome: "applied", captures: ["22222222"], marker: "absent" });
+  expect(result).toMatchObject({ nextOffer: { key: "personal:22222222" } });
 });
 
 it("refuses before settling its capture while the primary's projection release would refuse, then closes", async () => {

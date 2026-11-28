@@ -12,11 +12,15 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { deliveryPlanFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { seedProjectIdentity } from "../helpers/store/seed-store.js";
 import { runCli } from "../helpers/run-cli.js";
 
 const roots: string[] = [];
+const IDENTITY = SlugSchema.parse("test-user");
 
 function request(input: {
   readonly diffBaseSha?: string;
@@ -104,6 +108,7 @@ describe("arc review changeset resolve", () => {
     execFileSync("git", ["add", "."], { cwd: root });
     execFileSync("git", ["commit", "-qm", "base"], { cwd: root });
     const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    await seedProjectIdentity(root, IDENTITY);
     const inputPath = join(root, "request.json");
     await writeFile(inputPath, request({ diffBaseSha: head, headSha: head }));
 
@@ -136,8 +141,9 @@ describe("arc review changeset resolve", () => {
     });
   });
 
-  it("selects unbound, selected, bound, and degraded exact-target arms", async () => {
+  it("selects the unbound and selected exact-target arms", async () => {
     const unbound = await enabledRepository();
+    await seedProjectIdentity(unbound.root, IDENTITY);
     expect(JSON.parse((await runStdin(unbound.root, unbound.request)).stdout))
       .toMatchObject({ state: "consider-chunks", payload: { remedy: "review-chunks" } });
 
@@ -147,7 +153,11 @@ describe("arc review changeset resolve", () => {
       schemaVersion: 1,
       scopeSelection: { mode: "chunked", target: selected.target },
     }))).stdout)).toMatchObject({ state: "scope-selected", nextAction: "continue-review" });
+  });
 
+  it("selects the bound and degraded delivery arms", async () => {
+    // Both arms read a delivery plan and its state, which only the in-repo store keeps; delivery is paused on the store.
+    useInRepoStore();
     const bound = await enabledRepository();
     await mkdir(join(bound.root, ".arc/active"), { recursive: true });
     await writeFile(join(bound.root, ".arc/active/meta-delivery-plan-record.md"), makeMetaFixture("delivery-plan-record"));

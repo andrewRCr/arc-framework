@@ -11,6 +11,7 @@ import {
   readLifecycleSummary,
 } from "../../../../src/scripts/integration/checkpoint-composition.js";
 import { lifecycleArtifactFacts } from "../../../../src/scripts/review-gate/readiness.js";
+import { useInRepoStore } from "../../../helpers/in-repo-store-override.js";
 
 const META_PATH = ".arc/active/meta-example.md";
 
@@ -104,6 +105,8 @@ describe("checkpoint lifecycle composition", () => {
   });
 
   it("binds lifecycle evidence to the injected storage snapshot version", async () => {
+    // The injected snapshot's tree read and meta version are the in-repo implementation's lifecycle storage.
+    useInRepoStore();
     const root = await treeWithMeta(meta(COMPLETION_NOTES));
     let reads = 0;
     const dependencies = createIntegrationCheckpointDependencies({

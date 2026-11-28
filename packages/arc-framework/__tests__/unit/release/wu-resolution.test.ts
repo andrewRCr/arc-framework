@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { resolveActiveWu } from "../../../src/lib/release/wu-resolution.js";
+import { inRepoStoreAt } from "../../helpers/store/in-repo-ports.js";
 
 interface Fixture {
   root: string;
@@ -50,6 +51,7 @@ async function writeMetaCandidate(
   await writeFile(join(activeDir, `meta-${name}.md`), statusBody(state));
 }
 
+// Each case writes active meta files, which only the in-repo implementation reads; the store arm has its own suite.
 describe("resolveActiveWu — single full-layout candidate", () => {
   let fixture: Fixture;
   beforeEach(async () => { fixture = await createFixture(); });
@@ -59,7 +61,7 @@ describe("resolveActiveWu — single full-layout candidate", () => {
     await writeMetaCandidate(fixture.activeDir, "foo", "Active");
     await writeFile(join(fixture.activeDir, "status.md"), statusBody("Active"));
 
-    const result = await resolveActiveWu({ cwd: fixture.root });
+    const result = await resolveActiveWu({ cwd: fixture.root, store: inRepoStoreAt(fixture.root) });
 
     expect(result).toEqual({
       status: "resolved",
@@ -78,7 +80,7 @@ describe("resolveActiveWu — single full-layout candidate", () => {
   ])("resolves regardless of **State:** value (%s)", async (state) => {
     await writeMetaCandidate(fixture.activeDir, "bar", state);
 
-    const result = await resolveActiveWu({ cwd: fixture.root });
+    const result = await resolveActiveWu({ cwd: fixture.root, store: inRepoStoreAt(fixture.root) });
 
     expect(result).toMatchObject({ status: "resolved", name: "bar" });
   });
@@ -90,7 +92,7 @@ describe("resolveActiveWu — zero-candidate and ambiguous outcomes", () => {
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   it("reports `none` (no hint) when .arc/active/ exists but holds no candidates", async () => {
-    const result = await resolveActiveWu({ cwd: fixture.root });
+    const result = await resolveActiveWu({ cwd: fixture.root, store: inRepoStoreAt(fixture.root) });
 
     expect(result).toEqual({ status: "none" });
   });
@@ -98,7 +100,7 @@ describe("resolveActiveWu — zero-candidate and ambiguous outcomes", () => {
   it("reports `none` when .arc/active/ does not exist at all", async () => {
     await rm(fixture.activeDir, { recursive: true, force: true });
 
-    const result = await resolveActiveWu({ cwd: fixture.root });
+    const result = await resolveActiveWu({ cwd: fixture.root, store: inRepoStoreAt(fixture.root) });
 
     expect(result.status).toBe("none");
   });
@@ -108,7 +110,7 @@ describe("resolveActiveWu — zero-candidate and ambiguous outcomes", () => {
     await writeFile(join(fixture.activeDir, "status.md"), statusBody("Active"));
     await writeMetaCandidate(fixture.activeDir, "bar", "Planning");
 
-    const result = await resolveActiveWu({ cwd: fixture.root });
+    const result = await resolveActiveWu({ cwd: fixture.root, store: inRepoStoreAt(fixture.root) });
 
     expect(result.status).toBe("ambiguous");
     if (result.status === "ambiguous") {
@@ -125,7 +127,7 @@ describe("resolveActiveWu — unrelated status file", () => {
   it("reports none when only status.md exists", async () => {
     await writeFile(join(fixture.activeDir, "status.md"), statusBody("Active"));
 
-    const result = await resolveActiveWu({ cwd: fixture.root });
+    const result = await resolveActiveWu({ cwd: fixture.root, store: inRepoStoreAt(fixture.root) });
 
     expect(result).toEqual({ status: "none" });
   });

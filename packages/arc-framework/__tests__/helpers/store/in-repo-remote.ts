@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, renameSync, writeFileSync, unlinkSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { createStore, KIND_REGISTRY, RecordReferenceSchema, type Store, type RecordReference } from "../../../src/lib/store/index.js";
+import { KIND_REGISTRY, RecordReferenceSchema, type Store, type RecordReference } from "../../../src/lib/store/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { runUserPull } from "../../../src/commands/user/push-fetch.js";
 import { makeGitExec, makeUserIO } from "../integration.js";
@@ -13,12 +13,13 @@ import { makeMetaFixture } from "../meta-fixture.js";
 import { syncFixture, syncErrandRef } from "./sync-fixture.js";
 import type { RemoteState } from "./fixture-contract.js";
 import { transientContent } from "./in-repo-substrates.js";
+import { inRepoStore } from "./in-repo-ports.js";
 
 /** Construct the real topology and configure both public stores for fixture-selected identity and transport.
  * @returns Checkouts, synchronous control hooks and a remote-facing public Store.
  */
 export async function inRepoRemote() {
-  const h = await syncFixture();
+  const h = await syncFixture(inRepoStore);
   let enabled = false;
   let identity: string | undefined = "andrew";
   let state: RemoteState = "available";
@@ -43,7 +44,7 @@ export async function inRepoRemote() {
     if (state === "contended" && args[0] === "push" && args.some((arg) => arg.includes(syncErrandRef))) await advanceRemote();
     return exec(command, args, options);
   };
-  const remoteStore = remoteFacingStore(createStore(h.b.ports), async (reference) => {
+  const remoteStore = remoteFacingStore(inRepoStore(h.b.ports), async (reference) => {
     if (KIND_REGISTRY[reference.kind].inRepo.substrate === "personal") {
       if (reference.kind === "personal/session-context") await ensureWorkspace(h.b.root, String(reference.key));
       await runUserPull({ cwd: h.b.root, io: makeUserIO(h.b.root), identity: "andrew", ...(reference.kind === "personal/session-context" ? { currentWuName: String(reference.key) } : {}) });

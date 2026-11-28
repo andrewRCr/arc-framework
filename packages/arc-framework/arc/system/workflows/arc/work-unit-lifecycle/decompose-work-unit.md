@@ -3,22 +3,24 @@ purpose: Transform one planning work unit into exact authored destinations throu
 audience: agent
 arc:
   methods:
-    - commit-format
     - spec-review
 ---
 
 # Workflow: Decompose Work Unit
 
 **The operator owns semantic distribution; `arc decompose` owns source discovery, closed mode dispatch, topology,
-mutation, validation, and rollback. Retirement alone owns the durable transition record** · `[invariant]`.
+every record write, and validation. Retirement alone writes the origin's lineage record** · `[invariant]`.
 
 Extraction is the supported source-preserving arm for a started `Planning` or `Active` source. It is entered through
 its own command mode, and the core retirement transform remains unchanged.
 
+A cut runs as two store batches with authoring between them: the additive batch writes the members, the cohort
+documents the cut creates, and the stored cut map; the terminal batch lands the cut. Each batch writes all of its
+records or none. To resume a stored cut between batches, follow the stored-cut path in step 1.
+
 Use only CLI-reported paths, packets, statuses, and remedies. Every selected mode emits one typed refusal envelope
-on stdout. On refusal, surface its status, reason, optional locus and evidence, remedy, and any optional report
-unchanged. Stop until the reported correction is complete. Never construct identifiers, Git topology, recovery
-commands, or extraction report fields.
+on stdout. On refusal, surface the complete typed refusal envelope unchanged. Stop until the reported correction is
+complete. Never construct identifiers, record references, apply authorities, or continuation commands.
 
 The specification reviews below apply to every new specification set and every substantive edit to an existing
 specification, regardless of when it was authored. For revisions, include removals and affected surrounding
@@ -26,10 +28,13 @@ obligations and definitions without reviewing unrelated content; unchanged bytes
 
 ## Preconditions
 
-- A retirement origin is a supported Planning source or backlog planning stub.
-- An extraction origin is a started Planning or Active source whose implementation stays with the origin.
+- A retirement origin is a backlog stub or a started `Planning` work unit.
+- An extraction origin is a started `Planning` or `Active` work unit whose implementation stays with the origin.
+- The origin holds no inbound entries: fold each into its design or route it first.
 - Destination, dependency, retained/transferred ownership, and placement intent is settled.
 - Existing destinations are exact edit homes, never implicit new members.
+- A started origin's cut, every extraction among them, runs in the origin's own checkout; a stub's runs from any
+  checkout.
 
 The completed map's operator-owned `authoring.shape` selects one closed command arm. Never reinterpret the map or
 substitute one arm when the CLI refuses another.
@@ -42,295 +47,243 @@ Run machine mode before interactive prose:
 arc decompose <origin> --preflight > <scratch-starter-map>
 ```
 
-The read-only result pins the source, planning profile, exact source units, and dependency edges. Successful
-preflight writes the starter map alone; refusal follows the common envelope and never emits a partial starter map.
+The read-only result binds the origin by its source units' digests and its dependency edges, and takes the planning
+profile from the origin's `Design`. Successful preflight writes the starter map alone; refusal follows the common
+envelope and never emits a partial starter map. On `cut-in-flight`, the refusal names the stored cut's continuations.
+To recover the allocations, run the reported `--revise` without a map. This read-only command returns either
+`carried` or `reauthor`. Use `carried.map` and `previousMaps` for destination authoring in step 4. For `reauthor`,
+use the fresh starter and `storedAuthoring` to prepare a revised map and follow step 5's revision preview and
+approval before applying it.
 
-On refusal, stop. Do not fetch, substitute working-tree bytes, select another source, or hand-author missing
-machine fields.
+For other preflight refusals, stop and follow the reported remedy. Do not substitute working-tree bytes, select
+another source, or hand-author missing machine fields.
 
 ## 2. Complete the operator-owned map
 
-Use `arc schema get decompose-cut-map` for each authoring slot's structural shape, discriminators, and allowed
-constants; refinements and cross-field checks stay with `arc decompose`.
+Use `arc schema get cut-map` for each authoring slot's structural shape, discriminators, and allowed constants;
+refinements and cross-field checks stay with `arc decompose`.
 
 Edit only the starter map's authoring slots:
 
-- name each new member or exact existing destination;
+- name each new member or exact existing destination; an existing home is an open work unit, and an allocation into
+  a started home targets its draft, spec, or notes;
 - allocate every source unit once; for retirement, inventoried companion units — including task-list phases and notes
-  sections — use the same target or reasoned-drop dispositions as design units;
+  sections — use the same target or reasoned-drop dispositions as design units, and an allocation that would copy a
+  completed task into a member's task list targets the member's draft, spec, or notes instead;
 - for extraction, set every started-Planning companion allocation to `retained-origin`; Active origins report no
   companion units;
 - disposition every incoming and outgoing dependency edge once;
 - use `internalEdges` for dependencies between declared destinations and `outgoingDispositions` to redistribute an
   existing origin prerequisite;
 - add an `externalEdges` entry only from a new member or live existing-home work unit to a work unit outside the cut;
-- select the already-settled authoring shape and placement.
+- select the already-settled authoring shape and placement, giving each cohort document the cut creates its Purpose.
+  A cohort created by the cut cannot take the origin's name.
+
+Rename an open cohort to an available slug with `arc rename <slug> <new-slug>`. If an in-flight cut names that cohort,
+use `--revise` to update the stored placement before finishing.
 
 Preserve every machine-owned field. Do not calculate paths or identifiers, create unreported destinations, or
 derive machine facts from prose.
 
-## 3. Dispatch the complete result
+## 3. Write the additive batch
 
 Dispatch on the completed map's operator-authored `authoring.shape`. Run exactly one arm.
 
-**Retirement dispatch:**
+**Retirement:**
 
 ```bash
 arc decompose <origin> --execute <completed-map>
 ```
 
-**Extraction dispatch:**
+**Extraction:**
 
 ```bash
 arc decompose <origin> --extract <completed-map>
 ```
 
-On success, retain the complete staged result, including its plan packet, profile and topology packets, protection
-arm, release paths, and candidate branch and worktree when applicable. Retirement owns transition-record creation;
-extraction stages an additive result without mutating the surviving source or writing a transition record.
+The batch creates each member as a stub with its reported copies, each cohort document the cut creates, and the stored
+map, and removes nothing. It has no approval of its own: approving the map approves the layout. From here the cut
+reads its map from the store by the origin's slug, so no later mode takes the map file.
 
-On refusal, apply the common refusal rule above. Retry only after the reported state is resolved. A failed
-full-protection attempt leaves only an ARC-owned candidate that ordinary cleanup may remove; it creates no special
-discard or recovery protocol.
+Retain the report's `members` with their copies, its `cohorts`, its `authoring` requirements per destination, its
+`records` (including any dependency settlements), and its `nextStep`. Every checkout sees the members as ordinary stubs.
+Starting one before the terminal batch is deliberate: a later discard or revision then refuses to remove or move it.
+
+On refusal, apply the common refusal rule above.
 
 ## 4. Author every reported destination
 
-Follow the successful result packets in their reported order:
+Author through the projected files; nothing new is created by hand. Follow the report's `authoring` entries in order.
+On resume or after revision, use the current map's destinations and source allocations. Match each target allocation
+to its destination and its source unit by the map's IDs, and use their reported locators:
 
-- complete every new member's reported design family and authoring requirements;
-- treat reported `provisional-task` and `provisional-notes` entries as whole retitled copies of the origin companions,
-  then prune them to their assigned content;
-- manually transfer allocated content from every other companion from its reported source to its admissible reported
-  destination;
-- complete required cohort or parent coordination;
-- apply every reported existing-home semantic edit; and
-- preserve the reported profile, topology, dependency effects, and task-pointer maturity.
+- complete every new member's design copy and its authoring requirements;
+- treat each reported task-list or notes copy as a whole retitled copy of the origin's companion, then prune it to its
+  assigned content;
+- manually transfer allocated content from every other companion from its reported source to its reported target
+  locator;
+- complete each created cohort document and the cohort coordination the map allocates to;
+- apply every reported existing-home edit; and
+- keep each member's seeded `Cohort` and `Depends On`, which the terminal batch checks.
+
+Compare the allocations in `previousMaps` with the current map. Inspect the reported former locators and remove
+withdrawn obligations only from surviving former destinations. Skip removed destinations and any replacement record
+that merely reused a former name. Author the replacement allocation from the current map.
 
 Do not add unreported destinations, topology changes, or dependency edits.
 
 After destination authoring, run [spec-review][spec-review] over each new member's complete specification set,
 including copied origin specifications continuing directly to task generation, and the affected contract of changed
-existing destinations. Apply both common reader checks before distributed-result approval, with the remaining
-coherence and grounding work at the applicable form and depth.
+existing destinations; a member under a draft planning profile has no specification to review. Apply both common
+reader checks before distributed-result approval, with the remaining coherence and grounding work at the applicable
+form and depth.
 
-For extraction, also run [spec-review][spec-review] over the prospective retained source contract using the reported
-source units and operator allocation intent. Removed units supply change context, not definitions or obligations
-needed by retained design; a destination specification cannot supply missing retained authority. Surface missing
-binding design before the existing distribution approval.
+Keep the reviewed destination specification content for comparison if terminal approval needs to be renewed.
 
-## 5. Review the distributed result
+Run `arc check increment` over the authored destinations, then save them:
 
-For extraction, add these exact typed result fields to the common review surface:
+```bash
+arc save
+```
 
-- `report.extraction.retainedOrigin`;
-- `report.extraction.reasonedDrops`; and
-- `report.extraction.anchor`.
+Confirm the store accepted each file edited in this step. Check the projection diagnostics and confirm each file is
+in `arc selection` and absent from `arc selection --changed`. For outstanding edits to these files, follow the
+reported remedy, recheck corrected edits, and save again before continuing. Pending edits to unrelated files can wait.
 
-Use their reported values verbatim and never re-derive them from artifacts or Git state. In the human orientation,
+## 5. Preview and approve the distribution
+
+```bash
+arc decompose <origin> --finish
+```
+
+Branch on the result's `kind`:
+
+- **`landed`** reports an already landed cut. Skip preview approval and terminal apply. Continue with any outstanding
+  extraction reconciliation and applicable cohort upkeep in step 6, then check readiness in step 7.
+- **`preview`** writes nothing. It reports the terminal batch with its `applyAuthority`, the `lineage` record and
+  `removals` for retirement or each thinned artifact's `retainedContent` for extraction (`null` where the file goes),
+  and each record in `writes`. Continue to the review and approval below.
+
+The origin's current state must be eligible for the selected shape. A move from `Planning` to `Active` remains eligible
+for extraction. Follow the CLI's reported remedy for an ineligible state. If scanned source units or dependency edges
+have changed, use `--revise` to rebind them. For a renamed origin, run the reported `--revise` under its current name.
+
+For extraction, run [spec-review][spec-review] over the exact reported retained specification content or absence,
+using the reported source units and operator allocation intent. Removed units supply change context, not definitions
+or obligations needed by retained design; a destination specification cannot supply missing retained authority.
+Surface missing binding design at the stop below; do not approve a known-incomplete preview. In the human orientation,
 name the surviving origin as the natural continuation; it is not a successor selected by the workflow.
 
-Run `arc check increment` over the authored destinations and report its result at distribution approval.
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after the preview. Surface the distributed authority, dependency effects, topology, the
+> preview's lineage record and removals or retained content, and the increment result; await approval before
+> proceeding to the terminal batch.
+
+This is the sole semantic distribution approval, and it authorizes the terminal batch. Use the preview's values
+verbatim and never re-derive them from records.
+
+A rejection runs the discard instead, and a revision the revision:
+
+- **Discard.** `arc decompose <origin> --discard` previews removing each member still a stub, the cohort documents the
+  cut created, and the stored map. Its `leftEdited` lists existing homes and surviving cohort coordination targeted
+  by the current map, including untouched destinations. Also surface known authoring edits that would survive and
+  any dependency settlements identified from the additive report's `records`.
+- **Revision.** `arc decompose <origin> --revise > <scratch-revision-starter>` emits a `carried` result, the complete
+  revised map, or a `reauthor` result, a fresh starter with the stored authoring beside it and the first place to
+  reauthor as its `reason` and `locus`. Author the revised map as step 2 does; then
+  `arc decompose <origin> --revise <revised-map>` previews the members it adds or removes and each record it writes.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after every reported destination is authored. Surface the actual distributed authority,
-> dependency effects, topology, the retirement transition record when present, and the extraction fields above when
-> present; await approval before proceeding to release.
+> `workflow-interlock`: Stop after a discard or revision preview. Surface it; await explicit 'apply' direction before
+> applying it.
 
-This is the sole semantic distribution approval. Commit, push, integration, advancement, and finish-apply
-interlocks are release or mutation controls only. If approval rejects the distribution, leave the staged partial
-result or ARC-owned candidate unchanged and await explicit cleanup direction.
+Apply the approved preview with its exact `applyAuthority`.
 
-## 6. Release through the reported protection arm
-
-From the reported result locus, stage only the approved release paths reported by the successful command. This set
-includes every authorable destination, including paths the command found already applied. A retirement result also
-includes its transition record; an extraction result never does. Then verify that no release path retains unstaged
-changes and that the complete staged path set exactly matches the reported release set:
+**Discard:**
 
 ```bash
-git add -- <reported-release-paths>
-git diff --quiet -- <reported-release-paths>
-git diff --cached --name-only --no-renames
+arc decompose <origin> --discard --apply <applyAuthority>
 ```
 
-Any unstaged reported path or additional or missing cached path stops release. Follow exactly one protection arm
-only after the approved working-tree bytes and the index match.
-
-### Partial protection
-
-The approved transform is staged on the configured base.
-
-Use the [`commit-format` method][commit-format] for the message.
-
-> [!CAUTION]
-> `commit-interlock` release — commit the staged transform as `workflowCommit`:
-
-```text
-feat(planning): decompose {origin}
-
-Context: {deepest-planning-artifact} (planning)
-```
-
-The direct commit is the landing. Do not push, open a PR, wait at an integration
-interlock, or merge.
-
-### Full protection
-
-Use the exact reported candidate branch with the approved transform staged. Do not create, switch, repair, or delete
-a branch or worktree.
-
-Use the [`commit-format` method][commit-format] for the message.
-
-> [!CAUTION]
-> `commit-interlock` release — commit the staged transform as `workflowCommit`:
-
-```text
-feat(planning): decompose {origin}
-
-Context: {deepest-planning-artifact} (planning)
-```
-
-**Retirement only:** invoke the authoritative advancement operation after the initial commit. It re-derives the
-current configured base and stages an append-only merge from the same completed map only when needed:
+**Revision:**
 
 ```bash
-arc decompose <origin> --advance-base <completed-map>
+arc decompose <origin> --revise <revised-map> --apply <applyAuthority>
 ```
 
-An `unchanged` result continues without a commit. An `advanced` result fires the interlock below. On refusal, apply
-the common refusal rule above; do not rebuild the candidate, map, or merge manually.
-Extraction never invokes this operation; its typed refusal is final for that candidate.
+After a discard, report `leftEdited` as the surviving destinations targeted by the current map. Separately report
+known surviving authoring edits, including edits to former targets, and dependency settlements identified from the
+additive report's `records`. The cut has ended.
 
-> [!IMPORTANT]
-> `workflow-interlock`: Stop after an `advanced` result. Surface its candidate branch, previous and current base,
-> and complete staged merge diff; await explicit 'commit' direction before committing the advancement.
+After a revision, rerun the read-only `--revise` from step 1 to recover `previousMaps`. On `carried`, resume step 4
+from the approved revised map and the earlier allocations. Review, check, and save the affected documents in step 4.
+For `reauthor`, follow step 1's revision path.
 
-Use the [`commit-format` method][commit-format] for the advancement message.
+## 6. Apply the terminal batch
 
-> [!CAUTION]
-> `commit-interlock` release — commit the approved advanced result as `workflowCommit`:
-
-```text
-chore(planning): advance decomposition {origin} to current base
-
-Context: {deepest-planning-artifact} (planning)
-```
-
-> [!CAUTION]
-> `push-interlock` release — push the exact reported candidate branch as `workflowPush`.
-
-Open or locate its PR according to project policy. Surface PR status: open review threads, required approvals, and
-checks.
-
-> [!IMPORTANT]
-> `integration-interlock`: Stop before merge. Surface the exact PR status; await explicit 'merge' direction before
-> merging.
-
-After approval, merge according to project policy. Do not hardcode a merge method or infer merge authority from
-review or checks.
-
-## 7. Confirm lifecycle readiness and finish
-
-After the configured base contains the landing, resolve the ordinary lifecycle and ready/blocked frontier:
+Right after approval, in the same session, apply the exact preview:
 
 ```bash
-arc status
+arc decompose <origin> --finish --apply <applyAuthority>
 ```
 
-For extraction, newly created leaves are ordinarily startable only through their landed base metas.
-Extraction writes no transition record, recovery record, or receipt. It stores no launch advice, publication
-packet, or selected successor.
+The apply builds the batch again and runs it only when it matches the authority. A stale authority refusal names
+`--finish` for a fresh preview. Before renewed approval in step 5, compare the current destination specifications
+with the content reviewed in step 4. Repeat step 4's review for substantive edits and their affected obligations.
+Reuse completed reviews for unchanged content. If review leads to edits, check and save them in step 4 and preview again.
 
-From the surviving source, preview the separately retryable finish:
+The terminal batch is the landing: no commit, push, pull request, or merge follows.
+
+- **`applied`** reports the `members` and any `notices`. A retirement removes the checkout holding a started origin,
+  or releases it where the origin was started in place; a `continuation` names a cleanup step that did not complete —
+  run its `argv`.
+- **`landed`** reports a cut that had already landed, with its members. Continue with any outstanding work below.
+
+### Reconcile the landed cut
+
+A retirement writes the origin's lineage record, naming its members as successors. Extraction writes no lineage
+record: its origin survives. It stores no launch advice, publication packet, or selected successor. Never tear down
+the surviving extraction origin.
+
+For an extraction, the surviving origin's owner then reconciles it against the approved transfer and drop set, in the
+origin's checkout:
+
+- reconcile the surviving `tasks-{origin}.md`, when present, so transferred or dropped future work no longer remains
+  assigned to the origin while completed history and retained work remain truthful; and
+- review and revise every affected `**Next Task:**` and `**Next Action:**` pointer to name the next real origin-owned
+  step.
+
+This reconciliation is required for both an `Active` origin and a started `Planning` origin. A started Planning origin
+that has not produced a task list does not gain a synthetic one, but its affected pointers still require review.
+
+If later substantive source-specification edits occur, run [spec-review][spec-review] over their changed footprint and
+affected contract. Retain both common checks at the selected depth; reuse completed reviews over unchanged bytes.
+Task/pointer-only reconciliation does not trigger a specification review.
+
+Where the origin no longer belongs directly to a cohort whose record keeps its `` ### `<origin>` `` section under
+`## Members` — after a retirement, or an extraction that moved the origin into the members' cohort — remove that
+section; the record's next hand edit refuses while it stays.
+
+Run `arc check increment` over these edits, then save them:
 
 ```bash
-arc decompose <origin> --finish <completed-map>
+arc save
 ```
 
-Surface the exact preview, including `preview.applyAuthority`, source paths, retained bytes or deletion,
-transferred locators, and live-base destination validation. This is destructive mutation confirmation, not a
-second semantic distribution gate.
+Confirm the store accepted each file edited in this step. Check the projection diagnostics and confirm each file is
+in `arc selection` and absent from `arc selection --changed`. For outstanding edits to these files, follow the
+reported remedy, recheck corrected edits, and save again before continuing. Pending edits to unrelated files can wait.
 
-Before destructive apply, run [spec-review][spec-review] over the exact CLI-reported retained specification bytes
-or absence for source specifications. Use the reported content, not the unthinned source or a destination specification
-as missing authority. Surface missing binding design at the existing finish stop; do not apply a
-known-incomplete preview. A correction changing the approved distribution returns to the existing owner decision.
-Preserve the reported source paths and exact `preview.applyAuthority`.
+## 7. Confirm lifecycle readiness
 
-> [!IMPORTANT]
-> `workflow-interlock`: Stop after the exact finish preview. Surface the preview; await explicit 'apply' direction
-> before destructive source mutation.
-
-On approval, apply the exact preview:
+Read the ready and blocked frontier:
 
 ```bash
-arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>
+arc status --project
 ```
 
-Apply the common refusal rule above to a refused finish. An `already-finished` outcome completes this leg without
-new mutation; it does not authorize a new commit by itself. Never tear down the surviving extraction origin.
-
-A `finished` outcome leaves the exact source thinning staged. Before cleanup, the surviving origin's owner must
-perform ordinary work-unit reconciliation against the approved transfer and drop set:
-
-- reconcile the surviving `tasks-{origin}.md`, when present, so transferred or dropped future work no longer
-  remains assigned to the origin while completed history and retained work remain truthful; and
-- review and revise every affected `**Next Task:**` and `**Next Action:**` pointer to name the next real
-  origin-owned step.
-
-This reconciliation is required for both an `Active` origin and a started `Planning` origin. A started Planning
-origin that has not produced a task list does not gain a synthetic one, but its affected pointers still require
-review. These are owner-authored semantic edits, not finish-adapter output, and their changed paths join the same
-durable finish release.
-
-If later substantive source-specification edits occur, run [spec-review][spec-review] over their changed footprint
-and affected contract before source-finish release. Retain both common checks at the selected depth; reuse completed
-reviews over unchanged bytes. Task/pointer-only reconciliation does not trigger a specification review.
-
-Stage only the preview's source paths and the changed owner-reconciliation paths. Verify that none retains an
-unstaged change and that the complete staged path set exactly equals their union:
-
-```bash
-git add -- <finish-source-paths> <changed-owner-reconciliation-paths>
-git diff --quiet -- <finish-source-paths> <changed-owner-reconciliation-paths>
-git diff --cached --name-only --no-renames
-```
-
-Any additional or missing cached path, or any unstaged finish-release path, stops release. Use the
-[`commit-format` method][commit-format] for the message.
-
-Run `arc check increment` over the owner's reconciliation before the finish-release commit.
-
-> [!CAUTION]
-> `commit-interlock` release — commit the exact staged finish and owner reconciliation as `workflowCommit`:
-
-```text
-chore(planning): finish source extraction for {origin}
-
-Context: {deepest-planning-artifact} (planning)
-```
-
-An `already-finished` outcome takes no mutation or commit arm. Before cleanup, prove that the thinned source and
-the required task/pointer reconciliation already reside in `HEAD` and that their paths have no indexed or
-working-tree diff. If they are not durable, stop and reconcile the incomplete prior finish; never mint an empty or
-ceremonial source-finish commit merely because the CLI reported `already-finished`.
-
-For a full-protection landing, remove the reported candidate projection through the ordinary branch teardown:
-
-```bash
-arc teardown --branch <reported-candidate-branch>
-```
-
-For retirement only, remove the landed origin's local projection through the ordinary origin teardown:
-
-```bash
-arc teardown <origin>
-```
-
-Route only CLI-reported cleanup outcomes. Never infer teardown authority, delete remote state, or launch members
-from this workflow.
+Use `arc status <member>` for one member. Each member is an ordinary stub and starts through the ordinary lifecycle.
 
 ---
 
-[commit-format]: ../../../methods/commit-format.md
 [spec-review]: ../../../methods/spec-review.md

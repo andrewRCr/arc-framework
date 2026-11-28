@@ -25,6 +25,8 @@ import {
   type ShippedWorkUnitRecord,
 } from "../work-unit/completed-index.js";
 import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
+import type { Store } from "../store/contract.js";
+import { readStoreCompletedEvidenceByIdentity } from "../store/lifecycle-completed.js";
 
 export interface CurrentBaseDriftAdapters {
   resolverFactory: IntegrationEvidenceResolverFactory;
@@ -42,14 +44,57 @@ export function workUnitPathTreatmentContext(workUnit: string): PathTreatmentCon
   };
 }
 
-/** Bind current completed-meta and readiness-projection adapters. */
+/**
+ * Bind current completed-record and readiness-projection adapters.
+ *
+ * @param exec - Git executor over the checkout.
+ * @param store - The caller's store. With state off the branch, integrations are named from its completed records,
+ *   since no completed meta lands on base.
+ * @param treatmentContext - Work-unit and projection coordinates for path treatment.
+ */
 export function createCurrentBaseDriftAdapters(
   exec: GitExec,
+  store: Store,
   treatmentContext: PathTreatmentContext = {},
 ): CurrentBaseDriftAdapters {
   return {
-    resolverFactory: (baseOid) => createCompletedMetaResolver(exec, baseOid),
+    resolverFactory: (baseOid) => store.capabilities.stateOffBranch
+      ? createStoreCompletedResolver(store)
+      : createCompletedMetaResolver(exec, baseOid),
     classifyReconciliation: (path) => classifyPathTreatment(path, treatmentContext),
+  };
+}
+
+/**
+ * Name each integration from the store's completed records by the pull request number in an archived meta's
+ * `PR URL`. A number two archived metas name resolves to no work unit, as one no archived meta names does.
+ *
+ * @param store - A store keeping state off the branch.
+ * @returns A resolver that reads the completed records once, at its first event.
+ */
+export function createStoreCompletedResolver(store: Store): IntegrationEvidenceResolver {
+  let archiveRead: Promise<CompletedEvidenceRead> | undefined;
+  const archive = (): Promise<CompletedEvidenceRead> => archiveRead ??= readStoreCompletedEvidenceByIdentity(store);
+  const read = <T>(value: T, completed: CompletedEvidenceRead): ResolverRead<T> =>
+    resolverRead(value, completed, completed.status === "unavailable");
+
+  return {
+    async enrichTopologyEvent(event) {
+      const completed = await archive();
+      const byPr = event.prNumber === undefined ? null : uniqueRecordByPr(completed, event.prNumber);
+      return read(byPr === null ? null : identityOf(byPr), completed);
+    },
+
+    async proveSingleParentEvents(inputs) {
+      const completed = await archive();
+      const events: ResolverEvent[] = [];
+      for (const input of inputs) {
+        if (input.acceptedPrNumber === undefined) continue;
+        const record = uniqueRecordByPr(completed, input.acceptedPrNumber);
+        if (record !== null) events.push({ commits: [input.oid], ...identityOf(record) });
+      }
+      return read(events, completed);
+    },
   };
 }
 

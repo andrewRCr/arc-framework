@@ -50,6 +50,7 @@ import { createHostedAdmission } from
 import { composeDeliveryReviewObligation } from "../../../../../src/scripts/review-gate/status.js";
 import { resolveReviewPolicy } from
   "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
 
 const oid = (character: string): string => character.repeat(40);
 const PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
@@ -943,9 +944,11 @@ describe("hosted reservation discharge", () => {
     const exec: GitExec = async (command, args) => {
       throw makeGitProcessError({ command, args, exitCode: 128, stderr: "unknown member commit" });
     };
+    const h = createReviewHarness();
+    const meta = await h.seedMeta("delivery");
     const reader = createHostedReservationDischargeReader({
       cwd: "/tmp/repository",
-      exec,
+      exec, store: h.store, projectId: h.projectId, workItem: meta.reference.owner,
       delivery: {
         resolveDischargeTargets: async () => ({
           status: "resolved",

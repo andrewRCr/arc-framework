@@ -3,8 +3,8 @@
  *
  * Asserts that the shipped CLI binary emits exactly one trailing-newline-
  * terminated JSON object on stdout — no ANSI escapes, no Clack-spinner cursor
- * codes, no log lines — across five representative matrix cells. Diagnostics
- * are permitted on stderr.
+ * codes, no log lines — across representative cells of the store's sync and of
+ * the in-repo notes matrix. Diagnostics are permitted on stderr.
  *
  * No `@clack/prompts` mock is installed: the subprocess is the real CLI, and
  * any Clack output that reaches the parent process via the child's stdout is
@@ -18,8 +18,9 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
-import { runCli } from "../helpers/run-cli.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { runArc } from "./helpers.js";
+import { runCli } from "../helpers/run-cli.js";
 import type { SyncOutcome } from "../../src/handlers/sync.js";
 
 const execFileAsync = promisify(execFile);
@@ -104,7 +105,7 @@ async function setupClonesWithIdentity(identity: string): Promise<MultiClone> {
 describe("arc sync --json stdout purity", () => {
   const identity = "test-user";
 
-  it("paired-push cell: pure stdout JSON, exit 0", async () => {
+  it("state+worktree cell: pure stdout JSON, exit 0", async () => {
     const harness = await setupClonesWithIdentity(identity);
     try {
       await installArcInClone(harness.cloneA);
@@ -112,42 +113,14 @@ describe("arc sync --json stdout purity", () => {
         "git", ["config", "--local", "arc.pushInterlock", "on-sync"],
         { cwd: harness.cloneA },
       );
-      await writeFile(
-        join(harness.cloneA, ".arc", "user", identity, "SESSION-NOTES.md"),
-        "# paired purity\n",
-        "utf-8",
-      );
 
       const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
 
       const envelope = parsePureEnvelope(result.stdout);
-      expect(envelope.cell).toBe("paired-push");
+      expect(envelope.cell).toBe("state+worktree");
       expect(envelope.exitCode).toBe(0);
       expect(result.exitCode).toBe(0);
-
-      // Info-level chatter and note blocks duplicate envelope fields — suppressed
-      // under --json so consumers can `2>&1 | jq` without contamination. Errors
-      // and diagnostics still fire on stderr (proven by the prompt-policy case).
       expect(result.stderr).not.toMatch(/^info: /m);
-      expect(result.stderr).not.toContain("[Saved]");
-    } finally {
-      await harness.cleanup();
-    }
-  });
-
-  it("save-only cell: pure stdout JSON, exit 0", async () => {
-    const harness = await setupClonesWithIdentity(identity);
-    try {
-      await installArcInClone(harness.cloneA, {
-        "user.notes_push": "manual",
-      });
-
-      const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
-
-      const envelope = parsePureEnvelope(result.stdout);
-      expect(envelope.cell).toBe("save-only");
-      expect(envelope.exitCode).toBe(0);
-      expect(result.exitCode).toBe(0);
     } finally {
       await harness.cleanup();
     }
@@ -174,43 +147,13 @@ describe("arc sync --json stdout purity", () => {
       const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
 
       const envelope = parsePureEnvelope(result.stdout);
-      expect(envelope.cell).toBe("blocked-diverged");
+      expect(envelope.cell).toBe("state+blocked-diverged");
       expect(envelope.exitCode).toBe(1);
       expect(result.exitCode).toBe(1);
     } finally {
       await harness.cleanup();
     }
   });
-
-  it(
-    "prompt-policy cell under --json: pure stdout JSON, authority refusal on stderr",
-    async () => {
-      const harness = await setupClonesWithIdentity(identity);
-      try {
-        await installArcInClone(harness.cloneA, {
-          "user.notes_push": "prompt",
-        });
-
-        await execFileAsync("git", ["push", "origin", "main"], { cwd: harness.cloneA });
-        const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
-
-        const envelope = parsePureEnvelope(result.stdout);
-        expect(envelope.cell).toBe("notes-prompt");
-        expect(envelope.notes).toMatchObject({ action: "save", result: "blocked",
-          detail: "notes-push-authority-required" });
-        expect(envelope.exitCode).toBe(1);
-        expect(result.exitCode).toBe(1);
-
-        expect(result.stderr).toContain("Notes saved locally; re-run with --yes to authorize the push.");
-        expect(result.stdout).not.toContain("re-run with --yes");
-
-        // Diagnostics use stderr; info-level chatter is suppressed under --json.
-        expect(result.stderr).not.toMatch(/^info: /m);
-      } finally {
-        await harness.cleanup();
-      }
-    },
-  );
 
   it("identity-absent error path: pure stdout envelope, exit 1", async () => {
     const harness = await setupClonesWithIdentity(identity);
@@ -242,5 +185,90 @@ describe("arc sync --json stdout purity", () => {
     } finally {
       await harness.cleanup();
     }
+  });
+
+  describe("notes cells over the in-repo store", () => {
+    // The store retires user notes, pairing its state leg with the branch leg instead (`state+…`), so these cells are
+    // the in-repo implementation's.
+    useInRepoStoreForEach();
+
+    it("paired-push cell: pure stdout JSON, exit 0", async () => {
+      const harness = await setupClonesWithIdentity(identity);
+      try {
+        await installArcInClone(harness.cloneA);
+        await execFileAsync(
+          "git", ["config", "--local", "arc.pushInterlock", "on-sync"],
+          { cwd: harness.cloneA },
+        );
+        await writeFile(
+          join(harness.cloneA, ".arc", "user", identity, "SESSION-NOTES.md"),
+          "# paired purity\n",
+          "utf-8",
+        );
+
+        const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
+
+        const envelope = parsePureEnvelope(result.stdout);
+        expect(envelope.cell).toBe("paired-push");
+        expect(envelope.exitCode).toBe(0);
+        expect(result.exitCode).toBe(0);
+
+        // Info-level chatter and note blocks duplicate envelope fields — suppressed
+        // under --json so consumers can `2>&1 | jq` without contamination. Errors
+        // and diagnostics still fire on stderr (proven by the prompt-policy case).
+        expect(result.stderr).not.toMatch(/^info: /m);
+        expect(result.stderr).not.toContain("[Saved]");
+      } finally {
+        await harness.cleanup();
+      }
+    });
+
+    it("save-only cell: pure stdout JSON, exit 0", async () => {
+      const harness = await setupClonesWithIdentity(identity);
+      try {
+        await installArcInClone(harness.cloneA, {
+          "user.notes_push": "manual",
+        });
+
+        const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
+
+        const envelope = parsePureEnvelope(result.stdout);
+        expect(envelope.cell).toBe("save-only");
+        expect(envelope.exitCode).toBe(0);
+        expect(result.exitCode).toBe(0);
+      } finally {
+        await harness.cleanup();
+      }
+    });
+
+    it(
+      "prompt-policy cell under --json: pure stdout JSON, authority refusal on stderr",
+      async () => {
+        const harness = await setupClonesWithIdentity(identity);
+        try {
+          await installArcInClone(harness.cloneA, {
+            "user.notes_push": "prompt",
+          });
+
+          await execFileAsync("git", ["push", "origin", "main"], { cwd: harness.cloneA });
+          const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
+
+          const envelope = parsePureEnvelope(result.stdout);
+          expect(envelope.cell).toBe("notes-prompt");
+          expect(envelope.notes).toMatchObject({ action: "save", result: "blocked",
+            detail: "notes-push-authority-required" });
+          expect(envelope.exitCode).toBe(1);
+          expect(result.exitCode).toBe(1);
+
+          expect(result.stderr).toContain("Notes saved locally; re-run with --yes to authorize the push.");
+          expect(result.stdout).not.toContain("re-run with --yes");
+
+          // Diagnostics use stderr; info-level chatter is suppressed under --json.
+          expect(result.stderr).not.toMatch(/^info: /m);
+        } finally {
+          await harness.cleanup();
+        }
+      },
+    );
   });
 });

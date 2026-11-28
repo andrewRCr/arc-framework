@@ -26,6 +26,7 @@ import {
 } from "../helpers/integration.js";
 import { runHandlerAt } from "../helpers/handler.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -83,6 +84,9 @@ async function runSlug(cwd: string, slug: string, opts: StatusCliOptions): Promi
   return (await runHandlerAt(cwd, () => handleStatus(slug, opts))).stdout;
 }
 
+// The project view over metas on branch refs, staged transition records, and the stored ROADMAP is the in-repo
+// implementation's, and `handleStatus` opens the default store itself, so those cases set the override; the store's
+// project view is `status-store-refresh-cli`'s and `unit/status/project-view`'s subject.
 describe("arc status --project", () => {
   afterEach(async () => {
     vi.restoreAllMocks();
@@ -104,6 +108,7 @@ describe("arc status --project", () => {
   });
 
   it("renders live ref-only active metas from a main checkout", async () => {
+    useInRepoStore();
     repo = await createTempRepo("arc-status-project-");
     remote = `${repo}-origin.git`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
@@ -189,6 +194,7 @@ describe("arc status --project", () => {
   it.each(["Planning", "Active", "Integrating"] as const)(
     "queries a sibling in %s from another checkout through local remote-tracking refs",
     async (state) => {
+      useInRepoStore();
       repo = await createTempRepo("arc-status-slug-");
       remote = `${repo}-origin.git`;
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
@@ -227,6 +233,7 @@ describe("arc status --project", () => {
   it.each(["Planning", "Active"] as const)(
     "keeps a committed Shipped record authoritative over a lingering %s ref",
     async (lingeringState) => {
+      useInRepoStore();
       repo = await createTempRepo(`arc-status-slug-shipped-${lingeringState.toLowerCase()}-`);
       remote = `${repo}-origin.git`;
       const slug = "swept-status";
@@ -273,6 +280,7 @@ describe("arc status --project", () => {
   );
 
   it("uses --fetch as a live-membership upgrade while keeping slug queries local by default", async () => {
+    useInRepoStore();
     repo = await createTempRepo("arc-status-slug-fetch-");
     remote = `${repo}-origin.git`;
     const slug = "stale-local-ref";
@@ -306,6 +314,7 @@ describe("arc status --project", () => {
   });
 
   it("warns and degrades instead of blocking when a live slug query cannot reach origin", async () => {
+    useInRepoStore();
     repo = await createTempRepo("arc-status-slug-unreachable-");
     const slug = "offline-query";
     await mkdir(join(repo, ".arc", "system"), { recursive: true });
@@ -323,6 +332,7 @@ describe("arc status --project", () => {
   });
 
   it("adds a sibling worktree path to query output without changing occupancy", async () => {
+    useInRepoStore();
     repo = await createTempRepo("arc-status-slug-worktree-");
     remote = `${repo}-sibling`;
     const slug = "checked-out-sibling";
@@ -341,6 +351,7 @@ describe("arc status --project", () => {
   });
 
   it("renders --staged tree inputs from the git index, not the working tree", async () => {
+    useInRepoStore();
     repo = await createTempRepo("arc-status-staged-");
     await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd: repo });
     await mkdir(join(repo, ".arc", "system"), { recursive: true });
@@ -382,6 +393,7 @@ describe("arc status --project", () => {
   ] satisfies [string, StatusCliOptions][])(
     "writes %s project-readiness warnings to stderr without contaminating stdout",
     async (_mode, options) => {
+      useInRepoStore();
       repo = await createTempRepo("arc-status-warning-channel-");
       await mkdir(join(repo, ".arc", "system"), { recursive: true });
       await mkdir(join(repo, ".arc", "backlog", "planned", "warning-source"), { recursive: true });
@@ -402,6 +414,7 @@ describe("arc status --project", () => {
   );
 
   it("drops an archiving own-branch row while preserving sibling rows and hook/CLI byte parity", async () => {
+    useInRepoStore();
     repo = await createTempRepo("arc-status-archive-window-");
     remote = `${repo}-origin.git`;
     const slug = "archiving-own-row";
@@ -465,6 +478,7 @@ describe("arc status --project", () => {
   });
 
   it("admits multiple finalized transitions carried by one staged base merge", async () => {
+    useInRepoStore();
     repo = await createTempRepo("arc-status-multi-transition-merge-");
     remote = `${repo}-origin.git`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);

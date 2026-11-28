@@ -187,7 +187,11 @@ export async function runSessionInitStatus(
   const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
     ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
     : await safeProbe("derivedLocusState", () => probes.derivedLocusState(identity));
-  const active = mapSlot(derivedLocusState, projectDerivedActiveSession);
+  const active = mapSlot(derivedLocusState, (frame) => {
+    const session = projectDerivedActiveSession(frame);
+    const warning = frame.active?.context.integrationBoundaryWarning;
+    return warning === undefined ? session : { ...session, warnings: [...session.warnings, warning] };
+  });
   const owningWorkUnitId = derivedLocusState.ok
     && derivedLocusState.value.active?.subject.kind === "work-unit"
       ? derivedLocusState.value.active.subject.key
@@ -888,13 +892,14 @@ function composeHandoffPathSet(options: {
   }
   const surfaces = options.surfaces.value;
   if (surfaces === null) {
-    return { ok: true, value: { sessionNotes: null, workingMemory: null } };
+    return { ok: true, value: { sessionNotes: null, workingMemory: null, workingMemoryCheckout: null } };
   }
   return toProbe(composeSlot("compose-handoff-path-set", "pathSet", () => ({
     sessionNotes: options.activeWuName !== null
       ? surfaces.sessionNotesPath(options.activeWuName)
       : null,
     workingMemory: surfaces.workingMemoryPath,
+    workingMemoryCheckout: surfaces.workingMemoryCheckout,
   })));
 }
 

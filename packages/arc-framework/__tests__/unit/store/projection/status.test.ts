@@ -14,8 +14,8 @@ import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js
 import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
 import { createWriteBackPort } from "../../../../src/lib/store/projection/write-back.js";
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-store-ports.js";
+import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
 
 const fixtures: Awaited<ReturnType<typeof createWriteBackFixture>>[] = [];
 afterEach(async () => { await Promise.all(fixtures.splice(0).map(h => h.dispose())); });
@@ -115,7 +115,7 @@ it("reports withheld aside copies even when no file entry owns them", async () =
 
 it("resolves no projection dependency when the selected backend is dark", async () => {
   const checkout = "/not-a-repository";
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: checkout,
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: checkout,
     exec: async () => { throw new Error("Git must remain dark"); } }));
   expect(await readProjectionStatus({ store, checkout, ports: () => { throw new Error("Projection I/O must remain dark"); },
     view: () => { throw new Error("View selection must remain dark"); } }))

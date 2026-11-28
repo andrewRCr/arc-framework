@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
-import { afterAll, afterEach, beforeAll, describe, expect, it as vitestIt } from "vitest";
+import { afterAll, afterEach, describe, expect, it as vitestIt } from "vitest";
 
 import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidate.js";
 import { handleDeliveryEntryInspect } from "../../src/handlers/delivery-entry.js";
@@ -135,6 +135,8 @@ import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runHandlerAt, type HandlerRunResult } from "../helpers/handler.js";
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
 import { expectPinnedObservation } from "../helpers/pinned-observation.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { runArc as runBuiltArc } from "../e2e/helpers.js";
 import {
   copyPreparedRepository,
@@ -238,7 +240,7 @@ function approvedDispositionRecord<T extends {
 
 const roots: string[] = [];
 const initializedShape = { kind: "remote-bearing", key: "delivery-position-initialized-v1" } as const;
-let initializedTemplate: PreparedRepositoryTemplate | undefined;
+const initializedTemplates = new Map<boolean, Promise<PreparedRepositoryTemplate>>();
 
 /** Test project that should own one registered delivery-position case. */
 export type DeliveryPositionSuiteMode = "integration" | "e2e";
@@ -360,8 +362,25 @@ async function runArcWithStdin(
   }, { env: options.env });
 }
 
-beforeAll(async () => {
-  initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
+/** Whether the running case composes the ref store, as every case does but those that inspect the delivery entry.
+ * @returns True on the ref store.
+ */
+function onStore(): boolean {
+  return process.env[IN_REPO_STORE_OVERRIDE] !== "1";
+}
+
+/**
+ * Keep the in-repo store for a case whose verbs inspect the delivery entry, which resolves the stored plan through its
+ * rename records; only the in-repo store supports that while delivery is paused.
+ */
+function useInRepoDeliveryEntry(): void {
+  useInRepoStore();
+}
+
+/** The initialized repository the running store's cases copy, prepared once per store. */
+function initializedTemplate(): Promise<PreparedRepositoryTemplate> {
+  const store = onStore();
+  const prepared = initializedTemplates.get(store) ?? prepareRepositoryTemplate(initializedShape, async () => {
     const repository = await createTempRepo("arc-delivery-position-template-");
     const initialized = await runArc(["init", "--yes", "--name", "delivery-position"], repository);
     expect(initialized.exitCode, initialized.stderr).toBe(0);
@@ -385,10 +404,12 @@ beforeAll(async () => {
     await git(repository, ["remote", "set-url", "origin", "git@github.com:owner/repo.git"]);
     return repository;
   });
-});
+  initializedTemplates.set(store, prepared);
+  return prepared;
+}
 
 afterAll(async () => {
-  if (initializedTemplate !== undefined) await cleanupTempDir(initializedTemplate.root);
+  await Promise.all([...initializedTemplates.values()].map(async (template) => cleanupTempDir((await template).root)));
 });
 
 function quoteShellArgument(value: string): string {
@@ -431,8 +452,7 @@ export async function positionFixture(
   activeOperation?: ActiveOperationScenario,
   options: { reviewChunkingThresholdLines?: number; memberTwoLineCount?: number } = {},
 ) {
-  if (initializedTemplate === undefined) throw new Error("delivery-position template is unavailable");
-  const repository = await copyPreparedRepository(initializedTemplate, initializedShape);
+  const repository = await copyPreparedRepository(await initializedTemplate(), initializedShape);
   roots.push(repository);
   if (options.reviewChunkingThresholdLines !== undefined) {
     const configPath = join(repository, ".arc", "system", "arc-config.yml");
@@ -957,6 +977,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     { label: "a stale landed member", scenario: "landed-prefix" as const },
   ]) {
   it(`resumes an approved member fix only for ${label}`, async () => {
+    useInRepoDeliveryEntry();
     const fixture = await positionFixture(scenario);
     const workUnitId = fixture.plan.workUnitId;
     const branch = `feat/${workUnitId}`;
@@ -1207,6 +1228,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   }
 
   it("projects pending review-fix verification into the integration session", async () => {
+    useInRepoDeliveryEntry();
     const fixture = await positionFixture();
     const workUnitId = fixture.plan.workUnitId;
     const branch = `feat/${workUnitId}`;
@@ -1292,6 +1314,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   });
 
   it("re-enters and acknowledges a settled review-fix verification after response loss", async () => {
+    useInRepoDeliveryEntry();
     const fixture = await positionFixture("selected-change-external-refresh");
     const workUnitBranch = `feat/${fixture.plan.workUnitId}`;
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
@@ -1895,6 +1918,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   });
 
   it("replays a durable local verification from the direct pending execution entry", async () => {
+    useInRepoDeliveryEntry();
     const fixture = await positionFixture();
     const workUnitId = fixture.plan.workUnitId;
     const branch = `feat/${workUnitId}`;
@@ -2304,6 +2328,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   });
 
   it("returns settled review and closes shipped publication refresh after terminal rebind", async () => {
+    useInRepoDeliveryEntry();
     const fixture = await positionFixture("landed-nonterminal");
     const checkpointEnv = { ...fixture.env, ARC_FAKE_MERGE_ADMISSION: "1" };
     const stateRead = await fixture.states.read(fixture.plan.planId);
@@ -3104,6 +3129,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   // About 85 s on a hosted runner shared with other E2E files, up to 110 s,
   // most of it in thirteen review-fix continuations.
   it("drives a registered review correction through superseded verification to hosted review", async () => {
+    useInRepoDeliveryEntry();
     const fixture = await positionFixture("registered-current", {
       reviewChunkingThresholdLines: 2,
       memberTwoLineCount: 2,
@@ -4963,6 +4989,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   });
 
   it("opens a session over a terminal top that advanced by an append-only commit", async () => {
+    useInRepoDeliveryEntry();
     const orient = async (scenario?: ActiveOperationScenario): Promise<HandlerRunResult> => {
       const fixture = await positionFixture(scenario);
       const workUnitId = fixture.plan.workUnitId;

@@ -1,7 +1,9 @@
 /** Project identity comes from the selected store's unique project owner, independently of code remotes. */
+import { randomUUID } from "node:crypto";
 import type { Store } from "./contract.js";
-import type { Remedy, StoreRefusal } from "./refusal.js";
-import type { OwnerIdentity } from "./identity.js";
+import type { ListingOutcome } from "./read.js";
+import type { Remedy, StoreRefusal, StoreResult } from "./refusal.js";
+import { RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "./identity.js";
 
 /** Actionable failure to resolve the selected project's stable identity. */
 export interface ProjectIdentityUnavailable {
@@ -45,18 +47,23 @@ async function readProjectIdentity(store: Pick<Store, "list">): Promise<string> 
 
 /** Read the unique selected project's owner and stable ID from one complete identity observation. */
 export async function readProjectIdentityBinding(store: Pick<Store, "list">): Promise<{ id: string; owner: OwnerIdentity }> {
-  const listing = await store.list({ family: "project-registry", kind: "project-registry/identity" });
+  const binding = identityBinding(await store.list({ family: "project-registry", kind: "project-registry/identity" }));
+  if (binding === null) throw new ProjectIdentityError(unavailable("Project identity record is missing."));
+  return binding;
+}
+
+function identityBinding(listing: StoreResult<ListingOutcome>): { id: string; owner: OwnerIdentity } | null {
   if (listing.status === "refused") throw new ProjectIdentityError({ status: "unavailable", reason: listing.refusal.condition,
     remedy: listing.refusal.remedy, refusal: listing.refusal });
   const result = listing.result;
   if (result.status === "unreadable") throw new ProjectIdentityError({ status: "unavailable", reason: result.condition, remedy: result.remedy,
     readFailure: true });
-  if (result.status === "absent") throw new ProjectIdentityError(unavailable("Project identity record is missing."));
+  if (result.status === "absent") return null;
   if (result.missed || result.diagnostics.length > 0) throw new ProjectIdentityError({ ...unavailable(
     `Project identity inventory is incomplete: ${result.diagnostics.map((item) => item.condition).join("; ") || "records were missed"}.`),
     readFailure: true });
-  if (result.records.length !== 1) throw new ProjectIdentityError(unavailable(result.records.length === 0
-    ? "Project identity record is missing." : "Project identity records are ambiguous."));
+  if (result.records.length === 0) return null;
+  if (result.records.length > 1) throw new ProjectIdentityError(unavailable("Project identity records are ambiguous."));
   const record = result.records[0];
   if (record === undefined || record.reference.kind !== "project-registry/identity" || record.reference.owner.type !== "project"
     || record.reference.owner.uid === undefined || record.conflicts.length > 0) {
@@ -64,6 +71,32 @@ export async function readProjectIdentityBinding(store: Pick<Store, "list">): Pr
   }
   return { id: record.reference.owner.uid, owner: record.reference.owner };
 }
+/** The registry's identity record naming one project ID. */
+export function projectIdentityRecord(projectId: string): { reference: RecordReference; content: string } {
+  return { reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project", uid: projectId } }),
+    content: JSON.stringify({ projectId }) };
+}
+
+/** Mint a project ID into the registry's create-only identity record where a complete listing shows none, or keep the
+ * one it holds; an incomplete or ambiguous registry refuses rather than risk a second ID.
+ * @param store - The project's store.
+ * @param randomId - The ID source.
+ * @returns The minted or held ID.
+ */
+export async function mintProjectIdentity(store: Store, randomId: () => string = randomUUID):
+  Promise<{ status: "minted" | "held"; id: string }> {
+  const binding = identityBinding(await store.list({ family: "project-registry", kind: "project-registry/identity" }));
+  if (binding !== null) return { status: "held", id: binding.id };
+  const id = randomId();
+  const written = await store.write({ action: "put", ...projectIdentityRecord(id), expected: null,
+    provenance: { verb: "init", lifecycleAction: "create" } });
+  if (written.status === "refused") {
+    throw new ProjectIdentityError({ status: "unavailable", reason: written.refusal.condition, remedy: written.refusal.remedy,
+      refusal: written.refusal });
+  }
+  return { status: "minted", id };
+}
+
 function unavailable(reason: string): ProjectIdentityUnavailable {
   return { status: "unavailable", reason, remedy: { text: "Restore the project's unique, valid identity record from its authoritative state source, then retry." } };
 }

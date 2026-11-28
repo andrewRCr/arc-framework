@@ -52,6 +52,7 @@ import { makeGitExec } from "../helpers/integration.js";
 import { createIntegrationCheckpointDependencies } from "../../src/scripts/integration/checkpoint-composition.js";
 import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidate.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
@@ -356,6 +357,9 @@ async function selectSingletonFreshReview(fixture: Awaited<ReturnType<typeof pub
 }
 
 describe("pre-publication correction confirmation", () => {
+  // Each Candidate rests on a committed meta, its reviews in the repository's own operation and disposition stores.
+  useInRepoStoreForEach();
+
   it("keeps a moved delivery member at its applicability stop without a delta check", async () => {
     const fixture = await candidateFix(false, true);
     const { cwd, exec, git, current, base, candidate } = fixture;

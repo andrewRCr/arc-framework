@@ -93,53 +93,42 @@ A structured approach for transferring active work between developer-agent pairs
 rotation, workload rebalancing, or specialization change. Distinct from normal session handoff
 (same person, different session) in that the _reader changes_, not just the time boundary.
 
-This protocol composes the existing [session-handoff][session-handoff] and [session-init][session-init]
-workflows with enhanced context for the different reader. No new ceremony —
-the standard workflows apply with the adjustments below. Teams can follow this
-fully, partially, or rely on informal coordination — the minimum viable handoff is reassigning
-the meta `**Owner:**` field and pushing session notes.
+Follow [session-handoff][session-handoff] and [session-init][session-init]. A cross-clone transfer requires a shared
+work branch and publication of the store state containing the new Owner and Session Context.
 
 ### Outgoing Responsibilities
 
 The outgoing developer runs a standard session handoff with these additions:
 
-1. **Reassign ownership.** Update the meta `**Owner:**` field in `active/meta-{name}.md` to the
-   incoming developer — the single source of assignment truth. A one-field edit transfers the
-   whole work unit; it's visible to anyone reading the tracked meta file and doesn't require
-   fetching session notes.
-
-2. **Write SESSION-NOTES.md for a different reader.** Normal session notes assume "future me" as
-   the audience. For person-to-person handoff, write for someone with no prior context:
-   - **Decisions and rationale** — not just "what" but "why this approach"
+1. **Write Session Context for someone new to the work.** Include what the incoming developer needs to resume.
+   - **Decisions and rationale** — why the work took its current approach
    - **Code landmarks** — key files, tricky sections, line numbers worth reading first
    - **Known gotchas** — edge cases, data format quirks, things that look wrong but aren't
    - **Approaches tried and abandoned** — prevents the incoming developer from re-exploring
      dead ends
    - **Priority guidance** — if multiple tasks remain, what ordering matters and why
 
-3. **Push user directory.** Ensure git notes are pushed so the incoming developer can fetch
-   them (see session-handoff workflow for the git notes save-and-push steps). With
-   `user.notes_push: prompt` (the team default), confirm the push when prompted.
+2. **Transfer ownership and publish it.** Share the work branch and run `arc handover <slug> --to <identity>`.
+   After it succeeds, publish the change with `arc sync --json` per the session-handoff workflow. If
+   `state.push.result` is `success` or `noop`, run `arc status <slug> --json --skip-projection` to read the store after
+   the pull. Confirm transfer only if the JSON `owner` names the recipient and there is no conflict for this work
+   unit's meta. Status refuses a work unit whose meta has unresolved conflicts. If the manual interlock skips sync or
+   the state push is `blocked`, `failed`, or `skipped`, report the transfer as pending. Also report it as pending if
+   status fails, `owner` differs from the recipient, or sync reports a conflict for that meta. Give the observed reason
+   and any reported remedy. Resolve the condition, retry handover if the Owner change needs to be reapplied, then run
+   or retry `arc sync --json` and repeat the check.
 
 ### Incoming Bootstrap
 
 The incoming developer runs a standard session-init with these additions:
 
-1. **Fetch the outgoing developer's context.** If the outgoing developer pushed git notes,
-   fetch their namespace and load their context:
+1. **Refresh the clone.** Fetch the shared work branch and pull store state through session-init. If session-init
+   skips the pull, run `arc sync --json` and check its state pull. Resolve a stopped pull or missing designation
+   using the reported remedy, then retry.
 
-   ```bash
-   # Fetch the outgoing developer's notes ref, then load that identity's user directory
-   arc user fetch --identity {outgoing}
-   arc user load --identity {outgoing}
-   ```
-
-   The CLI extracts the outgoing developer's SESSION-NOTES and workspace files into a
-   readable format. This supplements the active WU's `meta-{name}.md` with qualitative
-   context — decisions, gotchas, and approach notes that aren't captured in tracked artifacts.
-
-2. **Verify ownership.** Check the WU's `meta-{name}.md` `**Owner:**` field to confirm the work
-   unit is now assigned to you; it also shows the current task and next action.
+2. **Verify the transfer.** Check the work unit's stored `Owner` and `Session Context`. If the owner is still the
+   outgoing developer or their handoff context is missing, confirm publication with them and pull again before
+   starting work.
 
 3. **Confirm understanding.** Report your understanding in the session-init orientation summary.
    If the outgoing developer is available, confirm before starting work. If not, the documents
@@ -150,12 +139,8 @@ The incoming developer runs a standard session-init with these additions:
 Person-to-person handoff works asynchronously — the outgoing developer may not be available
 when the incoming developer starts.
 
-- **Documents must stand alone.** SESSION-NOTES.md + the active WU's `meta-{name}.md`
-  should provide complete orientation without verbal walkthrough.
-- **`meta-{name}.md` provides minimum viable context.** Even without SESSION-NOTES.md, the
-  project pointer (branch, task list, current task, next action) is sufficient to start work.
-- **Graceful degradation.** If git notes weren't pushed, fall back to `meta-{name}.md` +
-  task list + git log.
+- **Documents must stand alone.** The work unit's meta, including Session Context, and its task list should provide
+  complete orientation without a verbal walkthrough.
 - **Questions are expected.** The incoming developer may leave questions in commit messages,
   PR comments, or team channels.
 

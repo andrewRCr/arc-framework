@@ -9,11 +9,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deliveryPlanFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { deriveDeliveryPlanDigest } from "../../src/lib/delivery/plan.js";
 import type { DeliveryPlanV1 } from "../../src/lib/delivery/schema.js";
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 
 describe("arc delivery transfer", () => {
+  // Transfer resolves the active work unit's plan through its rename records, which only the in-repo store supports:
+  // with state off the branch, plan resolution refuses a base that holds no transition records.
+  useInRepoStoreForEach();
+
   let source: string;
   let transferRoot: string;
 

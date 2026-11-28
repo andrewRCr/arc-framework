@@ -5,6 +5,10 @@ import { delimiter, join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { checkFixture } from "../helpers/cutover-window/check.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 async function executable(directory: string) {
   await mkdir(directory, { recursive: true });

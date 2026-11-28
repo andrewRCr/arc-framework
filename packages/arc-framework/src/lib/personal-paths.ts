@@ -7,6 +7,7 @@ import type { GitExec } from "./git/exec.js";
 import { SlugSchema, type Slug } from "./kernel/index.js";
 /** Addresses for personal displays and machine-local documents. */
 export interface PersonalPaths {
+  primaryCheckoutPath: string;
   workingMemoryPath: string; workingMemoryDisplayPath: string;
   identityGlobalPath: (...segments: readonly string[]) => string;
   identityGlobalDisplayPath: (...segments: readonly string[]) => string;
@@ -22,7 +23,8 @@ export async function resolvePersonalPaths(input: { cwd: string; identity: strin
   const sessionNotesPath = (workUnit: Slug) => join(input.cwd, resolveArcPath({ kind: "user-document", identity,
     document: { kind: "session-notes", workUnit } }));
   const workingMemoryPath = join(primary, resolveArcPath({ kind: "user-document", identity, document: { kind: "working-memory" } }));
-  return { identityGlobalPath, identityGlobalDisplayPath: (...segments) => displayLocalPath(input.cwd, identityGlobalPath(...segments)),
+  return { primaryCheckoutPath: primary, identityGlobalPath,
+    identityGlobalDisplayPath: (...segments) => displayLocalPath(input.cwd, identityGlobalPath(...segments)),
     workingMemoryPath, workingMemoryDisplayPath: displayLocalPath(input.cwd, workingMemoryPath), sessionNotesPath,
     workUnitRoot: workUnit => dirname(sessionNotesPath(workUnit)) };
 }

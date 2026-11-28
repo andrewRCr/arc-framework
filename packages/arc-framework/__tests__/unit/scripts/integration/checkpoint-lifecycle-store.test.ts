@@ -14,10 +14,11 @@ import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { createIntegrationMergeDependencies } from "../../../../src/scripts/integration/merge-composition.js";
-import { readIntegrationCheckpointComposition } from "../../../../src/scripts/integration/checkpoint-store.js";
+import { integrationCheckpointLocation, readIntegrationCheckpointComposition } from "../../../../src/scripts/integration/checkpoint-store.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
-import { createUserSurfaceResolver } from "../../../../src/lib/user-surfaces.js";
 import { SlugSchema, canonicalDigest } from "../../../../src/lib/kernel/index.js";
+import { isExcludedProjectionPath } from "../../../../src/lib/store/projection/discovery-exclusions.js";
+import { RecordReferenceSchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { candidateFixture } from "../../../helpers/store/tracked-write-fixture.js";
 import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
@@ -78,8 +79,7 @@ async function compositionFixture() {
   return { ...h, head, options };
 }
 
-it("persists the exact stored meta version the checkpoint observed", async () => {
-  const h = await compositionFixture();
+async function createCheckpoint(h: Awaited<ReturnType<typeof compositionFixture>>): Promise<string> {
   await h.seedProject("123e4567-e89b-42d3-a456-426614174099");
   await h.seedCandidate(h.primary.reference.owner, candidateFixture());
   const dependencies = createIntegrationCheckpointDependencies(h.options);
@@ -93,12 +93,51 @@ it("persists the exact stored meta version the checkpoint observed", async () =>
     settlementPlan: composeCanonicalSettlementPlan([]), mergeMethod: { schemaVersion: 1,
       mode: "review-merge-method-resolve", repository: "owner/repo", stackPosition: "non-delivery", state: "validated",
       nextAction: "use-method", method: "merge", allowedMethods: ["merge"], policyFingerprint: canonicalDigest({ policy: 1 }) } });
-  expect(result.status).toBe("created");
   if (result.status !== "created") throw new Error("Expected the checkpoint handle");
-  const surfaces = createUserSurfaceResolver({ cwd: h.cwd, identity: SlugSchema.parse("test-user") });
-  const saved = await readIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), "example", result.handle);
-  expect(saved?.nativeOwnership).toEqual({ projectId: "123e4567-e89b-42d3-a456-426614174099", workItemUid: h.primary.reference.owner.type === "work-item" ? h.primary.reference.owner.uid : undefined });
+  return result.handle;
+}
+
+function primaryUid(h: Awaited<ReturnType<typeof compositionFixture>>): string {
+  const owner = h.primary.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the primary's work-item UID");
+  return owner.uid;
+}
+
+it("persists the exact stored meta version the checkpoint observed", async () => {
+  const h = await compositionFixture(), handle = await createCheckpoint(h);
+  const location = await integrationCheckpointLocation({ cwd: h.cwd, identity: SlugSchema.parse("test-user"),
+    workUnit: "example", store: h.store, exec: h.options.exec });
+  const saved = await readIntegrationCheckpointComposition(location, handle);
+  expect(saved?.nativeOwnership).toEqual({ projectId: "123e4567-e89b-42d3-a456-426614174099", workItemUid: primaryUid(h) });
   expect(saved?.lifecycleVersion).toBe(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).version);
+});
+
+it("keeps the checkpoint record in its work item's machine-local folder, outside the store and the projection", async () => {
+  const h = await compositionFixture(), handle = await createCheckpoint(h);
+  const key = `.internal/integration-checkpoints/${primaryUid(h)}/${handle.slice(handle.lastIndexOf(":") + 1)}.json`;
+  const path = `.arc/user/test-user/${key}`;
+  expect(JSON.parse(await readFile(join(h.cwd, path), "utf8"))).toMatchObject({ workUnit: "example",
+    nativeOwnership: { workItemUid: primaryUid(h) } });
+  expect(isExcludedProjectionPath(path)).toBe(true);
+  const reference = RecordReferenceSchema.parse({ kind: "personal/document", key, owner: { type: "person", name: "test-user" } });
+  expect(await h.store.write({ action: "put", reference, expected: null, content: "{}\n",
+    provenance: { verb: "integrate-checkpoint", lifecycleAction: "edit" } })).toMatchObject({ status: "refused" });
+});
+
+it("finds and admits a renamed work unit's checkpoint at its unchanged head", async () => {
+  const h = await compositionFixture(), handle = await createCheckpoint(h);
+  const candidate = lifecycleSuccess(await h.store.read({ reference: recordReferences["review/candidate"](h.primary.reference.owner) }));
+  lifecycleSuccess(await h.store.write({ action: "remove", reference: candidate.reference, expected: candidate.version,
+    provenance: { verb: "review-candidate-withdraw", lifecycleAction: "remove" } }));
+  const current = lifecycleSuccess(await h.store.read({ reference: h.primary.reference }));
+  const reference = RecordReferenceSchema.parse({ ...current.reference, owner: { ...current.reference.owner, name: "renamed" } });
+  lifecycleSuccess(await h.store.write({ ...recordPut(current, { content: current.content.replaceAll("example", "renamed") }),
+    reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  const dependencies = createIntegrationMergeDependencies({ ...h.options, workItem: reference.owner, workUnit: "renamed" });
+  const record = await dependencies.readCheckpoint("renamed", handle);
+  expect(record).toMatchObject({ workUnit: "example", approvedHead: h.head, nativeOwnership: { workItemUid: primaryUid(h) } });
+  if (record === null) throw new Error("Expected the renamed work unit's checkpoint");
+  await expect(dependencies.validateCheckpointOwnership?.(record, false)).resolves.toBeUndefined();
 });
 
 it("merge observes the current stored meta version and lifecycle rather than the projection", async () => {

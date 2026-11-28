@@ -1,7 +1,7 @@
 /**
  * Gone-upstream local-branch enumeration.
  *
- * One local `git for-each-ref` over a ref prefix, returning the short names of
+ * One local `git for-each-ref` over a ref prefix, returning the literal names of
  * local branches whose configured upstream has been deleted on the remote —
  * `%(upstream:track)` reports `gone`. The cross-machine orphan-branch reaper
  * reads this: integration on a sibling machine deletes the remote head, leaving
@@ -36,7 +36,7 @@ const GONE_TOKEN = "gone";
  *
  * @param exec - Injected git executor.
  * @param refPrefix - The ref namespace to scan (e.g. `refs/heads/`).
- * @returns Short branch names with a gone upstream; `[]` on any read failure.
+ * @returns Branch names without the leading `refs/heads/`; `[]` on any read failure.
  */
 export async function listGoneUpstreamBranches(
   exec: GitExec,
@@ -46,7 +46,7 @@ export async function listGoneUpstreamBranches(
   try {
     ({ stdout } = await exec("git", [
       "for-each-ref",
-      "--format=%(refname:short)%00%(upstream:track,nobracket)%00%(worktreepath)",
+      "--format=%(refname:lstrip=2)%00%(upstream:track,nobracket)%00%(worktreepath)",
       refPrefix,
     ]));
   } catch {

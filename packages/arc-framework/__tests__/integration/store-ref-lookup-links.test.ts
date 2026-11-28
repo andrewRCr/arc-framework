@@ -9,8 +9,10 @@ describe("ref lookup through code links", () => {
     const record = await seed(f, f.reference("work-item/meta"), undefined, { kind: "active" }, {
       branches: [{ repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] }],
     });
-    expect(success(await f.store.lookup({ kind: "ref", repository: "repo", ref: "feat/example" }))).toEqual({ reference: record.reference });
-    expect(await f.store.lookup({ kind: "ref", repository: "other", ref: "feat/example" })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    for (const ref of ["feat/example", "refs/heads/feat/example"]) {
+      expect(success(await f.store.lookup({ kind: "ref", repository: "repo", ref }))).toEqual({ reference: record.reference });
+      expect(await f.store.lookup({ kind: "ref", repository: "other", ref })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    }
   });
   it("prefers exact repository SHAs over copy keys across all records and returns every captured task", async () => {
     const f = await createRefFixture(), repository = "repo", sha = "a".repeat(40), copied = "b".repeat(40), landing = "d".repeat(40);
@@ -30,12 +32,14 @@ describe("ref lookup through code links", () => {
     expect(await f.store.lookup({ kind: "commit", repository, sha: "e".repeat(40) })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 
-  it("ranks a live branch holder above completed holders and names a live tie", async () => {
+  it.each([false, true])("ranks branch holders and reports live ties (mixed ref spellings=%s)", async mixed => {
     const f = await createRefFixture(), repository = "repo", ref = "feat/reused";
-    const links = { branches: [{ repository, ref, linkedAs: "created" as const, excluded: [] }] };
+    const link = { repository, ref, linkedAs: "created" as const, excluded: [] };
+    const links = { branches: [link] };
+    const liveLinks = mixed ? { branches: [{ ...link, ref: `refs/heads/${ref}` }] } : links;
     const old = await seed(f, f.reference("work-item/meta", "shared"), undefined, { kind: "active" }, links);
     success(await f.store.write({ ...update(f, old, old.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
-    const live = await seed(f, f.reference("work-item/meta", "shared"), undefined, { kind: "active" }, links);
+    const live = await seed(f, f.reference("work-item/meta", "shared"), undefined, { kind: "active" }, liveLinks);
     const input = { kind: "ref" as const, repository, ref };
     expect(success(await f.store.lookup(input)).reference).toEqual(live.reference);
     const other = await seed(f, f.reference("work-item/meta", "other"), undefined, { kind: "active" }, links);

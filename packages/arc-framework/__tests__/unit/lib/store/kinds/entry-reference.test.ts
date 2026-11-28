@@ -66,12 +66,10 @@ describe("production entry reference writes", () => {
         expect(parsed.data.entries[1]?.bytes).toContain("**Fixed\nwrapped header:**".replaceAll("\n", newline));
       }
     });
-  it("reads today's seeded memory and project inbox; ignores commented triggers and bold body prose", async () => {
+  it("reads today's seeded memory; ignores commented triggers and bold body prose", async () => {
     const memory = await readFile(new URL("../../../../../templates/user/WORKING-MEMORY.md", import.meta.url), "utf8");
     expect(parseEntryList(memory, "personal/working-memory").success).toBe(true);
     expect(parseEntryList("## Memories\n**Title:**\n_Remove when: done._\n\n**Bold body without a colon**\n", "personal/working-memory").success).toBe(true);
-    const inbox = await readFile(new URL("../../../../../arc/backlog/ATOMIC-INBOX.template.md", import.meta.url), "utf8");
-    expect(parseEntryList(inbox, "project-inbox/inbox").success).toBe(true);
   });
   it("refuses activation and retirement while production inbound entries remain", async () => {
     const fixture = createFixture({

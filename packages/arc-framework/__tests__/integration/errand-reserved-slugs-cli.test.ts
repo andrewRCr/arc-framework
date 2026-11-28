@@ -21,7 +21,7 @@ it.each(["personal", "project"])("opens, resumes and abandons an Errand named %s
   expect(await cliRows(f, "project")).toEqual([]);
   const repeated = await repairCli(f, args);
   expect(repeated, JSON.stringify(repeated)).toMatchObject({ result: { outcome: "refused", reason: "role-conflict" } });
-  await f.exec("git", ["push", "-u", "origin", `chore/${slug}`]);
+  await f.exec("git", ["push", "-u", "origin", `chore/${slug}-${owner.uid.slice(0, 8)}`]);
   const left = await repairCli(f, ["errand", "leave", slug, "--state", "paused", "--json"]);
   expect(left, JSON.stringify(left)).toMatchObject({ result: { outcome: "applied" } });
   const resumed = await repairCli(f, args);

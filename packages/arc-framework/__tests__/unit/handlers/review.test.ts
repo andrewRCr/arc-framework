@@ -1,5 +1,4 @@
 import { withReviewReport } from "../../fixtures/review-report-input.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
@@ -83,6 +82,7 @@ import {
 import {
   LocalPrepareCommandError,
 } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
+import { inRepoStore, inRepoStoreAt } from "../../helpers/store/in-repo-ports.js";
 
 describe("hosted fix settlement pre-effect guard", () => {
   const evidence = {
@@ -1068,7 +1068,7 @@ describe("handleReviewStatus", () => {
       state: "review-required" as const, nextAction: "run-review" as const };
     const ceiling = { target: { repository: "owner/repo", pullRequest: 42, headSha: statusTarget.headSha }, lane: "standard",
       exhaustedPassCount: 1, nextPass: 2 };
-    const store = createStore(createDefaultStorePorts({ checkoutRoot: "/repo", exec: scriptGitExec([]).exec }));
+    const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/repo", exec: scriptGitExec([]).exec }));
     const run = async (override: object) => {
       const output: string[] = [];
       let exitCode: number | undefined;
@@ -2418,6 +2418,8 @@ describe("handleReviewReduce", () => {
 });
 
 describe("handleReviewPrePublication", () => {
+  // Each case fixes a schema-1 boundary and its continuations, the in-repo implementation's boundary format.
+  const inRepo = { store: inRepoStoreAt("/repo", scriptGitExec([]).exec) };
   const target = { repository: "arc-framework/example", pullRequest: null, headSha: "a".repeat(40) };
   const standardReview = {
     obligation: "required" as const,
@@ -2526,7 +2528,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", { selfReview: "settled" }, refused);
+    await handleReviewPrePublication("example", { selfReview: "settled" }, refused, undefined, inRepo);
 
     const refusal = JSON.parse(String(refused.write.mock.calls[0]?.[0])) as {
       error: { code: string };
@@ -2548,7 +2550,7 @@ describe("handleReviewPrePublication", () => {
     expect(replay.scopeJudgmentTarget).toEqual(request.target);
     const compose = vi.fn(async () => ({ status: "composed" as const, request, advisories: [] }));
     const resumed = boundary({ compose });
-    await handleReviewPrePublication("example", { resume }, resumed);
+    await handleReviewPrePublication("example", { resume }, resumed, undefined, inRepo);
 
     expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
       selfReview: "settled",
@@ -2569,7 +2571,7 @@ describe("handleReviewPrePublication", () => {
         advisories: [],
       })),
     });
-    await handleReviewPrePublication("example", { resume }, moved);
+    await handleReviewPrePublication("example", { resume }, moved, undefined, inRepo);
     expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
     });
@@ -2600,7 +2602,7 @@ describe("handleReviewPrePublication", () => {
       const first = boundary({
         compose: vi.fn(async () => ({ status: "composed" as const, request: nextRequest, advisories: [] })),
       });
-      await handleReviewPrePublication("example", { resume }, first);
+      await handleReviewPrePublication("example", { resume }, first, undefined, inRepo);
 
       const envelope = JSON.parse(String(first.write.mock.calls[0]?.[0])) as {
         nextAction: { command?: string; postAttestContinuation?: { nextAction: { command: string } } };
@@ -2621,7 +2623,7 @@ describe("handleReviewPrePublication", () => {
           advisories: [],
         })),
       });
-      await handleReviewPrePublication("example", { resume: nextResume }, moved);
+      await handleReviewPrePublication("example", { resume: nextResume }, moved, undefined, inRepo);
       expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
         error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
       });
@@ -2650,7 +2652,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", { resume }, moved);
+    await handleReviewPrePublication("example", { resume }, moved, undefined, inRepo);
 
     expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
@@ -2676,7 +2678,7 @@ describe("handleReviewPrePublication", () => {
       readCandidate: async () => ({ status: "blocked" as const, reason: "Candidate is changing" }),
       compose,
     });
-    await handleReviewPrePublication("example", {}, first);
+    await handleReviewPrePublication("example", {}, first, undefined, inRepo);
 
     expect(JSON.parse(String(first.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "scope-judgment-required" },
@@ -2686,7 +2688,7 @@ describe("handleReviewPrePublication", () => {
     expect(first.persistBoundary).not.toHaveBeenCalled();
 
     const current = boundary({ compose });
-    await handleReviewPrePublication("example", {}, current);
+    await handleReviewPrePublication("example", {}, current, undefined, inRepo);
     const offer = JSON.parse(String(current.write.mock.calls[0]?.[0])) as {
       remedy: { argv: string[] };
     };
@@ -2696,7 +2698,7 @@ describe("handleReviewPrePublication", () => {
     const resumed = boundary({
       compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
     });
-    await handleReviewPrePublication("example", { resume: offer.remedy.argv[5] }, resumed);
+    await handleReviewPrePublication("example", { resume: offer.remedy.argv[5] }, resumed, undefined, inRepo);
     expect(JSON.parse(String(resumed.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
     });
@@ -2706,7 +2708,7 @@ describe("handleReviewPrePublication", () => {
     const initial = boundary({
       compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
     });
-    await handleReviewPrePublication("example", {}, initial);
+    await handleReviewPrePublication("example", {}, initial, undefined, inRepo);
     const ready = initial.persistBoundary.mock.calls[0]?.[1];
     const resume = Buffer.from(JSON.stringify({
       candidateId: request.candidateId,
@@ -2724,7 +2726,7 @@ describe("handleReviewPrePublication", () => {
       compose,
     });
 
-    await handleReviewPrePublication("example", { resume }, moved);
+    await handleReviewPrePublication("example", { resume }, moved, undefined, inRepo);
 
     expect(compose).toHaveBeenCalledOnce();
     expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
@@ -2736,7 +2738,7 @@ describe("handleReviewPrePublication", () => {
       readBoundary: async () => ({ boundary: ready, version: `sha256:${"9".repeat(64)}` }),
       compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
     });
-    await handleReviewPrePublication("example", { resume }, matching);
+    await handleReviewPrePublication("example", { resume }, matching, undefined, inRepo);
     expect(JSON.parse(String(matching.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
     });
@@ -2769,7 +2771,7 @@ describe("handleReviewPrePublication", () => {
       readText: async () => JSON.stringify({ frontline: { invocation: { mode: "skip" } } }),
       compose: vi.fn(async () => ({ status: "composed", request: skippedRequest, advisories: [] })),
     });
-    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies);
+    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies, undefined, inRepo);
     expect(dependencies.persistAcceptedFrontlineSkip).toHaveBeenCalledExactlyOnceWith(
       "/repo",
       {
@@ -2791,7 +2793,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(envelope).toMatchObject({
@@ -2813,7 +2815,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     // The digest travels with the boundary because submission authorizes against it: a boundary
     // recording only its Candidate identity could not tell a settled review from a superseded one.
@@ -2831,7 +2833,7 @@ describe("handleReviewPrePublication", () => {
       const initial = boundary({
         compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
       });
-      await handleReviewPrePublication("example", {}, initial);
+      await handleReviewPrePublication("example", {}, initial, undefined, inRepo);
       const ready = initial.persistBoundary.mock.calls[0]?.[1];
       const advanced = locus === "candidate-publish-ready"
         ? ready
@@ -2857,8 +2859,8 @@ describe("handleReviewPrePublication", () => {
         compose,
       });
 
-      await handleReviewPrePublication("example", { resume: token }, dependencies);
-      await handleReviewPrePublication("example", {}, dependencies);
+      await handleReviewPrePublication("example", { resume: token }, dependencies, undefined, inRepo);
+      await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
       expect(dependencies.write.mock.calls.map(([text]) => JSON.parse(String(text)))).toEqual([
         expect.objectContaining({ locus, candidateId: request.candidateId }),
@@ -2874,7 +2876,7 @@ describe("handleReviewPrePublication", () => {
     const initial = boundary({
       compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
     });
-    await handleReviewPrePublication("example", {}, initial);
+    await handleReviewPrePublication("example", {}, initial, undefined, inRepo);
     const ready = initial.persistBoundary.mock.calls[0]?.[1];
     const compose = vi.fn(async () => ({
       status: "composed" as const,
@@ -2887,7 +2889,7 @@ describe("handleReviewPrePublication", () => {
       compose,
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(compose).toHaveBeenCalledOnce();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
@@ -2903,7 +2905,7 @@ describe("handleReviewPrePublication", () => {
       readStandardLaneOwnerVersion: versions,
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "invalid-input", message: expect.stringContaining("progress changed") },
@@ -2916,7 +2918,7 @@ describe("handleReviewPrePublication", () => {
     "refuses a %s saved command against an advanced boundary with a plain re-entry remedy",
     async (caseName) => {
       const initial = boundary({ compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })) });
-      await handleReviewPrePublication("example", {}, initial);
+      await handleReviewPrePublication("example", {}, initial, undefined, inRepo);
       const ready = initial.persistBoundary.mock.calls[0]?.[1];
       const token = Buffer.from(JSON.stringify({
         ...(caseName === "legacy unbound" ? {} : {
@@ -2939,7 +2941,7 @@ describe("handleReviewPrePublication", () => {
         compose,
       });
 
-      await handleReviewPrePublication("example", { resume: token }, dependencies);
+      await handleReviewPrePublication("example", { resume: token }, dependencies, undefined, inRepo);
 
       expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
         error: { code: "invalid-input", message: expect.stringContaining("stale") },
@@ -2960,7 +2962,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-review-pending",
@@ -2985,7 +2987,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(dependencies.persistBoundary).toHaveBeenCalledWith("/repo", expect.objectContaining({
       locus: "candidate-convergence-verification-pending",
@@ -3027,7 +3029,7 @@ describe("handleReviewPrePublication", () => {
       }),
     });
 
-    await handleReviewPrePublication("example", { resume: initialResume }, dependencies);
+    await handleReviewPrePublication("example", { resume: initialResume }, dependencies, undefined, inRepo);
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       nextAction: {
@@ -3073,7 +3075,7 @@ describe("handleReviewPrePublication", () => {
         advisories: [],
       }));
     const replayDependencies = boundary({ compose: replayCompose });
-    await handleReviewPrePublication("example", { resume: replayToken }, replayDependencies);
+    await handleReviewPrePublication("example", { resume: replayToken }, replayDependencies, undefined, inRepo);
 
     expect(JSON.parse(String(replayDependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
@@ -3090,7 +3092,7 @@ describe("handleReviewPrePublication", () => {
       readBoundary: async () => ({ boundary: pending, version: `sha256:${"9".repeat(64)}` }),
       compose: replayCompose,
     });
-    await handleReviewPrePublication("example", {}, plainDependencies);
+    await handleReviewPrePublication("example", {}, plainDependencies, undefined, inRepo);
     expect(JSON.parse(String(plainDependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
     });
@@ -3128,7 +3130,7 @@ describe("handleReviewPrePublication", () => {
       compose,
     });
 
-    await handleReviewPrePublication("example", options, dependencies);
+    await handleReviewPrePublication("example", options, dependencies, undefined, inRepo);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "post-attest-judgment-mismatch" },
@@ -3142,7 +3144,7 @@ describe("handleReviewPrePublication", () => {
       readBoundary: async () => ({ boundary: pending, version: `sha256:${"9".repeat(64)}` }),
       compose,
     });
-    await handleReviewPrePublication("example", { resume: savedToken }, repaired);
+    await handleReviewPrePublication("example", { resume: savedToken }, repaired, undefined, inRepo);
     expect(JSON.parse(String(repaired.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
     });
@@ -3191,7 +3193,7 @@ describe("handleReviewPrePublication", () => {
       compose,
     });
 
-    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies);
+    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies, undefined, inRepo);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
@@ -3253,7 +3255,7 @@ describe("handleReviewPrePublication", () => {
       compose,
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     const refusal = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       error: { code: string };
@@ -3280,7 +3282,7 @@ describe("handleReviewPrePublication", () => {
       readBoundary,
       compose,
     });
-    await handleReviewPrePublication("example", { resume: replayToken }, tokenReentry);
+    await handleReviewPrePublication("example", { resume: replayToken }, tokenReentry, undefined, inRepo);
     expect(JSON.parse(String(tokenReentry.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "attestation-ordering-conflict" },
     });
@@ -3333,7 +3335,7 @@ describe("handleReviewPrePublication", () => {
     const first = boundary({
       compose: vi.fn(async () => ({ status: "composed", request: deliveryRequest, advisories: [] })),
     });
-    await handleReviewPrePublication("example", {}, first);
+    await handleReviewPrePublication("example", {}, first, undefined, inRepo);
     const firstEnvelope = JSON.parse(String(first.write.mock.calls[0]?.[0]));
     const pendingContinuation = firstEnvelope.nextAction.postAttestContinuation;
     expect(pendingContinuation.reviewedHead).toBe(rootReviewedHead);
@@ -3354,7 +3356,7 @@ describe("handleReviewPrePublication", () => {
       readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
       compose: composeBeforeRepair,
     });
-    await handleReviewPrePublication("example", {}, gitOnly);
+    await handleReviewPrePublication("example", {}, gitOnly, undefined, inRepo);
     const gitOnlyRefusal = JSON.parse(String(gitOnly.write.mock.calls[0]?.[0]));
     expect(gitOnlyRefusal.error.code).toBe("attestation-ordering-conflict");
     expect(composeBeforeRepair).toHaveBeenCalledOnce();
@@ -3367,7 +3369,7 @@ describe("handleReviewPrePublication", () => {
         reason: "The Candidate record still names the reviewed root head.",
       })),
     });
-    await handleReviewPrePublication("example", { resume: gitOnlyRecoveryToken }, unestablishedCandidate);
+    await handleReviewPrePublication("example", { resume: gitOnlyRecoveryToken }, unestablishedCandidate, undefined, inRepo);
     expect(JSON.parse(String(unestablishedCandidate.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "attestation-ordering-conflict" },
     });
@@ -3385,7 +3387,7 @@ describe("handleReviewPrePublication", () => {
       readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
       compose: vi.fn(async () => ({ status: "composed", request: movedRequest, advisories: [] })),
     });
-    await handleReviewPrePublication("example", {}, moved);
+    await handleReviewPrePublication("example", {}, moved, undefined, inRepo);
     const refusal = JSON.parse(String(moved.write.mock.calls[0]?.[0]));
     expect(refusal.error.code).toBe("attestation-ordering-conflict");
     expect(moved.persistBoundary).not.toHaveBeenCalled();
@@ -3402,7 +3404,7 @@ describe("handleReviewPrePublication", () => {
       readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
       compose: vi.fn(async () => ({ status: "composed", request: movedRequest, advisories: [] })),
     });
-    await handleReviewPrePublication("example", { resume: recoveryToken }, recovered);
+    await handleReviewPrePublication("example", { resume: recoveryToken }, recovered, undefined, inRepo);
     expect(recovered.recoverAttestationOrdering).toHaveBeenCalledOnce();
     expect(JSON.parse(String(recovered.write.mock.calls[0]?.[0]))).not.toHaveProperty("error");
   });
@@ -3444,10 +3446,10 @@ describe("handleReviewPrePublication", () => {
       compose,
     };
     const conflict = boundary(shared);
-    await handleReviewPrePublication("example", {}, conflict);
+    await handleReviewPrePublication("example", {}, conflict, undefined, inRepo);
     const recoveryToken = JSON.parse(String(conflict.write.mock.calls[0]?.[0])).remedy.argv[5];
     const recovery = boundary(shared);
-    await handleReviewPrePublication("example", { resume: recoveryToken }, recovery);
+    await handleReviewPrePublication("example", { resume: recoveryToken }, recovery, undefined, inRepo);
 
     expect(JSON.parse(String(recovery.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-review-pending",
@@ -3455,7 +3457,7 @@ describe("handleReviewPrePublication", () => {
     expect(recovery.recoverAttestationOrdering).not.toHaveBeenCalled();
     expect(recovery.persistBoundary).not.toHaveBeenCalled();
     const retry = boundary(shared);
-    await handleReviewPrePublication("example", { resume: recoveryToken }, retry);
+    await handleReviewPrePublication("example", { resume: recoveryToken }, retry, undefined, inRepo);
     expect(JSON.parse(String(retry.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-review-pending",
     });
@@ -3493,7 +3495,7 @@ describe("handleReviewPrePublication", () => {
       readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
       compose: vi.fn(async () => ({ status: "composed", request: currentRequest, advisories: [] })),
     });
-    await handleReviewPrePublication("example", {}, conflict);
+    await handleReviewPrePublication("example", {}, conflict, undefined, inRepo);
     const recoveryToken = (JSON.parse(String(conflict.write.mock.calls[0]?.[0])) as {
       remedy: { argv: string[] };
     }).remedy.argv[5];
@@ -3510,7 +3512,7 @@ describe("handleReviewPrePublication", () => {
         durableBoundary = value;
       }),
     });
-    await handleReviewPrePublication("example", { resume: recoveryToken }, recovered);
+    await handleReviewPrePublication("example", { resume: recoveryToken }, recovered, undefined, inRepo);
 
     expect(JSON.parse(String(recovered.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
@@ -3527,7 +3529,7 @@ describe("handleReviewPrePublication", () => {
         durableBoundary = value;
       }),
     });
-    await handleReviewPrePublication("example", { resume: recoveryToken }, stale);
+    await handleReviewPrePublication("example", { resume: recoveryToken }, stale, undefined, inRepo);
 
     expect(JSON.parse(String(stale.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "attestation-ordering-conflict" },
@@ -3543,7 +3545,7 @@ describe("handleReviewPrePublication", () => {
       }),
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "review-pre-publication",
@@ -3559,6 +3561,8 @@ describe("handleReviewPrePublication", () => {
       "example",
       { selfReview: "settled" },
       boundary({ compose }),
+      undefined,
+      inRepo,
     );
 
     expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
@@ -3576,7 +3580,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(dependencies.warn).toHaveBeenCalledWith(
       "the standard lane has no durable progress at this head\n",
@@ -3590,7 +3594,7 @@ describe("handleReviewPrePublication", () => {
     const compose = vi.fn();
     const dependencies = boundary({ compose });
 
-    await handleReviewPrePublication("example", { selfReview: "done" }, dependencies);
+    await handleReviewPrePublication("example", { selfReview: "done" }, dependencies, undefined, inRepo);
 
     expect(compose).not.toHaveBeenCalled();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
@@ -3611,6 +3615,8 @@ describe("handleReviewPrePublication", () => {
       "example",
       { changeSet: "-", lanes: "lanes.json" },
       dependencies,
+      undefined,
+      inRepo,
     );
 
     expect(readText).toHaveBeenCalledWith("-");
@@ -3627,7 +3633,7 @@ describe("handleReviewPrePublication", () => {
     const readText = vi.fn();
     const dependencies = boundary({ compose, readText });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(readText).not.toHaveBeenCalled();
     expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
@@ -3653,6 +3659,8 @@ describe("handleReviewPrePublication", () => {
       "example",
       { changeSet: "change.json", lanes: "lanes.json" },
       first,
+      undefined,
+      inRepo,
     );
 
     const firstEnvelope = JSON.parse(String(first.write.mock.calls[0]?.[0])) as {
@@ -3664,7 +3672,7 @@ describe("handleReviewPrePublication", () => {
     const readText = vi.fn();
     const second = boundary({ compose, readText });
 
-    await handleReviewPrePublication("example", { resume: token }, second);
+    await handleReviewPrePublication("example", { resume: token }, second, undefined, inRepo);
 
     expect(readText).not.toHaveBeenCalled();
     expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
@@ -3707,7 +3715,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request: findingsRequest, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies);
+    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies, undefined, inRepo);
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       locus: string;
@@ -3751,7 +3759,7 @@ describe("handleReviewPrePublication", () => {
     const pending = boundary({
       compose: vi.fn(async () => ({ status: "composed", request: minorRequest, advisories: [] })),
     });
-    await handleReviewPrePublication("example", {}, pending);
+    await handleReviewPrePublication("example", {}, pending, undefined, inRepo);
     const pendingEnvelope = JSON.parse(String(pending.write.mock.calls[0]?.[0])) as {
       locus: string;
       nextAction: { command: string; responseOperationId: string; resumeCommand: string };
@@ -3777,7 +3785,7 @@ describe("handleReviewPrePublication", () => {
         advisories: [],
       })),
     });
-    await handleReviewPrePublication("example", { resume: token }, performed);
+    await handleReviewPrePublication("example", { resume: token }, performed, undefined, inRepo);
     expect(JSON.parse(String(performed.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
       nextAction: { kind: "publish-candidate" },
@@ -3821,7 +3829,7 @@ describe("handleReviewPrePublication", () => {
       compose,
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-fix-pending",
@@ -3838,7 +3846,7 @@ describe("handleReviewPrePublication", () => {
       readRootGitHead: async () => "e".repeat(40),
       compose,
     });
-    await handleReviewPrePublication("example", {}, unrelated);
+    await handleReviewPrePublication("example", {}, unrelated, undefined, inRepo);
     expect(JSON.parse(String(unrelated.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "attestation-ordering-conflict" },
     });
@@ -3873,7 +3881,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request: readyRequest, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies);
+    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies, undefined, inRepo);
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
@@ -3959,7 +3967,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request: nextRequest, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", { resume }, dependencies);
+    await handleReviewPrePublication("example", { resume }, dependencies, undefined, inRepo);
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
@@ -4008,7 +4016,7 @@ describe("handleReviewPrePublication", () => {
     const readText = vi.fn();
     const dependencies = boundary({ compose, readText });
 
-    await handleReviewPrePublication("example", { changeSet: "-", lanes: "-" }, dependencies);
+    await handleReviewPrePublication("example", { changeSet: "-", lanes: "-" }, dependencies, undefined, inRepo);
 
     expect(readText).not.toHaveBeenCalled();
     expect(compose).not.toHaveBeenCalled();
@@ -4023,7 +4031,7 @@ describe("handleReviewPrePublication", () => {
     const compose = vi.fn();
     const dependencies = boundary({ compose, readText: async () => "{ not json" });
 
-    await handleReviewPrePublication("example", { [option]: "facts.json" }, dependencies);
+    await handleReviewPrePublication("example", { [option]: "facts.json" }, dependencies, undefined, inRepo);
 
     expect(compose).not.toHaveBeenCalled();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
@@ -4040,7 +4048,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "review-pre-publication",
@@ -4061,7 +4069,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "review-pre-publication",
@@ -4085,7 +4093,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     const refusal = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(refusal).toMatchObject({
@@ -4102,7 +4110,7 @@ describe("handleReviewPrePublication", () => {
     const compose = vi.fn();
     const dependencies = boundary({ resolveRoot: () => null, compose });
 
-    await handleReviewPrePublication("example", {}, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies, undefined, inRepo);
 
     expect(compose).not.toHaveBeenCalled();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
@@ -4120,7 +4128,7 @@ describe("handleReviewPrePublication", () => {
   ] as const)("names the resume command on %s", async (_case, options, overrides) => {
     const dependencies = boundary(overrides);
 
-    await handleReviewPrePublication("example", options, dependencies);
+    await handleReviewPrePublication("example", options, dependencies, undefined, inRepo);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       remedy: { argv: ["arc", "review", "pre-publication", "example"] },
@@ -4131,7 +4139,7 @@ describe("handleReviewPrePublication", () => {
     const compose = vi.fn();
     const dependencies = boundary({ compose });
 
-    await handleReviewPrePublication("Not A Slug", {}, dependencies);
+    await handleReviewPrePublication("Not A Slug", {}, dependencies, undefined, inRepo);
 
     expect(compose).not.toHaveBeenCalled();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({

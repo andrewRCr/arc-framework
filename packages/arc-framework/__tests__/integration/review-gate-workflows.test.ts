@@ -379,7 +379,7 @@ describe("trusted review-gate workflows", () => {
 
     const candidate = sectionBetween(
       packaged,
-      "## Phase 2: Compose, sweep, ship",
+      "## Phase 2: Compose, archive, ship",
       "### 10) Behind-base reconcile gate and merge",
     );
     expect(candidate).toContain("`review-settled`");
@@ -418,7 +418,7 @@ describe("trusted review-gate workflows", () => {
     const completionNotes = sectionBetween(
       packaged,
       "### 6) Compose Completion Notes",
-      "### 7) Commit completion content",
+      "### 7) Save completion content and remove the review copy",
     );
     expect(completionNotes).toMatch(softWrappedPattern(/delivered\s+scope[\s\S]*material\s+deviations\s+or\s+supersessions/u));
     expect(completionNotes).toMatch(softWrappedProse("verified evidence"));
@@ -503,7 +503,7 @@ describe("trusted review-gate workflows", () => {
 
     const complete = sectionBetween(packaged, "### Complete");
     expect(complete).toMatch(
-      softWrappedPattern(/arc errand close <slug> --json[\s\S]*finalizes\s+the\s+exact\s+v3\s+identity\s+tail[\s\S]*reaps\s+refs[\s\S]*drops\s+only\s+its\s+origin\s+capture/iu),
+      softWrappedPattern(/arc errand close <slug> --json[\s\S]*finalizes\s+the\s+exact\s+v3\s+identity\s+tail[\s\S]*reaps\s+refs[\s\S]*removes\s+nothing\s+from\s+an\s+inbox/iu),
     );
     expect(complete).toMatch(
       softWrappedPattern(/conversation[\s\S]*exact\s+next\s+Errand[\s\S]*takes\s+precedence\s+over\s+`nextOffer`[\s\S]*no\s+additional\s+completion\s+offer/iu),
@@ -524,10 +524,9 @@ describe("trusted review-gate workflows", () => {
     );
   });
 
-  it("keeps auto-merge arming on canonical classification", async () => {
+  it("arms no auto-merge from the planning classifier", async () => {
     const paths = {
       errand: "system/workflows/arc/supplemental/run-errand.md",
-      drain: "system/workflows/arc/supplemental/drain-inbox.md",
       setup: "system/workflows/arc/supplemental/setup-merge-gate.md",
       readme: "reference/templates/arc/merge-gate/README.md",
       codeowners: "reference/templates/arc/merge-gate/CODEOWNERS",
@@ -542,22 +541,23 @@ describe("trusted review-gate workflows", () => {
     }));
     const documents = Object.fromEntries(entries);
 
-    expect(documents.errand).toContain("arc review planning-lane <base-sha> <head-sha>");
-    expect(documents.errand).toMatch(softWrappedPattern(/Only\s+literal\s+`planning`[\s\S]*auto-merge-lane/iu));
+    expect(documents.errand).not.toContain("arc review planning-lane");
     expect(documents.errand).toContain("arc errand merge <slug> - --json");
     expect(documents.errand).not.toContain("gh pr merge");
     expect(documents.errand).toMatch(softWrappedPattern(
       /Continue\s+only\s+from\s+a\s+`clean`\s+or\s+`reconcile`\s+verdict[^.]*whose\s+`headOid`\s+equals\s+the\s+exact\s+Errand\s+head;\s+an\s+`unavailable`\s+verdict\s+stops/u,
     ));
     expect(documents.errand).not.toMatch(/healthy\s+reading/u);
-    expect(documents.drain).toMatch(
-      /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
-    );
-    expect(documents.setup).toMatch(/canonical\s+classifier/iu);
+    const arming = /before\s+arming|ARC\s+arms|arms\s+auto-merge|never\s+arms|armed\s+by\s+ARC|arming\s+and\s+merge\s+authorities|and\s+is\s+not\s+armed/iu;
+    for (const name of ["setup", "readme", "codeowners", "initial"] as const) {
+      expect(documents[name], name).not.toMatch(arming);
+    }
+    expect(documents.setup).not.toContain("arc review planning-lane");
+    expect(documents.initial).not.toMatch(/canonical\s+classifier/iu);
     expect(documents.setup).toMatch(softWrappedPattern(/procedural\s+boundary[\s\S]*never\s+infer\s+merge\s+safety/iu));
-    expect(documents.readme).toMatch(/canonical\s+classifier/iu);
-    expect(documents.initial).toMatch(softWrappedPattern(/planning\s+auto-merge\s+lane[\s\S]*canonical\s+classifier/iu));
+    expect(documents.readme).toMatch(softWrappedProse("so the integration interlock is the procedural boundary"));
     expect(documents.initial).toMatch(softWrappedPattern(/Draft-state\s+merge\s+lock[\s\S]*merge\.lock:\s*draft/iu));
+    expect(documents.initial).toMatch(softWrappedProse("the integration interlock remains the merge authority"));
     expect(documents.strategy).toMatch(/merge\.lock:\s*draft/iu);
     expect(documents.strategy).toMatch(softWrappedPattern(/never\s+infer\s+merge\s+safety\s+from\s+agent-layer\s+discipline\s+alone/iu));
   });
@@ -769,7 +769,7 @@ describe("trusted review-gate workflows", () => {
     expect(approval).toBeLessThan(merge);
   });
 
-  it("resumes swept candidates and refires after append-only corrections", async () => {
+  it("resumes archived candidates and refires after saved or appended corrections", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
@@ -802,9 +802,10 @@ describe("trusted review-gate workflows", () => {
       "### 10) Behind-base reconcile gate and merge",
       "### 11) Post-merge worktree cleanup",
     );
-    expect(gate).toMatch(softWrappedProse("requested composition correction"));
-    expect(gate).toMatch(softWrappedPattern(/Append[\s\S]*never\s+amend/u));
-    expect(gate).toMatch(softWrappedPattern(/rerun\s+affected\s+gates\s+and\s+routing[\s\S]*push[\s\S]*rebuild\s+the\s+checkpoint/u));
+    expect(gate).toMatch(softWrappedProse("requests a composition correction instead of merge authorization"));
+    expect(gate).toMatch(softWrappedPattern(/correction\s+into\s+the\s+meta[\s\S]*save\s+it\s+with\s+`arc save`/u));
+    expect(gate).toMatch(softWrappedPattern(/appends\s+a\s+commit[\s\S]*never\s+amend/u));
+    expect(gate).toMatch(softWrappedPattern(/reruns\s+affected\s+gates\s+and\s+routing[\s\S]*pushes[\s\S]*Rebuild\s+the\s+checkpoint/u));
     expect(gate).toMatch(softWrappedProse("`invalidated / checkpoint` returns to the checkpoint"));
     expect(gate).not.toMatch(softWrappedProse("Any candidate mutation or review action invalidates the checkpoint"));
     expect(gate).not.toMatch(softWrappedProse("authorizes merge only if"));
@@ -815,8 +816,6 @@ describe("trusted review-gate workflows", () => {
     const directory = resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle");
     const requiredProduct = new Map([
       ["integrate-work-unit.md", "arc integrate checkpoint {name}"],
-      ["park-work-unit.md", "arc park"],
-      ["resume-work-unit.md", "arc resume"],
     ]);
     let commandCount = 0;
     for (const name of (await readdir(directory)).filter((entry) => entry.endsWith(".md"))) {
@@ -830,29 +829,18 @@ describe("trusted review-gate workflows", () => {
         expect(prefix.lastIndexOf("`integration-interlock`")).toBeGreaterThan(prefix.lastIndexOf(product ?? ""));
       }
     }
-    expect(commandCount).toBe(3);
+    expect(commandCount).toBe(1);
   });
 
-  it("gates full-protection decomposition merge after PR status", async () => {
+  it("lands a decomposition through its terminal batch with no pull request or merge", async () => {
     const decompose = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
     );
-    const partial = sectionBetween(decompose, "### Partial protection", "### Full protection");
-    const full = sectionBetween(
-      decompose,
-      "### Full protection",
-      "## 7. Confirm lifecycle readiness and finish",
-    );
-    const status = indexOfSoftWrappedProse(full, "Surface PR status");
-    const interlock = full.indexOf("`integration-interlock`");
-    const merge = indexOfSoftWrappedProse(full, "merge according to project policy");
-    for (const position of [status, interlock, merge]) expect(position).toBeGreaterThan(-1);
 
-    expect(decompose).not.toMatch(/^\s*gh pr merge[^\n]*/gmu);
-    expect(partial).not.toContain("`integration-interlock`");
-    expect(status).toBeGreaterThan(-1);
-    expect(interlock).toBeGreaterThan(status);
-    expect(merge).toBeGreaterThan(interlock);
+    expect(decompose).toMatch(softWrappedProse("The terminal batch is the landing"));
+    expect(decompose).not.toMatch(/^\s*gh pr (?:create|merge)[^\n]*/gmu);
+    expect(decompose).not.toContain("`integration-interlock`");
+    expect(decompose).not.toContain("`push-interlock`");
   });
 
   it("guards the post-merge tail on completion and archival products", async () => {
@@ -869,8 +857,11 @@ describe("trusted review-gate workflows", () => {
     expect(resumeEntry).toMatch(softWrappedProse("A merged PR proves only that the merge ran"));
     expect(resumeEntry).toMatch(softWrappedProse("Completion Notes"));
     expect(resumeEntry).toMatch(softWrappedPattern(/under\s+`with-integration`,\s+the\s+resolver\s+reports\s+`shipped`\s+in\s+`completed`/iu));
-    expect(resumeEntry).toMatch(softWrappedPattern(/do\s+not\s+invoke\s+`arc user close`\s+or\s+`arc teardown`/u));
-    expect(resumeEntry).toMatch(softWrappedProse("lifecycle-only repair change request"));
+    expect(resumeEntry).toMatch(softWrappedPattern(/do\s+not\s+invoke\s+`arc teardown`/u));
+    expect(resumeEntry).not.toContain("arc user close");
+    expect(resumeEntry).toMatch(softWrappedPattern(/missing\s+composition\s+into\s+the\s+meta\s+and\s+save\s+it\s+with\s+`arc save`/u));
+    expect(resumeEntry).toMatch(softWrappedPattern(/archive-work-unit\.md[\s\S]*when\s+the\s+archive\s+has\s+not\s+run/u));
+    expect(resumeEntry).not.toMatch(softWrappedProse("repair change request"));
   });
 
   it("attests the lane only from trusted pull-request-target code", async () => {

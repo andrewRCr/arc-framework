@@ -11,6 +11,8 @@ import { AttestResultSchema } from "../../src/lib/work-unit/verbs/attest.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { resolveChangeRequest } from "../../src/scripts/review-gate/change-request.js";
+import { createGhChangeRequestResolutionPort } from "../../src/scripts/review-gate/hosts/github/change-request.js";
 
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
 
@@ -90,6 +92,8 @@ it.each([true, false])("reports an exported replacement when the Candidate batch
   if (json) expect(retry).toMatchObject({ status: "attested" });
   else expect(retry).not.toContain(notice);
   expect(retry).not.toHaveProperty("designExport");
+  expect((await h.exec("git", ["diff", "--cached", "--name-status", "HEAD", "--", path], { cwd: h.cwd })).stdout)
+    .toBe(`A\t${path}`);
   expect(await store.read({ reference: recordReferences["review/candidate"](h.primary.reference.owner) })).toMatchObject({ status: "ok" });
 }, 30_000);
 
@@ -165,6 +169,47 @@ it("stages an already matching untracked copy at attestation", async () => {
   await writeFile(join(h.cwd, path), "# Stored specification\n");
   expect(await h.attest()).toMatchObject({ status: "attested" });
   expect((await h.exec("git", ["show", `:${path}`], { cwd: h.cwd })).stdout).toBe("# Stored specification");
+}, 30_000);
+
+it("cleans up a staged review re-export and resumes after the host observes the cleanup push", async () => {
+  const h = await fixture({ generation: "branch" }), path = ".arc/specs/example/spec-example.md";
+  const git = async (...args: string[]) => (await h.exec("git", args, { cwd: h.cwd })).stdout.trim();
+  const headRef = "topic/opaque";
+  expect(await h.attest()).toMatchObject({ status: "attested", designExport: { path } });
+  await git("commit", "-m", "Export the review copy");
+  await git("push", "origin", headRef);
+  const exportHead = await git("rev-parse", "HEAD");
+  await git("rm", "--", path);
+  await git("commit", "-m", "Remove the review copy");
+  const cleanupHead = await git("rev-parse", "HEAD");
+  let hostHead = exportHead;
+  const port = { ...createGhChangeRequestResolutionPort(h.exec, h.cwd), resolveRepository: async () => "owner/repo",
+    listByHead: async () => [{ number: 42, url: "https://github.com/owner/repo/pull/42", state: "OPEN" as const,
+      baseRefName: "main", headRefName: headRef, headRefOid: hostHead }] };
+  const resolve = (headSha: string) => resolveChangeRequest({ headRef, headSha, baseRef: "main" }, port);
+  expect(await resolve(exportHead)).toMatchObject({ state: "open", candidate: { headRefOid: exportHead } });
+  expect(await git("ls-tree", "--name-only", exportHead, "--", path)).toBe(path);
+  expect(await git("ls-tree", "--name-only", cleanupHead, "--", path)).toBe("");
+
+  expect(await h.attest()).toMatchObject({ status: "unchanged", designExport: { path, overwritten: false } });
+  expect(await git("diff", "--cached", "--diff-filter=A", "--name-only")).toBe(path);
+  const workflow = await readFile(new URL("../../arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md", import.meta.url), "utf8");
+  const step = workflow.split("### 10)")[1]?.split("### 11)")[0];
+  const restore = step?.match(/`git (restore[^`]+)`/u)?.[1]?.replaceAll("{name}", "example");
+  if (restore === undefined) throw new Error("Review-copy cleanup command is missing");
+  await git(...restore.split(/\s+/u));
+  expect(await git("diff", "--cached", "--name-only", "--", path)).toBe("");
+  await git("push", "origin", headRef);
+
+  expect(await resolve(exportHead)).toMatchObject({ state: "blocked", reason: "head-mismatch" });
+  const pending = await resolve(cleanupHead);
+  expect(pending).toMatchObject({ state: "ambiguous", headAhead: true, headPublished: true });
+  if (pending.state !== "ambiguous" || pending.remedy === undefined) throw new Error("Host catch-up remedy is missing");
+  hostHead = cleanupHead;
+  const landed = await resolve(pending.remedy.argv.at(-1) ?? "");
+  expect(landed).toMatchObject({ state: "open", candidate: { headRefOid: cleanupHead } });
+  if (landed.state !== "open") throw new Error("The cleanup push has not resolved as open");
+  expect(await git("ls-tree", "--name-only", landed.candidate.headRefOid, "--", path)).toBe("");
 }, 30_000);
 
 it.each(["review/integration-boundary", "review/candidate", "work-item/spec", "work-item/task-list"] as const)(

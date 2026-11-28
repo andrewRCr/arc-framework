@@ -91,7 +91,8 @@ export async function handleInit(
 
   // Run init with progress feedback
   const spinner = p.spinner();
-  spinner.start("Installing ARC framework...");
+  const progress = { spinner, label: "Installing ARC framework..." };
+  spinner.start(progress.label);
 
   try {
     const result = await runInit({
@@ -102,7 +103,7 @@ export async function handleInit(
       recipe,
       prompts,
       identityResult,
-      confirmIdentityInUse: confirmPersonalIdentity(initIdentityInUsePromptSite, context),
+      confirmIdentityInUse: confirmPersonalIdentity(initIdentityInUsePromptSite, context, undefined, progress),
     });
 
     if (!result) {

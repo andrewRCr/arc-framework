@@ -23,7 +23,7 @@ Templates mark fill-in points with three distinct syntaxes — see [strategy-fil
 - `{slot}` — author-substitution slot (single brace). Short name slots use a `{kebab-token}`;
   longer slots carry the authoring instruction as prose or an enum inside the braces.
 - `{{TOKEN}}` — render-engine token (double brace). The CLI substitutes it programmatically at
-  `arc init` / `arc user open` time.
+  `arc init` / `arc update` time.
 - `[lowercase-sentinel]` — literal empty-value marker (`[none]`, `[internal]`). It stays in the
   file to signal "intentionally empty / not applicable."
 

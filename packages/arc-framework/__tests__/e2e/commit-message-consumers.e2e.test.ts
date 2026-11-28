@@ -10,8 +10,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { COMMIT_MESSAGE_FIXTURES } from "../fixtures/commit-msg/cases.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
-import { runCli } from "../helpers/run-cli.js";
+import { writeProjectedIgnores } from "../helpers/projected-ignores.js";
 import { cleanupTempDir, createTempRepo } from "./helpers.js";
+import { runCli } from "../helpers/run-cli.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -120,6 +121,7 @@ async function setupFixture(fixtureConfig: string, messageBytes: Uint8Array): Pr
   await writeFile(join(repository, "tracked.txt"), "initial\n");
   await git(["add", "tracked.txt"]);
   await git(["commit", "-m", "initial"]);
+  await writeProjectedIgnores(repository, "test-user");
   const hook = await installCommitMessageConsumer(fixtureConfig);
   const messagePath = join(repository, "message.txt");
   await writeFile(messagePath, messageBytes);

@@ -88,6 +88,10 @@ export interface StoreRemoteConfirmation {
 export type StoreMigrateResult = StoreCommandResult<MigrateReport> | StoreDesignationQuestion;
 /** The remote entry's complete result. */
 export type StoreRemoteResult = StoreCommandResult<StoreRemoteView> | StoreRemoteConfirmation;
+/** What a project's creation found: a remote already carrying a role, no code remote, or the code remote it set to push. */
+export type StoreCreationDesignation = { state: "designated" } | { state: "local" } | { state: "set"; remote: string };
+/** The creation designation's complete result. */
+export type StoreCreationDesignationResult = StoreCommandResult<StoreCreationDesignation> | StoreRemoteConfirmation;
 
 /** Exact conflict inspection or explicit discard; the handler owns output formatting. */
 export const StoreConflictInputSchema = z.strictObject({ uid: StoredUidSchema, kind: KindIdSchema.refine((kind) => {

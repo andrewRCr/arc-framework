@@ -52,11 +52,14 @@ it.each(["init", "join"] as const)("%s declines an occupied identity before chan
   const { CLACK_PROMPT_RENDERER } = await import("../../src/lib/command-input/prompt-renderer.js");
   const context = resolveInteractionContext({ noInput: false, ci: false, machineReadable: false, promptInputIsTTY: true, promptOutputIsTTY: true, yes: "absent" });
   await h.seed(inbox, "# Inbox\n\n## Work Unit\n");
-  const options = { ...h.options, templateDir: "/templates", io: { ...h.options.io, access: async () => {}, chmod: async () => {}, exclusiveCreate: async () => {}, removeFile: async () => {} },
+  const missing = async () => { throw Object.assign(new Error("ENOENT"), { code: "ENOENT" }); };
+  const options = { ...h.options, templateDir: "/templates", io: { ...h.options.io, access: command === "init" ? missing : async () => {},
+    chmod: async () => {}, exclusiveCreate: async () => {}, removeFile: async () => {} },
     confirmIdentityInUse: confirmPersonalIdentity(command === "init" ? initIdentityInUsePromptSite : joinIdentityInUsePromptSite, context,
       { ...CLACK_PROMPT_RENDERER, confirm: async () => ({ kind: "answered", value: false }) }) };
   const operation = command === "join" ? runJoin({ ...options, prompts: { role: "maintainer", tools: [] } })
-    : runInit({ ...options, prompts: DEFAULT_PROMPTS, recipe: { prompts: [], conditions: {} } });
+    : runInit({ ...options, prompts: DEFAULT_PROMPTS, recipe: { prompts: [], conditions: {} },
+      designateStateRemote: async () => ({ status: "ok", result: { state: "local" } }) });
   await expect(operation).rejects.toMatchObject({ code: "identity.in-use", whatToDo: expect.stringContaining("--identity <name>") });
   expect(h.config.size).toBe(0);
   expect(h.files.size).toBe(0);

@@ -15,6 +15,7 @@ import {
   removeGitBackedDir,
   runArcNoTty,
 } from "./helpers.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 const cleanup: string[] = [];
@@ -80,26 +81,6 @@ afterEach(async () => {
 });
 
 describe("arc base merge", () => {
-  it.each(["conflict", "true"])("keeps live artifacts in place while following file renames (%s)", async (setting) => {
-    const { repo, newBase } = await fixture({ archiveActive: true });
-    await git(repo, ["config", "merge.directoryRenames", setting]);
-    const featureHead = await git(repo, ["rev-parse", "HEAD"]);
-
-    const result = await runArcNoTty([
-      "base", "merge", "--expected-base", newBase, "--expected-head", featureHead,
-    ], repo);
-
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ state: "merged" });
-    expect(await git(repo, ["ls-files", "--", ".arc/active"]))
-      .toBe(".arc/active/notes-current.md");
-    expect(await readFile(join(repo, ".arc/active/notes-current.md"), "utf8")).toBe("current\n");
-    expect(await readFile(join(repo, ".arc/completed/archived/notes-archived.md"), "utf8"))
-      .toBe("archived\nbranch edit\n");
-    expect(await git(repo, ["config", "merge.directoryRenames"])).toBe(setting);
-    expect(await git(repo, ["status", "--porcelain"])).toBe("");
-  });
-
   it("rejects a moved checkpoint Candidate head without changing the worktree", async () => {
     const { repo, newBase } = await fixture();
     const featureHead = await git(repo, ["rev-parse", "HEAD"]);
@@ -243,5 +224,31 @@ describe("arc base merge", () => {
       expectedBase: newBase,
       expectedHead: featureHead,
     });
+  });
+});
+
+describe("arc base merge over the in-repo store", () => {
+  // Archiving by moving tracked artifacts out of `.arc/active/` is the in-repo store's; the store archives records it
+  // holds off the branch.
+  useInRepoStoreForEach();
+
+  it.each(["conflict", "true"])("keeps live artifacts in place while following file renames (%s)", async (setting) => {
+    const { repo, newBase } = await fixture({ archiveActive: true });
+    await git(repo, ["config", "merge.directoryRenames", setting]);
+    const featureHead = await git(repo, ["rev-parse", "HEAD"]);
+
+    const result = await runArcNoTty([
+      "base", "merge", "--expected-base", newBase, "--expected-head", featureHead,
+    ], repo);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ state: "merged" });
+    expect(await git(repo, ["ls-files", "--", ".arc/active"]))
+      .toBe(".arc/active/notes-current.md");
+    expect(await readFile(join(repo, ".arc/active/notes-current.md"), "utf8")).toBe("current\n");
+    expect(await readFile(join(repo, ".arc/completed/archived/notes-archived.md"), "utf8"))
+      .toBe("archived\nbranch edit\n");
+    expect(await git(repo, ["config", "merge.directoryRenames"])).toBe(setting);
+    expect(await git(repo, ["status", "--porcelain"])).toBe("");
   });
 });

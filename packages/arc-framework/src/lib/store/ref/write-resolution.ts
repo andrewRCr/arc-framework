@@ -14,16 +14,17 @@ import { bindProjectMutations } from "./project-identity.js";
 import { readRefTips } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { checkLiveNamespace, leavesPrimaryEnded } from "./namespace-admission.js";
-import { readLineageOwners, lineageOwnerCandidates } from "./lineage-resolution.js";
+import { lineageOwnerCandidates } from "./lineage-resolution.js";
 import { retirementTargets } from "./write-retirement.js";
 import { resolveNamedRefWrites, writeOwnerNameKey } from "./write-names.js";
+import { capturePlannedRecords } from "./write-planned.js";
 import { resolveRetiredConflicts } from "./write-retained.js";
 import { readLiveRefOwners, type LiveRefOwners } from "./live-owners.js";
 
 /** Canonical mutation and its concrete ref/tree address. */
 export interface ResolvedMutation { mutation: Mutation; home: StoredRecordHome; prior?: { reference: RecordReference; home: StoredRecordHome } }
 /** One resolved owner generation per name, with its captured mutation basis. */
-export interface ResolvedBatch { writes: ResolvedMutation[]; freshOwners: readonly OwnerIdentity[]; tips: Map<string, string>; archived?: readonly ArchivedFolder[]; retained?: readonly RefWriteTarget[] }
+export interface ResolvedBatch { writes: ResolvedMutation[]; freshOwners: readonly OwnerIdentity[]; plannedBirthUids: readonly string[]; tips: Map<string, string>; archived?: readonly ArchivedFolder[]; retained?: readonly RefWriteTarget[] }
 /** A ref/tree coordinate that the batch may change directly or through resolution. */
 export interface RefWriteTarget { reference: RecordReference; home: StoredRecordHome }
 
@@ -42,7 +43,11 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   const project = await bindProjectMutations(context, writes, tips);
   if (project.status === "refused") return project;
   writes = project.result;
-  const named = await resolveNamedRefWrites(context, writes, tips);
+  const capturedPlans = await capturePlannedRecords(context, writes, tips);
+  if (capturedPlans.status === "refused") return capturedPlans;
+  const { records: proposed, held, lineage } = capturedPlans.result;
+  const planned = [...proposed].filter(([uid]) => !held.has(uid));
+  const named = await resolveNamedRefWrites(context, writes, tips, planned.map(([, reference]) => reference));
   if (named.status === "refused") return named;
   writes = named.result.writes;
   const observed = await readLiveRefOwners(context, tips);
@@ -55,10 +60,6 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   const retained = await resolveRetiredConflicts(context, writes, tips);
   if (retained.status === "refused") return retained;
   const endedOwners = [...new Map(archived.result.map(({ owner }) => ["uid" in owner ? owner.uid : owner.name, owner])).values()];
-  const needsLineage = writes.some((mutation) => [mutation.reference, ...mutation.resolves ?? []]
-    .some((reference) => context.registry[reference.kind].family === "lineage"));
-  const lineage = needsLineage ? await readLineageOwners(context, tips) : { status: "ok" as const, result: [] };
-  if (lineage.status === "refused") return lineage;
   const fresh = new Map<string, OwnerIdentity>();
   const liveOwners = owners.map(({ owner }) => owner);
   const recordFreeOwners = observed.result.recordFree.map(({ owner }) => owner);
@@ -71,9 +72,13 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
     if (lineageName && reference.owner.type === "work-item" && !reference.owner.uid && skipped
       && !owners.some(({ owner }) => owner.type === "work-item" && owner.name === reference.owner.name)) return { status: "refused" as const, refusal: skipped };
     const candidates = freshName ? owners.filter(({ primary }) => primary !== undefined).map(({ owner }) => owner) : lineageName
-      ? lineageOwnerCandidates(reference, owners, lineage.result) : [...liveOwners, ...recordFreeOwners, ...endedOwners];
+      ? lineageOwnerCandidates(reference, owners, lineage) : [...liveOwners, ...recordFreeOwners, ...endedOwners];
+    const uid = "uid" in reference.owner ? reference.owner.uid : undefined;
+    const plan = reference.kind === "lineage/transition" && !uid && candidates.length === 0
+      ? planned.find(([, record]) => writeOwnerNameKey(record) === writeOwnerNameKey(reference))?.[1] : undefined;
+    if (plan) return { status: "ok" as const, result: plan.owner };
     // Tier selection already authenticated a former name; its canonical current name need not match again.
-    return resolveOwner(reference, candidates, fresh, lineageName);
+    return resolveOwner(reference, candidates, fresh, lineageName, uid ? proposed.get(uid) : undefined, uid ? held.get(uid) : undefined);
   };
 
   const renames = requestedRenames(writes);
@@ -91,30 +96,51 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   if (unknownClaim) return { status: "refused", refusal: unknownClaim };
   const clash = checkLiveNamespace(resolved, owners, endedOwners);
   if (clash) return { status: "refused", refusal: clash };
-  return { status: "ok", result: { writes: resolved, freshOwners: [...fresh.values()], tips, archived: archived.result, retained: retained.result } };
+  return { status: "ok", result: { writes: resolved, freshOwners: [...fresh.values()], plannedBirthUids: planned.map(([uid]) => uid),
+    tips, archived: archived.result, retained: retained.result } };
 }
 
-function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>, preselected = false): StoreResult<OwnerIdentity> {
+function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>, preselected: boolean,
+  planned: RecordReference | undefined, held: string | undefined): StoreResult<OwnerIdentity> {
   const requested = reference.owner;
   if (requested.type === "person" || requested.type === "project") return { status: "ok", result: requested };
   const candidates = owners.filter((owner) => owner.type !== "person" && owner.type === requested.type
     && (requested.uid ? owner.uid === requested.uid : preselected || owner.name === requested.name));
-  if (requested.uid && candidates.length === 0 && reference.kind.startsWith("lineage/")) return { status: "ok", result: requested };
-  if (requested.uid && candidates.length === 0) return { status: "refused", refusal: {
-    code: "not-found", class: "recoverable", reference,
-    condition: "The named owner has no live ref",
-    remedy: { text: "Resolve the owner's current lifecycle state, then restore it or create a new generation by name before retrying." },
-  } };
+  if (requested.uid && candidates.length === 0) return resolveMissingUid(reference, requested.uid, fresh, planned, held);
   if (candidates.length > 1) return { status: "refused", refusal: {
     code: "ambiguous-match", class: "recoverable",
     candidates: candidates.map((owner) => RecordReferenceSchema.parse({ ...reference, owner })),
     condition: "More than one live owner holds this name", remedy: preselected ? { text: "Name the intended origin by UID, then retry." }
       : clashRepair(candidates.map(owner => RecordReferenceSchema.parse({ ...reference, owner })), { liveness: "live", name: "current" }),
   } };
-  const key = `${requested.type}:${requested.name}`;
+  const key = writeOwnerNameKey(reference);
   const owner = candidates[0] ?? fresh.get(key) ?? OwnerIdentitySchema.parse({ ...requested, uid: randomUUID() });
   if (candidates.length === 0) fresh.set(key, owner);
   return { status: "ok", result: owner };
+}
+
+function resolveMissingUid(reference: RecordReference, uid: string, fresh: Map<string, OwnerIdentity>,
+  planned: RecordReference | undefined, held: string | undefined): StoreResult<OwnerIdentity> {
+  const requested = reference.owner;
+  if (reference.kind.startsWith("lineage/")) return { status: "ok", result: requested };
+  const key = writeOwnerNameKey(reference);
+  const born = fresh.get(key);
+  if (planned && !held && writeOwnerNameKey(planned) === key && (born === undefined || sameOwner(born, requested))) {
+    fresh.set(key, requested);
+    return { status: "ok", result: requested };
+  }
+  let condition = "The named owner has no live ref";
+  let remedy = "Resolve the owner's current lifecycle state, then restore it or create a new generation by name before retrying.";
+  if (held) {
+    condition = `UID ${uid} is already held by ${held}.`;
+    remedy = "Retry without a UID to allocate by name. For a planned Errand, use a fresh UID throughout the batch or rerun arc errand open.";
+  } else if (planned) {
+    condition = born && writeOwnerNameKey(planned) === key
+      ? `The batch already allocates a different generation for ${requested.name}.`
+      : `UID ${uid} is reserved in this batch for the Errand ${planned.owner.name}.`;
+    remedy = "Retry this write without a UID to allocate by name, or use the UID of its intended owner.";
+  }
+  return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference, condition, remedy: { text: remedy } } };
 }
 
 function resolveConflictReferences(resolved: ResolvedMutation[], resolve: (reference: RecordReference) => StoreResult<OwnerIdentity>): StoreResult<ResolvedMutation[]> {

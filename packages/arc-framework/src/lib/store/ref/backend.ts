@@ -2,7 +2,8 @@
 
 import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import type { z } from "zod";
-import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "../commands.js";
+import type { StoreConflictInput, StoreConflictResult, StoreCreationDesignationResult, StoreMigrateInput, StoreMigrateResult,
+  StoreRemoteInput, StoreRemoteResult } from "../commands.js";
 import type { Store, ReadOnlyStore } from "../contract.js";
 import type { RefStorePorts } from "../ports.js";
 import type { StoreResult } from "../refusal.js";
@@ -18,7 +19,7 @@ import { lookupRefRecord } from "./lookup.js";
 import { pushRefStore } from "./push.js";
 import { pullRefStore } from "./pull.js";
 import { readSourceContext } from "./read-source-namespace.js";
-import { runRefMigrate, runRefRemote } from "./commands.js";
+import { runRefCreationDesignation, runRefMigrate, runRefRemote } from "./commands.js";
 import { runRefConflict } from "./conflict-command.js";
 import { withRefOperation, wrapRefCommandStore } from "./operation-scope.js";
 import { createRefReadCoordinator } from "./read-operation.js";
@@ -86,6 +87,12 @@ export async function runRefBackendMigrate(ports: RefStorePorts, input: StoreMig
 /** Enter the ref backend's explicit designation command. */
 export async function runRefBackendRemote(ports: RefStorePorts, input: StoreRemoteInput): Promise<StoreRemoteResult> {
   return withRefOperation(scoped(createRefBackendContext(ports)), (context) => runRefRemote(context, wrapRefCommandStore(context, createRefBackend(ports)), input));
+}
+
+/** Designate a new project's state remote, or report that a remote already carries a role. */
+export async function runRefBackendCreationDesignation(ports: RefStorePorts): Promise<StoreCreationDesignationResult> {
+  return withRefOperation(scoped(createRefBackendContext(ports)),
+    (context) => runRefCreationDesignation(context, wrapRefCommandStore(context, createRefBackend(ports))));
 }
 
 /** Inspect an exact conflict without changing operational backend selection. */

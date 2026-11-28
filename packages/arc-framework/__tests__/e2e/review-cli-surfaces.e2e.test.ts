@@ -14,6 +14,10 @@ import type { KernelJSONSchemaBundle } from "../../src/lib/kernel/index.js";
 import { resolveSchemaReference } from "../helpers/schema-reference.js";
 import { adversarialPassFixture } from "../fixtures/review-adversarial-pass.js";
 import { runCli } from "../helpers/run-cli.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { seedProjectIdentity } from "../helpers/store/seed-store.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { adversarialRecordStep } from "../../src/lib/store/pre-flip-steps.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const run = promisify(execFile);
@@ -43,6 +47,7 @@ describe("packaged review CLI surfaces", () => {
   });
 
   it("reports adversarial recording's pre-flip remedy and repairs malformed request input", async () => {
+    useInRepoStore();
     const command = ["review", "adversarial", "record", invalidInputPath];
     const malformed = await runCli(command, { cwd: fixtureRoot });
     expect(malformed.exitCode).toBe(1);
@@ -55,7 +60,7 @@ describe("packaged review CLI surfaces", () => {
     expect(repaired.exitCode).toBe(1);
     expect(repaired.stderr).toBe("");
     expect(JSON.parse(repaired.stdout)).toMatchObject({ mode: "review-adversarial-record", error: { code: "unsupported" },
-      remedy: { text: expect.stringContaining("ADVERSARIAL-PASSES.md") } });
+      remedy: { text: adversarialRecordStep("draft-readiness", "example") } });
   });
 
   it("exposes every public review verb through packaged help", async () => {
@@ -353,6 +358,8 @@ exec "${realGit}" "$@"
   });
 
   it("classifies an exact planning change through the packaged CLI", async () => {
+    // The classifier reads planning state tracked on the branch, which the store refuses.
+    useInRepoStore();
     await run("git", ["config", "user.email", "arc@example.invalid"], { cwd: fixtureRoot });
     await run("git", ["config", "user.name", "ARC Test"], { cwd: fixtureRoot });
     await run("git", ["add", "."], { cwd: fixtureRoot });
@@ -418,6 +425,12 @@ exec "${realGit}" "$@"
       completedPasses: 0,
       attempts: [],
     })}\n`);
+    // The store records its project as a commit, and binds a review to the work unit on the checkout's branch, so the
+    // repository needs an author and a first commit.
+    await run("git", ["config", "user.email", "arc@example.invalid"], { cwd: fixtureRoot });
+    await run("git", ["config", "user.name", "ARC Test"], { cwd: fixtureRoot });
+    await run("git", ["commit", "--allow-empty", "-qm", "base"], { cwd: fixtureRoot });
+    await seedProjectIdentity(fixtureRoot, SlugSchema.parse("test-user"));
 
     const result = await runCli(["review", "resolve", inputPath], {
       cwd: fixtureRoot,

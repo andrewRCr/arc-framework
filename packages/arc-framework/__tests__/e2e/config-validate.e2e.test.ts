@@ -24,6 +24,24 @@ function fixtureRoot(): string {
   return root;
 }
 
+/** Make the root an installed project's repository: a Git repository with an identity, committing the ignore rule and
+ * package policy an install writes for projected personal files. */
+function installedRepository(root: string): void {
+  const git = (...args: string[]) => {
+    const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+  };
+  git("init", "-q", "-b", "main");
+  git("config", "user.email", "test@test.com");
+  git("config", "user.name", "Test User");
+  git("config", "arc.identity", "test-user");
+  mkdirSync(join(root, ".arc", "user"), { recursive: true });
+  writeFileSync(join(root, ".gitignore"), ".arc/user/*/\n");
+  writeFileSync(join(root, ".arc", "user", ".npmignore"), "*\n");
+  git("add", "-A");
+  git("commit", "-q", "-m", "chore: install ARC");
+}
+
 function runConfigValidate(cwd: string, args: string[] = []) {
   return spawnSync(process.execPath, [cliPath, "config", "validate", ...args], {
     cwd,
@@ -83,6 +101,7 @@ describe("arc config validate", () => {
 
   it("resolves the default config from a nested project directory", () => {
     const root = fixtureRoot();
+    installedRepository(root);
     const configDir = join(root, ".arc", "system");
     const nested = join(root, "nested", "deeper");
     mkdirSync(configDir, { recursive: true });

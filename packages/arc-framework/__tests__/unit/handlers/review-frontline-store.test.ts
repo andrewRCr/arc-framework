@@ -23,7 +23,6 @@ import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { approveDispositionState } from "../../../src/scripts/review-gate/core/dispositions.js";
@@ -38,6 +37,7 @@ import { publishNativeReviewPerformance } from "../../../src/scripts/review-gate
 import type { FrontlineResolveRequest } from "../../../src/scripts/review-gate/policy/frontline-command-schema.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { createReviewResponsePort } from "../../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40);
@@ -368,7 +368,7 @@ it("rejects a native frontline locator at a repository root", async () => {
   const h = await fixture();
   const resolution = FrontlineResolveEnvelopeSchema.parse(await h.resolve("force"));
   if (resolution.state !== "ready") throw new Error(JSON.stringify(resolution));
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
   expect(await h.run(resolution, { store })).toMatchObject({ error: {
     code: "invalid-input", message: expect.stringContaining("omit `operationRef`"),
   } });

@@ -341,7 +341,8 @@ describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s r
 });
 
 
-function newOpenFixture(provision?: OpenOrdinaryErrandOptions["dependencies"]["provision"]) {
+function newOpenFixture({ ownerUid, provision }: { ownerUid?: string;
+  provision?: OpenOrdinaryErrandOptions["dependencies"]["provision"]; } = {}) {
   let record: OrdinaryErrandRecord | null = null;
   let provisioned = false;
   let authority: unknown;
@@ -353,6 +354,7 @@ function newOpenFixture(provision?: OpenOrdinaryErrandOptions["dependencies"]["p
   };
   const options: OpenOrdinaryErrandOptions = {
     slug: "fix-output", intent: "fix output", protection: "full", base: "main",
+    ownerUid,
     createdAt: "2026-07-20T12:00:00.000Z", identityName: "andrew", locationTemplate: "../{name}", repo: "repo",
     dependencies: {
       mintClaimId: () => "c".repeat(32),
@@ -390,9 +392,9 @@ describe("a refused provisioning that leaves a checkout", () => {
     ["no marker bytes", null, "the checkout /spawned for branch chore/fix-output; Remove the personal file, then retry."],
     ["a malformed marker", "malformed", "a malformed worktree marker at /spawned; Remove the personal file, then retry."],
   ] as const)("retains the claim and names what remains with %s", async (_label, markerBytes, residue) => {
-    const fixture = newOpenFixture(() => Promise.resolve({ kind: "refused", reason: "path-collision",
+    const fixture = newOpenFixture({ provision: () => Promise.resolve({ kind: "refused", reason: "path-collision",
       evidence: { kind: "marker-residue", checkoutPath: "/spawned", markerBytes: markerBytes === "malformed" ? null : markerBytes,
-        ...(markerBytes === "malformed" ? { malformedMarker: true } : {}), detail: "Remove the personal file, then retry." } }));
+        ...(markerBytes === "malformed" ? { malformedMarker: true } : {}), detail: "Remove the personal file, then retry." } }) });
     const refusal = await fixture.run();
     expect(refusal.recommendedPromptText).toBe(
       `Errand open refused: topology-unknown. The identity claim is retained because provisioning left ${residue}.`);
@@ -409,8 +411,8 @@ describe("a compensation check's detail", () => {
     const observed = await observeUnprojectedPersonalFiles(checkout);
     if (observed.kind !== "unobservable") throw new Error("The malformed marker was observed");
     expect(observed.detail).toMatch(/\. Repair or remove the marker, then retry\.$/u);
-    const fixture = newOpenFixture(() => Promise.resolve({ kind: "refused", reason: "path-collision",
-      evidence: { kind: "marker-residue", checkoutPath: checkout, markerBytes: null, detail: observed.detail } }));
+    const fixture = newOpenFixture({ provision: () => Promise.resolve({ kind: "refused", reason: "path-collision",
+      evidence: { kind: "marker-residue", checkoutPath: checkout, markerBytes: null, detail: observed.detail } }) });
     const refusal = await fixture.run();
     expect(refusal.recommendedPromptText).toContain(`Errand open refused: topology-unknown. The identity claim is retained because `
       + `provisioning left the checkout ${checkout} for branch chore/fix-output; ${observed.detail}`);
@@ -423,6 +425,12 @@ describe("ordinary Errand branch types", () => {
     const fixture = newOpenFixture();
     expect(await fixture.run({ type })).toMatchObject({ outcome: "applied", identity: { branch: `${type}/fix-output` } });
     expect(fixture.read()).toMatchObject({ record: { branch: `${type}/fix-output` }, provisioned: true });
+  });
+
+  it("names a new identity's branch with its owner UID prefix, and provisions that branch", async () => {
+    const fixture = newOpenFixture({ ownerUid: "0a1b2c3d-2345-4678-9abc-def012345678" });
+    expect(await fixture.run({ type: "fix" })).toMatchObject({ outcome: "applied", identity: { branch: "fix/fix-output-0a1b2c3d" } });
+    expect(fixture.read()).toMatchObject({ record: { branch: "fix/fix-output-0a1b2c3d" }, provisioned: true });
   });
 });
 
@@ -478,4 +486,24 @@ it("resumes a qualified-ID origin using the persisted null digest re-fed by mate
  const record=parseOrdinaryErrandRecord({...paused(),origin:"inbox",originEntry:"project:12345678",originEntrySourceDigest:null});
  const {restoreErrandInboxOrigin}=await import("../../../src/lib/errand/inbox-origin.js");
  expect(await resumeFixture(record).run({inbox:restoreErrandInboxOrigin(record.originEntry,record.origin==="inbox"?record.originEntrySourceDigest:null)})).toMatchObject({outcome:"applied",identity:{originEntry:"project:12345678",originEntrySourceDigest:null}});
+});
+
+describe("suffixed ordinary Errand branches", () => {
+  const suffixed = (branch: string) => ({ ...paused(), branch });
+
+  it("admits a branch carrying an eight-hex suffix after its slug", () => {
+    expect(parseOrdinaryErrandRecord(suffixed("chore/fix-output-0a1b2c3d")).branch).toBe("chore/fix-output-0a1b2c3d");
+  });
+
+  it.each(["chore/fix-output-0A1B2C3D", "chore/fix-output-0a1b2c3", "chore/fix-output-0a1b2c3d4", "feat/fix-output-0a1b2c3d",
+    "chore/other-0a1b2c3d", "chore/fix-output-"])("refuses %s", (branch) => {
+    expect(TransientIdentityRecordV3Schema.safeParse(suffixed(branch)).success).toBe(false);
+  });
+
+  it("resumes with the recorded type and refuses another", async () => {
+    const fixture = resumeFixture(parseOrdinaryErrandRecord(suffixed("fix/fix-output-0a1b2c3d")));
+    expect(await fixture.run({ type: "chore" })).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(await fixture.run({ type: "fix" })).toMatchObject({ outcome: "applied", identity: { branch: "fix/fix-output-0a1b2c3d" } });
+    expect(fixture.branch()).toBe("fix/fix-output-0a1b2c3d");
+  });
 });

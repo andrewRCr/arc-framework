@@ -112,6 +112,7 @@ import {
   type TeardownResult,
 } from "../lib/work-unit/verbs/teardown.js";
 import type { StoreRecord } from "../lib/store/read.js";
+import type { OwnerIdentity } from "../lib/store/identity.js";
 import type { StoreRefusal, StoreResult } from "../lib/store/refusal.js";
 import { handleStoreMaterialize } from "./materialize-store.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
@@ -125,7 +126,7 @@ import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
-import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
+import { runRepointDesign } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
   type MaterializableWorkUnit,
@@ -134,7 +135,7 @@ import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
-import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import { CanonicalDigestSchema, PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -156,17 +157,17 @@ import {
 import { permitDeliveryReopen, publishCandidateWithReviewBoundary, refuseProjectIdentityFailure } from "./lifecycle-delivery-review.js";
 
 /** Resolve this checkout's identity through the invocation's operational store. */
-async function resolveCurrentWuSlug(cwd: string, store?: Store): Promise<string | UnboundMarkerClassification | null> {
+async function resolveCurrentWuOwner(cwd: string, store?: Store): Promise<OwnerIdentity | UnboundMarkerClassification | null> {
   const current = await resolveCurrentWorkUnit({ cwd, store });
   if (current.status === "unbound") return current.unbound;
-  return current.status === "resolved" ? current.candidate.reference.owner.name : null;
+  return current.status === "resolved" ? current.candidate.reference.owner : null;
 }
 
-async function resolveStageWorkUnit(base: VerbBase, store: Store | undefined, verb: string): Promise<string | null> {
-  const slug = await resolveCurrentWuSlug(base.cwd, usesOffBranchState(store) ? store : base.store);
-  if (slug !== null && typeof slug !== "string") { refuseUnboundTarget(slug); return null; }
-  if (slug === null) refuse(`\`arc ${verb}\` needs exactly one active work unit to target — none resolved in this worktree.`);
-  return slug;
+async function resolveStageWorkUnit(base: VerbBase, store: Store | undefined, verb: string): Promise<OwnerIdentity | null> {
+  const owner = await resolveCurrentWuOwner(base.cwd, usesOffBranchState(store) ? store : base.store);
+  if (owner !== null && "exits" in owner) { refuseUnboundTarget(owner); return null; }
+  if (owner === null) refuse(`\`arc ${verb}\` needs exactly one active work unit to target — none resolved in this worktree.`);
+  return owner;
 }
 
 /**
@@ -189,10 +190,10 @@ export async function resolveVerbTargetOrReport(
   store?: Store,
 ): Promise<string | null> {
   const needsCurrentWu = !slugArg?.trim() && DISPATCH_MODE[verb] === "context-defaulting";
-  const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd, store) : null;
-  if (currentWuSlug !== null && typeof currentWuSlug !== "string") { refuseUnboundTarget(currentWuSlug, json); return null; }
+  const current = needsCurrentWu ? await resolveCurrentWuOwner(cwd, store) : null;
+  if (current !== null && "exits" in current) { refuseUnboundTarget(current, json); return null; }
 
-  const target = selectVerbTarget(verb, slugArg, currentWuSlug);
+  const target = selectVerbTarget(verb, slugArg, current?.name ?? null);
   if (target.kind === "resolved") return canonicalVerbTarget(target.slug, store, json);
 
   const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(cwd, store) : undefined;
@@ -409,6 +410,7 @@ export const RepointDesignCommandInputSchema = z.object({
 export const RenameCommandInputSchema = z.object({
   slug: z.union([SlugSchema, z.uuid()]),
   newSlug: SlugSchema,
+  settleMove: CanonicalDigestSchema.optional(),
   json: z.boolean().optional(),
 }).strict();
 const InRepoRenameCommandInputSchema = RenameCommandInputSchema.superRefine((value, refinement) => {
@@ -524,7 +526,7 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "rename",
     schema: RenameCommandInputSchema,
-    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug", "option.json": "json" },
+    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug", "option.json": "json", "option.settle-move": "settleMove" },
   },
 ] as const satisfies readonly CommandInputRegistration[];
 
@@ -674,12 +676,12 @@ export async function handleStub(
 export async function handleRename(
   sourceSlug: string,
   targetSlug: string,
-  opts: { json?: boolean } = {},
+  opts: { json?: boolean; settleMove?: string } = {},
   context?: InteractionContext,
 ): Promise<void> {
   if (opts.json !== true) p.intro("arc rename");
   const input = parseLifecycleCommand(RenameCommandInputSchema, {
-    slug: sourceSlug.trim(), newSlug: targetSlug.trim(), json: opts.json,
+    slug: sourceSlug.trim(), newSlug: targetSlug.trim(), json: opts.json, settleMove: opts.settleMove,
   }, ["rename"], opts.json === true);
   if (input === null) return;
   const { slug: renameSource, newSlug: renameTarget } = input;
@@ -690,7 +692,7 @@ export async function handleRename(
     reportRenameResult(renameSource, renameTarget, { status: "rejected", reason: "remote rename expansion requires stdin-capable Git I/O" }, input.json === true);
     return;
   }
-  if (!usesOffBranchState(executor.store)) {
+  if (input.settleMove === undefined && !usesOffBranchState(executor.store)) {
     if (parseLifecycleCommand(InRepoRenameCommandInputSchema, input, ["rename"], input.json === true) === null) return;
     if (parseLifecycleCommand(SlugSchema, renameSource, ["rename"], input.json === true) === null) return;
   }
@@ -709,7 +711,7 @@ export async function handleRename(
       if (input.json !== true) for (const advisory of advisories) p.log.warn(advisory);
       return Promise.resolve();
     },
-  }, { sourceSlug: renameSource, targetSlug: renameTarget });
+  }, { sourceSlug: renameSource, targetSlug: renameTarget, settleMove: input.settleMove });
   reportRenameResult(renameSource, renameTarget, result, input.json === true);
 }
 
@@ -866,6 +868,7 @@ export async function handleActivate(
     return;
   }
   reportOutcome("Activated", [`Work unit: ${target}`, `Branch:    ${result.branch ?? `${type}/${target}`}`, ...(!usesOffBranchState(executor.store) ? [`Meta:      ${result.metaPath}`] : []),
+    ...(result.removedDraft === undefined ? [] : [`Removed:   ${result.removedDraft}`]),
     ...(result.report ?? []), ...(result.remoteDelete === undefined ? [] : [result.remoteDelete.text])], result.outcome);
 }
 
@@ -1978,7 +1981,7 @@ export async function handleSetStage(
   const stageArg = input.stage;
 
   const { executor } = await buildExecutor(base);
-  const slug = await resolveStageWorkUnit(base, executor.store, "set-stage");
+  const slug = (await resolveStageWorkUnit(base, executor.store, "set-stage"))?.name ?? null;
   if (slug === null) return;
 
   const result = await runSetStage(executor, { name: slug, stage: stageArg, advance: input.advance ?? false });
@@ -2027,7 +2030,7 @@ export async function handleFinalizeStage(
   const firePointArg = input.firePoint;
 
   const { executor } = await buildExecutor(base);
-  const slug = await resolveStageWorkUnit(base, executor.store, "finalize");
+  const slug = (await resolveStageWorkUnit(base, executor.store, "finalize"))?.name ?? null;
   if (slug === null) return;
 
   // `writeClassField` is an optional direct-invoke seam on the executor (like the
@@ -2084,26 +2087,22 @@ export async function handleRepointDesign(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const eventArg = input.event;
-
   const { executor } = await buildExecutor(base);
-  const slug = await resolveStageWorkUnit(base, executor.store, "repoint-design");
-  if (slug === null) return;
+  const owner = await resolveStageWorkUnit(base, executor.store, "repoint-design");
+  if (owner === null) return;
+  const slug = owner.name;
 
   const currentDesign = usesOffBranchState(executor.store) ? undefined
     : parseMetaRecord(await readFile(materializeActiveMetaPath(base.cwd, slug), "utf8")).design;
 
-  const result = await runRepointDesign(executor, {
-    name: slug,
-    event: eventArg satisfies RepointDesignEvent,
-    currentDesign,
-  });
+  const result = await runRepointDesign(executor, { owner, event: input.event, currentDesign });
   if (result.status === "rejected") {
     refuse(result.reason, result.refusal);
     return;
   }
   p.note(
-    [`Work unit: ${slug}`, `Design:    ${result.design}`, `Meta:      ${result.metaPath}`].join("\n"),
+    [`Work unit: ${slug}`, `Design:    ${result.design}`, `Meta:      ${result.metaPath}`,
+      ...(result.removedDraft === undefined ? [] : [`Removed:   ${result.removedDraft}`])].join("\n"),
     "Design repointed",
   );
   p.outro("Done.");

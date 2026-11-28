@@ -9,6 +9,7 @@ import { readWorkUnit } from "./lifecycle-write.js";
 import type { OwnerIdentity } from "./identity.js";
 import { selectWorkBranchLink, workBranchName } from "./lifecycle-branch.js";
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
+import { readCheckoutLayoutContext } from "./checkout-layout.js";
 
 /** Native content and exact generation retained beside the public candidate fields. */
 interface ActiveReviewSubject {
@@ -25,7 +26,10 @@ export function createActiveReviewAccess(input: ReviewInvocationInput): ActiveRe
   const invocation = resolveReviewInvocation(input);
   return { ...invocation, readSubject: async (candidate: MetaFileCandidate, owner?: OwnerIdentity): Promise<ActiveReviewSubject> => {
     if (!invocation.store.capabilities.stateOffBranch) return { candidate };
-    const slug = identifyWorkUnitArtifactPath(candidate.path)?.slug;
+    // The scan gives the exact owner. Nested paths need the invocation checkout's layout.
+    const slug = owner?.name
+      ?? identifyWorkUnitArtifactPath(candidate.path)?.slug
+      ?? identifyWorkUnitArtifactPath(candidate.path, await readCheckoutLayoutContext(input.cwd))?.slug;
     if (slug === undefined) throw new Error(`Cannot identify ${candidate.filename}`);
     const primary = unwrapReviewRecordResult(invocation.store, await readWorkUnit(invocation.store, slug, owner));
     const selected = primary.reference.owner;

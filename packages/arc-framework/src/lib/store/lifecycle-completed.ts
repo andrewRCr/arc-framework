@@ -1,6 +1,6 @@
 /** Completed lifecycle projections independent of archive folder numbering. */
 import type { Store } from "./contract.js";
-import { listLifecycleIndex, type LifecycleEntry, type LifecycleIndexOutcome } from "./lifecycle-index.js";
+import { identityKey, listLifecycleIndex, type LifecycleEntry, type LifecycleIndexOutcome } from "./lifecycle-index.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "./project-identity.js";
 import { workBranchName } from "./lifecycle-branch.js";
 import type { CompletedEvidenceRead, ShippedWorkUnitRecord } from "../work-unit/completed-index.js";
@@ -21,9 +21,35 @@ export async function readStoreCompletedEvidence(store: Store): Promise<Complete
   for (const entry of standing.entries) {
     if (!excluded.has(entry.reference.owner.name)) records.set(entry.reference.owner.name, completedRecord(entry));
   }
-  return listing.result.missed || listing.result.diagnostics.length > 0 ? { status: "partial", records,
-    unreadableMetaPaths: listing.result.diagnostics.map((item) => `${item.key}: ${item.condition} ${item.remedy.text}`) } : { status: "available", records };
+  return completedEvidence(listing.result, records);
 }
+
+/** Read archived evidence by work-unit identity, retaining each generation of a reused name. */
+export async function readStoreCompletedEvidenceByIdentity(store: Store): Promise<CompletedEvidenceRead> {
+  const listing = await listLifecycleIndex(store, { locations: ["completed"] });
+  if (listing.status === "refused" || listing.result.status === "unreadable") {
+    return { status: "unavailable", reason: "archive-tree-read-failed" };
+  }
+  if (listing.result.status === "absent") return { status: "available", records: new Map() };
+
+  const records = new Map(listing.result.index.entries().map((entry) => [
+    identityKey(entry.reference.owner),
+    completedRecord(entry),
+  ]));
+  return completedEvidence(listing.result, records);
+}
+
+function completedEvidence(
+  listing: Extract<LifecycleIndexOutcome, { status: "complete" }>,
+  records: Map<string, ShippedWorkUnitRecord>,
+): CompletedEvidenceRead {
+  if (listing.missed || listing.diagnostics.length > 0) {
+    return { status: "partial", records,
+      unreadableMetaPaths: listing.diagnostics.map((item) => `${item.key}: ${item.condition} ${item.remedy.text}`) };
+  }
+  return { status: "available", records };
+}
+
 /** Names a live record, one of its aliases, or live metadata the listing could not read holds. */
 export function liveNames(listing: Extract<LifecycleIndexOutcome, { status: "complete" }>): Set<string> {
   const names = new Set<string>(listing.index.entries().flatMap(entry => [entry.reference.owner.name, ...(entry.aliases ?? [])]));

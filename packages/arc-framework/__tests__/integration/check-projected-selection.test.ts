@@ -9,6 +9,7 @@ import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js"
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { runHandlerAt } from "../helpers/handler.js";
 import { makeInteractionContext } from "../helpers/interaction-context.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const repositories: string[] = [];
 const changedPath = ".arc/active/current/notes-unit.md";
@@ -131,6 +132,8 @@ it("forecasts paths without executing and keeps the production fallback empty", 
   expect(dry.envelope.result.checks[0]).toMatchObject({ outcome: "would run", mode: "selection",
     batches: [[process.execPath, "inspect.cjs", changedPath, otherPath]] });
   await expect(readFile(join(root, "receipt.json"))).rejects.toMatchObject({ code: "ENOENT" });
+  // The empty production fallback is the in-repo implementation's dark projection, which selects nothing.
+  useInRepoStore();
   const empty = await runHandlerAt(root, () => handleCheckRun(["selected"], { json: true }, context));
   expect(empty.exitCode).toBe(0);
   expect(JSON.parse(empty.stdout).result.checks).toMatchObject([{ outcome: "not selected", reason: "no files to check" }]);

@@ -1,18 +1,21 @@
 /** Backend-assigned archive numbers and session/cohort closeout share one checked batch. */
-import { describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
+import { describe, expect, it, vi } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { recordReferences, sameReference, OwnerIdentitySchema, StateVersionSchema } from "../../../../src/lib/store/identity.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
 import { runArchive } from "../../../../src/lib/work-unit/verbs/archive.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
-import { writeMetaCohort, writeMetaPause, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaCohort, writeMetaPause, writeMetaPrUrl, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ConflictRecordSchema, RecordReferenceSchema } from "../../../../src/lib/store/index.js";
-import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { withCompetingBatch } from "../../../helpers/store/decompose-harness.js";
+import { overStore } from "../../../helpers/store/fence-harness.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { PushResultSchema, type SyncState } from "../../../../src/lib/store/sync.js";
+import { readStoreCompletedEvidence } from "../../../../src/lib/store/lifecycle-completed.js";
 import { createClashDouble } from "../../../helpers/store/clash-double.js";
 
 it("keeps a cohort open while both clashed live members remain", async () => {
@@ -98,8 +101,131 @@ describe("store archive", () => {
   });
 });
 
+describe("store archive finalize fields", () => {
+  const shipDay = new Date(2026, 9, 14, 12);
+  async function archived(params: { prUrl?: string; completed?: string }, clock = () => shipDay) {
+    const h = createLifecycleHarness();
+    const group = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+      "# Cohort: group\n\n**Purpose:** Deliver a concrete result.\n");
+    const meta = await h.seedMeta("example", { cohort: "group" });
+    const result = await runArchive({ executor: context(h.store), fs: { readdir: async () => [] }, clock },
+      { name: "example", ...params });
+    const record = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    return { h, group, meta, result, record, fields: ParsedMetaRecordSchema.parse(record.fields) };
+  }
+
+  it("records --pr-url and --completed in the archived meta", async () => {
+    const { result, fields } = await archived({ prUrl: "https://github.com/o/r/pull/12", completed: "2026-10-01" });
+    expect(result).toMatchObject({ status: "archived", warnings: [] });
+    expect(fields).toMatchObject({ prUrl: "https://github.com/o/r/pull/12", completed: "2026-10-01" });
+  });
+
+  it("writes a placeholder and warns without --pr-url, and dates completion on the ship day", async () => {
+    const { result, record, fields } = await archived({});
+    expect(result).toMatchObject({ status: "archived", warnings: [expect.stringMatching(/PR URL.*arc save/i)] });
+    expect(record.content).toContain("- **PR URL:** [none]");
+    expect(fields).toMatchObject({ prUrl: null, completed: "2026-10-14" });
+  });
+
+  it("reports the missing PR URL on a persisted publication failure and its plain retry", async () => {
+    const h = createLifecycleHarness(), remote = createMemoryRemote();
+    h.store.context.publication.remote = remote;
+    const meta = await h.seedMeta("example");
+    const ctx = { executor: context(h.store), fs: { readdir: async () => [] }, clock: () => shipDay };
+    remote.condition = "down";
+    const failed = await runArchive(ctx, { name: "example", completed: "2026-10-01" });
+    expect(failed).toMatchObject({ status: "rejected", persisted: true });
+    const saved = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    expect(saved).toMatchObject({ placement: { kind: "completed" }, fields: { prUrl: null, completed: "2026-10-01" } });
+
+    remote.condition = "available";
+    const retry = await runArchive(ctx, { name: "example" });
+    expect(retry.status).toBe("archived");
+    expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(saved);
+    if (failed.status !== "rejected" || retry.status !== "archived") return;
+    const prUrlNotice = /PR URL.*arc save/i;
+    expect.soft(`${failed.reason} ${failed.remedy?.text ?? ""}`).toMatch(prUrlNotice);
+    expect(retry.warnings).toContainEqual(expect.stringMatching(prUrlNotice));
+  });
+
+  const savedPrUrl = "https://github.com/o/r/pull/12";
+  it.each([
+    { change: "backfilled", before: null, after: savedPrUrl },
+    { change: "cleared", before: savedPrUrl, after: null },
+  ])("reports the saved PR URL state when retry imports a $change URL", async ({ before, after }) => {
+    const left = createLifecycleHarness(), right = createLifecycleHarness(), remote = createMemoryRemote();
+    left.store.context.publication.remote = remote;
+    right.store.context.publication.remote = remote;
+    const meta = await left.seedMeta("example");
+    const ctx = { executor: context(left.store), fs: { readdir: async () => [] }, clock: () => shipDay };
+    expect(await runArchive(ctx, { name: "example", prUrl: before ?? undefined })).toMatchObject({ status: "archived" });
+    lifecycleSuccess(await right.store.push());
+    const archivedMeta = lifecycleSuccess(await right.store.read({ reference: meta.reference }));
+    expect(archivedMeta.fields).toMatchObject({ prUrl: before });
+    lifecycleSuccess(await right.store.write({ ...recordPut(archivedMeta, { content: writeMetaPrUrl(archivedMeta.content, after) }),
+      provenance: { verb: "save", lifecycleAction: "edit" } }));
+    lifecycleSuccess(await right.store.push());
+
+    expect(lifecycleSuccess(await left.store.read({ reference: meta.reference })).fields).toMatchObject({ prUrl: before });
+    const retry = await runArchive(ctx, { name: "example" });
+    expect(lifecycleSuccess(await left.store.read({ reference: meta.reference })).fields).toMatchObject({ prUrl: after });
+    expect(retry).toMatchObject({ status: "archived" });
+    if (retry.status !== "archived") throw new Error(retry.reason);
+    const advisory = expect.stringMatching(/PR URL.*arc save/i);
+    if (after === null) expect(retry.warnings).toContainEqual(advisory);
+    else expect(retry.warnings).not.toContainEqual(advisory);
+  });
+
+  it("uses the placement day for default completion when archive crosses a quarter boundary", async () => {
+    const clock = vi.fn(() => new Date(2026, 9, 1)).mockReturnValueOnce(new Date(2026, 8, 30, 23, 59, 59, 999));
+    const { result, fields } = await archived({}, clock);
+    expect(result).toMatchObject({ status: "archived", destination: { quarter: "2026-q3" } });
+    expect(fields.completed).toBe("2026-09-30");
+  });
+
+  it("backfills a missing PR URL by editing the archived meta", async () => {
+    const { h, meta, result, record } = await archived({});
+    expect(result.status).toBe("archived");
+    expect(record.content).toContain("- **PR URL:** [none]");
+
+    const prUrl = "https://github.com/o/r/pull/12";
+    const replay = await runArchive({ executor: context(h.store), fs: { readdir: async () => [] }, clock: () => shipDay },
+      { name: "example", prUrl });
+    expect(replay.status).toBe("archived");
+    const saved = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    const workflow = await readFile(new URL("../../../../arc/system/workflows/arc/work-unit-lifecycle/archive-work-unit.md", import.meta.url), "utf8");
+    expect(ParsedMetaRecordSchema.parse(saved.fields).prUrl).toBeNull();
+    const backfill = workflow.slice(workflow.indexOf("Omit it when"), workflow.indexOf("`--completed` defaults"));
+    expect(backfill).toMatch(/Owner[\s\S]*`PR URL`[\s\S]*archived meta[\s\S]*`arc save`[\s\S]*`arc view meta --for \{name\}`/u);
+    expect(backfill).toMatch(/refuses[\s\S]*surface[\s\S]*remedy[\s\S]*remedy\s+saves[\s\S]*verif(?:y|ication)/iu);
+    expect(backfill).toMatch(/report\s+if\s+the\s+URL\s+is\s+still\s+missing/u);
+
+    lifecycleSuccess(await h.store.write({ ...recordPut(saved, { content: writeMetaPrUrl(saved.content, prUrl) }),
+      provenance: { verb: "save", lifecycleAction: "edit" } }));
+    const corrected = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    expect(ParsedMetaRecordSchema.parse(corrected.fields).prUrl).toBe(prUrl);
+    const evidence = await readStoreCompletedEvidence(h.store);
+    expect(evidence).toMatchObject({ status: "available" });
+    expect("records" in evidence && evidence.records.get("example")).toMatchObject({ prUrl, prNumber: 12 });
+    const retry = await runArchive({ executor: context(h.store), fs: { readdir: async () => [] }, clock: () => shipDay },
+      { name: "example" });
+    expect(retry).toMatchObject({ status: "archived", warnings: [] });
+  });
+
+  it("lands both fields in the archive's one batch beside the cohort closeout", async () => {
+    const { h, group, meta } = await archived({ prUrl: "https://github.com/o/r/pull/12" });
+    const ownHistory = lifecycleSuccess(await h.store.history({ reference: meta.reference }));
+    const groupHistory = lifecycleSuccess(await h.store.history({ reference: group.reference }));
+    expect(ownHistory).toHaveLength(2);
+    const own = ownHistory[0]?.provenance, closeout = groupHistory[0]?.provenance;
+    if (own === undefined || closeout === undefined || !("batchId" in own) || !("batchId" in closeout)) throw new Error("Atomic archive provenance is absent");
+    expect(own.batchId).toBe(closeout.batchId);
+  });
+});
+
 function archive(store: Store, name: string) {
-  return runArchive({ executor: context(store), fs: { readdir: async () => [] }, clock: () => new Date("2026-10-14T12:00:00Z") }, { name });
+  return runArchive({ executor: context(store), fs: { readdir: async () => [] }, clock: () => new Date("2026-10-14T12:00:00Z") },
+    { name, prUrl: "https://github.com/o/r/pull/1" });
 }
 
 const publicationRepair = { text: "Repair the remote designation and retry publication." };
@@ -261,8 +387,9 @@ it.each([false, true])("refuses a stale final-member batch and retries atomic cl
   expect(results.filter((result) => result.status === "archived")).toHaveLength(1);
   const refused = results.findIndex((result) => result.status === "rejected");
   expect(refused).toBeGreaterThanOrEqual(0);
-  expect(results[refused]).toMatchObject({ status: "rejected", refusal: { rule: "cohort.archive-closeout" } });
-  const last = refused === 0 ? h.alpha : h.beta;
+  const last = refused === 0 ? h.alpha : h.beta, winner = refused === 0 ? h.beta : h.alpha;
+  expect(results[refused]).toMatchObject({ status: "rejected", refusal: { code: "version-conflict",
+    records: expect.arrayContaining([expect.objectContaining({ owner: expect.objectContaining({ name: winner.reference.owner.name }) })]) } });
   expect(lifecycleSuccess(await h.store.read({ reference: last.reference }))).toEqual(last);
   expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement?.kind).not.toBe("completed");
   expect(await archive(h.store, last.reference.owner.name)).toMatchObject({ status: "archived", destination: { sequence: "02" } });
@@ -305,12 +432,15 @@ it("publishes before reporting and closes a shared cohort after another client's
   left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
   lifecycleSuccess(await left.store.push()); lifecycleSuccess(await right.store.push());
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", destination: { sequence: "01" } });
-  expect(await archive(right.store, "beta")).toMatchObject({ status: "archived", destination: { sequence: "02" } });
+  expect(await archive(right.store, "beta")).toMatchObject({ status: "archived", destination: { sequence: "02" },
+    cohortSwept: expect.stringContaining("03a_cohort-group") });
   const completed = lifecycleSuccess(await right.store.read({ reference: left.group.reference }));
   expect(completed.placement).toMatchObject({ kind: "completed", sequence: "03", closeout: "a" });
   lifecycleSuccess(await left.store.push());
   expect(lifecycleSuccess(await left.store.read({ reference: left.group.reference }))).toEqual(completed);
-  expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", cohortSwept: expect.stringContaining("03a_cohort-group") });
+  expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", cohortSwept: null });
+  expect(await archive(right.store, "beta")).toMatchObject({ status: "archived",
+    cohortSwept: expect.stringContaining("03a_cohort-group") });
 });
 it("retains a persisted archive through a failed publish and its completed-subject retry publishes the final report", async () => {
   const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
@@ -322,6 +452,26 @@ it("retains a persisted archive through a failed publish and its completed-subje
   expect(await archive(h.store, "example")).toMatchObject({ status: "archived", destination: { sequence: "01" } });
   expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).version).toBe(completed.version);
   expect([...remote.state.records.values()].find((record) => record.reference.kind === "work-item/meta")?.placement).toMatchObject({ kind: "completed" });
+});
+
+it("refuses standalone closeout when the shipped unit leaves its cohort and keeps that cohort open on retry", async () => {
+  const h = createLifecycleHarness();
+  const group = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+    "# Cohort: group\n\n**Purpose:** Deliver the group.\n");
+  const member = await h.seedMeta("member", { state: "Shipped", currentWorkflow: null, cohort: "group" },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const racing = withCompetingBatch(h.store, async () => {
+    lifecycleSuccess(await h.store.write({ ...recordPut(member, { content: writeMetaCohort(member.content, null) }),
+      provenance: { verb: "write-back", lifecycleAction: "edit" } }));
+  });
+
+  const result = await archive(racing, "member");
+  expect(lifecycleSuccess(await h.store.read({ reference: member.reference })).fields).toMatchObject({ cohort: null });
+  expect.soft(lifecycleSuccess(await h.store.read({ reference: group.reference })).placement).toBeUndefined();
+  expect.soft(result).toMatchObject({ status: "rejected", persisted: true, refusal: { code: "version-conflict" },
+    remedy: { argv: ["arc", "archive", "member"] } });
+  expect(await archive(h.store, "member")).toMatchObject({ status: "archived", cohortSwept: null });
+  expect(lifecycleSuccess(await h.store.read({ reference: group.reference })).placement).toBeUndefined();
 });
 
 it.each(["write", "publication"])("retries standalone closeout after interrupted %s without another primary archive", async (stage) => {
@@ -373,6 +523,45 @@ async function nestedCloseoutFixture() {
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived" });
   return { left, right, remote, parent, beta };
 }
+
+it("settles both eligible cohorts together when the last parent holder leaves after the lifecycle listing", async () => {
+  const h = await groupFixture(true);
+  expect(await archive(h.store, "alpha")).toMatchObject({ status: "archived", cohortSwept: null });
+  const moveBeta = async (path: string | null) => {
+    const beta = lifecycleSuccess(await h.store.read({ reference: h.beta.reference }));
+    lifecycleSuccess(await h.store.write({ ...recordPut(beta, { content: writeMetaCohort(beta.content, path) }),
+      provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  };
+  await moveBeta("parent");
+
+  let moved = false;
+  const closedBatches: string[][] = [];
+  const store = overStore(h.store, {
+    list: async input => {
+      const listing = await h.store.list(input);
+      if (!moved && input.kind === "work-item/meta") {
+        await moveBeta(null);
+        moved = true;
+      }
+      return listing;
+    },
+    batch: async input => {
+      const result = await h.store.batch(input);
+      if (result.status === "ok") closedBatches.push(input.writes.flatMap(write =>
+        write.reference.kind === "cohort/document" && write.action === "put" && write.placement?.kind === "completed"
+          ? [write.reference.owner.name] : []).sort());
+      return result;
+    },
+  });
+  const first = await archive(store, "alpha");
+  expect(moved).toBe(true);
+  if (first.status === "rejected") {
+    expect(first).toMatchObject({ persisted: true, remedy: { argv: ["arc", "archive", "alpha"] } });
+    expect(closedBatches).toEqual([]);
+    expect(await archive(store, "alpha")).toMatchObject({ status: "archived" });
+  }
+  expect(closedBatches).toEqual([["group", "parent"]]);
+});
 
 it.each(["none", "write", "publication"])("settles parent eligibility learned during closeout sync, interruption=%s", async (stage) => {
   const h = await nestedCloseoutFixture(); let syncs = 0, interrupted = false;

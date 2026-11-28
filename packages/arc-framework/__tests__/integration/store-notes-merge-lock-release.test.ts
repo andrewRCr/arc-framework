@@ -8,6 +8,10 @@ import { runUserSave } from "../../src/commands/user/save-load.js";
 import { makeUserIO } from "../helpers/integration.js";
 import { syncFixture, syncNotesRef } from "../helpers/store/sync-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// These cases exercise the pre-cutover notes merge and its lock.
+useInRepoStoreForEach();
 
 for (const mode of ["callback", "provider"] as const) {
   for (const effects of [false, true]) {

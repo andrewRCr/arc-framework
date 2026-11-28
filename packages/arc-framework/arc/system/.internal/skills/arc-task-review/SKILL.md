@@ -23,15 +23,18 @@ Invoked at user discretion, not every review increment.
      boundary.
    - If the user specifies a different scope (a prior task, a batch from deferred
      review), use that instead.
-   - Read the task's completion notes from the task list. If the task list has
-     uncommitted changes, compare the current file against git to see the original
-     task description alongside the updated version.
+   - Read the task's completion notes from the task list. Its `_Goal:_` line and any
+     `_Retired in:_` or `_Amended in:_` bullets stay verbatim through completion, so
+     read the plan the task started from in them and in any design element its title
+     cites.
 
 2. Gather file change evidence.
 
-   - Identify all files modified during the task — use `git status` and `git
-     diff --stat` for uncommitted work, or `git diff --stat` against the pre-task
-     commit if changes are already committed.
+   - Identify tracked changes in the requested scope. Use `git status` and `git diff --stat` for uncommitted work,
+     or `git diff --stat <pre-task-commit> <task-end-commit>` for committed work.
+   - Use `arc selection --changed` only when the save interval matches the requested review scope. For a saved task,
+     use state evidence captured during that task, such as its increment report or recorded file list. Report where
+     state-file coverage cannot be verified.
    - Cross-reference against the task description: separate expected changes
      (files mentioned or implied by the task) from unexpected ones.
 

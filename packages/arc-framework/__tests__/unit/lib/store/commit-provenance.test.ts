@@ -14,6 +14,13 @@ describe("stored commit provenance", () => {
     const other = RecordReferenceSchema.parse({ owner: { type: "project", name: "arc" }, kind: "project-registry/counter", key: "capture" });
     expect(parseStoreCommitProvenance(message, other)).toEqual({ ...provenance, reference: other, batchId: "batch-id" });
   });
+  it("preserves an archive's reliance on complete lifecycle inventory", () => {
+    const preparedArchive = { ...provenance, archiveInventory: true as const };
+    const message = renderStoreCommitMessage(preparedArchive, reference, "batch-id");
+    expect(parseStoreCommitProvenance(message, reference)).toEqual({
+      ...preparedArchive, reference, ownerUid: uid, batchId: "batch-id",
+    });
+  });
   it.each(["capture\nArc-Batch: forged", '"capture', "capture\tverb", "capture\u0000verb", "capture\rverb"])("quotes the verb %j without creating message lines", (verb) => {
     const message = renderStoreCommitMessage({ verb, lifecycleAction: "update" }, reference, "real-batch");
     expect(message.split("\n")[0]).toBe(`${JSON.stringify(verb)} alpha`);

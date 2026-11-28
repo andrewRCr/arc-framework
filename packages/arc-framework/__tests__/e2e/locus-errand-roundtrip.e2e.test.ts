@@ -18,8 +18,26 @@ import {
   runArcAnchoredSequence,
 } from "./helpers.js";
 import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
 
 const execFileAsync = promisify(execFile);
+const IDENTITY = SlugSchema.parse("test-user");
+
+/** A work item's record of one kind, selected by its name. */
+function workItemReference(kind: "work-item/record" | "work-item/meta" | "work-item/task-list", name: string) {
+  return recordReferences[kind](OwnerIdentitySchema.parse({ type: "work-item", name }));
+}
+
+/** The branch an applied Errand open reports, which the store suffixes with the generation it mints. */
+function openedBranch(result: unknown): string {
+  const branch = (result as { identity?: { branch?: unknown } } | undefined)?.identity?.branch;
+  if (typeof branch !== "string") throw new Error("The open reported no branch");
+  return branch;
+}
 
 async function setFullProtection(repository: string): Promise<void> {
   const path = join(repository, ".arc", "system", "arc-config.yml");
@@ -34,6 +52,11 @@ async function createBareRemote(repository: string): Promise<string> {
   await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
   await git(repository, ["remote", "add", "origin", remote]);
   await git(repository, ["push", "-u", "origin", "main"]);
+  // Only the store keeps a state remote.
+  if (!process.env[IN_REPO_STORE_OVERRIDE]) {
+    const designated = await runArc(["store", "remote", "origin", "push"], repository);
+    expect(designated.exitCode, designated.stderr).toBe(0);
+  }
   return remote;
 }
 
@@ -51,9 +74,15 @@ async function createOpenChangeRequestHarness(): Promise<{ directory: string }> 
     executable,
     [
       "#!/bin/sh",
-      "head=$(git rev-parse \"refs/remotes/origin/$ARC_TEST_BRANCH\") || exit 1",
+      // The store suffixes the Errand's branch, so the host answers for the branch the query names.
+      "branch=''; previous=''",
+      "for argument in \"$@\"; do",
+      "  if [ \"$previous\" = --head ]; then branch=\"$argument\"; fi",
+      "  previous=\"$argument\"",
+      "done",
+      "head=$(git rev-parse \"refs/remotes/origin/$branch\") || exit 1",
       "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
-      "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$head\"",
+      "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$branch\" \"$head\"",
       "printf '\"reviewDecision\":\"\"}]\\n'",
     ].join("\n"),
   );
@@ -68,9 +97,15 @@ async function createForkOnlyChangeRequestHarness(): Promise<{ directory: string
     executable,
     [
       "#!/bin/sh",
+      // The store suffixes the Errand's branch, so the host answers for the branch the query names.
+      "branch=''; previous=''",
+      "for argument in \"$@\"; do",
+      "  if [ \"$previous\" = --head ]; then branch=\"$argument\"; fi",
+      "  previous=\"$argument\"",
+      "done",
       "head=$(git rev-parse HEAD) || exit 1",
       "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
-      "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$head\"",
+      "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$branch\" \"$head\"",
       "printf '\"reviewDecision\":\"\"}]\\n'",
     ].join("\n"),
   );
@@ -85,9 +120,10 @@ async function readMaterializedMarker(checkoutPath: string): Promise<unknown> {
   ));
 }
 
-describe("ordinary Errand promotion", () => {
-  let repository: string;
+let repository: string;
 
+/** Initialize a full-protection repository for each case, on whichever store the case runs. */
+function useFixtureRepository(): void {
   beforeEach(async () => {
     repository = await createTempRepo();
     const initialized = await runArc(["init", "--yes", "--name", "locus-promotion"], repository);
@@ -100,13 +136,16 @@ describe("ordinary Errand promotion", () => {
   afterEach(async () => {
     await cleanupTempDir(repository);
   });
+}
+
+describe("ordinary Errand promotion", () => {
+  useFixtureRepository();
 
   it("materializes the exact awaiting-merge tail produced by leave", async () => {
     const remote = await createBareRemote(repository);
     const harness = await createCodexHarness();
     const hostHarness = await createOpenChangeRequestHarness();
     const slug = "review-roundtrip";
-    const errandBranch = `chore/${slug}`;
     try {
       const hostUrl = "https://github.com/owner/repo.git";
       await git(repository, ["remote", "set-url", "origin", hostUrl]);
@@ -117,36 +156,38 @@ describe("ordinary Errand promotion", () => {
           command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "prepare requested work"],
           cwdFromPreviousJson: "allocation.checkoutPath",
         },
-        { command: ["git", "push", "-u", "origin", errandBranch], reuseResolvedCwd: true },
+        { command: ["git", "push", "-u", "origin", "HEAD"], reuseResolvedCwd: true },
         { args: ["errand", "leave", slug, "--state", "awaiting-merge", "--json"], reuseResolvedCwd: true },
-        { command: ["git", "branch", "-D", errandBranch], cwd: repository },
-        { command: ["git", "update-ref", "-d", "refs/arc/user/test-user/errands"], cwd: repository },
       ], repository, {
         timeout: 90_000,
         anchorShellPath: harness.executable,
-        env: {
-          PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}`,
-          ARC_TEST_BRANCH: errandBranch,
-        },
+        env: { PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}` },
       });
 
       expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
       const [opened, left] = sequence.results as [
-        Record<string, unknown>,
+        Record<string, unknown> & { identity: { claimId: string } },
         Record<string, unknown>,
       ];
+      const branch = openedBranch(opened);
+      const claimId = opened.identity.claimId;
+      const published = await git(remote, ["rev-parse", `refs/heads/${branch}`]);
+      const base = await git(repository, ["rev-parse", "main"]);
+      expect(published).not.toBe(base);
+      // The store keeps the Errand's record, so only its local branch goes; materializing takes the code from origin.
+      await git(repository, ["branch", "-D", branch]);
       await resetEditorDocumentsProvisioning(repository);
       const materialization = await runArcAnchoredSequence([["errand", "materialize", slug, "--json"]], repository, {
         timeout: 90_000, anchorShellPath: harness.executable,
-        env: { PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}`, ARC_TEST_BRANCH: errandBranch },
+        env: { PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}` },
       });
       expect(materialization.exitCode, materialization.stderr || materialization.stdout).toBe(0);
       const materialized = materialization.results[0] as Record<string, unknown>;
-      expect(opened).toMatchObject({ outcome: "applied", operation: "errand-open" });
+      expect(opened).toMatchObject({ outcome: "applied", operation: "errand-open", identity: { claimId: expect.any(String) } });
       expect(left).toMatchObject({
         outcome: "applied",
         operation: "errand-leave",
-        subject: { kind: "errand", slug, claimId: expect.any(String) },
+        subject: { kind: "errand", slug, claimId },
         generation: expect.any(String),
         settlement: {
           kind: "identity-tail",
@@ -162,18 +203,19 @@ describe("ordinary Errand promotion", () => {
         outcome: "applied",
         operation: "errand-materialize",
         allocation: { kind: "spawned" },
-        identity: { state: "open", changeRequest: null },
+        identity: { claimId, state: "open", changeRequest: null },
       });
       const result = materialized as {
         allocation: { checkoutPath: string };
-        identity: { claimId: string };
       };
       await assertEditorDocumentsProvisioned(result.allocation.checkoutPath);
       expect(await readMaterializedMarker(result.allocation.checkoutPath)).toMatchObject({
         spawnedByArc: true,
-        createdFor: { kind: "errand", slug, claimId: result.identity.claimId },
+        createdFor: { kind: "errand", slug, claimId },
         provisioning: "ready",
       });
+      expect(await git(result.allocation.checkoutPath, ["branch", "--show-current"])).toBe(branch);
+      expect(await git(result.allocation.checkoutPath, ["rev-parse", "HEAD"])).toBe(published);
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);
@@ -186,7 +228,6 @@ describe("ordinary Errand promotion", () => {
     const harness = await createCodexHarness();
     const hostHarness = await createForkOnlyChangeRequestHarness();
     const slug = "fork-only-review";
-    const errandBranch = `chore/${slug}`;
     try {
       const hostUrl = "https://github.com/owner/repo.git";
       await git(repository, ["remote", "set-url", "origin", hostUrl]);
@@ -201,10 +242,7 @@ describe("ordinary Errand promotion", () => {
       ], repository, {
         timeout: 90_000,
         anchorShellPath: harness.executable,
-        env: {
-          PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}`,
-          ARC_TEST_BRANCH: errandBranch,
-        },
+        env: { PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}` },
       });
 
       expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(1);
@@ -221,8 +259,8 @@ describe("ordinary Errand promotion", () => {
         createdFor: { kind: "errand", slug, claimId: opened.identity.claimId },
         provisioning: "ready",
       });
-      expect(JSON.parse(await git(repository, ["show", `refs/arc/user/test-user/errands:${slug}`])))
-        .toMatchObject({ state: "open", branch: errandBranch });
+      const errand = await readStoreRecord(repository, IDENTITY, workItemReference("work-item/record", slug));
+      expect(JSON.parse(errand.content)).toMatchObject({ state: "open", branch: openedBranch(sequence.results[0]) });
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);
@@ -235,7 +273,6 @@ describe("ordinary Errand promotion", () => {
     const harness = await createCodexHarness();
     const hostHarness = await createOpenChangeRequestHarness();
     const slug = "direct-resume";
-    const errandBranch = `chore/${slug}`;
     try {
       const hostUrl = "https://github.com/owner/repo.git";
       await git(repository, ["remote", "set-url", "origin", hostUrl]);
@@ -246,16 +283,13 @@ describe("ordinary Errand promotion", () => {
           command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "prepare requested work"],
           cwdFromPreviousJson: "allocation.checkoutPath",
         },
-        { command: ["git", "push", "-u", "origin", errandBranch], reuseResolvedCwd: true },
+        { command: ["git", "push", "-u", "origin", "HEAD"], reuseResolvedCwd: true },
         { args: ["errand", "leave", slug, "--state", "awaiting-merge", "--json"], reuseResolvedCwd: true },
         { args: ["errand", "open", slug, "--json"], cwd: repository },
       ], repository, {
         timeout: 90_000,
         anchorShellPath: harness.executable,
-        env: {
-          PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}`,
-          ARC_TEST_BRANCH: errandBranch,
-        },
+        env: { PATH: `${hostHarness.directory}:${process.env.PATH ?? ""}` },
       });
 
       expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
@@ -275,11 +309,11 @@ describe("ordinary Errand promotion", () => {
         { outcome: "applied", operation: "errand-open", identity: { state: "open", changeRequest: null } },
       ]);
       expect(sequence.results[1]).not.toHaveProperty("identity");
-      await expect(readFile(join(repository, ".arc", "active", `meta-${slug}.md`))).rejects.toThrow();
-      await expect(readFile(join(repository, ".arc", "active", `tasks-${slug}.md`))).rejects.toThrow();
-      await expect(readFile(
-        join(repository, ".arc", "user", "test-user", slug, "SESSION-NOTES.md"),
-      )).rejects.toThrow();
+      // A work unit's plan is its meta, which carries its session context, and its task list. The Errand's primary
+      // record stays an Errand's rather than a meta, and no task list is held for it.
+      const primary = await readStoreRecord(repository, IDENTITY, workItemReference("work-item/record", slug));
+      expect(primary.reference.kind).toBe("work-item/record");
+      await expect(readStoreRecord(repository, IDENTITY, workItemReference("work-item/task-list", slug))).rejects.toThrow();
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);
@@ -288,8 +322,9 @@ describe("ordinary Errand promotion", () => {
   });
 
   it.each([
+    // The store cuts the work branch at either floor; a derivation-floor unit plans on it until activation.
     { floor: "scale", branch: "feat/growth-unit", state: "Active" },
-    { floor: "derivation", branch: "plan/growth-unit", state: "Planning" },
+    { floor: "derivation", branch: "feat/growth-unit", state: "Planning" },
   ] as const)("promotes a cold v3 Errand at the $floor floor", async ({ floor, branch, state }) => {
     const remote = await createBareRemote(repository);
     const harness = await createCodexHarness();
@@ -316,28 +351,34 @@ describe("ordinary Errand promotion", () => {
         checkoutPath: repository,
         parentCheckoutPath: null,
         subject: { kind: "errand", slug: "growing", claimId: expect.any(String) },
+        metaPath: ".arc/active/current/meta-growth-unit.md",
+        // The store promotes in one write, retiring the Errand's identity there.
         settlement: {
-          state: "commit-required",
-          identity: "retained",
+          state: "settled",
+          identity: "retired",
           originEntry: null,
           originEntrySourceDigest: null,
         },
       });
       expect(await git(repository, ["branch", "--show-current"])).toBe(branch);
-      const meta = await readFile(join(repository, ".arc", "active", "meta-growth-unit.md"), "utf8");
-      expect(meta).toContain(`# Metadata: growth-unit`);
-      expect(meta).toContain(`\`${state}\``);
-      expect(meta).toContain(`\`${branch}\``);
-      if (floor === "derivation") expect(meta).toContain("draft-design");
-      expect(JSON.parse(await git(
-        repository,
-        ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"],
-      ))).toMatchObject({ state: "open" });
+      // The store holds the meta, and links the work branch to it rather than naming it there.
+      const meta = await readStoreRecord(repository, IDENTITY, workItemReference("work-item/meta", "growth-unit"));
+      expect(meta.content).toContain(`# Metadata: growth-unit`);
+      expect(meta.content).toContain(`\`${state}\``);
+      if (floor === "derivation") expect(meta.content).toContain("draft-design");
+      expect(meta.links?.branches).toContainEqual(expect.objectContaining({ ref: branch, linkedAs: "created" }));
     } finally {
       await removeGitBackedDir(remote);
       await removeGitBackedDir(harness.directory);
     }
   });
+});
+
+describe("ordinary Errand promotion over the in-repo store", () => {
+  // Replaying a promotion after its meta commit to settle a capture matched by title is the in-repo store's; the store
+  // promotes in one write and links captures by qualified ID.
+  useInRepoStoreForEach();
+  useFixtureRepository();
 
   it("settles the exact retained capture when promotion replays after the meta commit", async () => {
     const remote = await createBareRemote(repository);

@@ -10,12 +10,14 @@ import { canonicalCheckoutSync } from "./checkout-identity.js";
 import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
 import { locateProjection, type ProjectionLocation } from "./location.js";
 import { type ProjectionLockResult } from "./lock.js";
-import { beginProjectionCommand, projectionProcessState, recordEngineStoreCapability, type ProjectionSkip, type ProjectionCommandBinding } from "./process-state.js";
+import type { TrackedStateRefusal } from "../selection.js";
+import { beginProjectionCommand, projectionProcessState, projectionSwitchedOff, recordEngineStoreCapability, type ProjectionSkip,
+  type ProjectionCommandBinding } from "./process-state.js";
 import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { bindProjectionFanOut, disposeProjectionFanOut } from "./fan-out-binding.js";
 import { runProjectionFanOut } from "./fan-out.js";
 import { settleUnmarkedOwnWrites } from "./fan-out-scheduler.js";
-import { startUnderLease, type ProjectionStartInput } from "./engine-start.js";
+import { startUnderLease, startWithoutProjection, type ProjectionStartInput } from "./engine-start.js";
 import { finishProjectionRoot } from "./engine-end.js";
 import { projectionTimingNow } from "./timings.js";
 
@@ -27,6 +29,10 @@ export interface ProjectionCommandInput {
   readonly resolve?: string;
   /** Bypass automatic projection work for this command alone. */
   readonly skipProjection?: boolean;
+  /** The refusal a Git hook command runs under while `HEAD` tracks ARC state, with its projection switched off. */
+  readonly trackedState?: TrackedStateRefusal;
+  /** The command runs where no checkout holds a projection, so it starts with none and reads nothing to find one. */
+  readonly unprojected?: boolean;
   readonly ports?: () => ProjectionEnginePorts;
   readonly location?: ProjectionLocation;
   readonly mint?: ProjectionStubMintPort;
@@ -47,10 +53,10 @@ export async function startProjection(command: ProjectionCommandInput): Promise<
   state.command = { store: input.store, checkout: input.checkout, ...(input.mint === undefined ? {} : { mint: input.mint }) };
   // The store keys its capability by the root it was built over, the caller's spelling.
   recordEngineStoreCapability(command.checkout, input.store.capabilities.stateOffBranch);
-  if (input.skipProjection === true) {
-    state.skip = { reason: "switch", mark: { reason: "Projection skipped by --skip-projection.",
-      remedy: { text: "Run the command without --skip-projection to take in its pending edits." } } };
-    state.start = { kind: "skipped", skip: state.skip, pending: [] };
+  const skip = switchedOffSkip(input);
+  if (skip !== null) {
+    state.skip = skip;
+    state.start = { kind: "skipped", skip, pending: [] };
     return state.start;
   }
   try { state.start = await initializeProjection(input); }
@@ -67,6 +73,16 @@ export async function startProjection(command: ProjectionCommandInput): Promise<
   return state.start;
 }
 
+function switchedOffSkip(input: ProjectionCommandInput): ProjectionSkip | null {
+  if (input.trackedState !== undefined) {
+    return { reason: "tracked-state", mark: { reason: `Projection skipped: ${input.trackedState.condition}`,
+      remedy: { text: input.trackedState.remedy.text } } };
+  }
+  if (input.skipProjection !== true) return null;
+  return { reason: "switch", mark: { reason: "Projection skipped by --skip-projection.",
+    remedy: { text: "Run the command without --skip-projection to take in its pending edits." } } };
+}
+
 /** Return the command's original selection without reopening a backend or resolving its checkout. */
 export function projectionCommandBinding(): ProjectionCommandBinding {
   const binding = projectionProcessState().command;
@@ -77,6 +93,7 @@ export function projectionCommandBinding(): ProjectionCommandBinding {
 async function initializeProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
   const state = projectionProcessState();
   if (!input.store.capabilities.stateOffBranch) return { kind: "disabled" };
+  if (input.unprojected === true) return startWithoutProjection(input);
   const effective = historyRetryInput(input);
   const ports = input.ports?.() ?? createProjectionEnginePorts(input.checkout);
   const startedAt = projectionTimingNow(ports);
@@ -122,7 +139,7 @@ export async function endProjection(command: ProjectionCommandInput): Promise<vo
   disposeProjectionFanOut();
   const state = projectionProcessState();
   state.materializeSpawn = null;
-  if (state.skip?.reason === "switch") return;
+  if (projectionSwitchedOff(state.skip)) return;
   recordEngineStoreCapability(command.checkout, input.store.capabilities.stateOffBranch);
   if (!input.store.capabilities.stateOffBranch) return;
   for (const root of state.roots.values()) await finishProjectionRoot(root);
@@ -132,7 +149,7 @@ export async function endProjection(command: ProjectionCommandInput): Promise<vo
 export function recordProjectionLockSkip(checkout: string, result: Exclude<ProjectionLockResult<never>, { status: "done" }>, pending: ReadonlySet<string>): Extract<ProjectionStart, { kind: "skipped" }> {
   const reason = result.status === "held" ? `Projection lock held by ${JSON.stringify(result.holder)}.`
     : result.status === "lost" ? `Projection lease lost: ${result.report}`
-    : result.status === "mismatch" ? result.report : "The worktree's Git directory is missing.";
+    : result.status === "mismatch" || result.status === "unwritable" ? result.report : "The worktree's Git directory is missing.";
   const skip: ProjectionSkip = { reason: result.status, mark: { reason, remedy: {
     text: "The command will run with projection disabled. Retry after the lock or Git directory is available; unsent edits remain in their files.",
   } } };

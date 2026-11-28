@@ -16,6 +16,9 @@ import type {
   GitExecOptions,
 } from "../../src/lib/git/index.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+useInRepoStoreForEach();
 
 const mockClearPartialPushMarker = vi.fn();
 const mockRecordPartialPushMarker = vi.fn();

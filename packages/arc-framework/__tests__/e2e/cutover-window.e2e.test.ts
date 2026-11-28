@@ -11,6 +11,12 @@ import { storeImported } from "../../src/lib/store/store-imported.js";
 import { seedTransients, transientCommon, transientSourceRef } from "../helpers/store/import-transients.js";
 import { saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
+import { EITHER_BUILD_OPERATIONS } from "../helpers/cutover-window/run.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const repository = resolve(import.meta.dirname, "../../../..");
 const entry = resolve(import.meta.dirname, "../../src/scripts/cutover-window/main.ts");
@@ -45,7 +51,8 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
   const run = (operation: string) => execa(process.execPath, ["--import", "tsx", entry, operation,
     "--repo", h.root, "--json", ...(["recompute", "account", "chain", "compare"].includes(operation) ? [] : ["--flip-branch", h.flip.branch,
       "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath]), ...(operation === "check" ? ["--path", ""] : []), ...(operation === "chain" ? ["--report", reportPath] : []), ...(operation === "compare" ? ["--branch", "feat/alpha"] : [])],
-  { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
+  { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1",
+    ...(EITHER_BUILD_OPERATIONS.has(operation) ? { [IN_REPO_STORE_OVERRIDE]: undefined } : {}) } });
   expect((await run("check")).exitCode).toBe(0);
   const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
   const { record } = await readWindowHold(io);

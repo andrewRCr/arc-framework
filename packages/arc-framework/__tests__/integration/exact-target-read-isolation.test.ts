@@ -28,6 +28,11 @@ import { resolveCandidateRecordRelativePath } from "../../src/lib/work-unit/cand
 import { runHandlerAt } from "../helpers/handler.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { setupWorktreeSiblings, type WorktreeSiblings } from "../helpers/multi-clone.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Each checkout's own tracked records, read across siblings that open their own stores, are the in-repo
+// implementation's; the store's records are shared by every checkout.
+useInRepoStoreForEach();
 
 const execFileAsync = promisify(execFile);
 

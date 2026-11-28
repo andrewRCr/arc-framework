@@ -15,6 +15,7 @@ import { commitProjectionIndex, readProjectionIndex } from "./index-file.js";
 import { refreshHeldProjectionRoot, type HeldProjectionRefresh } from "./held-refresh.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionLockResult } from "./lock.js";
+import { findTrackedStateRefusal } from "../selection.js";
 
 /** Run a bound spawn request; a process with no root hook remains dark. */
 export async function materializeSpawnedProjection(checkout: string): Promise<void> {
@@ -26,7 +27,7 @@ export async function materializeSpawnedProjection(checkout: string): Promise<vo
 
 /** Bind after command start, which resets process state, retaining the command's selected store. */
 export function bindSpawnMaterialization(command: ProjectionCommandInput): void {
-  if (!command.store.capabilities.stateOffBranch || command.skipProjection) return;
+  if (!command.store.capabilities.stateOffBranch || command.skipProjection || command.trackedState !== undefined) return;
   // The command's configuration is keyed by the spelling its start took.
   const state = projectionProcessState();
   const input = { ...command, checkout: state.command?.checkout ?? command.checkout };
@@ -38,6 +39,8 @@ export function bindSpawnMaterialization(command: ProjectionCommandInput): void 
 
 async function materializeSpawn(input: ProjectionCommandInput, checkout: string): Promise<void> {
   const ports = input.ports?.() ?? createProjectionEnginePorts(checkout);
+  const refusal = await findTrackedStateRefusal((cmd, args, options) => ports.exec(cmd, args, { ...options, cwd: checkout }));
+  if (refusal !== null) { reportFailure(checkout, refusal.condition, refusal.remedy.text); return; }
   const location = await locateProjection(checkout, ports);
   // Only the command's own checkout may delete a mismatched partition; another worktree keeps it for its own start.
   const invalidatePartition = projectionProcessState().command?.checkout === checkout;
@@ -75,6 +78,7 @@ async function materializeSpawn(input: ProjectionCommandInput, checkout: string)
 function leaseFailure(result: Exclude<ProjectionLockResult<unknown>, { status: "done" }>): string {
   if (result.status === "lost") return `Projection materialization lost its lease: ${result.report}`;
   if (result.status === "mismatch") return `Projection materialization found a mismatched index partition: ${result.report}`;
+  if (result.status === "unwritable") return `Projection materialization cannot take its lease: ${result.report}`;
   return `Projection materialization could not acquire its lease (${result.status}).`;
 }
 

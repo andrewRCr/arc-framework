@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
-import { withRemoteEvidence } from "../kernel/index.js";
+import { CanonicalDigestSchema, withRemoteEvidence } from "../kernel/index.js";
 import { MissingWorktreeFolderSchema } from "./missing-worktree-folders.js";
 import { CurrentHuskAdvisorySchema } from "./current-husk-advisory.js";
 
@@ -75,12 +75,21 @@ const LandedRetirementResidueSchema = z.discriminatedUnion("status", [
     subject: z.strictObject({ slug: z.string(), branch: z.string() }), reason: z.string(), repair: z.string().optional(), actions: SessionActionsSchema.optional(),
   }),
 ]);
+const RenameMoveCommandSchema = z.strictObject({
+  argv: z.tuple([z.literal("git"), z.literal("worktree"), z.literal("move"), z.literal("-f"), z.literal("-f"), z.string(), z.string()]).readonly(),
+  text: z.string().trim().min(1),
+});
+const RenameMoveReplaySchema = z.strictObject({
+  argv: z.union([
+    z.tuple([z.literal("arc"), z.literal("rename"), z.string(), z.string()]).readonly(),
+    z.tuple([z.literal("arc"), z.literal("rename"), z.string(), z.string(), z.literal("--settle-move"), CanonicalDigestSchema]).readonly(),
+  ]),
+  text: z.string().trim().min(1),
+});
 const RenameMoveResidueSchema = z.strictObject({
-  oldSlug: z.string(), newSlug: z.string(), branch: z.string().nullable(), head: z.string(), from: z.string(), to: z.string(), actions: SessionActionsSchema,
-  remedy: z.strictObject({
-    argv: z.tuple([z.literal("git"), z.literal("worktree"), z.literal("move"), z.literal("-f"), z.literal("-f"), z.string(), z.string()]).readonly(),
-    text: z.string(),
-  }),
+  oldSlug: z.string(), newSlug: z.string(), branch: z.string().nullable(), head: z.string(), from: z.string(), to: z.string(),
+  remedy: RenameMoveCommandSchema,
+  actions: z.tuple([RenameMoveCommandSchema, RenameMoveReplaySchema]),
 });
 
 /** Complete cleanup advisory with exact-evidence authorization constraints. */

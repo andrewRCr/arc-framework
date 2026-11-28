@@ -10,6 +10,7 @@ import type { GitExec } from "../../src/lib/git/exec.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { createRespondDependencies } from
   "../../src/scripts/review-gate/runtime/respond-composition.js";
+import { createReviewHarness } from "../helpers/store/review-harness.js";
 
 const roots: string[] = [];
 const exec = createExecaGitExec();
@@ -62,7 +63,10 @@ async function ambiguousBaseRepository(): Promise<{ root: string; head: string }
 describe("reading a reviewed Candidate's lineage", () => {
   it("refuses a target whose base is not a single coordinate as invalid input", async () => {
     const { root, head } = await ambiguousBaseRepository();
-    const dependencies = createRespondDependencies({ cwd: root, exec: boundExec(root) });
+    const h = createReviewHarness();
+    const meta = await h.seedMeta("example");
+    const dependencies = createRespondDependencies({ cwd: root, exec: boundExec(root), store: h.store,
+      projectId: h.projectId, workItem: meta.reference.owner });
 
     // An anonymous raise here reaches the command boundary as an unexplained failure with no diagnostics, so
     // the operator is told the respond failed and nothing about the history that stopped it. Under the stable

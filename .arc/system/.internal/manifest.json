@@ -355,7 +355,7 @@
     "system/methods/issue-triage.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "4e1ebdac1d7347c9bc100412b74bca0a015ad3494b7959d36f858ffab463b299"
+      "pristine_hash": "8371c3569ca9f5ba16c367a2fc2b7a36a0d4e598735d63c5b63c20981ec269c5"
     },
     "system/methods/resolve-plan-segmentation.md": {
       "classification": "Configurable",
@@ -595,12 +595,12 @@
     "system/workflows/arc/supplemental/run-errand.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "91db96b7366483b9c84df2dea020c89a617dcb9b3ccbd569a48266fe0cfcdff9"
+      "pristine_hash": "a6cb42278c2efca93340a62286d8a703a0482ede51565fdd17c1818886375399"
     },
     "system/workflows/arc/supplemental/drain-inbox.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f796a3a97fcefb42a18b9e40f3156a8236e8a00aa8ea4b9de14b96c09a10dafb"
+      "pristine_hash": "177a3b0ff45ac9920f59460633a9374d6d737dcac3d65180b52772531f516d3a"
     },
     "system/workflows/arc/supplemental/deliver-stack.md": {
       "classification": "Framework",
@@ -662,11 +662,6 @@
       "layer": "core",
       "pristine_hash": "0c6a64f7972ea93e7ecbdcb43a13c510cfa74b3864baa59f78cb01d378772ca3"
     },
-    "completed/README.md": {
-      "classification": "Configurable",
-      "layer": "arc-in-git",
-      "pristine_hash": "d7db069a4b23902eff15ca9602e5daf7e42a440bbc6675967bb124accf5fc744"
-    },
     "reference/strategies/arc/strategy-planning-module.md": {
       "classification": "Framework",
       "layer": "arc-in-git",
@@ -682,20 +677,10 @@
       "layer": "core",
       "pristine_hash": "0827e1a8a55b164c9571bf48feddf58563143fb3a147aedf0e1c11759cbb0e41"
     },
-    "backlog/ROADMAP.md": {
-      "classification": "Scaffolded",
-      "layer": "arc-in-git",
-      "pristine_hash": "75a46e8d94c2fe2e1f2e578827f63e68a62d7b9d0a0e229c0d01d43daf1c0120"
-    },
-    "backlog/ATOMIC-INBOX.md": {
-      "classification": "Scaffolded",
-      "layer": "arc-in-git",
-      "pristine_hash": "c82866f2d63c47b85beee645241ced3c368160f244f5677a19201e6a96a28714"
-    },
     "system/methods/route-discovered-work.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "38a0400f03bacf8561decd349ed44096f4bf51818b117848c639c4166ba6d73d"
+      "pristine_hash": "45f3d735333eb42964e49455ecfa79fcc240db6aee8bd9dd5ae27259e96c63ae"
     },
     "system/.internal/scripts/validate-links.sh": {
       "classification": "Framework",
@@ -705,7 +690,7 @@
     "system/methods/pull-request-format.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "bd896cf560ff8d40e9e4404d56563cdea0094499f6c473260a5beb78d90805dd"
+      "pristine_hash": "1176776974a7046a2dd833be7b94d81d0f29a16f782aae9378cccb6af54f97fe"
     },
     "system/methods/review-model.md": {
       "classification": "Configurable",

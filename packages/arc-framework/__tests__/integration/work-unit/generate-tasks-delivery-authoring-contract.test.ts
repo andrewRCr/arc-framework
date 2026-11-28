@@ -39,14 +39,15 @@ describe("generate-tasks delivery authoring contract", () => {
 
     const compose = packaged.indexOf("arc delivery compose");
     const interlock = packaged.indexOf("`workflow-interlock`", compose);
-    const finalize = packaged.indexOf("arc finalize generate-tasks", interlock);
-    const reread = packaged.indexOf("planning-review's post-settle reread", finalize);
-    const commit = indexOfSoftWrappedProse(packaged, "`commit-interlock` release", reread);
+    const reread = packaged.indexOf("planning-review's post-settle reread", interlock);
+    const save = packaged.indexOf("arc save", reread);
+    const finalize = packaged.indexOf("arc finalize generate-tasks", save);
     expect(compose).toBeGreaterThan(0);
     expect(interlock).toBeGreaterThan(compose);
-    expect(finalize).toBeGreaterThan(interlock);
-    expect(reread).toBeGreaterThan(finalize);
-    expect(commit).toBeGreaterThan(reread);
+    expect(reread).toBeGreaterThan(interlock);
+    expect(save).toBeGreaterThan(reread);
+    expect(finalize).toBeGreaterThan(save);
+    expect(indexOfSoftWrappedProse(packaged, "`commit-interlock` release", 0)).toBe(-1);
     expect(installed).toBe(packaged);
   });
 

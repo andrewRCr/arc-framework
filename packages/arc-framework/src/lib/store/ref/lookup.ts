@@ -14,6 +14,7 @@ import { readLookupTrees } from "./lookup-trees.js";
 import type { Slug } from "../../kernel/schema/slug.js";
 import type { ArchivedFolder } from "./archive-read.js";
 import { completedLookupWinner } from "./lookup-ranking.js";
+import { workBranchName } from "../lifecycle-branch.js";
 
 /** One immutable tree's entries and decoded metadata, also usable by write views. */
 export interface RefLookupTree { entries: readonly RefTreeEntry[]; metadata: RefMetadata; liveRef?: string; objects?: ReadonlyMap<string, BatchObject | null>; archived?: ArchivedFolder }
@@ -81,8 +82,10 @@ function lookupCandidates(context: Pick<RefBackendContext, "registry">, input: L
 
 function refCandidates(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>,
   input: Extract<LookupInput, { kind: "ref" }>): LookupSelection {
+  const branchName = workBranchName(input.ref);
   const linked = [...trees].filter(([ref, tree]) => lookupPrimary(context, ref, tree)
-    && tree.metadata.primary?.links?.branches?.some(branch => branch.repository === input.repository && branch.ref === input.ref));
+    && tree.metadata.primary?.links?.branches?.some(branch =>
+      branch.repository === input.repository && workBranchName(branch.ref) === branchName));
   const live = linked.filter(([, tree]) => !tree.liveRef);
   const tier = live.length > 0 ? live : completedLookupWinner(context, linked);
   const branchHolders = tier.flatMap(([ref, tree]) => {

@@ -15,6 +15,8 @@
  * @module
  */
 
+import { isSlugSafe } from "../kernel/index.js";
+
 /** Branch nature-types an errand may carry — the `branch-format` set minus `feat`. */
 export const ERRAND_BRANCH_TYPES = ["fix", "chore", "refactor", "hotfix"] as const;
 
@@ -27,4 +29,50 @@ export const DEFAULT_ERRAND_BRANCH_TYPE: ErrandBranchType = "chore";
 /** Whether a string is an admissible errand branch nature-type. */
 export function isErrandBranchType(value: string): value is ErrandBranchType {
   return (ERRAND_BRANCH_TYPES as readonly string[]).includes(value);
+}
+
+/** Eight lowercase hex characters after the slug, which keep two same-slug errands' branches apart. */
+const BRANCH_SUFFIX = /^[0-9a-f]{8}$/u;
+
+/**
+ * Name an errand's branch from its type and slug, using the owner UID prefix when supplied.
+ *
+ * @param type - The branch nature-type.
+ * @param slug - The errand's slug.
+ * @param ownerUid - The UID of the stored Errand generation, when state lives off the branch.
+ * @returns `<type>/<slug>`, or `<type>/<slug>-<suffix>`.
+ */
+export function errandBranch(type: ErrandBranchType, slug: string, ownerUid?: string): string {
+  return ownerUid === undefined ? `${type}/${slug}` : `${type}/${slug}-${ownerUid.slice(0, 8)}`;
+}
+
+/**
+ * The nature-type an errand branch names for its slug, as `<type>/<slug>` or `<type>/<slug>-<suffix>`.
+ *
+ * @param branch - The branch an errand record names.
+ * @param slug - The errand's slug.
+ * @returns The admitted type, or null when the branch takes neither form.
+ */
+export function errandBranchType(branch: string, slug: string): ErrandBranchType | null {
+  const separator = branch.indexOf("/");
+  if (separator < 0) return null;
+  const type = branch.slice(0, separator), rest = branch.slice(separator + 1);
+  if (!isErrandBranchType(type)) return null;
+  if (rest === slug) return type;
+  return rest.startsWith(`${slug}-`) && BRANCH_SUFFIX.test(rest.slice(slug.length + 1)) ? type : null;
+}
+
+/**
+ * The slug a suffixed errand branch carries, read from the branch alone.
+ *
+ * @param branch - A branch that may take the form `<type>/<slug>-<suffix>`.
+ * @returns The slug before the suffix, or null when the branch is not a suffixed errand branch.
+ */
+export function suffixedErrandBranchSlug(branch: string): string | null {
+  const separator = branch.indexOf("/");
+  if (separator < 0 || !isErrandBranchType(branch.slice(0, separator))) return null;
+  const rest = branch.slice(separator + 1), cut = rest.length - 9;
+  if (cut <= 0 || rest[cut] !== "-" || !BRANCH_SUFFIX.test(rest.slice(cut + 1))) return null;
+  const slug = rest.slice(0, cut);
+  return isSlugSafe(slug) ? slug : null;
 }

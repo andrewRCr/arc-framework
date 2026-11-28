@@ -10,6 +10,7 @@
  * the non-interactive case is the same rejection — no TTY branch in the contract.
  */
 
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
@@ -276,6 +277,22 @@ describe("runStub — never defaults (non-interactive safety)", () => {
 });
 
 describe("runStub — initial Class", () => {
+  it.each([
+    "system/workflows/arc/draft-design.md",
+    "reference/QUICK-REFERENCE.template.md",
+  ])("scaffolds a planned stub with the inputs documented in %s", async (path) => {
+    const guide = readFileSync(new URL(`../../../../arc/${path}`, import.meta.url), "utf8");
+    const entry = guide.split(/\r?\n\s*\r?\n/u).find(block => block.includes("arc stub ") && /\bplanned\b/u.test(block));
+    expect(entry).toBeDefined();
+
+    const { ctx } = buildHarness();
+    const result = await runStub(ctx, {
+      ...BASE,
+      cls: entry?.includes("--class") ? "Light" : undefined,
+    });
+    expect(result.status, result.status === "rejected" ? result.reason : undefined).toBe("scaffolded");
+  });
+
   it("writes an explicit resolved Class into the scaffolded meta", async () => {
     const { ctx, writes } = buildHarness();
 

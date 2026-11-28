@@ -15,6 +15,7 @@ import {
   writeFile,
 } from "../helpers/integration.js";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { reconcileNotesPush, runUserCompact, type UserIOContext } from "../../src/commands/user.js";
 import type { GitExec, GitExecInput } from "../../src/lib/git/exec.js";
 import { gitExec, gitExecInput } from "../../src/lib/io-context.js";
@@ -129,6 +130,7 @@ async function describeNotePartition(repo: string, commits: readonly string[]): 
 }
 
 describe("user notes compaction", () => {
+  useInRepoStoreForEach();
   let repo: string | undefined;
   let remote: string | undefined;
   let updater: string | undefined;

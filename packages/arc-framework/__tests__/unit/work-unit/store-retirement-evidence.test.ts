@@ -9,11 +9,10 @@ import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import type { StoreRefusal } from "../../../src/lib/store/refusal.js";
 import { createDecomposeHarness } from "../../helpers/store/decompose-harness.js";
-const base = "a".repeat(40);
 it("reads the archived reference without selecting its live namesake", async () => {
   const h = createDecomposeHarness(), archived = await h.seedCompletedWorkUnit("example"), live = await h.seedMeta("example");
   const before = lifecycleSuccess(await h.store.version());
-  const result = await readStoreRetirementEvidence(h.store, archived.reference, base);
+  const result = await readStoreRetirementEvidence(h.store, archived.reference);
   expect(result).toMatchObject({ record: archived, rule: "landed", name: "example" });
   await expect(result.revalidate()).resolves.toBeUndefined();
   expect(lifecycleSuccess(await h.store.read({ reference: live.reference }))).toEqual(live);
@@ -24,7 +23,7 @@ it("reads a retired origin's lineage by UID beside same-name retired generations
   const retired = await h.seedRetiredWorkUnit(primary);
   await h.seedRetiredWorkUnit(await h.seedMeta("ended"));
   const live = await h.seedMeta("ended"), before = lifecycleSuccess(await h.store.version());
-  const evidence = await readStoreRetirementEvidence(h.store, primary.reference, base);
+  const evidence = await readStoreRetirementEvidence(h.store, primary.reference);
   expect(evidence).toMatchObject({ record: retired, rule: "discard", evidence: { kind: "lineage", reference: retired.reference } });
   await expect(evidence.revalidate()).resolves.toBeUndefined();
   expect(lifecycleSuccess(await h.store.read({ reference: live.reference }))).toEqual(live);
@@ -41,9 +40,9 @@ it("refuses a UID-free primary reference and reads evidence after supplying its 
   const h = createDecomposeHarness(), archived = await h.seedCompletedWorkUnit("example");
   const unbound = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" }));
   const before = lifecycleSuccess(await h.store.version());
-  await expect(readStoreRetirementEvidence(h.store, unbound, base)).rejects.toThrow("owner UID");
+  await expect(readStoreRetirementEvidence(h.store, unbound)).rejects.toThrow("owner UID");
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
-  await expect(readStoreRetirementEvidence(h.store, archived.reference, base)).resolves.toMatchObject({ record: archived, rule: "landed" });
+  await expect(readStoreRetirementEvidence(h.store, archived.reference)).resolves.toMatchObject({ record: archived, rule: "landed" });
 });
 it("carries the original subject clash in its error", async () => {
   const h = createLifecycleHarness(), primary = await h.seedMeta("example"), other = await h.seedMeta("other");
@@ -69,7 +68,7 @@ it.each(["lookup", "read"] as const)("carries a refused lineage %s with the orig
     ? { status: "refused", refusal } : h.store.lookup(input);
   else store.read = async input => sameReference(input.reference, reference)
     ? { status: "refused", refusal } : h.store.read(input);
-  await expect(readStoreRetirementEvidence(store, primary.reference, base)).rejects.toMatchObject({ name: "StoreRefusalError",
+  await expect(readStoreRetirementEvidence(store, primary.reference)).rejects.toMatchObject({ name: "StoreRefusalError",
     refusal, message: `${refusal.condition} ${refusal.remedy.text}` });
 });
 

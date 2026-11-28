@@ -26,6 +26,24 @@ import type {
 } from "../../../../src/lib/config/resolved-settings.js";
 import type { ConfigSettings } from "../../../../src/lib/config/schema.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
+import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
+import { canonicalize } from "../../../../src/lib/kernel/canonical/canonical-json.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/index.js";
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
+import { useInRepoStore } from "../../../helpers/in-repo-store-override.js";
+
+// The release cascade resolves the checkout's work unit through the default store; each case binds a checked store.
+const storeBinding = vi.hoisted(() => ({ store: undefined as unknown }));
+vi.mock("../../../../src/lib/store/create.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../src/lib/store/create.js")>();
+  type Created = ReturnType<typeof actual.createStore>;
+  return { ...actual, createStore: (...args: Parameters<typeof actual.createStore>): Created =>
+    (storeBinding.store as Created | undefined) ?? actual.createStore(...args) };
+});
+let harness: ReturnType<typeof createLifecycleHarness>;
+beforeEach(() => { harness = createLifecycleHarness(); storeBinding.store = harness.store; });
+afterEach(() => { storeBinding.store = undefined; });
 
 // --- Fixture helpers ---
 
@@ -48,14 +66,21 @@ function statusBody(): string {
   });
 }
 
+/** Bind the checkout to a work unit held in the case's store, beside the project identity its branch read needs. */
 async function writeStatus(
   root: string,
   name: string,
 ): Promise<void> {
-  await writeFile(
-    join(root, ".arc", "active", `meta-${name}.md`),
-    statusBody(),
-  );
+  const record = await harness.seedMeta(name, { branch: "technical/sample", taskList: "tasks-sample.md" });
+  await harness.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "project" })),
+    canonicalize({ projectId: "123e4567-e89b-42d3-a456-426614174099" }));
+  await writeWorktreeMarker(root, { spawnedByArc: false, createdFor: boundWorkUnitSubject(record),
+    spawningIdentity: IDENTITY, createdAt: "2026-10-24T00:00:00Z" });
+}
+
+/** Write an active meta file, the in-repo implementation's record of the checkout's work unit. */
+async function writeActiveMetaFile(root: string, name: string): Promise<void> {
+  await writeFile(join(root, ".arc", "active", `meta-${name}.md`), statusBody());
 }
 
 interface SettingsOverrides {
@@ -410,8 +435,11 @@ describe("runReleaseCommit — code 10 (ambiguous-active-wu)", () => {
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   it("refuses with code 10 + disambiguation hint on multi-candidate, never spawning git", async () => {
-    await writeStatus(fixture.root, "alpha");
-    await writeStatus(fixture.root, "beta");
+    // Several active meta files are the in-repo implementation's ambiguity; a store's marker binds one work unit.
+    storeBinding.store = undefined;
+    useInRepoStore();
+    await writeActiveMetaFile(fixture.root, "alpha");
+    await writeActiveMetaFile(fixture.root, "beta");
     const { deps, stderr, spawnGit } = buildDeps(fixture.root, { argv: ["-m", "subject"] });
 
     const result = await runReleaseCommit(deps);

@@ -137,3 +137,55 @@ describe.each(["default", "separate"] as const)("captured transient import in %s
     expect((await h.git("git", ["for-each-ref", "--format=%(refname)", transientSourceRef, keptPrefix])).stdout).toBe("");
   }, 60_000);
 });
+
+it("refuses the landing over an identity ref advanced after the import read it, then a fresh run imports its new tip", async () => {
+  const h = await importFixture("default");
+  const tip = await seedTransients(h, [ordinaryErrand]);
+  await h.git("git", ["branch", "-D", "chore/example"]);
+  await h.git("git", ["update-ref", "-d", transientSourceRef, tip]);
+  const newer = await seedTransients(h, [{ ...ordinaryRecord(), intent: "Changed after capture" }]);
+  await h.git("git", ["update-ref", transientSourceRef, tip, newer]);
+  const exec = h.ports.exec;
+  let armed = true;
+  h.ports.exec = async (command, args, options) => {
+    const result = await exec(command, args, options);
+    if (armed && args.includes("for-each-ref") && args.at(-1) === "refs/arc/user/") {
+      armed = false;
+      await h.git("git", ["update-ref", transientSourceRef, newer, tip]);
+    }
+    return result;
+  };
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused", report: { notices: expect.arrayContaining([
+    expect.objectContaining({ condition: expect.stringContaining(`lost its captured transient-source delete lease for ${transientSourceRef}`) }),
+  ]) } } });
+  await noLanding(h, "default");
+  expect((await h.git("git", ["rev-parse", transientSourceRef])).stdout.trim()).toBe(newer);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect(await imported(h)).toContainEqual(expect.objectContaining({ name: "example", intent: "Changed after capture" }));
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", transientSourceRef, keptPrefix])).stdout).toBe("");
+}, 60_000);
+
+it("in the default layout, refuses retiring origin's identity ref advanced after the landing, then finishes once it is reconciled", async () => {
+  const h = await importFixture("default");
+  const tip = await seedTransients(h, [ordinaryErrand]);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const author = ["-c", "user.name=Other Clone", "-c", "user.email=other@example.test"];
+  let newer = "", keptBefore = "";
+  h.ports.migrateStep = async step => {
+    if (step !== "import.transient.remote-delete" || newer !== "") return;
+    keptBefore = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", keptPrefix])).stdout;
+    newer = (await h.remote("git", [...author, "commit-tree", `${tip}^{tree}`, "-p", tip, "-m", "Advance after the import read it"])).stdout.trim();
+    await h.remote("git", ["update-ref", transientSourceRef, newer, tip]);
+  };
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: `origin's ${transientSourceRef} advanced after the import read it.`, remedy: { argv: ["arc", "store", "migrate", "--import"] } } });
+  expect(keptBefore).toContain(tip);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", keptPrefix])).stdout).toBe(keptBefore);
+  expect((await h.remote("git", ["rev-parse", transientSourceRef])).stdout.trim()).toBe(newer);
+  expect(await imported(h)).toContainEqual(expect.objectContaining({ name: "example", intent: "Keep this intent" }));
+  await h.remote("git", ["update-ref", transientSourceRef, tip, newer]);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", transientSourceRef])).stdout).toBe("");
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", transientSourceRef, keptPrefix])).stdout).toBe("");
+}, 60_000);
+

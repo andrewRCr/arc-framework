@@ -19,6 +19,17 @@ const relativePaths = [
   "reference/strategies/arc/strategy-work-organization.md",
 ] as const;
 
+const EARLY_START = softWrappedProse("Starting one before the terminal batch is deliberate:");
+
+function assertExtractionDoctrine(workflow: string, strategy: string): void {
+  expect(workflow).toMatch(softWrappedProse("Extraction writes no lineage record: its origin survives."));
+  expect(workflow).toMatch(softWrappedProse("It stores no launch advice, publication packet, or selected successor."));
+  expect(strategy).toMatch(softWrappedProse("The surviving origin is the natural continuation"));
+  const additive = workflow.slice(workflow.indexOf("## 3. Write the additive batch"), workflow.indexOf("## 4. "));
+  expect(additive).toMatch(softWrappedProse("Every checkout sees the members as ordinary stubs"));
+  expect(additive).toMatch(EARLY_START);
+}
+
 describe("decomposition doctrine contract", () => {
   it("states one retirement and extraction boundary on every shipped surface", () => {
     for (const relativePath of relativePaths) {
@@ -35,19 +46,26 @@ describe("decomposition doctrine contract", () => {
     }
   });
 
-  it("keeps extraction record-free and lifecycle-derived", () => {
-    const workflow = readFileSync(
-      join(PACKAGE_ROOT, "arc", relativePaths[1]),
-      "utf8",
-    );
-    const strategy = readFileSync(
-      join(PACKAGE_ROOT, "arc", relativePaths[2]),
-      "utf8",
-    );
+  it("keeps extraction lineage-free and lifecycle-derived", () => {
+    const workflow = readFileSync(join(PACKAGE_ROOT, "arc", relativePaths[1]), "utf8");
+    const strategy = readFileSync(join(PACKAGE_ROOT, "arc", relativePaths[2]), "utf8");
+    assertExtractionDoctrine(workflow, strategy);
+  });
 
-    expect(workflow).toMatch(softWrappedProse("Extraction writes no transition record, recovery record, or receipt."));
-    expect(workflow).toMatch(softWrappedProse("It stores no launch advice, publication packet, or selected successor."));
-    expect(strategy).toMatch(softWrappedProse("The surviving origin is the natural continuation"));
-    expect(strategy).toMatch(softWrappedProse("New leaves become startable only through their landed base metas"));
+  it("detects a missing early-start rule in the additive batch", () => {
+    const workflow = readFileSync(join(PACKAGE_ROOT, "arc", relativePaths[1]), "utf8");
+    const strategy = readFileSync(join(PACKAGE_ROOT, "arc", relativePaths[2]), "utf8");
+    const withoutEarlyStart = workflow.replace(EARLY_START, "");
+    expect(withoutEarlyStart).not.toBe(workflow);
+    expect(() => assertExtractionDoctrine(withoutEarlyStart, strategy)).toThrow();
+  });
+
+  it("rejects a deliberate prohibition on starting before the terminal batch", () => {
+    const workflow = readFileSync(join(PACKAGE_ROOT, "arc", relativePaths[1]), "utf8");
+    const strategy = readFileSync(join(PACKAGE_ROOT, "arc", relativePaths[2]), "utf8");
+    const forbidden = workflow.replace(/Starting\s+one\s+before\s+the\s+terminal\s+batch\s+is\s+[^.]+\./u,
+      "Starting one before the terminal batch is deliberately forbidden.");
+    expect(forbidden).not.toBe(workflow);
+    expect(() => assertExtractionDoctrine(forbidden, strategy)).toThrow();
   });
 });

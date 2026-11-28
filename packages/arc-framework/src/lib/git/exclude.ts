@@ -8,7 +8,13 @@ export interface GitExcludeFs {
   mkdir(path: string, options: { recursive: boolean }): Promise<void>;
   withLock<T>(path: string, operation: () => Promise<T>): Promise<T>;
 }
-export type GitExcludeResult = { ok: true; path: string } | { ok: false; path?: string; error: unknown };
+export type GitExcludeResult = { ok: true; path: string } | {
+  ok: false;
+  path?: string;
+  /** The lock path when the operation failed before taking the lock. */
+  lockPath?: string;
+  error: unknown;
+};
 
 /**
  * Append one clone-local exclusion pattern, preserving existing content.
@@ -16,7 +22,7 @@ export type GitExcludeResult = { ok: true; path: string } | { ok: false; path?: 
  * @param pattern - Exact Git ignore pattern to append once.
  * @param exec - Caller-owned Git executor.
  * @param fs - Injectable exclude-file operations.
- * @returns The resolved absolute path, or the original failure and any established path.
+ * @returns The resolved absolute path, or the original failure and any established path, including an unacquired lock.
  */
 export async function ensureGitExcludePattern(
   root: string, pattern: string, exec: GitExec, fs: GitExcludeFs,
@@ -30,19 +36,22 @@ export async function ensureGitExcludePattern(
  * @param patterns - Exact Git ignore patterns to append once each.
  * @param exec - Caller-owned Git executor.
  * @param fs - Injectable exclude-file operations.
- * @returns The resolved absolute path, or the original failure and any established path.
+ * @returns The resolved absolute path, or the original failure and any established path, including an unacquired lock.
  */
 export async function ensureGitExcludePatterns(
   root: string, patterns: readonly string[], exec: GitExec, fs: GitExcludeFs,
 ): Promise<GitExcludeResult> {
   let path: string | undefined;
+  let pendingLock: string | undefined;
   try {
     const { stdout } = await exec("git", ["rev-parse", "--git-path", "info/exclude"], { cwd: root });
     const rawPath = stdout.trim();
     if (rawPath.length === 0) throw new Error("Git returned no exclude path");
     const excludePath = isAbsolute(rawPath) ? rawPath : resolve(root, rawPath);
     path = excludePath;
-    await fs.withLock(`${excludePath}.arc.lock`, async () => {
+    pendingLock = `${excludePath}.arc.lock`;
+    await fs.withLock(pendingLock, async () => {
+      pendingLock = undefined;
       const content = await readExclude(excludePath, fs);
       const present = new Set(content.split(/\r?\n/u));
       const missing = patterns.filter((pattern) => !present.has(pattern));
@@ -53,7 +62,8 @@ export async function ensureGitExcludePatterns(
     });
     return { ok: true, path };
   } catch (error) {
-    return { ok: false, ...(path === undefined ? {} : { path }), error };
+    return { ok: false, ...(path === undefined ? {} : { path }),
+      ...(pendingLock === undefined ? {} : { lockPath: pendingLock }), error };
   }
 }
 

@@ -21,7 +21,7 @@ export async function compileBranchGone(input: AgendaCompileInput): Promise<Sess
   if (decision !== null) steps.push(decision);
   if (steps.at(-1)?.type !== "exec") {
     const context = selectedAgendaContext(input) === null
-      ? await compileUniversalReads(input) : (await compileResumeContext(input, { notesLoadCanRestore: false })).steps;
+      ? await compileUniversalReads(input) : (await compileResumeContext(input)).steps;
     const reads = context.filter(step => step.type === "read");
     const findings = context.filter(step => step.type === "render" || step.type === "note");
     const surfaces = compileSessionOrientation(input, findings).filter(surface => surface.id !== "unconsumed-signal");

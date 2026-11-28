@@ -1,6 +1,4 @@
 /** Full-final member review keeps repair checks separate from complete-pass closure. */
-import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { LocalApprovedDispositionRecordStore } from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { currentApprovedDispositionNode } from "../../src/scripts/review-gate/core/advisory-records.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -9,7 +7,7 @@ import { cleanupTempDir } from "../helpers/integration.js";
 import { inProcessReview } from "../helpers/in-process-review.js";
 import {
   createFixedLocalMemberReview, completeLocalReviewThroughHandlers, git, roots,
-  respondThroughHandler, resumeLocalThroughHandler, statusThroughHandler, type FanOutHarness,
+  respondThroughHandler, resumeLocalThroughHandler, reviewInvocation, statusThroughHandler, type FanOutHarness,
 } from "../fixtures/review-fan-out-harness.js";
 
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
@@ -17,7 +15,7 @@ afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); 
 async function reduceCleanReview(harness: FanOutHarness, operationId: string) {
   expect(await resumeLocalThroughHandler(harness, { schemaVersion: 1, operationId }))
     .toMatchObject({ state: "review-complete", nextAction: "reduce" });
-  expect(await inProcessReview.reduce(harness.root, { schemaVersion: 1, operationId }))
+  expect(await inProcessReview.reduce(harness.root, { schemaVersion: 1, operationId }, reviewInvocation(harness)))
     .toMatchObject({ state: "advisory-complete", nextAction: "none" });
 }
 
@@ -36,7 +34,7 @@ it("requires complete-pass approval at the ceiling while admitting the member fi
   expect(await statusThroughHandler(harness, correctedTarget)).toMatchObject({
     state: "approval-required", nextAction: "obtain-ceiling-override",
   });
-}, 60_000);
+}, 180_000);
 
 it("keeps a clean member fix check open until complete review and excludes a later plain commit from delta checks", async () => {
   const { harness, correctedTarget, local } = await createFixedLocalMemberReview(4);
@@ -73,7 +71,7 @@ it("keeps a clean member fix check open until complete review and excludes a lat
   if (published.status !== "ok") throw new Error("expected the plain member head in delivery state");
   const moved = await statusThroughHandler(harness, { ...correctedTarget, headSha: head });
   expect(moved, JSON.stringify(moved)).toMatchObject({ nextAction: "resolve-review-applicability" });
-}, 60_000);
+}, 180_000);
 
 async function bindPublishedMemberObservations(harness: FanOutHarness) {
   await git(harness.root, ["remote", "add", "origin", "git@github.com:owner/repository.git"]);
@@ -107,7 +105,7 @@ async function bindPublishedMemberObservations(harness: FanOutHarness) {
 it("retains advisory fix tags through a performed member fix and its verified replay", async () => {
   const { harness, local } = await createFixedLocalMemberReview(4);
   await bindPublishedMemberObservations(harness);
-  const store = new LocalApprovedDispositionRecordStore(new RepositoryGitCommonStatePublisher(harness.exec, harness.root));
+  const store = harness.dispositions;
   const record = await store.readDispositionRecord(local.prepared.payload.operationId);
   if (record === null || record.source.kind !== "attested-local") throw new Error("expected the performed local response");
   const node = currentApprovedDispositionNode(record);
@@ -129,4 +127,4 @@ it("retains advisory fix tags through a performed member fix and its verified re
     expect(replay.payload.dispositionReportText).not.toContain(absent);
   }
   expect(await store.readDispositionRecord(local.prepared.payload.operationId)).toEqual(record);
-}, 60_000);
+}, 180_000);

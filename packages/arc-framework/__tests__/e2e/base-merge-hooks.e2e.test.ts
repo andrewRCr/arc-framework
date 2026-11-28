@@ -4,16 +4,21 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHookManagerRepository, executionReceipt } from "../fixtures/checks/hook-manager.js";
 import { cleanupTempDir, git, runArcNoTty } from "./helpers.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
 it.each(["clean", "ROADMAP remedy"])("concludes a %s merge and enforces failing checks on the new head", async mode => {
+  if (mode === "ROADMAP remedy") useInRepoStore();
   const root = await createHookManagerRepository("core.hooksPath", inject("arcHookManagerTools"));
   roots.push(root);
   const roadmap = join(root, ".arc/backlog/ROADMAP.md");
-  await mkdir(join(root, ".arc/backlog"), { recursive: true });
-  await writeFile(roadmap, "# Roadmap\n\ncommon\n");
+  // A tracked ROADMAP and its regeneration are the in-repo store's; the clean merge commits no ARC state.
+  if (mode === "ROADMAP remedy") {
+    await mkdir(join(root, ".arc/backlog"), { recursive: true });
+    await writeFile(roadmap, "# Roadmap\n\ncommon\n");
+  }
   await writeFile(join(root, ".arc/system/arc-checks.yml"), JSON.stringify({ checks: { content: {
     gate: "commit", cache: false, inputs: ["**"], command: [process.execPath, "-e",
       "require('node:fs').appendFileSync('receipt.json','executed\\n');process.exit(1)"],

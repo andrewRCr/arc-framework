@@ -32,7 +32,7 @@ import type {
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
 import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
-import { DEFAULT_ERRAND_BRANCH_TYPE, type ErrandBranchType } from "./branch-type.js";
+import { DEFAULT_ERRAND_BRANCH_TYPE, errandBranch, errandBranchType, type ErrandBranchType } from "./branch-type.js";
 import type { SpawnLock } from "../git/worktree-removal.js";
 
 /** Accepted slug format and retry guidance shared by core and CLI input refusals. */
@@ -94,6 +94,8 @@ export interface OpenOrdinaryErrandDependencies {
 /** Complete ordinary Errand open request, independent of CLI rendering. */
 export interface OpenOrdinaryErrandOptions {
   slug: string;
+  /** Planned owner UID for a new Errand where state lives off the branch. */
+  ownerUid?: string;
   /** Select a new branch's nature; omission on re-entry preserves the recorded branch. */
   type?: ErrandBranchType;
   intent?: string;
@@ -132,7 +134,6 @@ export async function openOrdinaryErrand(
   const parent = warmWorkUnitParent(frame);
   if (parent.kind === "refused") return openRefusal(parent.reason, parent.message);
 
-  const branch = options.protection === "full" ? `${options.type ?? DEFAULT_ERRAND_BRANCH_TYPE}/${slug}` : null;
   let record: OrdinaryErrandRecord | null = null;
   let previousRecord: OrdinaryErrandRecord | null = null;
   let expectedBranchHead: string | null = null;
@@ -217,7 +218,7 @@ export async function openOrdinaryErrand(
         kind: "errand",
         purpose: "errand",
         intent: options.intent?.trim() || slug,
-        branch,
+        branch: errandBranch(options.type ?? DEFAULT_ERRAND_BRANCH_TYPE, slug, options.ownerUid),
         origin: originEntry === null ? "description" : "inbox",
         originEntry,
         ...(originEntry === null ? {} : { originEntrySourceDigest }),
@@ -277,7 +278,7 @@ export async function openOrdinaryErrand(
             : { originEntry, originEntrySourceDigest }),
         },
       } : {}),
-      branch: record?.branch ?? branch,
+      branch: record?.branch ?? null,
       expectedBranchHead,
       base: options.base,
       locationTemplate: options.locationTemplate,
@@ -397,7 +398,7 @@ function validateResumeContinuity(
   originEntrySourceDigest: ErrandInboxOrigin["sourceDigest"] | null,
   type: ErrandBranchType | undefined,
 ): string | null {
-  if (type !== undefined && record.branch !== `${type}/${record.slug}`) {
+  if (type !== undefined && errandBranchType(record.branch, record.slug) !== type) {
     return resumeContinuityRefusal("Resume cannot change the Errand branch type. Recorded branch: ", record.branch,
       ". Rerun without --type to resume with the recorded branch.");
   }

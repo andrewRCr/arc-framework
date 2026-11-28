@@ -1,18 +1,20 @@
 /** Handoff writes use real checkout claims and one reference-backend mutation. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { lint } from "markdownlint/promise";
 import { afterEach, expect, it, vi } from "vitest";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { createGitExec } from "../../src/lib/io-context.js";
 import { runHandoffWrite } from "../../src/lib/handoff/write.js";
+import { runActiveSessionInitStatus } from "../../src/commands/active/status.js";
 import { HandoffWriteRequestSchema } from "../../src/lib/handoff/write-schema.js";
 import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
-import { writeMetaNextAction } from "../../src/lib/store/kinds/meta/writers.js";
+import { renderMetaFile, writeMetaNextAction } from "../../src/lib/store/kinds/meta/writers.js";
 import { createMemoryRemote } from "../helpers/store/sync.js";
 import { ReferenceBackend } from "../helpers/store/reference-backend.js";
 import { handleHandoffWrite } from "../../src/handlers/handoff-write.js";
@@ -55,6 +57,46 @@ it("lands five fields in one write at the observed state and real HEAD", async (
     nextAction: request.nextAction, sessionContext: request.sessionContext });
   expect(lifecycleSuccess(await h.store.history({ reference: h.meta.reference }))).toHaveLength(2);
 });
+it("checks Markdown introduced by the handoff after writing the meta and before sync", async () => {
+  const h = await fixture();
+  const sessionContext = "###Blockers\n\nAwaiting review.";
+  expect(await runHandoffWrite({ ...h, request: { ...request, sessionContext } })).toMatchObject({ status: "written" });
+  const written = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  const findings = await lint({ strings: { before: h.meta.content, after: written.content },
+    config: { default: false, MD018: true } });
+  expect(findings.before).toEqual([]);
+  expect(findings.after).toEqual([expect.objectContaining({ ruleNames: expect.arrayContaining(["MD018"]) })]);
+
+  const base = "system/workflows/arc/session-lifecycle";
+  for (const path of [`../../arc/${base}/session-handoff.template.md`, `../../../../.arc/${base}/session-handoff.md`]) {
+    const workflow = await readFile(join(import.meta.dirname, path), "utf8");
+    const active = workflow.split("## Active-WU Handoff Format")[1]?.split("## Sync")[0] ?? "";
+    const afterWrite = active.split("arc handoff write -")[1];
+    expect(afterWrite, "The handoff wrote ###Blockers (MD018) without a Markdown check on the written meta")
+      .toMatch(/Markdown[\s\S]*written meta[\s\S]*correct[\s\S]*request[\s\S]*recheck[\s\S]*Sync/u);
+  }
+
+  const repaired = { ...request, sessionContext: "### Blockers\n\nAwaiting review." };
+  expect(await runHandoffWrite({ ...h, request: repaired })).toMatchObject({ status: "written" });
+  const settled = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  expect((await lint({ strings: { settled: settled.content }, config: { default: false, MD018: true } })).settled)
+    .toEqual([]);
+});
+it("retains an unresolved blocker for resume orientation when the next handoff carries it forward", async () => {
+  const h = await fixture();
+  const blocker = "### Blockers\n\nWaiting for a design decision.";
+  expect(await runHandoffWrite({ ...h, request: { ...request, sessionContext: blocker } }))
+    .toMatchObject({ status: "written" });
+  const previous = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  const previousContext = ParsedMetaRecordSchema.parse(previous.fields).sessionContext;
+  expect(previousContext).toBe(blocker);
+
+  const sessionContext = `${previousContext}\n\n### Additional Context\n\nUse the current branch.`;
+  expect(await runHandoffWrite({ ...h, request: { ...request, sessionContext } }))
+    .toMatchObject({ status: "written" });
+  const current = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  expect(ParsedMetaRecordSchema.parse(current.fields)).toMatchObject({ sessionContext, blockers: null });
+});
 it("writes an omitted Session Type as none", async () => {
   const h = await fixture();
   await runHandoffWrite({ ...h, request });
@@ -86,6 +128,35 @@ it("names the work-unit checkout when no current work unit is held, then succeed
   expect(await runHandoffWrite({ ...h, request })).toMatchObject({ status: "refused", refusal: { remedy: { text: expect.stringContaining("work unit's checkout") } } });
   await writeWorktreeMarker(h.cwd, { createdFor: boundWorkUnitSubject(h.meta), spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
   expect((await runHandoffWrite({ ...h, request })).status).toBe("written");
+});
+const workspaceCopies = ["../../arc", "../../../../.arc"];
+it("routes a contributor with a local-only contribution through between-work-units handoff", async () => {
+  const h = await fixture(false);
+  const active = ".arc/user/test-user/active";
+  await mkdir(join(h.cwd, active), { recursive: true });
+  await writeFile(join(h.cwd, active, "meta-demo.md"), renderMetaFile("demo", { state: "Planning", owner: "test-user" }));
+  const entry = await runActiveSessionInitStatus({ ...h, role: "contributor", identity: "test-user" });
+  expect(entry).toMatchObject({ resolution: "single", path: `${active}/meta-demo.md` });
+  expect(await runHandoffWrite({ ...h, request })).toMatchObject({
+    status: "refused", refusal: { code: "no-current-work-unit" },
+  });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).content).toBe(h.meta.content);
+
+  for (const root of workspaceCopies) {
+    const brief = await readFile(join(import.meta.dirname, root, "reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md"), "utf8");
+    expect(brief, root).toMatch(/without a (?:bound|held) work unit[\s\S]*between-work-units/iu);
+  }
+});
+it.each(workspaceCopies)("documents portable contributor handoff surfaces in %s", async (root) => {
+  const readme = await readFile(join(import.meta.dirname, root, "user/README.md"), "utf8");
+  expect(readme, "Personal planning guidance should lead to handoff without an owned work unit")
+    .toMatch(/contributor[\s\S]*between-work-units/iu);
+  expect(readme).toMatch(/`scratch\/`[^\n]*portable|portable[^\n]*`scratch\/`/iu);
+
+  const workflowFile = root === "../../arc" ? "session-handoff.template.md" : "session-handoff.md";
+  const workflow = await readFile(join(import.meta.dirname, root, "system/workflows/arc/session-lifecycle", workflowFile), "utf8");
+  const between = workflow.split("## Between-WUs Handoff Path")[1]?.split("## Active-WU Handoff Format")[0];
+  expect(between).toMatch(/contributor[\s\S]*maintainer-owned work-unit records/iu);
 });
 it("maintains once after the landed write and reports only excessive measurements", async () => {
   const h = await fixture();
@@ -167,16 +238,18 @@ async function invokeHandoff(h: Awaited<ReturnType<typeof fixture>>, sync: Store
   } finally { process.chdir(cwd); process.exitCode = exitCode; capture.mockRestore(); }
 }
 it("serves the request schema through the registered CLI", async () => {
+  const h = await fixture();
   let output = "";
   const capture = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => { output += String(chunk); return true; });
-  const exitCode = process.exitCode;
+  const cwd = process.cwd(); const exitCode = process.exitCode;
+  selected.store = h.store; process.chdir(h.cwd);
   try {
     await dispatchRegisteredCli(["schema", "get", "handoff-write-request"]);
     const served = JSON.parse(output) as { status: string; schema: { properties: Record<string, unknown> } };
     expect(served.status).toBe("ok");
     expect(served.schema.properties).toHaveProperty("sessionContext");
     expect(served.schema.properties).not.toHaveProperty("stateAtHandoff");
-  } finally { capture.mockRestore(); process.exitCode = exitCode; }
+  } finally { process.chdir(cwd); capture.mockRestore(); process.exitCode = exitCode; selected.store = undefined; }
 });
 it("dispatches a real file request through the registered handoff action into the selected store", async () => {
   const h = await fixture();

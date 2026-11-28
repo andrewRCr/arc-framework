@@ -1,5 +1,5 @@
 ---
-purpose: Promote a work unit from backlog/provisional/ to backlog/planned/, forcing a resolved Class.
+purpose: Promote a provisional backlog stub to planned, forcing a resolved Class.
 audience: agent
 arc:
   methods:
@@ -8,29 +8,28 @@ arc:
 
 # Workflow: Promote Work Unit
 
-Promotes a work unit one rung up the readiness ladder — relocating `backlog/provisional/<name>/` to
-`backlog/planned/<name>/` via the `promote` transition, forcing a resolved `Class` via the
-[`classify-work-unit`][classify-work-unit] method, then re-rendering the readiness views. A flat
-backlog-internal move: no branch, no worktree, none of the `active/`-entry machinery — that belongs to
+Promotes a work unit one rung up the readiness ladder — raising a backlog stub from provisional to planned via the
+`promote` transition, forcing a resolved `Class` via the [`classify-work-unit`][classify-work-unit] method. A
+backlog-internal move: no branch, no worktree, none of the start machinery — that belongs to
 [`init-work-unit`][init-work-unit].
 
 **When to use:** A provisional work unit has firmed up into a startable candidate — its thesis is one the
-project commits to, and it is ready to appear on the ready list a start decision is read from. Promotion to
-`planned/` is the forcing point for `Class` (see the readiness rule below).
+project commits to, and it is ready to appear on the ready list a start decision is read from. Promotion to planned
+is the forcing point for `Class` (see the readiness rule below).
 
 **Readiness ladder:** `provisional → planned → active`. This workflow covers the `provisional → planned`
 rung; [`init-work-unit`][init-work-unit] covers `planned → active`.
 
-**Readiness rule (enforced here):** a `backlog/planned/` work unit carries a resolved `**Class:**`
-(`Light` / `Heavy` / `Novel`); `[TBD]` is legal only in `backlog/provisional/`. Planned-entry is the forcing point
+**Readiness rule (enforced here):** a planned stub carries a resolved `**Class:**` (`Light` / `Heavy` / `Novel`);
+`[TBD]` is legal only on a provisional one. Planned-entry is the forcing point
 because the start decision — read off the ready list — precedes activation, and that decision needs the
 weight signal. This workflow states the _lifecycle constraint_; the triage that resolves the value lives in
 the [`classify-work-unit`][classify-work-unit] method (its single DRY home), loaded per the frontmatter
 declaration.
 
 > [!NOTE]
-> **arc-in-git only.** This workflow operates on the `backlog/` pipeline, which exists only under
-> `pm.mode: arc-in-git`. Under `none` or `external` there is no provisional/planned ladder to promote within.
+> **arc-in-git only.** This workflow operates on the backlog pipeline, which exists only under `pm.mode: arc-in-git`.
+> Under `none` or `external` there is no provisional/planned ladder to promote within.
 
 ---
 
@@ -40,12 +39,11 @@ declaration.
 
 Verify the promotion context is well-formed:
 
-- The work unit lives under `.arc/backlog/provisional/{name}/` (cohort-wrapped:
-  `.arc/backlog/provisional/{cohort}/{name}/`), with `meta-{name}.md` present.
+- `arc status {name}` shows a provisional stub.
 - `pm.mode` is `arc-in-git`.
 
-If the work unit is already under `backlog/planned/`, it has already been promoted — stop. If it lives in
-`active/` or `completed/`, promotion does not apply.
+If the stub is already planned, it has already been promoted — stop. If the work unit has started or completed,
+promotion does not apply.
 
 ### 2) Force the Class estimate · `classify-work-unit`
 
@@ -57,75 +55,38 @@ work unit's `**Class:**` field:
   planning has not yet substantiated a floor.
 - An existing estimate is confirmed, or ratcheted per the method's estimate-vs-realized rule.
 
-A promoted work unit never leaves `provisional/` carrying `[TBD]`. Edit `meta-{name}.md`'s `**Class:**` to the
-resolved value in its current `provisional/` location.
+A promoted work unit never leaves provisional carrying `[TBD]`: Step 3 passes a resolved `[TBD]` as `--class`. A
+ratchet of an existing estimate writes through `arc set-class <Class> {name}` first.
 
 ### 3) Promote provisional → planned
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before promotion unless the operator has already approved this transition and Class.
+> Present the named stub, its resolved Class, and the move from provisional to planned. Await approval to promote.
 
 Fire the transition:
 
 ```bash
-arc promote {name}
+arc promote {name} --class {Class}   # omit --class when Class is already resolved
 ```
 
-It relocates the stub from `provisional/` to `planned/` (refusing if `**Class:**` is still `[TBD]`), regenerates
-`STATUS.USER`, and emits a ROADMAP hand-render advisory naming the move. It is cohort-aware: a nested stub
-(`backlog/provisional/{cohort}/{name}/`) relocates within its cohort segment — creating the planned-side cohort
-directory and pruning the emptied `provisional/{cohort}/` when no other members remain.
-
-Stage the move together with the Step 2 `**Class:**` edit.
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): promote {name} to planned
-
-- Move backlog/provisional/{name}/ → backlog/planned/{name}/
-- Resolve Class: {prior} → {resolved}
-
-Context: meta-{name}.md (maintenance)
-```
-
-### 4) Regen readiness views · `arc-in-git` only
-
-Refresh the readiness views so the promoted work unit appears as startable:
-
-- **ROADMAP** — hand-render per [Work Organization Strategy § ROADMAP][work-org-roadmap]; the work unit joins
-  the **Ready** tier (or **Blocked**, when it carries unsatisfied dependencies). `arc promote` emits the regen
-  advisory but mints no ROADMAP — the renderer is downstream.
-- **STATUS.USER** — `arc promote` regenerates it automatically (per [§ STATUS.USER][work-org-statususer]). It is a
-  gitignored per-machine cache — not part of the commit.
-
-Default: dedicated `chore(arc):` commit for the ROADMAP re-render. It may ride the promotion commit (Step 3)
-only when the render delta is trivial — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): refresh roadmap for {name} promotion
-
-- Re-render ROADMAP after {name} enters Ready
-
-Context: meta-{name}.md (maintenance)
-```
+It raises the stub to planned in one write, recording the resolved `**Class:**` it is given, and refuses while
+`**Class:**` is still `[TBD]`. A stub in a cohort stays in it. `arc status` then lists the stub as startable — in the
+**Ready** tier, or **Blocked** when it carries unsatisfied dependencies.
 
 ---
 
 ## Inverse — `demote`
 
-`arc demote {name}` reverses this rung — relocating `backlog/planned/{name}/` back to
-`backlog/provisional/{name}/` when a planned candidate is set aside as not-yet-committed. It is the
-unguarded inverse of `promote`: a content-preserving, cohort-aware backlog move with no branch, no
-worktree, and no standalone ceremony of its own. The resolved `Class` rides down untouched — the ratchet
+`arc demote {name}` reverses this rung — lowering a planned stub back to provisional when a planned candidate is set
+aside as not-yet-committed. It is the unguarded inverse of `promote`: a content-preserving, cohort-aware backlog move
+with no branch, no worktree, and no standalone ceremony of its own. The resolved `Class` rides down untouched — the ratchet
 is sticky, so a later re-promote needs no reclassification.
 
 ## Next Step
 
 The work unit is now a startable candidate on the ready list. When work begins, proceed to
-[`init-work-unit`][init-work-unit] — the next rung (`planned → active`), which creates the planning branch and
-relocates the subdir into `active/`.
+[`init-work-unit`][init-work-unit] — the next rung (`planned → active`), which starts the stub in Planning.
 
 ## Related workflows
 
@@ -137,6 +98,3 @@ relocates the subdir into `active/`.
 [classify-work-unit]: ../../../methods/classify-work-unit.md
 [init-work-unit]: planning/init-work-unit.md
 [activate-work-unit]: activate-work-unit.md
-[work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
-[work-org-statususer]: ../../../../reference/strategies/arc/strategy-work-organization.md#statususer-view
-[dev-rules-atomicity]: ../../../../system/rules/DEV-RULES.ARC.md#atomicity

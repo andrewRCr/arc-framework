@@ -4,8 +4,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { cleanupTempDir, createTempRepo, runArc, runArcWithStdin } from "./helpers.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 describe("arc user inbox-remove", () => {
+  // The title-keyed removal is the in-repo store's: the store refuses it and names its successor, removal by ID and
+  // version, which the store's inbox suites cover.
+  useInRepoStoreForEach();
   let tmpDir: string;
 
   beforeEach(async () => {

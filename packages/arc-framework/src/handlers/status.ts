@@ -269,6 +269,7 @@ export async function composeSessionInitStatus(
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
+          allowUnavailableBoundary: true,
           exec, store,
         });
       })();
@@ -501,6 +502,7 @@ export async function composeSessionInitStatus(
         history: prerequisites.history,
         ...createCurrentBaseDriftAdapters(
           localOnlyExec,
+          store,
           workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name),
         ),
       });

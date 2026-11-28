@@ -25,6 +25,7 @@ import { inProcessReview, localReviewResult } from "../helpers/in-process-review
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
@@ -113,6 +114,9 @@ async function compose(fixture: Awaited<ReturnType<typeof candidateDelta>>, lane
 }
 
 describe("pre-publication delta coverage", () => {
+  // Each case's Candidate rests on a committed meta and task list, which only the in-repo implementation reads.
+  useInRepoStoreForEach();
+
   it("prepares the same Candidate's full-final delta without a coverage choice", async () => {
     const fixture = await candidateDelta(true);
     const prepared = await fixture.prepare();

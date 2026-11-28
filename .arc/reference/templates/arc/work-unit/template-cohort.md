@@ -5,8 +5,8 @@
 
 **Parent:** `{parent-cohort-name}`
 
-{The parent cohort's name — for a sub-cohort only; omit this line for a top-level cohort. Derivable
-from the `Cohort` path, so it is a convenience pointer, not a source of truth.}
+{The parent cohort's name — for a sub-cohort only; omit this line for a top-level cohort. It records the
+cohort's nesting: each open member's `Cohort` path must agree with it.}
 
 **Purpose:** {Required floor — one paragraph expanding the slug into why this grouping exists: the single
 concern its members share, and what distinguishes it from "a pile of loosely-related work units." This is the

@@ -5,6 +5,10 @@ import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses an importing primary off main and passes after returning to main", async () => {
   const h = await windowFixture();

@@ -24,6 +24,10 @@ import type {
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 import { makeGitProcessError, scriptGitExec, type GitExecCall } from "../../helpers/git-exec-fake.js";
+import { inRepoStoreAt } from "../../helpers/store/in-repo-ports.js";
+
+// A roster reading each worktree's meta files is the in-repo implementation's; the store's roster is
+// `worktree-roster-store`'s and `worktree-roster-store-placement`'s.
 
 type ResponseFn = (
   args: string[],
@@ -149,7 +153,7 @@ describe("runWorktreeRoster", () => {
     });
     const fs = buildFs({});
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toEqual([]);
     expect(result.warnings).toEqual([]);
@@ -175,7 +179,7 @@ describe("runWorktreeRoster", () => {
       }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]).toMatchObject({
@@ -206,7 +210,7 @@ describe("runWorktreeRoster", () => {
       }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries[0]?.cohort).toBe("core/sub");
     expect(result.warnings).toEqual([]);
@@ -228,7 +232,7 @@ describe("runWorktreeRoster", () => {
       }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(2);
     expect(result.entries.map((e) => e.branch).sort()).toEqual(["feature/a", "feature/b"]);
@@ -254,7 +258,7 @@ describe("runWorktreeRoster", () => {
       }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries[0]?.identity).toBe("Mixed.Case_Identity");
   });
@@ -282,7 +286,7 @@ describe("runWorktreeRoster", () => {
         ].join("\n"),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries[0]?.state).toBe("unknown");
   });
@@ -299,7 +303,7 @@ describe("runWorktreeRoster", () => {
       "/home/dev/repo/.arc/active/meta-x.md": makeMetaFixture("x", { branch: "feature/x" }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries[0]?.cohort).toBeUndefined();
     expect(Object.prototype.hasOwnProperty.call(result.entries[0], "cohort")).toBe(false);
@@ -318,7 +322,7 @@ describe("runWorktreeRoster", () => {
       "/home/dev/repo-a/.arc/active/meta-a.md": makeMetaFixture("a", { branch: "feature/a" }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(2);
     const mainEntry = result.entries.find((e) => e.branch === "main");
@@ -357,7 +361,7 @@ describe("runWorktreeRoster", () => {
       },
     };
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(2);
     const bEntry = result.entries.find((e) => e.branch === "feature/b");
@@ -391,7 +395,7 @@ describe("runWorktreeRoster", () => {
       readFile: async () => makeMetaFixture("a", { branch: "feature/a" }),
     };
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]?.branch).toBe("feature/a");
@@ -415,7 +419,7 @@ describe("runWorktreeRoster", () => {
       "/home/dev/repo/.arc/active/meta-b.md": makeMetaFixture("b", { branch: "feature/x" }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]?.metaFilePath).toBe("/home/dev/repo/.arc/active/meta-b.md");
@@ -436,7 +440,7 @@ describe("runWorktreeRoster", () => {
       "/home/dev/repo/.arc/active/meta-z.md": makeMetaFixture("z", { branch: "feature/z" }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]).toEqual({
@@ -462,7 +466,7 @@ describe("runWorktreeRoster", () => {
       }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]?.metaFilePath).toBe("/home/dev/repo/.arc/active/meta-a.md");
@@ -724,7 +728,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
       }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries[0]).toMatchObject({
       branch: "feat/x",
@@ -755,7 +759,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
       }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]).toMatchObject({
@@ -782,7 +786,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
       }),
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]).toMatchObject({
@@ -805,7 +809,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
         "# Metadata: x\n\n| State | Owner | Branch | Class | Priority |\n| --- | --- | --- | --- | --- |\n| `Active` |\n",
     });
 
-    const result = await runWorktreeRoster({ exec, fs });
+    const result = await runWorktreeRoster({ exec, fs, store: inRepoStoreAt("/home/dev/repo", exec) });
 
     expect(result.entries[0]).toMatchObject({ worktreePath: "/home/dev/repo", branch: "feat/x" });
     expect(result.entries[0]?.state).toBeUndefined();

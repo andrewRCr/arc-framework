@@ -11,6 +11,10 @@ import { updateRefTransaction, type RefChange } from "../../src/lib/git/ref-tran
 import { listWindowRefs } from "../../src/scripts/cutover-window/git.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/git/ref-tree.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 async function decisionSource(advance = false) {
   const h = await windowFixture();

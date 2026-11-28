@@ -34,6 +34,7 @@ const context = z.strictObject({
   workUnitStage: z.enum(["task-work", "verification-closeout", "delivery-correction"]).nullable().optional(),
   cohortDocPath: LoadSetPathSchema.nullable(), loadSet: LoadSetManifestSchema,
   integrationBoundary: PublishedIntegrationBoundaryLocusSchema.nullable(),
+  integrationBoundaryWarning: z.string().optional(),
 });
 const row = {
   checkout: RegisteredWorktreeSchema, markerGeneration: z.string().nullable(),

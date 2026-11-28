@@ -1,10 +1,10 @@
 /** Reader behavior at the lazy capability and literal process boundaries. */
 import { afterEach, expect, it } from "vitest";
 import { readProjectedSelection, type ProjectedSelectionIO } from "../../../../src/lib/checks/projected-selection.js";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-ports.js";
 import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
 import { startProjection } from "../../../../src/lib/store/projection/engine.js";
+import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
 
 const path = ".arc/active/current/notes-alpha.md";
 const forbiddenRun: ProjectedSelectionIO["run"] = () => Promise.reject(new Error("No subprocess is permitted"));
@@ -23,11 +23,13 @@ it.each([false, true])("reads a script's literal selection command with changed=
 });
 
 it("returns the in-repo script capability's empty selection without a subprocess", async () => {
-  expect(await readProjectedSelection("/unused", { changed: true }, { run: forbiddenRun })).toEqual({ status: "ok", paths: [] });
+  const createStore = () => inRepoStore(createDefaultStorePorts({ checkoutRoot: "/unused" }));
+  expect(await readProjectedSelection("/unused", { changed: true }, { createStore, run: forbiddenRun }))
+    .toEqual({ status: "ok", paths: [] });
 });
 
 it("returns empty after a disabled start without recomposing or launching a subprocess", async () => {
-  const root = "/command-checkout", store = createStore(createDefaultStorePorts({ checkoutRoot: root }));
+  const root = "/command-checkout", store = inRepoStore(createDefaultStorePorts({ checkoutRoot: root }));
   expect(await startProjection({ store, checkout: root })).toEqual({ kind: "disabled" });
   expect(await readProjectedSelection(root, { changed: false }, {
     createStore: () => { throw new Error("The completed command already chose its Store"); }, run: forbiddenRun,
@@ -35,7 +37,7 @@ it("returns empty after a disabled start without recomposing or launching a subp
 });
 
 it("retains a skipped command's refusal and succeeds after a normal start", async () => {
-  const root = "/command-checkout", store = createStore(createDefaultStorePorts({ checkoutRoot: root }));
+  const root = "/command-checkout", store = inRepoStore(createDefaultStorePorts({ checkoutRoot: root }));
   await startProjection({ store, checkout: root, skipProjection: true });
   expect(await readProjectedSelection(root, { changed: true }, { run: forbiddenRun })).toEqual({ status: "unavailable",
     reason: "projection-skipped: Projection skipped by --skip-projection.\nRun the command without --skip-projection to take in its pending edits." });
@@ -44,7 +46,7 @@ it("retains a skipped command's refusal and succeeds after a normal start", asyn
 });
 
 it("does not borrow another checkout's completed start", async () => {
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: "/checkout-a" }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/checkout-a" }));
   await startProjection({ store, checkout: "/checkout-a" });
   const result = await readProjectedSelection("/checkout-b", { changed: false }, {
     createStore: root => ({ capabilities: { stateOffBranch: root === "/checkout-b" } }),
@@ -54,7 +56,7 @@ it("does not borrow another checkout's completed start", async () => {
 });
 
 it("refuses a command whose start is still incomplete, then reads after completion", async () => {
-  const root = "/command-checkout", store = createStore(createDefaultStorePorts({ checkoutRoot: root }));
+  const root = "/command-checkout", store = inRepoStore(createDefaultStorePorts({ checkoutRoot: root }));
   const pending = startProjection({ store, checkout: root });
   const reading = readProjectedSelection(root, { changed: false }, { run: forbiddenRun });
   await pending;

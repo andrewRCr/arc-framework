@@ -1019,7 +1019,10 @@ describe("store retirement real Git", () => {
   it("detaches a clean retained linked checkout at base when the primary holds base", async () => {
     const h = await fixture(); await h.exec("git", ["switch", "main"]); const path = join(h.root, "checkout");
     await h.exec("git", ["worktree", "add", path, "feat/demo"]); h.setHolder(path);
+    await writeWorktreeMarker(path, h.marker); h.ctx.readMarker = readWorktreeMarker;
+    await seedProjection({ checkout: path, store: h.store, identity: SlugSchema.parse("test-user"), files: [] });
     expect(await h.teardown()).toMatchObject({ status: "torn-down", branchDeleted: true });
+    expect(await readWorktreeMarker(path)).toEqual({ kind: "absent" });
     expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout).toBe(h.baseOid);
     expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain("detached");
   });
@@ -1136,7 +1139,8 @@ describe("store retirement real Git", () => {
 
   it("retains the exact husk retry while another holder blocks ref cleanup and completes after repair", async () => {
     const h = await fixture({ secondary: true }); await h.exec("git", ["switch", "main"]);
-    const terminal = await readStoreRetirementEvidence(h.store, h.meta.reference, h.baseOid);
+    const terminal = await readStoreRetirementEvidence(h.store, h.meta.reference);
+    if (terminal.evidence.kind !== "lineage") throw Error("Expected lineage for the abandoned work unit");
     const huskPath = join(h.root, "checkout-husk"), extraPath = join(h.root, "checkout-extra");
     await h.exec("git", ["worktree", "add", "--detach", huskPath, h.workOid]);
     await writeWorktreeMarker(huskPath, { ...h.marker, spawnedByArc: true, husk: { sha: h.workOid,
@@ -1208,10 +1212,11 @@ function ignoreRefusalText(checkout: string, path: string, remedy: string, retir
 
 async function huskFixture(options: { end?: "archive" | "decompose"; projected?: boolean } = {}) {
   const h = await fixture(options); await h.exec("git", ["switch", "main"]);
-  const terminal = await readStoreRetirementEvidence(h.store, h.meta.reference, h.baseOid);
+  const terminal = await readStoreRetirementEvidence(h.store, h.meta.reference);
+  const evidence = terminal.evidence.kind === "shipped" ? { ...terminal.evidence, baseProofOid: h.baseOid } : terminal.evidence;
   const paths = [join(h.root, "checkout-one"), join(h.root, "checkout-two")] as const;
   const huskMarker: WorktreeMarker = { ...h.marker, spawnedByArc: true, husk: { sha: h.workOid, at: "2026-10-14T00:00:00Z", subject: boundWorkUnitSubject(h.meta), branch: "feat/demo",
-    authorization: terminal.rule === "discard" ? "discard-confirmed" : "merged-preserved", remoteRef: null, evidence: terminal.evidence } };
+    authorization: terminal.rule === "discard" ? "discard-confirmed" : "merged-preserved", remoteRef: null, evidence } };
   for (const path of paths) { await h.exec("git", ["worktree", "add", "--detach", path, h.workOid]); await writeWorktreeMarker(path, huskMarker); }
   h.ctx.readMarker = readWorktreeMarker;
   return { ...h, terminal, paths, huskMarker };

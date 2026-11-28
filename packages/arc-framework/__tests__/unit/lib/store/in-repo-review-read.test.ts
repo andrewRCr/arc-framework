@@ -3,13 +3,12 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { digestBytes } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import { resolveCandidateRecordRelativePath } from "../../../../src/lib/work-unit/candidate-record-store.js";
 import { resolveSubmissionBoundaryPath } from "../../../../src/lib/work-unit/submission-boundary-store.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
-import { testStorePorts } from "../../../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../../../helpers/store/in-repo-ports.js";
 import { candidateFixture, boundaryFixture } from "../../../helpers/store/tracked-write-fixture.js";
 
 const noGit = async (): Promise<never> => { throw new Error("Branch acquisition is unavailable"); };
@@ -26,7 +25,7 @@ async function fixture(kind: "review/candidate" | "review/integration-boundary")
   const content = JSON.stringify(kind === "review/candidate" ? candidateFixture() : boundaryFixture());
   const plant = () => put(kind === "review/candidate"
     ? resolveCandidateRecordRelativePath("example") : resolveSubmissionBoundaryPath("example"), content);
-  return { root, ports, put, plant, content, store: createStore(ports), reference: recordReferences[kind](owner) };
+  return { root, ports, put, plant, content, store: inRepoStore(ports), reference: recordReferences[kind](owner) };
 }
 
 describe.each(["review/candidate", "review/integration-boundary"] as const)("%s checkout placement", (kind) => {

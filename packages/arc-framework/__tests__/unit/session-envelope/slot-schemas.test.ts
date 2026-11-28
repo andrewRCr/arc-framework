@@ -9,9 +9,11 @@ import { SessionInitProbeResultSchema } from "../../../src/commands/status/schem
 import { createSessionEnvelopeRegistry } from "../../../src/lib/session-envelope/registry.js";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
+/** A golden with its normalized dates and object IDs given back producer-shaped values. */
 function fixture(name: string): Record<string, unknown> {
   return JSON.parse(readFileSync(join(import.meta.dirname, "../../fixtures/session-envelope", name), "utf8")
-    .replaceAll(/<DATE_\d+>/gu, "2026-01-02")) as Record<string, unknown>;
+    .replaceAll(/<DATE_\d+>/gu, "2026-01-02")
+    .replaceAll(/<OID_(\d+)>/gu, (_placeholder, index: string) => index.padStart(40, "0"))) as Record<string, unknown>;
 }
 
 const slots = [

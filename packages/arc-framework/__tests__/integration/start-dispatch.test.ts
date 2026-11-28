@@ -38,6 +38,9 @@ import {
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 import { runHandlerAt } from "../helpers/handler.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+import { createLocusPorts } from "../../src/lib/locus/lifecycle-ports.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -185,6 +188,9 @@ function denySpawnLocks() {
   });
 }
 
+// Cases over committed metas, `plan/` branches, `git mv` graduation, ceremony commits, several active meta files, or a
+// sibling's meta on its branch run on the in-repo implementation; the store's creation, graduation, cold start, and
+// occupancy are `start-store`'s, `start-store-marker`'s, `start-store-alias`'s, and `start-cold-store`'s.
 describe("arc start dispatch — against real worktrees", () => {
   let h: Harness;
 
@@ -204,6 +210,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("create-new: spawns a real worktree on a new plan/ branch with a scaffolded meta + marker, locked with the projection's reason", async () => {
+    useInRepoStore();
     const wt = resolveWorktreeLocation({
       template: h.locationTemplate,
       repo: basename(h.repo),
@@ -230,6 +237,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("create-new: a scaffold failing after the spawn rolls the checkout and its branch back", async () => {
+    useInRepoStore();
     const wt = resolveWorktreeLocation({
       template: h.locationTemplate,
       repo: basename(h.repo),
@@ -252,6 +260,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("create-new: a sole lock failure retains its scaffold and refuses success", async () => {
+    useInRepoStore();
     const input = StartCommandInputSchema.parse({ name: "lock-failed", new: true });
     const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo),
       name: input.name!, branch: "plan/lock-failed" });
@@ -276,6 +285,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("create-new handler: a lock-only failure retains its checkout and stops before success ceremony", async () => {
+    useInRepoStore();
     const name = "handler-lock-failed";
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
@@ -306,6 +316,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("create-new handler: shell invocation commits and pushes the spawned plan branch", async () => {
+    useInRepoStore();
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
@@ -393,7 +404,7 @@ describe("arc start dispatch — against real worktrees", () => {
       makeInteractionContext({ noInput: true, yes: "compatibility" }),
     ));
     expect(result.exitCode).toBe(1);
-    expect(result.stdout + result.stderr).toContain("arc start --here --from <seed>");
+    expect(result.stdout + result.stderr).toContain("Spawning creation cannot take a seed; run arc start --here --from");
     expect((await execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: h.repo })).stdout)
       .toBe(before.stdout);
     expect((await execFileAsync("git", ["branch", "--list", "plan/seeded-spawn"], { cwd: h.repo })).stdout)
@@ -430,6 +441,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("graduate handler: shell invocation commits and pushes the spawned plan branch", async () => {
+    useInRepoStore();
     await commitMeta(h.repo, "backlog/planned/shell-widget", "shell-widget", "Planning", "[none]");
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
@@ -475,6 +487,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("graduate handler: resolves a stub from refreshed base when the invoking checkout predates it", async () => {
+    useInRepoStore();
     const slug = "base-only-widget";
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
@@ -538,6 +551,7 @@ describe("arc start dispatch — against real worktrees", () => {
   ] as const)(
     "cold-start refuses ambiguous occupancy before writes and succeeds after repair (%s, %s)",
     async (protection, naming) => {
+      useInRepoStore();
       const name = naming === "explicit" ? "widget" : undefined;
       const wuName = name ?? "main";
       const opts = { ...(name === undefined ? {} : { new: true }), here: true, yes: true };
@@ -586,9 +600,11 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(placed);
     await execFileAsync("git", ["worktree", "add", "-b", "feat/placed", placed, "main"], { cwd: h.repo });
     const io = { ...createUserIOContext(), exec: makeGitExec(placed) };
+    const { store } = createLifecycleHarness();
 
     const outcome = await runColdStart(
-      { io, internalTemplateDir: getInternalTemplatePath(), writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
+      { io, store, locusPorts: createLocusPorts({ cwd: placed, exec: io.exec, store }), internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
       { worktreePath: placed, branch: "feat/placed", identity: IDENTITY, name: "placed" },
     );
 
@@ -600,10 +616,13 @@ describe("arc start dispatch — against real worktrees", () => {
     const alias = `${h.repo}-alias`;
     await symlink(h.repo, alias, process.platform === "win32" ? "junction" : "dir");
     h.cleanupPaths.push(alias);
+    const { store } = createLifecycleHarness();
 
     const outcome = await runColdStart(
       {
         io: h.io,
+        store,
+        locusPorts: createLocusPorts({ cwd: alias, exec: h.io.exec, store }),
         internalTemplateDir: getInternalTemplatePath(),
         writeEditorDocuments: async () => ({ ok: true, documents: [] }),
       },
@@ -647,6 +666,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("graduate: an existing backlog stub graduates onto its branch (never mis-scaffolds), its checkout locked", async () => {
+    useInRepoStore();
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     const wt = resolveWorktreeLocation({
       template: h.locationTemplate,
@@ -696,6 +716,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it.each([false, true])("graduate: protects a retained placement after workspace failure, with lock failure %s", async (lockFails) => {
+    useInRepoStore();
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     const input = StartCommandInputSchema.parse({ name: "widget" });
     const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), name: input.name!, branch: "plan/widget" });
@@ -738,6 +759,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("graduate handler: reports a retained checkout and its foreign lock after a workspace failure", async () => {
+    useInRepoStore();
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
@@ -768,6 +790,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("graduate handler: a sole lock failure retains applied graduation and stops successful completion", async () => {
+    useInRepoStore();
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
@@ -798,6 +821,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("graduate --here: cuts the branch in the current checkout, no worktree spawned", async () => {
+    useInRepoStore();
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     const spawnWt = resolveWorktreeLocation({
       template: h.locationTemplate,
@@ -830,6 +854,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("worktree-occupancy (in-place): graduating --here into a checkout already holding an active WU is rejected", async () => {
+    useInRepoStore();
     // An active WU already occupies the *current* checkout on a different branch.
     // An in-place graduate would check the new branch out alongside it — the real
     // foot-gun (two metas in one checkout's `active/`), so it MUST reject.
@@ -857,6 +882,7 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("worktree-occupancy (spawn): graduating into a fresh worktree ignores an invoking-checkout occupant", async () => {
+    useInRepoStore();
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     await execFileAsync("git", ["switch", "-c", "feat/incumbent"], { cwd: h.repo });
     await commitMeta(h.repo, "active", "incumbent", "Active", "feat/incumbent");
@@ -901,9 +927,12 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(dispatch.reason).toMatch(/occupied|already active/i);
   });
 
-  it.each(["Planning", "Active", "Integrating"])(
+  it.each([
+    ["Planning", "is already started"], ["Active", "is occupied"], ["Integrating", "is in review"],
+  ] as const)(
     "refuses a live sibling in %s from a foreign checkout without minting another branch",
-    async (state) => {
+    async (state, reason) => {
+      useInRepoStore();
       const slug = `foreign-${state.toLowerCase()}`;
       const branch = `feat/${slug}`;
       const remote = `${h.repo}-origin.git`;
@@ -918,21 +947,11 @@ describe("arc start dispatch — against real worktrees", () => {
       await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: h.repo });
       await execFileAsync("git", ["switch", "main"], { cwd: h.repo });
 
-      const originalCwd = process.cwd();
-      const savedExitCode = process.exitCode;
-      process.exitCode = undefined;
-      let observedExitCode: typeof process.exitCode;
-      try {
-        process.chdir(h.repo);
-        await handleStart(slug, { yes: true },
-          makeInteractionContext({ noInput: true, yes: "compatibility" }));
-        observedExitCode = process.exitCode;
-      } finally {
-        process.chdir(originalCwd);
-        process.exitCode = savedExitCode;
-      }
+      const result = await runHandlerAt(h.repo, () => handleStart(slug, { yes: true },
+        makeInteractionContext({ noInput: true, yes: "compatibility" })));
 
-      expect(observedExitCode).toBe(1);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout + result.stderr).toContain(`\`${slug}\` ${reason}`);
       const { stdout: duplicateBranch } = await execFileAsync("git", ["branch", "--list", `plan/${slug}`], {
         cwd: h.repo,
       });
@@ -941,6 +960,7 @@ describe("arc start dispatch — against real worktrees", () => {
   );
 
   it("fetches and refuses a live sibling that has never had a local remote-tracking ref", async () => {
+    useInRepoStore();
     const slug = "never-fetched-sibling";
     const branch = `feat/${slug}`;
     const remote = `${h.repo}-origin.git`;
@@ -972,21 +992,11 @@ describe("arc start dispatch — against real worktrees", () => {
       execFileAsync("git", ["show-ref", "--verify", `refs/remotes/origin/${branch}`], { cwd: h.repo }),
     ).rejects.toThrow();
 
-    const originalCwd = process.cwd();
-    const savedExitCode = process.exitCode;
-    process.exitCode = undefined;
-    let observedExitCode: typeof process.exitCode;
-    try {
-      process.chdir(h.repo);
-      await handleStart(slug, { yes: true },
-        makeInteractionContext({ noInput: true, yes: "compatibility" }));
-      observedExitCode = process.exitCode;
-    } finally {
-      process.chdir(originalCwd);
-      process.exitCode = savedExitCode;
-    }
+    const result = await runHandlerAt(h.repo, () => handleStart(slug, { yes: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" })));
 
-    expect(observedExitCode).toBe(1);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain(`\`${slug}\` is occupied`);
     const { stdout: duplicateBranch } = await execFileAsync("git", ["branch", "--list", `plan/${slug}`], {
       cwd: h.repo,
     });

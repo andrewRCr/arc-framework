@@ -7,6 +7,10 @@ import { discardUnfinishedWindowHold } from "../../src/scripts/cutover-window/ho
 import { checkFixture } from "../helpers/cutover-window/check.js";
 import { writeTreeCommit } from "../../src/lib/git/ref-tree.js";
 import { transientSourceRef } from "../helpers/store/import-transients.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const restartSteps = ["restore.compare-record", "restore.origin", "restore.local", "restore.configuration", "restore.verify", "restore.hold"] as const;
 it.each(restartSteps.flatMap(step => [[step, "after"], [step, "before"]] as const))(

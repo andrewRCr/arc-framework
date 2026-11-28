@@ -1,8 +1,7 @@
 /** Real repository fixtures for tracked writer behavior and canonical store comparisons. */
 import { onTestFinished } from "vitest";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../integration.js";
-import { testStorePorts } from "./in-repo-ports.js";
-import { createStore } from "../../../src/lib/store/create.js";
+import { inRepoStore, testStorePorts } from "./in-repo-ports.js";
 import { withTrackedWriteLock } from "../../../src/lib/store/tracked-lock.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema } from "../../../src/lib/store/identity.js";
 import { canonicalDigest, digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
@@ -19,7 +18,7 @@ export async function trackedWriteFixture() {
   const ports = testStorePorts(root, exec, makeGitExecInput(root));
   ports.clock = () => new Date();
   ports.locks.tracked = (operation) => withTrackedWriteLock({ exec, checkoutRoot: root }, operation);
-  return { root, exec, ports, store: createStore(ports),
+  return { root, exec, ports, store: inRepoStore(ports),
     reference: (kind: KindId, name = "example", key?: string) => RecordReferenceSchema.parse({ kind,
       owner: OwnerIdentitySchema.parse({ type: "work-item", name }), ...(key === undefined ? {} : { key }) }) };
 }
@@ -59,5 +58,5 @@ export function trackedCheckoutStore(root: string) {
   const ports = testStorePorts(root, exec, makeGitExecInput(root));
   ports.clock = () => new Date();
   ports.locks.tracked = (operation) => withTrackedWriteLock({ exec, checkoutRoot: root }, operation);
-  return createStore(ports);
+  return inRepoStore(ports);
 }

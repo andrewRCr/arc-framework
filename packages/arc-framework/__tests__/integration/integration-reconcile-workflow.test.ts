@@ -24,6 +24,26 @@ const WORKFLOWS = [
 ];
 
 describe("integration current-WU reconcile workflow", () => {
+  it.each(WORKFLOWS)("handles a pending landing-link write before delivery closeout in %s", async (path) => {
+    const workflow = await readFile(path, "utf8");
+    const merge = workflow.indexOf("arc integrate merge {name} --checkpoint");
+    const closeout = workflow.indexOf("arc delivery closeout -", merge);
+    expect(merge).toBeGreaterThan(-1);
+    expect(closeout).toBeGreaterThan(merge);
+
+    const dispatch = workflow.slice(merge, closeout);
+    const pending = dispatch.indexOf("not-written");
+    expect(pending, "Handle the not-written landing-link result before delivery closeout").toBeGreaterThan(-1);
+    const [recovery] = dispatch.slice(pending).split(/`[\w-]+ \/ [\w-]+`/u);
+    expect(recovery).toContain("payload.landingLink.remedy.argv");
+    expect(dispatch.slice(0, pending)).toMatch(/`written`\s+or\s+`not-applicable`/u);
+    const resume = dispatch.slice(dispatch.indexOf("`merged-at-head`"));
+    expect(resume).toMatch(/(?:verify|confirm)[\s\S]*landing[- ](?:commit )?link/iu);
+    expect(resume).toMatch(/retained[^.]*checkpoint/iu);
+    expect(resume).toMatch(/retained `written` or `not-applicable` merge result/u);
+    expect(resume).toContain("same landing-link result check");
+  });
+
   it.each(WORKFLOWS)("routes Candidate applicability through typed checkpoint results in %s", async (path) => {
     const content = await readFile(path, "utf8");
     const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
@@ -40,10 +60,8 @@ describe("integration current-WU reconcile workflow", () => {
     expect.soft(step).toContain("`choice`");
     expect.soft(step).toContain("`targetedEvidenceRef`");
     expect(step).toContain("arc candidate applicability resolve {name} -");
-    expect(step).toContain("`resolved / commit-selection`");
-    expect(step).toContain("`exact-replay / commit-selection`");
-    expect(step).toMatch(softWrappedPattern(/commit-selection[\s\S]*`commit-interlock`\s+release[\s\S]*`push-interlock`\s+release/iu));
-    expect(step).toMatch(softWrappedPattern(/exact-replay\s+\/\s+continue[\s\S]*already\s+durable[\s\S]*restart/iu));
+    expect(step).not.toContain("commit-selection");
+    expect(step).toMatch(softWrappedPattern(/`exact-replay\s+\/\s+continue`\s+mean\s+the\s+selection\s+is\s+recorded;\s+restart\s+this\s+step/iu));
     expect(step).toMatch(softWrappedPattern(/machine-proved\s+`applicable`[\s\S]*no\s+attended\s+step/iu));
     expect(step).toMatch(softWrappedPattern(/explicit\s+`changed`[\s\S]*ordinary\s+scope\s+selection/iu));
   });
@@ -72,21 +90,42 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toContain("payload.attestArgv");
     expect(step).toContain("payload.recommendedActionText");
     expect(step).toMatch(/ordinary\s+pre-publication/u);
-    expect(step).toMatch(softWrappedPattern(/resume-pre-publication[\s\S]*`publication-pending`\s+or\s+`hosted-review-pending`\s+locus\s+keeps\s+publication[\s\S]*shared\s+publication-boundary\s+commit/u));
+    expect(step).toMatch(softWrappedPattern(/resume-pre-publication[\s\S]*`publication-pending`\s+or\s+`hosted-review-pending`\s+locus\s+keeps\s+publication/u));
+    expect(step).not.toContain("publication-boundary commit");
+    expect(step).toMatch(softWrappedPattern(/names\s+a\s+`designExport`,\s+commit\s+the\s+review\s+copy/iu));
     expect(step).toContain("arc publish {name} --json");
     expect(step).toMatch(softWrappedPattern(/already-open\s+Step\s+2\s+review[\s\S]*restart\s+this\s+step/iu));
   });
 
-  it.each(WORKFLOWS)("commits a renewed shipped delivery boundary without private review replay in %s", async (path) => {
+  it.each(WORKFLOWS)("checks the exact review copy before every merge checkpoint in %s", async (path) => {
+    const workflow = await readFile(path, "utf8");
+    const start = workflow.indexOf("### 10) Behind-base reconcile gate and merge");
+    const entry = workflow.slice(start, workflow.indexOf("arc integrate checkpoint {name}", start)).replace(/\s+/gu, " ");
+    expect(entry).toContain(".arc/specs/{name}/spec-{name}.md");
+    expect(entry).toMatch(/every entry[^.]*index[^.]*PR head/iu);
+    expect(entry).toMatch(/staged[^.]*`git restore --source=HEAD --staged --worktree --/iu);
+    expect(entry).toMatch(/Step 7[^.]*Step 9/iu);
+    expect(entry).toMatch(/headPublished: true[^.]*remedy\.argv/u);
+    expect(entry).toMatch(/head-mismatch[^.]*original head/u);
+    const resume = workflow.slice(0, workflow.indexOf("Resolve worktree/branch presence"));
+    expect(resume).toMatch(/shipped[^.]*headAhead: true[^.]*Step 10[^.]*lookup/iu);
+
+    const refresh = workflow.slice(workflow.indexOf("`candidate-publication-required / refresh-shipped-delivery`"));
+    expect(refresh.split("`terminal-rebind-required / reconcile-delivery-state`")[0]).toMatch(
+      /restart this\s+step/u,
+    );
+  });
+
+  it.each(WORKFLOWS)("renews a shipped delivery boundary without a commit or private review replay in %s", async (path) => {
     const content = await readFile(path, "utf8");
     const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
     const end = content.indexOf("### 11) Post-merge worktree cleanup", start);
     const step = content.slice(start, end);
 
     expect(step).toContain("`candidate-publication-required / refresh-shipped-delivery`");
-    expect(step).toContain("`candidate-publication-commit-required / commit-boundary`");
+    expect(step).not.toContain("commit-boundary");
+    expect(step).not.toContain("refresh publication boundary");
     expect(step).toMatch(softWrappedPattern(/refresh-shipped-delivery[\s\S]*payload\.attestArgv[\s\S]*restart\s+this\s+step/iu));
-    expect(step).toMatch(softWrappedPattern(/commit-boundary[\s\S]*refresh\s+publication\s+boundary[\s\S]*restart\s+this\s+step/iu));
     expect(step).toMatch(softWrappedPattern(/refresh-shipped-delivery[\s\S]*does\s+not\s+enter\s+private\s+pre-publication\s+review/iu));
   });
 
@@ -113,8 +152,8 @@ describe("integration current-WU reconcile workflow", () => {
       previous = current;
     }
 
-    expect(step.match(softWrappedPattern(/`push-interlock`\s+release/gu))).toHaveLength(4);
-    expect(step.match(softWrappedPattern(/`commit-interlock`\s+release/gu))).toHaveLength(3);
+    expect(step.match(softWrappedPattern(/`push-interlock`\s+release/gu))).toHaveLength(2);
+    expect(step).not.toMatch(softWrappedPattern(/`commit-interlock`\s+release/u));
     const flatStep = step.replace(/\s+/gu, " ");
     const skippedClean = flatStep.indexOf("`skipped-clean / continue-reconcile` restarts this step without a push");
     const mergedOnly = flatStep.indexOf("`merged / run-quality-gates`");

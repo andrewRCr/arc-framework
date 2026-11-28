@@ -1,5 +1,4 @@
 /** Bound source consumers use actual project authority while retaining portable producer coordinates. */
-import { createStore } from "../../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../../src/lib/store/default-ports.js";
 import { expect, it } from "vitest";
 import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
@@ -7,6 +6,7 @@ import { scriptGitExec } from "../../../../helpers/git-exec-fake.js";
 import { createProjectIdentityReader, ProjectIdentityError } from "../../../../../src/lib/store/project-identity.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { parseReviewSourceReferenceForInvocation } from "../../../../../src/scripts/review-gate/runtime/source-invocation.js";
+import { inRepoStore } from "../../../../helpers/store/in-repo-ports.js";
 
 it.each(["attested-local", "frontline", "hosted"] as const)("reads a native %s source under its selected owner without Git", async kind => {
   const h = createReviewHarness();
@@ -39,7 +39,7 @@ it.each(["foreign-project", "foreign-owner", "unbound", "repository"] as const)(
   const source = { repositoryId, workItem: primary.reference.owner, kind: "hosted" as const, operationId: "producer", durableRef: "attempt" };
   const exec = scriptGitExec([]).exec;
   const invocation = { ...h, cwd: "/unavailable", exec, workItem: primary.reference.owner };
-  const store = createStore(createDefaultStorePorts({ exec, checkoutRoot: invocation.cwd }));
+  const store = inRepoStore(createDefaultStorePorts({ exec, checkoutRoot: invocation.cwd }));
   const supplied = { ...invocation, store: invalid === "repository" ? store : h.store,
     workItem: invalid === "unbound" ? undefined : primary.reference.owner };
   const reference = bindReviewSourceReference({ ...source,

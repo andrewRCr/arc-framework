@@ -69,6 +69,26 @@ async function freshActivation() {
     params: { name: input.slug!, toBranch: `${input.type}/${input.slug}`, baseBranch: "main", nextAction: input.action } };
 }
 
+it("uses the checked-out activation branch for the push when its name differs from the work unit", async () => {
+  const h = await freshActivation();
+  const prior = { repository: "repo", ref: "feat/former", linkedAs: "created" as const, excluded: [] };
+  await h.exec("git", ["switch", "-c", prior.ref]);
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { links: { branches: [prior] } }),
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+
+  const result = await runActivate(h.context(h.exec), h.params);
+  expect(result).toMatchObject({ status: "activated", branch: prior.ref });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links?.branches).toContainEqual(prior);
+  expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(prior.ref);
+  const workflow = await readFile(new URL("../../arc/system/workflows/arc/work-unit-lifecycle/activate-work-unit.md", import.meta.url), "utf8");
+  const step = workflow.slice(workflow.indexOf("### 4)"), workflow.indexOf("### 5)"));
+  const operand = step.match(/`workflowPush`[^\n]*`-u origin ([^`]+)`/u)?.[1];
+  expect(operand, `The upstream push must target the activated branch ${prior.ref}`).toBe("{branch}");
+  const beforePush = step.slice(0, step.indexOf("`workflowPush`"));
+  expect(beforePush).toMatch(/`git branch --show-current`[^.]*`\{branch\}`/u);
+  expect(step).not.toContain("arc active in-flight --json");
+}, ACTIVATION_TIMEOUT_MS);
+
 it("reports a discharged dependency's stale blocker while completing the activation", async () => {
   const h = await freshActivation();
   await h.seedMeta("released", { state: "Integrating", currentWorkflow: "integrate-work-unit" });

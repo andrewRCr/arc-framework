@@ -15,6 +15,14 @@ import { resolveTaskListCursor } from "../../../src/lib/task-list/cursor.js";
 import { compileSessionInitAgenda } from "../../../src/commands/agenda/compile.js";
 import { assertSessionInitAgenda, type AgendaSignals, type SessionInitAgenda } from "../../../src/commands/agenda/schema.js";
 import type { AgendaCompileInput } from "../../../src/commands/agenda/compile-input.js";
+import { writeMetaSessionContext, writeMetaStateAtHandoff } from "../../../src/lib/store/kinds/meta/writers.js";
+import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
+import { seed, success, update } from "../../helpers/store/suite-tools.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
+import { ENTRY_CONFIGS } from "../../../src/lib/store/kinds/entry-configs.js";
+import { PRODUCTION_REGISTRATIONS } from "../../../src/lib/store/kinds/registrations.js";
+import { createKindRegistry } from "../../../src/lib/store/registry.js";
+import { setMetaBulletFields } from "../../../src/lib/active/meta-reader.js";
 
 async function input(probes: SessionInitProbeOverrides = {}, signals: AgendaSignals = {}, stateOffBranch = false): Promise<AgendaCompileInput> {
   const active = activeSessionInit({ resolution: "single", path: ".arc/active/meta-work.md", sessionType: "execution", taskListPath: ".arc/active/tasks-work.md" });
@@ -51,6 +59,38 @@ describe("agenda work-unit resume", () => {
       { type: "render", surface: "header", text: "**ARC session initialized** · `feat/work` · clean" },
     ]));
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
+  });
+
+  it.each(["blocker", "read failure"] as const)("withholds automatic proceed for a projected meta %s in a clean checkout", async cause => {
+    const value = await input({}, { next: true }, true);
+    const f = createReferenceFixture(ENTRY_CONFIGS, createKindRegistry(PRODUCTION_REGISTRATIONS));
+    const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "work" }));
+    const saved = writeMetaSessionContext(makeMetaFixture("work", { currentWorkflow: "process-task-loop" }), "Resume the parser.");
+    const record = await seed(f, reference, saved);
+    const baseline = success(await f.store.version());
+    const anchored = writeMetaStateAtHandoff(saved, baseline);
+    success(await f.store.write({ ...update(f, record, anchored), provenance: { verb: "handoff-write", lifecycleAction: "handoff" } }));
+    value.entry.store = f.store;
+    value.read.read = async () => anchored;
+    expect((await compile(value)).steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
+
+    value.read.read = async path => {
+      if (path !== ".arc/active/meta-work.md") return anchored;
+      if (cause === "read failure") throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
+      return setMetaBulletFields(anchored, { Blockers: "Waiting for an answer" });
+    };
+    expect((await compile(value)).steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
+
+    value.read.read = async () => anchored;
+    expect((await compile(value)).steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
+  });
+
+  it.each(["partialPushMarker", "compactionAdvisory", "retiredSubdirs"] as const)("auto-proceeds on a clean --next resume when %s fails", async slot => {
+    const agenda = await compile(await input({
+      [slot]: async () => { throw new Error("Retired notes probe failed"); },
+    }, { next: true }));
+    expect(agenda.steps.filter(step => step.type === "gate" || (step.type === "render" && step.surface === "degraded-slot")))
+      .toEqual([{ type: "gate", kind: "proceed", autoProceed: true }]);
   });
 
   it.each(["no-next", "dirty", "freshness", "blockers", "seed", "offer", "domain-warning", "degraded"] as const)("withholds automatic proceed for %s", async cause => {
@@ -152,23 +192,12 @@ describe("agenda work-unit resume", () => {
   it.each(["user", "worktree", "baseBranchSync", "userReferenceReconcile", "currentWuReconcile", "sweep", "orphanBranchSweep", "errandSweep"] as const)("isolates a failed %s slot while healthy synchronization remains available", async name => {
     const fail = async (): Promise<never> => { throw new Error(`${name} probe failed`); };
     const value = await input({ worktree: async () => worktreeSync({ branch: "feat/work", state: "remote-ahead", behind: 2 }),
-      user: async () => userSessionInit({ loadNeeded: true }), [name]: fail });
+      baseBranchSync: async () => baseBranchSync({ state: "remote-ahead", behind: 3 }), [name]: fail });
     const agenda = await compile(value);
     expect(agenda.steps).toEqual(expect.arrayContaining([{ type: "render", surface: "degraded-slot", text: expect.stringContaining(`${name} unavailable (runtime): ${name} probe failed`) }]));
     expect(agenda.steps.some(step => step.type === "offer")).toBe(true);
     expect(agenda.steps.some(step => step.type === "exec")).toBe(false);
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
-  });
-
-  it("keeps a healthy retired-subdirectory load after user failure and does not repeat it", async () => {
-    const config = configSessionInit(); config.settings["session.init_load.notes"] = "always";
-    const value = await input({ config: async () => config, user: async () => { throw new Error("Notes unreadable"); },
-      retiredSubdirs: async () => ({ candidates: [SlugSchema.parse("shipped")] }) });
-    expect((await compile(value)).steps).toMatchObject([{ type: "exec", id: "notes:load" }]);
-    value.answers.done.push("notes:load");
-    const steps = (await compile(value)).steps;
-    expect(steps).toEqual(expect.arrayContaining([expect.objectContaining({ type: "render", surface: "degraded-slot" })]));
-    expect(steps.some(step => step.type === "exec")).toBe(false);
   });
 
   it("does not surface dormant slots that the resume never consumes", async () => {
@@ -186,13 +215,6 @@ describe("agenda work-unit resume", () => {
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
   });
 
-  it("includes pending notes attention in resume orientation", async () => {
-    const config = configSessionInit(); config.settings["session.init_load.notes"] = "manual";
-    const agenda = await compile(await input({ config: async () => config, user: async () => userSessionInit({ loadNeeded: true }) }));
-    expect(agenda.steps).toEqual(expect.arrayContaining([expect.objectContaining({ type: "render", surface: "notes-load-pending" })]));
-    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
-  });
-
   it("assembles cleanup attention as standing offers before the proceed gate", async () => {
     const sweep = StaleWorktreeSweepResultSchema.parse({ remoteEvidence: "exact", missingFolders: [], renameMoves: [], retirements: [], warnings: [],
       worktrees: [{ kind: "branched", branch: "feat/ended", worktreePath: "/repo/ended", decision: { action: "removable" },
@@ -206,9 +228,9 @@ describe("agenda work-unit resume", () => {
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
   });
 
-  it("orders simultaneous checkout, notes, cleanup and reminder surfaces", async () => {
+  it("orders simultaneous checkout, cleanup and reminder surfaces, rendering none of the notes slots", async () => {
     const config = configSessionInit();
-    config.settings["session.init_pull.base"] = "manual"; config.settings["session.init_load.notes"] = "manual";
+    config.settings["session.init_pull.base"] = "manual";
     const moving = { path: "/repo/old-name", head: "a".repeat(40), branch: "feat/new-name", detached: false, primary: false, folderPresent: true };
     const move = projectRenameMoveRemedy(moving, { kind: "present", marker: { spawnedByArc: true, wuName: "new-name",
       createdFor: { kind: "work-unit", name: "new-name" }, spawningIdentity: "andrew", createdAt: "2026-06-01T00:00:00Z",
@@ -242,10 +264,9 @@ describe("agenda work-unit resume", () => {
     }, { next: true }));
     const surfaces = agenda.steps.filter(step => step.type === "render" || step.type === "note");
     expect(surfaces.map(step => step.surface)).toEqual(["header", "worktree-diverged", "base-drift", "stale-base", "hooks-path",
-      "notes-lag", "notes-compaction", "notes-conflict", "dirty", "retirements", "rename-moves", "stale-worktrees", "missing-folders", "branch-orphans",
-      "retired-subdirs", "reminder", "in-flight-work-units"]);
+      "dirty", "retirements", "rename-moves", "stale-worktrees", "missing-folders", "branch-orphans", "reminder", "in-flight-work-units"]);
     expect(surfaces.flatMap(step => step.type === "render" && step.marker ? [step.marker.path] : [])).toEqual([
-      ".arc/user/andrew/.internal/compact", ".arc/user/andrew/.internal/reminder", ".arc/user/andrew/.internal/wu-reminder",
+      ".arc/user/andrew/.internal/reminder", ".arc/user/andrew/.internal/wu-reminder",
     ]);
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
   });
@@ -264,15 +285,5 @@ describe("agenda work-unit resume", () => {
     }, {}, true));
     expect(agenda.steps.filter(step => step.type === "render" || step.type === "note")).toEqual(
       baseline.steps.filter(step => step.type === "render" || step.type === "note"));
-  });
-
-  it("ends at automatic notes synchronization before reading context", async () => {
-    const config = configSessionInit(); config.settings["session.init_pull.notes"] = "always";
-    const value = await input({ config: async () => config,
-      user: async () => userSessionInit({ state: "remote-ahead", refState: "remote-ahead", shouldPromptToPull: true }) });
-    const unexpected = async (): Promise<never> => { throw new Error("Sync must recompile before reads"); };
-    value.read = { exists: unexpected, size: unexpected, read: unexpected, git: unexpected };
-    expect((await compile(value)).steps).toMatchObject([{ type: "exec", id: "notes:pull", then: { kind: "recompile" } }]);
-    expect((await compile(value)).steps).toHaveLength(1);
   });
 });

@@ -15,7 +15,7 @@ import { LineageRecordSchema } from "../../../src/lib/store/kinds/lineage/index.
 import { listLifecycleIndex } from "../../../src/lib/store/lifecycle-index.js";
 import { requireCompleteInventory } from "../../../src/lib/store/lifecycle-storage.js";
 import { selectStoreWorktreeCleanup } from "../../../src/lib/session-init/store-worktree-selection.js";
-import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, digestBytes } from "../../../src/lib/kernel/index.js";
 import { runStaleWorktreeSweep, type RunStaleWorktreeSweepOptions } from "../../../src/lib/session-init/stale-worktree-sweep.js";
 import { StaleWorktreeSweepResultSchema } from "../../../src/lib/session-init/stale-worktree-sweep-schema.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
@@ -89,16 +89,23 @@ it("reports a detached pending rename through the enclosing sweep, withholding a
   const h = createLifecycleHarness();
   const primary = await h.seedMeta("new-name", { state: "Planning", currentWorkflow: "draft-design" });
   const pending = { oldSlug: "old-name", newSlug: "new-name", branch: null, head, from: checkout.path, to: "/new-checkout" };
-  const original = await options(h.store, boundWorkUnitSubject(primary));
-  const input = await withDerivedRows({ ...original, readMarker: async () => ({ kind: "present", marker: {
-    spawnedByArc: true, wuName: "new-name", createdFor: boundWorkUnitSubject(primary),
+  const subject = boundWorkUnitSubject(primary);
+  const original = await options(h.store, subject);
+  const marker: WorktreeMarker = {
+    spawnedByArc: true, wuName: "new-name", createdFor: subject,
     spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z", renameMovePending: pending,
-  } }) });
+  };
+  const bytes = Buffer.from(JSON.stringify(marker));
+  const generation = digestBytes(bytes);
+  const input = await withDerivedRows({ ...original, readMarker: async () => ({ kind: "present", marker, bytes }) });
   const result = await runStaleWorktreeSweep(input);
   expect(result.renameMoves).toEqual([{ ...pending, remedy: {
     argv: ["git", "worktree", "move", "-f", "-f", checkout.path, pending.to],
-    text: expect.stringContaining("from outside the checkout"),
-  }, actions: [expect.objectContaining({ argv: ["git", "worktree", "move", "-f", "-f", checkout.path, pending.to] })] }]);
+    text: expect.stringContaining(`then run arc rename '${subject.uid}' 'new-name' --settle-move ${generation} in '${pending.to}'`),
+  }, actions: [
+    expect.objectContaining({ argv: ["git", "worktree", "move", "-f", "-f", checkout.path, pending.to] }),
+    expect.objectContaining({ argv: ["arc", "rename", subject.uid, "new-name", "--settle-move", generation] }),
+  ] }]);
   expect(result.worktrees).toEqual([]);
   expect(StaleWorktreeSweepResultSchema.safeParse(result).success).toBe(true);
   const stale = await withDerivedRows({ ...input, scanWorktrees: async () => ({ ok: true, worktrees: [{ ...checkout, head: "c".repeat(40) }] }) });

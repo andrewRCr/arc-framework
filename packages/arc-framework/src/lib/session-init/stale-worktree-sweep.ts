@@ -35,7 +35,7 @@ import {
 } from "../git/worktree-cleanup.js";
 import {
   decodeWorktreeHuskStamp,
-  readWorktreeMarker,
+  readWorktreeMarkerGeneration,
   type DecodedWorktreeHuskStamp,
   type WorktreeMarkerReadResult,
   type WorktreeSubject,
@@ -160,7 +160,7 @@ export interface RunStaleWorktreeSweepOptions {
   baseEvidence?: CleanupBaseEvidence;
   exec: GitExec;
   /** Reads a worktree's ownership marker; injected for testability. */
-  readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
+  readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult & { bytes?: Buffer }>;
   /** Filesystem seam for ignored identity-global user-surface safety scans. */
   userSurfaceFs?: UserSurfaceMigrationFs;
   /** Resolved developer identity for team-mode ownership filtering. */
@@ -199,7 +199,7 @@ export async function runStaleWorktreeSweep(
   options: RunStaleWorktreeSweepOptions,
 ): Promise<StaleWorktreeSweepResult> {
   const { roster, worktreeIdentity, baseBranch, exec } = options;
-  const readMarker = options.readMarker ?? readWorktreeMarker;
+  const readMarker = options.readMarker ?? readWorktreeMarkerGeneration;
   const userSurfaceFs = options.userSurfaceFs ?? nodeUserSurfaceMigrationFs;
   const integrationTarget = `origin/${baseBranch}`;
   const projectedEvidence = projectCleanupRemoteEvidence(baseBranch, options.baseEvidence);
@@ -318,7 +318,7 @@ export async function runStaleWorktreeSweep(
   for (const entry of cleanupTopology) {
     const branched = !entry.detached && entry.branch !== null;
     if (!branched && !options.store?.capabilities.stateOffBranch) continue;
-    let marker: WorktreeMarkerReadResult;
+    let marker: WorktreeMarkerReadResult & { bytes?: Buffer };
     try {
       marker = await readMarker(entry.path);
     } catch (err) {
@@ -337,7 +337,7 @@ export async function runStaleWorktreeSweep(
       continue;
     }
     if (branched) branchedMarkers.set(entry.path, marker);
-    const projected = projectRenameMoveRemedy(entry, marker, scan.worktrees);
+    const projected = projectRenameMoveRemedy(entry, marker, scan.worktrees, usesOffBranchState(options.store));
     if (projected !== null) renameMoves.push(projected);
   }
   const retirementSweep = await runLandedRetirementSweep({

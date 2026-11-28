@@ -1,9 +1,11 @@
 /** Marker- and topology-owned settlement for an authorized Errand checkout. */
 
-import { resolve } from "node:path";
+import { lstat } from "node:fs/promises";
+import { relative } from "node:path";
 import { digestBytes } from "../kernel/index.js";
+import { localPathContains } from "../local-path-identity.js";
 import { checkWorktreeRemoval, removeWorktreeCheckout, describeRemovalRefusal, passingProjectionRemovalSlots, type ProjectionRemovalSlots,
-  type WorktreeRemovalResult } from "../git/worktree-removal.js";
+  type RemoveWorktreeCheckoutOptions, type WorktreeRemovalResult } from "../git/worktree-removal.js";
 import { parseGitWorktreePorcelainZ } from "../git/worktree-porcelain.js";
 import type { GitExec } from "../git/exec.js";
 import {
@@ -50,7 +52,7 @@ export interface SettleTerminalOccupancyOptions {
 /** Build the production Git and marker boundaries for terminal occupancy settlement. */
 export function createTerminalOccupancyIO(
   exec: GitExec,
-  options: { readonly restorePrimaryTo?: string } = {},
+  options: { readonly restorePrimaryTo?: string; readonly onRemovalNotice?: (text: string) => void } = {},
 ): TerminalOccupancyIO {
   return {
     inspect: async (checkoutPath, inspectionOptions) => {
@@ -82,13 +84,45 @@ export function createTerminalOccupancyIO(
       }
       return result.kind === "removed" || result.kind === "absent" ? result.kind : "changed";
     },
-    removeSpawned: async (checkoutPath, primaryWorktreePath, slots, beforeRetire) => {
-      const { stdout } = await exec("git", ["worktree", "list", "--porcelain", "-z"], { cwd: primaryWorktreePath });
-      const present = parseGitWorktreePorcelainZ(stdout).some((entry) => resolve(entry.path) === resolve(checkoutPath));
-      if (!present) return { kind: "absent" };
-      return removeWorktreeCheckout({ exec, checkoutPath, primaryWorktreePath, slots, beforeRetire });
-    },
+    removeSpawned: (checkoutPath, primaryWorktreePath, slots, beforeRetire) =>
+      removeSpawnedCheckout({ exec, checkoutPath, primaryWorktreePath, slots, beforeRetire }, options.onRemovalNotice),
   };
+}
+
+async function removeSpawnedCheckout(
+  removal: RemoveWorktreeCheckoutOptions,
+  onRemovalNotice: ((text: string) => void) | undefined,
+): Promise<WorktreeRemovalResult | { kind: "absent" }> {
+  if (!await isRegistered(removal)) return { kind: "absent" };
+  const { checkoutPath, primaryWorktreePath } = removal;
+  const windowsSelf = process.platform === "win32" && await localPathContains(checkoutPath, process.cwd());
+  const result = await removeWorktreeCheckout(windowsSelf ? {
+    ...removal,
+    beforeRetire: async () => {
+      await removal.beforeRetire?.();
+      process.chdir(primaryWorktreePath);
+    },
+  } : removal);
+  if (!windowsSelf || result.kind !== "failed" || result.step !== "remove" || await isRegistered(removal)) return result;
+
+  // Git for Windows can drop the registration even when another process prevents the folder from being deleted.
+  const folder = await lstat(checkoutPath).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException | null)?.code === "ENOENT") return null;
+    throw error;
+  });
+  if (folder !== null) {
+    if (!folder.isDirectory()) return result;
+    const literalPath = checkoutPath.replaceAll("'", "''");
+    onRemovalNotice?.(`Git dropped the Errand checkout registration, but Windows left its folder. `
+      + `After closing any shell or program holding it, inspect the folder and remove it from outside with PowerShell: `
+      + `\`Remove-Item -LiteralPath '${literalPath}' -Recurse -Force\``);
+  }
+  return { kind: "removed" };
+}
+
+async function isRegistered({ exec, checkoutPath, primaryWorktreePath }: RemoveWorktreeCheckoutOptions): Promise<boolean> {
+  const { stdout } = await exec("git", ["worktree", "list", "--porcelain", "-z"], { cwd: primaryWorktreePath });
+  return parseGitWorktreePorcelainZ(stdout).some((entry) => relative(entry.path, checkoutPath) === "");
 }
 
 /**

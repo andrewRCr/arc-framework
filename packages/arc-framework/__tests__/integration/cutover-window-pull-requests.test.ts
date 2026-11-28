@@ -9,6 +9,10 @@ import { runWindow } from "../../src/scripts/cutover-window/main.js";
 import { checkWindow } from "../../src/scripts/cutover-window/check.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses another open request into main and passes once it is closed", async () => {
   const h = await windowFixture();

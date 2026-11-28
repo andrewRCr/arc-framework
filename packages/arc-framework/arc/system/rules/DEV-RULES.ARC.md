@@ -82,16 +82,16 @@ holder is not you, propose rather than discharge.
 ## Review-Increment Invariant
 
 **Every review increment closes with a structured approval gate that precedes any commit invocation, wrapped or
-raw** · `[invariant]`. The release wrapper bypasses the harness's per-invocation prompt;
-it does **not** bypass the user's approval gate.
+raw** · `[invariant]`. Saving state with `arc save` is a persist, not a commit under this invariant: the approval
+gates stay on lifecycle transitions, stage advances, task closes, and code commits. The release wrapper bypasses the
+harness's per-invocation prompt; it does **not** bypass the user's approval gate.
 
 The sole bounded exception assembles a provisional integration candidate after the WU's routed review obligation
-is authoritatively settled. Four operations may commit and push before their structured review at the final
-integration interlock:
+is authoritatively settled. Three operations may run before their structured review at the final integration
+interlock:
 
-- candidate-tail cleanup
-- archive composition and closeout
-- lifecycle sweep and readiness regeneration
+- candidate-tail cleanup, committed and pushed
+- archive composition and closeout, saved and written through `arc archive`
 - a typed base reconcile selected from complete host-admission evidence, whose overlap is disclosed and whose
   resulting head passes `arc check new-head --from <pre-merge head>` before fresh checkpoint applicability and
   exact-head authorization
@@ -183,8 +183,8 @@ Class tags name the fire-site type; routing follows § Workflow class-tag routin
   without explicit user request** · `[invariant]`.
 
 - **Rebase scope:** Rewriting _unpushed_ commits is fine. **Never rebase or otherwise rewrite a _pushed_ branch to
-  absorb base changes** · `[invariant]` — rewriting published commits orphans the SHA-keyed git notes and forces a
-  force-push. Merge the base in instead (append-only — see the [concurrent-work strategy][concurrent-work]
+  absorb base changes** · `[invariant]` — rewriting published commits forces a force-push. Merge the base in
+  instead (append-only — see the [concurrent-work strategy][concurrent-work]
   § Append-only until integration).
 
 - **Check before reverting files:** Before `git checkout -- <file>`, review `git diff <file>` —
@@ -194,17 +194,17 @@ Class tags name the fire-site type; routing follows § Workflow class-tag routin
   present an undo plan (commits to reset, push-retraction status if applicable) and await explicit
   user confirmation.
 
-- **Task list accuracy:** Before committing, verify task documentation reflects completed work
-  (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit.
+- **Task list accuracy:** Before committing, verify the task list's completion notes reflect the completed work.
+  When an increment changes tracked files, commit before closing the task. Use `arc release commit --close` or
+  run `arc task close` after the commit. With no tracked changes, close the approved task directly with
+  `arc task close --state-only`. The close verb also closes a parent whose subtasks are all closed. Save the task list
+  to the store.
 
-- **Meta-file timing:** The meta file is written **only where a workflow ceremony explicitly instructs the
-  write** — at handoff and at the lifecycle and planning-stage ceremonies that emit a meta update. A commit's
-  authority to touch the meta comes from the ceremony workflow it runs, not from an enumerated list;
-  task-completion code commits never touch it, and nothing writes it mid-stage.
+- **Meta-file timing:** Edit the meta's Markdown **only when the ceremony workflow explicitly instructs the edit**,
+  at handoff or at a lifecycle or planning-stage ceremony. `arc task close` maintains capture links in the stored meta.
 
-- **Meta-file commit shape:** The staging area is the test — concurrent ceremony content staged (file moves, spec
-  save, archival) → bundle the meta edit into that commit; meta edit alone → a dedicated `chore(arc):` commit.
-  Never bundled with code commits, which meta-file timing already forbids.
+- **Meta-file persistence:** The meta is a stored record. The ceremony's verb or `arc save` persists its edit; no
+  commit carries it, code commit or otherwise.
 
 ### Merge authority
 
@@ -223,8 +223,8 @@ requirements.
 
 ### Atomicity
 
-One logical change per commit. When multiple tasks are completed between commits, separate code
-changes by task; commit shared documentation (task list updates) last.
+One logical change per commit. Separate tracked changes by task and close each task after the commit that carries its
+work. Close approved tasks with no tracked changes directly with `arc task close --state-only`.
 
 ---
 
@@ -336,7 +336,7 @@ When you encounter an issue — in a file you're editing, during analysis, anywh
 take responsibility for it. Never silently drop an observation that should be fixed or captured.
 
 **The core invariant.** A work unit's stub/draft is the single authoritative source for the decisions it owns;
-capture surfaces (`USER-INBOX`, the shared `ATOMIC-INBOX`) are transient buffers, never authoritative. An item's
+capture surfaces (the personal inbox and the shared project inbox) are transient buffers, never authoritative. An item's
 home is the work unit whose decision it shapes — shared domain alone makes a neighbor, not a home, and an
 Errand-shaped item has none: it runs as an Errand or waits as an Errand capture. Place it by the
 [route-discovered-work][arc-methods-rdw] method. **No item with a known home may rest in a capture surface** · `[invariant]`.
@@ -357,12 +357,12 @@ inside the change already under review discharges that: fix it and name the corr
 **Otherwise, route by urgency × isolation** — a coarse _inline / message / errand-now / inbox-defer_ call. The finer
 destination (existing stub, new stub, standalone errand, flush to shared) resolves later, at drain.
 
-| The concern is…                        | Can I write its home here? | Route                                                  |
-| -------------------------------------- | -------------------------- | ------------------------------------------------------ |
-| The current WU's own                   | Yes — you're on its branch | Fix **inline**. Never capture.                         |
-| Another WU's, live (it has a checkout) | No — its session owns it   | **Message** its session now (via `arc-inbox`).         |
-| Out-of-WU, **urgent**                  | No — isolation needed now  | **Errand now** — own session (`arc-session --errand`). |
-| Out-of-WU, not urgent                  | No — defer the write       | **Capture** to `USER-INBOX` (via `arc-inbox`).         |
+| The concern is…                        | Can I write its home here?      | Route                                                  |
+| -------------------------------------- | ------------------------------- | ------------------------------------------------------ |
+| The current WU's own                   | With record edit rights         | Fix **inline**. Never capture.                         |
+| Another WU's, live (it has a checkout) | Use [routing][arc-methods-rdw]. | If admitted, add to inbound and message (`arc-inbox`). |
+| Out-of-WU, **urgent**                  | No — isolation needed now       | **Errand now** — own session (`arc-session --errand`). |
+| Out-of-WU, not urgent                  | No — defer the write            | **Capture** to your personal inbox (via `arc-inbox`).  |
 
 In-WU multi-step discovery folds into the active task list (an existing task, a new subtask, or a new task; a
 whole new phase may mean it isn't this WU's — ask).
@@ -372,12 +372,12 @@ directly — run an errand (a self-evident concern, atomic, possibly extended) o
 (spec-worthy future work) — but never must: capture-plus-drain reaches the same place. Lack of time is never a
 reason to lose a thought.
 
-**Where captures drain.** `USER-INBOX` drains at the between-WUs `arc-housekeep` flow; the inline, holding,
+**Where captures drain.** The personal inbox drains at the between-WUs `arc-housekeep` flow; the inline, holding,
 and anti-rider rules hold under every PM mode.
 
 ### Holding ≠ execution
 
-Capture _holds_; it never _executes_. Capture is inbox-only — a deferred concern lands in `USER-INBOX` (via
+Capture _holds_; it never _executes_. Capture is inbox-only — a deferred concern lands in your personal inbox (via
 `arc-inbox`), never as a queued or seeded errand. **An errand _is_ its execution:** out-of-WU work runs through
 the `run-errand` lifecycle on its own isolated branch — entered warm with `arc-errand` or cold with
 `arc-session --errand` — never hand-rolled on your current WU branch. The isolation rule is universal — get off
@@ -393,8 +393,8 @@ distinct concerns never share a PR even on a shared file — sequence them (reba
 ### Planning artifacts aren't capture surfaces
 
 A WU's planning artifacts — draft, spec, notes, meta, a `Coordination §` — may _cross-reference_ another WU's
-concern but must never hold it as their **record-of-record** (completion and session notes record what was
-done; they aren't actionable-work queues). The dual of the core invariant: no foreign work-item rests in a
+concern but must never hold it as their **record-of-record** (completion notes and session context record what
+was done; they aren't actionable-work queues). The dual of the core invariant: no foreign work-item rests in a
 planning artifact.
 
 ---
@@ -405,7 +405,7 @@ planning artifact.
 
 **Session handoff is human-invoked.** Agents do not initiate handoff — the user signals when to
 hand off (typically via `arc-handoff` skill invocation); the agent then executes the handoff workflow.
-SESSION-NOTES.md (gitignored) is written only at handoff.
+A work unit's session context is written only at handoff.
 
 ### Context quality
 
@@ -493,17 +493,24 @@ stay.
 
 ### `.arc/` artifact references
 
-Movable `.arc/` artifacts — a WU's `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions, plus `cohort-*` — are
-project-internal. Except for the commit-pinned link to the design document in a pull request's diff, shipped or
-published content cannot reference them and the following filename-only/no-links rule applies. Two rules keep
-internal references stable across relocation:
+Movable `.arc/` records — every work-item and cohort record: a WU's `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and
+companions, an Errand's records, and `cohort-*` — are project-internal. Each one's path varies by lifecycle and by
+checkout (`active/current/`, `active/in-flight/<slug>/`, `completed/`); personal records and the project inbox keep one
+path. Except for the commit-pinned link to the design document in a pull request's diff, shipped or published content
+cannot reference movable records. Apply these rules to local references:
 
-- **To a movable artifact:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
+- **To a movable record:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
   include the task ID + task-list filename: "Task X.Y - `tasks-name.md`".
-- **From a movable artifact:** no relative-path links at all, even to stable docs — a movable source's path changes
-  when it relocates, so any relative link would break. Relative paths are legal only in non-moving docs.
+- **From projected Markdown:** Refer to another record under any projected root, including a fixed record, by backticked
+  filename. Local links with paths must resolve outside every projected root. Use fragment-only links such as `#heading`
+  to link within the same document.
+- **From a movable record:** no relative-path links at all, even to stable docs — a movable source's path changes
+  when it relocates, so any relative link would break. Link a tracked file from the repository root (`/path`) instead.
 
-Otherwise, paths serve current-location metadata, commands, and links between non-moving docs.
+A save refuses a record write that adds a link breaking these rules.
+
+Otherwise, paths serve current-location metadata, commands, and links between non-moving docs. Relative links from
+fixed records must resolve outside every projected root.
 
 ### Write for the reader, not the author
 
@@ -512,8 +519,8 @@ readers have no context for the old state. Document what _is_, not what _was_. H
 commit messages and task list completion notes, not in the living document.
 
 **Also applies to communication artifacts** — PR descriptions, notes files, and documentation handoffs describe
-what the artifact delivers, not the author's workflow continuity, which belongs in the active WU's
-`meta-{name}.md` and SESSION-NOTES.
+what the artifact delivers, not the author's workflow continuity, which belongs in the active WU's meta and its
+session context.
 
 **Examples of reader-hostile patterns:**
 
@@ -524,16 +531,15 @@ what the artifact delivers, not the author's workflow continuity, which belongs 
 ### Commit and PR surface language
 
 Commit prose reads as **the operation performed**, legible without ARC-specific knowledge: backticked
-artifact references (`meta-*`, `draft-*`, `ROADMAP`) are fine, insider vocabulary as a load-bearing term (a
+artifact references (`meta-*`, `draft-*`, `spec-*`) are fine, insider vocabulary as a load-bearing term (a
 `Class` value, a named internal procedure) is not. Traceability — task IDs, phases, lifecycle action — routes to
 the `Context:` footer; the prose carries the change. Illustrative, not exhaustive.
 
 Before composing or editing a pull-request title or body, inside or outside a workflow, load
-[pull-request-format][pull-request-format] for every Errand request and any request beyond planning- or
-lifecycle-only records from grooming sets, housekeep sweeps, and lifecycle verbs. By default, titles and bodies
-carry no ARC process vocabulary, artifact references, or process, provenance, or review metadata, except the
-method's pinned design link. A project's domain vocabulary belongs when it is the change's subject; target-project
-prescriptions and method overrides govern as the method specifies.
+[pull-request-format][pull-request-format]. By default, titles and bodies carry no ARC process vocabulary, artifact
+references, or process, provenance, or review metadata, except the method's pinned design link. A project's domain
+vocabulary belongs when it is the change's subject; target-project prescriptions and method overrides govern as the
+method specifies.
 
 ---
 

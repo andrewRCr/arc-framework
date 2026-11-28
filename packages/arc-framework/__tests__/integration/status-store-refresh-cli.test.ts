@@ -34,6 +34,10 @@ async function fixture(remoteSync = "enabled") {
   await exec("git", ["config", "arc.identity", "alice"]);
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), `branch.base: main\nsession.remote_sync: ${remoteSync}\n`);
+  // The identity root's ignore policy `arc init` commits, which the projection's ignore guard requires.
+  await mkdir(join(cwd, ".arc/user"), { recursive: true });
+  await writeFile(join(cwd, ".gitignore"), ".arc/user/*/\n");
+  await writeFile(join(cwd, ".arc/user/.npmignore"), "*\n");
   await exec("git", ["add", "."]); await exec("git", ["commit", "-m", "Initialize status fixture"]);
   await exec("git", ["remote", "add", "origin", cwd]); await exec("git", ["fetch", "origin"]);
   await exec("git", ["checkout", "-b", "feat/demo"]);
@@ -213,6 +217,9 @@ it("renders registered user status with the production membership and checkout r
   const h = await fixture();
   binding.store = h.store;
   try {
+    // The projection materializes the checkout at its first command; start it first, so the listing compares status's
+    // own writes.
+    await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "config", "status", "--json"]));
     const before = await readdir(h.cwd, { recursive: true });
     const result = await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "status", "--user", "--json"]));
     expect(result.exitCode).toBe(0);

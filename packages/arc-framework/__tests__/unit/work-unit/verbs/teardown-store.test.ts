@@ -1,5 +1,5 @@
 /** Exact terminal snapshots govern ref-set cleanup and retained checkout coordinates. */
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -173,4 +173,54 @@ it("keeps a retiring branch and reports no direct rename for holders without its
   if (result.status !== "torn-down") throw new Error("Expected retained branch");
   for (const record of [first, second]) expect(result.notices.join(" ")).toContain(
     `No direct rename repair for \`${record.reference.owner.name}\` (UID ${record.reference.owner.type === "work-item" ? record.reference.owner.uid : ""})`);
+});
+
+describe("store teardown and the checkouts it retires", () => {
+  it("refuses a linked holder without an ARC ownership marker before changing any checkout or ref", async () => {
+    const h = await fixture({ end: "archive", linked: { marked: false } });
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("no ARC ownership marker") });
+    expect(h.state()).toMatchObject({ mutations: [], linkedBranch: "feat/demo", linkedPresent: true });
+    expect(h.refs.has("refs/heads/feat/demo")).toBe(true);
+    expect(h.refs.has("remote/feat/demo")).toBe(true);
+  });
+
+  it("preserves an unmarked checkout that takes the retiring branch after the initial roster scan", async () => {
+    const h = await fixture({ end: "archive", linked: { marked: false } });
+    const scan = h.ctx.scanWorktrees!;
+    const roster = await scan(h.ctx.exec);
+    if (!roster.ok) throw new Error(roster.message);
+    // Initially detached at the same commit, /linked holds feat/demo on subsequent scans.
+    h.ctx.scanWorktrees = vi.fn(scan).mockResolvedValueOnce({
+      ok: true,
+      worktrees: roster.worktrees.map(item => item.path === "/linked" ? { ...item, branch: null, detached: true } : item),
+    });
+    const refs = new Map(h.refs);
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+    expect({ status: result.status, holder: h.state().linkedBranch, refs: h.refs }).toEqual({
+      status: "rejected", holder: "feat/demo", refs,
+    });
+    expect(result).toMatchObject({ reason: expect.stringContaining("git switch --detach") });
+    expect(h.state().mutations).toEqual([]);
+
+    await h.ctx.exec("git", ["switch", "--detach"], { cwd: "/linked" });
+    await expect(runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" }))
+      .resolves.toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+  });
+
+  it("keeps an adopted branch's linked holder without an ownership marker, as it keeps any adopted holder", async () => {
+    const h = await fixture({ end: "archive", branches: [link("feat/demo", "adopted")], linked: { marked: false } });
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+    expect(result).toMatchObject({ status: "torn-down", branchDeleted: false });
+    expect(h.state()).toMatchObject({ mutations: [], linkedBranch: "feat/demo", linkedPresent: true });
+  });
+
+  it("moves to the primary before a removing self-teardown removes its checkout, and reaps the branch", async () => {
+    const h = await fixture({ end: "archive", linked: { marked: true, invoking: true } });
+    Object.assign(h.ctx, { selfTeardownMode: "remove", platform: "linux" });
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+    expect(result).toMatchObject({ status: "torn-down", branchDeleted: true, worktreeRemoved: "/linked" });
+    expect(h.state()).toMatchObject({ hops: ["/repo"], linkedPresent: false });
+    expect(h.refs.has("refs/heads/feat/demo")).toBe(false);
+  });
 });

@@ -3,7 +3,6 @@ import { basename } from "node:path";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import type { SessionAction } from "../../lib/session-init/actions.js";
-import { compileLegacyMaterializeChoices } from "./legacy-materialize.js";
 import { renderDegradedSlot } from "./render.js";
 import { agendaQuestionKey, buildAgendaArgv } from "./argv.js";
 import type { AgendaCompileInput } from "./compile-input.js";
@@ -39,11 +38,10 @@ function workUnitRoutes(input: AgendaCompileInput): OrientationSurface[] {
   if (degraded !== null) return [{ id: "degraded-slot", steps: [degraded] }];
   if (!slot?.ok || (slot.value.candidates.length === 0 && slot.value.refreshRemedy === null)) return [];
   const candidates = slot.value.candidates;
-  const text = [`**Materializable work units:** ${candidates.length} remote WU(s) available:`,
+  const text = [`**Work units available to materialize:** ${candidates.length}`,
     ...candidates.map(item => `- \`${item.name}\`${item.branch === undefined ? "" : ` (\`${item.branch}\`)`} — materialize and resume?`)].join("\n");
   const choices: OfferChoice[] = candidates.flatMap(item => item.actions ?? []).flatMap(action => action.argv === undefined ? []
     : [compileRouteChoice(input, { ...action, argv: action.argv })]);
-  choices.push(...compileLegacyMaterializeChoices(input, candidates));
   if (slot.value.refreshRemedy !== null) choices.push(compileRouteChoice(input, slot.value.refreshRemedy));
   const refresh = slot.value.refreshRemedy === null ? "" : `\n${slot.value.refreshRemedy.text}`;
   return [routeSurface("materializable-work-units", text + refresh,

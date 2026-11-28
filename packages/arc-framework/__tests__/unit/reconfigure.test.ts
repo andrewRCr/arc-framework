@@ -127,7 +127,7 @@ function makeArcInGitSetup() {
       "system/arc-config.yml": {
         classification: "Configurable", layer: "core", pristine_hash: "def",
       },
-      "backlog/ROADMAP.md": {
+      "reference/TECHNICAL-OVERVIEW.md": {
         classification: "Scaffolded", layer: "arc-in-git",
       },
       "reference/strategies/arc/strategy-planning-module.md": {
@@ -151,7 +151,7 @@ function makeArcInGitSetup() {
     conditions: {
       "pm.mode == arc-in-git": {
         include_files: [
-          "backlog/ROADMAP.template.md",
+          "reference/TECHNICAL-OVERVIEW.template.md",
           "reference/strategies/arc/strategy-planning-module.md",
         ],
       },
@@ -254,8 +254,7 @@ describe("runReconfigure", () => {
     const templateFiles = {
       "reference/README.md": "# Readme",
       "system/arc-config.yml": "pm.mode: none",
-      "backlog/ROADMAP.template.md": "# Roadmap for {{PROJECT_NAME}}",
-      "backlog/ATOMIC-INBOX.template.md": "# Atomic Inbox",
+      "reference/TECHNICAL-OVERVIEW.template.md": "# Technical overview for {{PROJECT_NAME}}",
       "reference/strategies/arc/strategy-planning-module.md": "# Planning Module",
     };
     const pristineStore = {
@@ -271,8 +270,7 @@ describe("runReconfigure", () => {
       conditions: {
         "pm.mode == arc-in-git": {
           include_files: [
-            "backlog/ROADMAP.template.md",
-            "backlog/ATOMIC-INBOX.template.md",
+            "reference/TECHNICAL-OVERVIEW.template.md",
             "reference/strategies/arc/strategy-planning-module.md",
           ],
         },
@@ -293,8 +291,7 @@ describe("runReconfigure", () => {
     }) as ReconfigureResult;
 
     // All arc-in-git files should appear as additions
-    expect(result.added).toContain("backlog/ROADMAP.md");
-    expect(result.added).toContain("backlog/ATOMIC-INBOX.md");
+    expect(result.added).toContain("reference/TECHNICAL-OVERVIEW.md");
     expect(result.added).toContain(
       "reference/strategies/arc/strategy-planning-module.md",
     );
@@ -322,7 +319,7 @@ describe("runReconfigure", () => {
       "reference/strategies/arc/strategy-planning-module.md",
     );
     // Scaffolded file should not be auto-removed (left untouched)
-    expect(result.removed).not.toContain("backlog/ROADMAP.md");
+    expect(result.removed).not.toContain("reference/TECHNICAL-OVERVIEW.md");
   });
 
   it("resolveRemovals callback controls which files are kept vs removed", async () => {
@@ -337,7 +334,7 @@ describe("runReconfigure", () => {
         action: "keep" as const,
       },
       {
-        outputPath: "backlog/ROADMAP.md",
+        outputPath: "reference/TECHNICAL-OVERVIEW.md",
         classification: "Scaffolded" as const,
         action: "remove" as const,
       },
@@ -361,7 +358,7 @@ describe("runReconfigure", () => {
     expect(result.removed).not.toContain(
       "reference/strategies/arc/strategy-planning-module.md",
     );
-    expect(result.removed).toContain("backlog/ROADMAP.md");
+    expect(result.removed).toContain("reference/TECHNICAL-OVERVIEW.md");
     expect(result.keptByUser).toContain(
       "reference/strategies/arc/strategy-planning-module.md",
     );
@@ -396,8 +393,8 @@ describe("runReconfigure", () => {
     expect(result.removed).toContain(
       "reference/strategies/arc/strategy-planning-module.md",
     );
-    expect(result.removed).not.toContain("backlog/ROADMAP.md");
-    expect(result.keptByUser).toContain("backlog/ROADMAP.md");
+    expect(result.removed).not.toContain("reference/TECHNICAL-OVERVIEW.md");
+    expect(result.keptByUser).toContain("reference/TECHNICAL-OVERVIEW.md");
   });
 
   it("returns result with previous and new config", async () => {
@@ -608,7 +605,7 @@ describe("runReconfigure", () => {
       const templateFiles = {
         "reference/README.md": "# Readme",
         "system/arc-config.yml": "pm.mode: none",
-        "backlog/ROADMAP.template.md": "# Roadmap for {{PROJECT_NAME}}",
+        "reference/TECHNICAL-OVERVIEW.template.md": "# Technical overview for {{PROJECT_NAME}}",
         "reference/strategies/arc/strategy-planning-module.md": "# Planning Module",
       };
       const pristineStore = {
@@ -624,7 +621,7 @@ describe("runReconfigure", () => {
         conditions: {
           "pm.mode == arc-in-git": {
             include_files: [
-              "backlog/ROADMAP.template.md",
+              "reference/TECHNICAL-OVERVIEW.template.md",
               "reference/strategies/arc/strategy-planning-module.md",
             ],
           },
@@ -648,7 +645,7 @@ describe("runReconfigure", () => {
       expect("dryRun" in result && result.dryRun).toBe(true);
       const dr = result as DryRunResult;
       const addedPaths = dr.wouldAdd.map((a) => a.outputPath);
-      expect(addedPaths).toContain("backlog/ROADMAP.md");
+      expect(addedPaths).toContain("reference/TECHNICAL-OVERVIEW.md");
       expect(addedPaths).toContain(
         "reference/strategies/arc/strategy-planning-module.md",
       );
@@ -682,7 +679,7 @@ describe("runReconfigure", () => {
       expect(frameworkRemoval!.classification).toBe("Framework");
       // Scaffolded file should also appear (plan includes all removals before resolution)
       const scaffoldedRemoval = dr.wouldRemove.find(
-        (r) => r.outputPath === "backlog/ROADMAP.md",
+        (r) => r.outputPath === "reference/TECHNICAL-OVERVIEW.md",
       );
       expect(scaffoldedRemoval).toBeDefined();
       expect(scaffoldedRemoval!.classification).toBe("Scaffolded");
@@ -805,13 +802,13 @@ describe("runReconfigure refusals before writing", () => {
     computed_tokens: {},
     prompts: [],
     conditions: {
-      "pm.mode == arc-in-git": { include_files: ["backlog/ROADMAP.template.md"] },
+      "pm.mode == arc-in-git": { include_files: ["reference/TECHNICAL-OVERVIEW.template.md"] },
     },
   };
   const templateFiles = {
     "reference/README.md": "# Readme",
     "system/arc-config.yml": "pm.mode: none",
-    "backlog/ROADMAP.template.md": "# Roadmap for {{PROJECT_NAME}}",
+    "reference/TECHNICAL-OVERVIEW.template.md": "# Technical overview for {{PROJECT_NAME}}",
   };
   const pristineStore = {
     "reference/README.md": "# Readme",
@@ -856,7 +853,7 @@ describe("runReconfigure refusals before writing", () => {
     });
     const statusArgs = vi.mocked(dirty.exec).mock.calls[0]?.[1];
     expect(statusArgs).toEqual(expect.arrayContaining([
-      ".arc/system/arc-config.yml", ".arc/backlog/ROADMAP.md", ".arc/system/.internal/manifest.json",
+      ".arc/system/arc-config.yml", ".arc/reference/TECHNICAL-OVERVIEW.md", ".arc/system/.internal/manifest.json",
     ]));
     expect(dirty.writeFile).not.toHaveBeenCalled();
     expect(atomicWriteJson).not.toHaveBeenCalled();
@@ -867,19 +864,19 @@ describe("runReconfigure refusals before writing", () => {
 
   it("refuses an addition over a file already at its path, then adds it once the file is moved aside", async () => {
     const occupied = mockIO(makeManifest(), pristineStore, templateFiles, {
-      "backlog/ROADMAP.md": "# The project's own roadmap",
+      "reference/TECHNICAL-OVERVIEW.md": "# The project's own overview",
     });
 
     await expect(reconfigure(occupied)).rejects.toMatchObject({
       code: "manifest.install-paths-occupied",
-      why: expect.stringContaining(".arc/backlog/ROADMAP.md"),
+      why: expect.stringContaining(".arc/reference/TECHNICAL-OVERVIEW.md"),
       whatToDo: expect.stringContaining("retry `arc init --reconfigure`"),
     });
     expect(occupied.writeFile).not.toHaveBeenCalled();
     expect(atomicWriteJson).not.toHaveBeenCalled();
 
     const moved = await reconfigure(mockIO(makeManifest(), pristineStore, templateFiles)) as ReconfigureResult;
-    expect(moved.added).toContain("backlog/ROADMAP.md");
+    expect(moved.added).toContain("reference/TECHNICAL-OVERVIEW.md");
   });
 
   it("refuses to delete a file the user chose to remove over its uncommitted changes, then runs once committed", async () => {
@@ -887,30 +884,30 @@ describe("runReconfigure refusals before writing", () => {
     const decide = (action: "remove" | "keep"): ReconfigureOptions["resolveRemovals"] => vi.fn(
       async (): Promise<RemovalDecision[]> => [
         { outputPath: "reference/strategies/arc/strategy-planning-module.md", classification: "Framework", action: "keep" },
-        { outputPath: "backlog/ROADMAP.md", classification: "Scaffolded", action },
+        { outputPath: "reference/TECHNICAL-OVERVIEW.md", classification: "Scaffolded", action },
       ],
     );
     const toNone = (io: IOContext, action: "remove" | "keep"): ReturnType<typeof runReconfigure> => runReconfigure({
       cwd: "/project", io, templateDir: "/templates", recipe: setup.recipe,
       newInstallConfig: { ...setup.manifest.install_config, pm_mode: "none" }, resolveRemovals: decide(action),
     });
-    const editedRoadmap = (): IOContext => withStatus(
-      mockIO(setup.manifest, setup.pristineStore, setup.templateFiles), [" M .arc/backlog/ROADMAP.md"],
+    const editedOverview = (): IOContext => withStatus(
+      mockIO(setup.manifest, setup.pristineStore, setup.templateFiles), [" M .arc/reference/TECHNICAL-OVERVIEW.md"],
     );
 
-    const dirty = editedRoadmap();
+    const dirty = editedOverview();
     await expect(toNone(dirty, "remove")).rejects.toMatchObject({
       code: "manifest.uncommitted-changes",
-      why: expect.stringContaining(".arc/backlog/ROADMAP.md"),
+      why: expect.stringContaining(".arc/reference/TECHNICAL-OVERVIEW.md"),
     });
     expect(dirty.writeFile).not.toHaveBeenCalled();
     expect(atomicWriteJson).not.toHaveBeenCalled();
 
-    const kept = await toNone(editedRoadmap(), "keep") as ReconfigureResult;
-    expect(kept.keptByUser).toContain("backlog/ROADMAP.md");
+    const kept = await toNone(editedOverview(), "keep") as ReconfigureResult;
+    expect(kept.keptByUser).toContain("reference/TECHNICAL-OVERVIEW.md");
 
     const committed = withStatus(mockIO(setup.manifest, setup.pristineStore, setup.templateFiles), []);
     const removed = await toNone(committed, "remove") as ReconfigureResult;
-    expect(removed.removed).toContain("backlog/ROADMAP.md");
+    expect(removed.removed).toContain("reference/TECHNICAL-OVERVIEW.md");
   });
 });

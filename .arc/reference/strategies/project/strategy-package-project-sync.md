@@ -76,7 +76,7 @@ tree by then. Use targeted edits from the start.
 
 ## Template Counterparts
 
-10 files in the package use a `.template.md` suffix, stripped at init time. One contains
+8 files in the package use a `.template.md` suffix, stripped at init time. One contains
 `<!-- arc:if -->` conditionals resolved during rendering:
 
 | Template file                   | Conditions          |
@@ -164,9 +164,8 @@ Configurable sets. The self-hosting configuration currently resolves 103 Framewo
 `init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
 `framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
-### Configurable files (project sections expected to differ) — 44
+### Configurable files (project sections expected to differ) — 43
 
-- `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
 - `reference/QUICK-REFERENCE.md` · template counterpart
 - `reference/strategies/STRATEGY-INDEX.md`
@@ -219,8 +218,6 @@ Configurable sets. The self-hosting configuration currently resolves 103 Framewo
 
 ### Template counterparts (package `.template.md` → `.arc/` `.md`)
 
-- `backlog/ROADMAP.template.md` → `backlog/ROADMAP.md` (Scaffolded · arc-in-git)
-- `backlog/ATOMIC-INBOX.template.md` → `backlog/ATOMIC-INBOX.md` (Scaffolded · arc-in-git)
 - `reference/PROJECT-PRD.template.md` → `reference/PROJECT-PRD.md` (Scaffolded)
 - `reference/QUICK-REFERENCE.template.md` → `reference/QUICK-REFERENCE.md` (Configurable)
 - `reference/TECHNICAL-OVERVIEW.template.md` → `reference/TECHNICAL-OVERVIEW.md` (Scaffolded)
@@ -237,13 +234,13 @@ Configurable sets. The self-hosting configuration currently resolves 103 Framewo
 | Classification | Count | Update Behavior                                       |
 | -------------- | ----- | ----------------------------------------------------- |
 | Framework      | 103   | Wholesale replaced. No conflicts.                     |
-| Configurable   | 44    | Three-way merge. Conflicts expected in user sections. |
-| Scaffolded     | 4     | Skip. Project-owned after init.                       |
+| Configurable   | 43    | Three-way merge. Conflicts expected in user sections. |
+| Scaffolded     | 2     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Self-hosting installed files:** 151. **Template counterparts:** 10. Conditional recipe arms change installed
-membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
-coordination strategy.
+**Self-hosting installed files:** 148. **Template counterparts:** 8. Conditional recipe arms change installed
+membership: external PM adds its setup workflow, arc-in-git adds the planning-module strategy, and team mode adds the
+team coordination strategy.
 
 _`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted._
 

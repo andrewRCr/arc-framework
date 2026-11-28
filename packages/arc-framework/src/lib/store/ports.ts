@@ -1,6 +1,7 @@
 /** Explicit I/O and lazy policy seams for operational storage backends. */
 
 import type { GitExec, GitExecInput, RawGitExec } from "../git/exec.js";
+import type { GitDirectories } from "../git/directories.js";
 import type { Slug } from "../kernel/schema/slug.js";
 import type { KindId } from "./catalog.js";
 import type { KindDefinition } from "./registry.js";
@@ -77,6 +78,9 @@ export interface RefStorePorts {
   sleep: RefStoreSleep;
   random: () => number;
   checkoutRoot: string;
+  /** The checkout's Git directories, found once and kept after the checkout is removed; absent, each lookup reads them
+   * through the checkout. */
+  gitDirectories?: () => Promise<GitDirectories>;
   identity: () => Promise<Slug | null>;
   actor: (identity: Slug) => Promise<string>;
   /** Read the invoking checkout's tracked pointer only at destination decisions. */

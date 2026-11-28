@@ -19,7 +19,9 @@ import {
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
+import type { OwnerIdentity } from "../../src/lib/store/identity.js";
 import { deliveryStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
 const WORK_UNIT = SlugSchema.parse("review-surface-binding");
@@ -176,10 +178,18 @@ async function boundStack(): Promise<Stack> {
   };
 }
 
+async function bindWorkItem(root: string): Promise<OwnerIdentity> {
+  const { meta: seeded } = await seedWorkUnit(root, WORK_UNIT, {
+    identity: OWNER, meta: { owner: OWNER, branch: "feature" },
+  });
+  return seeded.reference.owner;
+}
+
 describe("local review delivery binding at its composition root", () => {
   it("carries a selector through preparation to the repository's own delivery state", async () => {
     const stack = await boundStack();
-    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });
+    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root, workItem: await bindWorkItem(stack.root) });
+    expect(prepare.operationStore.stateOffBranch).toBe(true);
 
     const resolved = await prepare.resolveAuthority(EVALUATOR, stack.memberSha);
 
@@ -198,7 +208,8 @@ describe("local review delivery binding at its composition root", () => {
 
   it("routes the resolved coordinates into a member target rather than the checkout's", async () => {
     const stack = await boundStack();
-    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });
+    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root, workItem: await bindWorkItem(stack.root) });
+    expect(prepare.operationStore.stateOffBranch).toBe(true);
     const { member } = await prepare.resolveAuthority(EVALUATOR, stack.memberSha);
 
     const target = await prepare.deriveTarget(REPOSITORY_ID, member ?? undefined);
@@ -213,7 +224,8 @@ describe("local review delivery binding at its composition root", () => {
 
   it("re-derives the same member vehicle at attestation from the head alone", async () => {
     const stack = await boundStack();
-    const attest = createLocalAttestDependencies({ exec, cwd: stack.root });
+    const attest = createLocalAttestDependencies({ exec, cwd: stack.root, workItem: await bindWorkItem(stack.root) });
+    expect(attest.operationStore.stateOffBranch).toBe(true);
 
     // Attestation reads the selector back from its persisted target, so this is
     // the head a member operation would supply. Dropping the forward yields a
@@ -228,7 +240,8 @@ describe("local review delivery binding at its composition root", () => {
 
   it("refuses the plan's final member and a member of no plan at this locus", async () => {
     const stack = await boundStack();
-    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });
+    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root, workItem: await bindWorkItem(stack.root) });
+    expect(prepare.operationStore.stateOffBranch).toBe(true);
 
     await expect(prepare.resolveAuthority(EVALUATOR, stack.successorSha))
       .rejects.toMatchObject({ reason: "delivery-member-terminal" });
@@ -245,7 +258,8 @@ describe("local review delivery binding at its composition root", () => {
       workUnitId: WORK_UNIT,
       head: stack.successorSha,
     };
-    const dependencies = createLocalPrepareDependencies({ exec, cwd: stack.root });
+    const dependencies = createLocalPrepareDependencies({ exec, cwd: stack.root, workItem: await bindWorkItem(stack.root) });
+    expect(dependencies.operationStore.stateOffBranch).toBe(true);
 
     await expect(dependencies.resolveAuthority(
       EVALUATOR,
@@ -275,7 +289,8 @@ describe("local review delivery binding at its composition root", () => {
 
   it("leaves the no-selector path reading the checkout, dirt and all", async () => {
     const stack = await boundStack();
-    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });
+    const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root, workItem: await bindWorkItem(stack.root) });
+    expect(prepare.operationStore.stateOffBranch).toBe(true);
 
     await expect(prepare.resolveAuthority(EVALUATOR)).resolves.toEqual({
       authority: expect.objectContaining({

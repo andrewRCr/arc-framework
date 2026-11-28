@@ -21,6 +21,7 @@ import { seed, success } from "../helpers/store/suite-tools.js";
 import { resolveEntryList } from "../../src/lib/inbox/lists.js";
 import { listInbox } from "../../src/lib/inbox/listing.js";
 import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
+import { withInRepoStore } from "../helpers/in-repo-store-override.js";
 it("inserts a capture from a CLI-owned stdin route, then moves it by CLI-parsed ID/version", async () => {
   const cwd = await createTempRepo();
   onTestFinished(() => cleanupTempDir(cwd));
@@ -66,7 +67,9 @@ it("inserts a capture from a CLI-owned stdin route, then moves it by CLI-parsed 
 async function lifecycleFixture(protection: "full" | "partial") {
   const cwd = await createTempRepo();
   onTestFinished(() => cleanupTempDir(cwd));
-  const initialized = await runArc(["init", "--yes", "--name", "test-project"], cwd);
+  // The checkout is one the import read: initialized on the in-repo store, which writes the personal files
+  // `seedImportedUserProjection` carries into the bound store.
+  const initialized = await withInRepoStore(() => runArc(["init", "--yes", "--name", "test-project"], cwd));
   expect(initialized.exitCode).toBe(0);
   const path = join(cwd, ".arc", "system", "arc-config.yml");
   let config = await readFile(path, "utf8");
@@ -114,7 +117,9 @@ it("opens a full Errand from the project queue, then abandons it back through re
   expect(await invokeRegistered(h, ["errand", "queue", "set", queue])).toMatchObject({ result: { state: "set" } });
   const opened = await invokeRegistered(h, ["errand", "open", "cli-full", "--from-inbox", "project:12345678", "--json"]);
   expect(opened).toMatchObject({ result: { outcome: "applied", identity: { originEntry: "project:12345678", originEntrySourceDigest: null } } });
-  expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("chore/cli-full");
+  const { reference: { owner } } = success(await h.h.context.store.lookup({ kind: "slug", slug: SlugSchema.parse("cli-full") }));
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the Errand owner's UID");
+  expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/cli-full-${owner.uid.slice(0, 8)}`);
   expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "errand", slug: "cli-full" } } });
   expect(await listInbox({ list: "project" }, h.h.context)).toMatchObject({ entries: [] });
   expect(await listInbox({ list: "cli-full" }, h.h.context)).toMatchObject({ entries: [{ id: "12345678", fields: { Created: "2026-01-01" } }] });
@@ -159,7 +164,9 @@ it("mints a text description and links a project capture beside it from register
   expect(await invokeRegistered(h, ["errand", "link", "cli-linked", "--from-inbox", "project:12345678", "--json"])).toMatchObject({ result: { outcome: "applied", identity: { originEntry: "project:12345678", originEntrySourceDigest: null } } });
   expect(await listInbox({ list: "cli-linked" }, h.h.context)).toMatchObject({ entries: [{ title: "cli-linked", raw: expect.stringContaining("Free typed text") }, { id: "12345678", fields: { Created: "2026-01-01" } }] });
   expect(await listInbox({ list: "project" }, h.h.context)).toMatchObject({ entries: [] });
-  expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("chore/cli-linked");
+  const { reference: { owner } } = success(await h.h.context.store.lookup({ kind: "slug", slug: SlugSchema.parse("cli-linked") }));
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the Errand owner's UID");
+  expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/cli-linked-${owner.uid.slice(0, 8)}`);
   expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
   expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "errand", slug: "cli-linked" } } });
 }, 30000);

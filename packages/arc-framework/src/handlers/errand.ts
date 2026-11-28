@@ -1148,7 +1148,7 @@ export async function handleErrandLeave(
         emitErrandLeaveFailure("locus.errand-leave.identity", "The stdin Git boundary is unavailable.", opts.json === true);
         return;
       }
-      const store = openDefaultStore(cwd, io.exec);
+      const store = openDefaultStore(cwd, io.exec, identity);
       let observedAuthority: ErrandTerminalAuthority | null = null;
       const result = await leaveOrdinaryErrandAtRuntime({
         store,
@@ -1310,7 +1310,7 @@ async function runErrandCloseHandler(
   }
 
   const io = createUserIOContext(context?.subprocess);
-  const opened = openErrandTerminalStore({ cwd, subject: slug, io,
+  const opened = openErrandTerminalStore({ cwd, subject: slug, identity, io,
     refuse: (code, message) => { emitErrandCloseFailure(`locus.errand-close.${code}`, message, opts.json === true); } });
   if (opened === null) return;
   const { store, execInput } = opened;
@@ -1584,7 +1584,7 @@ async function runErrandAbandonHandler(
     return;
   }
   const io = createUserIOContext(context?.subprocess);
-  const opened = openErrandTerminalStore({ cwd, subject: input.slug, io,
+  const opened = openErrandTerminalStore({ cwd, subject: input.slug, identity, io,
     refuse: (code, message) => { emitErrandAbandonFailure(`locus.errand-abandon.${code}`, message, opts.json === true); } });
   if (opened === null) return;
   const { store, execInput } = opened;

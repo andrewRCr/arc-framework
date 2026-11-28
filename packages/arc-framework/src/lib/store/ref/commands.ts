@@ -3,11 +3,12 @@
 import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import type { Store } from "../contract.js";
 import { StoreMigrateInputSchema, StoreRemoteInputSchema, combineMigrateReports, type StoreMigrateInput, type StoreMigrateResult,
-  type StoreRemoteInput, type StoreRemoteResult, type MigrateReport, type StoreCommandResult } from "../commands.js";
+  type StoreRemoteInput, type StoreRemoteResult, type MigrateReport, type StoreCommandResult,
+  type StoreCreationDesignationResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout, observeRefLayout } from "./layout-state.js";
 import { ambiguousDesignation, readRefDesignation, refDesignationStop, type RefDesignation } from "./designation.js";
-import { migrationCodeContext, readMoveRecord, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
+import { migrationCodeContext, readMoveRecord, type LayoutSetting, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
 import { layoutMoveLeftovers } from "./migrate-remote-switch.js";
 import { clearRemoteGathering, prepareRemoteGathering, readRemoteCopyReport } from "./migrate-remote-copy.js";
@@ -127,36 +128,59 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
   if (!input.remote && !input.role) return { status: "ok", result: await remoteView(context) };
   if (!input.remote || !input.role) return invalidRemoteCommand("A remote setting requires both a remote and a role.");
   const setting = { remote: input.remote, role: input.role };
-  let completed: MigrateReport | undefined;
-  const applied = await withMigrationLock(context, async () => {
-    const code = await migrationCodeContext(context), existing = await readMoveRecord(code);
-    let account: MigrateReport | undefined;
-    if (existing.status === "refused") return existing;
-    if (existing.result) {
-      const resumed = await finishRecordedMove(context, store, existing.result);
-      if (resumed.status === "refused") return resumed;
-      completed = resumed.result;
-    } else {
-      const retained = await readRemoteCopyReport(code);
-      if (retained.refs.length || retained.notices.length) account = retained;
-    }
-    const follow = await guardRefFollowSetting(context, store, setting.remote, setting.role);
-    let result: StoreRemoteResult;
-    if (follow?.status === "stale") {
-      account = follow.report;
-      result = await applyRefRemoteSetting(context, store, setting, input.ownState);
-    } else result = follow ?? await applyRefRemoteSetting(context, store, setting, input.ownState);
-    if (result.status === "ok" && account) await clearRemoteGathering(code);
-    return account ? carryRemoteAccount(result, account) : result;
-  });
+  const finished: { report?: MigrateReport } = {};
+  const applied = await withMigrationLock(context, () => applyRemoteRequest(context, store, setting, finished, input.ownState));
+  const completed = finished.report;
   if (!completed) return applied;
   if (applied.status !== "ok") return unappliedSetting(completed, applied);
   applied.result.report = applied.result.report ? combineMigrateReports(completed, applied.result.report) : completed;
   return applied;
 }
 
+/** Finish recorded work and apply a setting while the migration lock is held. */
+async function applyRemoteRequest(context: RefBackendContext, store: Store, setting: LayoutSetting,
+  finished: { report?: MigrateReport }, ownState?: boolean): Promise<StoreRemoteResult> {
+  const code = await migrationCodeContext(context), existing = await readMoveRecord(code);
+  let account: MigrateReport | undefined;
+  if (existing.status === "refused") return existing;
+  if (existing.result) {
+    const resumed = await finishRecordedMove(context, store, existing.result);
+    if (resumed.status === "refused") return resumed;
+    finished.report = resumed.result;
+  } else {
+    const retained = await readRemoteCopyReport(code);
+    if (retained.refs.length || retained.notices.length) account = retained;
+  }
+  const follow = await guardRefFollowSetting(context, store, setting.remote, setting.role);
+  let result: StoreRemoteResult;
+  if (follow?.status === "stale") {
+    account = follow.report;
+    result = await applyRefRemoteSetting(context, store, setting, ownState);
+  } else result = follow ?? await applyRefRemoteSetting(context, store, setting, ownState);
+  if (result.status === "ok" && account) await clearRemoteGathering(code);
+  return account ? carryRemoteAccount(result, account) : result;
+}
+
+/** At a project's creation, set `push` on the code remote unless a remote already carries a role; that one is pulled. */
+export async function runRefCreationDesignation(context: RefBackendContext, store: Store): Promise<StoreCreationDesignationResult> {
+  const finished: { report?: MigrateReport } = {};
+  const designation = await withMigrationLock<StoreCreationDesignationResult>(context, async () => {
+    const { backing, codeRemote, remotes } = await readRefDesignation(context);
+    if (backing !== null || remotes.some(({ role }) => role !== undefined)) {
+      return { status: "ok", result: { state: "designated" } };
+    }
+    const remote = codeRemote !== "backing" && codeRemote !== null ? codeRemote
+      : remotes.length === 1 ? remotes[0]?.name : remotes.find(({ name }) => name === "origin")?.name;
+    if (remote === undefined) return { status: "ok", result: { state: "local" } };
+    const applied = await applyRemoteRequest(context, store, { remote, role: "push" }, finished);
+    return applied.status === "ok" ? { status: "ok", result: { state: "set", remote } } : applied;
+  });
+  return finished.report && designation.status !== "ok" ? unappliedSetting(finished.report, designation) : designation;
+}
+
 /** The finished move's record is already gone, so a setting that then refuses or asks keeps its own stop and carries the report. */
-function unappliedSetting(completed: MigrateReport, applied: Exclude<StoreRemoteResult, { status: "ok" }>): StoreRemoteResult {
+function unappliedSetting(completed: MigrateReport, applied: Exclude<StoreRemoteResult, { status: "ok" }>):
+  Exclude<StoreRemoteResult, { status: "ok" }> {
   if (applied.status === "confirmation-needed") return { ...applied, finished: completed,
     report: applied.report ? combineMigrateReports(completed, applied.report) : completed };
   return { status: "refused", refusal: applied.refusal.code === "import-refused" ? applied.refusal : { ...applied.refusal,

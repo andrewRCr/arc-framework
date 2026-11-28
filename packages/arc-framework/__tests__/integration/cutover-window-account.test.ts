@@ -12,6 +12,10 @@ import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { parkedWindowFixture } from "../helpers/cutover-window/parked.js";
 import { importWindowFixture } from "../helpers/cutover-window/import.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 function account(h: Awaited<ReturnType<typeof windowFixture>>) {
   return invokeWindow(h.root, "account");

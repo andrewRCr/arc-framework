@@ -12,6 +12,7 @@ import { renderMetaFile } from "../../src/lib/store/kinds/meta/writers.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { makeGitExec } from "../helpers/integration.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 const originalCwd = process.cwd(), roots: string[] = [];
 afterEach(async () => { process.chdir(originalCwd); process.exitCode = 0; await removeGitBackedDirs(roots.splice(0)); });
 async function fixture(json = true) {
@@ -29,6 +30,8 @@ async function fixture(json = true) {
   return { parent, child, base };
 }
 it.each([false, true])("reopens the production store at the spawned checkout and reuses its first opening initially, json=%s", async (json) => {
+  // Each checkout reading its own tracked meta is the in-repo implementation's; the ref store is shared by every worktree.
+  useInRepoStore();
   const { child, base } = await fixture(json), { executor } = await buildExecutor(base);
   if (executor.store === undefined) throw new Error("Missing production store");
   expect(executor.store).toBe(base.store);

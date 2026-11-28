@@ -4,7 +4,7 @@ import { storeRepairCases } from "../../../fixtures/store-repair-remedies.js";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   mergeIntegration,
@@ -177,7 +177,7 @@ function dependencies() {
 
 const request = { schemaVersion: 1 as const, workUnit: "example", checkpointHandle };
 
-async function storedLifecycleMerge(native = false) {
+async function storedLifecycleMerge() {
   const root = await mkdtemp(join(tmpdir(), "arc-merge-lifecycle-"));
   onTestFinished(async () => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, ".arc/system"), { recursive: true });
@@ -198,11 +198,11 @@ async function storedLifecycleMerge(native = false) {
   if (initial === null) throw new Error("Missing initial checkpoint fixture");
   const { workUnit, approvedHead, target, settlementPlan, mergeMethod } = initial;
   const checkpoint = async (lifecycleVersion: string) => ({ schemaVersion: 1 as const, workUnit,
-    checkpointHandle: await persistIntegrationCheckpointComposition(root,
+    checkpointHandle: await persistIntegrationCheckpointComposition({ kind: "workspace", root, workUnit },
       { workUnit, approvedHead, target, settlementPlan, mergeMethod, lifecycleVersion }) });
-  value.readCheckpoint = (workUnit, handle) => readIntegrationCheckpointComposition(root, workUnit, handle);
-  value.readStatus = createIntegrationMergeDependencies({ cwd: root, exec, workUnit: "example", lifecycleStorage: native ? undefined : storage,
-    ...(native ? { store: h.store, workItem: meta.reference.owner } : {}),
+  value.readCheckpoint = (workUnit, handle) => readIntegrationCheckpointComposition({ kind: "workspace", root, workUnit }, handle);
+  value.readStatus = createIntegrationMergeDependencies({ cwd: root, exec, workUnit: "example",
+    store: h.store, workItem: meta.reference.owner,
     changeRequestPort: { resolveRepository: async () => target.repository,
       readHeadRef: async () => ({ local: null, remote: target.headSha }), searchByHeadSha: async () => [],
       isAncestor: async () => false,
@@ -1155,6 +1155,26 @@ it.each(["already-merged", "recovered"] as const)("records the native landing li
     landingCommit: { repository: h.projectId, sha: oid("d") } });
 });
 
+it("refuses an unrelated work unit's landed checkpoint after the first host read fails", async () => {
+  const h = await nativeLandingMerge();
+  const other = await h.seedMeta("other");
+  h.value.validateCheckpointOwnership = createIntegrationMergeDependencies({ cwd: "/unused", exec: scriptGitExec([]).exec,
+    workUnit: "other", store: h.store, projectId: async () => h.projectId }).validateCheckpointOwnership;
+  const readMerged = h.value.readMerged;
+  h.value.readMerged = vi.fn(readMerged).mockRejectedValueOnce(new Error("The first host read failed."));
+  h.state.merged = true;
+
+  expect(await mergeIntegration({ ...request, workUnit: "other" }, h.value)).toMatchObject({
+    workUnit: "other", state: "blocked", reason: "operation-failed",
+    detail: expect.stringContaining("generation differs from the checkpoint"),
+    remedy: { argv: ["arc", "integrate", "checkpoint", "other"] },
+  });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ workUnit: "example", state: "merged",
+    nextAction: "complete", payload: { landingLink: { state: "written" } } });
+});
+
 it("reports a landed merge when its link write fails and repairs the link on an already-merged retry", async () => {
   const h = await nativeLandingMerge(), write = h.store.write.bind(h.store);
   h.store.write = async input => input.action === "put" && input.links?.landingCommit !== undefined
@@ -1187,11 +1207,12 @@ it("reports an already-merged request with no host merge commit without writing 
   expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
 });
 
-it("keeps repository merge success free of native landing-link state", async () => {
-  const { value } = dependencies();
+it.each([false, true])("reports when a landing link is not applicable, already merged: %s", async merged => {
+  const { value, state } = dependencies();
+  state.merged = merged;
   const result = await mergeIntegration(request, value);
-  expect(result.state).toBe("merged");
-  expect(result).not.toHaveProperty("payload.landingLink");
+  expect(result).toMatchObject({ state: "merged", nextAction: "complete",
+    payload: { landingLink: { state: "not-applicable" } } });
 });
 
 it.each(["missing", "project", "generation"] as const)("refuses unmerged %s ownership before settlement or host mutation, then continues after repair", async fault => {
@@ -1221,7 +1242,7 @@ it.each(["missing", "project", "generation"] as const)("refuses unmerged %s owne
 
 it.each(["version", "list", "unreadable", "diagnostics"] as const)(
   "retains native default snapshot %s commands in the public merge refusal", async fault => {
-    const t = await storedLifecycleMerge(true), store = t.h.store;
+    const t = await storedLifecycleMerge(), store = t.h.store;
     const version = store.version.bind(store), list = store.list.bind(store), before = await version();
     const repair = storeRepairCases[0]!, remedy = repair.remedy;
     const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "work-item",

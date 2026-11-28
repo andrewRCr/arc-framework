@@ -34,10 +34,6 @@ is built and reviewed against. Run it once the spec has been created and reviewe
 This stage reads the **scale** axis: the implementation surface and the codebase-grounding breadth a correct
 task plan needs.
 
-**Branch context:** Under full protection (`branch.protection: full`), task generation runs on the WU's planning
-branch (`plan/<name>`) — verify you're still on it (created via [init-work-unit][init-work-unit]). Under partial
-protection (the default), it may run directly on the base branch.
-
 Before starting, read the spec thoroughly. If the spec has pre-activation metadata (`**State:**` and/or
 `**Related Work:**` fields), check whether dependencies are resolved. Those fields record state at authoring
 time, so resolve each named blocker against live work-unit state (`arc status <slug>`) rather than reading the
@@ -62,7 +58,7 @@ a level and the mid-stage re-entry valve.
 
 The level is transient and feed-forward-immune — no upstream artifact carries scale, so this stage reads the
 work surface directly and cross-checks against `Class`. The `**Class:**` decision is live from this read, but
-its write defers to the Finalize ceremony commit.
+its write defers to Finalize.
 
 **No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel
 overlay (it reaches novelty only indirectly, through scale).
@@ -100,9 +96,8 @@ line — so it is read, not scanned.
 
 **The task list file lives on disk from the first pass onward.** The **Structural decomposition** procedure
 creates `tasks-{name}.md` at the destination path resolved per Finalize's `Destination path` rule; the later
-procedures edit it in place. Finalize collapses to pre-save checklist verification + ceremony commit. The file
-is in-progress until the Finalize checklist passes — staging discipline keeps it from landing in commits before
-then.
+procedures edit it in place. Finalize collapses to pre-save checklist verification + save. The file is in-progress
+until the Finalize checklist passes.
 
 ### `low` — one combined pass
 
@@ -463,7 +458,7 @@ the post-settle re-fire of this procedure follows the same rule.
 By now, `tasks-{name}.md` is already on disk (created during **Structural decomposition**, iterated through the
 content-fill and grounding procedures). Implementation notes, technical context, and design rationale belong in
 the dedicated notes file (`notes-{name}.md`), not in the task list. Finalize verifies the file against the
-pre-save checklist and bundles the commit.
+pre-save checklist and saves it.
 
 **Verify the file against this checklist:**
 
@@ -474,9 +469,9 @@ pre-save checklist and bundles the commit.
       segment's opening phase, `_Exit criterion:_` on its closing phase, then any `_Design decisions:_` links to
       `notes-{name}.md`. A single-phase segment carries both structural lines with `_Mode:_` first; every preamble
       entry has a blank line after it; soft cap ~12 lines per preamble.
-- [ ] Segmentation is valid across the saved task-list corpus, including tracked and untracked files. Before the
-      interlock, run the project's task-list validator when configured; otherwise verify the segment structure
-      against [strategy-task-list-formatting § Segments and Verification Boundaries][task-list-formatting].
+- [ ] Segmentation is valid. The save checks the task list's segment structure and task descriptors and refuses a
+      list that fails; before the interlock, verify the segment structure against
+      [strategy-task-list-formatting § Segments and Verification Boundaries][task-list-formatting].
 - [ ] Parent tasks are H3 headings with backtick-wrapped marker — see [strategy-task-list-formatting § Parent
       Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
@@ -523,18 +518,8 @@ pre-save checklist and bundles the commit.
 - [ ] Success Criteria section at bottom with root-indent checkboxes; a Delivery Plan groups them by member and
       cross-member seams, while a single-deliverable work unit keeps the flat form (marked only at verification)
 
-**Destination path** (referenced by **Structural decomposition**'s file creation) — co-locate with the
-work unit's existing artifacts (lifecycle position first; `pm.mode` only when nothing is on disk yet):
-
-1. **Sibling present** — write beside an existing `meta-{name}.md`, `spec-{name}.md`, or other planning
-   artifact for this name (same directory). After [`init-work-unit`][init-work-unit] / `arc start`, that is
-   almost always `.arc/active/tasks-{name}.md`. Do **not** write under `backlog/` when the meta already
-   lives in `active/` — [activation][activate-work-unit] is a state-flip + branch rename only, not a
-   backlog→active relocate; session-init resolves bare `Task List` filenames beside the active meta.
-2. **No sibling yet, arc-in-git incubating** — `.arc/backlog/{provisional,planned}/{name}/tasks-{name}.md`
-   (pre-start stub / `--plan` grooming only; uncommon — most task lists are authored after init).
-3. **none / external** — `.arc/active/tasks-{name}.md` (create the directory first if needed:
-   `mkdir -p .arc/active/`).
+**Destination path** (referenced by **Structural decomposition**'s file creation) — run
+`arc view meta --for {name} --path` for the selected work unit and write `tasks-{name}.md` beside that meta file.
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
@@ -551,15 +536,17 @@ planning-review:
 
 ### Canonicalize active delivery authoring
 
-Run this only for a selected delivery-plan candidate in an active Planning flow, after all grounding,
-adversarial folds, and suite coherence have settled. Incubating authoring remains provisional: keep its unmarked
-section and resolve any meta outside the active locus at a later attended delivery-authoring entry.
+Run this only for a selected delivery-plan candidate in Planning when `arc locus` shows this checkout holds
+that started work unit, after all grounding, adversarial folds, and suite coherence have settled. Incubating authoring
+remains provisional: keep its unmarked section and resolve any meta outside the active locus at a later attended
+delivery-authoring entry.
 
 For active authoring, obtain the generated strict contract with `arc delivery plan inventory schema --json`, then supply
 one caller-authored inventory containing the exact form-owned design elements and revision digests. Do not infer
 author-judgment elements or copy schema/hashing mechanics into this workflow. Create the transient map with
-`arc delivery plan from-tasks --task-list .arc/active/tasks-{name}.md --design-inventory <json-path> --json`, fill only
-the author slots, and run `arc delivery compose --json`.
+`arc delivery plan from-tasks --task-list <path> --design-inventory <json-path> --json`. Use the path from
+`arc view tasks --path` relative to the repository root as `<path>`, fill only the author slots, and run
+`arc delivery compose --json`.
 
 Set the authoring projection to `stack-to-main` and every member's `mainlineLandability` to
 `independently-landable`. If a proposed subdivision is review-only rather than independently landable on main,
@@ -579,25 +566,27 @@ and report its result at the pre-save approval.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
-> await direction before the meta update and commit.
+> await direction before the save and the meta update.
 
-**Update planning-state meta file** — only after approval, and only when `.arc/active/meta-{name}.md` exists with
-`**State:** Planning` (planning-branch sessions); skip otherwise. Run `arc finalize generate-tasks --class <Class>`
-to write the resolved `**Class:**`, derived `**Task List:**`, and terminal `**Next Action:**` through the field
-model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel; `activate`
-sets `Current Workflow` to `process-task-loop`. Bundle this write with the task list in the ceremony commit.
+After approval, run [planning-review's post-settle reread][planning-reread] as the final review before the save. If
+authored text changed after the first request, including this reread, run `arc check increment` again. Then save the
+task list:
 
-Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. If authored text
-changed after the first request, including this reread, run `arc check increment` again before the commit.
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): generate tasks-{name}
-
-Context: tasks-{name}.md (planning)
+```bash
+arc save
 ```
+
+If `arc save` refuses, apply its reported remedy and continue once the edits are saved. After a successful save, inspect
+`arc status --json`. Require a ready projection with no `files` or `copies` entries for the task list or any companion
+notes edited here and no unresolved ARC conflict blocks in those files. Report outstanding conditions, finish pending
+edits, and apply any reported remedies. Recover the intended edits from each aside copy before removing it. Resolve
+conflict blocks in place and remove their markers and any resolve-by-hand line. Then repeat `arc check increment`, the
+save, and the status check.
+
+**Update the meta.** For a pre-start stub, persist the resolved Class with `arc set-class <Class> {name}` and stop.
+For a started work unit in `Planning`, verify that `arc locus` shows this checkout holds `{name}`. Then run
+`arc finalize generate-tasks --class <Class>` to write the resolved Class, the task-list pointer, and the terminal
+Next Action. Activation sets the next workflow.
 
 See [Task Processing Loop](process-task-loop.md) for how task lists are executed.
 
@@ -616,8 +605,8 @@ move needs no field edit.
 
 ## Next Step
 
-**→ [activate-work-unit.md][activate-work-unit]** — Flip `**State:**` to `Active` and rename `plan/<name>` to
-`<type>/<name>`. Implementation begins on the renamed branch.
+**→ [activate-work-unit.md][activate-work-unit]** — Flip `**State:**` to `Active` and create the work branch
+`<type>/<name>`. Implementation begins on it.
 
 Activation can be deferred if planning ahead. Activate when implementation is about to begin.
 
@@ -635,7 +624,6 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [task-audit]: ../../methods/task-audit.md
 [spec-review]: ../../methods/spec-review.md
 [template-tasks]: ../../../reference/templates/arc/work-unit/template-tasks.md
-[init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 [source-grounding]: ../../methods/source-grounding.md
 [verification-review]: ../../methods/verification-review.md#author-criteria-walk

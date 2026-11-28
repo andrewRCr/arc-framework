@@ -83,7 +83,8 @@ describe("review-fix round release", () => {
       "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
       "system/methods/code-review-author.md",
     ]) expect(occurrences(shipped(path), commit), path).toBe(0);
-    expect(prepare).toMatch(softWrappedProse("Commit its staged Candidate response as `taskCommit`"));
+    expect(prepare).toMatch(softWrappedProse("commit the re-exported review copy as `taskCommit`"));
+    expect(prepare).not.toMatch(softWrappedProse("Commit its staged Candidate response"));
     expect(authoring).toMatch(softWrappedProse("and review-fix commits a complete-set disposition approval releases"));
     expect(authoring).toMatch(softWrappedProse("and review-fix pushes"));
     expect(rules).toMatch(softWrappedProse(

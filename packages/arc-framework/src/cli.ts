@@ -268,14 +268,17 @@ program
     await (await import("./scripts/remedy-roadmap-conflict.js")).runRoadmapConflictAutoRemedyCommand();
   });
 
-const storeCmd = program.command("store", { hidden: true }).description("Operate on the ref store explicitly");
-storeCmd.command("repair-review-roots").argument("[file]", "JSON request file, or - for stdin")
+const storeCmd = program.command("store").description("Manage ARC state stored in Git refs");
+storeCmd.command("repair-review-roots")
+  .description("Preview competing approvals and explicitly select one eligible branch while retaining every approved response.")
+  .argument("[file]", "JSON request file, or - for stdin")
   .option("--schema", "Emit the versioned JSON request schema")
   .action(withInteractionContext({ machineReadable: () => true },
     async (_context, file: string | undefined, options: import("./commands/store-review-root-repair.js").StoreReviewRootRepairOptions) => {
       await (await import("./commands/store-review-root-repair.js")).handleStoreReviewRootRepair(file, options);
     }));
-storeCmd.command("conflict").argument("<uid>", "Owner UID").argument("<kind>", "Registered work-item conflict kind")
+storeCmd.command("conflict").description("Inspect a retained work-item conflict or discard its alternative")
+  .argument("<uid>", "Owner UID").argument("<kind>", "Registered work-item conflict kind")
   .argument("<id>", "Exact conflict ID")
   .option("--discard", "Accept the current state and discard this retained alternative")
   .option("--json", "Emit the complete conflict or resolution result as JSON")
@@ -283,16 +286,18 @@ storeCmd.command("conflict").argument("<uid>", "Owner UID").argument("<kind>", "
     async (_context, uid: string, kind: string, id: string, options: import("./commands/store-conflict.js").StoreConflictOptions) => {
       await (await import("./commands/store-conflict.js")).handleStoreConflict(uid, kind, id, options);
     }));
-storeCmd.command("migrate").option("--to <remote-or-url>", "Move state to a remote or backing URL")
+storeCmd.command("migrate").description("Move stored state or finish a recorded move")
+  .option("--to <remote-or-url>", "Move state to a remote or backing URL")
   .option("--trial", "Build and report the move without landing it")
   .option("--leave-source", "Finish leaving the recorded source")
-  .option("--import", "Import the current operational state")
+  .addOption(new Option("--import", "Import the current operational state").hideHelp())
   .option("--json", "Emit the move report or refusal as JSON")
   .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
     async (context, options: import("./commands/store-migrate.js").StoreMigrateOptions) => {
       await (await import("./commands/store-migrate.js")).handleStoreMigrate(options, context);
     }));
-storeCmd.command("remote").argument("[remote]", "Remote name").argument("[role]", "push, read, or off")
+storeCmd.command("remote").description("Show or set this clone's ref store remote roles")
+  .argument("[remote]", "Remote name").argument("[role]", "push, read, or off")
   .option("--own-state", "Publish everything this clone's store holds on the selected remote")
   .option("--json", "Emit the store result as JSON")
   .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
@@ -388,7 +393,7 @@ const wu = program
 wu
   .command("reconcile [slug]")
   .description("Plan or apply version-checked repairs owned by the current work unit")
-  .option("--apply", "Apply and stage the exact reported path set")
+  .option("--apply", "Apply the exact version-checked repairs to the store")
   .option("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -400,8 +405,8 @@ wu
 program
   .command("start [name]")
   .description(
-    "Start a work unit. Default spawns an isolated worktree on a new `plan/<name>` "
-    + "branch, then commits and pushes that start ceremony; `--here` works in the current worktree instead.",
+    "Start a work unit in the ref store. By default, create an isolated worktree with a detached HEAD. "
+    + "Use --here to start in the current worktree.",
   )
   .option(
     "--here",
@@ -415,8 +420,8 @@ program
     "--class <value>",
     "Resolved Class (Light | Heavy | Novel) for a stub still `[TBD]` — the start ceremony records it in the meta",
   )
-  .option("--new", "Create a fresh work unit when the name does not exist on the base branch")
-  .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
+  .option("--new", "Require a fresh work unit with an available slug in the store")
+  .option("-y, --yes", "Skip the confirmation prompt for an in-place cold start")
   .action(withInteractionContext(
     { yes: "compatibility" },
     async (context, name: string | undefined, opts: StartOptions) => {
@@ -451,13 +456,14 @@ program
   .command("decompose <origin>")
   .description("Plan, execute, extract, finish, revise, or discard one decomposition")
   .option("--preflight", "Emit a canonical read-only starter map for the storage backend")
-  .option("--execute <cut-map>", "Stage an exact repository result; with off-branch state, create members and store the cut")
-  .option("--extract <cut-map>", "Stage an additive extraction; with off-branch state, store the cut while preserving its origin")
-  .option("--finish [cut-map]", "Preview source thinning from a map; with off-branch state, finish the stored cut without an operand")
-  .option("--revise [cut-map]", "Revise a stored cut when state is off branch (no operand emits a fresh map)")
-  .option("--discard", "Discard a stored cut when state is off branch")
+  .option("--execute <cut-map>", "Create members and store a cut for retirement with --finish")
+  .option("--extract <cut-map>", "Create members and store an extraction that keeps the origin work unit")
+  .option("--finish [cut-map]", "Preview finishing a stored cut with --finish. Apply it with --finish --apply <authority>. "
+    + "The cut-map operand is for the in-repo backend only")
+  .option("--revise [cut-map]", "Emit a fresh map without an operand, or preview a revision from the supplied map")
+  .option("--discard", "Preview discarding a stored cut. Use --apply to land the preview")
   .option("--apply <authority>", "Apply an approved finish, revision, or discard preview authority")
-  .option("--advance-base <cut-map>", "Advance a committed repository candidate (unavailable when state is off branch)")
+  .option("--advance-base <cut-map>", "Unsupported for stored cuts. Use --finish to preview the stored cut")
   .action(withInteractionContext(
     {
       machineReadable: isDecomposeMachineReadableInvocation,
@@ -469,11 +475,12 @@ program
 
 program
   .command("rename <slug> <new-slug>")
-  .description("Rename a work unit or cohort selected by slug or UID, with a work unit's branch, workspace, remote, marker, and worktree identities")
+  .description("Rename a stored work unit or cohort by slug or UID. Update eligible work-unit branches and checkouts")
+  .option("--settle-move <generation>", "Settle only the deferred move with this marker generation from its destination")
   .option("--json", "Emit the rename result and follow-up report as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    async (context, slug: string, newSlug: string, opts: { json?: boolean }) => {
+    async (context, slug: string, newSlug: string, opts: { json?: boolean; settleMove?: string }) => {
       await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, opts, context);
     },
   ));
@@ -537,11 +544,8 @@ program
 
 program
   .command("resume [slug]")
-  .description(
-    "Re-attach a parked work unit's preserved branch. Default spawns a fresh worktree; "
-    + "`--here` re-attaches in the current worktree.",
-  )
-  .option("--here", "Re-attach in the current worktree instead of spawning a new one")
+  .description("Clear a work unit's pause in the ref store")
+  .option("--here", "Unsupported by the ref store. Use arc materialize <slug> --here to bind this checkout")
   .action(withInteractionContext(
     {},
     async (context, slug: string | undefined, opts: ResumeOptions) => {
@@ -552,10 +556,10 @@ program
 program
   .command("materialize [slug]")
   .description(
-    "Pick up a remote-only in-flight work unit. Default spawns a fresh worktree; "
-    + "`--here` checks it out in the current worktree.",
+    "Give an owned in-flight work unit a local checkout. By default, create a worktree. "
+    + "Use --here to bind the current worktree.",
   )
-  .option("--here", "Check out in the current worktree instead of spawning a new one")
+  .option("--here", "Bind this worktree and check out the work unit’s linked branch, if any. Otherwise, keep the current HEAD")
   .action(withInteractionContext(
     {},
     async (context, slug: string | undefined, opts: MaterializeOptions) => {
@@ -716,7 +720,8 @@ task
   .description("Close tasks and capture the increment's code commits")
   .option("--commit <sha>", "Capture an explicit commit (repeatable)",
     (value: string, previous: string[]) => [...previous, value], [])
-  .action(withInteractionContext({}, async (context, ids: string[], opts: { commit?: string[] }) => {
+  .option("--state-only", "Close without capturing commits")
+  .action(withInteractionContext({}, async (context, ids: string[], opts: { commit?: string[]; stateOnly?: boolean }) => {
     await (await import("./handlers/task.js")).handleTaskClose(ids, opts, context);
   }));
 task
@@ -847,7 +852,7 @@ errandQueue
 
 errand
   .command("next")
-  .description("Resolve the first execute-bound USER-INBOX Errand without opening it")
+  .description("Find the next eligible entry in your Errand queue without opening it")
   .option("--json", "Emit the typed queue-head result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -875,9 +880,9 @@ errand
   .description("Open an errand in the free primary or a provisioned transient worktree")
   .option("--type <type>", "Errand branch nature-type: fix, chore, refactor, or hotfix (default: chore; full protection only)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
-  .option("--from-inbox <entry-title>", "Adopt an inbox capture as the errand concern")
-  .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
-  .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--from-inbox <list:id>", "Adopt an inbox entry by personal:<id> or project:<id> from arc inbox")
+  .option("--inbox-title-file <path>", "Unsupported by the ref store. Use --from-inbox with a qualified entry ID")
+  .option("--inbox-entry-file <path>", "Unsupported by the ref store. Use --from-inbox with a qualified entry ID")
   .option("--isolate", "Always provision a transient worktree, leaving the primary free (full protection only)")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
@@ -889,10 +894,10 @@ errand
 
 errand
   .command("link <slug>")
-  .description("Link an in-flight errand to a USER-INBOX capture so close/promote can drop it")
-  .option("--from-inbox <entry-title>", "Associate an inbox capture with the errand")
-  .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
-  .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .description("Move an inbox entry into an in-flight Errand's description")
+  .option("--from-inbox <list:id>", "Select the entry by personal:<id> or project:<id> from arc inbox")
+  .option("--inbox-title-file <path>", "Unsupported by the ref store. Use --from-inbox with a qualified entry ID")
+  .option("--inbox-entry-file <path>", "Unsupported by the ref store. Use --from-inbox with a qualified entry ID")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -942,7 +947,10 @@ errand
 
 errand
   .command("close <slug>")
-  .description("Complete an Errand selected by slug or UID, release its exact occupancy, and drop its originating inbox capture")
+  .description("Complete an Errand by slug or UID and release its checkout occupancy. With the ref store and partial "
+    + "protection (the default), close removes the originating inbox entry only if it matches the recorded version or content digest. "
+    + "Full protection moves the entry into the Errand description when opened by ID. With branch-backed state, "
+    + "close removes entries opened by title from the inbox. Import moves a unique title match from the inbox into the Errand description.")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
@@ -1393,7 +1401,7 @@ userCmd
 
 userCmd
   .command("open <wu-name>")
-  .description("Open per-WU user workspace subdir (seeds SESSION-NOTES.md from template)")
+  .description("Unsupported by the ref store. Use arc handoff write to save session context in the work unit's meta")
   .action(withInteractionContext(
     {},
     async (context, wuName: string) => {
@@ -1435,12 +1443,13 @@ userCmd
   ));
 
 userCmd
-  .command("inbox-remove [slug]")
+  .command("inbox-remove")
+  .argument("[title]", "Inbox entry title (in-repo backend only)")
   .option("--id <id>", "Entry ID from arc inbox personal")
   .option("--expected-version <version>", "Exact entry version observed when listing")
-  .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
-  .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
-  .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .description("Remove a personal inbox entry by ID and exact version from arc inbox personal")
+  .option("--inbox-title-file <path>", "Unsupported by the ref store. Use --id and --expected-version")
+  .option("--inbox-entry-file <path>", "Unsupported by the ref store. Use --id and --expected-version")
   .action(withInteractionContext(
     {},
     async (context, slug: string | undefined, opts: UserInboxRemoveOptions) => {
@@ -1664,15 +1673,14 @@ program
   .option("--current", "With tasks: render only the current task region")
   .option("--path", "Print the selected file's absolute path; refuse ref-only artifacts")
   .option("-e, --editor", "Open the selected real file in the configured editor; refuse ref-only artifacts")
-  .option("--for <slug>", "Select a work unit's registered checkout or a ref this clone holds")
+  .option("--for <slug>", "Select a work unit by current or former slug in the local store")
   .addHelpText("after", [
     "",
     "Bare selection: tasks -> spec -> draft -> meta.",
-    "Ordinary view renders the selected copy.",
-    "--for reads a started work unit's registered checkout, including uncommitted",
-    "edits; otherwise it renders its selected ref. It reads only refs this clone",
-    "already holds. Without a registered checkout, --path and --editor refuse;",
-    "use rendering to read it.",
+    "session-notes displays the work unit's meta, which holds session context.",
+    "View renders the projected file in this checkout when present, including",
+    "uncommitted edits. Otherwise it renders the record from the local store.",
+    "--path and --editor require the file to be present in this checkout.",
     "Editor handoff:",
     "  --editor / -e opens the same real absolute file as --path.",
     "  Use non-empty ARC_EDITOR; otherwise Git selects GIT_EDITOR, core.editor,",
@@ -1718,7 +1726,7 @@ program
 
 program
   .command("status")
-  .description("Composite probe: identity + user-sync + config + active state")
+  .description("Inspect ARC state and checkout projection, or select a work, project, or session view")
   .argument(
     "[slug]",
     "Work unit to inspect; omit for composite status",
@@ -1726,42 +1734,42 @@ program
   .addOption(
     new Option(
       "--session-init",
-      "Select session initialization context; add --json for JSON output",
+      "Read session initialization context. Add --json for JSON output",
     ).conflicts(["sessionHandoff", "conflicts"]),
   )
   .addOption(
     new Option(
       "--session-handoff",
-      "Select handoff context; requires --json",
+      "Read session handoff context. Requires --json",
     ).conflicts(["sessionInit", "recover", "conflicts"]),
   )
   .addOption(
     new Option(
       "--recover",
-      "Select recovery context; requires --json",
+      "Read session recovery context. Requires --json",
     ).conflicts(["sessionInit", "sessionHandoff", "user", "conflicts"]),
   )
   .addOption(
     new Option(
       "--user",
-      "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
+      "Render your in-flight and ready work from the store",
     ).conflicts(["sessionInit", "sessionHandoff", "recover", "project", "conflicts"]),
   )
   .addOption(
     new Option(
       "--project",
-      "Render the live project status view",
+      "Render project work and readiness from the store",
     ).conflicts(["sessionInit", "sessionHandoff", "recover", "user", "conflicts"]),
   )
   .addOption(
     new Option("--conflicts [conflict]", "List open store conflicts or inspect a conflict token")
       .conflicts(["sessionInit", "sessionHandoff", "recover", "user", "project"]),
   )
-  .option("--fetch", "With status <slug>: upgrade the local-default query with live remote membership")
-  .option("--local", "With --user/--project: skip the live-default network read (slug queries are local by default)")
-  .option("--no-fetch", "With --user/--project: skip the live-default network read (slug queries are local by default)")
-  .option("--staged", "With --project: render tree inputs from the git index (matches the pre-commit ROADMAP regen check)")
-  .option("--write", "With --project --staged: write ROADMAP atomically; requires omitting --json")
+  .option("--fetch", "Pull remote store state before rendering bare status, a slug, --user, --project, or --conflicts")
+  .option("--local", "Skip the store pull requested by --fetch, regardless of flag order")
+  .option("--no-fetch", "Cancel an earlier --fetch store pull")
+  .option("--staged", "Unsupported by the ref store. Use --project to render the store view")
+  .option("--write", "Unsupported by the ref store. Use --project to render the store view")
   .addOption(
     new Option(
       "--write-compaction-seed",
@@ -1890,16 +1898,9 @@ program
 
 program
   .command("sync")
-  .description(
-    "Synchronize the configured concerns — worktree push, user-notes push, "
-    + "per `push_interlock` and `notes_push` config",
-  )
-  .option(
-    "-y, --yes",
-    "Auto-accept safe-default prompts (push notes; merge on conflict). "
-    + "Force-push is never auto-selected.",
-  )
-  .option("--dry-run", "Print the matrix decision without invoking either leg")
+  .description("Pull and publish ARC state, then synchronize the worktree branch according to its push policy")
+  .option("-y, --yes", "Run without prompts. Set any required remote role with arc store remote")
+  .option("--dry-run", "Inspect branch state and show the planned store and branch actions without applying them")
   .option("--json", "Emit the structured result as JSON")
   // Call explicitly with only the parsed options — Commander otherwise passes
   // the Command instance as a second arg, which would collide with the

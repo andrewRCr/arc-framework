@@ -5,16 +5,22 @@ import { appendFile, chmod, copyFile, mkdir, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path";
 import { createTempRepoCore } from "../../helpers/temp-repo.js";
 import { CLI_PATH } from "../../helpers/cli-spawn.js";
+import { writeProjectedIgnores, type ProjectedIgnoreOptions } from "../../helpers/projected-ignores.js";
 
 const execFileAsync = promisify(execFile);
 
+/** A checkout that tracks ARC state, as one on the in-repo store does, leaves its lifecycle roots unexcluded. */
+export type DeclaredCheckRepositoryOptions = ProjectedIgnoreOptions;
+
 /** Create a committed declaration with one worktree input change. */
-export async function createDeclaredCheckRepository(checks: Record<string, unknown>, declaration: Record<string, unknown> = {}): Promise<string> {
+export async function createDeclaredCheckRepository(checks: Record<string, unknown>,
+  declaration: Record<string, unknown> = {}, options: DeclaredCheckRepositoryOptions = {}): Promise<string> {
   const cwd = await createTempRepoCore({ prefix: "arc-increment-declared-" });
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
   await mkdir(join(cwd, "src"));
   await mkdir(join(cwd, "docs"));
   await writeFile(join(cwd, ".gitignore"), "receipt.json\n");
+  await writeProjectedIgnores(cwd, "test-user", options);
   await writeFile(join(cwd, "src/a.ts"), "base\n");
   await writeFile(join(cwd, "src/deleted.ts"), "deleted\n");
   await writeFile(join(cwd, "docs/b.md"), "base\n");

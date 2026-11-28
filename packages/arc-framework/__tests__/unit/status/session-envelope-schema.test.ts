@@ -99,6 +99,66 @@ function fixture(name: string): Record<string, unknown> {
   return value;
 }
 
+/**
+ * The notes-backed user slot each scenario reports from the in-repo store, which the schema accepts beside the ref
+ * store's slot the goldens record.
+ */
+const NOTES_USER_SLOTS: Readonly<Record<string, unknown>> = {
+  orient: {
+    ok: true,
+    value: {
+      identity: "test-user", state: "remote-unavailable", refState: "remote-unavailable",
+      summary: "test-user: session-init remote notes unavailable for comparison with local notes",
+      detailLines: [
+        "Remote notes could not be reached for comparison with local notes.",
+        "Next step: continue with local tracked state, or retry once the remote is reachable.",
+      ],
+      actionHint: "continue locally or retry once the remote is reachable", shouldPromptToPull: false,
+      localNoteFreshness: { state: "missing", commit: null, commitShort: null, ancestorDistance: 0, wuScoped: false },
+      recommendedAction: "surface", recommendedPromptText: "",
+    },
+  },
+  "branch-gone": {
+    ok: true,
+    value: {
+      identity: "test-user", state: "clean", refState: "same",
+      summary: "test-user: session-init local notes match remote notes",
+      detailLines: [
+        "Remote notes match local notes.",
+        "No SESSION-NOTES for this work unit \u2014 none on disk and none in the notes ref. A seed was expected at "
+          + "spawn/start; the workspace may not have been opened, or the seed was removed.",
+      ],
+      actionHint: null, shouldPromptToPull: false,
+      localNoteFreshness: {
+        state: "missing", commit: null, commitShort: null, ancestorDistance: 0, wuScoped: true, seedPresent: false,
+      },
+      loadNeeded: false,
+      notesDrift: { direction: "edits", missingFiles: [], extraFiles: ["USER-INBOX.md", "WORKING-MEMORY.md"], modifiedFiles: [] },
+      recommendedAction: "skip", recommendedPromptText: "",
+      notesDriftSurface: { direction: "edits", register: "expected" },
+    },
+  },
+};
+
+/** The notes-compaction advisory the in-repo store reports in the orient scenario. */
+const NOTES_COMPACTION_ADVISORY = {
+  ok: true,
+  value: {
+    historyCommitCount: 0, threshold: 2000, shouldSuggest: false,
+    nudge: { shouldNudge: true, markerPath: ".arc/user/test-user/.internal/notes-compaction-last-nudge.txt", today: "2026-01-02" },
+  },
+};
+
+/** A scenario's envelope carrying the notes-backed user slot, and in the orient scenario the notes-compaction advisory. */
+function notesFixture(name: string): Record<string, unknown> {
+  const userSlot = NOTES_USER_SLOTS[name];
+  if (userSlot === undefined) throw new Error(`No notes-backed user slot is recorded for ${name}.`);
+  const value = fixture(name);
+  value.user = structuredClone(userSlot);
+  if (name === "orient") value.compactionAdvisory = structuredClone(NOTES_COMPACTION_ADVISORY);
+  return value;
+}
+
 function owningWorkUnitFixture(): Record<string, unknown> {
   const normalized = readFileSync(join(FIXTURE_DIR, "session-init-active-resume.json"), "utf8");
   return JSON.parse(normalized.replaceAll(/<DATE_\d+>/gu, "2026-01-02")) as Record<string, unknown>;
@@ -480,47 +540,6 @@ describe("session-init envelope schema", () => {
   });
 
   it.each([
-    ["user state", "orient", ["user", "value", "state"], "unknown", "user.value.state"],
-    ["user ref state", "orient", ["user", "value", "refState"], "unknown", "user.value.refState"],
-    ["user content relation", "orient", ["user", "value", "contentRelation"], "unknown", "user.value.contentRelation"],
-    ["user coherence", "orient", ["user", "value", "coherenceState"], "unknown", "user.value.coherenceState"],
-    ["user qualifier", "orient", ["user", "value", "qualifier"], "unknown", "user.value.qualifier"],
-    [
-      "user note freshness",
-      "orient",
-      ["user", "value", "localNoteFreshness", "state"],
-      "unknown",
-      "user.value.localNoteFreshness.state",
-    ],
-    [
-      "user notes drift",
-      "branch-gone",
-      ["user", "value", "notesDrift", "direction"],
-      "unknown",
-      "user.value.notesDrift.direction",
-    ],
-    ["user load-needed gate", "branch-gone", ["user", "value", "loadNeeded"], "yes", "user.value.loadNeeded"],
-    [
-      "user drift-surface direction",
-      "branch-gone",
-      ["user", "value", "notesDriftSurface", "direction"],
-      "unknown",
-      "user.value.notesDriftSurface.direction",
-    ],
-    [
-      "user drift-surface register",
-      "branch-gone",
-      ["user", "value", "notesDriftSurface", "register"],
-      "unknown",
-      "user.value.notesDriftSurface.register",
-    ],
-    [
-      "user recommendation",
-      "orient",
-      ["user", "value", "recommendedAction"],
-      "unknown",
-      "user.value.recommendedAction",
-    ],
     ["worktree state", "orient", ["worktree", "value", "state"], "unknown", "worktree.value.state"],
     ["worktree branch", "orient", ["worktree", "value", "branch"], 42, "worktree.value.branch"],
     [
@@ -632,6 +651,63 @@ describe("session-init envelope schema", () => {
   );
 
   it.each([
+    ["user state", "orient", ["user", "value", "state"], "unknown", "user.value.state"],
+    ["user ref state", "orient", ["user", "value", "refState"], "unknown", "user.value.refState"],
+    ["user content relation", "orient", ["user", "value", "contentRelation"], "unknown", "user.value.contentRelation"],
+    ["user coherence", "orient", ["user", "value", "coherenceState"], "unknown", "user.value.coherenceState"],
+    ["user qualifier", "orient", ["user", "value", "qualifier"], "unknown", "user.value.qualifier"],
+    [
+      "user note freshness",
+      "orient",
+      ["user", "value", "localNoteFreshness", "state"],
+      "unknown",
+      "user.value.localNoteFreshness.state",
+    ],
+    [
+      "user notes drift",
+      "branch-gone",
+      ["user", "value", "notesDrift", "direction"],
+      "unknown",
+      "user.value.notesDrift.direction",
+    ],
+    ["user load-needed gate", "branch-gone", ["user", "value", "loadNeeded"], "yes", "user.value.loadNeeded"],
+    [
+      "user drift-surface direction",
+      "branch-gone",
+      ["user", "value", "notesDriftSurface", "direction"],
+      "unknown",
+      "user.value.notesDriftSurface.direction",
+    ],
+    [
+      "user drift-surface register",
+      "branch-gone",
+      ["user", "value", "notesDriftSurface", "register"],
+      "unknown",
+      "user.value.notesDriftSurface.register",
+    ],
+    [
+      "user recommendation",
+      "orient",
+      ["user", "value", "recommendedAction"],
+      "unknown",
+      "user.value.recommendedAction",
+    ],
+  ] as Array<readonly [string, string, MutationPath, unknown, string]>)(
+    "rejects the mapped thin routing field over a notes-backed user slot: %s",
+    (_label, fixtureName, path, replacement, expectedPath) => {
+      const value = notesFixture(fixtureName);
+      setPath(value, path, replacement);
+      expectContractFailure(value, expectedPath);
+    },
+  );
+
+  it("rejects a representative notes-compaction-session-advisory family-root defect in the composed envelope", () => {
+    const value = notesFixture("orient");
+    setPath(value, ["compactionAdvisory", "value", "historyCommitCount"], -1);
+    expectContractFailure(value, "compactionAdvisory.value.historyCommitCount");
+  });
+
+  it.each([
     ["load-set-manifest", "orient", ["loadSet", "value", "manifestVersion"], 2, "loadSet.value.manifestVersion"],
     [
       "task-list-cursor-file-result",
@@ -654,13 +730,6 @@ describe("session-init envelope schema", () => {
       ["errandSweep", "value", "stale"],
       [{ slug: "", created: "2026-01-02", ageDays: 30 }],
       "errandSweep.value.stale.0.slug",
-    ],
-    [
-      "notes-compaction-session-advisory",
-      "orient",
-      ["compactionAdvisory", "value", "historyCommitCount"],
-      -1,
-      "compactionAdvisory.value.historyCommitCount",
     ],
     [
       "materializable-work-units",
@@ -883,7 +952,8 @@ describe("session-init envelope schema", () => {
         text: "git worktree move -f -f /wt/old /wt/new",
       },
       actions: [{ argv: ["git", "worktree", "move", "-f", "-f", "/wt/old", "/wt/new"],
-        text: "git worktree move -f -f /wt/old /wt/new" }],
+        text: "git worktree move -f -f /wt/old /wt/new" },
+      { argv: ["arc", "rename", "old", "new"], text: "arc rename old new" }],
     }]);
     assertSchemaAccepts(SessionInitProbeResultSchema, value);
 

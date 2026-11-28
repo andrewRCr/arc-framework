@@ -7,8 +7,10 @@ import { success } from "../helpers/store/suite-tools.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { addBareRemote, makeGitExec } from "../helpers/integration.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 describe("repository store sync", () => {
+  useInRepoStoreForEach();
   it("reports absent identity and origin independently without changing a note or ref", async () => {
     const h = await trackedWriteFixture();
     await h.exec("git", ["commit", "--allow-empty", "-m", "Initialize"]);

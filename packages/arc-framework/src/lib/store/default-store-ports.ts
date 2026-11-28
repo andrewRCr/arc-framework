@@ -8,25 +8,43 @@ import { GitProcessError } from "../git/process-error.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../git/process-executor.js";
 import { withAdvisoryLock } from "../advisory-lock.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
-import type { RefStorePorts, StorePorts } from "./ports.js";
+import { createStoreCheckoutLocation, type StoreCheckoutLocation } from "./checkout-location.js";
+import type { GitDirectories } from "../git/directories.js";
+import type { RefStorePorts, StoreFileAccess, StorePorts } from "./ports.js";
+
+/** Native file access, with a caller's own file access layered over it.
+ * @param caller - File access whose operations replace the native ones.
+ * @returns Every file operation the store's ports use.
+ */
+export function layerStoreFiles(caller?: StoreFileAccess): RefStorePorts["fs"] {
+  return { readFile: (path) => fs.readFile(path, "utf8"), readBytes: (path) => fs.readFile(path), writeBytes: (path, content) => fs.writeFile(path, content),
+    readdir: (path) => fs.readdir(path, { withFileTypes: true }), lstat: fs.lstat, mkdir: fs.mkdir,
+    writeFile: atomicWriteFile, exclusiveCreate: atomicCreateFile,
+    unlink: fs.unlink, realpath: fs.realpath, rename: fs.rename, removeDirectory: (path) => fs.rm(path, { recursive: true, force: true }),
+    ...caller };
+}
 
 /** Bind production I/O without consulting repository configuration or topology.
- * @param input - Checkout and optional already-bound Git adapters.
- * @returns All required store ports, each policy or lock resolved only when used.
+ * @param input - Checkout, optional already-bound Git adapters and file access, and the location a caller shares with
+ *   its other ports.
+ * @returns All required store ports, each policy or lock resolved only when used; Git runs in the checkout, or in the
+ *   primary checkout once that checkout is removed.
  */
-export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput; identity?: Slug }): StorePorts & { fs: RefStorePorts["fs"] } {
+export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput; identity?: Slug;
+  fs?: StoreFileAccess; location?: StoreCheckoutLocation }): StorePorts & { fs: RefStorePorts["fs"]; gitDirectories: () => Promise<GitDirectories> } {
   const baseExec = input.exec ?? createExecaGitExec();
-  const exec: GitExec = (command, args, options) => baseExec(command, args, { cwd: input.checkoutRoot, ...options });
+  const files = layerStoreFiles(input.fs);
+  const location = input.location ?? createStoreCheckoutLocation({ checkoutRoot: input.checkoutRoot, fs: files, exec: baseExec });
+  const cwd = (options?: { cwd?: string }) => location.workingDirectory(options?.cwd ?? input.checkoutRoot);
+  const exec: GitExec = async (command, args, options) => baseExec(command, args, { ...options, cwd: await cwd(options) });
   const baseInput = input.execInput ?? createExecaGitExecInput();
-  const execInput: GitExecInput = (args, content, options) => baseInput(args, content, { cwd: input.checkoutRoot, ...options });
+  const execInput: GitExecInput = async (args, content, options) => baseInput(args, content, { ...options, cwd: await cwd(options) });
   const identity = () => input.identity === undefined ? resolveIdentity({ exec }) : Promise.resolve(input.identity);
   return {
     checkoutRoot: input.checkoutRoot, exec, execInput, identity, remote: () => configuredStateRemote(exec),
+    gitDirectories: location.gitDirectories,
     clock: () => new Date(),
-    fs: { readFile: (path) => fs.readFile(path, "utf8"), readBytes: (path) => fs.readFile(path), writeBytes: (path, content) => fs.writeFile(path, content),
-      readdir: (path) => fs.readdir(path, { withFileTypes: true }), lstat: fs.lstat, mkdir: fs.mkdir,
-      writeFile: atomicWriteFile, exclusiveCreate: atomicCreateFile,
-      unlink: fs.unlink, realpath: fs.realpath, rename: fs.rename, removeDirectory: (path) => fs.rm(path, { recursive: true, force: true }) },
+    fs: files,
     locks: {
       tracked: (operation) => withTrackedWriteLock({ exec, checkoutRoot: input.checkoutRoot }, operation),
       notes: async (operation) => {

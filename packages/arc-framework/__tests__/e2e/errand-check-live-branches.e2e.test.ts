@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchored } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -21,6 +22,9 @@ async function commitFixture(cwd: string, message: string): Promise<void> {
 }
 
 it("checks live work-unit and Errand branches absent from the caller's tracking refs", async () => {
+  // Probing the remote for live branches the caller does not track is the in-repo store's overlap arm; the store derives
+  // the work in flight from its own records and local refs, without fetching.
+  useInRepoStore();
   const writer = await createTempRepo("arc-live-overlap-");
   const remote = `${writer}-remote.git`;
   const reader = `${writer}-reader`;

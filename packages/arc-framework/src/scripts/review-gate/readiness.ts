@@ -2,7 +2,8 @@
  * Exact-head, vehicle-aware lifecycle readiness over the selected operational state.
  *
  * Repository-backed work units read lifecycle products beneath the supplied root.
- * Native work units read current records through the supplied store. Neither arm
+ * Native work units read current records through the supplied store, and a native
+ * Errand's head branch is matched with its stored record's branch link. Neither arm
  * infers lifecycle readiness from the caller's checkout or fail-soft indexes.
  *
  * A `delivery-member` vehicle adds two further authority sources, both outside
@@ -39,8 +40,8 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { escapeRegExp, lifecycleArtifactFacts, validCohortCloseout } from "./readiness-artifact-facts.js";
-import { evaluateStoredWorkUnitReadiness } from "./readiness-store.js";
-import type { Store } from "../../lib/store/contract.js";
+import { createProjectIdentityReader } from "../../lib/store/project-identity.js";
+import { evaluateStoredErrandReadiness, evaluateStoredWorkUnitReadiness, type StoredReadinessAuthority } from "./readiness-store.js";
 import { usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
@@ -88,9 +89,7 @@ export interface ReviewReadinessFs {
 }
 
 /** Injectable boundaries for the readiness checker. */
-export interface ReviewReadinessDependencies {
-  /** Selected operational backend for native work-unit lifecycle records. */
-  store?: Store;
+export interface ReviewReadinessDependencies extends Partial<StoredReadinessAuthority> {
   fs: ReviewReadinessFs;
   /**
    * Delivery read backing `delivery-member` authentication.
@@ -240,7 +239,8 @@ async function readDirectory(
   }
 }
 
-function identityFacts(request: ReviewReadinessRequest, storedWorkUnit = false): ReviewReadinessFact[] {
+/** On an off-branch store the record's branch link, not the branch name, ties a branch to its vehicle. */
+function identityFacts(request: ReviewReadinessRequest, storedBranch = false): ReviewReadinessFact[] {
   const facts: ReviewReadinessFact[] = [];
   if (
     request.target.repository.toLowerCase() !== request.pullRequest.repository.toLowerCase()
@@ -260,7 +260,7 @@ function identityFacts(request: ReviewReadinessRequest, storedWorkUnit = false):
   }
   if (
     request.vehicle.kind !== "delivery-member"
-    && !storedWorkUnit
+    && !storedBranch
     && branchToWorkUnitSlug(request.pullRequest.headBranch) !== request.vehicle.slug
   ) {
     facts.push(fact(
@@ -269,7 +269,7 @@ function identityFacts(request: ReviewReadinessRequest, storedWorkUnit = false):
       "The pull-request head branch does not encode the requested vehicle slug.",
     ));
   }
-  if (request.vehicle.kind === "errand") {
+  if (request.vehicle.kind === "errand" && !storedBranch) {
     const [type, slug, ...tail] = request.pullRequest.headBranch.split("/");
     if (
       type === undefined
@@ -813,52 +813,58 @@ export async function evaluateReviewReadiness(
 ): Promise<ReviewReadinessEnvelope> {
   const request = ReviewReadinessRequestSchema.parse(input);
   const fs = overrides.fs ?? DEFAULT_FS;
-  const storedWorkUnit = request.vehicle.kind === "work-unit" && usesOffBranchState(overrides.store);
-  const facts = identityFacts(request, storedWorkUnit);
+  const store = request.vehicle.kind !== "delivery-member" && usesOffBranchState(overrides.store) ? overrides.store : undefined;
+  const facts = identityFacts(request, store !== undefined);
   if (facts.length > 0) return invalid(request, facts);
 
   const resolved = await resolveRoot(request.treeRoot, fs);
   if (resolved.fact !== undefined || resolved.root === undefined) {
     return invalid(request, [resolved.fact ?? fact("missing-root", request.treeRoot, "The supplied root is invalid.")]);
   }
+  const authority = store === undefined ? undefined : { ...overrides, store, projectId: overrides.projectId ?? createProjectIdentityReader(store) };
+  const productFacts = await vehicleFacts(request, resolved.root, fs, overrides, authority);
+  return productFacts.length === 0 ? ready(request) : invalid(request, productFacts);
+}
 
+/** Read the facts a vehicle's own records supply, below the root resolution every vehicle shares. */
+async function vehicleFacts(
+  request: ReviewReadinessRequest,
+  root: string,
+  fs: ReviewReadinessFs,
+  overrides: Partial<ReviewReadinessDependencies>,
+  authority: StoredReadinessAuthority | undefined,
+): Promise<ReviewReadinessFact[]> {
   if (request.vehicle.kind === "errand") {
-    return ready(request);
+    return authority === undefined ? [] : evaluateStoredErrandReadiness({ ...request, vehicle: request.vehicle }, authority);
   }
   // A member pull request carries no lifecycle artifacts, so nothing beneath the
   // root is read on this path. The resolution above is still load bearing: it is
   // itself the check that an unusable supplied root refuses consistently across
   // every vehicle kind, so this arm must stay below it.
   if (request.vehicle.kind === "delivery-member") {
-    const memberFacts = await evaluateDeliveryMember(
+    return evaluateDeliveryMember(
       request as ReviewReadinessRequest & {
         vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
       },
       overrides.deliveryMemberLookup,
       overrides.readDeliveryAncestry,
     );
-    return memberFacts.length === 0 ? ready(request) : invalid(request, memberFacts);
   }
-  if (storedWorkUnit && overrides.store !== undefined) {
-    const productFacts = await evaluateStoredWorkUnitReadiness({ ...request, vehicle: request.vehicle }, overrides.store);
-    return productFacts.length === 0 ? ready(request) : invalid(request, productFacts);
-  }
+  if (authority !== undefined) return evaluateStoredWorkUnitReadiness({ ...request, vehicle: request.vehicle }, authority);
   if (request.vehicle.archiveCadence === "with-integration") {
-    const productFacts = await evaluateArchivedWorkUnit(
+    return evaluateArchivedWorkUnit(
       request as ReviewReadinessRequest & {
         vehicle: { kind: "work-unit"; slug: string; archiveCadence: "with-integration" };
       },
-      resolved.root,
+      root,
       fs,
     );
-    return productFacts.length === 0 ? ready(request) : invalid(request, productFacts);
   }
-  const productFacts = await evaluateManualWorkUnit(
+  return evaluateManualWorkUnit(
     request as ReviewReadinessRequest & {
       vehicle: { kind: "work-unit"; slug: string; archiveCadence: "manual" };
     },
-    resolved.root,
+    root,
     fs,
   );
-  return productFacts.length === 0 ? ready(request) : invalid(request, productFacts);
 }

@@ -22,6 +22,12 @@ export type AgendaCompileResult = { ok: true; agenda: SessionInitAgenda } | { ok
 
 /** Compile the next session boundary from the current probe and recorded decisions. */
 export async function compileSessionInitAgenda(input: AgendaCompileInput): Promise<AgendaCompileResult> {
+  const locus = input.envelope.derivedLocusState;
+  const entering = locus.ok ? locus.value.entering : null;
+  const warning = entering?.kind === "selected" ? entering.row.context?.integrationBoundaryWarning : undefined;
+  if (warning !== undefined) {
+    return { ok: true, agenda: compileStop(input, { type: "render", surface: "locus", text: warning }) };
+  }
   const row = resolveAgendaRow(input.envelope, input.signals);
   switch (row) {
     case "stop": return { ok: true, agenda: compileStop(input) };
@@ -55,10 +61,9 @@ async function compileStartEntry(input: AgendaCompileInput): Promise<AgendaCompi
   return { ok: true, agenda: createSessionInitAgenda(input, fallback.agenda.orientation, steps) };
 }
 
-function compileStop(input: AgendaCompileInput): SessionInitAgenda {
+function compileStop(input: AgendaCompileInput, locus = renderLocus(input.envelope, true)): SessionInitAgenda {
   const { envelope } = input;
   const steps: AgendaStep[] = [];
-  const locus = renderLocus(envelope, true);
   if (locus !== null) steps.push(locus);
   const degradedHusk = renderDegradedSlot("currentHusk", envelope.currentHusk);
   if (degradedHusk !== null) steps.push(degradedHusk);

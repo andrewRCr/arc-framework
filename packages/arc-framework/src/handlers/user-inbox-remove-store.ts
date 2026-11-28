@@ -6,6 +6,7 @@ import { removeInboxEntry } from "../lib/inbox/removal.js";
 import { inboxOutput, type InboxHandlerPorts } from "./inbox-runtime.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { UserInboxRemoveOptions } from "./user-inbox-remove-input.js";
+import { inboxRemoveByIdStep } from "../lib/store/pre-flip-steps.js";
 /** Handle the off-branch arm, leaving the legacy title flow to its existing caller.
  * @param literal - Legacy title positional, refused from the flip.
  * @param opts - ID and entry version or legacy file options.
@@ -29,5 +30,5 @@ export async function handleStoreInboxRemove(literal: string | undefined, opts: 
 function rejectLegacyIdOptions(opts: UserInboxRemoveOptions, ports: InboxHandlerPorts): boolean {
   if (opts.id === undefined && opts.expectedVersion === undefined) return false;
   const output = inboxOutput(ports);
-  output.stderr("ID removal requires stateOffBranch; use the title removal form.\n"); output.exit(1); return true;
+  output.stderr(`ID removal requires stateOffBranch. ${inboxRemoveByIdStep()}\n`); output.exit(1); return true;
 }

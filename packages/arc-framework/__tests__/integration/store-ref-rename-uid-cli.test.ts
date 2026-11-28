@@ -196,6 +196,29 @@ it("refuses a prepared heading rewrite after an active namesake joins, then repo
   expect(success(await f.store.read({ reference: otherRef }))).toEqual(other);
 }, 60_000);
 
+it.each([
+  { prefix: "```md\n## Example\n### `member`\n```\n\n", closing: "" },
+  { prefix: "", closing: " ###" },
+])("keeps a member section editable after rename (prefix=$prefix, closing=$closing)", async ({ prefix, closing }) => {
+  const f = await fixture();
+  const group = f.reference("cohort/document", "group");
+  const body = `# Cohort: \`${group.owner.name}\`\n\n**Purpose:** Coordinate.\n\n## Members\n\n${prefix}`;
+  const cohort = await seed(f, group, body);
+  await plantRefPrimary(f, { kind: "work-item/meta", name: "member", uid: "12345678-abcd-4abc-8abc-123456789abc",
+    content: makeMetaFixture("member", { cohort: group.owner.name }) });
+  const save = { verb: "save", lifecycleAction: "edit" };
+  success(await f.store.write({ ...recordPut(cohort, { content: `${body}### \`member\`${closing}\n` }), provenance: save }));
+
+  const result = await f.invoke(["rename", "member", "renamed", "--json"]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(result.result).toMatchObject({ status: "renamed" });
+  const document = success(await f.store.read({ reference: cohort.reference }));
+  const noted = await f.store.write({ ...recordPut(document, { content: `${document.content}\nCoordination note.\n` }),
+    provenance: save });
+  expect(noted).toMatchObject({ status: "ok" });
+  expect(document.content).toBe(`${body}### \`renamed\`${closing}\n`);
+}, 60_000);
+
 it.each(["current", "former", "ended", "former-cohort", "unrelated-cohort"] as const)("decides member heading ownership from a %s holder", async mode => {
   const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789def", cohortRef = f.reference("cohort/document", "group");
   let cohort = await seed(f, cohortRef, `# Cohort: \`${cohortRef.owner.name}\`\n\n**Purpose:** Coordinate.\n\n## Members\n\n### \`shared\`\n`);
@@ -239,6 +262,11 @@ it.each(["current", "former", "ended", "former-cohort", "unrelated-cohort"] as c
       { document: cohort.reference, line: 7, replacement: "### `renamed`" },
     ] } });
   }
+  // A kept heading stays the section of a member whose current name it is; one only a former name matches refuses.
+  const noted = await f.store.write({ ...recordPut(document, { content: `${document.content}\nCoordination note.\n` }),
+    provenance: { verb: "save", lifecycleAction: "edit" } });
+  expect(noted).toMatchObject(mode === "former" ? { status: "refused", refusal: { rule: "cohort.member-sections",
+    condition: expect.stringContaining("`shared`") } } : { status: "ok" });
 }, 60_000);
 
 it("rewrites work-item references independently of a cohort holding the same slug", async () => {

@@ -287,7 +287,16 @@ jobs:
       run: git show-ref --verify --quiet refs/heads/main || git branch main origin/main
     - name: Forecast merge checks
       id: forecast
+      env:
+        PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
       run: |
+        # The storage cutover's own branch runs ARC on its in-repo store until a commit stops it tracking state.
+        if [ "${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}" = feat/cutover-flip ] \
+          && { [ "${GITHUB_EVENT_NAME:-}" != pull_request ] || [ "$PR_HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]; } \
+          && [ -n "$(git ls-tree --name-only HEAD -- .arc/active/ .arc/backlog/ .arc/completed/ \
+            .arc/system/.internal/candidates/ .arc/system/.internal/transitions/)" ]; then
+          export ARC_IN_REPO_STORE=1
+        fi
         node --import tsx packages/arc-framework/src/cli.ts check gate merge --ci --dry-run --json > "$RUNNER_TEMP/arc-check-forecast.json"
         mv "$RUNNER_TEMP/arc-check-forecast.json" .arc-check-forecast.json
     - name: Validate check plumbing
@@ -424,8 +433,16 @@ jobs:
       env:
         EVENT_NAME: ${{ github.event_name }}
         PUSH_BEFORE: ${{ github.event.before }}
+        PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
       # This check is changed-file-only; the shared merge forecast selects all files.
       run: |
+        # The storage cutover's own branch runs ARC on its in-repo store until a commit stops it tracking state.
+        if [ "${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}" = feat/cutover-flip ] \
+          && { [ "${GITHUB_EVENT_NAME:-}" != pull_request ] || [ "$PR_HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]; } \
+          && [ -n "$(git ls-tree --name-only HEAD -- .arc/active/ .arc/backlog/ .arc/completed/ \
+            .arc/system/.internal/candidates/ .arc/system/.internal/transitions/)" ]; then
+          export ARC_IN_REPO_STORE=1
+        fi
         if [ "$EVENT_NAME" = 'push' ]; then
           base="$PUSH_BEFORE"
           if [ -z "$base" ]; then

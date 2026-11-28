@@ -12,6 +12,13 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi } from "vitest";
+import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+
+// Init's install writes survive the flip; each run binds a checked store with no state remote to designate.
+function boundStore() {
+  return { store: createLifecycleHarness().store,
+    designateStateRemote: async () => ({ status: "ok" as const, result: { state: "local" as const } }) };
+}
 
 // Mock atomicWriteJson — unit tests use virtual IO; the real function
 // needs a real filesystem. Atomic write behavior is tested in fs.test.ts.
@@ -208,7 +215,7 @@ describe("resolveFileList", () => {
     prompts: [],
     conditions: {
       "pm.mode == arc-in-git": {
-        include_files: ["backlog/ROADMAP.template.md"],
+        include_files: ["reference/strategies/arc/strategy-planning-module.md"],
       },
     },
   };
@@ -221,12 +228,12 @@ describe("resolveFileList", () => {
 
   it("includes files when condition matches", () => {
     const files = resolveFileList(minimalRecipe, { "pm.mode": "arc-in-git" });
-    expect(files).toContain("backlog/ROADMAP.template.md");
+    expect(files).toContain("reference/strategies/arc/strategy-planning-module.md");
   });
 
   it("excludes files when condition does not match", () => {
     const files = resolveFileList(minimalRecipe, { "pm.mode": "none" });
-    expect(files).not.toContain("backlog/ROADMAP.template.md");
+    expect(files).not.toContain("reference/strategies/arc/strategy-planning-module.md");
   });
 
   it("returns no duplicates", () => {
@@ -336,8 +343,7 @@ describe("resolveFileList — actual recipe", () => {
 describe("classifyFile", () => {
   it("classifies Scaffolded files", () => {
     expect(classifyFile("reference/PROJECT-PRD.template.md")).toBe("Scaffolded");
-    expect(classifyFile("backlog/ROADMAP.template.md")).toBe("Scaffolded");
-    expect(classifyFile("backlog/ATOMIC-INBOX.template.md")).toBe("Scaffolded");
+    expect(classifyFile("reference/TECHNICAL-OVERVIEW.template.md")).toBe("Scaffolded");
   });
 
   it("classifies Configurable files", () => {
@@ -390,12 +396,12 @@ describe("needsRendering", () => {
 
 describe("fileLayer", () => {
   it("returns arc-in-git for files from arc-in-git conditions", () => {
-    const arcInGitFiles = new Set(["backlog/ROADMAP.template.md"]);
-    expect(fileLayer("backlog/ROADMAP.template.md", arcInGitFiles)).toBe("arc-in-git");
+    const arcInGitFiles = new Set(["reference/strategies/arc/strategy-planning-module.md"]);
+    expect(fileLayer("reference/strategies/arc/strategy-planning-module.md", arcInGitFiles)).toBe("arc-in-git");
   });
 
   it("returns core for files not in arc-in-git set", () => {
-    const arcInGitFiles = new Set(["backlog/ROADMAP.template.md"]);
+    const arcInGitFiles = new Set(["reference/strategies/arc/strategy-planning-module.md"]);
     expect(fileLayer("README.md", arcInGitFiles)).toBe("core");
   });
 });
@@ -508,7 +514,7 @@ describe("runInit", () => {
     };
     const io = mockIO(templateFiles);
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -543,7 +549,7 @@ describe("runInit", () => {
     const io = mockIO(templateFiles);
     const noToolsPrompts = { ...DEFAULT_PROMPTS, tools: [] as string[] };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -572,7 +578,7 @@ describe("runInit", () => {
       "/templates/reference/PROJECT-PRD.template.md": "# Meta PRD",
     });
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -597,7 +603,7 @@ describe("runInit", () => {
     };
     const io = mockIO({});
 
-    await expect(runInit({
+    await expect(runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -620,7 +626,7 @@ describe("runInit", () => {
     };
     const io = mockIO({});
 
-    await expect(runInit({
+    await expect(runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -647,7 +653,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -677,7 +683,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -706,7 +712,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    const result = await runInit({
+    const result = await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -739,7 +745,7 @@ describe("runInit", () => {
   it("returns null when prompts is null (user cancelled)", async () => {
     const io = mockIO({});
 
-    const result = await runInit({
+    const result = await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -764,7 +770,7 @@ describe("runInit", () => {
     };
 
     atomicWriteJson.mockClear();
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -810,7 +816,7 @@ describe("runInit", () => {
     };
 
     atomicWriteJson.mockClear();
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -850,7 +856,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    const result = await runInit({
+    const result = await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -874,7 +880,7 @@ describe("runInit", () => {
       await write(path, content);
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project", io, templateDir: "/templates", internalTemplateDir: "/internal-templates",
       recipe: { include_files: ["README.md", "system/arc-config.yml"], prompts: minimalRecipe.prompts, conditions: {} },
       prompts: DEFAULT_PROMPTS, identityResult: "andrew",
@@ -905,7 +911,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -932,7 +938,7 @@ describe("runInit", () => {
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/.internal/githooks");
 
-    // arc-in-git projects track ROADMAP through the conflict-surfacing driver.
+    // The install configures the ROADMAP merge attribute and its conflict-surfacing driver.
     const gitattributesWrite = writeCalls.find(
       (c) => c[0] === "/project/.gitattributes",
     );
@@ -971,7 +977,7 @@ describe("runInit", () => {
     };
 
     await expect(
-      runInit({
+      runInit({ ...boundStore(),
         cwd: "/project",
         io,
         templateDir: "/templates",
@@ -1004,7 +1010,7 @@ describe("runInit", () => {
     };
 
     await expect(
-      runInit({
+      runInit({ ...boundStore(),
         cwd: "/project",
         io,
         templateDir: "/templates",
@@ -1028,7 +1034,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -1059,7 +1065,7 @@ describe("runInit", () => {
     };
 
     await expect(
-      runInit({
+      runInit({ ...boundStore(),
         cwd: "/project",
         io,
         templateDir: "/templates",

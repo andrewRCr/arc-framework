@@ -4,6 +4,7 @@ import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { makeUserIO } from "../helpers/integration.js";
 import { runUserSave } from "../../src/commands/user.js";
+import { withInRepoStore } from "../helpers/in-repo-store-override.js";
 
 it("starts clean before designation, with a one-commit flip and an eligible notes save", async () => {
   const h = await windowFixture();
@@ -18,7 +19,7 @@ it("starts clean before designation, with a one-commit flip and an eligible note
   expect((await h.remote("git", ["rev-parse", `refs/heads/${h.flip.branch}`])).stdout.trim()).toBe(h.flip.head);
   expect(JSON.parse(await readFile(h.listingPath, "utf8"))).toEqual(h.pullRequests);
   expect(h.pullRequests.flip).toMatchObject({ number: h.flip.pullRequest, headBranch: h.flip.branch, autoMergeArmed: false });
-  const saved = await runUserSave({ cwd: h.root, io: makeUserIO(h.root), identity: "andrew", currentWuName: "alpha" });
+  const saved = await withInRepoStore(() => runUserSave({ cwd: h.root, io: makeUserIO(h.root), identity: "andrew", currentWuName: "alpha" }));
   expect(saved.fileCount).toBeGreaterThan(0);
   const note = await git("notes", "--ref=refs/notes/arc/user/andrew", "show", "HEAD");
   expect(JSON.parse(note.stdout)).toMatchObject({ files: { "WORKING-MEMORY.md": "# Working Memory\n\n## Memories\n" } });

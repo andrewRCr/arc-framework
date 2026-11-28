@@ -36,14 +36,9 @@ is a derivation signal — step back to draft-design rather than re-opening shap
 **Not the PROJECT-PRD.** This workflow produces work-unit specs, not the project-wide constitutional PROJECT-PRD
 — for that, use [02_define-project.md](initial-setup/02_define-project.md).
 
-**Branch context:** Under full protection (`branch.protection: full`), spec creation runs on a planning branch —
-verify you are on one before proceeding (created via [init-work-unit][init-work-unit]). Under partial protection
-(the default), specs may be created directly on the base branch.
-
-**Mark the stage** on entry _only when entering without a draft_ (`draft-{name}.md` absent — `draft-design` was
-skipped or produced no draft): `arc set-stage create-spec` corrects the stale `draft-design` pointer so a mid-stage
-handoff resolves correctly. When a draft exists, `draft-design`'s finalization already advanced the pointer here —
-skip the write.
+**Mark the stage** on entry for a started work unit in `Planning` without a draft. Verify with `arc locus` that
+this checkout holds the selected unit, then run `arc set-stage create-spec` to correct a stale `draft-design`
+pointer for handoff.
 
 ---
 
@@ -73,29 +68,30 @@ let its produced shape indicate the form — a rich, fully-shaped draft feeds `d
 determinacy-confirm feeds `brief` / `outline`. With no draft, read the standing `Class` plus the problem
 directly, narrowing to a **brief-vs-outline** disambiguation.
 
-Run `arc user inbox-list --target {name} --json` for the captures that still name this work unit, held or not; a
-`refused` listing stops here until its remedy is applied. If the draft still holds inbound entries or the listing is
-`named`, run [route-discovered-work][route-discovered-work] at this owner's-pass entry-check fire-point before the
-draft feeds the spec:
+Run `arc inbox personal --target {name} --json` for the captures that still name this work unit, held or not, and
+`arc inbox {name} --json` for its inbound list; a `refused` listing stops here until its remedy is applied. If the
+inbound list's pending count is nonzero or the personal listing is `named`, run
+[route-discovered-work][route-discovered-work] at this owner's-pass entry-check fire-point before the draft feeds the
+spec:
 
 ```yaml
 route-discovered-work:
-  entry: each held inbound entry, and each listed capture
+  entry: each inbound entry, and each listed capture
   door: owner's planning pass
   host: this work unit
 ```
 
-Show each outcome and its `_Shapes:_`, any Owner-decided pair, the coupled target's horizon advisory, and any wait
-the binding names at the Owner's pass. On confirmation, execute through the binding and leave the dispositions
-table; no entry stays held at this ready-making pass. Remove each routed capture with `arc user inbox-remove`, or
-rewrite it in place when its outcome is itself a capture. Re-run the listing, and continue only once it reports
-`clear`. Then assess formalization-readiness via the [assess-draft-readiness][assess-draft-readiness] method; on
-**not-ready**, surface the returned gaps and resolve them inline (or return to drafting) before investing in spec
-writing.
+Show each outcome and its `_Shapes:_`, any Owner-decided pair, and the coupled target's horizon advisory at the
+Owner's pass. On confirmation, execute through the binding and leave the dispositions table; no entry stays held at
+this ready-making pass. Remove each routed capture with `arc user inbox-remove --id <id> --expected-version <version>`,
+taking both from its listed row, or rewrite it in place when its outcome is itself a capture. Re-run both listings,
+and continue only once the personal listing reports `clear` and the inbound list's pending count is zero. Then assess
+formalization-readiness via the [assess-draft-readiness][assess-draft-readiness] method; on **not-ready**, surface the
+returned gaps and resolve them inline (or return to drafting) before investing in spec writing.
 
 The resolved form is this stage's default — re-selectable, never below the derivation floor; it selects the
 discovery pass below and the template at Write and save. The `**Class:**` decision is live from this read but
-its write defers to the spec-generation ceremony commit (Finalize).
+its write defers to Finalize.
 
 ## Conduct discovery (spec-crystallization, depth-relative)
 
@@ -164,7 +160,7 @@ Work the form to completeness across its substrate and validation surface:
 an ADR under `reference/adr/` capturing the invented model's durable, cross-cutting rationale.
 **Subtype-keyed:** recommend it strongly at `detailed`·RFC, weak or omitted at `detailed`·PRD.
 Accept-or-decline, never a gate. An accepted ADR is a **non-moving artifact** — it stays under `reference/adr/`
-through the WU lifecycle (no relocation, no Novel branch at integration) and rides the normal ceremony commit.
+through the WU lifecycle. Keep the accepted ADR uncommitted until [activation][activate-work-unit].
 
 ## PROJECT-PRD alignment check
 
@@ -239,20 +235,10 @@ _Editable in place until activation, then frozen; changes after that append: `Am
 concise, descriptive slug (e.g., `api-modernization`, `cli-implementation`). Avoid abbreviations that only make
 sense in context or overly long compound names.
 
-**Save location** — co-locate with the work unit's existing artifacts (lifecycle position first; `pm.mode`
-only when nothing is on disk yet):
+**Save location** — run `arc view meta --for {name} --path` for the selected work unit and write `spec-{name}.md`
+beside that meta file.
 
-1. **Sibling present** — write beside an existing `meta-{name}.md`, `draft-{name}.md`, or other planning
-   artifact for this name (same directory). After [`init-work-unit`][init-work-unit] / `arc start`, that is
-   almost always `.arc/active/spec-{name}.md`. Do **not** write under `backlog/` when the meta already lives
-   in `active/` — [activation][activate-work-unit] is a state-flip + branch rename only, not a backlog→active
-   relocate.
-2. **No sibling yet, arc-in-git incubating** — `.arc/backlog/{provisional,planned}/{name}/spec-{name}.md`
-   (pre-start stub / `--plan` grooming only; uncommon — most specs are authored after init).
-3. **none / external** — `.arc/active/spec-{name}.md` (create the directory first if needed:
-   `mkdir -p .arc/active/`).
-
-## Finalize — review, retire the draft, persist `Class`, commit
+## Finalize — review, save, retire the draft, persist `Class`
 
 Run [planning-review's author checks][planning-author-checks] and [independent offer][planning-offer] at this
 stage gate, then its [findings and pass record][planning-findings].
@@ -266,7 +252,14 @@ planning-review:
   prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
 
-Run `arc check increment` over the saved specification and report its result at Gate 1.
+Run `arc check increment` over the specification and report its result at Gate 1, then run `arc save`. If `arc save`
+refuses, apply its reported remedy and continue once the spec is saved. After a successful `arc save`, inspect
+`arc status --json`. Require a ready projection with no `files` or `copies` entry for the spec and no unresolved ARC
+conflict blocks in the spec.
+
+Report outstanding conditions, finish pending edits, and apply any reported remedies. Recover the intended
+edits from each aside copy before removing it. Resolve conflict blocks in place and remove their markers and any
+resolve-by-hand line. Then repeat the check, save, and status check. Apply the same sequence to Gate 1 revisions.
 
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and checked with `spec-review`.
@@ -279,51 +272,37 @@ a second, separate approval:
 
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 2 (proceed-to-finalize): Only after Gate 1 clears. The steps below are
-> irreversible — draft retirement (`notes-*` migration + draft deletion) and the meta update — and close with the
-> commit. State that finalize is about to run and await explicit approval; this approval authorizes the
-> retirement, the meta update, and the commit.
+> irreversible — the save, draft retirement (`notes-*` migration + draft removal), and the meta update. State that
+> finalize is about to run and await explicit approval before saving and updating the meta.
 
-If a `draft-*.md` document fed into this spec, retire it now. Drafts are ephemeral — they serve exploration and
-are deleted once the spec captures the conclusions (see [Work Planning Strategy][work-planning] § Draft
-Documents).
+1. **Audit the draft for reference content** when a draft fed into this spec. Distinguish binding obligations,
+   settled decisions, and their decisive rationale from supplemental execution context. If binding content is
+   missing, absorb it into the specification and return to [spec-review][spec-review] and the existing review and
+   finalization approvals before migrating content or removing the draft. Route unsettled design through the
+   existing design re-entry. Migrate supplemental context valuable during task generation or execution into
+   `notes-{name}.md` alongside the spec. Keep binding design in the spec and limit the notes to a title and
+   supplemental content. See [DEV-RULES.ARC][dev-rules-arc] § Documentation Boundaries.
+2. **Retire supplemental files** that fed into the draft. Preserve files with independent archival value, such as
+   research that belongs in `reference/supplemental/research/`.
+3. **Check and save**: run [planning-review's post-settle reread][planning-reread] as the final review. When notes
+   migration or later authored-text edits, including the reread, changed files after the first request, run
+   `arc check increment` again. Then save the spec and any `notes-*` migration:
 
-1. **Audit for reference content**: Distinguish binding obligations, settled decisions, and their decisive rationale
-   from supplemental execution context. If binding content is missing, absorb it into the specification and return
-   to [spec-review][spec-review] and the existing review/iteration and finalization approvals before migrating content
-   or deleting the draft. Route unsettled design through the existing design re-entry. Only supplemental context
-   valuable during task generation or execution may migrate to a `notes-*.md` file alongside the spec; notes cannot
-   become the sole home of binding design. Keep the notes header minimal (title + contents only) — no purpose block,
-   no provenance to the draft, no commit metadata. See [DEV-RULES.ARC][dev-rules-arc] § Documentation Boundaries.
-2. **Delete the draft**: `git rm` the `draft-*.md` file (and any supplemental files that fed into it, unless
-   they have independent archival value — e.g., research files may belong in
-   `reference/supplemental/research/`).
-3. **Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with `**State:**
-   Planning` (planning-branch sessions), repoint `Design` to the finalized spec — `arc repoint-design
-   spec-finalized` rewrites `Design: draft-{name}.md → spec-{name}.md` (the no-draft path repoints `[none] →
-   spec-{name}.md`). Persist the resolved `**Class:**` (live from the entry read) — `arc finalize create-spec
-   --class <Class>` writes it through the field model. Then advance the stage pointer to the next sub-stage:
-   `arc set-stage generate-tasks --advance` rewrites `Current Workflow: create-spec → generate-tasks` and resets
-   `**Next Action:**` to the `[begin current workflow]` boundary sentinel in one step, so a fresh session after
-   handoff resumes in generate-tasks. Skip otherwise (no meta file exists pre-init under non-planning-branch
-   flows).
+    ```bash
+    arc save
+    ```
 
-After substeps 1-3, stage all edits — spec save (Write and save), draft deletion + `notes-*` migration, meta update.
+   If `arc save` refuses, apply its reported remedy and continue once the edits
+   are saved. After a successful save, inspect `arc status --json`. Before updating the meta, require a ready
+   projection with no `files` or `copies` entries for the spec or migrated notes and no unresolved ARC conflict
+   blocks in either file. Repair outstanding conditions as at Gate 1 and repeat the check, save, and status check.
+4. **Update the meta.** For a pre-start stub, persist the resolved Class with `arc set-class <Class> {name}`.
+   Its draft stays available until start. For a started work unit in `Planning`, verify that `arc locus` shows
+   this checkout holds `{name}`. Persist Class with `arc finalize create-spec --class <Class>` and confirm success
+   before running `arc repoint-design spec-finalized`. The repoint sets `Design` to the spec, retires any draft, and
+   advances to `generate-tasks` with the `[begin current workflow]` sentinel.
 
-Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. When notes
-migration or later authored-text edits, including the reread, changed files after the first request, run
-`arc check increment` again before the commit.
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): create spec-{name}
-
-Context: spec-{name}.md (planning)
-```
-
-Body itemizes the bundled changes (spec save, draft retirement, `notes-*` migration, meta update) per
-[DEV-RULES.ARC][dev-rules-arc] § Commit format and § Meta-file commit shape.
+Leave any accepted ADR and moved research uncommitted for the first commit in [activation][activate-work-unit].
 
 ---
 
@@ -333,7 +312,6 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 
 ---
 
-[work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [assess-design-proportionality]: ../../methods/assess-design-proportionality.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
@@ -346,7 +324,6 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [template-spec-detailed-rfc]: ../../../reference/templates/arc/work-unit/spec/template-spec-detailed-rfc.md
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: work-unit-lifecycle/integrate-work-unit.md
-[init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [source-grounding]: ../../methods/source-grounding.md
 [route-discovered-work]: ../../methods/route-discovered-work.md

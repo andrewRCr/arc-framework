@@ -20,7 +20,10 @@ export { commitAll } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
-/** Compose the deterministic environment shared by built-CLI tests. */
+/**
+ * Compose the deterministic environment shared by built-CLI tests. The CLI opens the test process's store selection, the
+ * ref backend unless the running test set the in-repo store override.
+ */
 function builtCliEnvironment(overrides?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...process.env,

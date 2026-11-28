@@ -1,15 +1,12 @@
 ---
-purpose: Reverse a work unit activation when no task work has executed — state-flip + branch rename, or full deletion.
+purpose: Reverse a work unit activation when no task work has executed — a state flip keeping the branch, or deletion.
 audience: collaborative (human and agent)
-arc:
-  methods:
-    - branch-format
 ---
 
 # Workflow: Deactivate Work Unit
 
 Reverses an activation when no task work has executed and nothing has merged. Two variants: return the WU to Planning
-(inverse of [`activate-work-unit.md`][activate]), or abandon it entirely (branch and artifacts removed).
+(inverse of [`activate-work-unit.md`][activate]), or abandon it entirely (its records removed, its branch reaped).
 
 **When to use:** A WU was activated, but circumstances changed before any task execution — priorities shifted, the
 design needs rework, the feature was cancelled. The activation itself is the only thing to undo.
@@ -25,19 +22,19 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 
 **Case A** has two variants — the user chooses; surface the variant decision when invoking the workflow:
 
-- **A (default)** — return the WU to Planning (state flip + branch rename, inverse of activation)
-- **A-delete** — abandon the WU entirely (branch and artifacts removed)
+- **A (default)** — return the WU to Planning (state flip keeping the work branch, inverse of activation)
+- **A-delete** — abandon the WU entirely (its records removed, its checkout and created branch reaped)
 
 ## Prerequisites (Case A / A-delete)
 
-- Currently on the WU's `<type>/<name>` branch (per [`branch-format`][branch-format])
-- `.arc/active/meta-{name}.md` exists and shows `**State:** Active`
+- In the checkout `arc locus` resolves to the WU, on its linked work branch
+- `arc view meta` shows `**State:** Active`
 - Task list checkboxes all `[ ]` (no task work executed)
 - No commits from this WU have merged to the base branch (PRs closed without merge, or never opened)
 - Developer has write access to the remote if the branch was pushed
 
-> **Team mode:** Branch operations are cross-developer. Confirm with collaborators before renaming or deleting a
-> shared branch — if anyone has local commits, coordinate their handling before proceeding.
+> **Team mode:** Branch operations are cross-developer. Confirm with collaborators before deleting a shared branch —
+> if anyone has local commits, coordinate their handling before proceeding.
 
 ---
 
@@ -45,7 +42,7 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 
 ### 1) Close any open PR
 
-If a PR was opened for `<type>/<name>`, close it without merging — note the deactivation in the closure comment
+If a PR was opened for the linked work branch, close it without merging — note the deactivation in the closure comment
 to leave a search trail.
 
 ```bash
@@ -60,41 +57,22 @@ See QUICK-REFERENCE § Platform Commands for non-GitHub equivalents.
 arc deactivate {name}
 ```
 
-The executor fires the `deactivate` edge: flips `**State:** Active → Planning`, rotates
-`**Branch:** {type}/{name} → plan/{name}` **and** renames the local branch back, and clears the `**Next Task:**` /
-`**Next Action:**` set at activation. `{name}` defaults to the current worktree's WU.
-
-Stage the edits.
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): deactivate {work-name} work unit
-
-- Flip State: Active → Planning
-- Rotate branch: {type}/{name} → plan/{name}
-- Clear Next Task / Next Action
-
-Context: meta-{name}.md (deactivation)
-```
-
-### 3) Push the rotated branch · 2-step routing
-
-The local branch rename back landed in Step 2 (executor-owned); only the remote legs remain.
-
-```bash
-git push -u origin plan/{name}              # workflowPush
-git push origin --delete {type}/{name}      # raw — destructive flag stays literal
-```
-
-The wrapper refuses `--delete` by design, so the old-remote deletion stays as raw `git`.
+The verb flips `**State:** Active → Planning`, returns `**Current Workflow:**` to the planning stage `Design` names,
+and clears the `**Next Action:**` set at activation, in one write. It keeps the work branch as the WU's branch link,
+with this checkout on it, so a later activation reattaches it rather than cutting another; nothing is pushed or
+deleted. Its report lists the task work a re-activation would record as excluded, naming `arc task close`, as a pause
+reports unshared work. `{name}` defaults to the current checkout's WU.
 
 ---
 
 ## Steps (Case A-delete — abandon entirely)
 
-### 1) Close any open PR
+### 1) Withdraw or close the PR
+
+If the source is `Integrating` (Case B), follow the withdrawal in [`reopen-work-unit`][reopen] from the source's own
+checkout, in the default close mode. When the source is Active and its PR is closed, go directly to Step 2.
+
+For an Active source with an open PR, close it before abandoning:
 
 ```bash
 gh pr close {pr-number} --comment "Deactivating work unit; abandoning. No task work executed."
@@ -111,74 +89,18 @@ Run this from the WU's own checkout — the **primary** worktree on the WU branc
 arc abandon {name} --yes
 ```
 
-The destructive cascade **stages** the removal of the WU's artifact set, closes the user session workspace, and
-regenerates `STATUS.USER`, emitting a ROADMAP hand-render advisory. `--yes` confirms the cascade — `arc abandon`
-prints the impact plan and refuses without it; the slug is required (`abandon` never defaults to the current WU).
+The verb ends the WU in one write, removing its records and recording the abandonment with the branch links it held,
+then removes this checkout, or releases an anchored one, and reaps the work branch ARC created, local and remote, with
+no merge check. `--yes` confirms the cascade — `arc abandon` prints the impact plan and refuses without it; the slug is
+required (`abandon` never defaults to the current WU). When the checkout's removal or the branch's reap fails after the
+write, run the exact `arc teardown <UID>` continuation printed by `arc abandon`. Keep that UID for retries, including
+across sessions. The agent's prior cwd no longer exists if it was in a removed WU worktree.
 
-The branch and worktree are **not** torn down here — that physical reap is the out-of-band `arc teardown --force`
-in Step 4. (Firing the teardown in-verb tripped the clean guard on the verb's own staged removal and, in-place,
-targeted the un-removable primary worktree.) `arc abandon` stages but does not commit.
+### 3) Clean up outside ARC (per `pm.mode`)
 
-When several retirements share a checkout, commit each completed transition before invoking the next one. Direct
-retirement requires an empty index; commit unrelated staged changes or clear them from the index before retrying.
-
-### 3) Commit the abandonment
-
-`arc teardown` reaps from a **clean** worktree (it refuses a dirty tree and never force-removes uncommitted
-work), so the staged removal is committed first. The commit lands on the WU branch and is never merged — the
-branch is reaped in Step 4 — so it records the abandonment and clears the tree for the teardown.
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): abandon {work-name} work unit
-
-- Remove the work unit's artifact set
-- Close the user session workspace
-
-Context: meta-{name}.md (deactivation)
-```
-
-### 4) Tear down the branch + worktree
-
-```bash
-arc teardown {name} --force
-```
-
-`--force` selects the un-shipped teardown mode: the WU is not in `completed/` and its branch is unmerged, so the
-conservation safety is the committed abandonment above, not git-containment. It force-deletes the branch (local
-**and** the remote ref) and reaps the worktree — the in-place arm switches the primary worktree to the base
-branch before the delete; a linked arm removes the worktree and moves the process to the base checkout. The agent's
-prior cwd no longer exists if it was in a torn-down WU worktree.
-
-### 5) Clean up base-branch leftovers (per `pm.mode`)
-
-Steps 2–4 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
-`active/notes-*`, any residual `active/draft-*`) along with its branch and worktree — they lived only on the
-reaped branch and were never merged. The remaining cleanup concerns base-branch leftovers those steps don't
-reach:
-
-- **`arc-in-git`:** If the WU originated from a backlog stub, `backlog/{state}/{name}/` may still exist on base
-  (init moved its draft-doc + companions onto the WU branch but the source folder isn't removed on base until
-  merge). Remove if present, then hand-render ROADMAP to drop the abandoned WU (the re-render Step 2's advisory
-  flagged, now also reflecting the removed backlog row) — see [Work Organization Strategy § ROADMAP][work-org-roadmap].
 - **`external`:** Update the external tracker — move the work item back to its pre-activation state or to an
-  abandoned bucket. No local file cleanup needed.
-- **`none`:** No file cleanup needed.
-
-This base cleanup is a separate commit, made from the base checkout (Step 4 left the primary on the base branch).
-Under full protection it wants its own branch — `git checkout -b chore/deactivate-{name}` — pushed
-(`workflowPush`) and merged via PR. Under partial protection, the commit lands directly on base.
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): clean up abandoned {work-name} backlog leftovers
-
-Context: meta-{name}.md (deactivation)
-```
+  abandoned bucket.
+- **`arc-in-git` / `none`:** No cleanup remains.
 
 ---
 
@@ -186,51 +108,37 @@ Context: meta-{name}.md (deactivation)
 
 Task work has run but nothing has merged to base, so the activation is no longer the only thing to undo —
 committed work exists and its fate is the operator's call. A WU in `**State:** Integrating` (PR open, awaiting
-review) is the live form of this case — deactivate does not rotate an `Integrating` meta; finish through
-[`integrate-work-unit.md`][integrate] or close the PR first. This workflow does not automate Case B; it names the
-three paths and routes each to the workflow that owns it.
+review) is the live form of this case. The operator chooses one of the following paths.
 
 - **Integrate the partial scope.** The work done so far stands on its own and is worth shipping. Run
   [`integrate-work-unit.md`][integrate] from the WU branch; the completed scope merges through the normal PR
-  path. Drop any unstarted scope from the task list (mark those tasks `[~]` with a note) or carry it into a
-  follow-up WU.
+  path. Drop any unstarted scope from the task list (defer those tasks with `arc task defer <id>` and a note) or carry
+  it into a follow-up WU.
 - **Abandon with history loss.** The work is not worth keeping. This is Case A-delete with committed work
   present — branch deletion leaves those commits reachable only via reflog (garbage-collected over time), not
   recoverable from base. Surface the irreversibility, get explicit operator authorization, then run the Case
-  A-delete teardown above.
+  A-delete abandon above.
 - **Move the work to a successor.** The direction changed but the committed work seeds a new approach.
   Cherry-pick the relevant commits onto the successor WU's branch — the successor's meta records the
-  continuation through its `**Origin:**` — then run the Case A-delete teardown above on the original.
-
-Case B is operator-driven throughout: no state flip, and no automated branch handling beyond whichever terminal
-path (integrate or Case A-delete) the operator selects.
+  continuation through its `**Origin:**` — then run the Case A-delete abandon above on the original.
 
 ---
 
 ## Case C — merged to base, no task work executed
 
-Rare. The activation reached base — its meta-file edits merged (e.g. as a direct commit under partial
-protection) — but no task work has run, so the activation is the only thing to undo, and it can't be reversed
-locally since it lives on base. No dedicated workflow ships for this; reverse it with a deactivation PR:
-
-1. Branch from base.
-2. Reverse the activation's meta-file edits — the inverse of [`activate-work-unit.md`][activate] Step 3:
-   `**State:** Active → Planning`, `**Branch:**` back to `plan/{name}`, and the Next Action back to a planning
-   pointer.
-3. Run `arc check increment` before committing the reversed meta fields for the deactivation PR. Open the PR, note
-   the deactivation in its description, and merge once approved. If the activation also renamed the live branch,
-   rename it back per the Case A branch-rename routing above.
+Rare. The work branch's commits reached base, though no task work has run. The activation is a record write rather
+than a merged change, so the same verb reverses it wherever the branch stands: run Case A's steps. No deactivation PR
+is needed.
 
 ---
 
 ## Next Step
 
 Deactivation has no session-level next action. The developer decides what follows — resume another WU, return to
-`create-spec.md` on the now-planning branch (Case A), or start something new.
+planning in the same checkout at the stage `**Current Workflow:**` names (Case A), or start something new.
 
 ---
 
 [activate]: activate-work-unit.md
 [integrate]: integrate-work-unit.md
-[branch-format]: ../../../methods/branch-format.md
-[work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
+[reopen]: reopen-work-unit.md

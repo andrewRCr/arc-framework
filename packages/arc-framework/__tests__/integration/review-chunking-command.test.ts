@@ -10,6 +10,9 @@ import { createSpawnRawGitExec } from "../../src/lib/change-facts.js";
 import { readConfigSettings } from "../../src/lib/config/status-reader.js";
 import { createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { resolveReviewChunkingCommand } from "../../src/scripts/review-gate/policy/review-chunking-command.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { assertProjectIdentitySeed } from "../helpers/store/assert-project-identity-seed.js";
+import { seedProjectIdentity } from "../helpers/store/seed-store.js";
 
 const repositories: string[] = [];
 
@@ -28,6 +31,7 @@ async function repository(config: string): Promise<string> {
   await writeFile(join(root, "change.bin"), Buffer.from([0, 1, 2]));
   git(root, "add", ".");
   git(root, "commit", "-qm", "base");
+  await assertProjectIdentitySeed(() => seedProjectIdentity(root, SlugSchema.parse("test-user")));
   return root;
 }
 

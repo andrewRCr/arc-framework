@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compileSessionInitAgenda } from "../../../src/commands/agenda/compile.js";
 import { assertSessionInitAgenda } from "../../../src/commands/agenda/schema.js";
 import { createAgendaFixtureInput, forRow, workUnitRow } from "../../helpers/agenda-fixtures.js";
-import { configSessionInit, dirtyState, rosterResult, userSessionInit } from "../../helpers/session-init-fixtures.js";
+import { dirtyState, rosterResult } from "../../helpers/session-init-fixtures.js";
 import type { SessionInitProbeOverrides } from "../../helpers/session-init-fixtures.js";
 import type { AgendaSignals } from "../../../src/commands/agenda/schema.js";
 
@@ -47,14 +47,5 @@ describe("contextless current husk", () => {
     expect(agenda.steps.filter(step => step.type === "read").some(step => /meta-|tasks-|SESSION-NOTES|process-task-loop/u.test(step.path))).toBe(false);
     expect(agenda.steps.filter(step => step.type === "exec" || step.type === "fragment")).toEqual([]);
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "stop", autoProceed: false });
-  });
-
-  it("ends at automatic notes synchronization before loading or orienting the husk", async () => {
-    const config = configSessionInit(); config.settings["session.init_pull.notes"] = "always";
-    const { agenda } = await compile({ config: async () => config,
-      user: async () => userSessionInit({ state: "remote-ahead", shouldPromptToPull: true }),
-    });
-    expect(agenda.steps).toHaveLength(1);
-    expect(agenda.steps[0]).toMatchObject({ type: "exec", id: "notes:pull", then: { kind: "recompile" } });
   });
 });

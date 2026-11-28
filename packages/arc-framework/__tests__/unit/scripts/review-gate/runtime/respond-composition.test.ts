@@ -18,6 +18,7 @@ import type { IncrementalPredecessorApplicability } from
 import { bindReviewSourceReference } from
   "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
+import { useInRepoStore } from "../../../../helpers/in-repo-store-override.js";
 
 const evidence = vi.hoisted(() => ({
   results: new Map<string, ReviewResult>(),
@@ -249,6 +250,8 @@ describe("production respond policy composition", () => {
   });
 
   it("accepts changed-head incremental findings after the prior fix was performed", async () => {
+    // The repository's result reader and disposition store stubbed here are the in-repo implementation's.
+    useInRepoStore();
     const prior = hostedFinding(oid("c"), "hosted/prior", "major");
     const current = hostedFinding(oid("d"), "hosted/current", "minor");
     const priorRecord = approvedRecord(prior, "fix");
@@ -302,6 +305,8 @@ describe("production respond policy composition", () => {
   });
 
   it("requires current contribution proof for a same-owner delivery member", async () => {
+    // The repository's result reader and disposition store stubbed here are the in-repo implementation's.
+    useInRepoStore();
     const priorRaw = hostedFinding(oid("c"), "hosted/prior", "major");
     const currentRaw = hostedFinding(oid("d"), "hosted/current", "minor");
     const memberLineage = {

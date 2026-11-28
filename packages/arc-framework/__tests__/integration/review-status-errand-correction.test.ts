@@ -68,6 +68,10 @@ import { STANDARD_REVIEW_RUBRIC_IDENTITY } from
   "../../src/scripts/review-gate/policy/standard-review.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Every Errand here is an in-repo identity ref, its reviews in the repository's own operation stores.
+useInRepoStoreForEach();
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];

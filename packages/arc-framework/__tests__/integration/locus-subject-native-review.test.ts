@@ -2,7 +2,7 @@
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdir, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { inProcessReview, localReviewResult } from "../helpers/in-process-review.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -11,10 +11,17 @@ import { collectGitCandidateSubject } from "../../src/lib/work-unit/git-candidat
 import { createCandidateAttestation } from "../../src/lib/work-unit/candidate-attestation.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { writeMetaCurrentWorkflow } from "../../src/lib/store/kinds/meta/writers.js";
-import { recordReferences } from "../../src/lib/store/identity.js";
+import { recordReferences, sameReference } from "../../src/lib/store/identity.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
-import { projectCandidateFixResumeBoundary, projectCandidateReviewBoundary }
+import { composeSessionInitStatus } from "../../src/handlers/status.js";
+import { createSessionStatusContext } from "../../src/handlers/status/session-context.js";
+import { compileSessionInitAgenda } from "../../src/commands/agenda/compile.js";
+import { createAgendaReadPort } from "../../src/commands/agenda/compile-input.js";
+import { assertSessionInitProbeResult } from "../../src/commands/status/schema.js";
+import { createRawGitExec } from "../../src/lib/io-context.js";
+import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { projectCandidateFixResumeBoundary, projectCandidateReviewBoundary, projectPublicationBoundary }
   from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { LocalPrepareEnvelopeSchema, LocalAttestEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
@@ -24,8 +31,8 @@ import { createRepositoryReviewResultReader } from "../../src/scripts/review-gat
 import { resolveReviewSourceInvocation } from "../../src/scripts/review-gate/runtime/source-invocation.js";
 import { bindReviewSourceReference, parseReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
 
-// A native work unit at Candidate review on its own checkout, its Candidate stored and no boundary recorded.
-async function nativeCandidateCheckout(workflow?: "prepare-work-unit") {
+// A native work unit on its own checkout, its Candidate stored and no boundary recorded.
+async function nativeCandidateCheckout(workflow?: "prepare-work-unit" | "integrate-work-unit") {
   const h = await createReviewRepositoryHarness(); onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
   const git = async (...args: string[]) => (await exec("git", args, { cwd })).stdout.trim();
@@ -48,12 +55,14 @@ async function nativeCandidateCheckout(workflow?: "prepare-work-unit") {
       subject: collected.target.subject, baseRevision: collected.target.revision, attestedBy: "andrew",
       attestedAt: "2026-10-20T15:00:00Z", verificationEvidenceRef: "test://verified" }), transitions: [], lineageAttestations: [] };
   const primary = await h.reference.seedMeta(name, { owner: "andrew", branch: null, workClass: "Light",
-    taskList: "tasks-example.md" }, { kind: "active" }, {
+    taskList: "tasks-example.md",
+    ...(workflow === "integrate-work-unit" && { state: "Integrating", currentWorkflow: workflow }),
+  }, { kind: "active" }, {
     branches: [{ repository: projectId, ref: branch, linkedAs: "adopted", excluded: [] }],
   });
   await h.reference.seed(recordReferences["work-item/task-list"](primary.reference.owner),
     "# Task List\n\n## **Phase 1:** Build\n\n### `[x]` **1.1 Complete**\n");
-  if (workflow !== undefined) {
+  if (workflow === "prepare-work-unit") {
     const meta = lifecycleSuccess(await h.reference.store.read({ reference: primary.reference }));
     lifecycleSuccess(await h.reference.store.write({ action: "put", reference: meta.reference, expected: meta.version,
       placement: { kind: "active" }, content: writeMetaCurrentWorkflow(meta.content, workflow),
@@ -76,6 +85,55 @@ async function nativeCandidateCheckout(workflow?: "prepare-work-unit") {
 it("projects a native Candidate review boundary when none is stored", async () => {
   const { projectedBoundary, coordinates } = await nativeCandidateCheckout("prepare-work-unit");
   expect(await projectedBoundary()).toEqual(projectCandidateReviewBoundary(coordinates, 2));
+});
+
+it.each([
+  ["prepare-work-unit", "prepublication"],
+  ["integrate-work-unit", "integration"],
+] as const)("keeps active status readable and stops the agenda during %s when the boundary read is refused", async (workflow, sessionType) => {
+  const { h, cwd, exec, primary, branch, coordinates } = await nativeCandidateCheckout(workflow);
+  const boundary = workflow === "integrate-work-unit"
+    ? projectPublicationBoundary({ ...coordinates, branch, reservation: null, changeRequest: null,
+      readinessBinding: canonicalDigest({ ready: true }) }, 2)
+    : projectCandidateFixResumeBoundary(coordinates, 2);
+  await h.reference.seedBoundary(primary.reference.owner, boundary);
+  const store = h.reference.store;
+  const reference = recordReferences["review/integration-boundary"](primary.reference.owner);
+  const condition = "The stored boundary's objects are missing.";
+  const remedy = "Restore or fetch the missing boundary objects, then retry.";
+  const read = store.read.bind(store);
+  const fault = vi.spyOn(store, "read").mockImplementation(async input => sameReference(input.reference, reference)
+    ? { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference,
+      historyRefs: [], condition, remedy: { text: remedy } } } : read(input));
+  onTestFinished(() => { fault.mockRestore(); });
+  const run = async () => {
+    const raw = createRawGitExec(cwd);
+    const context = await createSessionStatusContext(cwd, exec, raw, raw, undefined, { store });
+    const { result } = await composeSessionInitStatus(context);
+    assertSessionInitProbeResult(result);
+    const compiled = await compileSessionInitAgenda({
+      envelope: result, signals: {}, answers: { answered: {}, done: [] },
+      read: createAgendaReadPort(cwd, exec), entry: context,
+    });
+    if (!compiled.ok) throw new Error(JSON.stringify(compiled.refusal));
+    return { active: result.active, agenda: compiled.agenda };
+  };
+
+  const refused = await run();
+  expect(fault.mock.calls.some(([input]) => sameReference(input.reference, reference))).toBe(true);
+  fault.mockRestore();
+  const repaired = await run();
+  const activeMeta = { resolution: "single", path: expect.stringMatching(/\/meta-example\.md$/u),
+    taskListPath: expect.stringMatching(/\/tasks-example\.md$/u) };
+  expect(repaired.active).toMatchObject({ ok: true, value: { ...activeMeta, sessionType, currentWorkflow: workflow,
+    integrationBoundary: boundary, warnings: [] } });
+  expect(refused.active, JSON.stringify(refused.active)).toMatchObject({ ok: true, value: { ...activeMeta, sessionType: null,
+    integrationBoundary: null, warnings: expect.arrayContaining([expect.stringContaining(condition), expect.stringContaining(remedy)]) } });
+  expect(repaired.agenda.steps.at(-1)).toMatchObject({ type: "gate", kind: "proceed" });
+  expect(refused.agenda.steps.at(-1)).toMatchObject({ type: "gate", kind: "stop", autoProceed: false });
+  const rendered = refused.agenda.steps.flatMap(step => step.type === "render" || step.type === "note" ? [step.text] : []).join("\n");
+  expect(rendered).toContain(condition);
+  expect(rendered).toContain(remedy);
 });
 
 it("recovers a stored pending fix after execution pruning and keeps its source owner through slug reuse", async () => {

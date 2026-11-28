@@ -31,7 +31,8 @@ export type ProjectionLockResult<T> =
   | { readonly status: "held"; readonly holder: AdvisoryLockHolder | "unreadable" | null }
   | { readonly status: "gone" }
   | { readonly status: "lost"; readonly report: string }
-  | { readonly status: "mismatch"; readonly partition: string; readonly report: string };
+  | { readonly status: "mismatch"; readonly partition: string; readonly report: string }
+  | { readonly status: "unwritable"; readonly report: string };
 
 /**
  * The wait bound, and `invalidatePartition`: authority to delete a partition found changed since its header was read,
@@ -54,6 +55,19 @@ function rethrowUnlessGone(error: unknown): void {
   if (!isGone(error)) throw error;
 }
 
+// The codes a create carries when the Git directory refuses writes: permissions, or a read-only filesystem.
+const UNWRITABLE_CODES: ReadonlySet<string> = new Set(["EACCES", "EPERM", "EROFS"]);
+
+class ProjectionLockCreateRefused extends Error {
+  constructor(readonly code: string, cause: unknown) { super(code, { cause }); }
+}
+
+function rethrowCreateError(error: unknown): never {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (code !== undefined && UNWRITABLE_CODES.has(code)) throw new ProjectionLockCreateRefused(code, error);
+  throw error;
+}
+
 /** Process and lockfile boundaries, native by default. */
 export type ProjectionLockDependencies = LeaseProcessDependencies & {
   readonly readFile?: (path: string) => Promise<string>;
@@ -74,26 +88,41 @@ export async function withProjectionLock<T>(
   options: ProjectionLockOptions = {}, overrides: Partial<ProjectionLockDependencies> = {},
 ): Promise<ProjectionLockResult<T>> {
   const deps: ProjectionLockDependencies = { ...NATIVE_LEASE_PROCESS, ...overrides };
-  if (await ensureProjectionStateFolder(location) === "gone") return { status: "gone" };
   const lockFiles = {
     exclusiveCreate: createInExistingFolder, ...(deps.readFile === undefined ? {} : { readFile: deps.readFile }),
   };
-  const startedAt = deps.now();
-  const acquired = await acquire(join(location.stateDir, PROJECTION_LOCK_FILE), lockFiles, options, deps);
-  if ("status" in acquired) return acquired;
-  return runLeased(acquired, startedAt, operation, lockFiles, deps, location, options);
+  const entered = await enter(location, lockFiles, options, deps);
+  if ("status" in entered) return entered;
+  return runLeased(entered.handle, entered.startedAt, operation, lockFiles, deps, location, options);
 }
 
-type LockFiles = Pick<AdvisoryLockOptions, "exclusiveCreate" | "readFile">;
+/** Create the state folder and take the lock, reading a create the Git directory refuses as unwritable. */
+async function enter(
+  location: ProjectionLocation, lockFiles: LockFiles, options: { readonly maxWaitMs?: number }, deps: ProjectionLockDependencies,
+): Promise<{ readonly handle: AdvisoryLockHandle; readonly startedAt: number } | ProjectionLockResult<never>> {
+  try {
+    if (await ensureProjectionStateFolder(location).catch(rethrowCreateError) === "gone") return { status: "gone" };
+    const startedAt = deps.now();
+    const acquired = await acquire(join(location.stateDir, PROJECTION_LOCK_FILE), lockFiles, options, deps);
+    return "status" in acquired ? acquired : { handle: acquired, startedAt };
+  } catch (error) {
+    if (!(error instanceof ProjectionLockCreateRefused)) throw error;
+    return { status: "unwritable", report: `The worktree's Git directory ${location.gitDir} is not writable (${error.code}).` };
+  }
+}
+
+type LockFiles = Pick<AdvisoryLockOptions, "readFile"> & { readonly exclusiveCreate: typeof createInExistingFolder };
 
 async function acquire(
   lockPath: string, lockFiles: LockFiles, options: { readonly maxWaitMs?: number }, deps: ProjectionLockDependencies,
 ): Promise<AdvisoryLockHandle | ProjectionLockResult<never>> {
+  const processScope = await deps.resolveProcessScope();
   let lastSeen: AdvisoryLockContention["holder"] | null = null;
   try {
     return await acquireAdvisoryLock(lockPath, {
       ...lockFiles, ...(options.maxWaitMs === undefined ? {} : { maxWaitMs: options.maxWaitMs }),
-      pid: deps.pid, processInstance: deps.processInstance, processScope: await deps.resolveProcessScope(),
+      exclusiveCreate: (path, content) => lockFiles.exclusiveCreate(path, content).catch(rethrowCreateError),
+      pid: deps.pid, processInstance: deps.processInstance, processScope,
       leaseDurationMs: ADVISORY_LEASE_DURATION_MS, now: deps.now,
       onWait: ({ holder }) => { lastSeen = holder; },
     });

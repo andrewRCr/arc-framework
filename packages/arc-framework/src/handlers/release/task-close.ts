@@ -2,6 +2,7 @@
 import type { DefaultCaptureSetResult } from "../../lib/git/default-capture-set.js";
 import { prepareTaskClose, runTaskClose, type TaskCloseResult, type TaskVerbContext } from "../../lib/work-unit/verbs/task-close.js";
 import type { ReleaseTaskClose } from "./commit.js";
+import { releaseCloseStep } from "../../lib/store/pre-flip-steps.js";
 
 /** Bind the exact selected tasks and one base refresh across the commit boundary.
  * @param ids - Leading wrapper option's task IDs, or the cursor leaf
@@ -21,7 +22,8 @@ export function createTaskCloseOperations(ids: readonly string[], resolveContext
       const ctx = await resolveContext();
       if (ctx === null) return { status: "refused", check: "current-work-unit", reason: "The current work unit does not resolve.", remedy: { text: "Run session-init to select the current work unit." } };
       const result = await prepareTaskClose(ctx, { ids }, { precommit: true });
-      if (result.status === "refused") return { status: "refused", check: result.code, reason: result.reason, remedy: result.remedy };
+      if (result.status === "refused") return { status: "refused", check: result.code, reason: result.reason,
+        remedy: result.code === "unsupported" ? { text: releaseCloseStep() } : result.remedy };
       selected = result.targets.ids; refreshed = result.snapshot;
       continuation.argv = ["arc", "task", "close", ...selected]; continuation.text = `Run arc task close ${selected.join(" ")}.`;
       return { status: "ready" };

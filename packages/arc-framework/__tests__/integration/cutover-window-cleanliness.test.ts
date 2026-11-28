@@ -5,6 +5,10 @@ import { expect, it } from "vitest";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses an untracked checkout file despite a configuration that hides it and passes after removal", async () => {
   const h = await windowFixture();

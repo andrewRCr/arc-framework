@@ -6,6 +6,10 @@ import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
 import { createEngineFixture } from "../../../helpers/store/projection/engine-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { useInRepoStoreForEach } from "../../../helpers/in-repo-store-override.js";
+
+// A dark backend is the in-repo implementation, whose projection starts disabled.
+useInRepoStoreForEach();
 
 it("runs the registered dark hooks around a command without mixing projection output into JSON", async () => {
   const directories: string[] = [];

@@ -3,8 +3,10 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 it.each(["vscode", "zed"])("refuses unsupported %s setup and removal before inspecting settings", async editor => {
+  useInRepoStore();
   const cwd = await createTempRepo("arc-editor-");
   try {
     const folder = editor === "vscode" ? ".vscode" : ".zed";
@@ -23,6 +25,7 @@ it.each(["vscode", "zed"])("refuses unsupported %s setup and removal before insp
 });
 
 it.each(["init", "join"])("keeps Zed user guidance absent from legacy %s", async command => {
+  useInRepoStore();
   const cwd = await createTempRepo("arc-editor-setup-");
   try {
     if (command === "join") {

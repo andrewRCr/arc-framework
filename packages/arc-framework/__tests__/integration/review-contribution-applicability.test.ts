@@ -54,6 +54,7 @@ import { composeDeliveryMemberTarget } from
 import type { ReviewResult } from
   "../../src/scripts/review-gate/core/review-result.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -265,6 +266,9 @@ describe("review contribution applicability against Git", () => {
 });
 
 describe("singleton review applicability through the selection command", () => {
+  // The singleton's Candidate and its reviews live in tracked records and the repository's own operation stores.
+  useInRepoStoreForEach();
+
   // A reviewed feature commit, then an unreviewed notes commit, on a branch whose configured base has since
   // advanced past work the branch never touched.
   async function singletonBehindBase(reviewNotes = false) {

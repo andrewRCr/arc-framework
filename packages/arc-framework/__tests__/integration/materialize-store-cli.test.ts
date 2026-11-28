@@ -10,6 +10,27 @@ import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMa
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { createProjectIdentityReader } from "../../src/lib/store/project-identity.js";
 
+it("reclaims released local work with the operands required by the quick reference", async () => {
+  const f = await repairCliFixture();
+  const unit = await f.h.workUnit("local-planning", "test-user", "active", "", "Planning");
+  const slug = unit.reference.owner.name;
+  await ensureWorktreeMarkerIgnored(f.cwd, f.exec, nodeWorktreeMarkerIgnoreFs);
+  const claimed = await repairCli(f, ["materialize", slug, "--here"]);
+  expect(claimed.exitCode, claimed.stdout + claimed.stderr).toBeUndefined();
+  const paused = await repairCli(f, ["pause", slug, "--reason", "Free the checkout"]);
+  expect(paused.exitCode, paused.stdout + paused.stderr).toBeUndefined();
+  expect((await repairCli(f, ["locus", "release", slug, "--json"])).result).toMatchObject({ status: "released" });
+
+  const guide = await readFile(join(f.cwd, ".arc/reference/QUICK-REFERENCE.md"), "utf8");
+  const usage = guide.split(/\r?\n/u).find(line => line.startsWith("arc materialize "));
+  if (!usage) throw new Error("Missing materialize entry in the quick reference");
+  const required = usage.split(/\s+/u).slice(1).filter(token => !token.startsWith("["));
+  const argv = required.map(token => token === "<slug>" ? slug : token);
+  const result = await repairCli(f, [...argv, "--here"]);
+  expect(result.exitCode, result.stdout + result.stderr).toBeUndefined();
+  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { name: slug } } });
+}, 30_000);
+
 it("refuses a corrupt current marker, then materializes after its repair while preserving Store records and local code", async () => {
   const f = await repairCliFixture();
   const primary = await f.h.workUnit("materialize", "test-user", "active", "", "Planning");

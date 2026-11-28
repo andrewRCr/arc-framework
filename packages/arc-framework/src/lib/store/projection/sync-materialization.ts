@@ -6,7 +6,7 @@ import { refreshProjectionRootLayout } from "./engine-binding.js";
 import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { readProjectionIndex } from "./index-file.js";
 import { materializeProjectionRoot } from "./materialization.js";
-import { projectionProcessState } from "./process-state.js";
+import { projectionProcessState, projectionSwitchedOff } from "./process-state.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import type { ProjectionLockResult } from "./lock.js";
 
@@ -15,7 +15,7 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
   if (!store.capabilities.stateOffBranch || options.dryRun) return;
   const checkout = await canonicalCheckout(requested);
   const state = projectionProcessState();
-  if (state.skip?.reason === "switch") return;
+  if (projectionSwitchedOff(state.skip)) return;
   const root = state.roots.get(checkout);
   if (root === undefined) return;
   const report = (reason: string, remedy = "Repair the reported projection state, then retry arc sync."): void => {
@@ -50,6 +50,9 @@ function restorationStopped(checkout: string, result: Exclude<ProjectionLockResu
   if (result.status === "lost") return { reason: `Projection restoration lost its lease: ${result.report}`, remedy: "Retry arc sync." };
   if (result.status === "mismatch") {
     return { reason: `Projection restoration found a mismatched index partition: ${result.report}`, remedy: "Retry arc sync." };
+  }
+  if (result.status === "unwritable") {
+    return { reason: `Projection restoration cannot take its lease: ${result.report}`, remedy: "Make that Git directory writable, then retry arc sync." };
   }
   return { reason: "Projection restoration found the worktree's Git directory missing.",
     remedy: `Repair the worktree at ${checkout} with git worktree repair, or remove it, then retry arc sync.` };

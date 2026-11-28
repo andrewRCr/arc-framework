@@ -2,14 +2,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createStore } from "../../src/lib/store/create.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { LookupInputSchema } from "../../src/lib/store/lookup.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { testStorePorts } from "../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { success } from "../helpers/store/suite-tools.js";
 
 const roots: string[] = [];
@@ -20,7 +19,7 @@ async function repository() {
   const root = await createTempRepo("arc-store-lookup-"); roots.push(root);
   const exec = makeGitExec(root);
   await exec("git", ["commit", "--allow-empty", "-m", "initial repository"]);
-  const store = createStore(testStorePorts(root, exec, makeGitExecInput(root)));
+  const store = inRepoStore(testStorePorts(root, exec, makeGitExecInput(root)));
   async function put(path: string, content: string) {
     await mkdir(dirname(join(root, path)), { recursive: true });
     await writeFile(join(root, path), content);
@@ -38,7 +37,7 @@ describe("tracked lookup", () => {
     const repo = await repository();
     const ports = testStorePorts(repo.root,repo.exec,makeGitExecInput(repo.root));
     ports.identity = async ()=>configured ? SlugSchema.parse("andrew") : null;
-    const store = createStore(ports);
+    const store = inRepoStore(ports);
     await repo.put(".arc/active/meta-example.md",makeMetaFixture("example",{branch:"chore/example"}));
     await repo.commit("work unit on chore branch");
     await repo.exec("git",["branch","chore/example"]);

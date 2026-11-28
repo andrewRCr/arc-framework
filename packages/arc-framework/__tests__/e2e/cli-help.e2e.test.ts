@@ -56,6 +56,57 @@ describe("built CLI navigation", () => {
     }
   });
 
+  it("explains when materialize --here switches branches and when it preserves HEAD", async () => {
+    const help = await runCli(["materialize", "--help"]);
+    expect(help.exitCode).toBe(0);
+    const here = help.stdout.match(/^ +--here\b.*(?:\n {4,}\S.*)*/mu)?.[0].replace(/\s+/gu, " ");
+    expect.soft(here).toMatch(/(?:checks? out|switch(?:es)? to).*linked branch|linked branch.*checked out/iu);
+    expect.soft(here).toMatch(/(?:keep|preserv|leav)\w*.*HEAD|HEAD.*(?:unchanged|preserved)/iu);
+  });
+
+  it("lists store commands and keeps import out of migration help", async () => {
+    const help = await runCli(["store", "--help"]);
+    expect(help.exitCode).toBe(0);
+    expect(help.stderr).toBe("");
+    expect(help.stdout.split("\n").every((line) => line.length <= 80)).toBe(true);
+    expect(help.stdout).toMatch(/^ {2}repair-review-roots\b[^\n]*\s+Preview or select\b/mu);
+    expect(help.stdout).toMatch(/^ {2}conflict\b[^\n]*\s+Inspect or explicitly\b/mu);
+    expect(help.stdout).toMatch(/^ {2}migrate\b[^\n]*\s+Move stored state\b/mu);
+    expect(help.stdout).toMatch(/^ {2}remote\b[^\n]*\s+Inspect or set\b/mu);
+    const migrate = await runCli(["store", "migrate", "--help"]);
+    expect(migrate.exitCode).toBe(0);
+    expect(migrate.stderr).toBe("");
+    expect(migrate.stdout).toContain("--leave-source");
+    expect(migrate.stdout).not.toContain("--import");
+  });
+
+  it("explains that partial close removes an inbox entry only if its recorded version or digest matches", async () => {
+    const help = await runCli(["errand", "close", "--help"]);
+    expect(help.exitCode).toBe(0);
+    const purpose = help.stdout.split("\nOptions:")[0]?.replace(/\s+/gu, " ").trim();
+    const partial = purpose?.match(/\bpartial\b[^.]+/iu)?.[0];
+    expect(partial).toMatch(/remov\w*[^.]*\binbox\b[^.]*\bonly if\b/iu);
+    const condition = partial?.split(/\bonly if\b/iu)[1];
+    expect(condition).toMatch(/\bversion\b[^.]*\bor\b[^.]*\bdigest\b/iu);
+    expect(condition).toMatch(/\bmatch\w*\b/iu);
+  });
+
+  it("distinguishes full-protection adoption by ID from inbox removal at close for a title", async () => {
+    const help = await runCli(["errand", "close", "--help"], { env: { ARC_IN_REPO_STORE: "1" } });
+    expect(help.exitCode).toBe(0);
+    const purpose = help.stdout.split("\nOptions:")[0]?.replace(/\s+/gu, " ").trim();
+    expect.soft(purpose).toMatch(/\bfull protection\b[^.]*\bmov\w*\b[^.]*\bdescription\b[^.]*\bopen\w*\b[^.]*\bID\b/iu);
+    expect.soft(purpose).toMatch(/\bclose\b[^.]*\bremov\w*\b[^.]*\bopen\w*\b[^.]*\btitle\b/iu);
+  });
+
+  it("scopes title-based inbox removal at close and explains when import moves the capture", async () => {
+    const help = await runCli(["errand", "close", "--help"]);
+    expect(help.exitCode).toBe(0);
+    const purpose = help.stdout.split("\nOptions:")[0]?.replace(/\s+/gu, " ").trim();
+    expect.soft(purpose).toMatch(/\bbranch-backed\b[^.]*\bclose\b[^.]*\bremov\w*\b[^.]*\btitle\b[^.]*\binbox\b/iu);
+    expect.soft(purpose).toMatch(/\bimport\b[^.]*\bmov\w*\b[^.]*\bunique\b[^.]*\btitle\b[^.]*\binbox\b[^.]*\bdescription\b/iu);
+  });
+
   it("keeps deep command purposes, inherited flags, and structured-request discovery", async () => {
     const help = await runCli(["review", "local", "prepare", "--help"]);
     expect(help.exitCode).toBe(0);

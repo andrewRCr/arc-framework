@@ -1,4 +1,5 @@
 /** Task closure and deferral use checked reference-store batches and scripted Git boundaries. */
+import { readFile } from "node:fs/promises";
 import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { expect, it } from "vitest";
@@ -6,6 +7,7 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store
 import { scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
 import { recordReferences, type Links, type Store } from "../../../../src/lib/store/index.js";
 import { runTaskClose, runTaskDefer, type TaskVerbContext } from "../../../../src/lib/work-unit/verbs/task-close.js";
+import { taskMarkStep } from "../../../../src/lib/store/pre-flip-steps.js";
 
 const first = "a".repeat(40), second = "b".repeat(40), base = "c".repeat(40);
 const tasks = (parent = " ", a = " ", b = " ") => `# Task List: demo\n\n### \`[${parent}]\` **1.1 Work**\n\n- _Goal:_ Build the work.\n\n    - \`[${a}]\` **1.1.a First**\n    - \`[${b}]\` **1.1.b Second**\n\n### \`[ ]\` **1.2 Later**\n\n- _Goal:_ Finish.\n`;
@@ -14,7 +16,7 @@ function facade(store: Store): Store {
     list: (input) => store.list(input), write: (input) => store.write(input), batch: (input) => store.batch(input),
     version: () => store.version(), history: (input) => store.history(input), changes: (input) => store.changes(input), pull: (input) => store.pull(input), push: (input) => store.push(input), maintain: () => store.maintain() };
 }
-async function harness(content = tasks(), links: Links = { branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }] }, objectType = "commit") {
+async function harness(content = tasks(), links: Links = { branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }] }, objectType = "commit", outstanding = "") {
   const { store, seedMeta, seed } = createLifecycleHarness();
   const meta = await seedMeta("demo", {}, { kind: "active" }, links);
   const taskRef = recordReferences["work-item/task-list"](meta.reference.owner);
@@ -23,7 +25,7 @@ async function harness(content = tasks(), links: Links = { branches: [{ reposito
     { match: ["symbolic-ref", "--quiet", "HEAD"], responses: [{ stdout: "refs/heads/feat/demo\n" }] },
     { match: ["remote"], responses: [{ stdout: "" }] },
     { match: { prefix: ["--no-replace-objects", "rev-parse"] }, responses: [{ stdout: base }] },
-    { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [{ stdout: "" }] },
+    { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [{ stdout: outstanding }] },
     { match: { prefix: ["--no-replace-objects", "cat-file", "-t"] }, responses: [{ stdout: `${objectType}\n` }] },
     { match: { prefix: ["--no-replace-objects", "merge-base"] }, responses: [{ stdout: "" }] },
   ]);
@@ -58,6 +60,57 @@ it("bare close closes only the cursor leaf", async () => {
   const result = await runTaskClose(h.ctx);
   expect(result).toMatchObject({ status: "closed", ids: ["1.1.a"] });
   expect((await h.readTasks()).content).toBe(tasks(" ", "x", " "));
+});
+it.each([
+  { ids: [], skippedMarker: "~" },
+  { ids: ["1.1.a", "1.1.b"], skippedMarker: "x" },
+])("shows what closing $ids does after the first sibling is skipped", async ({ ids, skippedMarker }) => {
+  const h = await harness();
+  expect(await runTaskDefer(h.ctx, "1.1.a")).toMatchObject({ status: "deferred" });
+  expect((await h.readTasks()).content).toBe(tasks(" ", "~", " "));
+  expect(await runTaskClose(h.ctx, { ids })).toMatchObject({ status: "closed", captured: [] });
+  expect((await h.readTasks()).content).toBe(tasks("x", skippedMarker, "x"));
+});
+it("the task loop applies the named deferral after approval and before saving the increment", async () => {
+  const loop = await readFile(new URL("../../../../arc/system/workflows/arc/process-task-loop.template.md", import.meta.url), "utf8");
+  const approval = loop.indexOf("**MANDATORY STOP**");
+  const save = loop.indexOf("arc save", approval);
+  expect(approval).toBeGreaterThan(-1);
+  expect(save).toBeGreaterThan(approval);
+  const afterApproval = loop.slice(approval, save);
+  expect(afterApproval, "An approved skip needs a named deferral before save").toContain("`arc task defer <id>`");
+  expect(loop.slice(0, approval)).not.toContain("`arc task defer <id>`");
+  expect(afterApproval).toMatch(/exclude[^.]+deferred[^.]+clos/isu);
+  expect(afterApproval).toMatch(/if[^.]+only deferrals[^.]+save/isu);
+
+  const h = await harness();
+  expect(await runTaskDefer(h.ctx, "1.1.a")).toMatchObject({ status: "deferred", ids: ["1.1.a"] });
+  expect((await h.readTasks()).content).toBe(tasks(" ", "~", " "));
+});
+it.each([
+  { scope: "an approved batch", approved: ["1.1.a", "1.1.b"], expected: tasks("x", "x", "x") },
+  { scope: "a later approved leaf", approved: ["1.1.b"], expected: tasks(" ", " ", "x") },
+])("the workflow's state-only close marks $scope", async ({ approved, expected }) => {
+  const workflow = await readFile(new URL("../../../../arc/system/workflows/arc/process-task-loop.template.md", import.meta.url), "utf8");
+  const afterApproval = workflow.slice(workflow.indexOf("**MANDATORY STOP**"));
+  const command = /(?:no tracked (?:file|change)|state-only)[^`.]*`(arc task close\b[^`]*)`/iu.exec(afterApproval)?.[1];
+  if (!command) throw new Error("Missing standalone close command in the state-only instruction");
+  const args = command.replace(/<ids?>/u, approved.join(" ")).split(/\s+/u).slice(3);
+  const params = { ids: args.filter(arg => !arg.startsWith("--")), stateOnly: args.includes("--state-only") };
+
+  const h = await harness(undefined, undefined, undefined, first);
+  expect(await runTaskClose(h.ctx, params)).toMatchObject({ status: "closed", captured: [] });
+  expect((await h.readTasks()).content).toBe(expected);
+});
+it("refuses conflicting capture options and closes after an explicit capture is chosen", async () => {
+  const h = await harness();
+  const beforeTasks = await h.readTasks(), beforeMeta = await h.readMeta();
+  const params = { ids: ["1.1.a"], commits: [first], stateOnly: true };
+  expect(await runTaskClose(h.ctx, params)).toMatchObject({ status: "refused", code: "capture-options-conflict",
+    reason: expect.stringContaining("--state-only and --commit"), remedy: { text: expect.stringContaining("arc task close") } });
+  expect(await h.readTasks()).toEqual(beforeTasks);
+  expect(await h.readMeta()).toEqual(beforeMeta);
+  expect(await runTaskClose(h.ctx, { ids: params.ids, commits: params.commits })).toMatchObject({ status: "closed", captured: [first] });
 });
 it("named set closes leaves and its cascade parent without capturing the parent", async () => {
   const h = await harness();
@@ -115,10 +168,10 @@ it("no cursor task refuses and names a deferred task's close", async () => {
   const h = await harness(tasks("~", "~", "~").replace("### `[ ]` **1.2", "### `[~]` **1.2"));
   expect(await runTaskClose(h.ctx)).toMatchObject({ status: "refused", remedy: { text: expect.stringContaining("arc task close 1.1") } });
 });
-it.each(["close", "defer"])("%s refuses unsupported before the flip", async (operation) => {
+it.each(["close", "defer"] as const)("%s refuses unsupported before the flip, naming the hand mark and its commit", async (operation) => {
   const h = await harness(); h.ctx.store = { ...facade(h.store), capabilities: { stateOffBranch: false } };
   const result = operation === "close" ? await runTaskClose(h.ctx) : await runTaskDefer(h.ctx, "1.1");
-  expect(result).toMatchObject({ status: "refused", code: "unsupported", remedy: { text: expect.stringContaining(operation === "close" ? "[x]" : "[~]") } });
+  expect(result).toMatchObject({ status: "refused", code: "unsupported", remedy: { text: taskMarkStep(operation) } });
 });
 it.each(["Planning", "Active"] as const)("no branch link on %s names the activation repair", async (state) => {
   const h = await harness(tasks(), {});
@@ -176,7 +229,7 @@ it.each(["detached", "unlinked"])("%s checkout refuses and names its work branch
     responses: [kind === "detached" ? { failure: { exitCode: 1 } } : { stdout: "other-branch" }] }]).exec;
   expect(await runTaskClose(h.ctx)).toMatchObject({ status: "refused", code: "branch-unlinked", remedy: { text: expect.stringContaining("git switch feat/demo") } });
 });
-it("a base refresh that empties the set refuses; its rerun closes with no capture", async () => {
+it("a base refresh that empties the set refuses and names a state-only retry", async () => {
   const h = await harness(); const before = await h.readTasks();
   h.ctx.exec = scriptGitExec([
     { match: ["symbolic-ref", "--quiet", "HEAD"], responses: [{ stdout: "refs/heads/feat/demo" }] },
@@ -185,9 +238,10 @@ it("a base refresh that empties the set refuses; its rerun closes with no captur
     { match: { prefix: ["--no-replace-objects", "rev-parse"] }, responses: [{ stdout: base }] },
     { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [{ stdout: first }, { stdout: "" }] },
   ]).exec;
-  expect(await runTaskClose(h.ctx)).toMatchObject({ status: "refused", code: "base-emptied-set", reason: expect.stringContaining(first), remedy: { text: expect.stringContaining("arc task close 1.1.a") } });
+  expect(await runTaskClose(h.ctx)).toMatchObject({ status: "refused", code: "base-emptied-set", reason: expect.stringContaining(first), remedy: { text: expect.stringContaining("arc task close 1.1.a --state-only") } });
   expect(await h.readTasks()).toEqual(before);
-  expect(await runTaskClose(h.ctx)).toMatchObject({ status: "closed", captured: [] });
+  const retry = { ids: ["1.1.a"], stateOnly: true };
+  expect(await runTaskClose(h.ctx, retry)).toMatchObject({ status: "closed", captured: [] });
 });
 it("release precheck accepts an emptied precommit set for the new commit to follow", async () => {
   const h = await harness(); const { prepareTaskClose } = await import("../../../../src/lib/work-unit/verbs/task-close.js");

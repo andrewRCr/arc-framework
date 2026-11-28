@@ -3,13 +3,13 @@ import { expect, it } from "vitest";
 import { checkpointIntegration } from "../../../../src/scripts/integration/checkpoint.js";
 import { createIntegrationCheckpointDependencies } from "../../../../src/scripts/integration/checkpoint-composition.js";
 import { BaseDriftResultSchema } from "../../../../src/lib/git/base-drift-types.js";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-ports.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { candidateFixture } from "../../../helpers/store/tracked-write-fixture.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { checkpointDependencies } from "../../../helpers/integration-checkpoint.js";
 import { readGitDeliveryLifecycleArtifactsAtRef } from "../../../../src/lib/delivery/git-lifecycle-contribution.js";
+import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
 
 it("does not replay a native shipped boundary from Git", async () => {
   const h = createReviewHarness(), primary = await h.seedMeta("example");
@@ -32,7 +32,7 @@ it.each([
   const primary = await h.seedMeta("example");
   await h.seedCandidate(primary.reference.owner, candidate);
   const exec = scriptGitExec([]).exec;
-  const store = native ? h.store : createStore(createDefaultStorePorts({ checkoutRoot: "/unavailable", exec }));
+  const store = native ? h.store : inRepoStore(createDefaultStorePorts({ checkoutRoot: "/unavailable", exec }));
   const production = createIntegrationCheckpointDependencies({ cwd: "/unavailable", exec, store, workItem: primary.reference.owner });
   const deps = { ...production, ...checkpointDependencies(), boundarySchemaVersion: production.boundarySchemaVersion };
   if (!reconcile) {

@@ -1,6 +1,8 @@
 /** Local base-drift handler locus degradation behavior. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createStore } from "../../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 
 const mocks = vi.hoisted(() => ({
   createCurrentBaseDriftAdapters: vi.fn((...args: unknown[]) => {
@@ -16,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   runDerivedLocusStateProbe: vi.fn(),
 }));
 
+const heldStore = expect.objectContaining({ capabilities: expect.objectContaining({ stateOffBranch: expect.any(Boolean) }) });
 vi.mock("../../../src/lib/base-drift/current-adapters.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../src/lib/base-drift/current-adapters.js")>(),
   createCurrentBaseDriftAdapters: (...args: unknown[]) => mocks.createCurrentBaseDriftAdapters(...args),
@@ -63,6 +66,17 @@ function workUnitRow(kind: "work-unit" | "retired", key: string) {
 }
 
 describe("base drift handler", () => {
+  it("passes the supplied store to both the archive adapter and the locus probe", async () => {
+    const store = createStore(createDefaultStorePorts({ checkoutRoot: "/repo" }));
+    const row = workUnitRow("work-unit", "example");
+    mocks.runDerivedLocusStateProbe.mockResolvedValue({ roster: [row], entering: { kind: "selected", row } });
+
+    await handleBaseDrift({ json: true }, undefined, store);
+
+    expect(mocks.createCurrentBaseDriftAdapters.mock.calls[0]?.[1]).toBe(store);
+    expect(mocks.runDerivedLocusStateProbe.mock.calls[0]?.[0].store, "locus probe store").toBe(store);
+  });
+
   it("degrades an invalid configured identity to an unbound authoritative result", async () => {
     mocks.readIdentityPointers.mockRejectedValue(
       Object.assign(new Error("Invalid configured identity"), { code: "identity.invalid" }),
@@ -82,7 +96,7 @@ describe("base drift handler", () => {
 
     await handleBaseDrift({ json: true });
 
-    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), {
+    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), heldStore, {
       workUnit: "example",
       projectionPaths: new Set([
         ".arc/system/.internal/candidates/example.json",
@@ -100,7 +114,7 @@ describe("base drift handler", () => {
 
     await expect(handleBaseDrift({ json: true })).resolves.toBeUndefined();
 
-    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), {});
+    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), heldStore, {});
     expect(mocks.runBaseDrift).toHaveBeenCalledOnce();
   });
 
@@ -123,7 +137,7 @@ describe("base drift handler", () => {
       process.exitCode = undefined;
     }
     expect(await emitted()).toEqual({ verdict: "clean" });
-    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function),
+    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), heldStore,
       expect.objectContaining({ workUnit: "example" }));
   });
 });

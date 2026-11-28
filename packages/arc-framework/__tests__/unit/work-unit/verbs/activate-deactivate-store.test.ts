@@ -11,7 +11,6 @@ import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { writeMetaDependsOn } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import type { BranchLink } from "../../../../src/lib/store/links.js";
-import type { PreparedCurrentWuReconcile } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
 import { transientContent } from "../../../helpers/store/in-repo-substrates.js";
 import { seedCompletedErrandTie } from "../../../helpers/store/completed-errand-tie.js";
@@ -61,14 +60,14 @@ async function harness(options: { branch?: string | null; commits?: string[]; li
     throw Error(`Unexpected git operation: ${args.join(" ")}`);
   };
   const raw: RawGitExec = async (_args, request) => ({ stdout: Buffer.from(Buffer.from(request?.input ?? []).toString().trim().split("\n").filter(Boolean).map((sha) => `${sha} missing\n`).join("")) });
-  const prepared: PreparedCurrentWuReconcile = { slug: "demo", edits: [], plan: { status: "ready", dependency: { before: [], after: [], replacements: [], drops: [], discharged: [], live: [], conflicts: [] }, trackedReferences: { edits: [] }, advisories: [] } };
+  const reconcile = buildStoreCurrentWuReconcile("/repo", h.store);
   const ctx: ActivateContext = {
     cwd: "/repo", store: h.store, projectId: async () => "repo", exec, execRaw: raw,
     indexFs: { readdir: async () => { throw Error("store arm must not read checkout paths"); }, readFile: async () => { throw Error("store arm must not read checkout paths"); } },
     setPhase: async () => ({ phase: "Planning" }), relocateArtifacts: async () => ({ moved: [] }),
     reconcileBranch: async () => { throw Error("store arm must use its supplied Git step"); }, reconcileWorkUnitWorktree: async () => { throw Error("activation stays in place"); },
     writeSoftFields: async () => {}, writeBranchField: async () => {}, writeCurrentWorkflowField: async () => {}, writeDesignField: async () => {},
-    currentWuReconcile: { prepare: async () => ({ status: "clean", prepared }), apply: async () => { reconciled = true; return { status: "applied", prepared, stagedPaths: [] }; } },
+    currentWuReconcile: { ...reconcile, prepare: async (op) => { reconciled = true; return reconcile.prepare(op); } },
   };
   return { ...h, ctx, meta, archived, state: () => ({ current, head, reconciled, branches: [...branches.keys()] }), read: async () => lifecycleSuccess(await h.store.read({ reference: meta.reference })) };
 }
@@ -170,7 +169,9 @@ describe("store activation", () => {
   it("reports a typed created-link old remote deletion only after HEAD contains its tip", async () => {
     const h = await harness({ branch: "plan/demo", commits: [local, remote], remoteHead: remote,
       link: { repository: "repo", ref: "plan/demo", linkedAs: "created", excluded: [] } });
-    expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated", remoteDelete: { argv: ["git", "push", "origin", "--delete", "plan/demo"] } });
+    expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated", remoteDelete: {
+      argv: ["git", "push", `--force-with-lease=refs/heads/plan/demo:${remote}`, "origin", "--delete", "plan/demo"],
+    } });
   });
   it("rolls the branch rename back when the version-bound batch refuses", async () => {
     const h = await harness({ branch: "person" });

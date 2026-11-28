@@ -11,7 +11,26 @@ const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
 
+function assertLifecycleSpecificExits(surface: string): void {
+  expect(surface, "Use lifecycle-specific exits").not.toMatch(/\barc\s+locus\s+release\b/u);
+}
+
 describe("locus methodology contracts", () => {
+  it("checks the entering checkout and reads the target's lifecycle state after launch", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/assess-start-readiness.md"), "utf8");
+      const afterStart = method.split("`arc start <slug>`")[1] ?? "";
+
+      expect.soft(afterStart).toContain("`arc locus --json`");
+      expect.soft(afterStart).toMatch(/`entering\.kind`[^.]*`selected`/u);
+      expect.soft(afterStart).toMatch(/`entering\.row`[^.]*`work-unit`/u);
+      expect.soft(afterStart).toMatch(/`checkout\.path`[^.]*worktree path/u);
+      expect.soft(afterStart).toMatch(/`subject\.key`[^.]*slug/u);
+      expect.soft(afterStart).toMatch(/`arc status <slug> --json`[^.]*`position\.phase`[^.]*`Planning`/u);
+      expect.soft(afterStart).toMatch(/`entering\.row\.context`[^.]*handoff/u);
+    }
+  });
+
   it("publishes the current Errand lifecycle signature", async () => {
     const references = await Promise.all([
       readFile(resolve(packageArc, "reference/QUICK-REFERENCE.template.md"), "utf8"),
@@ -21,12 +40,11 @@ describe("locus methodology contracts", () => {
     for (const reference of references) {
       expect(reference).toContain("arc errand next [--json]");
       expect(reference).toContain(
-        "arc errand open <slug> [--intent <text>] [--from-inbox <entry>] "
-          + "[--inbox-title-file <path|->] [--isolate] [--json]",
+        "arc errand open <slug> [--intent <text>] [--from-inbox <personal|project>:<id>] [--isolate] [--json]",
       );
-      expect(reference).toContain(
-        "arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]",
-      );
+      expect(reference).toContain("arc errand link <slug> --from-inbox <personal|project>:<id> [--json]");
+      expect(reference).toContain("arc errand queue set <file|->");
+      expect(reference).not.toContain("--inbox-title-file");
       expect(reference).toContain(
         "arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]",
       );
@@ -73,7 +91,7 @@ describe("locus methodology contracts", () => {
       expect(handoff).toContain("`derivedLocusState`      | Required entering-checkout frame");
       expect(handoff).toMatch(softWrappedProse("`release-work-unit` — write no generic locus state"));
       expect(handoff).toMatch(softWrappedProse("direct subsequent commands to the retained surviving checkout"));
-      expect(handoff).not.toContain("arc locus release");
+      expect(handoff).toMatch(softWrappedProse("Its checkout stays held unless released (`arc locus release`)"));
       expect(handoff).not.toContain("`recordId`");
       expect(handoff).not.toContain("`leaseId`");
       expect(handoff).toMatch(softWrappedProse("If the composite call itself fails, surface the failure and stop."));
@@ -94,6 +112,28 @@ describe("locus methodology contracts", () => {
       expect(skill).toContain("exact terminal result");
       expect(skill).toContain("surviving checkout");
       expect(skill).not.toMatch(/lease|arc locus release/u);
+    }
+  });
+
+  it("uses the surviving checkout's complete probe when an Errand returns to its parent work unit", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const file = base === packageArc ? "session-handoff.template.md" : "session-handoff.md";
+      const handoff = await readFile(resolve(base, "system/workflows/arc/session-lifecycle", file), "utf8");
+      const errand = handoff.split("## Errand-Session Handoff Path")[1]?.split("\n## ")[0];
+      expect(errand).toMatch(/arc status --session-handoff --json[\s\S]*complete probe[\s\S]*new baseline/u);
+      expect(errand).toMatch(/new baseline[\s\S]*`release-work-unit`[\s\S]*matching WU or between-WUs path/u);
+      expect(handoff).toMatch(softWrappedProse("if the `active` artifact slot disagrees, stop"));
+      expect(handoff).toContain("arc handoff write -");
+    }
+  });
+
+  it("stops before selecting a handoff path without an identity and gives the retry command", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const file = base === packageArc ? "session-handoff.template.md" : "session-handoff.md";
+      const handoff = await readFile(resolve(base, "system/workflows/arc/session-lifecycle", file), "utf8");
+      expect(handoff.match(/^- `skipped \(no identity\).*$/mu)?.[0],
+        "A missing identity stops dispatch before handoff confirmation").toBeUndefined();
+      expect(handoff).toMatch(/`identity-missing`[\s\S]*surface[^.]*stop[\s\S]*git config arc\.identity <name>[\s\S]*retry/u);
     }
   });
 
@@ -127,6 +167,17 @@ describe("locus methodology contracts", () => {
     }
   });
 
+  it("sends an externally merged work unit through delivery closeout before teardown", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const file = base === packageArc ? "session-handoff.template.md" : "session-handoff.md";
+      const handoff = await readFile(resolve(base, "system/workflows/arc/session-lifecycle", file), "utf8");
+      const arm = handoff.split("**work-unit candidate**")[1]?.split("**errand candidate")[0] ?? "";
+      const firstAction = arm.match(/arc teardown|arc delivery closeout|merged-PR tail/iu)?.[0];
+      expect(firstAction, "An archived terminal work unit may still have pending closeout").toBe("merged-PR tail");
+      expect(arm).toMatch(/`targetRef\.repository`[\s\S]*`closed-out`[\s\S]*`blocked`[\s\S]*preserve the checkout/u);
+    }
+  });
+
   it("publishes routable inbox counts in the served envelope schema", () => {
     const servedSchema = lookupKernelSchema(createProductionSchemaRegistry(), "session-init-envelope");
     expect(servedSchema.status).toBe("found");
@@ -151,17 +202,35 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("routes housekeep execution ordering through one lock-safe batch command", async () => {
+  it("queues housekeep execution through the whole-queue setter by entry ID", async () => {
     for (const base of [packageArc, projectArc]) {
       const drainInbox = await readFile(
         resolve(base, "system/workflows/arc/supplemental/drain-inbox.md"),
         "utf8",
       );
 
-      expect(drainInbox).toContain("`arc user inbox-mark-execute-bound <file | ->`");
-      expect(drainInbox).toContain('"orderedTitles"');
-      expect(drainInbox).toContain("final file order");
-      expect(drainInbox).not.toContain("add `_Disposition:_ `execute-bound`` by hand");
+      expect(drainInbox).toContain("`arc errand queue --json`");
+      expect(drainInbox).toContain("`arc errand queue set <file | ->`");
+      expect(drainInbox).toContain('"members":[{"inbox":"personal","id":"<queued-id>"}');
+      expect(drainInbox).toMatch(softWrappedProse("keeping its members in order and appending each newly approved"));
+      expect(drainInbox).not.toContain("inbox-mark-execute-bound");
+      expect(drainInbox).not.toContain("orderedTitles");
+    }
+  });
+
+  it("hands spawned starts to the reconciliation path for their work unit", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const workflow = await readFile(
+        resolve(base, "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md"), "utf8",
+      );
+      const freshStart = workflow.match(/^### 2\).*?(?=^### 3\))/msu)?.[0] ?? "";
+      const spawnedHandoff = workflow.match(/^#### Spawned handoff.*?(?=^### 4\))/msu)?.[0] ?? "";
+      const freshReconciliation = workflow.split("**Path B — Fresh WU**")[1]?.split("### 5)")[0] ?? "";
+
+      expect.soft(freshStart).toMatch(/spawned start[^.]*spawned handoff/iu);
+      expect.soft(spawnedHandoff).toMatch(/worktree path[^.]*`arc start`/u);
+      expect.soft(spawnedHandoff).toMatch(/Path B[^.]*fresh[^.]*Path A[^.]*stub[^.]*before[^.]*planning/iu);
+      expect.soft(freshReconciliation).toContain("`arc set-class <Class>`");
     }
   });
 
@@ -177,8 +246,14 @@ describe("locus methodology contracts", () => {
       );
 
       for (const workflow of [runErrand, initWorkUnit]) {
-        expect(workflow).toContain("`settlement.state: commit-required`");
+        expect(workflow).not.toContain("`settlement.state: commit-required`");
         expect(workflow).toContain("`settlement.state: settled`");
+      }
+      const continuation = initWorkUnit.split(/\.\s+/u).find((sentence) =>
+        /\bcontinue\b/iu.test(sentence) && sentence.includes("`applied`"));
+      expect(continuation).toContain("`idempotent`");
+      for (const evidence of ["`subject`", "`generation`", "`checkoutPath`", "`settlement.state: settled`", "retired"]) {
+        expect(continuation).toContain(evidence);
       }
       expect(initWorkUnit).toMatch(softWrappedProse("same exact `subject` and `generation`"));
       expect(initWorkUnit).toContain("immutable `Promotion Receipt`");
@@ -187,35 +262,54 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("defines locus authority from checkout topology, markers, lifecycle, and identity", async () => {
+  it("defines locus authority from the marker and the store", async () => {
     for (const base of [packageArc, projectArc]) {
       const briefing = await readFile(
         resolve(base, "reference/briefs/AGENT-BRIEF.ARC.md"),
         "utf8",
       );
 
-      expect(briefing).toMatch(softWrappedProse("One registered checkout plus the ARC role derived from its marker"));
-      expect(briefing).toMatch(/tracked lifecycle, transient\s+identity, and Git topology/u);
+      expect(briefing).toMatch(softWrappedProse("One registered checkout plus the ARC role derived from its marker and the store"));
+      expect(briefing).toMatch(softWrappedProse("through exact teardown or release"));
+      expect(briefing).not.toMatch(/tracked lifecycle, transient\s+identity, and Git topology/u);
       expect(briefing).toMatch(softWrappedProse("The physical primary is the launchpad only while its marker is absent"));
       expect(briefing).not.toMatch(/locus record|record-free|optional, verb-scoped lease|normally unleased/u);
     }
   });
 
-  it("contains no retired locus mutation or liveness instructions", async () => {
+  it("rejects guidance to release a full Errand checkout", () => {
+    const errandGuidance = "## Leave the Errand\n\nFrom the full Errand checkout, run `arc locus release`.\n";
+    expect(() => assertLifecycleSpecificExits(errandGuidance)).toThrow("Use lifecycle-specific exits");
+  });
+
+  it.each([
+    { guidance: "published session init", example: "" },
+    {
+      guidance: "session init documenting a stale checkout held by another identity",
+      example: "\nFor a work unit owned by another identity, the sweep can report `arc locus release` in the marked checkout.\n",
+    },
+  ])("contains no retired locus mutation or liveness instructions ($guidance)", async ({ example }) => {
     for (const base of [packageArc, projectArc]) {
+      const sessionInit = await readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"), "utf8");
       const surfaces = await Promise.all([
         readFile(resolve(base, "system/workflows/arc/supplemental/run-errand.md"), "utf8"),
-        readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-concurrent-work.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-work-organization.md"), "utf8"),
-        readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"), "utf8"),
       ]);
+      const resume = await readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8");
 
       for (const surface of surfaces) {
+        assertLifecycleSpecificExits(surface);
+      }
+      for (const surface of [...surfaces, sessionInit + example]) {
         expect(surface).not.toMatch(
-          /arc locus (?:attach|release|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,
+          /arc locus (?:attach|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,
         );
       }
+      expect(resume).toMatch(softWrappedProse("exact teardown, or a release (`arc locus release`), removes its marker"));
+      expect(resume).not.toMatch(
+        /arc locus (?:attach|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,
+      );
     }
   });
 });

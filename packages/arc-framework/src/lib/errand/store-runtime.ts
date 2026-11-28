@@ -55,7 +55,8 @@ export async function transitionStoreErrand(options: ErrandStoreOptions, request
   if (request.kind === "retire" && basis.saved?.placement?.kind === "completed") return { kind: "idempotent", value: null, tip: null };
   const owned = request.kind === "create" ? { ...request, record: { ...request.record, owner: SlugSchema.parse(options.identity) } } : request;
   const transitionOptions = request.kind === "resume" ? { ...options, companionWrites: [] } : options;
-  return applyTransform(transitionOptions, slug, basis, ordinaryErrandTransform(owned), request.kind === "retire" ? request.previous : undefined);
+  return applyTransform(transitionOptions, slug, basis, ordinaryErrandTransform(owned), request.kind === "retire" ? request.previous : undefined,
+    request.kind === "create" ? request.ownerUid : undefined);
 }
 /** Restore an exact prior generation after provisioning fails, with the same version-bound admission.
  * @param options - Selected operational store.
@@ -100,13 +101,13 @@ function decodeBasis(saved: StoreRecord, slug: string, identity: string, complet
   return { kind: "ready", saved, record };
 }
 async function applyTransform(options: ErrandStoreOptions, slug: string, basis: Extract<Basis, { kind: "ready" }>,
-  transform: OrdinaryErrandTransform, retirement?: OrdinaryErrandRecord): Promise<IdentityTransactionOutcome<OrdinaryErrandRecord | null>> {
+  transform: OrdinaryErrandTransform, retirement?: OrdinaryErrandRecord, ownerUid?: string): Promise<IdentityTransactionOutcome<OrdinaryErrandRecord | null>> {
   const records = new Map<string, TransientIdentityRecord>(basis.record === null ? [] : [[slug, basis.record]]);
   const decision = transform(records);
   if (decision.kind !== "applied") return decision.kind === "idempotent" ? { ...decision, tip: null } : decision;
   const computed = decision.records.get(slug);
   if (computed === undefined && retirement === undefined) return { kind: "refused", reason: "Errand removal requires an exact retirement generation." };
-  const prepared = await prepareMutation(options, slug, basis.saved, computed, retirement);
+  const prepared = await prepareMutation(options, slug, basis.saved, computed, retirement, ownerUid);
   if (prepared.kind === "refused") return prepared;
   const { mutation, content, links, placement, reference } = prepared;
   const companions = options.companionWrites ?? [];
@@ -139,15 +140,22 @@ function formatRefusal(refusal: { code: string; condition: string; remedy: { tex
   return `${refusal.code}: ${refusal.condition} ${refusal.remedy.text}`;
 }
 
+/** Read the owner generation already named by a planned Errand description write. */
+export function plannedErrandOwnerUid(slug: string, writes: readonly Mutation[] | undefined): string | undefined {
+  const owner = writes?.find(write => write.action === "put" && write.reference.kind === "work-item/description"
+    && write.reference.owner.type === "work-item" && write.reference.owner.name === slug)?.reference.owner;
+  return owner?.type === "work-item" ? owner.uid : undefined;
+}
+
 async function prepareMutation(options: ErrandStoreOptions, slug: string, saved: StoreRecord | null,
-  computed: TransientIdentityRecord | undefined, retirement: OrdinaryErrandRecord | undefined) {
+  computed: TransientIdentityRecord | undefined, retirement: OrdinaryErrandRecord | undefined, ownerUid: string | undefined) {
   const now = options.now?.() ?? new Date().toISOString();
   if (computed === undefined && retirement === undefined) return { kind: "refused" as const, reason: "Errand removal requires an exact retirement generation." };
   const value = computed ?? { ...retirement, updatedAt: now } as OrdinaryErrandRecord;
   const content = serializeTransientIdentityRecord(value);
-  const plannedOwner = options.companionWrites?.find(write => write.action === "put" && write.reference.kind === "work-item/description"
-    && write.reference.owner.type === "work-item" && write.reference.owner.name === slug)?.reference.owner;
-  const reference = saved?.reference ?? recordReferences["work-item/record"](plannedOwner ?? OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+  const reference = saved?.reference ?? recordReferences["work-item/record"](OwnerIdentitySchema.parse({
+    type: "work-item", name: slug, uid: ownerUid ?? plannedErrandOwnerUid(slug, options.companionWrites),
+  }));
   let links = saved?.links;
   if (saved === null) {
     const project = await resolveProjectIdentity(options.projectId ?? createProjectIdentityReader(options.store));

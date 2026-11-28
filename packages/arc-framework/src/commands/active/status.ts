@@ -16,6 +16,8 @@
 import type { createActiveReviewAccess } from "../../lib/store/active-review-access.js";
 import type { OwnerIdentity } from "../../lib/store/identity.js";
 import type { CandidateManagedRecordV1 } from "../../lib/store/kinds/review/candidate/schema.js";
+import type { ReviewIntegrationBoundary } from "../../lib/store/kinds/review/integration-boundary/schema.js";
+import { isOffBranchStoreRefusal } from "../../lib/store/refusal-error.js";
 import { stat } from "node:fs/promises";
 import { join, posix } from "node:path";
 
@@ -25,7 +27,7 @@ import { checkCurrentWorkflowConsistency } from "../../lib/active/current-workfl
 import { getCurrentBranch } from "../../lib/git/exec.js";
 import { createRawGitExec, gitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
-import type { WorkUnitPlacement } from "../../lib/layout/index.js";
+import { identifyWorkUnitArtifactPath, type WorkUnitPlacement } from "../../lib/layout/index.js";
 import type {
   ActiveCandidateSemantics,
   ActiveLayout,
@@ -61,6 +63,8 @@ const TASK_LIST_PLANNING_VALUES = new Set(["[none]", "[none associated]"]);
  * etc.) — specificity replaces an enumerated category list.
  */
 const PLANNING_BRANCH_PATTERN = /^plan\/.+$/;
+
+type StatusBoundaryAccess = { store: ReturnType<typeof createActiveReviewAccess>["store"]; owner?: OwnerIdentity };
 
 /**
  * Infer session type from a resolved candidate's status fields.
@@ -190,6 +194,7 @@ export async function runActiveSessionInitStatusInternal(
     ?? (async (input) => (await import(
       "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"
     )).readPendingCandidateReviewFixAuthority({ ...input, exec: options.exec }));
+  const candidateAuthorityUnavailable = new Set<string>();
   const projected = await Promise.all(scan.candidates.map((candidate) =>
     projectCandidateIntegrationBoundary(
       options.cwd,
@@ -197,14 +202,16 @@ export async function runActiveSessionInitStatusInternal(
       scan.warnings,
       projectCandidateTarget,
       readPendingCandidateFix,
-      { access, owner: scan.owners?.get(candidate.path) },
+      { access, owner: scan.owners?.get(candidate.path), unavailable: candidateAuthorityUnavailable },
     )));
   const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
-  const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
+  const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch,
+    candidateAuthorityUnavailable);
   const resolved = result.resolution === "single"
     ? semantic.candidates.find((entry) => entry.candidate.path === result.path) ?? null
     : null;
-  return { result, resolved, candidates: result.resolution === "multiple" ? semantic.candidates : [] };
+  return { result, resolved, candidates: result.resolution === "multiple" ? semantic.candidates : [],
+    candidateAuthorityUnavailable };
 }
 
 /**
@@ -230,6 +237,7 @@ export async function projectActiveSessionInitCandidate(options: {
     [candidate],
     [...options.state.result.warnings],
     candidate.branch,
+    options.state.candidateAuthorityUnavailable,
   );
 }
 
@@ -290,6 +298,7 @@ interface ResolutionFields {
 function classifyResolution(
   input: MetaFileCandidate[],
   currentBranch: string | null,
+  candidateAuthorityUnavailable: ReadonlySet<string>,
 ): ResolutionFields {
   const [only] = input;
   if (only === undefined) {
@@ -308,8 +317,9 @@ function classifyResolution(
     }).length > 0) {
       return { resolution: "single", path: only.path, candidates: [], sessionType: null };
     }
-    if (only.state === "Integrating"
-      && (only.integrationBoundary === null || only.integrationBoundary === undefined)) {
+    // A session that needs its Candidate stays unresolved while the Candidate cannot be read.
+    if (candidateAuthorityUnavailable.has(only.path) || (only.state === "Integrating"
+      && (only.integrationBoundary === null || only.integrationBoundary === undefined))) {
       return { resolution: "single", path: only.path, candidates: [], sessionType: null };
     }
     if (only.state === "Active"
@@ -337,8 +347,9 @@ async function resolveSessionInit(
   candidates: MetaFileCandidate[],
   warnings: string[],
   currentBranch: string | null,
+  candidateAuthorityUnavailable: ReadonlySet<string> = new Set(),
 ): Promise<ActiveSessionInitResult> {
-  const fields = classifyResolution(candidates, currentBranch);
+  const fields = classifyResolution(candidates, currentBranch, candidateAuthorityUnavailable);
   const result: ActiveSessionInitResult = {
     mode: "session-init",
     layout,
@@ -352,7 +363,7 @@ async function resolveSessionInit(
   if (fields.resolution === "single") {
     const only = candidates[0];
     if (only !== undefined) {
-      const taskListPath = resolveTaskListPath(only.path, only.taskList);
+      const taskListPath = await resolveSessionTaskListPath(only);
       result.taskListPath = taskListPath;
       const companions = await deriveCompanions(cwd, taskListPath);
       if (companions !== undefined) result.companions = companions;
@@ -371,13 +382,19 @@ async function projectCandidateIntegrationBoundary(
   warnings: string[],
   projectCandidateTarget: CandidateTargetProjector,
   readPendingCandidateFix: CandidateReviewFixAuthorityReader,
-  authority: { access: ReturnType<typeof createActiveReviewAccess>; owner?: OwnerIdentity },
+  authority: { access: ReturnType<typeof createActiveReviewAccess>; owner?: OwnerIdentity; unavailable?: Set<string> },
 ): Promise<MetaFileCandidate> {
-  let selected;
-  try { selected = await authority.access.readSubject(candidate, authority.owner); }
-  catch (error) {
+  const selected = await authority.access.readSubject(candidate, authority.owner).catch((error: unknown) => {
     warnings.push(`Candidate authority for ${candidate.filename} is unavailable: ${error instanceof Error ? error.message : String(error)}`);
-    return { ...candidate, integrationBoundary: null };
+    if (requiresCandidateAuthority(candidate)) authority.unavailable?.add(candidate.path);
+    return null;
+  });
+  if (selected === null) {
+    const withheld = authority.access.store.capabilities.stateOffBranch ? {
+      candidateId: null,
+      branch: candidate.state === "Integrating" ? null : candidate.branch,
+    } : {};
+    return { ...candidate, ...withheld, integrationBoundary: null };
   }
   candidate = selected.candidate;
   if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
@@ -385,20 +402,7 @@ async function projectCandidateIntegrationBoundary(
     && normalizeNullablePointer(candidate.currentWorkflow) !== "prepare-work-unit") {
     return { ...candidate, integrationBoundary: null };
   }
-  const [
-    { readSubmissionBoundary },
-    { readCandidateRecord },
-    {
-      projectCandidateFixResumeBoundary,
-      projectCandidateReviewBoundary,
-      recoverPrePublicationBoundary,
-      recoverIntegratingBoundary,
-    },
-  ] = await Promise.all([
-    import("../../lib/store/kinds/review/integration-boundary/access.js"),
-    import("../../lib/store/kinds/review/candidate/access.js"),
-    import("../../scripts/review-gate/policy/integration-boundary-locus.js"),
-  ]);
+  const { readCandidateRecord } = await import("../../lib/store/kinds/review/candidate/access.js");
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
   const slug = match?.[1];
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
@@ -414,10 +418,39 @@ async function projectCandidateIntegrationBoundary(
     input => readPendingCandidateFix({ ...input, store: authority.access.store,
       projectId: authority.access.projectId, workItem: selected.owner }));
   if (target === null) return { ...candidate, integrationBoundary: null };
+  if (!requiresCandidateAuthority(candidate)) return candidate;
+  return projectStatusBoundary(cwd, slug, { ...candidate, candidateId: candidate.candidateId }, target, accessOptions, warnings);
+}
+
+async function projectStatusBoundary(
+  cwd: string,
+  slug: string,
+  candidate: MetaFileCandidate & { candidateId: string },
+  target: CandidateBoundaryTarget,
+  access: StatusBoundaryAccess,
+  warnings: string[],
+): Promise<MetaFileCandidate> {
+  const {
+    projectCandidateFixResumeBoundary,
+    projectCandidateReviewBoundary,
+    recoverPrePublicationBoundary,
+    recoverIntegratingBoundary,
+  } = await import("../../scripts/review-gate/policy/integration-boundary-locus.js");
   const { candidateSubjectDigest, requireExactDurableBoundary, pendingCandidateFix } = target;
-  const schemaVersion = authority.access.store.capabilities.stateOffBranch ? 2 : 1;
+  const schemaVersion = access.store.capabilities.stateOffBranch ? 2 : 1;
+  if (pendingCandidateFix) {
+    return {
+      ...candidate,
+      integrationBoundary: projectCandidateFixResumeBoundary({
+        workUnit: slug,
+        candidateId: candidate.candidateId,
+        candidateSubjectDigest,
+      }, schemaVersion),
+    };
+  }
+  const stored = await readStatusBoundary(cwd, slug, candidate.filename, access, warnings);
+  if (stored === undefined) return { ...candidate, integrationBoundary: null };
   if (candidate.state === "Integrating") {
-    const stored = await readSubmissionBoundary(cwd, slug, accessOptions);
     if (candidate.branch === null) return candidate;
     if (requireExactDurableBoundary && stored?.candidateSubjectDigest !== candidateSubjectDigest) {
       warnings.push(
@@ -432,23 +465,8 @@ async function projectCandidateIntegrationBoundary(
       candidateId: candidate.candidateId,
       candidateSubjectDigest,
     });
-    return {
-      ...candidate,
-      integrationBoundary: recovered,
-    };
+    return { ...candidate, integrationBoundary: recovered };
   }
-  if (candidate.state !== "Active") return candidate;
-  if (pendingCandidateFix) {
-    return {
-      ...candidate,
-      integrationBoundary: projectCandidateFixResumeBoundary({
-        workUnit: slug,
-        candidateId: candidate.candidateId,
-        candidateSubjectDigest,
-      }, schemaVersion),
-    };
-  }
-  const stored = await readSubmissionBoundary(cwd, slug, accessOptions);
   const recovered = recoverPrePublicationBoundary({
     stored,
     workUnit: slug,
@@ -465,11 +483,35 @@ async function projectCandidateIntegrationBoundary(
   };
 }
 
+/** An unreadable boundary cannot be recovered as an absent one. */
+async function readStatusBoundary(
+  cwd: string, slug: string, filename: string, access: StatusBoundaryAccess, warnings: string[],
+): Promise<ReviewIntegrationBoundary | null | undefined> {
+  const { readSubmissionBoundary } = await import("../../lib/store/kinds/review/integration-boundary/access.js");
+  try {
+    return await readSubmissionBoundary(cwd, slug, access);
+  } catch (error) {
+    if (!isOffBranchStoreRefusal(error) || error.refusal.class !== "recoverable") throw error;
+    warnings.push(`Integration boundary for ${filename} is unavailable: ${error.message}`);
+    return undefined;
+  }
+}
+
+/** Integrating work, and Active work in Candidate preparation, need the Candidate record to resolve their session. */
+function requiresCandidateAuthority(candidate: MetaFileCandidate): boolean {
+  return candidate.state === "Integrating"
+    || (candidate.state === "Active" && normalizeNullablePointer(candidate.currentWorkflow) === "prepare-work-unit");
+}
+
+interface CandidateBoundaryTarget {
+  candidateSubjectDigest: string;
+  requireExactDurableBoundary: boolean;
+  pendingCandidateFix: boolean;
+}
+
 async function selectCandidateBoundaryTarget(cwd: string, slug: string, candidate: MetaFileCandidate,
   record: CandidateManagedRecordV1, warnings: string[], projectCandidateTarget: CandidateTargetProjector,
-  readPendingCandidateFix: CandidateReviewFixAuthorityReader): Promise<{
-    candidateSubjectDigest: string; requireExactDurableBoundary: boolean; pendingCandidateFix: boolean;
-  } | null> {
+  readPendingCandidateFix: CandidateReviewFixAuthorityReader): Promise<CandidateBoundaryTarget | null> {
   const { reduceCandidateDurableBaseline } = await import("../../lib/work-unit/candidate-attestation.js");
   let candidateSubjectDigest: string;
   let requireExactDurableBoundary = false;
@@ -565,6 +607,20 @@ export function resolveTaskListPath(
     return null;
   }
   return normalized;
+}
+
+async function resolveSessionTaskListPath(candidate: MetaFileCandidate): Promise<string | null> {
+  const path = resolveTaskListPath(candidate.path, candidate.taskList);
+  const taskList = path === null ? null : identifyWorkUnitArtifactPath(path);
+  if (taskList?.artifact !== "tasks" || taskList.placement.kind !== "active"
+    || taskList.placement.scope.kind !== "project" || taskList.placement.scope.location !== undefined) return path;
+
+  const { slug } = taskList;
+  const placement: WorkUnitPlacement = { kind: "active", scope: { kind: "project",
+    location: { kind: "own", claim: slug, layoutActive: "nested" } } };
+  const { workItemArtifactPathAt } = await import("../../lib/store/lifecycle-storage.js");
+  return candidate.path === workItemArtifactPathAt(slug, "meta", placement)
+    ? workItemArtifactPathAt(slug, "tasks", placement) : path;
 }
 
 function resolveMetaRelativeTaskListPath(

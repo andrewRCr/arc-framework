@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
+import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 
 import { renderMetaFile } from "../../../../src/lib/active/meta-reader.js";
 import { composeProjectReadinessView } from "../../../../src/lib/status/project-view.js";
@@ -1374,14 +1379,127 @@ describe("delivery-member evaluation without work-unit lifecycle readiness", () 
   });
 });
 
-it.each(["errand", "delivery-member"] as const)("keeps %s readiness independent of the native lifecycle store", async kind => {
+it("keeps delivery-member readiness independent of the native lifecycle store", async () => {
   const h = createReviewHarness();
   h.store.read = async () => { throw new Error("Unexpected lifecycle read"); };
   h.store.list = async () => { throw new Error("Unexpected lifecycle listing"); };
-  const request = kind === "errand"
-    ? readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" })
-    : readinessRequest(memberVehicle());
-  expect((await evaluateReviewReadiness(request, {
+  expect((await evaluateReviewReadiness(readinessRequest(memberVehicle()), {
     fs: buildFs({}), store: h.store, deliveryMemberLookup: memberLookup(resolvedMember()),
   })).state).toBe("ready");
+});
+
+async function nativeErrandFixture() {
+  const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099", branch = "fix/demo-0a1b2c3d";
+  await h.seedProject(projectId);
+  const record = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "demo",
+    claimId: "1".repeat(32), owner: "test-user", intent: "Fix the demo", origin: "description", originEntry: null, branch, state: "open",
+    savedHead: null, changeRequest: null, createdAt: "2026-11-13T12:00:00Z", updatedAt: "2026-11-13T12:00:00Z" });
+  if (record.kind !== "errand" || record.purpose !== "errand") throw new Error("Expected ordinary Errand");
+  const primary = await h.seedErrand(record, { branches: [{ repository: projectId, ref: branch, linkedAs: "created", excluded: [] }] });
+  const check = (headBranch = branch) => evaluateReviewReadiness(readinessRequest({ kind: "errand", slug: record.slug }, { headBranch }), {
+    fs: buildFs({}), store: h.store,
+  });
+  return { store: h.store, primary, check, record, branch, projectId };
+}
+
+it("reads a native Errand's own record and no lifecycle record", async () => {
+  const h = await nativeErrandFixture();
+  const read = h.store.read.bind(h.store), list = h.store.list.bind(h.store);
+  h.store.read = async input => {
+    if (input.reference.kind !== "work-item/record") throw new Error("Unexpected lifecycle read");
+    return read(input);
+  };
+  h.store.list = async input => {
+    if (input.kind !== "project-registry/identity") throw new Error("Unexpected lifecycle listing");
+    return list(input);
+  };
+  expect((await h.check()).state).toBe("ready");
+});
+
+it("refuses a completed Errand even when its retained branch matches", async () => {
+  const { store, primary, check } = await nativeErrandFixture();
+  lifecycleSuccess(await store.write({ ...recordPut(primary, { links: primary.links,
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+    provenance: { verb: "errand", lifecycleAction: "retire" } }));
+  expect((await check()).state).toBe("invalid");
+});
+
+it("prefers the live Errand when a completed Errand retains the full branch ref", async () => {
+  const { store, record, branch, projectId, check } = await nativeErrandFixture();
+  const slug = SlugSchema.parse("previous");
+  lifecycleSuccess(await store.write({
+    action: "put", expected: null,
+    reference: recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug })),
+    content: serializeTransientIdentityRecord({ ...record, slug, branch: "fix/previous-abcdef02", claimId: "2".repeat(32) }),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    links: { branches: [{ repository: projectId, ref: `refs/heads/${branch}`, linkedAs: "created", excluded: [] }] },
+    provenance: { verb: "seed", lifecycleAction: "create" },
+  }));
+  expect(await check()).toMatchObject({ state: "ready", diagnostics: [] });
+});
+
+it("refuses the promoted work unit's branch when an Errand lookup precedes promotion", async () => {
+  const { store, primary, check } = await nativeErrandFixture();
+  const lookup = store.lookup.bind(store);
+  vi.spyOn(store, "lookup").mockImplementationOnce(async input => {
+    const found = await lookup(input);
+    lifecycleSuccess(await store.write({ action: "put", reference: recordReferences["work-item/meta"](primary.reference.owner),
+      expected: primary.version, content: renderMetaFile("demo", { state: "Active", owner: "test-user", currentWorkflow: "process-task-loop" }),
+      placement: { kind: "active" }, links: primary.links,
+      provenance: { verb: "errand-promote", lifecycleAction: "promote" } }));
+    return found;
+  });
+  const read = vi.spyOn(store, "read");
+  expect(await check()).toMatchObject({ state: "invalid", diagnostics: [expect.objectContaining({
+    code: "malformed-artifact", message: expect.stringContaining("work-item/meta"),
+  })] });
+  expect(read).toHaveBeenCalledWith({ reference: primary.reference });
+});
+
+it("refuses a matching branch when the active record lacks an ordinary Errand identity", async () => {
+  const { store, primary, check } = await nativeErrandFixture();
+  lifecycleSuccess(await store.write({ ...recordPut(primary, { content: '{"version":3}', links: primary.links }),
+    provenance: { verb: "seed-lifecycle", lifecycleAction: "update" } }));
+  expect(await check()).toMatchObject({ state: "invalid", diagnostics: [expect.objectContaining({
+    code: "malformed-artifact", message: expect.stringContaining("Restore its valid identity"),
+  })] });
+  const malformed = lifecycleSuccess(await store.read({ reference: primary.reference }));
+  lifecycleSuccess(await store.write({ ...recordPut(malformed, { content: primary.content, links: primary.links }),
+    provenance: { verb: "restore", lifecycleAction: "update" } }));
+  expect((await check()).state).toBe("ready");
+});
+
+it("refuses a matching active Errand with no owner and admits it after repair", async () => {
+  const { store, primary, record, check } = await nativeErrandFixture();
+  lifecycleSuccess(await store.write({ ...recordPut(primary, { content: JSON.stringify({ ...record, owner: undefined }) }),
+    provenance: { verb: "seed-lifecycle", lifecycleAction: "update" } }));
+  const refused = await check();
+  const ownerless = lifecycleSuccess(await store.read({ reference: primary.reference }));
+  lifecycleSuccess(await store.write({ ...recordPut(ownerless, { content: primary.content }),
+    provenance: { verb: "restore", lifecycleAction: "update" } }));
+  expect((await check()).state).toBe("ready");
+  expect(refused).toMatchObject({ state: "invalid", diagnostics: [expect.objectContaining({
+    code: "malformed-artifact", message: expect.stringMatching(/owner.*restor|owner.*repair/iu),
+  })] });
+});
+
+it("rejects a matching Errand branch when the primary has an open conflict", async () => {
+  const { store, primary, check } = await nativeErrandFixture();
+  const { reference, content, version, formatVersion, placement, links } = primary;
+  const conflict = recordReferences["work-item/conflict-record"](reference.owner, "subject-conflict");
+  const time = "2026-11-13T12:00:00Z";
+  lifecycleSuccess(await store.write({ action: "put", reference: conflict, expected: null,
+    content: JSON.stringify({ record: reference, location: { kind: "record" }, base: null,
+      current: { value: { reference, content, version, formatVersion, placement, links }, label: { actor: "alice", time } },
+      incoming: { value: null, label: { actor: "bob", time } } }), provenance: { verb: "merge", lifecycleAction: "capture" } }));
+  expect(await store.read({ reference })).toMatchObject({ status: "ok", result: { conflicts: [conflict] } });
+  const result = await check();
+  expect(result.state).toBe("invalid");
+  expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "errand-record-conflict", path: "work-item/record:demo",
+    message: expect.stringContaining(JSON.stringify(conflict)) }));
+  expect(result.diagnostics[0]?.message).toContain("Resolve the named conflict records");
+  const conflicted = lifecycleSuccess(await store.read({ reference }));
+  lifecycleSuccess(await store.write({ ...recordPut(conflicted, { links }), resolves: [conflict],
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect((await check()).state).toBe("ready");
 });

@@ -149,6 +149,7 @@ describe("integration merge handler", () => {
             headSha: oid("a"),
           },
           providerMergeId: oid("d"),
+          landingLink: { state: "not-applicable" },
         },
       }),
       write,
@@ -158,7 +159,7 @@ describe("integration merge handler", () => {
       mode: "integrate-merge",
       workUnit: SlugSchema.parse("example"),
       state: "merged",
-      payload: { approvedHead: oid("a"), pullRequest: 42, providerMergeId: oid("d") },
+      payload: { approvedHead: oid("a"), pullRequest: 42, providerMergeId: oid("d"), landingLink: { state: "not-applicable" } },
     });
   });
 

@@ -13,6 +13,8 @@ import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach, onTestFinished } from "vitest";
 import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { expectPersonalFileSet, expectStoredPersonalFileSet } from "./personal-file-set.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { LocalSyncStateSchema } from "../../src/lib/user-sync/sync-state.js";
@@ -53,14 +55,19 @@ describe("user add", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("creates user directory with the per-user file set", async () => {
-    const result = await runArc(["user", "add", "alice"], tmpDir);
-
-    expect(result.exitCode).toBe(0);
-    const userDir = join(tmpDir, ".arc", "user", "alice");
-    expect(await pathExists(userDir)).toBe(true);
-    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
-    expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
+  it("reports setup without claiming a directory for another identity on first and repeated adds", async () => {
+    for (const attempt of ["first", "repeat"]) {
+      const result = await runArcNoTty(["--no-input", "user", "add", "alice"], tmpDir);
+      const output = result.stdout + result.stderr;
+      expect(result.exitCode, output).toBe(0);
+      expect(await git(["config", "--get", "arc.identity"], tmpDir)).toBe("test-user");
+      expect(await pathExists(join(tmpDir, ".arc", "user", "alice"))).toBe(false);
+      if (attempt === "repeat") expect(output).toContain("already has personal records");
+      else await expectStoredPersonalFileSet(tmpDir, "alice");
+      expect.soft(output, `${attempt} add`).not.toMatch(/creating user directory|user directory created/i);
+      expect.soft(output, `${attempt} add`).toMatch(/(?:personal records|inbox and working memory).*alice/i);
+    }
+    await expectPersonalFileSet(tmpDir, "alice");
   });
 
   it("seeds the same per-user file set under arc-in-git PM mode (no user/ATOMIC-INBOX)", async () => {
@@ -77,11 +84,9 @@ describe("user add", () => {
       const result = await runArc(["user", "add", "bob"], tmpDir2);
 
       expect(result.exitCode).toBe(0);
-      const userDir = join(tmpDir2, ".arc", "user", "bob");
-      expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
-      expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
+      await expectPersonalFileSet(tmpDir2, "bob");
       // Legacy user/ATOMIC-INBOX seed path retired in WOR.
-      expect(await pathExists(join(userDir, "ATOMIC-INBOX.md"))).toBe(false);
+      expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "ATOMIC-INBOX.md"))).toBe(false);
     } finally {
       await cleanupTempDir(tmpDir2);
     }
@@ -89,6 +94,9 @@ describe("user add", () => {
 });
 
 describe("user save/load", () => {
+  // Saving and loading the identity's files through user notes, and the in-repo arm's refusal once the store is
+  // imported, are the in-repo store's: the store retires user notes and refuses their writers.
+  useInRepoStoreForEach();
   let tmpDir: string;
 
   beforeEach(async () => {
@@ -197,6 +205,9 @@ describe("user status from a subdirectory", () => {
 });
 
 describe("sync orchestrator", () => {
+  // Saving the identity's files as a user note on `arc sync` is the in-repo store's: the store retires user notes and
+  // publishes its records itself.
+  useInRepoStoreForEach();
   let tmpDir: string;
   let bareDir: string;
   const tempDirs: string[] = [];
@@ -232,6 +243,8 @@ describe("sync orchestrator", () => {
 });
 
 describe("user push/pull portability", () => {
+  // Carrying the identity's files between clones as user notes is the in-repo store's, which alone keeps user notes.
+  useInRepoStoreForEach();
   let tmpDir: string;
   let bareDir: string;
   let cloneDir: string;
@@ -289,6 +302,9 @@ describe("user push/pull portability", () => {
 });
 
 describe("user open / close lifecycle", () => {
+  // The per-work-unit workspace is the in-repo store's: the store refuses `arc user open` and holds a work unit's
+  // session context in its meta.
+  useInRepoStoreForEach();
   let tmpDir: string;
   const directories: string[] = [];
 

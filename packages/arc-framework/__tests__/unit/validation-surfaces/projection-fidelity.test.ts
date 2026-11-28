@@ -141,6 +141,32 @@ describe("validation-surface projection fidelity", () => {
     ]);
   });
 
+  const notes = "push:success";
+  const state = "pull:success | push:success";
+  it.each([
+    { label: "notes alone", cell: "notes-only", legs: { notes }, accepted: true },
+    { label: "state alone", cell: "state-only", legs: { state }, accepted: true },
+    { label: "neither leg", cell: "state-only", legs: {}, accepted: false },
+    { label: "both legs", cell: "state-only", legs: { notes, state }, accepted: false },
+  ])("requires exactly one sync audit leg ($label)", ({ cell, legs, accepted }) => {
+    const entry = {
+      ...auditBase,
+      command: "sync",
+      interlockState: {
+        command: "sync",
+        pushInterlock: { value: "manual", source: "git-config" },
+        notesPush: { value: "on-sync", source: "yaml" },
+        syncInterlock: { value: "on-workflow", source: "default" },
+      },
+      decision: "proceeded",
+      refusalCode: null,
+      outcome: { kind: "sync", cell, worktree: "skip:skipped:not-configured", ...legs, exitCode: 0 },
+    };
+    const projected = validators.get(VALIDATION_SURFACE_SCHEMA_IDS.auditEntry);
+    expect({ runtime: AuditEntrySchema.safeParse(entry).success, projected: projected?.(entry) })
+      .toEqual({ runtime: accepted, projected: accepted });
+  });
+
   it("matches semantic meta-record runtime acceptance", () => {
     assertAcceptanceParity(VALIDATION_SURFACE_SCHEMA_IDS.metaRecord, MetaRecordSchema, [
       { label: "complete record", value: metaRecord, accepted: true },

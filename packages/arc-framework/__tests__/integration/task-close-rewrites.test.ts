@@ -1,6 +1,6 @@
 /** Real Git rewrites drive the task verb over the checked reference store. */
 import { SlugSchema } from "../../src/lib/kernel/index.js";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createTempRepo, cleanupTempDir, execFileAsync } from "../helpers/integration.js";
@@ -51,6 +51,48 @@ it("default close after an explicit earlier close captures only the rest", async
   expect(await runTaskClose(ctx, { ids: ["1.1.b"] })).toMatchObject({ status: "closed", captured: [later] });
   expect((await links()).taskCaptures?.["1.1.a"]?.map((item) => item.sha)).toEqual([earlier]);
   expect((await links()).taskCaptures?.["1.1.b"]?.map((item) => item.sha)).toEqual([later]);
+});
+it("keeps a split's first commit available across another task's state-only close", async () => {
+  const workflow = await readFile(new URL("../../arc/system/workflows/arc/process-task-loop.template.md", import.meta.url), "utf8");
+  const afterApproval = workflow.slice(workflow.indexOf("**MANDATORY STOP**"));
+  const command = /no tracked file changes[^`.]*`(arc task close\b[^`]*)`/iu.exec(afterApproval)?.[1];
+  if (command === undefined) throw new Error("Missing close command for a state-only increment");
+  const args = command.replace(/<ids?>/u, "1.1.b").split(/\s+/u).slice(3);
+  const params = { ids: args.filter(arg => !arg.startsWith("--")), stateOnly: args.includes("--state-only") };
+
+  const first = await commit("Start the split\n");
+  expect(await git(["status", "--porcelain", "--untracked-files=no"])).toBe("");
+  const beforeLinks = await links();
+  expect(await runTaskClose(ctx, params)).toMatchObject({ status: "closed", ids: ["1.1.b"], captured: [] });
+  const taskRef = recordReferences["work-item/task-list"]((await meta()).owner);
+  const afterClose = lifecycleSuccess(await records.store.read({ reference: taskRef })).content;
+  expect(afterClose).toContain("`[ ]` **1.1.a Earlier**");
+  expect(afterClose).toContain("`[x]` **1.1.b Later**");
+  expect(await links()).toEqual(beforeLinks);
+
+  const last = await commit("Finish the split\n");
+  expect(await runTaskClose(ctx, { ids: ["1.1.a"] })).toMatchObject({ status: "closed", captured: expect.arrayContaining([first, last]) });
+  expect((await links()).taskCaptures?.["1.1.a"]?.map(({ sha }) => sha).sort()).toEqual([first, last].sort());
+});
+it("offers a SHA-selecting close when the commit plan interleaves two tasks", async () => {
+  const workflow = await readFile(new URL("../../arc/system/workflows/arc/supplemental/prepare-commits.md", import.meta.url), "utf8");
+  const execution = workflow.slice(workflow.indexOf("### 6. Execute and Verify"));
+  const selectsCommits = /`arc task close <ids?> --commit <sha>`/u.test(execution);
+
+  const firstA = await commit("A starts\n");
+  const workB = await commit("B finishes its code\n");
+  if (!selectsCommits) expect((await runTaskClose(ctx, { ids: ["1.1.b"] })).status).toBe("closed");
+  const lastA = await commit("A finishes\n");
+  const shared = await commit("Shared documentation\n");
+  if (selectsCommits) {
+    expect((await runTaskClose(ctx, { ids: ["1.1.b"], commits: [workB, shared] })).status).toBe("closed");
+  }
+  expect((await runTaskClose(ctx, { ids: ["1.1.a"], commits: selectsCommits ? [firstA, lastA, shared] : [] })).status)
+    .toBe("closed");
+
+  const captures = (await links()).taskCaptures;
+  expect(captures?.["1.1.b"]?.map(({ sha }) => sha)).toEqual([workB, shared]);
+  expect(captures?.["1.1.a"]?.map(({ sha }) => sha)).toEqual([firstA, lastA, shared]);
 });
 it.each(["created", "adopted", "reattached"])("unchanged hand rebase on a %s branch captures only new work", async (arm) => {
   const earlier = await commit("earlier\n"); const prior = await capture(earlier);

@@ -1,12 +1,12 @@
 /** Already-landed native integration repairs durable traceability through the ordinary handler. */
-import { chmod, mkdir, writeFile } from "node:fs/promises";
-import { delimiter, join } from "node:path";
-import { expect, it, onTestFinished } from "vitest";
+import { chmod, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { basename, delimiter, join } from "node:path";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { handleIntegrationMerge } from "../../src/handlers/integration.js";
 import { IntegrationMergeResultSchema } from "../../src/scripts/integration/merge.js";
-import { persistIntegrationCheckpointComposition } from "../../src/scripts/integration/checkpoint-store.js";
+import { integrationCheckpointLocation, persistIntegrationCheckpointComposition,
+  type IntegrationCheckpointCompositionInput } from "../../src/scripts/integration/checkpoint-store.js";
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
-import { createUserSurfaceResolver } from "../../src/lib/user-surfaces.js";
 import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -15,8 +15,23 @@ import type { Store } from "../../src/lib/store/index.js";
 import { RecordReferenceSchema, sameOwner } from "../../src/lib/store/identity.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { lackingEndedHistory } from "../helpers/store/ended-history.js";
+import { makeTempRoot, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { selectStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
-async function landed(archived = false, binding = true) {
+/** Place a record that carries no work-item binding in that work item's folder, as no checkpoint writes one. */
+async function placeUnbound(cwd: string, uid: string, composition: IntegrationCheckpointCompositionInput): Promise<string> {
+  const root = join(cwd, "unbound-checkpoint"), handle = await persistIntegrationCheckpointComposition(
+    { kind: "workspace", root, workUnit: composition.workUnit }, composition);
+  const file = `${handle.slice(handle.lastIndexOf(":") + 1)}.json`;
+  const folder = join(cwd, ".arc", "user", "test-user", ".internal", "integration-checkpoints", uid);
+  await mkdir(folder, { recursive: true });
+  await rename(join(root, ".internal", "integration-checkpoints", file), join(folder, basename(file)));
+  return handle;
+}
+
+async function landed(archived = false, binding: boolean | "workspace" = true, checkpointWorktree: "primary" | "linked" = "primary") {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -34,7 +49,9 @@ async function landed(archived = false, binding = true) {
   await git("merge", "--no-ff", branch, "-m", "Land the feature");
   const mergeCommit = await git("rev-parse", "HEAD");
   await git("push", "origin", "main");
-  await git("switch", branch);
+  const checkpointCwd = checkpointWorktree === "linked" ? join(cwd, "linked") : cwd;
+  if (checkpointWorktree === "linked") await git("worktree", "add", checkpointCwd, branch);
+  else await git("switch", branch);
   await git("remote", "set-url", "origin", "git@github.com:owner/repo.git");
   await git("config", `url.${h.origin}.insteadOf`, "git@github.com:owner/repo.git");
   const links = { branches: [{ repository: projectId, ref: branch, linkedAs: "adopted" as const, excluded: [] }],
@@ -44,15 +61,19 @@ async function landed(archived = false, binding = true) {
   archived ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }, links);
   const uid = meta.reference.owner.type === "work-item" ? meta.reference.owner.uid : undefined;
   if (uid === undefined) throw new Error("Expected native work-item UID");
-  const surfaces = createUserSurfaceResolver({ cwd, identity: SlugSchema.parse("test-user") });
-  const checkpoint = await persistIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), {
+  const composition: IntegrationCheckpointCompositionInput = {
     workUnit: "example", approvedHead: head, lifecycleVersion: meta.version,
-    ...(binding ? { nativeOwnership: { projectId, workItemUid: uid } } : {}),
+    ...(binding === true ? { nativeOwnership: { projectId, workItemUid: uid } } : {}),
     target: { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: branch, headSha: head },
     settlementPlan: composeCanonicalSettlementPlan([]), mergeMethod: { schemaVersion: 1, mode: "review-merge-method-resolve",
       repository: "owner/repo", stackPosition: "non-delivery", state: "validated", nextAction: "use-method",
       method: "merge", allowedMethods: ["merge"], policyFingerprint: canonicalDigest({ policy: 1 }) },
-  });
+  };
+  const checkpointStore = binding === "workspace" ? selectStore(createDefaultStorePorts({ checkoutRoot: cwd, exec })) : h.reference.store;
+  const checkpoint = binding !== false ? await persistIntegrationCheckpointComposition(await integrationCheckpointLocation({ cwd: checkpointCwd,
+    identity: SlugSchema.parse("test-user"), workUnit: "example", store: checkpointStore, exec }), composition)
+    : await placeUnbound(cwd, uid, composition);
+  if (checkpointWorktree === "linked") await git("worktree", "remove", "--force", checkpointCwd);
   const bin = join(cwd, "..", "landing-host-bin");
   await mkdir(bin, { recursive: true });
   const host = async (identity: string | null, confirmedHead = head) => {
@@ -69,13 +90,13 @@ async function landed(archived = false, binding = true) {
   const oldPath = process.env.PATH;
   process.env.PATH = `${bin}${delimiter}${oldPath ?? ""}`;
   onTestFinished(() => { if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath; });
-  const run = async (store: Store = h.reference.store, readProjectId = h.reference.projectId, bindOwner = true) => {
+  const run = async (store: Store = checkpointStore, readProjectId = h.reference.projectId, bindOwner = binding !== "workspace", name = "example") => {
     let output = "";
     const exits: number[] = [];
     const originalCwd = process.cwd();
     try {
       process.chdir(cwd);
-      await handleIntegrationMerge("example", { checkpoint }, undefined, { resolveRoot: () => cwd,
+      await handleIntegrationMerge(name, { checkpoint }, undefined, { resolveRoot: () => cwd,
         write: value => { output += value; }, setExitCode: value => exits.push(value) },
       { store, projectId: readProjectId, ...(bindOwner ? { workItem: meta.reference.owner } : {}) });
     } finally { process.chdir(originalCwd); }
@@ -84,6 +105,14 @@ async function landed(archived = false, binding = true) {
   };
   return { h, git, projectId, head, mergeCommit, links, meta, checkpoint, host, run, uid };
 }
+
+it("reports a completed landing without a link writer on exact checkpoint replay", async () => {
+  useInRepoStore();
+  const { head, mergeCommit, host, run } = await landed(true, "workspace");
+  await host(mergeCommit);
+  expect(await run()).toMatchObject({ state: "merged", nextAction: "complete",
+    payload: { approvedHead: head, target: { pullRequest: 42, headSha: head }, landingLink: { state: "not-applicable" } } });
+}, 30_000);
 
 it("retains a landed merge through missing host identity and a failed link write, then saves the host commit on retry", async () => {
   const { h, git, projectId, head, mergeCommit, links, meta, checkpoint, host, run } = await landed();
@@ -106,6 +135,13 @@ it("retains a landed merge through missing host identity and a failed link write
   expect(await git("rev-parse", "HEAD")).toBe(head);
   expect(await git("diff", "--cached", "--name-only")).toBe("");
   expect(await git("rev-parse", "origin/main")).toBe(mergeCommit);
+}, 30_000);
+
+it("repairs a landed merge from primary after removing the linked worktree where it was checkpointed", async () => {
+  const { host, mergeCommit, run } = await landed(false, true, "linked");
+  await host(mergeCommit);
+  expect(await run()).toMatchObject({ workUnit: "example", state: "merged", nextAction: "complete",
+    payload: { providerMergeId: mergeCommit, landingLink: { state: "written" } } });
 }, 30_000);
 
 it("reports why exact confirmation named no merge commit for a landed merge's link, and saves it once confirmed", async () => {
@@ -133,11 +169,49 @@ it("writes the retained completed generation after its slug is reused, including
     { kind: "active" }, links);
   expect(sameOwner(newer.reference.owner, meta.reference.owner)).toBe(false);
   await host(mergeCommit);
-  expect(await run(lackingEndedHistory(h.reference.store, meta.reference.owner), h.reference.projectId, false)).toMatchObject({ state: "merged",
+  expect(await run(lackingEndedHistory(h.reference.store, meta.reference.owner), h.reference.projectId, false)).toMatchObject({
+    workUnit: "example", state: "merged", nextAction: "complete",
     payload: { landingLink: { state: "written" } } });
   expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference })).links).toEqual({ ...links,
     landingCommit: { repository: projectId, sha: mergeCommit } });
   expect(lifecycleSuccess(await h.reference.store.read({ reference: newer.reference }))).toEqual(newer);
+}, 30_000);
+
+it("refuses an unrelated work unit's checkpoint even when its PR has landed", async () => {
+  const { h, projectId, mergeCommit, meta, host, run } = await landed(true);
+  const beta = await h.reference.seedMeta("beta", { state: "Integrating", branch: null, currentWorkflow: "integrate-work-unit" },
+    { kind: "active" }, { changeRequest: { repository: projectId, number: 43 } });
+  await host(mergeCommit);
+  expect(await run(h.reference.store, h.reference.projectId, false, "beta")).toMatchObject({
+    workUnit: "beta", state: "blocked", reason: "operation-failed",
+    detail: expect.stringContaining("generation differs from the checkpoint"),
+    remedy: { argv: ["arc", "integrate", "checkpoint", "beta"] },
+  });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference }))).toEqual(meta);
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: beta.reference }))).toEqual(beta);
+  expect(await run(h.reference.store, h.reference.projectId, false)).toMatchObject({
+    workUnit: "example", state: "merged", nextAction: "complete", payload: { landingLink: { state: "written" } },
+  });
+}, 30_000);
+
+it("refuses a landed checkpoint whose recorded work-unit name was changed", async () => {
+  const { h, checkpoint, mergeCommit, meta, host, run, uid } = await landed(true);
+  const beta = await h.reference.seedMeta("beta", { branch: null }, { kind: "active" });
+  const file = join(h.native.cwd, ".arc", "user", "test-user", ".internal", "integration-checkpoints", uid,
+    `${checkpoint.slice(checkpoint.lastIndexOf(":") + 1)}.json`);
+  const original = await readFile(file, "utf8");
+  await writeFile(file, original.replace('"workUnit":"example"', '"workUnit":"beta"'));
+  await host(mergeCommit);
+  expect(await run(h.reference.store, h.reference.projectId, false, "beta")).toMatchObject({
+    workUnit: "beta", state: "blocked", reason: "operation-failed",
+    detail: expect.stringContaining("does not match its handle"),
+    remedy: { argv: ["arc", "integrate", "checkpoint", "beta"] },
+  });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference }))).toEqual(meta);
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: beta.reference }))).toEqual(beta);
+  await writeFile(file, original);
+  expect(await run()).toMatchObject({ workUnit: "example", state: "merged", nextAction: "complete",
+    payload: { landingLink: { state: "written" } } });
 }, 30_000);
 
 it.each(["missing", "project"] as const)("preserves the landed host result without a link for %s checkpoint ownership", async fault => {
@@ -148,14 +222,43 @@ it.each(["missing", "project"] as const)("preserves the landed host result witho
   expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference }))).toEqual(meta);
 }, 30_000);
 
+it("cleans up unbound checkpoint staging with the clone", async () => {
+  const root = await makeTempRoot("arc-checkpoint-cleanup-");
+  onTestFinished(() => removeGitBackedDir(root));
+  vi.stubEnv(process.platform === "win32" ? "TEMP" : "TMPDIR", root);
+  onTestFinished(() => { vi.unstubAllEnvs(); });
+
+  const { h } = await landed(false, false);
+  await h.cleanup();
+  expect(await readdir(root)).not.toContain("unbound-checkpoint");
+}, 30_000);
+
 it("retains the original UID after its work unit is renamed", async () => {
   const { h, projectId, mergeCommit, meta, host, run } = await landed(true);
   const reference = RecordReferenceSchema.parse({ ...meta.reference, owner: { ...meta.reference.owner, name: "renamed" } });
   lifecycleSuccess(await h.reference.store.write({ ...recordPut(meta, { content: meta.content.replaceAll("example", "renamed") }),
     reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
   await host(mergeCommit);
-  expect(await run(h.reference.store, h.reference.projectId, false)).toMatchObject({ state: "merged",
+  expect(await run(h.reference.store, h.reference.projectId, false, "renamed")).toMatchObject({
+    workUnit: "renamed", state: "merged", nextAction: "complete",
     payload: { landingLink: { state: "written" } } });
   expect(lifecycleSuccess(await h.reference.store.read({ reference })).links?.landingCommit)
     .toEqual({ repository: projectId, sha: mergeCommit });
+}, 30_000);
+
+it("replays a renamed completed work unit when a live work unit holds the same name", async () => {
+  const { h, projectId, mergeCommit, meta, host, run } = await landed(true);
+  const reference = RecordReferenceSchema.parse({ ...meta.reference, owner: { ...meta.reference.owner, name: "beta" } });
+  lifecycleSuccess(await h.reference.store.write({ ...recordPut(meta, { content: meta.content.replaceAll("example", "beta") }),
+    reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  const live = await h.reference.seedMeta("beta", { branch: null }, { kind: "active" });
+  expect(lifecycleSuccess(await h.reference.store.lookup({ kind: "slug", slug: SlugSchema.parse("beta") })).reference)
+    .toEqual(live.reference);
+  await host(mergeCommit);
+  expect(await run(h.reference.store, h.reference.projectId, false, "beta")).toMatchObject({
+    workUnit: "beta", state: "merged", nextAction: "complete", payload: { landingLink: { state: "written" } },
+  });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference })).links?.landingCommit)
+    .toEqual({ repository: projectId, sha: mergeCommit });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: live.reference }))).toEqual(live);
 }, 30_000);

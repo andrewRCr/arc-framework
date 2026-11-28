@@ -25,7 +25,7 @@ export async function validateStoreHuskEvidence(input: { store: Store; exec: Git
   let evidence: StoreRetirementEvidence;
   try {
     evidence = await readStoreRetirementEvidence(input.store,
-      recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: stamp.subject.name, uid: stamp.subject.uid })), input.baseOid);
+      recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: stamp.subject.name, uid: stamp.subject.uid })));
   } catch (error) {
     if (error instanceof NonTerminalRetirementError) return false;
     throw error;

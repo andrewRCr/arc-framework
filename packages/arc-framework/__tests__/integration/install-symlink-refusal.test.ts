@@ -2,8 +2,9 @@
  * Integration tests for installing through a symbolic link.
  *
  * `arc init` and `arc update` run against real temporary repositories whose `.arc/`, or a directory under it, links to
- * a directory outside the repository. Each refuses before its first write, leaves the link's target as it was, and runs
- * once the link is replaced with a regular directory.
+ * a directory outside the repository. Each refuses before its first write through the link, leaves the link's target as
+ * it was, and runs once the link is replaced with a regular directory; `init` over the ref store seeds personal records
+ * in the store, writing nothing in the personal directory.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -30,6 +31,11 @@ import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../help
 import { runInit } from "../../src/commands/init.js";
 import { runUpdate } from "../../src/commands/update.js";
 import { UserFacingError } from "../../src/lib/errors.js";
+import type { Store } from "../../src/lib/store/contract.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/index.js";
+import { openPersonalIdentityStore } from "../../src/lib/personal-identity-setup.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 describe("init integration — a linked .arc/", () => {
   let tempDir: string;
@@ -45,7 +51,7 @@ describe("init integration — a linked .arc/", () => {
     await rm(outside, { recursive: true, force: true });
   });
 
-  const init = async () => runInit({
+  const init = async (store?: Store) => runInit({
     cwd: tempDir,
     io: makeIOContext(tempDir),
     templateDir: getArcTemplatePath(),
@@ -53,6 +59,7 @@ describe("init integration — a linked .arc/", () => {
     recipe: await loadRecipe(),
     prompts: { ...DEFAULT_PROMPTS, project_name: "Linked Install Project" },
     identityResult: "test-user",
+    ...(store === undefined ? {} : { store }),
   });
 
   it("refuses before writing through the link, and installs once .arc/ is a directory", async () => {
@@ -72,12 +79,27 @@ describe("init integration — a linked .arc/", () => {
     expect(await readdir(outside)).toEqual([]);
   });
 
-  it("refuses a linked personal directory before seeding through it, and seeds once it is a directory", async () => {
+  it("seeds personal records in the store over a linked personal directory, writing nothing through it", async () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
     await mkdir(dirname(userDir), { recursive: true });
     await symlink(outside, userDir, "junction");
 
-    const refusal = await init().catch((err: unknown) => err);
+    expect(await init()).not.toBeNull();
+
+    expect(await readdir(outside)).toEqual([]);
+    const owner = OwnerIdentitySchema.parse({ type: "person", name: "test-user" });
+    const store = openPersonalIdentityStore(tempDir, makeIOContext(tempDir).exec, "test-user");
+    expect(await store.read({ reference: recordReferences["personal/working-memory"](owner) })).toMatchObject({ status: "ok" });
+  });
+
+  it("refuses a linked personal directory on the in-repo implementation before seeding through it, and seeds once it is a "
+    + "directory", async () => {
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    await mkdir(dirname(userDir), { recursive: true });
+    await symlink(outside, userDir, "junction");
+    const store = () => inRepoStore(createDefaultStorePorts({ checkoutRoot: tempDir }));
+
+    const refusal = await init(store()).catch((err: unknown) => err);
 
     expect(refusal).toBeInstanceOf(UserFacingError);
     expect(refusal).toMatchObject({ code: "manifest.install-path-symlinked" });
@@ -85,7 +107,7 @@ describe("init integration — a linked .arc/", () => {
     expect(await readdir(outside)).toEqual([]);
 
     await unlink(userDir);
-    expect(await init()).not.toBeNull();
+    expect(await init(store())).not.toBeNull();
 
     expect(await fileExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
     expect(await readdir(outside)).toEqual([]);

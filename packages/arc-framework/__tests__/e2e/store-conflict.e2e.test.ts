@@ -24,6 +24,20 @@ async function fixture(layout: "default" | "separate") {
   return { cwd, captured, gitArgs, argv: captured.notice.remedy.argv.slice(1) };
 }
 
+it("discards a retained alternative using the quick reference's discard invocation", async () => {
+  const { cwd, captured } = await fixture("default");
+  const guide = await readFile(join(import.meta.dirname, "../../arc/reference/QUICK-REFERENCE.template.md"), "utf8");
+  const examples = guide.split("\n").filter((line) => line.startsWith("arc store conflict "));
+  const example = examples.find((line) => line.includes("--discard")) ?? examples[0];
+  if (!example) throw new Error("Missing store conflict invocation in the quick reference");
+  const argv = example.replace("<uid>", captured.reference.owner.uid).replace("<kind>", captured.reference.kind)
+    .replace("<id>", captured.reference.key).replace(/\[(--[\w-]+)\]/gu, "$1").split(/\s+/u).slice(1);
+
+  const result = await runArcNoTty([...argv, "--json"], cwd);
+  expect(result.exitCode, JSON.stringify(result)).toBe(0);
+  expect(JSON.parse(result.stdout).result.status).toBe("discarded");
+}, 60_000);
+
 it.each(["default", "separate"] as const)("executes the exact inspection and explicit discard remedy in the %s layout", async (layout) => {
   const { cwd, captured, gitArgs, argv } = await fixture(layout);
   const registry = await git(cwd, [...gitArgs, "rev-parse", "refs/arc/project/registry"]);
@@ -56,13 +70,13 @@ it.each(["default", "separate"] as const)("executes the exact inspection and exp
   expect(await git(cwd, [...gitArgs, "ls-tree", "-r", "--name-only", captured.history])).not.toContain(`conflicts/${captured.reference.key}.json`);
 }, 60_000);
 
-it("rejects non-work-item conflict kinds and keeps the namespace hidden from ordinary help", async () => {
+it("rejects non-work-item conflict kinds and lists the namespace in ordinary help", async () => {
   const { cwd, captured } = await fixture("default");
   const invalid = await runArcNoTty(["store", "conflict", captured.reference.owner.uid, "personal/conflict-record", "id", "--json"], cwd);
   expect(invalid.exitCode).toBe(1);
   expect(invalid.stdout, JSON.stringify(invalid)).toContain('"unsupported"');
   expect(JSON.parse(invalid.stdout)).toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
-  expect((await runArcNoTty(["--help"], cwd)).stdout).not.toMatch(/^\s+store(?:\s|$)/mu);
+  expect((await runArcNoTty(["--help"], cwd)).stdout).toMatch(/^\s+store(?:\s|$)/mu);
   expect((await runArcNoTty(["store", "--help"], cwd)).stdout).toContain("conflict");
   expect((await runArcNoTty(["store", "conflict", "--help"], cwd)).stdout).toContain("--discard");
 }, 60_000);

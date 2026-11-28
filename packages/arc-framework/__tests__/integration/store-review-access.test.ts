@@ -11,6 +11,7 @@ import { CandidateRecordVersionConflictError, SubmissionBoundaryVersionConflictE
 import { parseIntegrationBoundaryLocus } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { trackedWriteFixture, candidateFixture, boundaryFixture } from "../helpers/store/tracked-write-fixture.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 async function fixture() {
   const h = await trackedWriteFixture();
@@ -22,6 +23,8 @@ async function fixture() {
 }
 
 it.each(["supplied", "opened"])("round-trips Candidate bytes through the %s repository store", async (mode) => {
+  // The opened store is the default one, which reads the committed owner only as the in-repo implementation.
+  if (mode === "opened") useInRepoStore();
   const h = await fixture();
   const cwd = mode === "supplied" ? join(h.root, "unavailable") : h.root;
   const options = mode === "supplied" ? { store: h.store } : { exec: h.exec };
@@ -40,6 +43,8 @@ it.each(["supplied", "opened"])("round-trips Candidate bytes through the %s repo
 });
 
 it.each(["supplied", "opened"])("round-trips boundary bytes through the %s repository store", async (mode) => {
+  // The opened store is the default one, which reads the committed owner only as the in-repo implementation.
+  if (mode === "opened") useInRepoStore();
   const h = await fixture();
   const cwd = mode === "supplied" ? join(h.root, "unavailable") : h.root;
   const options = mode === "supplied" ? { store: h.store } : { exec: h.exec };
@@ -58,6 +63,7 @@ it.each(["supplied", "opened"])("round-trips boundary bytes through the %s repos
 
 it.each(["supplied", "opened"])("reports files keyed to another work unit as the file readers do, through the %s repository store",
   async (mode) => {
+    if (mode === "opened") useInRepoStore();
     const h = await fixture();
     const options = mode === "supplied" ? { store: h.store } : { exec: h.exec };
     const candidatePath = ".arc/system/.internal/candidates/example.json";
